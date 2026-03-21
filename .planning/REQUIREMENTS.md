@@ -167,49 +167,49 @@ All 65 v1.0 requirements completed across Phases 1-8. See MILESTONES.md.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | TBD | Pending |
-| INFRA-02 | TBD | Pending |
-| INFRA-03 | TBD | Pending |
-| INFRA-04 | TBD | Pending |
-| MWDG-01 | TBD | Pending |
-| MWDG-02 | TBD | Pending |
-| MWDG-03 | TBD | Pending |
-| MWDG-04 | TBD | Pending |
-| MWDG-05 | TBD | Pending |
-| MWDG-06 | TBD | Pending |
-| MWDG-07 | TBD | Pending |
-| MWDG-08 | TBD | Pending |
-| MWDG-09 | TBD | Pending |
-| FRMW-12 | TBD | Pending |
-| FRMW-13 | TBD | Pending |
-| FRMW-14 | TBD | Pending |
-| FRMW-15 | TBD | Pending |
-| FRMW-16 | TBD | Pending |
-| TEXT-01 | TBD | Pending |
-| TEXT-02 | TBD | Pending |
-| TEXT-03 | TBD | Pending |
-| TEXT-04 | TBD | Pending |
-| TEXT-05 | TBD | Pending |
-| ROBJ-01 | TBD | Pending |
-| ROBJ-02 | TBD | Pending |
-| ROBJ-03 | TBD | Pending |
-| ROBJ-04 | TBD | Pending |
-| ROBJ-05 | TBD | Pending |
-| ROBJ-06 | TBD | Pending |
-| ROBJ-07 | TBD | Pending |
-| MOUS-01 | TBD | Pending |
-| MOUS-02 | TBD | Pending |
-| MOUS-03 | TBD | Pending |
-| MOUS-04 | TBD | Pending |
-| SCRL-01 | TBD | Pending |
-| SCRL-02 | TBD | Pending |
-| SCRL-03 | TBD | Pending |
-| DBUG-01 | TBD | Pending |
+| INFRA-01 | Phase 10 | Pending |
+| INFRA-02 | Phase 10 | Pending |
+| INFRA-03 | Phase 10 | Pending |
+| INFRA-04 | Phase 10 | Pending |
+| MWDG-01 | Phase 12 | Pending |
+| MWDG-02 | Phase 12 | Pending |
+| MWDG-03 | Phase 13 | Pending |
+| MWDG-04 | Phase 13 | Pending |
+| MWDG-05 | Phase 13 | Pending |
+| MWDG-06 | Phase 12 | Pending |
+| MWDG-07 | Phase 12 | Pending |
+| MWDG-08 | Phase 13 | Pending |
+| MWDG-09 | Phase 13 | Pending |
+| FRMW-12 | Phase 10 | Pending |
+| FRMW-13 | Phase 10 | Pending |
+| FRMW-14 | Phase 10 | Pending |
+| FRMW-15 | Phase 10 | Pending |
+| FRMW-16 | Phase 10 | Pending |
+| TEXT-01 | Phase 9 | Pending |
+| TEXT-02 | Phase 9 | Pending |
+| TEXT-03 | Phase 9 | Pending |
+| TEXT-04 | Phase 9 | Pending |
+| TEXT-05 | Phase 9 | Pending |
+| ROBJ-01 | Phase 14 | Pending |
+| ROBJ-02 | Phase 14 | Pending |
+| ROBJ-03 | Phase 14 | Pending |
+| ROBJ-04 | Phase 14 | Pending |
+| ROBJ-05 | Phase 9 | Pending |
+| ROBJ-06 | Phase 9 | Pending |
+| ROBJ-07 | Phase 9 | Pending |
+| MOUS-01 | Phase 11 | Pending |
+| MOUS-02 | Phase 11 | Pending |
+| MOUS-03 | Phase 11 | Pending |
+| MOUS-04 | Phase 11 | Pending |
+| SCRL-01 | Phase 11 | Pending |
+| SCRL-02 | Phase 11 | Pending |
+| SCRL-03 | Phase 11 | Pending |
+| DBUG-01 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 38 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 38
+- Mapped to phases: 38
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-21 (v1.0)*

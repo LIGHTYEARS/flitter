@@ -4,11 +4,12 @@
 
 Build a complete Flutter-for-Terminal framework in TypeScript/Bun, progressing from core type primitives through terminal abstraction, three-tree widget framework, layout engine, frame scheduling, input handling, high-level widgets, and finally diagnostics with example applications. Each phase builds on the previous, with parallel development opportunities across phases.
 
-**Last review:** 2026-03-21 — 4-agent parallel verification. Fixed dependencies, split plans, added integration plans. Plan count: 21 → 25.
+**Last review:** 2026-03-22 — v1.1 milestone roadmap added. 7 new phases (9-15), 38 requirements.
 
 ## Milestones
 
-- 📋 **v1.0 MVP** — Phases 1-8 (planned)
+- ✓ **v1.0 MVP** — Phases 1-8 (complete, shipped 2026-03-21)
+- 📋 **v1.1 Amp CLI Feature Parity** — Phases 9-15 (planned)
 
 ## Phases
 
@@ -20,6 +21,16 @@ Build a complete Flutter-for-Terminal framework in TypeScript/Bun, progressing f
 - [x] **Phase 6: Input System** — Keyboard/mouse events, input parser state machine, focus management, event dispatch
 - [x] **Phase 7: High-Level Widgets** — Text, Container, Flex, ScrollView, ListView, TextField, Button, Table
 - [x] **Phase 8: Diagnostics & Examples** — Performance overlay, frame stats, debug flags, 28 example applications
+
+### v1.1 Phases
+
+- [ ] **Phase 9: Text & Render Foundations** — TextStyle/TextSpan API enhancements, ClipCanvas, RenderFlex intrinsic sizes
+- [ ] **Phase 10: Infrastructure Layer** — MediaQuery, Theme, HoverContext InheritedWidgets, WidgetsBinding enhancements, async runApp
+- [ ] **Phase 11: Mouse & Scroll Systems** — MouseTracker/MouseManager, SystemMouseCursors, MouseRegion events, ScrollController animation/followMode
+- [ ] **Phase 12: Core Missing Widgets** — FocusScope/KeyboardListener, ClipRect, IntrinsicHeight, Scrollbar
+- [ ] **Phase 13: Advanced Widgets** — DiffView, Dialog/SelectionList, Markdown, ContainerWithOverlays
+- [ ] **Phase 14: RenderText Advanced** — Text selection/highlight, character position tracking, hyperlink click, emoji width
+- [ ] **Phase 15: Debug Inspector** — HTTP server on port 9876, widget tree JSON endpoints
 
 ## Dependency DAG
 
@@ -189,20 +200,153 @@ Plans:
 - [ ] 08-02: Basic examples — hello-world, counter, flex-layout, scroll-demo
 - [ ] 08-03: Advanced examples — table-demo, input-form, todo-app, perf-stress
 
-## Parallel Wave Strategy
+---
 
-Optimized wave structure based on dependency DAG. Wall-clock critical path = 6 waves.
+## v1.1 Phase Details
+
+### Phase 9: Text & Render Foundations
+**Goal**: Enhance core TextStyle/TextSpan APIs and add missing RenderObject capabilities that downstream widgets depend on
+**Depends on**: v1.0 complete
+**Requirements**: TEXT-01, TEXT-02, TEXT-03, TEXT-04, TEXT-05, ROBJ-05, ROBJ-06, ROBJ-07
+**Success Criteria** (what must be TRUE):
+  1. TextStyle.copyWith() creates new instance with only specified fields overridden
+  2. TextStyle static factories (normal, bold, italic, underline, colored, background) produce correct SGR output
+  3. TextSpan with hyperlink property generates OSC 8 escape sequences in Cell/Renderer
+  4. TextSpan.onClick triggers callback when span is clicked
+  5. TextSpan.equals() correctly compares deep tree structures
+  6. RenderFlex.getMinIntrinsicWidth/Height and getMaxIntrinsicWidth/Height return correct values
+  7. ClipCanvas clips paint operations to specified bounds
+**Plans**: 3 plans
+
+Plans:
+- [ ] 09-01: TextStyle enhancements — copyWith(), static factories (normal/bold/italic/underline/colored/background)
+- [ ] 09-02: TextSpan enhancements — hyperlink property, onClick callback, equals() deep comparison
+- [ ] 09-03: RenderObject foundations — RenderFlex intrinsic sizes, CrossAxisAlignment.baseline, ClipCanvas paint wrapper
+
+### Phase 10: Infrastructure Layer
+**Goal**: Add MediaQuery, Theme, and HoverContext InheritedWidgets; enhance WidgetsBinding with mouse/event systems and async runApp
+**Depends on**: Phase 9
+**Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, FRMW-12, FRMW-13, FRMW-14, FRMW-15, FRMW-16
+**Success Criteria** (what must be TRUE):
+  1. MediaQuery.of(context) returns screen size and terminal capabilities
+  2. MediaQuery wraps root widget automatically in runApp
+  3. Theme.of(context) returns color scheme used by widgets
+  4. HoverContext propagates hover state to descendants
+  5. WidgetsBinding exposes mouseManager, eventCallbacks, keyInterceptors
+  6. runApp is async, waits for capability detection, wraps root in MediaQuery
+  7. BuildContext.mediaQuery provides fast access to MediaQueryData
+**Plans**: 3 plans
+
+Plans:
+- [ ] 10-01: MediaQuery + MediaQueryData — InheritedWidget with size and capabilities, static of/sizeOf/capabilitiesOf methods
+- [ ] 10-02: Theme + HoverContext — Theme InheritedWidget with color scheme, HoverContext for hover state propagation
+- [ ] 10-03: WidgetsBinding enhancements — mouseManager, eventCallbacks, keyInterceptors, async runApp with MediaQuery wrapping, BuildContext.mediaQuery
+
+### Phase 11: Mouse & Scroll Systems
+**Goal**: Implement global mouse tracking/cursor management and enhance ScrollController with animation and follow mode
+**Depends on**: Phase 10 (for WidgetsBinding.mouseManager)
+**Requirements**: MOUS-01, MOUS-02, MOUS-03, MOUS-04, SCRL-01, SCRL-02, SCRL-03
+**Success Criteria** (what must be TRUE):
+  1. MouseManager singleton tracks mouse position and manages cursor shape globally
+  2. SystemMouseCursors outputs correct ANSI escape sequences for cursor changes
+  3. MouseRegion.onRelease and onDrag events fire correctly
+  4. ScrollController.animateTo() smoothly scrolls to target offset
+  5. ScrollController.followMode auto-scrolls to bottom on content growth
+  6. ScrollController.atBottom correctly reports scroll position
+**Plans**: 2 plans
+
+Plans:
+- [ ] 11-01: MouseTracker/MouseManager — singleton, cursor shape management, SystemMouseCursors constants, hover coordination; MouseRegion onRelease/onDrag events
+- [ ] 11-02: ScrollController enhancements — animateTo with timer-based animation, followMode with disableFollowMode(), atBottom getter
+
+### Phase 12: Core Missing Widgets
+**Goal**: Implement essential missing widgets that Amp uses extensively
+**Depends on**: Phase 10 (FocusScope needs WidgetsBinding), Phase 11 (Scrollbar needs MouseManager)
+**Requirements**: MWDG-01, MWDG-02, MWDG-06, MWDG-07
+**Success Criteria** (what must be TRUE):
+  1. FocusScope/KeyboardListener wraps FocusNode as a widget with autofocus, onKey, onPaste, onFocusChange
+  2. Scrollbar renders thumb/track with configurable characters and colors, synced to ScrollController
+  3. ClipRect clips child rendering to parent bounds
+  4. IntrinsicHeight queries child's max intrinsic height and applies tight constraint
+**Plans**: 2 plans
+
+Plans:
+- [ ] 12-01: FocusScope/KeyboardListener + ClipRect — FocusScope widget (autofocus, onKey, onPaste, onFocusChange), ClipRect with RenderClipRect
+- [ ] 12-02: Scrollbar + IntrinsicHeight — Scrollbar StatefulWidget (thumb/track/colors), IntrinsicHeight with RenderIntrinsicHeight
+
+### Phase 13: Advanced Widgets
+**Goal**: Build the remaining complex widgets from Amp's catalog
+**Depends on**: Phase 10 (DiffView needs Theme), Phase 12
+**Requirements**: MWDG-03, MWDG-04, MWDG-05, MWDG-08, MWDG-09
+**Success Criteria** (what must be TRUE):
+  1. DiffView parses unified diff and renders with +/- coloring and line numbers using Theme colors
+  2. Dialog data class holds title, type, widget, footerStyle, dimensions
+  3. SelectionList supports keyboard navigation (arrows/j/k/Tab/Enter/Escape) and mouse click
+  4. Markdown widget renders headings, code blocks, and links (OSC 8 hyperlinks)
+  5. ContainerWithOverlays positions overlays at edges/corners using Stack+Positioned
+**Plans**: 3 plans
+
+Plans:
+- [ ] 13-01: Dialog + SelectionList — Dialog data class, SelectionList with keyboard/mouse interaction
+- [ ] 13-02: DiffView + Markdown — DiffView unified diff renderer, Markdown parser and styled Text tree builder
+- [ ] 13-03: ContainerWithOverlays — Container subclass with edge/corner overlay positioning
+
+### Phase 14: RenderText Advanced
+**Goal**: Add text selection, character position tracking, hyperlink click handling, and emoji width detection to RenderText
+**Depends on**: Phase 10 (needs MediaQuery for emoji detection, Theme for selection colors)
+**Requirements**: ROBJ-01, ROBJ-02, ROBJ-03, ROBJ-04
+**Success Criteria** (what must be TRUE):
+  1. RenderText supports selectable flag with selectedRanges and visual highlight
+  2. Character position cache enables getCharacterRect(index) and getOffsetForPosition(x,y)
+  3. RenderText.handleMouseEvent() detects hyperlink hover and triggers cursor change
+  4. getHyperlinkAtPosition() and getOnClickAtPosition() return correct values
+  5. Emoji width detection reads _emojiWidthSupported from MediaQuery capabilities
+**Plans**: 2 plans
+
+Plans:
+- [ ] 14-01: Text selection + position tracking — selectable, selectedRanges, highlightMode, _characterPositions[], _visualLines[], getCharacterRect, getOffsetForPosition
+- [ ] 14-02: Text interaction — handleMouseEvent(), getHyperlinkAtPosition(), getOnClickAtPosition(), emoji width detection from MediaQuery
+
+### Phase 15: Debug Inspector
+**Goal**: HTTP-based widget tree inspector for debugging
+**Depends on**: Phase 14 (all widgets complete)
+**Requirements**: DBUG-01
+**Success Criteria** (what must be TRUE):
+  1. HTTP server starts on port 9876 when debug mode is enabled
+  2. /tree endpoint returns full widget tree as JSON
+  3. /inspect endpoint returns detailed info for a specific element
+  4. /select endpoint highlights a widget in the rendered output
+**Plans**: 1 plan
+
+Plans:
+- [ ] 15-01: Debug Inspector — HTTP server with /tree, /inspect, /select endpoints, JSON serialization of widget/element/render trees
+
+## v1.1 Parallel Wave Strategy
 
 | Wave | Phase(s) | Plans | Notes |
 |------|----------|-------|-------|
-| W1 | Phase 1 | 01-01, 01-02, 01-03 | Foundation. All 3 plans can run in parallel. |
-| W2 | Phase 2 + Phase 3 | 02-01/02/03 + 03-01/02a/02b/03 | Phase 2 and Phase 3 both depend only on Phase 1. Run in parallel. **Phase 3 is critical path — prioritize.** |
-| W3 | Phase 4 + Phase 6-01 | 04-01/02 + 06-01 | Phase 4 depends Phase 3. 06-01 (parser) depends Phase 2 only. |
-| W4 | Phase 5 + Phase 6-02/03 | 05-01/02/03 + 06-02/03 | Phase 5 depends 2+3+4. 06-02/03 depend Phase 3. |
-| W5 | Phase 7 | 07-01a/01b/02/03 | Depends 4+5+6. 07-01a and 07-01b can run in parallel. |
-| W6 | Phase 8 | 08-01/02/03 | Depends Phase 7. 08-01 can run parallel with 08-02/03. |
+| W7 | Phase 9 | 09-01, 09-02, 09-03 | All 3 can run in parallel (independent areas) |
+| W8 | Phase 10 | 10-01, 10-02, 10-03 | 10-01 and 10-02 parallel; 10-03 depends on both |
+| W9 | Phase 11 + Phase 12 | 11-01/02 + 12-01/02 | Phase 11 and Phase 12 can run in parallel |
+| W10 | Phase 13 + Phase 14 | 13-01/02/03 + 14-01/02 | Both depend on 10/12; can run in parallel |
+| W11 | Phase 15 | 15-01 | Final phase, depends on everything |
+
+## v1.1 Dependency DAG
+
+```
+Phase 9 (Text & Render Foundations)
+  └──→ Phase 10 (Infrastructure Layer)
+         ├──→ Phase 11 (Mouse & Scroll)
+         │      └──→ Phase 12 (Core Widgets) ←── Phase 10
+         ├──→ Phase 13 (Advanced Widgets) ←── Phase 12
+         └──→ Phase 14 (RenderText Advanced)
+
+Phase 12 + Phase 13 + Phase 14 ──→ Phase 15 (Debug Inspector)
+```
 
 ## Progress
+
+### v1.0 MVP (Complete)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -215,7 +359,20 @@ Optimized wave structure based on dependency DAG. Wall-clock critical path = 6 w
 | 7. High-Level Widgets | 4/4 | Complete | 2026-03-21 |
 | 8. Diagnostics & Examples | 3/3 | Complete | 2026-03-21 |
 
-**Total plans: 25/25 complete** — v1.0 MVP shipped
+### v1.1 Amp CLI Feature Parity
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 9. Text & Render Foundations | 0/3 | Not started | - |
+| 10. Infrastructure Layer | 0/3 | Not started | - |
+| 11. Mouse & Scroll Systems | 0/2 | Not started | - |
+| 12. Core Missing Widgets | 0/2 | Not started | - |
+| 13. Advanced Widgets | 0/3 | Not started | - |
+| 14. RenderText Advanced | 0/2 | Not started | - |
+| 15. Debug Inspector | 0/1 | Not started | - |
+
+**v1.0 total: 25/25 complete**
+**v1.1 total: 16 plans** | **38 requirements** | **5 waves (W7-W11)**
 
 ---
 

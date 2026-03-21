@@ -266,6 +266,12 @@ export class StatelessElement extends Element {
     }
     const newWidget = this.statelessWidget.build(this._context);
 
+    // Self-referential build: widget.build() returned itself.
+    // This is a leaf StatelessWidget pattern — no child to inflate.
+    if (newWidget === this.widget) {
+      return;
+    }
+
     if (this._child) {
       if (this._child.widget === newWidget) return; // identity shortcut
       if (this._child.widget.canUpdate(newWidget)) {

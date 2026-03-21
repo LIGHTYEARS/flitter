@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-03-21)
 
 **Core value:** Flutter-faithful TUI framework with declarative widgets, box-constraint layout, and 60fps cell-level diff rendering
-**Current focus:** Phase 1: Core Primitives
+**Current focus:** Phase 8: Examples & Integration
 
 ## Current Position
 
-Phase: 1 of 8 (Core Primitives)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-21 — Project initialized with GSD planning documents
+Phase: 8 of 8 (Examples & Integration)
+Plan: 2 of 3 in current phase
+Status: Plan 08-02 complete
+Last activity: 2026-03-21 — Completed basic example applications
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1 (this session)
+- Average duration: ~5m
+- Total execution time: ~5m
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 8 | 1 | ~5m | ~5m |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 08-02
+- Trend: Fast (examples are lightweight)
 
 *Updated after each plan completion*
 
@@ -44,9 +44,12 @@ Recent decisions affecting current work:
 
 - [Init]: Integer coordinates everywhere (terminal cells are discrete)
 - [Init]: Immutable Widget, mutable Element/RenderObject (Flutter-faithful)
-- [Init]: Synchronous frame pipeline (BUILD→LAYOUT→PAINT→RENDER)
+- [Init]: Synchronous frame pipeline (BUILD->LAYOUT->PAINT->RENDER)
 - [Init]: Cell-level diff for minimal ANSI output
 - [Init]: Zero runtime dependencies
+- [08-02]: Used FocusNode directly in counter (FocusScope widget not yet available)
+- [08-02]: BUN_TEST env guard pattern for testable example apps
+- [08-02]: Factory functions for testable widget tree construction
 
 ### Pending Todos
 
@@ -59,5 +62,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-21
-Stopped at: GSD planning documents created, ready to begin Phase 1
+Stopped at: Completed 08-02-PLAN.md (basic example applications)
 Resume file: None

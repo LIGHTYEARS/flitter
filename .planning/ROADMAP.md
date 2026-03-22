@@ -26,8 +26,8 @@ Build a complete Flutter-for-Terminal framework in TypeScript/Bun, progressing f
 
 - [x] **Phase 9: Text & Render Foundations** — TextStyle/TextSpan API enhancements, ClipCanvas, RenderFlex intrinsic sizes
 - [x] **Phase 10: Infrastructure Layer** — MediaQuery, Theme, HoverContext InheritedWidgets, WidgetsBinding enhancements, async runApp
-- [ ] **Phase 11: Mouse & Scroll Systems** — MouseTracker/MouseManager, SystemMouseCursors, MouseRegion events, ScrollController animation/followMode
-- [ ] **Phase 12: Core Missing Widgets** — FocusScope/KeyboardListener, ClipRect, IntrinsicHeight, Scrollbar
+- [x] **Phase 11: Mouse & Scroll Systems** — MouseTracker/MouseManager, SystemMouseCursors, MouseRegion events, ScrollController animation/followMode
+- [x] **Phase 12: Core Missing Widgets** — FocusScope/KeyboardListener, ClipRect, IntrinsicHeight, Scrollbar
 - [ ] **Phase 13: Advanced Widgets** — DiffView, Dialog/SelectionList, Markdown, ContainerWithOverlays
 - [ ] **Phase 14: RenderText Advanced** — Text selection/highlight, character position tracking, hyperlink click, emoji width
 - [ ] **Phase 15: Debug Inspector** — HTTP server on port 9876, widget tree JSON endpoints
@@ -365,8 +365,8 @@ Phase 12 + Phase 13 + Phase 14 ──→ Phase 15 (Debug Inspector)
 |-------|----------------|--------|-----------|
 | 9. Text & Render Foundations | 3/3 | Complete | 2026-03-22 |
 | 10. Infrastructure Layer | 3/3 | Complete | 2026-03-22 |
-| 11. Mouse & Scroll Systems | 0/2 | Not started | - |
-| 12. Core Missing Widgets | 0/2 | Not started | - |
+| 11. Mouse & Scroll Systems | 2/2 | Complete | 2026-03-22 |
+| 12. Core Missing Widgets | 2/2 | Complete | 2026-03-22 |
 | 13. Advanced Widgets | 0/3 | Not started | - |
 | 14. RenderText Advanced | 0/2 | Not started | - |
 | 15. Debug Inspector | 0/1 | Not started | - |

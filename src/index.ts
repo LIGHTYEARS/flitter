@@ -53,3 +53,6 @@ export { encodeKittyGraphics, buildKittyGraphicsPayload, uint8ArrayToBase64, spl
 // Phase 15: Debug Inspector
 export { DebugInspector, serializeElementTree, serializeFocusTree, findElementById, buildRenderObjectToElementMap, resetStableIds } from './diagnostics/debug-inspector';
 export type { ElementNodeJson, RenderObjectJson, FocusNodeJson, KeystrokeEntry } from './diagnostics/debug-inspector';
+
+// Phase 22: Minor Fidelity Fixes
+export { estimateIntrinsicWidth } from './layout/layout-helpers';

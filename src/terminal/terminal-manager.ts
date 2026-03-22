@@ -41,6 +41,17 @@ export class TerminalManager {
     bytesWritten: 0,
   };
 
+  // --- MINR-01: JetBrains terminal wheel filter ---
+  // Amp ref: wB0 — JetBrains IDEs send rapid repeated scroll events;
+  // debounce them to prevent jitter.
+  jetBrainsWheelFilter: boolean;
+  private _lastWheelTimestamp: number = 0;
+  private static readonly WHEEL_DEBOUNCE_MS = 50;
+
+  // --- MINR-05: Configurable scroll step ---
+  // Amp ref: wB0.scrollStep — lines per scroll wheel event
+  private _scrollStep: number = 3;
+
   // Event callbacks
   onInput?: (data: Buffer) => void;
   onResize?: (width: number, height: number) => void;
@@ -56,6 +67,9 @@ export class TerminalManager {
     this.renderer = new Renderer();
     this._capabilities = detectCapabilities();
     this.renderer.setCapabilities(this._capabilities);
+
+    // MINR-01: Auto-detect JetBrains terminal
+    this.jetBrainsWheelFilter = TerminalManager._detectJetBrains();
   }
 
   /**
@@ -296,5 +310,71 @@ export class TerminalManager {
     this.platform.writeStdout(resumeSequence);
     this.screenBuffer.markForRefresh();
     this._suspended = false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // MINR-01: JetBrains terminal wheel filter
+  // Amp ref: wB0 — JetBrains IDEs send rapid repeated scroll events
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Detect whether we're running inside a JetBrains terminal.
+   * Checks TERMINAL_EMULATOR and TERM_PROGRAM environment variables.
+   */
+  private static _detectJetBrains(): boolean {
+    const env = typeof process !== 'undefined' ? process.env : {};
+    if (env.TERMINAL_EMULATOR?.includes('JetBrains')) return true;
+    if (env.TERM_PROGRAM === 'JetBrains-JediTerm') return true;
+    return false;
+  }
+
+  /**
+   * Filter a wheel event. Returns true if the event should be processed,
+   * false if it should be discarded (filtered out).
+   *
+   * When jetBrainsWheelFilter is enabled, rapid successive scroll events
+   * (within 50ms of each other) are debounced: only the first event in
+   * a burst is kept.
+   *
+   * @param _buttonCode The mouse button code for the scroll event (unused in current impl)
+   * @returns true if the event should be processed, false if filtered
+   */
+  filterWheelEvent(_buttonCode: number): boolean {
+    if (!this.jetBrainsWheelFilter) {
+      return true; // filter disabled, pass all events
+    }
+
+    const now = Date.now();
+    const elapsed = now - this._lastWheelTimestamp;
+
+    if (elapsed < TerminalManager.WHEEL_DEBOUNCE_MS) {
+      return false; // too rapid, filter out
+    }
+
+    this._lastWheelTimestamp = now;
+    return true; // first event in burst, allow
+  }
+
+  // ---------------------------------------------------------------------------
+  // MINR-05: Configurable scroll step
+  // Amp ref: wB0.scrollStep — lines per scroll wheel event
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the number of lines to scroll per wheel event.
+   * Default: 3 lines.
+   */
+  get scrollStep(): number {
+    return this._scrollStep;
+  }
+
+  /**
+   * Set the number of lines to scroll per wheel event.
+   * Clamped to the range [1, 20].
+   *
+   * @param lines Number of lines per scroll step
+   */
+  setScrollStep(lines: number): void {
+    this._scrollStep = Math.max(1, Math.min(20, Math.round(lines)));
   }
 }

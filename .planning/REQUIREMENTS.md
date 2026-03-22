@@ -74,7 +74,7 @@ Requirements for Amp CLI feature parity. Each maps to roadmap phases 9+.
 - [ ] **MWDG-06**: ClipRect SingleChildRenderObjectWidget — clips child painting to parent bounds (Amp: nv)
 - [x] **MWDG-07**: IntrinsicHeight SingleChildRenderObjectWidget with RenderIntrinsicHeight — queries child getMaxIntrinsicHeight and applies tight constraint (Amp: hJ/vU0)
 - [ ] **MWDG-08**: Markdown StatelessWidget — parses markdown text, renders as styled Text tree (headings, code, links via OSC 8) (Amp: _g)
-- [ ] **MWDG-09**: ContainerWithOverlays — extends Container with edge/corner overlay positioning using Stack+Positioned internally (Amp: bt)
+- [x] **MWDG-09**: ContainerWithOverlays — extends Container with edge/corner overlay positioning using Stack+Positioned internally (Amp: bt)
 
 ### Framework Enhancements (FRMW)
 
@@ -179,7 +179,7 @@ All 65 v1.0 requirements completed across Phases 1-8. See MILESTONES.md.
 | MWDG-06 | Phase 12 | Pending |
 | MWDG-07 | Phase 12 | Complete |
 | MWDG-08 | Phase 13 | Pending |
-| MWDG-09 | Phase 13 | Pending |
+| MWDG-09 | Phase 13 | Complete |
 | FRMW-12 | Phase 10 | Pending |
 | FRMW-13 | Phase 10 | Pending |
 | FRMW-14 | Phase 10 | Pending |

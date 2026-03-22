@@ -88,9 +88,9 @@ Requirements for Amp CLI feature parity. Each maps to roadmap phases 9+.
 
 - [ ] **TEXT-01**: TextStyle.copyWith() for partial-override new instance creation (Amp: m0.copyWith)
 - [ ] **TEXT-02**: TextStyle static factories — normal(color), bold(color), italic(color), underline(color), colored(color), background(color) (Amp: m0 static methods)
-- [ ] **TEXT-03**: TextSpan.hyperlink property — { uri: string, id?: string } for OSC 8 terminal hyperlinks (Amp: TextSpan hyperlink)
-- [ ] **TEXT-04**: TextSpan.onClick callback property for click handling (Amp: TextSpan onClick)
-- [ ] **TEXT-05**: TextSpan.equals() deep structural comparison (Amp: TextSpan equality)
+- [x] **TEXT-03**: TextSpan.hyperlink property — { uri: string, id?: string } for OSC 8 terminal hyperlinks (Amp: TextSpan hyperlink)
+- [x] **TEXT-04**: TextSpan.onClick callback property for click handling (Amp: TextSpan onClick)
+- [x] **TEXT-05**: TextSpan.equals() deep structural comparison (Amp: TextSpan equality)
 
 ### RenderObject Enhancements (ROBJ)
 
@@ -187,9 +187,9 @@ All 65 v1.0 requirements completed across Phases 1-8. See MILESTONES.md.
 | FRMW-16 | Phase 10 | Pending |
 | TEXT-01 | Phase 9 | Pending |
 | TEXT-02 | Phase 9 | Pending |
-| TEXT-03 | Phase 9 | Pending |
-| TEXT-04 | Phase 9 | Pending |
-| TEXT-05 | Phase 9 | Pending |
+| TEXT-03 | Phase 9 | Complete |
+| TEXT-04 | Phase 9 | Complete |
+| TEXT-05 | Phase 9 | Complete |
 | ROBJ-01 | Phase 14 | Pending |
 | ROBJ-02 | Phase 14 | Pending |
 | ROBJ-03 | Phase 14 | Pending |

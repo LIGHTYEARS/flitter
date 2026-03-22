@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: executing
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-03-22T03:05:25.649Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-03-22T03:09:28Z"
 last_activity: 2026-03-22
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 0
-  completed_plans: 4
-  percent: 6
+  completed_plans: 5
+  percent: 7
 ---
 
 # Project State
@@ -59,6 +59,7 @@ Recent decisions affecting current work:
 - [Phase 09]: visitChildren propagates hyperlink and onClick as additional optional parameters (backward compatible)
 - [Phase 09]: equals() compares onClick by reference identity, not structural equality
 - [Phase 11]: MouseManager wired to WidgetsBinding constructor; uses Set for hover tracking with insertion-order cursor priority
+- [Phase 11]: animateTo uses setInterval at 16ms for ~60fps frame timing; followMode auto re-enables in jumpTo (not during animation frames)
 
 ### Pending Todos
 
@@ -71,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T03:05:25.643Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-03-22T03:09:28Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None

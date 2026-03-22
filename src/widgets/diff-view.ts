@@ -14,6 +14,8 @@ import {
 import { Column } from './flex';
 import { Text } from './text';
 import { Theme, type ThemeData } from './theme';
+import { AppTheme, type AppThemeData } from './app-theme';
+import { syntaxHighlight } from './syntax-highlight';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,15 +72,21 @@ export class DiffView extends StatelessWidget {
     diff: string;
     showLineNumbers?: boolean;
     context?: number;
+    filePath?: string;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.diff = opts.diff;
     this.showLineNumbers = opts.showLineNumbers ?? true;
     this.context = opts.context;
+    this.filePath = opts.filePath;
   }
+
+  /** Optional filePath hint for syntax highlighting of diff content. */
+  readonly filePath?: string;
 
   build(context: BuildContext): Widget {
     const themeData = Theme.maybeOf(context);
+    const appThemeData = AppTheme.maybeOf(context);
     const hunks = DiffView.parseDiff(this.diff);
     const lines = this._collectDisplayLines(hunks);
     const children: Widget[] = [];
@@ -97,6 +105,43 @@ export class DiffView extends StatelessWidget {
         displayText = `${oldNum} ${newNum} ${line.content}`;
       } else {
         displayText = line.content;
+      }
+
+      // When AppTheme is present with syntax highlight config, colorize
+      // addition and context line content using syntax highlighting.
+      if (
+        appThemeData &&
+        this.filePath &&
+        (line.type === 'addition' || line.type === 'context')
+      ) {
+        // Strip the leading +/space character for highlighting
+        const rawContent = line.content.length > 0 ? line.content.slice(1) : '';
+        if (rawContent.length > 0) {
+          const highlightedSpans = syntaxHighlight(rawContent, appThemeData.syntaxHighlight, this.filePath);
+          if (highlightedSpans.length > 0) {
+            // Build prefix (line numbers + leading char)
+            const prefix = this.showLineNumbers && line.type !== 'meta' && line.type !== 'hunk-header'
+              ? (() => {
+                  const oldNum = line.oldLineNumber !== undefined
+                    ? String(line.oldLineNumber).padStart(4, ' ')
+                    : '    ';
+                  const newNum = line.newLineNumber !== undefined
+                    ? String(line.newLineNumber).padStart(4, ' ')
+                    : '    ';
+                  return `${oldNum} ${newNum} ${line.content.charAt(0)}`;
+                })()
+              : line.content.charAt(0);
+
+            const prefixSpan = new TextSpan({ text: prefix, style });
+            const highlightedChildren = [prefixSpan, ...highlightedSpans];
+            children.push(
+              new Text({
+                text: new TextSpan({ children: highlightedChildren }),
+              }),
+            );
+            continue;
+          }
+        }
       }
 
       children.push(

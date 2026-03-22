@@ -20,6 +20,7 @@ import { Size } from '../core/types';
 import { ScreenBuffer } from '../terminal/screen-buffer';
 import { Renderer, type CursorState } from '../terminal/renderer';
 import { paintRenderTree } from '../scheduler/paint';
+import type { KeyEvent, MouseEvent as TuiMouseEvent } from '../input/events';
 
 // ---------------------------------------------------------------------------
 // Global build/paint scheduler accessors (Amp: lF, dF, VG8, XG8, xH)
@@ -175,6 +176,22 @@ export class WidgetsBinding {
   private _renderer: Renderer | null = null;
   private _output: OutputWriter | null = null;
 
+  // --- Mouse manager placeholder (Phase 11 will provide real implementation) ---
+  // Amp ref: J3.mouseManager — MouseManager instance or null
+  mouseManager: any | null = null;
+
+  // --- Global event callback lists (Amp ref: J3 event callbacks) ---
+  // Called before the focus system processes events.
+  eventCallbacks: {
+    key: Array<(e: KeyEvent) => void>;
+    mouse: Array<(e: TuiMouseEvent) => void>;
+    paste: Array<(s: string) => void>;
+  } = { key: [], mouse: [], paste: [] };
+
+  // --- Keyboard event interceptor chain (Amp ref: J3 key interceptors) ---
+  // Interceptors are called in order; if any returns 'handled', the event stops propagating.
+  keyInterceptors: Array<(e: KeyEvent) => 'handled' | 'ignored'> = [];
+
   private constructor() {
     this.buildOwner = new BuildOwner();
     this.pipelineOwner = new PipelineOwner();
@@ -216,6 +233,9 @@ export class WidgetsBinding {
       WidgetsBinding._instance._screen = null;
       WidgetsBinding._instance._renderer = null;
       WidgetsBinding._instance._output = null;
+      WidgetsBinding._instance.mouseManager = null;
+      WidgetsBinding._instance.eventCallbacks = { key: [], mouse: [], paste: [] };
+      WidgetsBinding._instance.keyInterceptors = [];
     }
     WidgetsBinding._instance = null;
     resetSchedulers();
@@ -624,15 +644,61 @@ export class WidgetsBinding {
 // runApp (Amp: cz8)
 //
 // Top-level entry point. Creates/gets the binding singleton,
-// attaches the root widget, and schedules the first frame.
+// wraps the root widget in MediaQuery, attaches it, and schedules the first frame.
 //
 // Amp ref: async function cz8(g, t) { let b = J3.instance; await b.runApp(g); }
-// Simplified for Phase 3 (synchronous, no TUI init).
+// Phase 10 upgrade: async, MediaQuery wrapping, SIGWINCH handler
 // ---------------------------------------------------------------------------
 
-export function runApp(widget: Widget): WidgetsBinding {
+import { MediaQuery, MediaQueryData } from '../widgets/media-query';
+
+export async function runApp(widget: Widget): Promise<WidgetsBinding> {
   const binding = WidgetsBinding.instance;
-  binding.attachRootWidget(widget);
+
+  // Determine terminal size — use reasonable defaults in test mode
+  let cols = 80;
+  let rows = 24;
+  if (!isTestEnvironment()) {
+    try {
+      // Try to get real terminal size from platform
+      const { BunPlatform } = require('../terminal/platform');
+      const platform = new BunPlatform();
+      const size = platform.getTerminalSize();
+      cols = size.columns;
+      rows = size.rows;
+    } catch (_e) {
+      // BunPlatform not available, use defaults
+    }
+  }
+
+  // Wrap the user's widget in MediaQuery so all descendants can access screen size
+  const wrappedWidget = new MediaQuery({
+    data: MediaQueryData.fromTerminal(cols, rows),
+    child: widget,
+  });
+
+  binding.attachRootWidget(wrappedWidget);
+
+  // Register SIGWINCH handler for terminal resize
+  if (!isTestEnvironment() && typeof process !== 'undefined') {
+    process.on('SIGWINCH', () => {
+      try {
+        const { BunPlatform } = require('../terminal/platform');
+        const platform = new BunPlatform();
+        const size = platform.getTerminalSize();
+        binding.handleResize(size.columns, size.rows);
+        // Also update the MediaQuery data — we need to rebuild with the new root
+        const newWrapped = new MediaQuery({
+          data: MediaQueryData.fromTerminal(size.columns, size.rows),
+          child: widget,
+        });
+        binding.attachRootWidget(newWrapped);
+      } catch (_e) {
+        // Ignore resize errors
+      }
+    });
+  }
+
   binding.scheduleFrame();
   return binding;
 }

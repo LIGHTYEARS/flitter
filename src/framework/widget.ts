@@ -21,6 +21,8 @@ export interface ElementLike {
 export interface BuildContext {
   readonly widget: Widget;
   readonly mounted: boolean;
+  /** Convenience shortcut: returns MediaQueryData from nearest ancestor MediaQuery, or undefined. */
+  readonly mediaQuery?: any;
 }
 
 // ---------------------------------------------------------------------------

@@ -139,6 +139,5 @@ export const createCounterApp = (): CounterApp => new CounterApp();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  const binding = runApp(new CounterApp());
-  binding.setOutput(process.stdout);
+  runApp(new CounterApp()).then(binding => binding.setOutput(process.stdout));
 }

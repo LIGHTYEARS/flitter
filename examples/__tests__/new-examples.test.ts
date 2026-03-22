@@ -45,7 +45,7 @@ function describeStaticExample(
 
     test('can be mounted via runApp without errors', async () => {
       const mod = await import(importPath);
-      const binding = runApp(mod.app);
+      const binding = await runApp(mod.app);
       expect(binding).toBeDefined();
       expect(binding.isRunning).toBe(true);
       binding.stop();

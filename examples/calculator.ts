@@ -291,6 +291,5 @@ export const createCalculatorApp = (): CalculatorApp => new CalculatorApp();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  const binding = runApp(new CalculatorApp());
-  binding.setOutput(process.stdout);
+  runApp(new CalculatorApp()).then(binding => binding.setOutput(process.stdout));
 }

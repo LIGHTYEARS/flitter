@@ -917,6 +917,25 @@ export class BuildContextImpl implements BuildContext {
     return this.element.mounted;
   }
 
+  /**
+   * Convenience shortcut: look up MediaQueryData from nearest ancestor MediaQuery.
+   * Returns its data, or undefined if not found.
+   * Amp ref: jd.mediaQuery field
+   */
+  get mediaQuery(): any {
+    try {
+      const { MediaQuery } = require('../widgets/media-query');
+      const element = this.element.dependOnInheritedWidgetOfExactType(MediaQuery);
+      if (element) {
+        const widget = element.widget as any;
+        return widget.data;
+      }
+    } catch (_e) {
+      // MediaQuery module not available
+    }
+    return undefined;
+  }
+
   // Amp ref: State._markNeedsBuild() calls this.context.element.markNeedsBuild()
   // We expose markNeedsBuild on the context so State._markNeedsBuild can find it.
   markNeedsBuild(): void {

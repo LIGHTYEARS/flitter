@@ -365,6 +365,5 @@ export type { ProcessInfo };
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  const binding = runApp(app);
-  binding.setOutput(process.stdout);
+  runApp(app).then(binding => binding.setOutput(process.stdout));
 }

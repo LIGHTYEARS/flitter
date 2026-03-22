@@ -182,22 +182,22 @@ describe('runApp', () => {
     WidgetsBinding.reset();
   });
 
-  it('creates binding and attaches widget', () => {
+  it('creates binding and attaches widget', async () => {
     const widget = new TestWidget();
-    const binding = runApp(widget);
+    const binding = await runApp(widget);
 
     expect(binding).toBe(WidgetsBinding.instance);
     expect(binding.rootElement).not.toBeNull();
     expect(binding.isRunning).toBe(true);
   });
 
-  it('returns the binding instance', () => {
-    const binding = runApp(new TestWidget());
+  it('returns the binding instance', async () => {
+    const binding = await runApp(new TestWidget());
     expect(binding).toBeInstanceOf(WidgetsBinding);
   });
 
-  it('root element is properly mounted', () => {
-    const binding = runApp(new TestWidget());
+  it('root element is properly mounted', async () => {
+    const binding = await runApp(new TestWidget());
     expect(binding.rootElement!.mounted).toBe(true);
   });
 });

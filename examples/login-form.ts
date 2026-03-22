@@ -314,6 +314,5 @@ export const createLoginFormApp = (): LoginFormApp => new LoginFormApp();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  const binding = runApp(new LoginFormApp());
-  binding.setOutput(process.stdout);
+  runApp(new LoginFormApp()).then(binding => binding.setOutput(process.stdout));
 }

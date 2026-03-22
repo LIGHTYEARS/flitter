@@ -136,9 +136,9 @@ describe('WidgetsBinding Integration', () => {
   });
 
   describe('full pipeline: runApp + drawFrameSync', () => {
-    it('builds the widget tree and creates render objects', () => {
+    it('builds the widget tree and creates render objects', async () => {
       const app = new SimpleApp();
-      const binding = runApp(app);
+      const binding = await runApp(app);
 
       // The root element should be created
       expect(binding.rootElement).not.toBeNull();
@@ -449,8 +449,8 @@ describe('WidgetsBinding Integration', () => {
   });
 
   describe('backward compatibility', () => {
-    it('runApp returns the binding instance', () => {
-      const binding = runApp(new SimpleApp());
+    it('runApp returns the binding instance', async () => {
+      const binding = await runApp(new SimpleApp());
       expect(binding).toBe(WidgetsBinding.instance);
     });
 

@@ -31,3 +31,5 @@ export { Dialog } from './widgets/dialog';
 export type { DialogType, FooterStyle, DialogButton, DialogDimensions } from './widgets/dialog';
 export { SelectionList, SelectionListState } from './widgets/selection-list';
 export type { SelectionItem } from './widgets/selection-list';
+export { DiffView } from './widgets/diff-view';
+export { Markdown } from './widgets/markdown';

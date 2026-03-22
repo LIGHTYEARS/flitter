@@ -67,12 +67,12 @@ Requirements for Amp CLI feature parity. Each maps to roadmap phases 9+.
 ### Missing Widgets (MWDG)
 
 - [ ] **MWDG-01**: FocusScope/KeyboardListener StatefulWidget wrapping FocusNode — autofocus, onKey, onPaste, onFocusChange, canRequestFocus, skipTraversal (Amp: t4)
-- [ ] **MWDG-02**: Scrollbar StatefulWidget with thumb/track rendering, thickness, colors, characters, paired with ScrollController (Amp: ia)
+- [x] **MWDG-02**: Scrollbar StatefulWidget with thumb/track rendering, thickness, colors, characters, paired with ScrollController (Amp: ia)
 - [ ] **MWDG-03**: SelectionList StatefulWidget — interactive selection dialog with keyboard navigation (arrows/j/k/Tab), Enter confirm, Escape dismiss, mouse click, disabled item skip (Amp: ap)
 - [ ] **MWDG-04**: Dialog data class — title, type, widget, footerStyle, dimensions (Amp: ab)
 - [ ] **MWDG-05**: DiffView StatelessWidget — unified diff parsing, +/- line coloring, line numbers, syntax highlighting via Theme (Amp: Bn)
 - [ ] **MWDG-06**: ClipRect SingleChildRenderObjectWidget — clips child painting to parent bounds (Amp: nv)
-- [ ] **MWDG-07**: IntrinsicHeight SingleChildRenderObjectWidget with RenderIntrinsicHeight — queries child getMaxIntrinsicHeight and applies tight constraint (Amp: hJ/vU0)
+- [x] **MWDG-07**: IntrinsicHeight SingleChildRenderObjectWidget with RenderIntrinsicHeight — queries child getMaxIntrinsicHeight and applies tight constraint (Amp: hJ/vU0)
 - [ ] **MWDG-08**: Markdown StatelessWidget — parses markdown text, renders as styled Text tree (headings, code, links via OSC 8) (Amp: _g)
 - [ ] **MWDG-09**: ContainerWithOverlays — extends Container with edge/corner overlay positioning using Stack+Positioned internally (Amp: bt)
 
@@ -172,12 +172,12 @@ All 65 v1.0 requirements completed across Phases 1-8. See MILESTONES.md.
 | INFRA-03 | Phase 10 | Pending |
 | INFRA-04 | Phase 10 | Pending |
 | MWDG-01 | Phase 12 | Pending |
-| MWDG-02 | Phase 12 | Pending |
+| MWDG-02 | Phase 12 | Complete |
 | MWDG-03 | Phase 13 | Pending |
 | MWDG-04 | Phase 13 | Pending |
 | MWDG-05 | Phase 13 | Pending |
 | MWDG-06 | Phase 12 | Pending |
-| MWDG-07 | Phase 12 | Pending |
+| MWDG-07 | Phase 12 | Complete |
 | MWDG-08 | Phase 13 | Pending |
 | MWDG-09 | Phase 13 | Pending |
 | FRMW-12 | Phase 10 | Pending |

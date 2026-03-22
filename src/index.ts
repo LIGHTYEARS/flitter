@@ -15,3 +15,6 @@ export { Key, ValueKey, UniqueKey, GlobalKey } from './core/key';
 // Phase 10: Infrastructure Layer
 export { MediaQueryData, MediaQuery } from './widgets/media-query';
 export type { TerminalCapabilities } from './widgets/media-query';
+export { Theme } from './widgets/theme';
+export type { ThemeData } from './widgets/theme';
+export { HoverContext } from './widgets/hover-context';

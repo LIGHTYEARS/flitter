@@ -6,7 +6,7 @@ import { TextEditingController, TextField } from '../text-field';
 import { Button } from '../button';
 import { Table } from '../table';
 import { Divider, RenderDivider } from '../divider';
-import { MouseRegion, RenderMouseRegion, type MouseRegionEvent } from '../mouse-region';
+import { MouseRegion, RenderMouseRegion, type MouseRegionEvent, type MouseEventType } from '../mouse-region';
 import { BoxConstraints } from '../../core/box-constraints';
 import { Color } from '../../core/color';
 import { TextStyle } from '../../core/text-style';
@@ -710,5 +710,80 @@ describe('MouseRegion', () => {
       render.visitChildren((c) => visited.push(c as RenderBox));
       expect(visited.length).toBe(0);
     });
+
+    test('handleMouseEvent dispatches release', () => {
+      let releaseEvent: MouseRegionEvent | null = null;
+      const render = new RenderMouseRegion({
+        onRelease: (e) => { releaseEvent = e; },
+      });
+      render.handleMouseEvent('release', { x: 4, y: 7 });
+      expect(releaseEvent).toBeDefined();
+      expect(releaseEvent!.x).toBe(4);
+      expect(releaseEvent!.y).toBe(7);
+    });
+
+    test('handleMouseEvent dispatches drag', () => {
+      let dragEvent: MouseRegionEvent | null = null;
+      const render = new RenderMouseRegion({
+        onDrag: (e) => { dragEvent = e; },
+      });
+      render.handleMouseEvent('drag', { x: 8, y: 3 });
+      expect(dragEvent).toBeDefined();
+      expect(dragEvent!.x).toBe(8);
+      expect(dragEvent!.y).toBe(3);
+    });
+
+    test('handleMouseEvent release no-op without callback', () => {
+      const render = new RenderMouseRegion();
+      // Should not throw
+      render.handleMouseEvent('release', { x: 0, y: 0 });
+    });
+
+    test('handleMouseEvent drag no-op without callback', () => {
+      const render = new RenderMouseRegion();
+      // Should not throw
+      render.handleMouseEvent('drag', { x: 0, y: 0 });
+    });
+
+    test('hasMouseListeners includes onRelease', () => {
+      const render = new RenderMouseRegion({ onRelease: () => {} });
+      expect(render.hasMouseListeners).toBe(true);
+    });
+
+    test('hasMouseListeners includes onDrag', () => {
+      const render = new RenderMouseRegion({ onDrag: () => {} });
+      expect(render.hasMouseListeners).toBe(true);
+    });
+  });
+
+  test('MouseRegion widget passes onRelease to render object', () => {
+    const onRelease = () => {};
+    const mr = new MouseRegion({ onRelease });
+    const render = mr.createRenderObject();
+    expect(render.onRelease).toBe(onRelease);
+  });
+
+  test('MouseRegion widget passes onDrag to render object', () => {
+    const onDrag = () => {};
+    const mr = new MouseRegion({ onDrag });
+    const render = mr.createRenderObject();
+    expect(render.onDrag).toBe(onDrag);
+  });
+
+  test('updateRenderObject updates onRelease and onDrag', () => {
+    const mr1 = new MouseRegion({ onRelease: () => {} });
+    const render = mr1.createRenderObject();
+    const newRelease = () => {};
+    const newDrag = () => {};
+    const mr2 = new MouseRegion({ onRelease: newRelease, onDrag: newDrag });
+    mr2.updateRenderObject(render);
+    expect(render.onRelease).toBe(newRelease);
+    expect(render.onDrag).toBe(newDrag);
+  });
+
+  test('MouseEventType includes release and drag', () => {
+    // Verify the type union allows 'release' and 'drag'
+    const types: MouseEventType[] = ['click', 'release', 'drag', 'enter', 'exit', 'hover', 'scroll'];
+    expect(types.length).toBe(7);
   });
 });

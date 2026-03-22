@@ -3,6 +3,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { WidgetsBinding, runApp, resetSchedulers } from '../binding';
+import { MouseManager } from '../../input/mouse-manager';
 import {
   Widget,
   StatelessWidget,
@@ -93,24 +94,24 @@ describe('WidgetsBinding enhancements', () => {
   });
 
   describe('mouseManager field (FRMW-12)', () => {
-    it('exists and defaults to null', () => {
+    it('exists and defaults to MouseManager.instance', () => {
       const binding = WidgetsBinding.instance;
-      expect(binding.mouseManager).toBeNull();
+      expect(binding.mouseManager).toBe(MouseManager.instance);
     });
 
     it('can be assigned a value', () => {
       const binding = WidgetsBinding.instance;
       const fakeMouseManager = { handleEvent: () => {} };
-      binding.mouseManager = fakeMouseManager;
+      binding.mouseManager = fakeMouseManager as any;
       expect(binding.mouseManager).toBe(fakeMouseManager);
     });
 
-    it('is reset to null on WidgetsBinding.reset()', () => {
+    it('is reset and re-wired to fresh MouseManager.instance on WidgetsBinding.reset()', () => {
       const binding = WidgetsBinding.instance;
-      binding.mouseManager = { handleEvent: () => {} };
+      binding.mouseManager = { handleEvent: () => {} } as any;
       WidgetsBinding.reset();
       const newBinding = WidgetsBinding.instance;
-      expect(newBinding.mouseManager).toBeNull();
+      expect(newBinding.mouseManager).toBe(MouseManager.instance);
     });
   });
 

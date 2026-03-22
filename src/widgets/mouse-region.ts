@@ -23,7 +23,7 @@ export interface MouseRegionEvent {
   readonly button?: number;
 }
 
-export type MouseEventType = 'click' | 'enter' | 'exit' | 'hover' | 'scroll';
+export type MouseEventType = 'click' | 'release' | 'drag' | 'enter' | 'exit' | 'hover' | 'scroll';
 
 // ---------------------------------------------------------------------------
 // RenderMouseRegion
@@ -38,6 +38,8 @@ export type MouseEventType = 'click' | 'enter' | 'exit' | 'hover' | 'scroll';
 export class RenderMouseRegion extends RenderBox {
   private _child: RenderBox | null = null;
   onClick?: (event: MouseRegionEvent) => void;
+  onRelease?: (event: MouseRegionEvent) => void;
+  onDrag?: (event: MouseRegionEvent) => void;
   onEnter?: (event: MouseRegionEvent) => void;
   onExit?: (event: MouseRegionEvent) => void;
   onHover?: (event: MouseRegionEvent) => void;
@@ -46,6 +48,8 @@ export class RenderMouseRegion extends RenderBox {
 
   constructor(opts?: {
     onClick?: (event: MouseRegionEvent) => void;
+    onRelease?: (event: MouseRegionEvent) => void;
+    onDrag?: (event: MouseRegionEvent) => void;
     onEnter?: (event: MouseRegionEvent) => void;
     onExit?: (event: MouseRegionEvent) => void;
     onHover?: (event: MouseRegionEvent) => void;
@@ -54,6 +58,8 @@ export class RenderMouseRegion extends RenderBox {
   }) {
     super();
     this.onClick = opts?.onClick;
+    this.onRelease = opts?.onRelease;
+    this.onDrag = opts?.onDrag;
     this.onEnter = opts?.onEnter;
     this.onExit = opts?.onExit;
     this.onHover = opts?.onHover;
@@ -79,7 +85,7 @@ export class RenderMouseRegion extends RenderBox {
    * Whether this region has any mouse listeners registered.
    */
   get hasMouseListeners(): boolean {
-    return !!(this.onClick || this.onEnter || this.onExit || this.onHover || this.onScroll);
+    return !!(this.onClick || this.onRelease || this.onDrag || this.onEnter || this.onExit || this.onHover || this.onScroll);
   }
 
   /**
@@ -89,6 +95,12 @@ export class RenderMouseRegion extends RenderBox {
     switch (eventType) {
       case 'click':
         this.onClick?.(event);
+        break;
+      case 'release':
+        this.onRelease?.(event);
+        break;
+      case 'drag':
+        this.onDrag?.(event);
         break;
       case 'enter':
         this.onEnter?.(event);
@@ -144,6 +156,8 @@ export class RenderMouseRegion extends RenderBox {
  */
 export class MouseRegion extends SingleChildRenderObjectWidget {
   readonly onClick?: (event: MouseRegionEvent) => void;
+  readonly onRelease?: (event: MouseRegionEvent) => void;
+  readonly onDrag?: (event: MouseRegionEvent) => void;
   readonly onEnter?: (event: MouseRegionEvent) => void;
   readonly onExit?: (event: MouseRegionEvent) => void;
   readonly onHover?: (event: MouseRegionEvent) => void;
@@ -154,6 +168,8 @@ export class MouseRegion extends SingleChildRenderObjectWidget {
     key?: Key;
     child?: Widget;
     onClick?: (event: MouseRegionEvent) => void;
+    onRelease?: (event: MouseRegionEvent) => void;
+    onDrag?: (event: MouseRegionEvent) => void;
     onEnter?: (event: MouseRegionEvent) => void;
     onExit?: (event: MouseRegionEvent) => void;
     onHover?: (event: MouseRegionEvent) => void;
@@ -162,6 +178,8 @@ export class MouseRegion extends SingleChildRenderObjectWidget {
   }) {
     super({ key: opts?.key, child: opts?.child });
     this.onClick = opts?.onClick;
+    this.onRelease = opts?.onRelease;
+    this.onDrag = opts?.onDrag;
     this.onEnter = opts?.onEnter;
     this.onExit = opts?.onExit;
     this.onHover = opts?.onHover;
@@ -172,6 +190,8 @@ export class MouseRegion extends SingleChildRenderObjectWidget {
   createRenderObject(): RenderMouseRegion {
     return new RenderMouseRegion({
       onClick: this.onClick,
+      onRelease: this.onRelease,
+      onDrag: this.onDrag,
       onEnter: this.onEnter,
       onExit: this.onExit,
       onHover: this.onHover,
@@ -183,6 +203,8 @@ export class MouseRegion extends SingleChildRenderObjectWidget {
   updateRenderObject(renderObject: RenderObject): void {
     if (renderObject instanceof RenderMouseRegion) {
       renderObject.onClick = this.onClick;
+      renderObject.onRelease = this.onRelease;
+      renderObject.onDrag = this.onDrag;
       renderObject.onEnter = this.onEnter;
       renderObject.onExit = this.onExit;
       renderObject.onHover = this.onHover;

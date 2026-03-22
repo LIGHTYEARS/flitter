@@ -21,6 +21,7 @@ import { ScreenBuffer } from '../terminal/screen-buffer';
 import { Renderer, type CursorState } from '../terminal/renderer';
 import { paintRenderTree } from '../scheduler/paint';
 import type { KeyEvent, MouseEvent as TuiMouseEvent } from '../input/events';
+import { MouseManager } from '../input/mouse-manager';
 
 // ---------------------------------------------------------------------------
 // Global build/paint scheduler accessors (Amp: lF, dF, VG8, XG8, xH)
@@ -176,9 +177,9 @@ export class WidgetsBinding {
   private _renderer: Renderer | null = null;
   private _output: OutputWriter | null = null;
 
-  // --- Mouse manager placeholder (Phase 11 will provide real implementation) ---
-  // Amp ref: J3.mouseManager — MouseManager instance or null
-  mouseManager: any | null = null;
+  // --- Mouse manager (Phase 11) ---
+  // Amp ref: J3.mouseManager — MouseManager instance
+  mouseManager: MouseManager | null = null;
 
   // --- Global event callback lists (Amp ref: J3 event callbacks) ---
   // Called before the focus system processes events.
@@ -195,6 +196,9 @@ export class WidgetsBinding {
   private constructor() {
     this.buildOwner = new BuildOwner();
     this.pipelineOwner = new PipelineOwner();
+
+    // Wire MouseManager singleton (Amp ref: J3 constructor sets mouseManager)
+    this.mouseManager = MouseManager.instance;
 
     // Wire up global schedulers (Amp ref: VG8 call in J3 constructor)
     initSchedulers(
@@ -238,6 +242,7 @@ export class WidgetsBinding {
       WidgetsBinding._instance.keyInterceptors = [];
     }
     WidgetsBinding._instance = null;
+    MouseManager.reset();
     resetSchedulers();
   }
 

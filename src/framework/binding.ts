@@ -22,6 +22,9 @@ import { Renderer, type CursorState } from '../terminal/renderer';
 import { paintRenderTree } from '../scheduler/paint';
 import type { KeyEvent, MouseEvent as TuiMouseEvent } from '../input/events';
 import { MouseManager } from '../input/mouse-manager';
+import { FocusManager } from '../input/focus';
+import { PerformanceOverlay } from '../diagnostics/perf-overlay';
+import { FrameStats } from '../diagnostics/frame-stats';
 
 // ---------------------------------------------------------------------------
 // Global build/paint scheduler accessors (Amp: lF, dF, VG8, XG8, xH)
@@ -181,6 +184,9 @@ export class WidgetsBinding {
   // Amp ref: J3.mouseManager — MouseManager instance
   mouseManager: MouseManager | null = null;
 
+  // --- Focus manager (Amp ref: J3.focusManager) ---
+  focusManager: FocusManager | null = null;
+
   // --- Global event callback lists (Amp ref: J3 event callbacks) ---
   // Called before the focus system processes events.
   eventCallbacks: {
@@ -193,12 +199,20 @@ export class WidgetsBinding {
   // Interceptors are called in order; if any returns 'handled', the event stops propagating.
   keyInterceptors: Array<(e: KeyEvent) => 'handled' | 'ignored'> = [];
 
+  // --- Performance overlay (Phase 21: PERF-03) ---
+  private _showFrameStatsOverlay: boolean = false;
+  private _perfOverlay: PerformanceOverlay | null = null;
+  private _frameStats: FrameStats | null = null;
+
   private constructor() {
     this.buildOwner = new BuildOwner();
     this.pipelineOwner = new PipelineOwner();
 
     // Wire MouseManager singleton (Amp ref: J3 constructor sets mouseManager)
     this.mouseManager = MouseManager.instance;
+
+    // Wire FocusManager singleton (Amp ref: J3 constructor sets focusManager)
+    this.focusManager = FocusManager.instance;
 
     // Wire up global schedulers (Amp ref: VG8 call in J3 constructor)
     initSchedulers(
@@ -238,8 +252,12 @@ export class WidgetsBinding {
       WidgetsBinding._instance._renderer = null;
       WidgetsBinding._instance._output = null;
       WidgetsBinding._instance.mouseManager = null;
+      WidgetsBinding._instance.focusManager = null;
       WidgetsBinding._instance.eventCallbacks = { key: [], mouse: [], paste: [] };
       WidgetsBinding._instance.keyInterceptors = [];
+      WidgetsBinding._instance._showFrameStatsOverlay = false;
+      WidgetsBinding._instance._perfOverlay = null;
+      WidgetsBinding._instance._frameStats = null;
     }
     WidgetsBinding._instance = null;
     MouseManager.reset();
@@ -343,6 +361,15 @@ export class WidgetsBinding {
     // Wire the root render object to the pipeline owner
     this.updateRootRenderObject();
 
+    // Wire root render object to MouseManager for autonomous hit-testing
+    // Amp ref: J3.runApp calls this.mouseManager.setRootRenderObject(...)
+    if (this.mouseManager) {
+      const rootRO = this.pipelineOwner.rootNode;
+      if (rootRO) {
+        this.mouseManager.setRootRenderObject(rootRO);
+      }
+    }
+
     this._isRunning = true;
   }
 
@@ -438,6 +465,11 @@ export class WidgetsBinding {
     // DFS paint the render tree using the real PaintContext and paintRenderTree
     paintRenderTree(rootRO, screen);
 
+    // Draw performance overlay on top if enabled (Phase 21: PERF-03)
+    if (this._showFrameStatsOverlay && this._perfOverlay) {
+      this._perfOverlay.draw(screen, this.getFrameStats());
+    }
+
     this._didPaintCurrentFrame = true;
   }
 
@@ -497,6 +529,39 @@ export class WidgetsBinding {
     this.scheduleFrame();
   }
 
+  // --- Performance overlay (Phase 21: PERF-03) ---
+
+  /**
+   * Get the FrameStats instance, lazy-creating if needed.
+   * Used by the performance overlay and external consumers.
+   */
+  getFrameStats(): FrameStats {
+    if (!this._frameStats) {
+      this._frameStats = new FrameStats();
+    }
+    return this._frameStats;
+  }
+
+  /** Whether the frame stats overlay is currently shown. */
+  get showFrameStatsOverlay(): boolean {
+    return this._showFrameStatsOverlay;
+  }
+
+  /**
+   * Toggle the performance overlay on/off.
+   * When enabled, PerformanceOverlay.draw() is called after each frame render.
+   * Requests a forced paint frame to ensure immediate visual update.
+   *
+   * Amp ref: J3.toggleFrameStatsOverlay()
+   */
+  toggleFrameStatsOverlay(): void {
+    this._showFrameStatsOverlay = !this._showFrameStatsOverlay;
+    if (this._showFrameStatsOverlay && !this._perfOverlay) {
+      this._perfOverlay = new PerformanceOverlay();
+    }
+    this.requestForcedPaintFrame();
+  }
+
   // --- Frame scheduling ---
 
   /**
@@ -543,11 +608,17 @@ export class WidgetsBinding {
 
     // RENDER phase
     this.render();
+
+    // POST-FRAME: Re-evaluate hover state after layout changes
+    // Amp ref: Pg.reestablishHoverState() registered as post-frame callback
+    if (this.mouseManager) {
+      this.mouseManager.reestablishHoverState();
+    }
   }
 
   /**
    * Synchronous version for testing.
-   * Runs build -> layout -> paint -> render immediately without microtask.
+   * Runs the SAME pipeline as drawFrame — must stay in sync.
    * Also runs beginFrame + processResizeIfPending for full pipeline.
    */
   drawFrameSync(): void {
@@ -564,6 +635,7 @@ export class WidgetsBinding {
     this.updateRootRenderObject();
 
     // LAYOUT phase
+    this.pipelineOwner.updateRootConstraints(this._renderViewSize);
     this.pipelineOwner.flushLayout();
 
     // PAINT phase
@@ -571,6 +643,12 @@ export class WidgetsBinding {
 
     // RENDER phase
     this.render();
+
+    // POST-FRAME: Re-evaluate hover state after layout changes
+    // Must match drawFrame to ensure test pipeline === production pipeline
+    if (this.mouseManager) {
+      this.mouseManager.reestablishHoverState();
+    }
   }
 
   /**

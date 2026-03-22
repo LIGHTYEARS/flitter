@@ -18,6 +18,8 @@ export const debugFlags = {
   debugRepaintRainbow: false,
   /** Show frame timing in console */
   debugShowFrameStats: false,
+  /** Enable HTTP debug inspector on port 9876 (Amp ref: Mu) */
+  debugInspectorEnabled: false,
 };
 
 /**

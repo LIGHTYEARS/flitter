@@ -235,6 +235,188 @@ describe('TextStyle', () => {
     });
   });
 
+  describe('copyWith', () => {
+    it('returns a new TextStyle with only the specified fields overridden', () => {
+      const base = new TextStyle({
+        bold: true,
+        italic: true,
+        foreground: Color.red,
+        background: Color.blue,
+      });
+      const copied = base.copyWith({ bold: false, foreground: Color.green });
+
+      expect(copied.bold).toBe(false);
+      expect(copied.italic).toBe(true); // kept from base
+      expect(copied.foreground).toBe(Color.green); // overridden
+      expect(copied.background).toBe(Color.blue); // kept from base
+    });
+
+    it('returns identical copy when no overrides provided', () => {
+      const base = new TextStyle({
+        bold: true,
+        foreground: Color.red,
+        dim: true,
+      });
+      const copied = base.copyWith({});
+
+      expect(copied.bold).toBe(true);
+      expect(copied.foreground).toBe(Color.red);
+      expect(copied.dim).toBe(true);
+    });
+
+    it('returns identical copy when called with no arguments', () => {
+      const base = new TextStyle({ bold: true, italic: true });
+      const copied = base.copyWith();
+
+      expect(copied.bold).toBe(true);
+      expect(copied.italic).toBe(true);
+      expect(copied).not.toBe(base); // must be a new instance
+    });
+
+    it('can override all fields', () => {
+      const base = new TextStyle({
+        bold: true,
+        dim: true,
+        italic: true,
+        underline: true,
+        strikethrough: true,
+        inverse: true,
+        hidden: true,
+        foreground: Color.red,
+        background: Color.blue,
+      });
+      const copied = base.copyWith({
+        bold: false,
+        dim: false,
+        italic: false,
+        underline: false,
+        strikethrough: false,
+        inverse: false,
+        hidden: false,
+        foreground: Color.green,
+        background: Color.yellow,
+      });
+
+      expect(copied.bold).toBe(false);
+      expect(copied.dim).toBe(false);
+      expect(copied.italic).toBe(false);
+      expect(copied.underline).toBe(false);
+      expect(copied.strikethrough).toBe(false);
+      expect(copied.inverse).toBe(false);
+      expect(copied.hidden).toBe(false);
+      expect(copied.foreground).toBe(Color.green);
+      expect(copied.background).toBe(Color.yellow);
+    });
+
+    it('copyWith on empty style with some fields creates those fields', () => {
+      const base = new TextStyle();
+      const copied = base.copyWith({ bold: true, foreground: Color.red });
+
+      expect(copied.bold).toBe(true);
+      expect(copied.foreground).toBe(Color.red);
+      expect(copied.italic).toBeUndefined();
+    });
+
+    it('does not modify the original style (immutability)', () => {
+      const base = new TextStyle({ bold: true });
+      base.copyWith({ bold: false });
+
+      expect(base.bold).toBe(true); // original unchanged
+    });
+  });
+
+  describe('static factories', () => {
+    describe('TextStyle.normal', () => {
+      it('returns a plain TextStyle with no attributes', () => {
+        const style = TextStyle.normal();
+        expect(style.bold).toBeUndefined();
+        expect(style.italic).toBeUndefined();
+        expect(style.underline).toBeUndefined();
+        expect(style.foreground).toBeUndefined();
+      });
+
+      it('returns a TextStyle with just the specified foreground color', () => {
+        const style = TextStyle.normal(Color.red);
+        expect(style.foreground).toBe(Color.red);
+        expect(style.bold).toBeUndefined();
+        expect(style.italic).toBeUndefined();
+      });
+    });
+
+    describe('TextStyle.bold', () => {
+      it('returns a TextStyle with bold=true', () => {
+        const style = TextStyle.bold();
+        expect(style.bold).toBe(true);
+        expect(style.foreground).toBeUndefined();
+      });
+
+      it('returns a TextStyle with bold=true and specified color', () => {
+        const style = TextStyle.bold(Color.blue);
+        expect(style.bold).toBe(true);
+        expect(style.foreground).toBe(Color.blue);
+      });
+    });
+
+    describe('TextStyle.italic', () => {
+      it('returns a TextStyle with italic=true', () => {
+        const style = TextStyle.italic();
+        expect(style.italic).toBe(true);
+        expect(style.foreground).toBeUndefined();
+      });
+
+      it('returns a TextStyle with italic=true and specified color', () => {
+        const style = TextStyle.italic(Color.green);
+        expect(style.italic).toBe(true);
+        expect(style.foreground).toBe(Color.green);
+      });
+    });
+
+    describe('TextStyle.underline', () => {
+      it('returns a TextStyle with underline=true', () => {
+        const style = TextStyle.underline();
+        expect(style.underline).toBe(true);
+        expect(style.foreground).toBeUndefined();
+      });
+
+      it('returns a TextStyle with underline=true and specified color', () => {
+        const style = TextStyle.underline(Color.yellow);
+        expect(style.underline).toBe(true);
+        expect(style.foreground).toBe(Color.yellow);
+      });
+    });
+
+    describe('TextStyle.colored', () => {
+      it('returns a TextStyle with just the specified foreground color', () => {
+        const style = TextStyle.colored(Color.cyan);
+        expect(style.foreground).toBe(Color.cyan);
+        expect(style.bold).toBeUndefined();
+        expect(style.italic).toBeUndefined();
+        expect(style.underline).toBeUndefined();
+      });
+
+      it('works with RGB colors', () => {
+        const c = Color.rgb(128, 64, 32);
+        const style = TextStyle.colored(c);
+        expect(style.foreground).toBe(c);
+      });
+    });
+
+    describe('TextStyle.background', () => {
+      it('returns a TextStyle with just the specified background color', () => {
+        const style = TextStyle.background(Color.magenta);
+        expect(style.background).toBe(Color.magenta);
+        expect(style.foreground).toBeUndefined();
+        expect(style.bold).toBeUndefined();
+      });
+
+      it('works with RGB colors', () => {
+        const c = Color.rgb(200, 100, 50);
+        const style = TextStyle.background(c);
+        expect(style.background).toBe(c);
+      });
+    });
+  });
+
   describe('toString', () => {
     it('empty style returns TextStyle()', () => {
       expect(new TextStyle().toString()).toBe('TextStyle()');

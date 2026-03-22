@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Phases
 status: executing
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-03-22T04:01:40.749Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-03-22T04:10:49Z"
 last_activity: 2026-03-22
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 0
-  completed_plans: 4
+  completed_plans: 5
   percent: 6
 ---
 
@@ -37,7 +37,7 @@ Progress: [█░░░░░░░░░] 6%
 **Velocity (v1.0):**
 
 - Total plans completed: 25
-- Total test count: 2042 (0 failures)
+- Total test count: 2121 (0 failures)
 - Total examples: 28
 
 ## Accumulated Context
@@ -66,6 +66,9 @@ Recent decisions affecting current work:
 - [Phase 13]: ContainerWithOverlays groups overlays by position:alignment key, uses Stack passthrough fit
 - [Phase 14]: Selection highlight uses TextStyle.copyWith to overlay background color, preserving existing style attributes
 - [Phase 14]: Character position cache rebuilt during performLayout() with center-based hit testing
+- [Phase 14]: Interaction queries use exact cell hit-testing for precise hyperlink/onClick detection
+- [Phase 14]: MouseManager updateCursorOverride for non-MouseRegion cursor control
+- [Phase 14]: Emoji width flag is boolean derived from MediaQuery emojiWidth capability
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T04:01:40.742Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-03-22T04:10:49Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None

@@ -368,7 +368,7 @@ Phase 12 + Phase 13 + Phase 14 ──→ Phase 15 (Debug Inspector)
 | 11. Mouse & Scroll Systems | 2/2 | Complete | 2026-03-22 |
 | 12. Core Missing Widgets | 2/2 | Complete | 2026-03-22 |
 | 13. Advanced Widgets | 0/3 | Not started | - |
-| 14. RenderText Advanced | 0/2 | Not started | - |
+| 14. RenderText Advanced | 2/2 | Complete | 2026-03-22 |
 | 15. Debug Inspector | 0/1 | Not started | - |
 
 **v1.0 total: 25/25 complete**

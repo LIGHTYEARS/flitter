@@ -6,11 +6,7 @@
 import { ScreenBuffer } from './screen-buffer.js';
 import { Renderer } from './renderer.js';
 import { type PlatformAdapter, type TerminalCapabilities, detectCapabilities } from './platform.js';
-
-// ANSI escape sequence constants used during init/dispose
-// Amp ref: screen-buffer.md section 8
-const ESC = '\x1b';
-const CSI = `${ESC}[`;
+import { terminalCleanup } from './terminal-cleanup.js';
 
 /**
  * Render statistics from the last flush cycle.
@@ -134,15 +130,9 @@ export class TerminalManager {
   dispose(): void {
     if (!this._isInitialized) return;
 
-    // Build dispose sequence
+    // Build dispose sequence using comprehensive cleanup
     // Amp ref: zG8 cleanup — disables all modes, restores cursor, exits alt screen
-    const disposeSequence =
-      this.renderer.disableMouse() +
-      this.renderer.disableBracketedPaste() +
-      this.renderer.exitAltScreen() +
-      `${CSI}0 q` + // reset cursor shape (DECSCUSR default)
-      this.renderer.showCursor() +
-      this.renderer.reset();
+    const disposeSequence = terminalCleanup(this.renderer);
 
     this.platform.writeStdout(disposeSequence);
 

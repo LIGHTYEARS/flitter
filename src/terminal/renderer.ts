@@ -56,6 +56,50 @@ export function hyperlinkOpen(uri: string, id?: string): string {
   return `${OSC}8;${params};${uri}${ST}`;
 }
 
+// ── Terminal Protocol Extensions ──────────────────────────────
+// TPRO-01 through TPRO-08: Modern terminal protocol escape sequences
+
+// Kitty Keyboard Protocol (TPRO-01)
+// Amp ref: progressive keyboard enhancement mode 5
+export const KITTY_KEYBOARD_ON = `${CSI}>5u`;
+export const KITTY_KEYBOARD_OFF = `${CSI}<u`;
+
+// ModifyOtherKeys (TPRO-02)
+// xterm extended key reporting
+export const MODIFY_OTHER_KEYS_ON = `${CSI}>4;1m`;
+export const MODIFY_OTHER_KEYS_OFF = `${CSI}>4;0m`;
+
+// Emoji Width Mode (TPRO-03)
+// Terminal mode 2027 — consistent emoji width handling
+export const EMOJI_WIDTH_ON = `${CSI}?2027h`;
+export const EMOJI_WIDTH_OFF = `${CSI}?2027l`;
+
+// In-Band Resize (TPRO-04)
+// Terminal mode 2048 — receive resize events as escape sequences
+export const IN_BAND_RESIZE_ON = `${CSI}?2048h`;
+export const IN_BAND_RESIZE_OFF = `${CSI}?2048l`;
+
+// Progress Bar OSC 9;4 (TPRO-05)
+// ConEmu/Windows Terminal/iTerm2 progress indication
+export const PROGRESS_BAR_OFF = `${OSC}9;4;0${ST}`;
+export const PROGRESS_BAR_INDETERMINATE = `${OSC}9;4;3${ST}`;
+export const PROGRESS_BAR_PAUSED = `${OSC}9;4;4${ST}`;
+
+// Window Title OSC 0 (TPRO-06)
+export function windowTitle(title: string): string {
+  return `${ESC}]0;${title}\x07`;
+}
+
+// Mouse Cursor Shape OSC 22 (TPRO-07)
+export function mouseShape(name: string): string {
+  return `${OSC}22;${name}${ST}`;
+}
+
+// Pixel Mouse Mode (TPRO-08)
+// SGR-Pixels mouse mode 1016
+export const PIXEL_MOUSE_ON = `${CSI}?1016h`;
+export const PIXEL_MOUSE_OFF = `${CSI}?1016l`;
+
 // ── SGR Attribute Code Constants ────────────────────────────────
 
 const SGR_BOLD_ON = '1';
@@ -430,6 +474,83 @@ export class Renderer {
 
   disableBracketedPaste(): string {
     return BRACKET_PASTE_OFF;
+  }
+
+  // ── Terminal Protocol Extension Methods (TPRO-01 through TPRO-08) ──
+
+  /** TPRO-01: Enable Kitty keyboard protocol (progressive enhancement mode 5). */
+  enableKittyKeyboard(): string {
+    return KITTY_KEYBOARD_ON;
+  }
+
+  /** TPRO-01: Disable Kitty keyboard protocol. */
+  disableKittyKeyboard(): string {
+    return KITTY_KEYBOARD_OFF;
+  }
+
+  /** TPRO-02: Enable ModifyOtherKeys mode 1. */
+  enableModifyOtherKeys(): string {
+    return MODIFY_OTHER_KEYS_ON;
+  }
+
+  /** TPRO-02: Disable ModifyOtherKeys. */
+  disableModifyOtherKeys(): string {
+    return MODIFY_OTHER_KEYS_OFF;
+  }
+
+  /** TPRO-03: Enable emoji width mode (mode 2027). */
+  enableEmojiWidth(): string {
+    return EMOJI_WIDTH_ON;
+  }
+
+  /** TPRO-03: Disable emoji width mode. */
+  disableEmojiWidth(): string {
+    return EMOJI_WIDTH_OFF;
+  }
+
+  /** TPRO-04: Enable in-band resize notifications (mode 2048). */
+  enableInBandResize(): string {
+    return IN_BAND_RESIZE_ON;
+  }
+
+  /** TPRO-04: Disable in-band resize notifications. */
+  disableInBandResize(): string {
+    return IN_BAND_RESIZE_OFF;
+  }
+
+  /** TPRO-05: Set progress bar to indeterminate state. */
+  setProgressBarIndeterminate(): string {
+    return PROGRESS_BAR_INDETERMINATE;
+  }
+
+  /** TPRO-05: Turn off progress bar. */
+  setProgressBarOff(): string {
+    return PROGRESS_BAR_OFF;
+  }
+
+  /** TPRO-05: Set progress bar to paused state. */
+  setProgressBarPaused(): string {
+    return PROGRESS_BAR_PAUSED;
+  }
+
+  /** TPRO-06: Set window title via OSC 0. */
+  setTitle(title: string): string {
+    return windowTitle(title);
+  }
+
+  /** TPRO-07: Set mouse cursor shape via OSC 22. */
+  setMouseShape(name: string): string {
+    return mouseShape(name);
+  }
+
+  /** TPRO-08: Enable pixel mouse mode (mode 1016). */
+  enablePixelMouse(): string {
+    return PIXEL_MOUSE_ON;
+  }
+
+  /** TPRO-08: Disable pixel mouse mode. */
+  disablePixelMouse(): string {
+    return PIXEL_MOUSE_OFF;
   }
 
   // ── Private Helpers ───────────────────────────────────────────

@@ -17,6 +17,13 @@ export interface TerminalCapabilities {
   syncOutput: boolean;    // supports BSU/ESU (mode 2026)
   unicode: boolean;       // supports Unicode characters
   hyperlinks: boolean;    // supports OSC 8 hyperlinks
+  // Extended capabilities (TPRO-10) — optional to avoid breaking existing code
+  kittyKeyboard?: boolean;   // supports Kitty keyboard protocol
+  modifyOtherKeys?: boolean; // supports xterm ModifyOtherKeys
+  emojiWidth?: boolean;      // supports mode 2027 emoji width
+  inBandResize?: boolean;    // supports mode 2048 in-band resize
+  pixelMouse?: boolean;      // supports SGR-Pixels mouse mode 1016
+  kittyGraphics?: boolean;   // supports Kitty graphics protocol
 }
 
 /**
@@ -298,3 +305,89 @@ export class MockPlatform implements PlatformAdapter {
     return this.resizeCallbacks.length;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Terminal Capability Detection via Escape Queries (TPRO-10)
+// ---------------------------------------------------------------------------
+
+const ESC = '\x1b';
+const CSI = `${ESC}[`;
+const OSC = `${ESC}]`;
+const ST = `${ESC}\\`;
+
+// DA1 — Primary Device Attributes (reports basic terminal type)
+export const DA1_QUERY = `${CSI}c`;
+
+// DA2 — Secondary Device Attributes (reports terminal version)
+export const DA2_QUERY = `${CSI}>c`;
+
+// DA3 — Tertiary Device Attributes (reports terminal ID string)
+export const DA3_QUERY = `${CSI}=c`;
+
+// DSR — Device Status Report (cursor position, terminal status)
+export const DSR_QUERY = `${CSI}5n`;
+
+// DECRQM — Request Mode for Kitty keyboard protocol
+// Queries whether mode 2u (Kitty keyboard) is supported
+export const KITTY_KEYBOARD_QUERY = `${CSI}?u`;
+
+// Kitty graphics protocol query — sends a query action
+// Response indicates whether the terminal supports the Kitty graphics protocol
+export const KITTY_GRAPHICS_QUERY = `${OSC}G\x1fq=1;s=1;v=1;a=q;t=d,${ST}`;
+
+// XTVERSION — request terminal name and version (supported by xterm, foot, etc.)
+export const XTVERSION_QUERY = `${CSI}>0q`;
+
+// Color scheme query — request terminal foreground/background colors
+export const FG_COLOR_QUERY = `${OSC}10;?${ST}`;
+export const BG_COLOR_QUERY = `${OSC}11;?${ST}`;
+
+/**
+ * Response pattern matchers for capability query responses.
+ * These RegExp patterns can be used to parse terminal responses
+ * from stdin after sending the corresponding query sequences.
+ */
+export const CAPABILITY_RESPONSE_PATTERNS = {
+  /** DA1 response: ESC [ ? Ps ; Ps ; ... c */
+  da1: /\x1b\[\?([0-9;]+)c/,
+  /** DA2 response: ESC [ > Ps ; Ps ; Ps c */
+  da2: /\x1b\[>([0-9;]+)c/,
+  /** DA3 response: ESC P ! | hex-string ESC \ */
+  da3: /\x1bP!|([0-9a-fA-F]+)\x1b\\/,
+  /** DSR response: ESC [ 0 n (terminal OK) */
+  dsr: /\x1b\[0n/,
+  /** Kitty keyboard query response: ESC [ ? flags u */
+  kittyKeyboard: /\x1b\[\?(\d+)u/,
+  /** Kitty graphics response: contains OK or error */
+  kittyGraphics: /\x1b_G([^\x1b]*)\x1b\\/,
+  /** XTVERSION response: ESC P > | version-string ESC \ */
+  xtversion: /\x1bP>|([^\x1b]*)\x1b\\/,
+  /** Color query response: OSC Ps ; rgb:rr/gg/bb ST */
+  colorResponse: /\x1b\](\d+);rgb:([0-9a-fA-F/]+)/,
+  /** DECRPM (mode report) response: ESC [ ? Pd ; Ps $ y */
+  modeReport: /\x1b\[\?(\d+);(\d+)\$y/,
+} as const;
+
+/**
+ * Build a comprehensive capability query string that sends all
+ * detection queries to the terminal in one write.
+ *
+ * The adapter parameter is accepted for interface consistency but
+ * the function returns the query string rather than writing it directly,
+ * allowing the caller to manage the write timing.
+ *
+ * Responses arrive asynchronously on stdin and must be parsed
+ * using CAPABILITY_RESPONSE_PATTERNS.
+ *
+ * @returns The combined query string to send to the terminal
+ */
+export function buildCapabilityQuery(_adapter: PlatformAdapter): string {
+  return (
+    DA1_QUERY +
+    DA2_QUERY +
+    KITTY_KEYBOARD_QUERY +
+    KITTY_GRAPHICS_QUERY +
+    XTVERSION_QUERY
+  );
+}
+

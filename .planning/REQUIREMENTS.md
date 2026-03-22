@@ -104,10 +104,10 @@ Requirements for Amp CLI feature parity. Each maps to roadmap phases 9+.
 
 ### Mouse/Cursor System (MOUS)
 
-- [ ] **MOUS-01**: MouseTracker/MouseManager singleton — global mouse tracking, cursor shape management, hover state coordination (Amp: Pg)
-- [ ] **MOUS-02**: SystemMouseCursors constants (POINTER, DEFAULT) with ANSI escape sequences (Amp: gg)
-- [ ] **MOUS-03**: MouseRegion.onRelease event callback (Amp: Ba.onRelease)
-- [ ] **MOUS-04**: MouseRegion.onDrag event callback (Amp: Ba.onDrag)
+- [x] **MOUS-01**: MouseTracker/MouseManager singleton — global mouse tracking, cursor shape management, hover state coordination (Amp: Pg)
+- [x] **MOUS-02**: SystemMouseCursors constants (POINTER, DEFAULT) with ANSI escape sequences (Amp: gg)
+- [x] **MOUS-03**: MouseRegion.onRelease event callback (Amp: Ba.onRelease)
+- [x] **MOUS-04**: MouseRegion.onDrag event callback (Amp: Ba.onDrag)
 
 ### ScrollController Enhancements (SCRL)
 
@@ -197,10 +197,10 @@ All 65 v1.0 requirements completed across Phases 1-8. See MILESTONES.md.
 | ROBJ-05 | Phase 9 | Pending |
 | ROBJ-06 | Phase 9 | Pending |
 | ROBJ-07 | Phase 9 | Pending |
-| MOUS-01 | Phase 11 | Pending |
-| MOUS-02 | Phase 11 | Pending |
-| MOUS-03 | Phase 11 | Pending |
-| MOUS-04 | Phase 11 | Pending |
+| MOUS-01 | Phase 11 | Complete |
+| MOUS-02 | Phase 11 | Complete |
+| MOUS-03 | Phase 11 | Complete |
+| MOUS-04 | Phase 11 | Complete |
 | SCRL-01 | Phase 11 | Pending |
 | SCRL-02 | Phase 11 | Pending |
 | SCRL-03 | Phase 11 | Pending |

@@ -5,10 +5,35 @@
 import { Key } from '../core/key';
 import { TextStyle } from '../core/text-style';
 import { TextSpan } from '../core/text-span';
-import { Offset, Size } from '../core/types';
+import { Color } from '../core/color';
+import { Offset, Size, Rect } from '../core/types';
 import { BoxConstraints } from '../core/box-constraints';
 import { stringWidth } from '../core/wcwidth';
 import { LeafRenderObjectWidget, RenderBox, PaintContext } from '../framework/render-object';
+
+// ---------------------------------------------------------------------------
+// Selection range type
+// ---------------------------------------------------------------------------
+
+/** Represents a character index range within the text content. */
+export interface TextSelectionRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+/** Character position data cached during layout. */
+export interface CharacterPosition {
+  readonly col: number;
+  readonly row: number;
+  readonly width: number;
+}
+
+/** Visual line data cached during layout. */
+export interface VisualLine {
+  readonly startIndex: number;
+  readonly endIndex: number;
+  readonly row: number;
+}
 
 // ---------------------------------------------------------------------------
 // Extended PaintContext for text rendering
@@ -74,6 +99,7 @@ export class Text extends LeafRenderObjectWidget {
 /**
  * Render object for text content.
  * Computes size from text content and paints styled characters.
+ * Supports text selection highlighting and character position tracking.
  *
  * Amp ref: class gU0 extends j9 (RenderBox)
  */
@@ -83,17 +109,37 @@ export class RenderText extends RenderBox {
   private _maxLines?: number;
   private _overflow: 'clip' | 'ellipsis';
 
+  // --- Selection state ---
+  selectable: boolean = false;
+  selectedRanges: TextSelectionRange[] = [];
+  private _selectionColor?: Color;
+  private _copyHighlightColor?: Color;
+  private _highlightMode: 'selection' | 'copy' | 'none' = 'none';
+  selectableId?: string;
+
+  // --- Character position cache (rebuilt during layout) ---
+  private _characterPositions: CharacterPosition[] = [];
+  private _visualLines: VisualLine[] = [];
+
   constructor(opts: {
     text: TextSpan;
     textAlign?: 'left' | 'center' | 'right';
     maxLines?: number;
     overflow?: 'clip' | 'ellipsis';
+    selectable?: boolean;
+    selectionColor?: Color;
+    copyHighlightColor?: Color;
+    selectableId?: string;
   }) {
     super();
     this._text = opts.text;
     this._textAlign = opts.textAlign ?? 'left';
     this._maxLines = opts.maxLines;
     this._overflow = opts.overflow ?? 'clip';
+    if (opts.selectable !== undefined) this.selectable = opts.selectable;
+    if (opts.selectionColor !== undefined) this._selectionColor = opts.selectionColor;
+    if (opts.copyHighlightColor !== undefined) this._copyHighlightColor = opts.copyHighlightColor;
+    if (opts.selectableId !== undefined) this.selectableId = opts.selectableId;
   }
 
   get text(): TextSpan {
@@ -133,6 +179,134 @@ export class RenderText extends RenderBox {
     if (this._overflow === value) return;
     this._overflow = value;
     this.markNeedsPaint();
+  }
+
+  // --- Selection accessors ---
+
+  get selectionColor(): Color | undefined {
+    return this._selectionColor;
+  }
+
+  set selectionColor(value: Color | undefined) {
+    this._selectionColor = value;
+    if (this._highlightMode !== 'none') this.markNeedsPaint();
+  }
+
+  get copyHighlightColor(): Color | undefined {
+    return this._copyHighlightColor;
+  }
+
+  set copyHighlightColor(value: Color | undefined) {
+    this._copyHighlightColor = value;
+    if (this._highlightMode === 'copy') this.markNeedsPaint();
+  }
+
+  get highlightMode(): 'selection' | 'copy' | 'none' {
+    return this._highlightMode;
+  }
+
+  // --- Position cache accessors (read-only) ---
+
+  get characterPositions(): ReadonlyArray<CharacterPosition> {
+    return this._characterPositions;
+  }
+
+  get visualLines(): ReadonlyArray<VisualLine> {
+    return this._visualLines;
+  }
+
+  // --- Selection methods ---
+
+  /**
+   * Update selection range and highlight mode.
+   * Clamps start/end to valid character indices.
+   */
+  updateSelection(start: number, end: number, mode: 'selection' | 'copy'): void {
+    const totalChars = this._characterPositions.length;
+    const clampedStart = Math.max(0, Math.min(start, totalChars));
+    const clampedEnd = Math.max(clampedStart, Math.min(end, totalChars));
+    this.selectedRanges = [{ start: clampedStart, end: clampedEnd }];
+    this._highlightMode = mode;
+    this.markNeedsPaint();
+  }
+
+  /**
+   * Clear all selection state.
+   */
+  clearSelection(): void {
+    if (this.selectedRanges.length === 0 && this._highlightMode === 'none') return;
+    this.selectedRanges = [];
+    this._highlightMode = 'none';
+    this.markNeedsPaint();
+  }
+
+  // --- Position query methods ---
+
+  /**
+   * Returns the bounding rectangle for a character at the given index.
+   * Returns null if the index is out of range.
+   */
+  getCharacterRect(index: number): Rect | null {
+    if (index < 0 || index >= this._characterPositions.length) return null;
+    const pos = this._characterPositions[index]!;
+    return new Rect(pos.col, pos.row, pos.width, 1);
+  }
+
+  /**
+   * Returns the character index closest to the given (x, y) position.
+   * Coordinates are relative to the render object's origin (not global offset).
+   * Returns -1 if no characters exist.
+   */
+  getOffsetForPosition(x: number, y: number): number {
+    if (this._characterPositions.length === 0) return -1;
+
+    // Find the visual line matching the y coordinate
+    let targetLine: VisualLine | null = null;
+    for (const line of this._visualLines) {
+      if (line.row === y) {
+        targetLine = line;
+        break;
+      }
+    }
+
+    // If no exact row match, find the closest row
+    if (targetLine === null) {
+      let bestDist = Infinity;
+      for (const line of this._visualLines) {
+        const dist = Math.abs(line.row - y);
+        if (dist < bestDist) {
+          bestDist = dist;
+          targetLine = line;
+        }
+      }
+    }
+
+    if (targetLine === null) return -1;
+
+    // Search characters within this line for the closest x position
+    let bestIndex = targetLine.startIndex;
+    let bestDist = Infinity;
+
+    for (let i = targetLine.startIndex; i < targetLine.endIndex; i++) {
+      const pos = this._characterPositions[i]!;
+      // Distance from x to the center of the character
+      const charCenter = pos.col + pos.width / 2;
+      const dist = Math.abs(x - charCenter);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIndex = i;
+      }
+    }
+
+    // If x is past the last character, return the end of the line
+    if (targetLine.endIndex > targetLine.startIndex) {
+      const lastPos = this._characterPositions[targetLine.endIndex - 1]!;
+      if (x >= lastPos.col + lastPos.width) {
+        return targetLine.endIndex - 1;
+      }
+    }
+
+    return bestIndex;
   }
 
   /**
@@ -194,6 +368,53 @@ export class RenderText extends RenderBox {
     this.size = constraints.constrain(
       new Size(maxLineWidth, intrinsicHeight),
     );
+
+    // Rebuild character position cache
+    this._rebuildPositionCache(displayLines);
+  }
+
+  /**
+   * Rebuild the character position and visual line caches.
+   * Called during performLayout() after the text lines are computed.
+   */
+  private _rebuildPositionCache(displayLines: { char: string; style: TextStyle }[][]): void {
+    const positions: CharacterPosition[] = [];
+    const visualLines: VisualLine[] = [];
+    const availWidth = this.size.width;
+    let charIndex = 0;
+
+    for (let lineIdx = 0; lineIdx < displayLines.length; lineIdx++) {
+      const line = displayLines[lineIdx]!;
+      const lineW = this._lineWidth(line);
+
+      // Compute left offset for alignment (same logic as paint)
+      let leftOffset = 0;
+      if (this._textAlign === 'center') {
+        leftOffset = Math.floor((availWidth - lineW) / 2);
+      } else if (this._textAlign === 'right') {
+        leftOffset = availWidth - lineW;
+      }
+      if (leftOffset < 0) leftOffset = 0;
+
+      const lineStartIndex = charIndex;
+
+      let col = leftOffset;
+      for (const { char } of line) {
+        const charW = stringWidth(char);
+        positions.push({ col, row: lineIdx, width: charW });
+        col += charW;
+        charIndex++;
+      }
+
+      visualLines.push({
+        startIndex: lineStartIndex,
+        endIndex: charIndex,
+        row: lineIdx,
+      });
+    }
+
+    this._characterPositions = positions;
+    this._visualLines = visualLines;
   }
 
   // Amp ref: gU0.paint()
@@ -208,9 +429,19 @@ export class RenderText extends RenderBox {
     const availWidth = this.size.width;
     const availHeight = this.size.height;
 
+    // Build a set of highlighted character indices for fast lookup
+    const highlightedIndices = this._buildHighlightSet();
+
+    // Determine highlight color based on mode
+    const highlightColor = this._getHighlightColor();
+
+    // Track global character index across lines (for selection highlighting)
+    let charIndex = 0;
+
     for (let lineIdx = 0; lineIdx < displayLines.length && lineIdx < availHeight; lineIdx++) {
       let line = displayLines[lineIdx]!;
       let lineW = this._lineWidth(line);
+      const lineCharCount = line.length;
 
       // Handle overflow: ellipsis
       const isTruncated = this._maxLines !== undefined
@@ -235,13 +466,53 @@ export class RenderText extends RenderBox {
       // Paint characters
       let col = offset.col + leftOffset;
       const row = offset.row + lineIdx;
-      for (const { char, style } of line) {
+      for (let ci = 0; ci < line.length; ci++) {
+        const { char, style } = line[ci]!;
         const charW = stringWidth(char);
         if (col - offset.col + charW > availWidth) break; // clip at width boundary
-        ctx.drawChar!(col, row, char, style);
+
+        // Apply selection highlight if this character is selected
+        const globalCharIdx = charIndex + ci;
+        if (this.selectable && highlightColor && highlightedIndices.has(globalCharIdx)) {
+          const highlightedStyle = style.copyWith({ background: highlightColor });
+          ctx.drawChar!(col, row, char, highlightedStyle);
+        } else {
+          ctx.drawChar!(col, row, char, style);
+        }
         col += charW;
       }
+
+      charIndex += lineCharCount;
     }
+  }
+
+  /**
+   * Build a Set of character indices that are within any selected range.
+   */
+  private _buildHighlightSet(): Set<number> {
+    const set = new Set<number>();
+    if (!this.selectable || this._highlightMode === 'none' || this.selectedRanges.length === 0) {
+      return set;
+    }
+    for (const range of this.selectedRanges) {
+      for (let i = range.start; i < range.end; i++) {
+        set.add(i);
+      }
+    }
+    return set;
+  }
+
+  /**
+   * Get the appropriate highlight color based on the current highlight mode.
+   */
+  private _getHighlightColor(): Color | undefined {
+    if (this._highlightMode === 'selection') {
+      return this._selectionColor;
+    }
+    if (this._highlightMode === 'copy') {
+      return this._copyHighlightColor ?? this._selectionColor;
+    }
+    return undefined;
   }
 
   /**

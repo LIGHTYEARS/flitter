@@ -35,3 +35,7 @@ export { DiffView } from './widgets/diff-view';
 export { Markdown } from './widgets/markdown';
 export { ContainerWithOverlays } from './widgets/container-with-overlays';
 export type { OverlayPosition, OverlayAlignment, OverlaySpec } from './widgets/container-with-overlays';
+
+// Phase 14: RenderText Advanced
+export { Text, RenderText } from './widgets/text';
+export type { TextSelectionRange, CharacterPosition, VisualLine, TextPaintContext } from './widgets/text';

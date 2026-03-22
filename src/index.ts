@@ -33,3 +33,5 @@ export { SelectionList, SelectionListState } from './widgets/selection-list';
 export type { SelectionItem } from './widgets/selection-list';
 export { DiffView } from './widgets/diff-view';
 export { Markdown } from './widgets/markdown';
+export { ContainerWithOverlays } from './widgets/container-with-overlays';
+export type { OverlayPosition, OverlayAlignment, OverlaySpec } from './widgets/container-with-overlays';

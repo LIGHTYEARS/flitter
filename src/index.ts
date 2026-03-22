@@ -18,3 +18,7 @@ export type { TerminalCapabilities } from './widgets/media-query';
 export { Theme } from './widgets/theme';
 export type { ThemeData } from './widgets/theme';
 export { HoverContext } from './widgets/hover-context';
+
+// Phase 12: Core Missing Widgets
+export { FocusScope } from './widgets/focus-scope';
+export { ClipRect, RenderClipRect } from './widgets/clip-rect';

@@ -71,7 +71,7 @@ export function keyFromCharCode(code: number): string {
   // Special single-byte characters must be checked first
   // (some overlap with control character range 0x01-0x1A)
   switch (code) {
-    case 0x0D: return LogicalKey.Return;
+    case 0x0D: return LogicalKey.Enter;   // \r from real terminal Enter key
     case 0x0A: return LogicalKey.Enter;
     case 0x09: return LogicalKey.Tab;
     case 0x08: return LogicalKey.Backspace;

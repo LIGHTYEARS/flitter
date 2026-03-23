@@ -102,7 +102,7 @@ describe('InputParser', () => {
   describe('special single characters', () => {
     test('Enter (\\r)', () => {
       const event = parseKeyEvent('\r');
-      expect(event.key).toBe('Return');
+      expect(event.key).toBe('Enter');
     });
 
     test('Enter (\\n)', () => {
@@ -673,7 +673,7 @@ describe('InputParser', () => {
       parser.dispose();
 
       expect(events.length).toBe(1);
-      expect((events[0] as KeyEvent).key).toBe('Return');
+      expect((events[0] as KeyEvent).key).toBe('Enter');
       expect((events[0] as KeyEvent).altKey).toBe(true);
     });
   });

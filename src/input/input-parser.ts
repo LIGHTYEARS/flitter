@@ -135,9 +135,9 @@ export class InputParser {
     let ctrl = false;
     let shift = false;
 
-    if (char === '\r') {
-      key = 'Return';
-    } else if (char === '\n') {
+    if (char === '\r' || char === '\n') {
+      // Both \r (carriage return) and \n (line feed) map to 'Enter'.
+      // Real terminals send \r when the Enter key is pressed.
       key = 'Enter';
     } else if (char === '\t') {
       key = 'Tab';

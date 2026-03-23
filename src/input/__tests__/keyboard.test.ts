@@ -83,7 +83,7 @@ describe('keyFromCharCode', () => {
   });
 
   test('maps special single-byte characters', () => {
-    expect(keyFromCharCode(0x0D)).toBe('Return');
+    expect(keyFromCharCode(0x0D)).toBe('Enter');
     expect(keyFromCharCode(0x0A)).toBe('Enter');
     expect(keyFromCharCode(0x09)).toBe('Tab');
     expect(keyFromCharCode(0x08)).toBe('Backspace');

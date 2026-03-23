@@ -814,12 +814,25 @@ export async function runApp(widget: Widget, options?: RunAppOptions): Promise<W
     // Wire stdin → InputBridge → EventDispatcher → FocusManager → widgets
     try {
       const { InputBridge } = require('../input/input-bridge');
+      const { EventDispatcher } = require('../input/event-dispatcher');
       const bridge = new InputBridge();
       platform.onStdinData((data: Buffer) => {
         bridge.feed(data);
       });
       // Store bridge on binding for cleanup
       (binding as any)._inputBridge = bridge;
+
+      // Register default Ctrl+C interceptor as safety net.
+      // In raw mode, SIGINT is not generated — Ctrl+C arrives as byte 0x03
+      // which InputParser emits as key='c', ctrlKey=true.
+      // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
+      const dispatcher = EventDispatcher.instance;
+      dispatcher.addKeyInterceptor((event: any) => {
+        if (event.key === 'c' && event.ctrlKey) {
+          process.exit(0);
+        }
+        return 'ignored';
+      });
     } catch (_e) {
       // InputBridge not available, skip input wiring
     }

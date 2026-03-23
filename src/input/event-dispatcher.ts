@@ -213,9 +213,8 @@ export class EventDispatcher {
     }
 
     // Step 2: Try FocusManager dispatch (if available)
-    // FocusManager is developed in parallel (Plan 06-02), so we use dynamic import
     try {
-      const { FocusManager } = require('./focus-manager');
+      const { FocusManager } = require('./focus');
       if (FocusManager?.instance) {
         const result = FocusManager.instance.dispatchKeyEvent(event);
         if (result === 'handled') {
@@ -275,11 +274,13 @@ export class EventDispatcher {
    *   2. Fall back to registered paste handlers
    */
   dispatchPasteEvent(event: PasteEvent): void {
-    // Try FocusManager paste dispatch
+    // Try FocusManager paste dispatch — only if there's a focused node
+    // that might handle the paste. Otherwise fall through to registered handlers.
     try {
-      const { FocusManager } = require('./focus-manager');
-      if (FocusManager?.instance) {
-        FocusManager.instance.dispatchPasteEvent(event.text);
+      const { FocusManager } = require('./focus');
+      const fm = FocusManager?.instance;
+      if (fm && fm.primaryFocus) {
+        fm.dispatchPasteEvent(event.text);
         return;
       }
     } catch {

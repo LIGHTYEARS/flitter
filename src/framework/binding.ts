@@ -33,6 +33,7 @@ import { FrameStats } from '../diagnostics/frame-stats';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
 import { TerminalManager } from '../terminal/terminal-manager';
 import { MockPlatform, BunPlatform } from '../terminal/platform';
+import { MediaQuery, MediaQueryData } from '../widgets/media-query';
 
 // ---------------------------------------------------------------------------
 // Global build/paint scheduler accessors (Amp: lF, dF, VG8, XG8, xH)
@@ -70,40 +71,35 @@ export function initSchedulers(
 }
 
 /**
+ * No-op build scheduler for when binding is not yet initialized.
+ * Amp ref: XG8() always has a valid bridge, but in tests without
+ * WidgetsBinding, we gracefully degrade to no-op.
+ */
+const _noopBuildScheduler: BuildScheduler = { scheduleBuildFor: () => {} };
+
+/**
  * Get the build scheduler. Used by Element.markNeedsRebuild().
  * Amp ref: XG8()
  */
 export function getBuildScheduler(): BuildScheduler {
-  if (!_buildScheduler) {
-    // In test mode, return a no-op scheduler
-    if (isTestEnvironment()) {
-      return { scheduleBuildFor: () => {} };
-    }
-    throw new Error(
-      'Build scheduler not initialized. Make sure WidgetsBinding is created.',
-    );
-  }
-  return _buildScheduler;
+  return _buildScheduler ?? _noopBuildScheduler;
 }
+
+/**
+ * No-op paint scheduler for when binding is not yet initialized.
+ */
+const _noopPaintScheduler: PaintScheduler = {
+  requestLayout: () => {},
+  requestPaint: () => {},
+  removeFromQueues: () => {},
+};
 
 /**
  * Get the paint scheduler. Used by RenderObject.markNeedsLayout/Paint().
  * Amp ref: xH()
  */
 export function getPaintScheduler(): PaintScheduler {
-  if (!_paintScheduler) {
-    if (isTestEnvironment()) {
-      return {
-        requestLayout: () => {},
-        requestPaint: () => {},
-        removeFromQueues: () => {},
-      };
-    }
-    throw new Error(
-      'Paint scheduler not initialized. Make sure WidgetsBinding is created.',
-    );
-  }
-  return _paintScheduler;
+  return _paintScheduler ?? _noopPaintScheduler;
 }
 
 /** Reset global schedulers (for testing). */
@@ -252,9 +248,8 @@ export class WidgetsBinding {
       {
         scheduleBuildFor: (element: Element) => {
           this.buildOwner.scheduleBuildFor(element);
-          // Also schedule a frame so the dirty element gets rebuilt + repainted.
-          // Amp ref: XG8().scheduleBuildFor calls c9.instance.requestFrame()
-          this.frameScheduler.requestFrame();
+          // requestFrame no longer needed here — BuildOwner.scheduleBuildFor calls it directly
+          // Amp ref: VG8 bridge just delegates, NB0.scheduleBuildFor handles requestFrame
         },
       },
       {
@@ -791,22 +786,167 @@ export class WidgetsBinding {
     this._rootElementMountedCallback = callback;
   }
 
+  // --- runApp instance method (Amp ref: J3.runApp -- widget-tree.md:1189-1236) ---
+
+  /**
+   * Run the application: init terminal, wrap in MediaQuery, mount root, schedule first frame.
+   *
+   * Amp ref: J3.runApp(g) -- widget-tree.md:1189-1236
+   * Handles terminal init, MediaQuery wrapping, input wiring, and first frame scheduling.
+   * In test mode, skips terminal init and uses 80x24 defaults.
+   */
+  async runApp(widget: Widget, options?: RunAppOptions): Promise<void> {
+    const inTest = isTestEnvironment();
+    const enableTerminal = options?.terminal ?? !inTest;
+
+    // Set callbacks if provided
+    if (options?.onRootElementMounted) {
+      this.setRootElementMountedCallback(options.onRootElementMounted);
+    }
+
+    // Set output BEFORE the first frame so the render phase can write
+    if (options?.output) {
+      this.setOutput(options.output);
+    }
+
+    // Determine terminal size -- use reasonable defaults in test mode
+    let cols = 80;
+    let rows = 24;
+    let platform: any = null;
+
+    if (!inTest) {
+      try {
+        platform = new BunPlatform();
+        const size = platform.getTerminalSize();
+        cols = size.columns;
+        rows = size.rows;
+      } catch (_e) {
+        // BunPlatform not available, use defaults
+      }
+    }
+
+    // Wrap the user's widget in MediaQuery so all descendants can access screen size
+    // Amp ref: J3.createMediaQueryWrapper(g)
+    const wrappedWidget = new MediaQuery({
+      data: MediaQueryData.fromTerminal(cols, rows),
+      child: widget,
+    });
+
+    this.attachRootWidget(wrappedWidget);
+
+    // --- Terminal initialization (production only) ---
+    // Enable raw mode, alt screen, and wire stdin -> InputParser -> EventDispatcher.
+    // Raw mode + stdin listener keeps the Bun event loop alive so the process
+    // doesn't exit after the first frame.
+    if (enableTerminal && platform) {
+      // Enable raw mode -- this keeps stdin open (process stays alive)
+      platform.enableRawMode();
+
+      // Enter alt screen + hide cursor
+      try {
+        const renderer = new Renderer();
+        const initSequence =
+          renderer.enterAltScreen() +
+          renderer.hideCursor() +
+          renderer.enableMouse() +
+          renderer.enableBracketedPaste();
+        platform.writeStdout(initSequence);
+      } catch (_e) {
+        // Renderer not available, skip terminal modes
+      }
+
+      // Wire stdin -> InputBridge -> EventDispatcher -> FocusManager -> widgets
+      try {
+        const { InputBridge } = require('../input/input-bridge');
+        const { EventDispatcher } = require('../input/event-dispatcher');
+        const bridge = new InputBridge();
+        platform.onStdinData((data: Buffer) => {
+          bridge.feed(data);
+        });
+        // Store bridge on binding for cleanup
+        (this as any)._inputBridge = bridge;
+
+        // Register default Ctrl+C interceptor as safety net.
+        // In raw mode, SIGINT is not generated -- Ctrl+C arrives as byte 0x03
+        // which InputParser emits as key='c', ctrlKey=true.
+        // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
+        const dispatcher = EventDispatcher.instance;
+        dispatcher.addKeyInterceptor((event: any) => {
+          if (event.key === 'c' && event.ctrlKey) {
+            process.exit(0);
+          }
+          return 'ignored';
+        });
+      } catch (_e) {
+        // InputBridge not available, skip input wiring
+      }
+
+      // Store platform on binding for cleanup
+      (this as any)._platform = platform;
+
+      // Clean exit handler -- restore terminal state
+      const cleanup = () => {
+        try {
+          const renderer = new Renderer();
+          const cleanupSequence =
+            renderer.showCursor() +
+            renderer.disableMouse() +
+            renderer.disableBracketedPaste() +
+            renderer.exitAltScreen();
+          platform.writeStdout(cleanupSequence);
+          platform.disableRawMode();
+        } catch (_e) {
+          // Best-effort cleanup
+        }
+      };
+
+      process.on('exit', cleanup);
+      process.on('SIGINT', () => {
+        cleanup();
+        process.exit(0);
+      });
+      process.on('SIGTERM', () => {
+        cleanup();
+        process.exit(0);
+      });
+    }
+
+    // Register SIGWINCH handler for terminal resize
+    if (!inTest && typeof process !== 'undefined') {
+      process.on('SIGWINCH', () => {
+        try {
+          const p = (this as any)._platform || platform;
+          if (p) {
+            const size = p.getTerminalSize();
+            this.handleResize(size.columns, size.rows);
+            const newWrapped = new MediaQuery({
+              data: MediaQueryData.fromTerminal(size.columns, size.rows),
+              child: widget,
+            });
+            this.attachRootWidget(newWrapped);
+          }
+        } catch (_e) {
+          // Ignore resize errors
+        }
+      });
+    }
+
+    // Force paint on first frame to ensure content is rendered
+    this.requestForcedPaintFrame();
+    this.frameScheduler.requestFrame();
+  }
+
   // --- Private helpers ---
   // (_tryRegisterFrameCallbacks and _useFrameScheduler REMOVED --
   //  replaced by static import and direct constructor registration)
 }
 
 // ---------------------------------------------------------------------------
-// runApp (Amp: cz8)
-//
-// Top-level entry point. Gets the binding singleton,
-// wraps the root widget in MediaQuery, attaches it, and schedules the first frame.
+// runApp (Amp: cz8) -- thin wrapper
 //
 // Amp ref: async function cz8(g, t) { let b = J3.instance; await b.runApp(g); }
-// Phase 23-03: Thin wrapper matching cz8 pattern
+// Phase 24-02: Moved all terminal init logic into WidgetsBinding.runApp().
 // ---------------------------------------------------------------------------
-
-import { MediaQuery, MediaQueryData } from '../widgets/media-query';
 
 /**
  * Options for runApp.
@@ -835,149 +975,12 @@ export interface RunAppOptions {
 
 /**
  * Standalone runApp -- thin wrapper matching Amp's cz8 pattern.
- * Gets the WidgetsBinding singleton, optionally sets callbacks,
- * then delegates to the binding's internal runApp logic.
+ * Gets the WidgetsBinding singleton and delegates to its runApp() method.
  *
- * Amp ref: async function cz8(g, t) { let b = J3.instance; ... await b.runApp(g); }
+ * Amp ref: async function cz8(g, t) { let b = J3.instance; await b.runApp(g); }
  */
 export async function runApp(widget: Widget, options?: RunAppOptions): Promise<WidgetsBinding> {
   const binding = WidgetsBinding.instance;
-  const inTest = isTestEnvironment();
-  const enableTerminal = options?.terminal ?? !inTest;
-
-  // Set callbacks if provided
-  if (options?.onRootElementMounted) {
-    binding.setRootElementMountedCallback(options.onRootElementMounted);
-  }
-
-  // Set output BEFORE the first frame so the render phase can write
-  if (options?.output) {
-    binding.setOutput(options.output);
-  }
-
-  // Determine terminal size -- use reasonable defaults in test mode
-  let cols = 80;
-  let rows = 24;
-  let platform: any = null;
-
-  if (!inTest) {
-    try {
-      platform = new BunPlatform();
-      const size = platform.getTerminalSize();
-      cols = size.columns;
-      rows = size.rows;
-    } catch (_e) {
-      // BunPlatform not available, use defaults
-    }
-  }
-
-  // Wrap the user's widget in MediaQuery so all descendants can access screen size
-  const wrappedWidget = new MediaQuery({
-    data: MediaQueryData.fromTerminal(cols, rows),
-    child: widget,
-  });
-
-  binding.attachRootWidget(wrappedWidget);
-
-  // --- Terminal initialization (production only) ---
-  // Enable raw mode, alt screen, and wire stdin -> InputParser -> EventDispatcher.
-  // Raw mode + stdin listener keeps the Bun event loop alive so the process
-  // doesn't exit after the first frame.
-  if (enableTerminal && platform) {
-    // Enable raw mode -- this keeps stdin open (process stays alive)
-    platform.enableRawMode();
-
-    // Enter alt screen + hide cursor
-    try {
-      const renderer = new Renderer();
-      const initSequence =
-        renderer.enterAltScreen() +
-        renderer.hideCursor() +
-        renderer.enableMouse() +
-        renderer.enableBracketedPaste();
-      platform.writeStdout(initSequence);
-    } catch (_e) {
-      // Renderer not available, skip terminal modes
-    }
-
-    // Wire stdin -> InputBridge -> EventDispatcher -> FocusManager -> widgets
-    try {
-      const { InputBridge } = require('../input/input-bridge');
-      const { EventDispatcher } = require('../input/event-dispatcher');
-      const bridge = new InputBridge();
-      platform.onStdinData((data: Buffer) => {
-        bridge.feed(data);
-      });
-      // Store bridge on binding for cleanup
-      (binding as any)._inputBridge = bridge;
-
-      // Register default Ctrl+C interceptor as safety net.
-      // In raw mode, SIGINT is not generated -- Ctrl+C arrives as byte 0x03
-      // which InputParser emits as key='c', ctrlKey=true.
-      // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
-      const dispatcher = EventDispatcher.instance;
-      dispatcher.addKeyInterceptor((event: any) => {
-        if (event.key === 'c' && event.ctrlKey) {
-          process.exit(0);
-        }
-        return 'ignored';
-      });
-    } catch (_e) {
-      // InputBridge not available, skip input wiring
-    }
-
-    // Store platform on binding for cleanup
-    (binding as any)._platform = platform;
-
-    // Clean exit handler -- restore terminal state
-    const cleanup = () => {
-      try {
-        const renderer = new Renderer();
-        const cleanupSequence =
-          renderer.showCursor() +
-          renderer.disableMouse() +
-          renderer.disableBracketedPaste() +
-          renderer.exitAltScreen();
-        platform.writeStdout(cleanupSequence);
-        platform.disableRawMode();
-      } catch (_e) {
-        // Best-effort cleanup
-      }
-    };
-
-    process.on('exit', cleanup);
-    process.on('SIGINT', () => {
-      cleanup();
-      process.exit(0);
-    });
-    process.on('SIGTERM', () => {
-      cleanup();
-      process.exit(0);
-    });
-  }
-
-  // Register SIGWINCH handler for terminal resize
-  if (!inTest && typeof process !== 'undefined') {
-    process.on('SIGWINCH', () => {
-      try {
-        const p = (binding as any)._platform || platform;
-        if (p) {
-          const size = p.getTerminalSize();
-          binding.handleResize(size.columns, size.rows);
-          const newWrapped = new MediaQuery({
-            data: MediaQueryData.fromTerminal(size.columns, size.rows),
-            child: widget,
-          });
-          binding.attachRootWidget(newWrapped);
-        }
-      } catch (_e) {
-        // Ignore resize errors
-      }
-    });
-  }
-
-  // Force paint on first frame to ensure content is rendered
-  binding.requestForcedPaintFrame();
-  binding.frameScheduler.requestFrame();
+  await binding.runApp(widget, options);
   return binding;
 }

@@ -10,6 +10,7 @@
 
 import { Element } from './element';
 import { GlobalKey } from '../core/key';
+import { FrameScheduler } from '../scheduler/frame-scheduler';
 
 // ---------------------------------------------------------------------------
 // GlobalKeyRegistry — tracks GlobalKey -> Element associations
@@ -93,6 +94,8 @@ export class BuildOwner {
   scheduleBuildFor(element: Element): void {
     if (this._dirtyElements.has(element)) return;
     this._dirtyElements.add(element);
+    // Amp ref: NB0.scheduleBuildFor calls c9.instance.requestFrame() directly
+    FrameScheduler.instance.requestFrame();
   }
 
   /**

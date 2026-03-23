@@ -142,17 +142,11 @@ export class Element {
   // Amp ref: T$.markNeedsRebuild() — sets _dirty, calls XG8().scheduleBuildFor
   markNeedsRebuild(): void {
     if (!this._mounted) return;
-    if (this._dirty) return; // already scheduled
     this._dirty = true;
-    // Notify the global build scheduler so BuildOwner picks up this element
-    // and a new frame is scheduled.
     // Amp ref: XG8().scheduleBuildFor(this)
-    try {
-      const { getBuildScheduler } = require('./binding');
-      getBuildScheduler().scheduleBuildFor(this);
-    } catch (_e) {
-      // Build scheduler not available (e.g. tests without binding)
-    }
+    // Uses dynamic require to avoid circular import (element <-> binding)
+    const { getBuildScheduler } = require('./binding');
+    getBuildScheduler().scheduleBuildFor(this);
   }
 
   // Alias used by StatefulElement

@@ -209,5 +209,5 @@ export const createProgressBarApp = (): ProgressBarApp => new ProgressBarApp();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(new ProgressBarApp()).then(binding => binding.setOutput(process.stdout));
+  runApp(new ProgressBarApp(), { output: process.stdout });
 }

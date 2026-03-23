@@ -249,5 +249,5 @@ export const app = buildStackLayers();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(app).then(binding => binding.setOutput(process.stdout));
+  runApp(app, { output: process.stdout });
 }

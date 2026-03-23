@@ -294,5 +294,5 @@ export { TABS };
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(new TabsDemoApp()).then(binding => binding.setOutput(process.stdout));
+  runApp(new TabsDemoApp(), { output: process.stdout });
 }

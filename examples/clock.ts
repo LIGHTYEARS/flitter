@@ -226,5 +226,5 @@ export const createClockApp = (): ClockApp => new ClockApp();
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(new ClockApp()).then(binding => binding.setOutput(process.stdout));
+  runApp(new ClockApp(), { output: process.stdout });
 }

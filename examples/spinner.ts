@@ -244,5 +244,5 @@ export { SPINNERS };
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(new SpinnerApp()).then(binding => binding.setOutput(process.stdout));
+  runApp(new SpinnerApp(), { output: process.stdout });
 }

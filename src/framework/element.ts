@@ -585,7 +585,12 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
       this.addChild(this._child);
       this._mountChild(this._child);
       if (this._child.renderObject && this.renderObject) {
-        if (typeof this.renderObject.adoptChild === 'function') {
+        // Use the 'child' setter if available (e.g., RenderCenter, RenderPadding).
+        // The setter handles both setting _child and calling adoptChild.
+        // Fall back to adoptChild for render objects without a child setter.
+        if ('child' in this.renderObject) {
+          (this.renderObject as any).child = this._child.renderObject;
+        } else if (typeof this.renderObject.adoptChild === 'function') {
           this.renderObject.adoptChild(this._child.renderObject);
         }
       }
@@ -621,8 +626,12 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
           if (typeof this.renderObject.removeAllChildren === 'function') {
             this.renderObject.removeAllChildren();
           }
-          if (this._child.renderObject && typeof this.renderObject.adoptChild === 'function') {
-            this.renderObject.adoptChild(this._child.renderObject);
+          if (this._child.renderObject) {
+            if ('child' in this.renderObject) {
+              (this.renderObject as any).child = this._child.renderObject;
+            } else if (typeof this.renderObject.adoptChild === 'function') {
+              this.renderObject.adoptChild(this._child.renderObject);
+            }
           }
         }
       }
@@ -688,7 +697,11 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
         this.addChild(elem);
         this._mountChild(elem);
         if (elem.renderObject && this.renderObject) {
-          if (typeof this.renderObject.adoptChild === 'function') {
+          // Use insert() for ContainerRenderBox which adds to _children and calls adoptChild.
+          // Fall back to adoptChild for other render object types.
+          if (typeof (this.renderObject as any).insert === 'function') {
+            (this.renderObject as any).insert(elem.renderObject);
+          } else if (typeof this.renderObject.adoptChild === 'function') {
             this.renderObject.adoptChild(elem.renderObject);
           }
         }
@@ -863,6 +876,14 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
     const elem = widget.createElement();
     this.addChild(elem);
     this._mountChild(elem);
+    // Wire render object to parent
+    if (elem.renderObject && this.renderObject) {
+      if (typeof (this.renderObject as any).insert === 'function') {
+        (this.renderObject as any).insert(elem.renderObject);
+      } else if (typeof this.renderObject.adoptChild === 'function') {
+        this.renderObject.adoptChild(elem.renderObject);
+      }
+    }
     return elem;
   }
 

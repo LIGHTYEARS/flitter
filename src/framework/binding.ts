@@ -735,8 +735,25 @@ export class WidgetsBinding {
 
 import { MediaQuery, MediaQueryData } from '../widgets/media-query';
 
-export async function runApp(widget: Widget): Promise<WidgetsBinding> {
+/**
+ * Options for runApp.
+ */
+export interface RunAppOptions {
+  /**
+   * Output writer for terminal rendering.
+   * Pass `process.stdout` to render to the terminal.
+   * If omitted, output must be set later via `binding.setOutput()`.
+   */
+  output?: OutputWriter;
+}
+
+export async function runApp(widget: Widget, options?: RunAppOptions): Promise<WidgetsBinding> {
   const binding = WidgetsBinding.instance;
+
+  // Set output BEFORE the first frame so the render phase can write
+  if (options?.output) {
+    binding.setOutput(options.output);
+  }
 
   // Determine terminal size — use reasonable defaults in test mode
   let cols = 80;
@@ -782,6 +799,8 @@ export async function runApp(widget: Widget): Promise<WidgetsBinding> {
     });
   }
 
+  // Force paint on first frame to ensure content is rendered
+  binding.requestForcedPaintFrame();
   binding.scheduleFrame();
   return binding;
 }

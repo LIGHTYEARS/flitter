@@ -256,5 +256,5 @@ export { MENU_ITEMS };
 
 // Only run the app when executed directly
 if (typeof process !== 'undefined' && !process.env.BUN_TEST) {
-  runApp(new MenuSelectorApp()).then(binding => binding.setOutput(process.stdout));
+  runApp(new MenuSelectorApp(), { output: process.stdout });
 }

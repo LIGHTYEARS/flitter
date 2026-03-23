@@ -745,10 +745,19 @@ export interface RunAppOptions {
    * If omitted, output must be set later via `binding.setOutput()`.
    */
   output?: OutputWriter;
+
+  /**
+   * Whether to initialize terminal (raw mode, alt screen, stdin input).
+   * Defaults to true in production, false in test mode.
+   * When true, the process stays alive to receive keyboard/mouse input.
+   */
+  terminal?: boolean;
 }
 
 export async function runApp(widget: Widget, options?: RunAppOptions): Promise<WidgetsBinding> {
   const binding = WidgetsBinding.instance;
+  const inTest = isTestEnvironment();
+  const enableTerminal = options?.terminal ?? !inTest;
 
   // Set output BEFORE the first frame so the render phase can write
   if (options?.output) {
@@ -758,11 +767,12 @@ export async function runApp(widget: Widget, options?: RunAppOptions): Promise<W
   // Determine terminal size — use reasonable defaults in test mode
   let cols = 80;
   let rows = 24;
-  if (!isTestEnvironment()) {
+  let platform: any = null;
+
+  if (!inTest) {
     try {
-      // Try to get real terminal size from platform
       const { BunPlatform } = require('../terminal/platform');
-      const platform = new BunPlatform();
+      platform = new BunPlatform();
       const size = platform.getTerminalSize();
       cols = size.columns;
       rows = size.rows;
@@ -779,20 +789,86 @@ export async function runApp(widget: Widget, options?: RunAppOptions): Promise<W
 
   binding.attachRootWidget(wrappedWidget);
 
+  // --- Terminal initialization (production only) ---
+  // Enable raw mode, alt screen, and wire stdin → InputParser → EventDispatcher.
+  // Raw mode + stdin listener keeps the Bun event loop alive so the process
+  // doesn't exit after the first frame.
+  if (enableTerminal && platform) {
+    // Enable raw mode — this keeps stdin open (process stays alive)
+    platform.enableRawMode();
+
+    // Enter alt screen + hide cursor
+    try {
+      const { Renderer } = require('../terminal/renderer');
+      const renderer = new Renderer();
+      const initSequence =
+        renderer.enterAltScreen() +
+        renderer.hideCursor() +
+        renderer.enableMouse() +
+        renderer.enableBracketedPaste();
+      platform.writeStdout(initSequence);
+    } catch (_e) {
+      // Renderer not available, skip terminal modes
+    }
+
+    // Wire stdin → InputBridge → EventDispatcher → FocusManager → widgets
+    try {
+      const { InputBridge } = require('../input/input-bridge');
+      const bridge = new InputBridge();
+      platform.onStdinData((data: Buffer) => {
+        bridge.feed(data);
+      });
+      // Store bridge on binding for cleanup
+      (binding as any)._inputBridge = bridge;
+    } catch (_e) {
+      // InputBridge not available, skip input wiring
+    }
+
+    // Store platform on binding for cleanup
+    (binding as any)._platform = platform;
+
+    // Clean exit handler — restore terminal state
+    const cleanup = () => {
+      try {
+        const { Renderer } = require('../terminal/renderer');
+        const renderer = new Renderer();
+        const cleanupSequence =
+          renderer.showCursor() +
+          renderer.disableMouse() +
+          renderer.disableBracketedPaste() +
+          renderer.exitAltScreen();
+        platform.writeStdout(cleanupSequence);
+        platform.disableRawMode();
+      } catch (_e) {
+        // Best-effort cleanup
+      }
+    };
+
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => {
+      cleanup();
+      process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+      cleanup();
+      process.exit(0);
+    });
+  }
+
   // Register SIGWINCH handler for terminal resize
-  if (!isTestEnvironment() && typeof process !== 'undefined') {
+  if (!inTest && typeof process !== 'undefined') {
     process.on('SIGWINCH', () => {
       try {
-        const { BunPlatform } = require('../terminal/platform');
-        const platform = new BunPlatform();
-        const size = platform.getTerminalSize();
-        binding.handleResize(size.columns, size.rows);
-        // Also update the MediaQuery data — we need to rebuild with the new root
-        const newWrapped = new MediaQuery({
-          data: MediaQueryData.fromTerminal(size.columns, size.rows),
-          child: widget,
-        });
-        binding.attachRootWidget(newWrapped);
+        const p = (binding as any)._platform || platform;
+        if (p) {
+          const size = p.getTerminalSize();
+          binding.handleResize(size.columns, size.rows);
+          const newWrapped = new MediaQuery({
+            data: MediaQueryData.fromTerminal(size.columns, size.rows),
+            child: widget,
+          });
+          binding.attachRootWidget(newWrapped);
+        }
       } catch (_e) {
         // Ignore resize errors
       }

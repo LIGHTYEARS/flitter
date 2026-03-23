@@ -28,6 +28,8 @@ import { paintRenderTree } from '../scheduler/paint';
 import type { KeyEvent, MouseEvent as TuiMouseEvent } from '../input/events';
 import { MouseManager } from '../input/mouse-manager';
 import { FocusManager } from '../input/focus';
+import { InputParser } from '../input/input-parser';
+import { EventDispatcher } from '../input/event-dispatcher';
 import { PerformanceOverlay } from '../diagnostics/perf-overlay';
 import { FrameStats } from '../diagnostics/frame-stats';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
@@ -188,6 +190,11 @@ export class WidgetsBinding {
   // Created with MockPlatform by default (safe for tests).
   // In runApp(), replaced with real BunPlatform for production.
   private _tui: TerminalManager;
+
+  // --- InputParser (Amp ref: J3.setupEventHandlers -- input-system.md:601-634) ---
+  // Created by setupEventHandlers(); wired to EventDispatcher.dispatch.
+  // Replaces the old standalone InputBridge in the main event chain.
+  private _inputParser: InputParser | null = null;
 
   // --- Screen buffer + renderer backward compat (Phase 5 legacy) ---
   // getScreen()/getRenderer() delegate to tui's owned instances.
@@ -356,6 +363,11 @@ export class WidgetsBinding {
       inst._exitResolve = null;
       inst._exitPromise = null;
       inst._rootElementMountedCallback = null;
+      // Dispose input parser if it was created
+      if (inst._inputParser) {
+        inst._inputParser.dispose();
+        inst._inputParser = null;
+      }
       // Remove 6 frame callbacks from FrameScheduler
       // Amp ref: J3.cleanup removes all named callbacks
       for (const name of ['frame-start', 'resize', 'build', 'layout', 'paint-phase', 'render-phase']) {
@@ -766,6 +778,13 @@ export class WidgetsBinding {
       this.mouseManager.dispose();
     }
 
+    // Dispose input parser if it was created
+    // Amp ref: J3.cleanup disposes parser
+    if (this._inputParser) {
+      this._inputParser.dispose();
+      this._inputParser = null;
+    }
+
     // Remove 6 frame callbacks
     // Amp ref: J3.cleanup removes all named callbacks
     for (const name of ['frame-start', 'resize', 'build', 'layout', 'paint-phase', 'render-phase']) {
@@ -784,6 +803,51 @@ export class WidgetsBinding {
    */
   setRootElementMountedCallback(callback: () => void): void {
     this._rootElementMountedCallback = callback;
+  }
+
+  // --- setupEventHandlers (Amp ref: J3.setupEventHandlers -- input-system.md:601-634) ---
+
+  /**
+   * Wire TerminalManager's onInput to InputParser -> EventDispatcher -> FocusManager.
+   * Also registers the Ctrl+C safety interceptor and wires mouse events to MouseManager.
+   *
+   * Amp ref: J3.setupEventHandlers() -- input-system.md:601-634
+   * Flow: stdin (raw bytes) -> InputParser -> EventDispatcher.dispatch(event) -> FocusManager
+   */
+  private setupEventHandlers(): void {
+    const dispatcher = EventDispatcher.instance;
+
+    // Create InputParser that dispatches directly to EventDispatcher
+    // Amp ref: wB0 owns parser, J3.setupEventHandlers connects to FocusManager
+    this._inputParser = new InputParser((event) => {
+      dispatcher.dispatch(event);
+    });
+
+    // Wire TerminalManager's onInput callback to feed the parser
+    // Amp ref: J3.setupEventHandlers wires wB0's event handlers
+    this._tui.onInput = (data: Buffer) => {
+      this._inputParser!.feed(data);
+    };
+
+    // Register default Ctrl+C interceptor as safety net.
+    // In raw mode, SIGINT is not generated -- Ctrl+C arrives as byte 0x03
+    // which InputParser emits as key='c', ctrlKey=true.
+    // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
+    // Amp ref: J3.setupEventHandlers registers Ctrl+C interceptor
+    dispatcher.addKeyInterceptor((event: any) => {
+      if (event.key === 'c' && event.ctrlKey) {
+        process.exit(0);
+      }
+      return 'ignored';
+    });
+
+    // Wire mouse events to MouseManager through EventDispatcher
+    // Amp ref: J3.setupEventHandlers wires mouse to MouseManager.updatePosition
+    if (this.mouseManager) {
+      dispatcher.addMouseHandler((event) => {
+        this.mouseManager!.updatePosition(event.x, event.y);
+      });
+    }
   }
 
   // --- runApp instance method (Amp ref: J3.runApp -- widget-tree.md:1189-1236) ---
@@ -835,66 +899,30 @@ export class WidgetsBinding {
     this.attachRootWidget(wrappedWidget);
 
     // --- Terminal initialization (production only) ---
-    // Enable raw mode, alt screen, and wire stdin -> InputParser -> EventDispatcher.
-    // Raw mode + stdin listener keeps the Bun event loop alive so the process
-    // doesn't exit after the first frame.
+    // Replace tui with real BunPlatform, use TerminalManager.initialize() for full init,
+    // then wire event handlers via setupEventHandlers().
+    // Amp ref: J3.runApp() calls this.tui.init(), then this.setupEventHandlers()
     if (enableTerminal && platform) {
-      // Enable raw mode -- this keeps stdin open (process stays alive)
-      platform.enableRawMode();
+      // Replace MockPlatform tui with real BunPlatform-backed TerminalManager
+      // Amp ref: J3.runApp creates wB0 with real platform
+      this._tui = new TerminalManager(platform);
 
-      // Enter alt screen + hide cursor
-      try {
-        const renderer = new Renderer();
-        const initSequence =
-          renderer.enterAltScreen() +
-          renderer.hideCursor() +
-          renderer.enableMouse() +
-          renderer.enableBracketedPaste();
-        platform.writeStdout(initSequence);
-      } catch (_e) {
-        // Renderer not available, skip terminal modes
-      }
+      // Initialize terminal: raw mode, alt screen, hide cursor, mouse, bracketed paste
+      // Also registers input and resize handlers on the platform.
+      // Amp ref: wB0.init()
+      this._tui.initialize();
 
-      // Wire stdin -> InputBridge -> EventDispatcher -> FocusManager -> widgets
-      try {
-        const { InputBridge } = require('../input/input-bridge');
-        const { EventDispatcher } = require('../input/event-dispatcher');
-        const bridge = new InputBridge();
-        platform.onStdinData((data: Buffer) => {
-          bridge.feed(data);
-        });
-        // Store bridge on binding for cleanup
-        (this as any)._inputBridge = bridge;
+      // Wire input pipeline: onInput -> InputParser -> EventDispatcher -> FocusManager
+      // Amp ref: J3.setupEventHandlers() -- input-system.md:601-634
+      this.setupEventHandlers();
 
-        // Register default Ctrl+C interceptor as safety net.
-        // In raw mode, SIGINT is not generated -- Ctrl+C arrives as byte 0x03
-        // which InputParser emits as key='c', ctrlKey=true.
-        // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
-        const dispatcher = EventDispatcher.instance;
-        dispatcher.addKeyInterceptor((event: any) => {
-          if (event.key === 'c' && event.ctrlKey) {
-            process.exit(0);
-          }
-          return 'ignored';
-        });
-      } catch (_e) {
-        // InputBridge not available, skip input wiring
-      }
-
-      // Store platform on binding for cleanup
-      (this as any)._platform = platform;
-
-      // Clean exit handler -- restore terminal state
+      // Clean exit handler -- restore terminal state via TerminalManager.dispose()
+      // Amp ref: J3 cleanup uses this.tui.deinit()
       const cleanup = () => {
         try {
-          const renderer = new Renderer();
-          const cleanupSequence =
-            renderer.showCursor() +
-            renderer.disableMouse() +
-            renderer.disableBracketedPaste() +
-            renderer.exitAltScreen();
-          platform.writeStdout(cleanupSequence);
-          platform.disableRawMode();
+          if (this._tui.isInitialized) {
+            this._tui.dispose();
+          }
         } catch (_e) {
           // Best-effort cleanup
         }
@@ -915,7 +943,9 @@ export class WidgetsBinding {
     if (!inTest && typeof process !== 'undefined') {
       process.on('SIGWINCH', () => {
         try {
-          const p = (this as any)._platform || platform;
+          // Use TerminalManager's platform for size query
+          // Amp ref: J3 SIGWINCH handler
+          const p = this._tui.platform;
           if (p) {
             const size = p.getTerminalSize();
             this.handleResize(size.columns, size.rows);

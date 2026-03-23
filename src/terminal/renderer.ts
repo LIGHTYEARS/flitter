@@ -100,6 +100,18 @@ export function mouseShape(name: string): string {
 export const PIXEL_MOUSE_ON = `${CSI}?1016h`;
 export const PIXEL_MOUSE_OFF = `${CSI}?1016l`;
 
+// OSC 52 — Clipboard manipulation
+// Amp ref: terminal sends OSC 52 to copy selected text to system clipboard
+// Format: OSC 52 ; <targets> ; <base64-data> ST
+// targets: 'c' = clipboard, 'p' = primary selection
+// BEL (\x07) can be used as ST alternative for wider compatibility
+export function osc52Copy(text: string, target: string = 'c'): string {
+  const encoded = typeof Buffer !== 'undefined'
+    ? Buffer.from(text, 'utf8').toString('base64')
+    : btoa(text);
+  return `${OSC}52;${target};${encoded}\x07`;
+}
+
 // ── SGR Attribute Code Constants ────────────────────────────────
 
 const SGR_BOLD_ON = '1';
@@ -551,6 +563,16 @@ export class Renderer {
   /** TPRO-08: Disable pixel mouse mode. */
   disablePixelMouse(): string {
     return PIXEL_MOUSE_OFF;
+  }
+
+  /**
+   * Copy text to system clipboard via OSC 52.
+   * Writes the text as base64-encoded data to the clipboard target.
+   * @param text The text to copy
+   * @param target Clipboard target: 'c' = clipboard, 'p' = primary selection
+   */
+  copyToClipboard(text: string, target: string = 'c'): string {
+    return osc52Copy(text, target);
   }
 
   // ── Private Helpers ───────────────────────────────────────────

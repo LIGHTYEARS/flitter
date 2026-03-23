@@ -678,6 +678,7 @@ class TextFieldState extends State<TextField> {
       this._ownsFocusNode = true;
     }
     this._focusNode.onKey = this._handleKeyEvent;
+    this._focusNode.onPaste = this._handlePaste;
   }
 
   private _onControllerChanged = (): void => {
@@ -717,6 +718,7 @@ class TextFieldState extends State<TextField> {
         this._ownsFocusNode = true;
       }
       this._focusNode.onKey = this._handleKeyEvent;
+    this._focusNode.onPaste = this._handlePaste;
     }
   }
 
@@ -959,6 +961,32 @@ class TextFieldState extends State<TextField> {
     this.widget.onSubmitted?.(text);
   }
 
+  /**
+   * Copy current selection to system clipboard via OSC 52.
+   * Amp ref: wB0 clipboard — selection auto-copies to clipboard
+   */
+  private _copySelectionToClipboard(): void {
+    const selectedText = this._controller.selectedText;
+    if (!selectedText) return;
+    try {
+      const { WidgetsBinding } = require('../framework/binding');
+      const binding = WidgetsBinding.instance;
+      if (binding?.tui) {
+        binding.tui.copyToClipboard(selectedText);
+      }
+    } catch {
+      // WidgetsBinding not available (e.g., in tests)
+    }
+  }
+
+  /**
+   * Handle paste event: insert pasted text at cursor / replace selection.
+   * Wired to FocusNode.onPaste via the focus system.
+   */
+  private _handlePaste = (text: string): void => {
+    this._controller.insertText(text);
+  };
+
   // --- Mouse handling ---
 
   /**
@@ -981,6 +1009,7 @@ class TextFieldState extends State<TextField> {
         if (isDoubleClick) {
           // Double-click: select word
           this._controller.selectWordAt(charPos);
+          this._copySelectionToClipboard();
         } else {
           // Single click: place cursor
           this._controller.clearSelection();
@@ -1001,6 +1030,9 @@ class TextFieldState extends State<TextField> {
         break;
       }
       case 'release': {
+        if (this._isDragging && this._controller.hasSelection) {
+          this._copySelectionToClipboard();
+        }
         this._isDragging = false;
         break;
       }

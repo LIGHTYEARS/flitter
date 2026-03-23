@@ -212,3 +212,98 @@ describe('detectCapabilities', () => {
     }
   });
 });
+
+// ── parseCapabilityResponse ─────────────────────────────────────────
+
+describe('parseCapabilityResponse', () => {
+  // Dynamic import to get the new functions
+  const { parseCapabilityResponse, mergeCapabilities } = require('../platform');
+
+  test('parses DA1 response', () => {
+    const result = parseCapabilityResponse('\x1b[?1;2;6;22c');
+    expect(result.da1Features).toEqual([1, 2, 6, 22]);
+  });
+
+  test('parses DA2 response', () => {
+    const result = parseCapabilityResponse('\x1b[>1;4100;0c');
+    expect(result.da2Info).toEqual({ type: 1, version: 4100, options: 0 });
+  });
+
+  test('parses DSR response', () => {
+    const result = parseCapabilityResponse('\x1b[0n');
+    expect(result.dsrOk).toBe(true);
+  });
+
+  test('parses Kitty keyboard response', () => {
+    const result = parseCapabilityResponse('\x1b[?5u');
+    expect(result.kittyKeyboardFlags).toBe(5);
+  });
+
+  test('parses Kitty graphics OK response', () => {
+    const result = parseCapabilityResponse('\x1b_GOK\x1b\\');
+    expect(result.kittyGraphics).toBe(true);
+  });
+
+  test('parses Kitty graphics error response', () => {
+    const result = parseCapabilityResponse('\x1b_GERROR\x1b\\');
+    expect(result.kittyGraphics).toBe(false);
+  });
+
+  test('parses XTVERSION response', () => {
+    const result = parseCapabilityResponse('\x1bP>|xterm(390)\x1b\\');
+    expect(result.xtversion).toBe('xterm(390)');
+  });
+
+  test('parses foreground color response', () => {
+    const result = parseCapabilityResponse('\x1b]10;rgb:ff/aa/00');
+    expect(result.fgColor).toEqual({ r: 255, g: 170, b: 0 });
+  });
+
+  test('parses background color response', () => {
+    const result = parseCapabilityResponse('\x1b]11;rgb:00/00/00');
+    expect(result.bgColor).toEqual({ r: 0, g: 0, b: 0 });
+  });
+
+  test('parses DECRPM mode report', () => {
+    const result = parseCapabilityResponse('\x1b[?2027;1$y');
+    expect(result.modeReports?.get(2027)).toBe(1);
+  });
+
+  test('parses multiple responses in one string', () => {
+    const combined =
+      '\x1b[?1;2c' +
+      '\x1b[>0;100;0c' +
+      '\x1b[0n' +
+      '\x1b[?3u';
+    const result = parseCapabilityResponse(combined);
+    expect(result.da1Features).toEqual([1, 2]);
+    expect(result.da2Info).toEqual({ type: 0, version: 100, options: 0 });
+    expect(result.dsrOk).toBe(true);
+    expect(result.kittyKeyboardFlags).toBe(3);
+  });
+
+  test('returns empty object for unrecognized input', () => {
+    const result = parseCapabilityResponse('random text');
+    expect(result.da1Features).toBeUndefined();
+    expect(result.da2Info).toBeUndefined();
+    expect(result.kittyKeyboardFlags).toBeUndefined();
+  });
+
+  test('mergeCapabilities updates kittyKeyboard', () => {
+    const base: TerminalCapabilities = {
+      trueColor: true,
+      ansi256: true,
+      mouse: true,
+      altScreen: true,
+      syncOutput: true,
+      unicode: true,
+      hyperlinks: true,
+    };
+    const parsed = { kittyKeyboardFlags: 5, kittyGraphics: true };
+    const merged = mergeCapabilities(base, parsed);
+    expect(merged.kittyKeyboard).toBe(true);
+    expect(merged.kittyGraphics).toBe(true);
+    // Base fields preserved
+    expect(merged.trueColor).toBe(true);
+  });
+});

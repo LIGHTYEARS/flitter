@@ -377,4 +377,20 @@ export class TerminalManager {
   setScrollStep(lines: number): void {
     this._scrollStep = Math.max(1, Math.min(20, Math.round(lines)));
   }
+
+  // ---------------------------------------------------------------------------
+  // OSC 52 Clipboard
+  // Amp ref: wB0 — terminal clipboard via OSC 52
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Copy text to the system clipboard via OSC 52.
+   * Writes the escape sequence directly to stdout.
+   *
+   * @param text The text to copy to clipboard
+   */
+  copyToClipboard(text: string): void {
+    if (!this._isInitialized || this._suspended) return;
+    this.platform.writeStdout(this.renderer.copyToClipboard(text));
+  }
 }

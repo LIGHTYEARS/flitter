@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Amp Architecture Realignment
-status: planned
-stopped_at: Planning complete, ready for Phase 23 execution
-last_updated: "2026-03-23T00:00:00Z"
-last_activity: 2026-03-23
+status: complete
+stopped_at: All v1.3 phases complete, gap fixes applied
+last_updated: "2026-03-24T00:00:00Z"
+last_activity: 2026-03-24
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 0
-  percent: 0
+  completed_plans: 9
+  percent: 100
 ---
 
 # Project State
@@ -21,40 +21,46 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-23)
 
 **Core value:** Flutter-faithful TUI framework with declarative widgets, box-constraint layout, and on-demand cell-level diff rendering
-**Current focus:** v1.3 Amp Architecture Realignment — refactoring core pipeline to match Amp's actual ownership model
+**Current focus:** All milestones (v1.0-v1.3) complete. Post-v1.3 gap fixes: OSC 52 clipboard, paste pipeline, capability parsing.
 
 ## Current Position
 
-Phase: 23 of 26 (WidgetsBinding + TerminalManager + FrameScheduler Core) — NOT STARTED
-Plan: 0/9 plans complete
-Status: Planned
-Last activity: 2026-03-23
+Phase: 26 of 26 — COMPLETE
+Plan: 9/9 plans complete
+Status: Complete
+Last activity: 2026-03-24
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## v1.3 Phase Overview
 
 | Phase | Name | Requirements | Plans | Status |
 |-------|------|-------------|-------|--------|
-| 23 | WidgetsBinding + TerminalManager + FrameScheduler Core | BIND-01..07, FSCD-01..02, TMGR-01..03 | 3 | Planned |
-| 24 | BuildOwner + Element + Input Pipeline Alignment | BIND-08, BOWN-01..02, ELEM-01, RAPP-01, GSCD-01 | 3 | Planned |
-| 25 | Integration Testing + Example Validation | INTG-01..03 | 2 | Planned |
-| 26 | Cleanup + Dead Code Removal | (cleanup) | 1 | Planned |
+| 23 | WidgetsBinding + TerminalManager + FrameScheduler Core | BIND-01..07, FSCD-01..02, TMGR-01..03 | 3 | Complete |
+| 24 | BuildOwner + Element + Input Pipeline Alignment | BIND-08, BOWN-01..02, ELEM-01, RAPP-01, GSCD-01 | 3 | Complete |
+| 25 | Integration Testing + Example Validation | INTG-01..03 | 2 | Complete |
+| 26 | Cleanup + Dead Code Removal | (cleanup) | 1 | Complete |
 
 ## Execution History
 
-(No waves executed yet)
+| Wave | Phase(s) | Plans | Completed |
+|------|----------|-------|-----------|
+| W16 | Phase 23 | 23-01/02/03 | 2026-03-23 |
+| W17 | Phase 24 | 24-01/02/03 | 2026-03-23 |
+| W18 | Phase 25 | 25-01/02 | 2026-03-23 |
+| W19 | Phase 26 | 26-01 | 2026-03-23 |
 
 ## Performance Metrics
 
-**Velocity (v1.0 + v1.1 + v1.2):**
+**Velocity (v1.0 + v1.1 + v1.2 + v1.3):**
 
 - v1.0 plans completed: 25
 - v1.1 plans completed: 16
 - v1.2 plans completed: 17
-- Total plans completed: 58
-- Total test count: 2603 (0 failures)
-- Total examples: 28
+- v1.3 plans completed: 9
+- Total plans completed: 67
+- Total test count: 2616 (0 failures)
+- Total examples: 30
 
 ## Accumulated Context
 
@@ -76,18 +82,27 @@ Recent decisions affecting current work:
 3. `Element.markNeedsRebuild()` didn't call `scheduleBuildFor()` (commit 21ebc45)
 4. Dual frame scheduling conflict between scheduleFrame and FrameScheduler (commit b4d12c2)
 
+### Post-v1.3 Bug Fixes
+
+- fix: map \r to 'Enter' instead of 'Return' for real terminal Enter key (088df51)
+- fix: fill entire Container area with bg color including border region (d3d1cfd)
+
+### Post-v1.3 Gap Fixes
+
+- OSC 52 clipboard auto-copy for TextField selection
+- TextField onPaste handler for bracketed paste events
+- parseCapabilityResponse + mergeCapabilities in platform.ts
+
 ### Pending Todos
 
-None — planning phase complete, ready to execute Phase 23.
+None — all milestones complete.
 
 ### Blockers/Concerns
 
-- v1.3 phases are strictly sequential — each modifies shared core files
-- Must preserve all 2603 existing tests through refactoring
-- InputBridge may be used in test helpers — check before removing
+None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T00:00:00Z
-Stopped at: v1.3 milestone planning complete
+Last session: 2026-03-24T00:00:00Z
+Stopped at: All milestones complete, gap fixes applied
 Resume file: None

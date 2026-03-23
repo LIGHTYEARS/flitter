@@ -361,7 +361,7 @@ export const CAPABILITY_RESPONSE_PATTERNS = {
   /** Kitty graphics response: contains OK or error */
   kittyGraphics: /\x1b_G([^\x1b]*)\x1b\\/,
   /** XTVERSION response: ESC P > | version-string ESC \ */
-  xtversion: /\x1bP>|([^\x1b]*)\x1b\\/,
+  xtversion: /\x1bP>\|([^\x1b]*)\x1b\\/,
   /** Color query response: OSC Ps ; rgb:rr/gg/bb ST */
   colorResponse: /\x1b\](\d+);rgb:([0-9a-fA-F/]+)/,
   /** DECRPM (mode report) response: ESC [ ? Pd ; Ps $ y */
@@ -389,5 +389,146 @@ export function buildCapabilityQuery(_adapter: PlatformAdapter): string {
     KITTY_GRAPHICS_QUERY +
     XTVERSION_QUERY
   );
+}
+
+/**
+ * Parsed capability response from the terminal.
+ * Amp ref: wB0.capabilities — resolved from query responses via vF queryParser
+ */
+export interface ParsedCapabilities {
+  /** DA1 feature codes (e.g., [1, 2, 6, 22] for standard VT features) */
+  da1Features?: number[];
+  /** DA2 terminal type, firmware version, hardware options */
+  da2Info?: { type: number; version: number; options: number };
+  /** Whether terminal responded to DSR (healthy) */
+  dsrOk?: boolean;
+  /** Kitty keyboard protocol flags (0 = not supported) */
+  kittyKeyboardFlags?: number;
+  /** Whether Kitty graphics protocol is supported */
+  kittyGraphics?: boolean;
+  /** XTVERSION terminal version string */
+  xtversion?: string;
+  /** Foreground color from color query */
+  fgColor?: { r: number; g: number; b: number };
+  /** Background color from color query */
+  bgColor?: { r: number; g: number; b: number };
+  /** DECRPM mode report results: mode -> setting (0=not recognized, 1=set, 2=reset, 3=permanent set, 4=permanent reset) */
+  modeReports?: Map<number, number>;
+}
+
+/**
+ * Parse terminal capability response data.
+ * Extracts capability information from raw stdin data received after
+ * sending buildCapabilityQuery().
+ *
+ * Amp ref: vF queryParser — parses escape sequence responses from terminal
+ *
+ * @param data Raw response string from terminal (may contain multiple responses)
+ * @returns Parsed capabilities (partial — only contains data that matched)
+ */
+export function parseCapabilityResponse(data: string): ParsedCapabilities {
+  const result: ParsedCapabilities = {};
+
+  // DA1: ESC [ ? Ps ; Ps ; ... c
+  const da1Match = CAPABILITY_RESPONSE_PATTERNS.da1.exec(data);
+  if (da1Match) {
+    result.da1Features = da1Match[1]!.split(';').map(Number);
+  }
+
+  // DA2: ESC [ > Ps ; Ps ; Ps c
+  const da2Match = CAPABILITY_RESPONSE_PATTERNS.da2.exec(data);
+  if (da2Match) {
+    const parts = da2Match[1]!.split(';').map(Number);
+    result.da2Info = {
+      type: parts[0] ?? 0,
+      version: parts[1] ?? 0,
+      options: parts[2] ?? 0,
+    };
+  }
+
+  // DSR: ESC [ 0 n
+  if (CAPABILITY_RESPONSE_PATTERNS.dsr.test(data)) {
+    result.dsrOk = true;
+  }
+
+  // Kitty keyboard: ESC [ ? flags u
+  const kittyKbMatch = CAPABILITY_RESPONSE_PATTERNS.kittyKeyboard.exec(data);
+  if (kittyKbMatch) {
+    result.kittyKeyboardFlags = parseInt(kittyKbMatch[1]!, 10);
+  }
+
+  // Kitty graphics: ESC _G ... ESC \
+  const kittyGfxMatch = CAPABILITY_RESPONSE_PATTERNS.kittyGraphics.exec(data);
+  if (kittyGfxMatch) {
+    // If response contains 'OK' the protocol is supported
+    result.kittyGraphics = kittyGfxMatch[1]!.includes('OK');
+  }
+
+  // XTVERSION: ESC P > | version-string ESC \
+  const xtvMatch = CAPABILITY_RESPONSE_PATTERNS.xtversion.exec(data);
+  if (xtvMatch && xtvMatch[1]) {
+    result.xtversion = xtvMatch[1];
+  }
+
+  // Color query responses: OSC Ps ; rgb:rr/gg/bb
+  const colorRe = new RegExp(CAPABILITY_RESPONSE_PATTERNS.colorResponse.source, 'g');
+  let colorMatch;
+  while ((colorMatch = colorRe.exec(data)) !== null) {
+    const ps = parseInt(colorMatch[1]!, 10);
+    const rgbParts = colorMatch[2]!.split('/');
+    if (rgbParts.length >= 3) {
+      // Color values are hex, may be 2 or 4 chars; take first 2 hex digits
+      const r = parseInt(rgbParts[0]!.slice(0, 2), 16);
+      const g = parseInt(rgbParts[1]!.slice(0, 2), 16);
+      const b = parseInt(rgbParts[2]!.slice(0, 2), 16);
+      if (ps === 10) {
+        result.fgColor = { r, g, b };
+      } else if (ps === 11) {
+        result.bgColor = { r, g, b };
+      }
+    }
+  }
+
+  // DECRPM mode reports: ESC [ ? Pd ; Ps $ y
+  const modeRe = new RegExp(CAPABILITY_RESPONSE_PATTERNS.modeReport.source, 'g');
+  let modeMatch;
+  while ((modeMatch = modeRe.exec(data)) !== null) {
+    if (!result.modeReports) result.modeReports = new Map();
+    const mode = parseInt(modeMatch[1]!, 10);
+    const setting = parseInt(modeMatch[2]!, 10);
+    result.modeReports.set(mode, setting);
+  }
+
+  return result;
+}
+
+/**
+ * Merge parsed capability responses into the existing TerminalCapabilities.
+ * Updates fields based on query results (DA1/DA2/Kitty detection).
+ *
+ * Amp ref: vF queryParser — updates wB0.capabilities after response parsing
+ */
+export function mergeCapabilities(
+  base: TerminalCapabilities,
+  parsed: ParsedCapabilities,
+): TerminalCapabilities {
+  const merged = { ...base };
+
+  if (parsed.kittyKeyboardFlags !== undefined && parsed.kittyKeyboardFlags > 0) {
+    merged.kittyKeyboard = true;
+  }
+
+  if (parsed.kittyGraphics !== undefined) {
+    merged.kittyGraphics = parsed.kittyGraphics;
+  }
+
+  // DA1 feature 22 often indicates ANSI color support
+  if (parsed.da1Features) {
+    if (parsed.da1Features.includes(22)) {
+      merged.ansi256 = true;
+    }
+  }
+
+  return merged;
 }
 

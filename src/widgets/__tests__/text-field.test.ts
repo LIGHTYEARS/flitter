@@ -1213,4 +1213,52 @@ describe('TextField State - Focus', () => {
     expect(state.focusNode).toBe(fn);
     fn.dispose();
   });
+
+  test('focusNode has onPaste handler wired', () => {
+    const state = createTextFieldState();
+    expect(state.focusNode.onPaste).toBeDefined();
+    expect(typeof state.focusNode.onPaste).toBe('function');
+  });
+});
+
+// ===========================================================================
+// TextField State - Paste Handling
+// ===========================================================================
+
+describe('TextField State - Paste', () => {
+  test('onPaste inserts text at cursor', () => {
+    const state = createTextFieldState({ maxLines: 1 });
+    state.controller.insertText('hello');
+    state.controller.cursorPosition = 5;
+    state.focusNode.onPaste!('world');
+    expect(state.controller.text).toBe('helloworld');
+    expect(state.controller.cursorPosition).toBe(10);
+  });
+
+  test('onPaste replaces selection', () => {
+    const state = createTextFieldState({ maxLines: 1 });
+    state.controller.insertText('hello world');
+    state.controller.setSelection(0, 5);
+    state.focusNode.onPaste!('goodbye');
+    expect(state.controller.text).toBe('goodbye world');
+    expect(state.controller.cursorPosition).toBe(7);
+    expect(state.controller.hasSelection).toBe(false);
+  });
+
+  test('onPaste inserts multi-line text', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.focusNode.onPaste!('line1\nline2\nline3');
+    expect(state.controller.text).toBe('line1\nline2\nline3');
+    expect(state.controller.cursorPosition).toBe(17);
+  });
+
+  test('onPaste triggers onChanged', () => {
+    const changes: string[] = [];
+    const state = createTextFieldState({
+      maxLines: 1,
+      onChanged: (text) => { changes.push(text); },
+    });
+    state.focusNode.onPaste!('pasted');
+    expect(changes).toEqual(['pasted']);
+  });
 });

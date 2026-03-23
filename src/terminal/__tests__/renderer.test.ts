@@ -629,3 +629,41 @@ describe('Renderer.resetState()', () => {
     expect(between).toBe('');
   });
 });
+
+// ── OSC 52 Clipboard ────────────────────────────────────────────────
+
+describe('OSC 52 Clipboard', () => {
+  it('osc52Copy generates correct escape sequence', () => {
+    const { osc52Copy } = require('../renderer');
+    const result = osc52Copy('hello');
+    // 'hello' base64 = 'aGVsbG8='
+    expect(result).toBe('\x1b]52;c;aGVsbG8=\x07');
+  });
+
+  it('osc52Copy supports custom target', () => {
+    const { osc52Copy } = require('../renderer');
+    const result = osc52Copy('test', 'p');
+    // 'test' base64 = 'dGVzdA=='
+    expect(result).toBe('\x1b]52;p;dGVzdA==\x07');
+  });
+
+  it('Renderer.copyToClipboard returns OSC 52 sequence', () => {
+    const r = new Renderer();
+    const result = r.copyToClipboard('world');
+    // 'world' base64 = 'd29ybGQ='
+    expect(result).toBe('\x1b]52;c;d29ybGQ=\x07');
+  });
+
+  it('handles empty string', () => {
+    const { osc52Copy } = require('../renderer');
+    const result = osc52Copy('');
+    expect(result).toBe('\x1b]52;c;\x07');
+  });
+
+  it('handles Unicode text', () => {
+    const { osc52Copy } = require('../renderer');
+    const result = osc52Copy('你好');
+    const expected = Buffer.from('你好', 'utf8').toString('base64');
+    expect(result).toBe(`\x1b]52;c;${expected}\x07`);
+  });
+});

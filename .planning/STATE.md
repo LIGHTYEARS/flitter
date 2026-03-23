@@ -1,57 +1,49 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Amp CLI Deep Fidelity
-status: complete
-stopped_at: All v1.2 phases (16-22) complete
-last_updated: "2026-03-22T15:00:00Z"
-last_activity: 2026-03-22
+milestone: v1.3
+milestone_name: Amp Architecture Realignment
+status: planned
+stopped_at: Planning complete, ready for Phase 23 execution
+last_updated: "2026-03-23T00:00:00Z"
+last_activity: 2026-03-23
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 17
-  completed_plans: 17
-  percent: 100
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 9
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-22)
+See: .planning/PROJECT.md (updated 2026-03-23)
 
-**Core value:** Flutter-faithful TUI framework with declarative widgets, box-constraint layout, and 60fps cell-level diff rendering
-**Current focus:** v1.2 Amp CLI Deep Fidelity — Complete
+**Core value:** Flutter-faithful TUI framework with declarative widgets, box-constraint layout, and on-demand cell-level diff rendering
+**Current focus:** v1.3 Amp Architecture Realignment — refactoring core pipeline to match Amp's actual ownership model
 
 ## Current Position
 
-Phase: 22 of 22 (Minor Fidelity Fixes) — COMPLETE
-Plan: 17/17 plans complete
-Status: Complete
-Last activity: 2026-03-22
+Phase: 23 of 26 (WidgetsBinding + TerminalManager + FrameScheduler Core) — NOT STARTED
+Plan: 0/9 plans complete
+Status: Planned
+Last activity: 2026-03-23
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
-## v1.2 Phase Overview
+## v1.3 Phase Overview
 
 | Phase | Name | Requirements | Plans | Status |
 |-------|------|-------------|-------|--------|
-| 16 | AppTheme & Syntax Highlighting | ATHM-01, ATHM-02 | 2 | Complete |
-| 17 | Rendering Pipeline Enhancements | RPIP-01..05 | 3 | Complete |
-| 18 | Terminal Protocol Extensions | TPRO-01..10 | 3 | Complete |
-| 19 | Image Protocol | IMG-01..03 | 2 | Complete |
-| 20 | TextField Complete Rewrite | TXFD-01..05 | 3 | Complete |
-| 21 | Performance Diagnostics Upgrade | PERF-01..03 | 2 | Complete |
-| 22 | Minor Fidelity Fixes | MINR-01..07 | 2 | Complete |
+| 23 | WidgetsBinding + TerminalManager + FrameScheduler Core | BIND-01..07, FSCD-01..02, TMGR-01..03 | 3 | Planned |
+| 24 | BuildOwner + Element + Input Pipeline Alignment | BIND-08, BOWN-01..02, ELEM-01, RAPP-01, GSCD-01 | 3 | Planned |
+| 25 | Integration Testing + Example Validation | INTG-01..03 | 2 | Planned |
+| 26 | Cleanup + Dead Code Removal | (cleanup) | 1 | Planned |
 
 ## Execution History
 
-| Wave | Phase(s) | Parallelism | Result |
-|------|----------|-------------|--------|
-| W12 | 16 + 17 | 2 parallel agents | 77 + 56 new tests |
-| W13 | 18 | Sequential | 44 new tests |
-| W14 | 19 + 20 + 21 | 3 parallel agents | 62 + 133 + 98 new tests |
-| W15 | 22 | Sequential | 30 new tests |
+(No waves executed yet)
 
 ## Performance Metrics
 
@@ -71,23 +63,31 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v1.2]: Image protocol promoted from v2 Out-of-Scope to v1.2 (Amp actively uses Kitty images)
-- [v1.2]: AppTheme (h8) is separate from Theme (w3) — two-layer theme system matching Amp architecture
-- [v1.2]: TextField requires complete rewrite (not incremental enhancement) — current skeleton is too far from Amp's implementation
-- [v1.2]: PerformanceOverlay must draw directly to screen buffer (not as widget in tree) to match Amp's BB0
-- [v1.2]: Alpha compositing is P1 because semi-transparent overlays and the perf overlay background depend on it
-- [v1.2]: estimateIntrinsicWidth() added as standalone layout helper (not on RenderObject) matching Amp's fS pattern
+- [v1.3]: WidgetsBinding must own TerminalManager (J3 owns wB0) — standalone runApp terminal init caused 4 cascading bugs
+- [v1.3]: BuildOwner calls FrameScheduler directly (NB0.scheduleBuildFor calls c9.instance.requestFrame) — no intermediate bridge
+- [v1.3]: No scheduleFrame/drawFrame on WidgetsBinding — frame execution entirely via FrameScheduler callbacks
+- [v1.3]: runApp is thin wrapper (cz8 just calls J3.instance.runApp) — all init logic inside J3
+
+### Bugs Fixed (pre-v1.3)
+
+4 cascading bugs fixed during v1.2 manual testing that motivated v1.3:
+1. `runApp()` never initialized terminal (commit f5d780f)
+2. EventDispatcher wrong import path for FocusManager (commit 6990f4f)
+3. `Element.markNeedsRebuild()` didn't call `scheduleBuildFor()` (commit 21ebc45)
+4. Dual frame scheduling conflict between scheduleFrame and FrameScheduler (commit b4d12c2)
 
 ### Pending Todos
 
-None — v1.2 milestone complete.
+None — planning phase complete, ready to execute Phase 23.
 
 ### Blockers/Concerns
 
-None.
+- v1.3 phases are strictly sequential — each modifies shared core files
+- Must preserve all 2603 existing tests through refactoring
+- InputBridge may be used in test helpers — check before removing
 
 ## Session Continuity
 
-Last session: 2026-03-22T15:00:00Z
-Stopped at: v1.2 milestone complete
+Last session: 2026-03-23T00:00:00Z
+Stopped at: v1.3 milestone planning complete
 Resume file: None

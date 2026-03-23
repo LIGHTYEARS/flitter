@@ -8,18 +8,24 @@ A complete TUI (Terminal User Interface) rendering framework for TypeScript/Bun,
 
 Deliver a production-grade, Flutter-faithful TUI framework where developers compose terminal UIs from declarative widgets with real layout constraints, achieving on-demand rendering through cell-level diffing — no other TypeScript TUI library provides this architecture.
 
-## Current Milestone: v1.2 Amp CLI Deep Fidelity
+## Current Milestone: v1.3 Amp Architecture Realignment
 
-**Goal:** Close all remaining rendering pipeline, terminal protocol, and advanced widget gaps identified by systematic Amp source comparison. After v1.2, the framework achieves 100% behavioral fidelity to Amp CLI's TUI.
+**Goal:** Refactor the core rendering pipeline (WidgetsBinding, BuildOwner, FrameScheduler, TerminalManager, input wiring) to exactly match Amp CLI's architecture. After v1.3, the framework's ownership model, call chains, and frame lifecycle match the reverse-engineered Amp source — eliminating all architectural drift that caused cascading bugs in v1.2.
 
-**Target features:**
-- AppTheme system (h8) with syntax highlighting for DiffView
-- Rendering pipeline: alpha compositing, RGB→256-color fallback, default colors, buffer utilities
-- Terminal protocols: Kitty keyboard, ModifyOtherKeys, emoji width, in-band resize, progress bar/title/cursor OSC, pixel mouse, comprehensive cleanup, capability queries
-- Image protocol: ImagePreview, KittyImageWidget, ImagePreviewProvider via Kitty graphics
-- TextField complete rewrite: multi-line, word operations, mouse interaction, selection/clipboard, RenderText rendering
-- Performance diagnostics: full metrics (8 categories), direct-to-buffer overlay rendering
-- Minor fidelity fixes: JetBrains wheel filter, setCursorPositionHint, resize priority, paste callbacks, scrollStep, layout helper
+**Context:** Manual testing of the counter example revealed 4 cascading bugs caused by systemic architectural drift:
+1. `runApp()` was a standalone function doing terminal init externally (Amp: J3 owns wB0, init inside J3.runApp)
+2. `WidgetsBinding.scheduleFrame()` / `drawFrame()` duplicated FrameScheduler coalescing (Amp: J3 has NO scheduleFrame/drawFrame)
+3. `BuildOwner.scheduleBuildFor()` didn't call `c9.requestFrame()` (Amp: NB0.scheduleBuildFor calls c9.instance.requestFrame() directly)
+4. `Element.markNeedsRebuild()` didn't call `BuildOwner.scheduleBuildFor()` (Amp: calls XG8().scheduleBuildFor(this))
+
+**Target refactoring:**
+- WidgetsBinding (J3): owns TerminalManager (wB0), registers 6 frame callbacks on FrameScheduler, has beginFrame/paint/render methods, no scheduleFrame/drawFrame
+- BuildOwner (NB0): scheduleBuildFor calls c9.instance.requestFrame() directly
+- FrameScheduler (c9): sole frame scheduling authority, requestFrame with frame pacing
+- TerminalManager (wB0): owned by WidgetsBinding, owns parser/screen/renderer
+- Input wiring: setupEventHandlers inside J3, connects wB0 event handlers to FocusManager
+- runApp (cz8): thin async wrapper calling J3.instance.runApp(widget)
+- Process lifecycle: waitForExit/stop pattern keeps process alive
 
 ## Requirements
 
@@ -38,22 +44,16 @@ Deliver a production-grade, Flutter-faithful TUI framework where developers comp
 
 ### Active
 
-<!-- Current scope: v1.2 Amp CLI Deep Fidelity -->
+<!-- Current scope: v1.3 Amp Architecture Realignment -->
 
-- [ ] AppTheme InheritedWidget (h8) with syntaxHighlight config, colors, of(context) accessor
-- [ ] Syntax highlighting function (ae) — file-extension-based code colorization for DiffView
-- [ ] Alpha compositing (Color.alpha, blendColor, blendStyle, Buffer.setCell alpha path)
-- [ ] RGB→256-color fallback (sJ nearest-match, conditional SGR output)
-- [ ] ScreenBuffer default colors, index-RGB mapping, Buffer.copyTo/getCells
-- [ ] Terminal protocol: Kitty keyboard, ModifyOtherKeys, emoji width, in-band resize
-- [ ] Terminal protocol: progress bar OSC, window title, mouse cursor shape, pixel mouse
-- [ ] Terminal cleanup (zG8) — comprehensive exit handler disabling all modes
-- [ ] Terminal capability detection via escape queries (queryParser vF)
-- [ ] Image protocol: ImagePreview (O_), KittyImageWidget (IH0), ImagePreviewProvider (X_)
-- [ ] TextField complete rewrite: multi-line, word ops, mouse interaction, clipboard, RenderText rendering
-- [ ] PerformanceTracker full metrics (key/mouse times, repaint %, bytes written, P95/P99)
-- [ ] PerformanceOverlay direct-to-buffer rendering (34x14 box, color-coded thresholds)
-- [ ] Minor fixes: JetBrains wheel, setCursorPositionHint, resize priority, paste callbacks, scrollStep, layout helper, getCells
+- [ ] WidgetsBinding (J3) refactored: owns TerminalManager (wB0), registers 6 frame callbacks, beginFrame/paint/render methods, NO scheduleFrame/drawFrame
+- [ ] BuildOwner (NB0) refactored: scheduleBuildFor calls c9.instance.requestFrame() directly
+- [ ] FrameScheduler (c9) enhanced: sole frame scheduling authority, frame pacing, scheduleFrameExecution
+- [ ] TerminalManager (wB0) refactored: owned by WidgetsBinding, owns parser/screen/renderer, init/deinit/render lifecycle
+- [ ] Input pipeline refactored: setupEventHandlers inside J3, wB0 event handlers → FocusManager routing, eliminate standalone InputBridge
+- [ ] runApp (cz8) refactored: thin async wrapper calling J3.instance.runApp(widget)
+- [ ] Process lifecycle: waitForExit/stop pattern, cleanup sequence matching Amp
+- [ ] End-to-end integration tests: setState→rebuild→layout→paint→render verified
 
 ### Out of Scope
 
@@ -161,6 +161,10 @@ Deliver a production-grade, Flutter-faithful TUI framework where developers comp
 | No didChangeDependencies / No deactivate | Amp's State lifecycle is: initState → build → didUpdateWidget → dispose. No didChangeDependencies callback. Elements go mounted → unmounted directly (no deactivate intermediate state). | Revised — removed per Amp fidelity |
 | Vendored wcwidth over zero-dep purity | CJK width calculation is subtle (emoji, Hangul, ZWJ). Vendoring battle-tested table avoids rendering bugs. | Added |
 | Frame budget instrumentation | BUILD+LAYOUT+PAINT budget ≤12ms (leaving 4ms for RENDER+input). Debug warning when exceeded. | Added |
+| WidgetsBinding must own TerminalManager | Amp J3 owns wB0 directly; standalone runApp terminal init caused 4 cascading bugs. All terminal lifecycle inside J3. | Added — v1.3 |
+| BuildOwner calls FrameScheduler directly | Amp NB0.scheduleBuildFor calls c9.instance.requestFrame(). No intermediate bridge layer. | Added — v1.3 |
+| No scheduleFrame/drawFrame on WidgetsBinding | Amp J3 has NO scheduleFrame() or drawFrame(). Frame execution entirely via FrameScheduler callbacks. | Added — v1.3 |
+| runApp is thin wrapper | Amp cz8() just calls J3.instance.runApp(widget). All init logic lives inside J3.runApp(). | Added — v1.3 |
 
 ## Evolution
 
@@ -180,4 +184,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-22 — v1.2 milestone started (Amp CLI Deep Fidelity)*
+*Last updated: 2026-03-23 — v1.3 milestone started (Amp Architecture Realignment)*

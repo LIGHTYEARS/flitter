@@ -4,13 +4,14 @@
 
 Build a complete Flutter-for-Terminal framework in TypeScript/Bun, progressing from core type primitives through terminal abstraction, three-tree widget framework, layout engine, frame scheduling, input handling, high-level widgets, and finally diagnostics with example applications. Each phase builds on the previous, with parallel development opportunities across phases.
 
-**Last review:** 2026-03-22 — v1.2 milestone roadmap added. 7 new phases (16-22), 35 requirements.
+**Last review:** 2026-03-23 — v1.3 milestone roadmap added. 4 new phases (23-26), 21 requirements.
 
 ## Milestones
 
 - ✓ **v1.0 MVP** — Phases 1-8 (complete, shipped 2026-03-21)
 - ✓ **v1.1 Amp CLI Feature Parity** — Phases 9-15 (complete, shipped 2026-03-22)
-- 📋 **v1.2 Amp CLI Deep Fidelity** — Phases 16-22 (planned)
+- ✓ **v1.2 Amp CLI Deep Fidelity** — Phases 16-22 (complete, shipped 2026-03-23)
+- 📋 **v1.3 Amp Architecture Realignment** — Phases 23-26 (planned)
 
 ## Phases
 
@@ -33,15 +34,22 @@ Build a complete Flutter-for-Terminal framework in TypeScript/Bun, progressing f
 - [x] **Phase 14: RenderText Advanced** — Text selection/highlight, character position tracking, hyperlink click, emoji width
 - [x] **Phase 15: Debug Inspector** — HTTP server on port 9876, widget tree JSON endpoints
 
-### v1.2 Phases
+### v1.2 Phases (Complete)
 
-- [ ] **Phase 16: AppTheme & Syntax Highlighting** — AppTheme InheritedWidget (h8), syntax highlighting function (ae), DiffView integration
-- [ ] **Phase 17: Rendering Pipeline Enhancements** — Alpha compositing, RGB→256-color fallback, default colors, index-RGB mapping, Buffer.copyTo
-- [ ] **Phase 18: Terminal Protocol Extensions** — Kitty keyboard, ModifyOtherKeys, emoji width mode, in-band resize, progress bar/title/cursor OSC, pixel mouse, cleanup, capability queries
-- [ ] **Phase 19: Image Protocol** — ImagePreview (O_), KittyImageWidget (IH0), ImagePreviewProvider (X_), Kitty graphics escape sequences
-- [ ] **Phase 20: TextField Complete Rewrite** — Multi-line, word operations, mouse interaction, selection/clipboard, RenderText-based rendering
-- [ ] **Phase 21: Performance Diagnostics Upgrade** — PerformanceTracker full metrics, direct-to-buffer overlay rendering, toggleFrameStatsOverlay
-- [ ] **Phase 22: Minor Fidelity Fixes** — JetBrains wheel filter, setCursorPositionHint, resize priority callback, paste callbacks, scrollStep, layout helper, getCells
+- [x] **Phase 16: AppTheme & Syntax Highlighting** — AppTheme InheritedWidget (h8), syntax highlighting function (ae), DiffView integration
+- [x] **Phase 17: Rendering Pipeline Enhancements** — Alpha compositing, RGB→256-color fallback, default colors, index-RGB mapping, Buffer.copyTo
+- [x] **Phase 18: Terminal Protocol Extensions** — Kitty keyboard, ModifyOtherKeys, emoji width mode, in-band resize, progress bar/title/cursor OSC, pixel mouse, cleanup, capability queries
+- [x] **Phase 19: Image Protocol** — ImagePreview (O_), KittyImageWidget (IH0), ImagePreviewProvider (X_), Kitty graphics escape sequences
+- [x] **Phase 20: TextField Complete Rewrite** — Multi-line, word operations, mouse interaction, selection/clipboard, RenderText-based rendering
+- [x] **Phase 21: Performance Diagnostics Upgrade** — PerformanceTracker full metrics, direct-to-buffer overlay rendering, toggleFrameStatsOverlay
+- [x] **Phase 22: Minor Fidelity Fixes** — JetBrains wheel filter, setCursorPositionHint, resize priority callback, paste callbacks, scrollStep, layout helper, getCells
+
+### v1.3 Phases
+
+- [ ] **Phase 23: WidgetsBinding + TerminalManager + FrameScheduler Core** — Refactor WidgetsBinding to own TerminalManager, register 6 frame callbacks, eliminate scheduleFrame/drawFrame; enhance FrameScheduler as sole scheduling authority; refactor TerminalManager as J3-owned class
+- [ ] **Phase 24: BuildOwner + Element + Input Pipeline Alignment** — BuildOwner.scheduleBuildFor calls c9.requestFrame directly; Element.markNeedsRebuild uses proper import; setupEventHandlers inside J3; thin runApp wrapper; initSchedulers cleanup
+- [ ] **Phase 25: Integration Testing + Example Validation** — End-to-end setState→render tests, interactive example validation, regression test suite
+- [ ] **Phase 26: Test Fixes + Cleanup** — Fix any test failures from refactoring, remove dead code (InputBridge standalone usage, drawFrame, scheduleFrame), update all examples and docs
 
 ## Dependency DAG
 
@@ -460,6 +468,127 @@ Plans:
 - [ ] 22-01: Terminal & input fixes — JetBrains wheel filter, setCursorPositionHint, resize priority, paste callbacks, scrollStep
 - [ ] 22-02: Buffer & layout utilities — getCells() deep copy, fS() layout helper
 
+---
+
+## v1.3 Phase Details
+
+### Phase 23: WidgetsBinding + TerminalManager + FrameScheduler Core
+**Goal**: Refactor WidgetsBinding to match Amp's J3 class: own TerminalManager, register 6 frame callbacks on FrameScheduler, eliminate scheduleFrame/drawFrame. Enhance FrameScheduler as sole frame scheduling authority. Refactor TerminalManager as J3-owned class with full lifecycle.
+**Depends on**: v1.2 complete
+**Requirements**: BIND-01, BIND-02, BIND-03, BIND-04, BIND-05, BIND-06, BIND-07, FSCD-01, FSCD-02, TMGR-01, TMGR-02, TMGR-03
+**Amp References** (MANDATORY — implementer MUST read these before writing code):
+  - `.reference/widget-tree.md:1134-1296` — Full J3 class (constructor, fields, runApp, beginFrame, paint, render, cleanup)
+  - `.reference/frame-scheduler.md:78-213` — Full c9 class (requestFrame, executeFrame, frame pacing)
+  - `.reference/screen-buffer.md:709-780` — Full wB0 class (fields, lifecycle, render)
+**Amp Review Checklist** (reviewer MUST cross-reference each item):
+  - [ ] J3 constructor creates BuildOwner, PipelineOwner, registers 6 named frame callbacks (widget-tree.md:1154-1187)
+  - [ ] J3 has NO scheduleFrame() or drawFrame() methods (verify by searching full J3 class)
+  - [ ] J3.runApp() follows exact call sequence: tui.init → enterAltScreen → lazy-load → waitForCapabilities → MediaQuery → mount → setupEventHandlers → requestFrame → waitForExit (widget-tree.md:1189-1236)
+  - [ ] c9.requestFrame() has _frameScheduled + _frameInProgress guards with frame pacing (frame-scheduler.md:119-145)
+  - [ ] c9.executeFrame() iterates ["build","layout","paint","render"] phases (frame-scheduler.md:187-212)
+  - [ ] wB0 is owned by J3 (not standalone), has init/deinit/render lifecycle (screen-buffer.md:709-780)
+**Success Criteria** (what must be TRUE):
+  1. WidgetsBinding owns TerminalManager as `this.tui = new wB0`
+  2. WidgetsBinding constructor registers exactly 6 named frame callbacks with correct phases/priorities
+  3. WidgetsBinding has NO scheduleFrame() or drawFrame() methods
+  4. WidgetsBinding.runApp() is async, initializes terminal, mounts tree, awaits waitForExit
+  5. FrameScheduler.requestFrame() is the sole entry point for frame scheduling with frame pacing
+  6. FrameScheduler.executeFrame() runs 4 phases in order via registered callbacks
+  7. TerminalManager has init/deinit/render methods called from WidgetsBinding
+  8. beginFrame/paint/render methods match Amp's J3 implementation
+**Plans**: 3 plans
+
+Plans:
+- [ ] 23-01: FrameScheduler enhancement — Add frame pacing (Oy = 16.67ms), scheduleFrameExecution with setImmediate/setTimeout, runScheduledFrame guard, post-frame re-schedule. Match c9 from frame-scheduler.md:78-213
+- [ ] 23-02: TerminalManager refactoring — Refactor as J3-owned class with parser/screen/renderer/queryParser/capabilities/event handler arrays, init/deinit/render lifecycle. Match wB0 from screen-buffer.md:709-780
+- [ ] 23-03: WidgetsBinding refactoring — Rewrite J3 constructor (6 frame callbacks, VG8 registration), runApp (async, tui init, MediaQuery, mount, waitForExit), beginFrame/paint/render, cleanup, stop. Remove scheduleFrame/drawFrame. Match widget-tree.md:1134-1296
+
+### Phase 24: BuildOwner + Element + Input Pipeline Alignment
+**Goal**: Make BuildOwner call c9.requestFrame() directly, fix Element.markNeedsRebuild import, move input wiring inside J3.setupEventHandlers, make runApp a thin wrapper, clean up initSchedulers bridge.
+**Depends on**: Phase 23 (WidgetsBinding + FrameScheduler refactored)
+**Requirements**: BIND-08, BOWN-01, BOWN-02, ELEM-01, RAPP-01, GSCD-01
+**Amp References** (MANDATORY — implementer MUST read these before writing code):
+  - `.reference/element-tree.md:1277-1320` — NB0.scheduleBuildFor and buildScopes
+  - `.reference/element-tree.md:289-293` — Element.markNeedsRebuild (XG8 call)
+  - `.reference/widget-tree.md:1178-1185` — VG8 global scheduler registration
+  - `.reference/widget-tree.md:1314-1321` — cz8 runApp thin wrapper
+  - `.reference/input-system.md:601-634` — Full stdin→widget input pipeline
+**Amp Review Checklist** (reviewer MUST cross-reference each item):
+  - [ ] NB0.scheduleBuildFor adds to set AND calls c9.instance.requestFrame() (element-tree.md:1277-1281)
+  - [ ] Element.markNeedsRebuild calls XG8().scheduleBuildFor(this) without try/catch (element-tree.md:289-293)
+  - [ ] VG8 bridge scheduleBuildFor does NOT call scheduleFrame; BuildOwner handles requestFrame internally (widget-tree.md:1178-1185)
+  - [ ] cz8 runApp is ≤5 lines: get J3.instance, optional callback, await runApp (widget-tree.md:1314-1321)
+  - [ ] setupEventHandlers connects wB0 handlers → FocusManager/MouseManager (input-system.md:601-634)
+  - [ ] No standalone InputBridge in the event chain
+**Success Criteria** (what must be TRUE):
+  1. BuildOwner.scheduleBuildFor calls c9.instance.requestFrame() directly
+  2. Element.markNeedsRebuild uses static import, no try/catch
+  3. setupEventHandlers inside WidgetsBinding wires wB0 events to FocusManager
+  4. runApp() is a thin async wrapper (≤10 lines) calling J3.instance.runApp()
+  5. initSchedulers bridge does NOT call scheduleFrame
+  6. All existing tests still pass
+**Plans**: 3 plans
+
+Plans:
+- [ ] 24-01: BuildOwner + Element alignment — scheduleBuildFor calls requestFrame directly, Element uses proper import for scheduleBuildFor. Match element-tree.md:1277-1293
+- [ ] 24-02: runApp + initSchedulers — Thin cz8 wrapper, clean up VG8/initSchedulers bridge (no scheduleFrame call). Match widget-tree.md:1178-1185,1314-1321
+- [ ] 24-03: Input pipeline alignment — setupEventHandlers inside J3, wB0 event handlers → FocusManager/MouseManager, eliminate standalone InputBridge from event chain. Match input-system.md:601-634
+
+### Phase 25: Integration Testing + Example Validation
+**Goal**: Verify the full setState→render pipeline works end-to-end with automated tests and manual example validation
+**Depends on**: Phase 24 (all refactoring complete)
+**Requirements**: INTG-01, INTG-02, INTG-03
+**Amp References** (MANDATORY — test against this chain):
+  - `.reference/element-tree.md:1631-1680` — Complete setState→frame chain diagram
+**Amp Review Checklist** (reviewer MUST verify):
+  - [ ] Every arrow in the setState→frame chain (element-tree.md:1631-1680) corresponds to an actual call in the code
+  - [ ] counter example starts, renders, responds to keys, re-renders, quits cleanly
+  - [ ] All 2603+ tests pass with 0 failures
+**Success Criteria** (what must be TRUE):
+  1. Automated test exercises full chain: setState → markNeedsRebuild → scheduleBuildFor → requestFrame → executeFrame → build/layout/paint/render → ScreenBuffer updated
+  2. counter example fully interactive (verified by test or manual run)
+  3. `bun test` passes with ≥2603 tests, 0 failures
+  4. No architectural drift: each component calls the next per Amp's chain diagram
+**Plans**: 2 plans
+
+Plans:
+- [ ] 25-01: Pipeline integration tests — Test setState→render full chain, test frame pacing, test dirty element scheduling, test build/layout/paint/render phase order
+- [ ] 25-02: Example validation + regression — Validate counter/hello-world examples, run full test suite, fix any regressions
+
+### Phase 26: Cleanup + Dead Code Removal
+**Goal**: Remove dead code from refactoring, update documentation and examples to use new architecture
+**Depends on**: Phase 25 (integration verified)
+**Requirements**: (no new requirements — cleanup only)
+**Success Criteria** (what must be TRUE):
+  1. No dead code: standalone InputBridge usage removed from binding, drawFrame/scheduleFrame removed, _frameScheduled flag removed
+  2. All examples use the new runApp() API
+  3. CLAUDE.md anti-drift rules still accurate after refactoring
+  4. All tests pass
+**Plans**: 1 plan
+
+Plans:
+- [ ] 26-01: Dead code removal + docs — Remove unused InputBridge standalone code paths, drawFrame, scheduleFrame, _frameScheduled; update examples; verify CLAUDE.md accuracy
+
+## v1.3 Parallel Wave Strategy
+
+| Wave | Phase(s) | Plans | Notes |
+|------|----------|-------|-------|
+| W16 | Phase 23 | 23-01/02/03 | Core refactoring — sequential (23-01 first, then 23-02, then 23-03) |
+| W17 | Phase 24 | 24-01/02/03 | BuildOwner+Element+Input — 24-01 and 24-02 parallel, then 24-03 |
+| W18 | Phase 25 | 25-01/02 | Integration testing — sequential |
+| W19 | Phase 26 | 26-01 | Cleanup — single plan |
+
+## v1.3 Dependency DAG
+
+```
+Phase 23 (WidgetsBinding + TerminalManager + FrameScheduler)
+  └──→ Phase 24 (BuildOwner + Element + Input Pipeline)
+         └──→ Phase 25 (Integration Testing + Example Validation)
+                └──→ Phase 26 (Cleanup + Dead Code Removal)
+```
+
+Note: v1.3 is strictly sequential — each phase depends on the previous because they modify the same core files. Within Phase 23, plans must execute in order (FrameScheduler → TerminalManager → WidgetsBinding). Within Phase 24, plans 24-01 and 24-02 can run in parallel, then 24-03.
+
 ## v1.2 Parallel Wave Strategy
 
 | Wave | Phase(s) | Plans | Notes |
@@ -531,21 +660,31 @@ Phase 12 + Phase 13 + Phase 14 ──→ Phase 15 (Debug Inspector)
 | 14. RenderText Advanced | 2/2 | Complete | 2026-03-22 |
 | 15. Debug Inspector | 1/1 | Complete | 2026-03-22 |
 
-### v1.2 Amp CLI Deep Fidelity
+### v1.2 Amp CLI Deep Fidelity (Complete)
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 16. AppTheme & Syntax Highlighting | 0/2 | Planned | — |
-| 17. Rendering Pipeline Enhancements | 0/3 | Planned | — |
-| 18. Terminal Protocol Extensions | 0/3 | Planned | — |
-| 19. Image Protocol | 0/2 | Planned | — |
-| 20. TextField Complete Rewrite | 0/3 | Planned | — |
-| 21. Performance Diagnostics Upgrade | 0/2 | Planned | — |
-| 22. Minor Fidelity Fixes | 0/2 | Planned | — |
+| 16. AppTheme & Syntax Highlighting | 2/2 | Complete | 2026-03-22 |
+| 17. Rendering Pipeline Enhancements | 3/3 | Complete | 2026-03-22 |
+| 18. Terminal Protocol Extensions | 3/3 | Complete | 2026-03-22 |
+| 19. Image Protocol | 2/2 | Complete | 2026-03-22 |
+| 20. TextField Complete Rewrite | 3/3 | Complete | 2026-03-22 |
+| 21. Performance Diagnostics Upgrade | 2/2 | Complete | 2026-03-22 |
+| 22. Minor Fidelity Fixes | 2/2 | Complete | 2026-03-22 |
+
+### v1.3 Amp Architecture Realignment
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 23. WidgetsBinding + TerminalManager + FrameScheduler | 0/3 | Planned | — |
+| 24. BuildOwner + Element + Input Pipeline | 0/3 | Planned | — |
+| 25. Integration Testing + Example Validation | 0/2 | Planned | — |
+| 26. Cleanup + Dead Code Removal | 0/1 | Planned | — |
 
 **v1.0 total: 25/25 complete**
 **v1.1 total: 16/16 complete**
-**v1.2 total: 17 plans** | **35 requirements** | **4 waves (W12-W15)**
+**v1.2 total: 17/17 complete**
+**v1.3 total: 9 plans** | **21 requirements** | **4 waves (W16-W19)**
 
 ---
 
@@ -565,3 +704,13 @@ Phase 12 + Phase 13 + Phase 14 ──→ Phase 15 (Debug Inspector)
 - Phase 3: Removed sizedByParent/performResize, RelayoutBoundary, RepaintBoundary, didChangeDependencies, deactivate
 - Phase 4: Removed RelayoutBoundary optimization from success criteria
 - Phase 8: Updated perf-stress validation criteria (no RelayoutBoundary to validate)
+
+**v1.3 Architecture Realignment (2026-03-23):**
+- Added 4 phases (23-26), 9 plans, 21 requirements
+- Phase 23: WidgetsBinding + TerminalManager + FrameScheduler core refactoring
+- Phase 24: BuildOwner + Element + Input pipeline alignment
+- Phase 25: Integration testing + example validation
+- Phase 26: Cleanup + dead code removal
+- Strictly sequential dependency chain (each phase modifies shared core files)
+- Every requirement cites exact Amp `.reference/` file and line numbers
+- Every phase includes mandatory Amp Review Checklist for cross-reference verification

@@ -13,7 +13,7 @@
 // - TerminalManager (tui) field owned by binding
 // - runApp() instance method with waitForExit/stop pattern
 // - Standalone runApp() is thin wrapper (matching cz8)
-// - Removed scheduleFrame()/drawFrame()/_frameScheduled
+// - Frame scheduling done via FrameScheduler callbacks (no binding-level wrappers)
 // - cleanup() method matching J3.cleanup
 
 import { BuildOwner } from './build-owner';
@@ -193,7 +193,6 @@ export class WidgetsBinding {
 
   // --- InputParser (Amp ref: J3.setupEventHandlers -- input-system.md:601-634) ---
   // Created by setupEventHandlers(); wired to EventDispatcher.dispatch.
-  // Replaces the old standalone InputBridge in the main event chain.
   private _inputParser: InputParser | null = null;
 
   // --- Screen buffer + renderer backward compat (Phase 5 legacy) ---
@@ -675,18 +674,6 @@ export class WidgetsBinding {
     this.requestForcedPaintFrame();
   }
 
-  // --- Frame scheduling (delegates to FrameScheduler) ---
-
-  /**
-   * Schedule a frame. Delegates to FrameScheduler.requestFrame().
-   * Kept for backward compatibility with tests and code that call binding.scheduleFrame().
-   *
-   * Amp ref: c9.requestFrame()
-   */
-  scheduleFrame(): void {
-    this.frameScheduler.requestFrame();
-  }
-
   // --- Synchronous frame execution (test helper) ---
 
   /**
@@ -966,9 +953,6 @@ export class WidgetsBinding {
     this.frameScheduler.requestFrame();
   }
 
-  // --- Private helpers ---
-  // (_tryRegisterFrameCallbacks and _useFrameScheduler REMOVED --
-  //  replaced by static import and direct constructor registration)
 }
 
 // ---------------------------------------------------------------------------

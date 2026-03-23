@@ -115,19 +115,6 @@ describe('WidgetsBinding', () => {
     });
   });
 
-  describe('scheduleFrame', () => {
-    it('deduplicates (only one pending frame)', () => {
-      const binding = WidgetsBinding.instance;
-      binding.attachRootWidget(new TestWidget());
-
-      // Multiple calls should not queue multiple frames
-      binding.scheduleFrame();
-      binding.scheduleFrame();
-      binding.scheduleFrame();
-      // No assertion for frame count, just verifying no crash
-    });
-  });
-
   describe('drawFrameSync', () => {
     it('runs build -> layout -> paint sequence', () => {
       const binding = WidgetsBinding.instance;

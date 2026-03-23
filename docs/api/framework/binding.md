@@ -2,19 +2,19 @@
 
 `来源: src/framework/binding.ts`
 
-顶层编排器，将 BuildOwner、PipelineOwner、ScreenBuffer 和 Renderer 组合在一起。单例模式，协调完整的 4 阶段帧管线：BUILD -> LAYOUT -> PAINT -> RENDER。
+顶层编排器，将 BuildOwner、PipelineOwner、TerminalManager、ScreenBuffer 和 Renderer 组合在一起。单例模式，通过在 FrameScheduler 上注册阶段回调来协调 4 阶段帧管线：BUILD -> LAYOUT -> PAINT -> RENDER。
 
 ## runApp
 
 ```typescript
-function runApp(widget: Widget): WidgetsBinding
+async function runApp(widget: Widget, options?: RunAppOptions): Promise<WidgetsBinding>
 ```
 
-顶层入口函数。创建/获取 WidgetsBinding 单例，附加根 Widget，调度首帧。
+顶层入口函数（Amp cz8 thin wrapper）。获取 WidgetsBinding 单例，委托给 `binding.runApp(widget, options)`。初始化终端、附加根 Widget、调度首帧。
 
 ```typescript
 import { runApp } from './framework/binding';
-runApp(new MyApp());
+await runApp(new MyApp(), { output: process.stdout });
 ```
 
 ## WidgetsBinding
@@ -70,21 +70,13 @@ interface OutputWriter {
 
 附加根 Widget，创建三棵树（Widget/Element/RenderObject），设置初始约束。
 
-#### `scheduleFrame(): void`
-
-调度一帧。多次调用会被合并（coalesce）。
-
-#### `drawFrame(): void`
-
-执行完整的一帧：
-
-```
-beginFrame() -> processResizeIfPending() -> BUILD -> LAYOUT -> PAINT -> RENDER
-```
-
 #### `drawFrameSync(): void`
 
-同步版本，用于测试。跳过 microtask 调度，立即执行。
+同步帧执行（测试辅助方法）。执行完整管线：beginFrame -> processResizeIfPending -> BUILD -> LAYOUT -> PAINT -> RENDER。
+
+::: warning 无 drawFrame()
+v1.3 起 WidgetsBinding 不再有 `drawFrame()` 方法。帧执行完全由 FrameScheduler 通过注册的阶段回调驱动。参见 [渲染管线](/guide/rendering-pipeline)。
+:::
 
 ### 帧阶段方法
 
@@ -129,19 +121,8 @@ beginFrame() -> processResizeIfPending() -> BUILD -> LAYOUT -> PAINT -> RENDER
 ```typescript
 import { runApp, WidgetsBinding } from './framework/binding';
 
-// 启动应用
-const binding = runApp(new MyApp());
-
-// 设置终端输出
-binding.setOutput(process.stdout);
-
-// 处理终端 resize
-process.stdout.on('resize', () => {
-  binding.handleResize(
-    process.stdout.columns,
-    process.stdout.rows
-  );
-});
+// 启动应用（runApp 是 async thin wrapper）
+const binding = await runApp(new MyApp(), { output: process.stdout });
 
 // 停止应用
 binding.stop();
@@ -149,5 +130,5 @@ WidgetsBinding.reset();
 ```
 
 ::: tip 帧管线
-WidgetsBinding 会尝试注册到 FrameScheduler。如果 FrameScheduler 不可用，自动回退到 `queueMicrotask` 调度。
+WidgetsBinding 在构造时注册 6 个帧回调到 FrameScheduler（beginFrame、processResize、build、layout、paint、render）。所有帧调度完全通过 FrameScheduler.requestFrame() 驱动，没有 queueMicrotask 回退路径。
 :::

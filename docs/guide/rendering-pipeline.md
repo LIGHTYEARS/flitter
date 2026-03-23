@@ -258,26 +258,34 @@ Renderer 追踪上一个输出的 SGR 状态，只输出样式变化的部分。
 // WidgetsBinding 在构造时注册各阶段回调
 const scheduler = FrameScheduler.instance;
 
-scheduler.registerCallback({
-  phase: Phase.BUILD,
-  callback: () => this.buildOwner.buildScopes(),
-  priority: 0, name: 'build',
-});
-scheduler.registerCallback({
-  phase: Phase.LAYOUT,
-  callback: () => this.pipelineOwner.flushLayout(),
-  priority: 0, name: 'layout',
-});
-scheduler.registerCallback({
-  phase: Phase.PAINT,
-  callback: () => this.paint(),
-  priority: 0, name: 'paint',
-});
-scheduler.registerCallback({
-  phase: Phase.RENDER,
-  callback: () => this.render(),
-  priority: 0, name: 'render',
-});
+scheduler.addFrameCallback(
+  'build',                                    // 唯一 ID
+  () => this.buildOwner.buildScopes(),       // 回调函数
+  'build',                                    // 阶段
+  0,                                          // 优先级
+  'BuildOwner.buildScopes',                  // 调试名称
+);
+scheduler.addFrameCallback(
+  'layout',
+  () => this.pipelineOwner.flushLayout(),
+  'layout',
+  0,
+  'PipelineOwner.flushLayout',
+);
+scheduler.addFrameCallback(
+  'paint-phase',
+  () => this.paint(),
+  'paint',
+  0,
+  'WidgetsBinding.paint',
+);
+scheduler.addFrameCallback(
+  'render-phase',
+  () => this.render(),
+  'render',
+  0,
+  'WidgetsBinding.render',
+);
 ```
 
 ### 帧执行流程

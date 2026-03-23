@@ -397,16 +397,16 @@ describe('Table', () => {
     });
 
     expect(table.items).toEqual(['a', 'b', 'c']);
-    expect(table.breakpoint).toBe(50); // default
+    expect(table.showDividers).toBe(false); // default
   });
 
-  test('custom breakpoint', () => {
+  test('showDividers option', () => {
     const table = new Table({
       items: [],
       renderRow: () => [new StubWidget(''), new StubWidget('')],
-      breakpoint: 80,
+      showDividers: true,
     });
-    expect(table.breakpoint).toBe(80);
+    expect(table.showDividers).toBe(true);
   });
 
   test('builds without error', () => {

@@ -1,19 +1,25 @@
-// Table Demo — Demonstrates the Table widget with responsive layout.
+// Table Demo — Demonstrates the Table widget with structured data display.
 //
-// Shows a list of programming languages in a two-column format.
-// The Table widget renders each item using a renderRow function that
-// returns a [left, right] widget pair. In wide mode these appear
-// side-by-side; in narrow mode they stack vertically.
+// Shows a list of programming languages in a two-column table format.
+// Each row shows the language name+year on the left and creator+paradigm on the right.
+//
+// This example demonstrates:
+// - Table widget for structured two-column data display
+// - Column/Row layout for complex cell content
+// - Container with BoxDecoration for header styling
+// - TextStyle for visual differentiation (bold, dim, colors)
 //
 // Run with: bun run examples/table-demo.ts
 
 import { StatelessWidget, Widget, type BuildContext } from '../src/framework/widget';
 import { runApp } from '../src/framework/binding';
 import { Text } from '../src/widgets/text';
-import { Column } from '../src/widgets/flex';
+import { Column, Row } from '../src/widgets/flex';
 import { Container } from '../src/widgets/container';
 import { Table } from '../src/widgets/table';
 import { Divider } from '../src/widgets/divider';
+import { SizedBox } from '../src/widgets/sized-box';
+import { Expanded } from '../src/widgets/flexible';
 import { TextSpan } from '../src/core/text-span';
 import { TextStyle } from '../src/core/text-style';
 import { Color } from '../src/core/color';
@@ -48,6 +54,10 @@ const LANGUAGES: Language[] = [
 const boldStyle = new TextStyle({ bold: true });
 const dimStyle = new TextStyle({ dim: true });
 const titleStyle = new TextStyle({ bold: true, foreground: Color.cyan });
+const nameStyle = new TextStyle({ bold: true, foreground: Color.green });
+const yearStyle = new TextStyle({ foreground: Color.yellow });
+const headerStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const headerBg = Color.blue;
 
 // ---------------------------------------------------------------------------
 // Helper: create a styled Text widget from a string
@@ -84,32 +94,44 @@ export class TableDemo extends StatelessWidget {
           decoration: new BoxDecoration({ border: titleBorder }),
           child: styledText(' Programming Languages ', titleStyle),
         }),
-        new Divider(),
+        new SizedBox({ height: 1 }),
+        // Column headers
+        new Container({
+          decoration: new BoxDecoration({ color: headerBg }),
+          child: new Row({
+            children: [
+              new Expanded({ child: styledText(' Language / Year', headerStyle) }),
+              new Expanded({ child: styledText(' Creator / Paradigm', headerStyle) }),
+            ],
+          }),
+        }),
         // Language table
         new Table<Language>({
           items: LANGUAGES,
-          breakpoint: 60,
+          showDividers: true,
           renderRow: (lang: Language): [Widget, Widget] => [
             // Left column: name + year
-            new Column({
-              mainAxisSize: 'min',
+            new Row({
               children: [
-                styledText(lang.name, boldStyle),
-                styledText(`(${lang.year})`, dimStyle),
+                styledText(' '),
+                styledText(lang.name, nameStyle),
+                styledText(' '),
+                styledText(`(${lang.year})`, yearStyle),
               ],
             }),
             // Right column: creator + paradigm
-            new Column({
-              mainAxisSize: 'min',
+            new Row({
               children: [
+                styledText(' '),
                 styledText(lang.creator),
+                styledText(' - ', dimStyle),
                 styledText(lang.paradigm, dimStyle),
               ],
             }),
           ],
         }),
-        new Divider(),
-        styledText(`${LANGUAGES.length} languages listed`, dimStyle),
+        new SizedBox({ height: 1 }),
+        styledText(` ${LANGUAGES.length} languages listed`, dimStyle),
       ],
     });
   }

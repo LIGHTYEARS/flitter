@@ -1,77 +1,68 @@
-// Table widget — responsive two-column data table
+// Table widget — two-column data table
 // Amp ref: jA class in widgets-catalog.md
-// Renders items in wide (side-by-side) or narrow (stacked) layout based on breakpoint
+// Renders items as rows with left/right column pairs
 
 import { Widget, StatelessWidget, type BuildContext } from '../framework/widget';
 import { Key } from '../core/key';
+import { Column, Row } from './flex';
+import { Expanded } from './flexible';
+import { Divider } from './divider';
 
 // ---------------------------------------------------------------------------
 // Table (Amp: jA)
 // ---------------------------------------------------------------------------
 
 /**
- * A responsive data table widget.
+ * A two-column data table widget.
  *
  * Takes an array of items and a renderRow function that produces a
- * [left, right] widget pair for each item.
- *
- * Layout behavior:
- * - Wide mode (width >= breakpoint): Two columns side by side
- * - Narrow mode (width < breakpoint): Stacked vertically with indentation
+ * [left, right] widget pair for each item. Each row is rendered as
+ * a Row with two Expanded children.
  *
  * Usage:
  *   new Table({
  *     items: data,
  *     renderRow: (item) => [new Text(item.name), new Text(item.value)],
- *     breakpoint: 60,
  *   })
  */
 export class Table<T = unknown> extends StatelessWidget {
   readonly items: T[];
   readonly renderRow: (item: T) => [Widget, Widget];
-  readonly breakpoint: number;
+  readonly showDividers: boolean;
 
   constructor(opts: {
     key?: Key;
     items: T[];
     renderRow: (item: T) => [Widget, Widget];
-    breakpoint?: number;
+    showDividers?: boolean;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.items = opts.items;
     this.renderRow = opts.renderRow;
-    this.breakpoint = opts.breakpoint ?? 50;
+    this.showDividers = opts.showDividers ?? false;
   }
 
   build(_context: BuildContext): Widget {
-    // Generate row widget pairs
-    const rows: Array<[Widget, Widget]> = this.items.map((item) => this.renderRow(item));
+    const children: Widget[] = [];
 
-    // Return a display widget carrying the row data and breakpoint.
-    // Full rendering with Row/Column/Expanded/Padding will be wired
-    // when those widgets are available from plans 07-01a/07-01b.
-    return new _TableDisplay({
-      rows,
-      breakpoint: this.breakpoint,
+    for (let i = 0; i < this.items.length; i++) {
+      const [left, right] = this.renderRow(this.items[i]!);
+      children.push(
+        new Row({
+          children: [
+            new Expanded({ child: left }),
+            new Expanded({ child: right }),
+          ],
+        }),
+      );
+      if (this.showDividers && i < this.items.length - 1) {
+        children.push(new Divider());
+      }
+    }
+
+    return new Column({
+      mainAxisSize: 'min',
+      children,
     });
-  }
-}
-
-/**
- * Internal display widget for Table.
- * Carries the computed rows and layout configuration.
- */
-class _TableDisplay extends StatelessWidget {
-  readonly rows: Array<[Widget, Widget]>;
-  readonly breakpoint: number;
-
-  constructor(opts: { rows: Array<[Widget, Widget]>; breakpoint: number; key?: Key }) {
-    super(opts.key !== undefined ? { key: opts.key } : undefined);
-    this.rows = opts.rows;
-    this.breakpoint = opts.breakpoint;
-  }
-
-  build(_context: BuildContext): Widget {
-    return this;
   }
 }

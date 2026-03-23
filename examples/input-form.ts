@@ -113,6 +113,12 @@ class InputFormState extends State<InputForm> {
           this.setState(() => {});
           return 'handled';
         }
+        // Space key is mapped to 'Space' by input parser
+        if (result === 'ignored' && event.key === 'Space') {
+          this.currentController.insertText(' ');
+          this.setState(() => {});
+          return 'handled';
+        }
         return result;
       },
     });

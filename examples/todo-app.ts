@@ -65,6 +65,11 @@ const completedStyle = new TextStyle({
 const normalStyle = new TextStyle();
 const dimStyle = new TextStyle({ dim: true });
 const selectedBg = Color.blue;
+const selectedStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const selectedCompletedStyle = new TextStyle({
+  foreground: Color.brightWhite,
+  strikethrough: true,
+});
 
 // ---------------------------------------------------------------------------
 // Helper: create a Text widget from a string
@@ -267,6 +272,11 @@ export class TodoAppState extends State<TodoApp> {
       this._inputController.insertText(key);
       return 'handled';
     }
+    // Space key is mapped to 'Space' by input parser
+    if (key === 'Space') {
+      this._inputController.insertText(' ');
+      return 'handled';
+    }
     return 'ignored';
   }
 
@@ -279,6 +289,7 @@ export class TodoAppState extends State<TodoApp> {
         this.deleteSelected();
         return 'handled';
       case ' ':
+      case 'Space':
         this.toggleSelected();
         return 'handled';
       case 'j':
@@ -312,7 +323,10 @@ export class TodoAppState extends State<TodoApp> {
     const todoWidgets: Widget[] = this._todos.map((todo, i) => {
       const isSelected = i === this._selectedIndex;
       const checkbox = todo.completed ? '[x]' : '[ ]';
-      const textStyle = todo.completed ? completedStyle : normalStyle;
+      const textStyle = isSelected
+        ? (todo.completed ? selectedCompletedStyle : selectedStyle)
+        : (todo.completed ? completedStyle : normalStyle);
+      const checkboxStyle = isSelected ? selectedStyle : normalStyle;
 
       const itemDecoration = isSelected
         ? new BoxDecoration({ color: selectedBg })
@@ -322,7 +336,7 @@ export class TodoAppState extends State<TodoApp> {
         decoration: itemDecoration,
         child: new Row({
           children: [
-            txt(checkbox),
+            txt(checkbox, checkboxStyle),
             new SizedBox({ width: 1 }),
             new Expanded({
               child: txt(todo.title, textStyle),

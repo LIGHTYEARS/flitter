@@ -302,13 +302,12 @@ export function buildSystemMonitor() {
       // Header bar
       new Container({
         decoration: new BoxDecoration({
-          color: Color.blue,
-          border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+          border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
         }),
         child: new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: Row.spaceBetween([
-            label('System Monitor', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+            label('System Monitor', new TextStyle({ bold: true, foreground: Color.cyan })),
             label('Host: prod-node-01', new TextStyle({ dim: true })),
           ]),
         }),

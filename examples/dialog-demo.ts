@@ -152,11 +152,11 @@ const PROJECTS: Project[] = [
 const titleStyle = new TextStyle({ bold: true, foreground: Color.cyan });
 const normalStyle = new TextStyle();
 const dimStyle = new TextStyle({ dim: true });
-const selectedStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const selectedStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const activeStyle = new TextStyle({ foreground: Color.green });
 const archivedStyle = new TextStyle({ foreground: Color.yellow });
 const betaStyle = new TextStyle({ foreground: Color.magenta });
-const selectedBg = Color.blue;
+const selectedBg = Color.brightBlack;
 
 // Dialog styles
 const dialogTitleStyle = new TextStyle({ bold: true, foreground: Color.cyan });

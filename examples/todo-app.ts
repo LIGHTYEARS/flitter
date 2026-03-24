@@ -64,10 +64,10 @@ const completedStyle = new TextStyle({
 });
 const normalStyle = new TextStyle();
 const dimStyle = new TextStyle({ dim: true });
-const selectedBg = Color.blue;
-const selectedStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const selectedBg = Color.brightBlack;
+const selectedStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const selectedCompletedStyle = new TextStyle({
-  foreground: Color.brightWhite,
+  foreground: Color.defaultColor,
   strikethrough: true,
 });
 

@@ -252,9 +252,9 @@ export class LoginFormState extends State<LoginFormApp> {
           children: [
             // Title bar
             new Container({
-              decoration: new BoxDecoration({ color: Color.cyan }),
+              decoration: new BoxDecoration(),
               child: new Center({
-                child: label(' Login ', new TextStyle({ bold: true })),
+                child: label(' Login ', new TextStyle({ bold: true, foreground: Color.cyan })),
               }),
             }),
             new SizedBox({ height: 1 }),

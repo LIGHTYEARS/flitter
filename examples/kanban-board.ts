@@ -277,13 +277,12 @@ export function buildKanbanBoard() {
       // Header
       new Container({
         decoration: new BoxDecoration({
-          color: Color.blue,
-          border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+          border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
         }),
         child: new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: Row.spaceBetween([
-            label(' Kanban Board ', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+            label(' Kanban Board ', new TextStyle({ bold: true, foreground: Color.cyan })),
             label(`${totalCards} cards total`, new TextStyle({ dim: true })),
           ]),
         }),

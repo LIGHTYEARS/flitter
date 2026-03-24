@@ -198,15 +198,14 @@ export function buildFileBrowser() {
       // Header
       new Container({
         decoration: new BoxDecoration({
-          color: Color.blue,
-          border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+          border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
         }),
         child: new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: new Text({
             text: new TextSpan({
               children: [
-                new TextSpan({ text: ' File Browser ', style: new TextStyle({ bold: true, foreground: Color.brightWhite }) }),
+                new TextSpan({ text: ' File Browser ', style: new TextStyle({ bold: true, foreground: Color.cyan }) }),
                 new TextSpan({ text: '  ~/project', style: new TextStyle({ dim: true }) }),
               ],
             }),

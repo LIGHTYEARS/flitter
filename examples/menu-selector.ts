@@ -152,7 +152,7 @@ export class MenuSelectorState extends State<MenuSelectorApp> {
 
       // Background highlight for selected item
       const decoration = isSelected
-        ? new BoxDecoration({ color: Color.blue })
+        ? new BoxDecoration({ color: Color.brightBlack })
         : new BoxDecoration();
 
       return new Container({
@@ -207,13 +207,13 @@ export class MenuSelectorState extends State<MenuSelectorApp> {
           children: [
             // Title bar
             new Container({
-              decoration: new BoxDecoration({ color: Color.cyan }),
+              decoration: new BoxDecoration(),
               child: new Padding({
                 padding: EdgeInsets.symmetric({ horizontal: 1 }),
                 child: new Text({
                   text: new TextSpan({
                     text: ' Menu Selector ',
-                    style: new TextStyle({ bold: true }),
+                    style: new TextStyle({ bold: true, foreground: Color.cyan }),
                   }),
                 }),
               }),

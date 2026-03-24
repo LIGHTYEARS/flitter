@@ -229,13 +229,12 @@ export function buildNotificationList() {
       // Header
       new Container({
         decoration: new BoxDecoration({
-          color: Color.blue,
-          border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+          border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
         }),
         child: new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: Row.spaceBetween([
-            label(' Notifications ', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+            label(' Notifications ', new TextStyle({ bold: true, foreground: Color.cyan })),
             label(`${NOTIFICATIONS.length} total`, new TextStyle({ dim: true })),
           ]),
         }),

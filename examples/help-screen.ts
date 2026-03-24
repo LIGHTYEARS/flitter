@@ -223,13 +223,12 @@ export function buildHelpScreen() {
       // Header
       new Container({
         decoration: new BoxDecoration({
-          color: Color.blue,
-          border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+          border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
         }),
         child: new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: Row.spaceBetween([
-            label(' Keyboard Shortcuts ', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+            label(' Keyboard Shortcuts ', new TextStyle({ bold: true, foreground: Color.cyan })),
             label('Press F1 or ? for help', new TextStyle({ dim: true })),
           ]),
         }),

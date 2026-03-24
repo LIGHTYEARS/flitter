@@ -56,8 +56,8 @@ const dimStyle = new TextStyle({ dim: true });
 const titleStyle = new TextStyle({ bold: true, foreground: Color.cyan });
 const nameStyle = new TextStyle({ bold: true, foreground: Color.green });
 const yearStyle = new TextStyle({ foreground: Color.yellow });
-const headerStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
-const headerBg = Color.blue;
+const headerStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
+const headerBg = Color.brightBlack;
 
 // ---------------------------------------------------------------------------
 // Helper: create a styled Text widget from a string

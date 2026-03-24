@@ -81,13 +81,12 @@ function dashboardPanel(
 function buildHeader(): Widget {
   return new Container({
     decoration: new BoxDecoration({
-      color: Color.blue,
-      border: Border.all(new BorderSide({ color: Color.brightBlue, style: 'solid' })),
+      border: Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' })),
     }),
     child: new Padding({
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: Row.spaceBetween([
-        label('Dashboard', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+        label('Dashboard', new TextStyle({ bold: true, foreground: Color.cyan })),
         label('flutter-tui v1.0', new TextStyle({ dim: true })),
       ]),
     }),

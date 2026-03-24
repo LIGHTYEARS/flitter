@@ -45,14 +45,14 @@ interface CellData { raw: string; computed: string | number; }
 const titleStyle = new TextStyle({ bold: true, foreground: Color.cyan });
 const headerStyle = new TextStyle({ bold: true, foreground: Color.yellow });
 const rowHeaderStyle = new TextStyle({ bold: true, foreground: Color.yellow, dim: true });
-const normalStyle = new TextStyle({ foreground: Color.white });
+const normalStyle = new TextStyle({ foreground: Color.defaultColor });
 const dimStyle = new TextStyle({ dim: true });
 const selectedTextStyle = new TextStyle({ bold: true, foreground: Color.black });
-const editTextStyle = new TextStyle({ bold: true, foreground: Color.white });
+const editTextStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const formulaStyle = new TextStyle({ foreground: Color.green });
 const numberStyle = new TextStyle({ foreground: Color.cyan });
 const errorStyle = new TextStyle({ foreground: Color.red, bold: true });
-const statusLabelStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const statusLabelStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const statusValueStyle = new TextStyle({ foreground: Color.cyan });
 
 function txt(content: string, style?: TextStyle): Text {
@@ -327,7 +327,7 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
         children: [
           txt(' fx ', new TextStyle({ bold: true, foreground: Color.green })),
           new SizedBox({ width: 1 }),
-          new Expanded({ child: txt(`${currentKey}: ${formulaContent}`, new TextStyle({ foreground: Color.white })) }),
+          new Expanded({ child: txt(`${currentKey}: ${formulaContent}`, new TextStyle({ foreground: Color.defaultColor })) }),
         ],
       }),
     });

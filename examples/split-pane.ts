@@ -73,7 +73,7 @@ const FILESYSTEM: FsEntry = {
 const cyanBdr = Border.all(new BorderSide({ color: Color.cyan, style: 'rounded' }));
 const dimBdr = Border.all(new BorderSide({ color: Color.brightBlack, style: 'rounded' }));
 const dim = new TextStyle({ dim: true });
-const boldW = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const boldW = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const padH = EdgeInsets.symmetric({ horizontal: 1 });
 
 function txt(text: string, style?: TextStyle): Text {
@@ -269,8 +269,8 @@ export class SplitPaneState extends State<SplitPane> {
       const icon = e.type === 'dir' ? '\u{1F4C1} ' : '\u{1F4C4} ';
       const nameColor = e.type === 'dir'
         ? new TextStyle({ foreground: Color.brightBlue, bold: true })
-        : new TextStyle({ foreground: Color.white });
-      const selStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+        : new TextStyle({ foreground: Color.defaultColor });
+      const selStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
       const dec = sel ? new BoxDecoration({ color: Color.blue }) : new BoxDecoration();
       const ind = sel ? '>' : ' ';
 
@@ -328,7 +328,7 @@ export class SplitPaneState extends State<SplitPane> {
       const num = String(this._scrollOff + i + 1).padStart(3, ' ');
       items.push(padded(new Text({ text: new TextSpan({ children: [
         new TextSpan({ text: `${num} | `, style: new TextStyle({ foreground: Color.brightBlack }) }),
-        new TextSpan({ text: visible[i] ?? '', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: visible[i] ?? '', style: new TextStyle({ foreground: Color.defaultColor }) }),
       ]})})));
     }
     if (this._scrollOff > 0) {

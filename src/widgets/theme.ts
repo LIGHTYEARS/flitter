@@ -87,26 +87,26 @@ export class Theme extends InheritedWidget {
   }
 
   /**
-   * Returns a sensible default dark-terminal theme.
-   * Colors are chosen for readability on typical dark terminal backgrounds.
+   * Returns a default theme matching Amp CLI's color scheme (px.default()).
+   * Uses ANSI named colors so the palette adapts to the user's terminal theme.
    */
   static defaultTheme(): ThemeData {
     return {
-      primary: Color.rgb(97, 175, 239), // soft blue
-      background: Color.rgb(30, 30, 30), // near-black
-      surface: Color.rgb(45, 45, 45), // slightly lighter than bg
-      text: Color.rgb(220, 220, 220), // off-white
-      textSecondary: Color.rgb(150, 150, 150), // dim gray
-      success: Color.rgb(80, 200, 120), // green
-      error: Color.rgb(240, 80, 80), // red ("destructive" in Amp)
-      warning: Color.rgb(240, 200, 70), // yellow-orange
-      info: Color.rgb(97, 175, 239), // same as primary
-      border: Color.rgb(80, 80, 80), // medium gray
-      scrollbarThumb: Color.rgb(100, 100, 100), // gray
-      scrollbarTrack: Color.rgb(40, 40, 40), // dark gray
-      diffAdded: Color.rgb(80, 200, 120), // green
-      diffRemoved: Color.rgb(240, 80, 80), // red
-      selectionBackground: Color.rgb(60, 80, 120), // blue-gray
+      primary: Color.blue,             // Amp: w0.blue
+      background: Color.defaultColor,  // Amp: w0.none() — transparent, terminal bg shows through
+      surface: Color.defaultColor,     // Amp: no direct equivalent, use terminal default
+      text: Color.defaultColor,        // Amp: w0.default() — terminal foreground
+      textSecondary: Color.defaultColor, // Amp: w0.default() (mutedForeground)
+      success: Color.green,            // Amp: w0.green
+      error: Color.red,               // Amp: w0.red (destructive)
+      warning: Color.yellow,           // Amp: w0.yellow
+      info: Color.brightBlue,          // Amp: w0.index(12) — bright blue
+      border: Color.defaultColor,      // Amp: w0.default()
+      scrollbarThumb: Color.defaultColor, // Amp: w0.default()
+      scrollbarTrack: Color.brightBlack, // Amp: w0.index(8) — dark gray
+      diffAdded: Color.green,          // Amp: w0.green
+      diffRemoved: Color.red,          // Amp: w0.red
+      selectionBackground: Color.brightBlack, // Amp: w0.index(8)
     };
   }
 

@@ -134,7 +134,7 @@ function statusColor(status: string): Color {
     case 'sleeping': return Color.cyan;
     case 'stopped': return Color.yellow;
     case 'zombie': return Color.red;
-    default: return Color.white;
+    default: return Color.defaultColor;
   }
 }
 
@@ -432,7 +432,7 @@ export class ProcessManagerState extends State<ProcessManager> {
       }),
       child: new Row({
         children: [
-          txt(' Process Manager ', new TextStyle({ bold: true, foreground: Color.brightWhite })),
+          txt(' Process Manager ', new TextStyle({ bold: true, foreground: Color.defaultColor })),
           new Expanded({
             child: txt('', new TextStyle()),
           }),
@@ -451,7 +451,7 @@ export class ProcessManagerState extends State<ProcessManager> {
       const label = COLUMN_LABELS[col] + arrow;
       const style = isActive
         ? new TextStyle({ bold: true, foreground: Color.yellow, underline: true })
-        : new TextStyle({ bold: true, foreground: Color.white });
+        : new TextStyle({ bold: true, foreground: Color.defaultColor });
       return new Container({
         width: COLUMN_WIDTHS[col],
         child: txt(label, style),
@@ -471,19 +471,19 @@ export class ProcessManagerState extends State<ProcessManager> {
       : new BoxDecoration();
 
     const baseStyle = isSelected
-      ? new TextStyle({ bold: true, foreground: Color.brightWhite })
-      : new TextStyle({ foreground: Color.white });
+      ? new TextStyle({ bold: true, foreground: Color.defaultColor })
+      : new TextStyle({ foreground: Color.defaultColor });
 
     const cpuStyle = isSelected
-      ? new TextStyle({ bold: true, foreground: Color.brightWhite })
+      ? new TextStyle({ bold: true, foreground: Color.defaultColor })
       : new TextStyle({ foreground: cpuColor(proc.cpu) });
 
     const memStyle = isSelected
-      ? new TextStyle({ bold: true, foreground: Color.brightWhite })
+      ? new TextStyle({ bold: true, foreground: Color.defaultColor })
       : new TextStyle({ foreground: memColor(proc.mem) });
 
     const statStyle = isSelected
-      ? new TextStyle({ bold: true, foreground: Color.brightWhite })
+      ? new TextStyle({ bold: true, foreground: Color.defaultColor })
       : new TextStyle({ foreground: statusColor(proc.status) });
 
     return new Container({
@@ -529,7 +529,7 @@ export class ProcessManagerState extends State<ProcessManager> {
       }),
       child: new Row({
         children: [
-          txt(` Total: ${this._processes.length}`, new TextStyle({ bold: true, foreground: Color.white })),
+          txt(` Total: ${this._processes.length}`, new TextStyle({ bold: true, foreground: Color.defaultColor })),
           txt('  ', new TextStyle()),
           txt(`Running: ${running}`, new TextStyle({ foreground: Color.green })),
           txt('  ', new TextStyle()),
@@ -557,7 +557,7 @@ export class ProcessManagerState extends State<ProcessManager> {
         decoration: new BoxDecoration({ color: Color.red }),
         child: txt(
           ` Kill process ${pid} (${name})? [Y]es / [N]o `,
-          new TextStyle({ bold: true, foreground: Color.brightWhite }),
+          new TextStyle({ bold: true, foreground: Color.defaultColor }),
         ),
       });
     }
@@ -570,7 +570,7 @@ export class ProcessManagerState extends State<ProcessManager> {
         child: new Row({
           children: [
             txt(' Filter: ', new TextStyle({ bold: true, foreground: Color.yellow })),
-            txt(this._filterText, new TextStyle({ foreground: Color.white })),
+            txt(this._filterText, new TextStyle({ foreground: Color.defaultColor })),
             txt('\u2588', new TextStyle({ foreground: Color.yellow })),
             new Expanded({ child: txt('', new TextStyle()) }),
             txt(`${filtered.length} matches `, new TextStyle({ dim: true })),

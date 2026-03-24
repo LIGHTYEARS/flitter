@@ -130,10 +130,10 @@ const boolStyle    = new TextStyle({ foreground: Color.magenta });
 const nullSty      = new TextStyle({ foreground: Color.red });
 const treeSty      = new TextStyle({ foreground: Color.brightBlack });
 const dimSty       = new TextStyle({ dim: true });
-const selStyle     = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const selStyle     = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const bracketSty   = new TextStyle({ foreground: Color.brightBlack });
 const pathSty      = new TextStyle({ foreground: Color.cyan, dim: true });
-const titleSty     = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const titleSty     = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const normalSty    = new TextStyle();
 
 function txt(s: string, st?: TextStyle): Text {
@@ -222,7 +222,7 @@ export class JsonTreeState extends State<JsonTree> {
     const n = row.node;
     const arrow = hasChildren(n) ? (n.expanded ? '\u25BC ' : '\u25B6 ') : '  ';
     const arrowSty = isSel
-      ? new TextStyle({ foreground: Color.brightWhite, bold: true })
+      ? new TextStyle({ foreground: Color.defaultColor, bold: true })
       : new TextStyle({ foreground: Color.brightBlack });
     const kSty = isSel ? new TextStyle({ foreground: Color.brightCyan, bold: true }) : keyStyle;
     const val = formatValue(n);
@@ -306,7 +306,7 @@ export class JsonTreeState extends State<JsonTree> {
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: txt(
             ' j/k:\u2191\u2193  Enter/Space:expand/collapse  q:quit ',
-            new TextStyle({ foreground: Color.brightWhite }),
+            new TextStyle({ foreground: Color.defaultColor }),
           ),
         }),
       ],

@@ -276,7 +276,7 @@ export class PomodoroTimerState extends State<PomodoroTimer> {
       : `${remainMins}m`;
 
     const dimStyle = new TextStyle({ dim: true });
-    const valueStyle = new TextStyle({ foreground: Color.white, bold: true });
+    const valueStyle = new TextStyle({ foreground: Color.defaultColor, bold: true });
 
     return new Column({
       mainAxisSize: 'min',
@@ -331,7 +331,7 @@ export class PomodoroTimerState extends State<PomodoroTimer> {
         new Center({
           child: txt(
             this._taskName,
-            new TextStyle({ bold: true, foreground: Color.white }),
+            new TextStyle({ bold: true, foreground: Color.defaultColor }),
           ),
         }),
         new Center({
@@ -386,7 +386,7 @@ export class PomodoroTimerState extends State<PomodoroTimer> {
           child: new Center({
             child: txt(
               ' Space: Start/Pause | r: Reset | n: Next Session | q: Quit ',
-              new TextStyle({ foreground: Color.white }),
+              new TextStyle({ foreground: Color.defaultColor }),
             ),
           }),
         }),

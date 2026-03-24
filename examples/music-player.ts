@@ -42,13 +42,13 @@ const PLAYLIST: Song[] = [
 // --- Styles ---
 
 const titleStyle    = new TextStyle({ bold: true, foreground: Color.cyan });
-const headerStyle   = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const headerStyle   = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const normalStyle   = new TextStyle();
 const dimStyle      = new TextStyle({ dim: true });
 const accentStyle   = new TextStyle({ foreground: Color.magenta });
 const greenStyle    = new TextStyle({ foreground: Color.green });
 const yellowStyle   = new TextStyle({ foreground: Color.yellow });
-const selectedStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const selectedStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const playingStyle  = new TextStyle({ bold: true, foreground: Color.green });
 const selectedBg    = Color.blue;
 
@@ -285,7 +285,7 @@ export class MusicPlayerState extends State<MusicPlayer> {
       children: [
         new Row({ children: [
           txt('  Title:  ', dimStyle),
-          txt(song.title, new TextStyle({ bold: true, foreground: Color.brightWhite })),
+          txt(song.title, new TextStyle({ bold: true, foreground: Color.defaultColor })),
         ]}),
         new Row({ children: [
           txt('  Artist: ', dimStyle),
@@ -309,12 +309,12 @@ export class MusicPlayerState extends State<MusicPlayer> {
     return new Row({
       children: [
         txt(`  ${indicator} `, greenStyle),
-        txt(formatTime(elapsed), new TextStyle({ foreground: Color.brightWhite })),
+        txt(formatTime(elapsed), new TextStyle({ foreground: Color.defaultColor })),
         txt(' '),
         txt('\u2588'.repeat(filled), new TextStyle({ foreground: Color.green })),
         txt('\u2591'.repeat(empty), new TextStyle({ foreground: Color.brightBlack })),
         txt(' '),
-        txt(formatTime(song.duration), new TextStyle({ foreground: Color.brightWhite })),
+        txt(formatTime(song.duration), new TextStyle({ foreground: Color.defaultColor })),
       ],
     });
   }

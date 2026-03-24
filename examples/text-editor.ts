@@ -46,11 +46,11 @@ import type { KeyEvent, KeyEventResult } from '../src/input/events';
 // Styles
 // ---------------------------------------------------------------------------
 
-const normalStyle = new TextStyle({ foreground: Color.white });
+const normalStyle = new TextStyle({ foreground: Color.defaultColor });
 const dimStyle = new TextStyle({ dim: true });
 const gutterStyle = new TextStyle({ foreground: Color.brightBlack, dim: true });
 const cursorLineGutterStyle = new TextStyle({ foreground: Color.yellow, bold: true });
-const statusStyle = new TextStyle({ foreground: Color.brightWhite, bold: true });
+const statusStyle = new TextStyle({ foreground: Color.defaultColor, bold: true });
 const statusDimStyle = new TextStyle({ foreground: Color.brightBlack });
 const commentStyle = new TextStyle({ foreground: Color.green, dim: true });
 const stringStyle = new TextStyle({ foreground: Color.yellow });
@@ -149,7 +149,7 @@ function highlightLine(line: string, isCursorLine: boolean, cursorCol: number): 
         if (beforeCursor.length > 0) {
           spans.push(new TextSpan({ text: beforeCursor, style: normalStyle }));
         }
-        spans.push(new TextSpan({ text: cursorChar, style: new TextStyle({ foreground: Color.white, inverse: true }) }));
+        spans.push(new TextSpan({ text: cursorChar, style: new TextStyle({ foreground: Color.defaultColor, inverse: true }) }));
         if (afterCursor.length > 0) {
           spans.push(new TextSpan({ text: afterCursor, style: normalStyle }));
         }
@@ -506,8 +506,8 @@ export class TextEditorState extends State<TextEditor> {
       child: new Padding({
         padding: EdgeInsets.symmetric({ horizontal: 1 }),
         child: richText([
-          new TextSpan({ text: ' Text Editor ', style: new TextStyle({ bold: true, foreground: Color.brightWhite }) }),
-          new TextSpan({ text: '- ', style: new TextStyle({ foreground: Color.white }) }),
+          new TextSpan({ text: ' Text Editor ', style: new TextStyle({ bold: true, foreground: Color.defaultColor }) }),
+          new TextSpan({ text: '- ', style: new TextStyle({ foreground: Color.defaultColor }) }),
           new TextSpan({ text: this._filename, style: new TextStyle({ foreground: Color.brightYellow }) }),
           new TextSpan({
             text: this._savedMessage.length > 0 ? `  ${this._savedMessage}` : '',

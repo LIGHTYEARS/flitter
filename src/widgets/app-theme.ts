@@ -112,32 +112,32 @@ export class AppTheme extends InheritedWidget {
   }
 
   /**
-   * Returns a sensible default dark-terminal AppTheme.
-   * Colors are chosen for readability on typical dark terminal backgrounds.
+   * Returns a default AppTheme matching Amp CLI's app theme (XP.default("dark")).
+   * Uses ANSI named colors so the palette adapts to the user's terminal theme.
    */
   static defaultTheme(): AppThemeData {
     return {
       syntaxHighlight: {
-        keyword: Color.rgb(198, 120, 221),   // purple
-        string: Color.rgb(152, 195, 121),    // green
-        comment: Color.rgb(92, 99, 112),     // gray
-        number: Color.rgb(209, 154, 102),    // orange
-        type: Color.rgb(229, 192, 123),      // yellow
-        function: Color.rgb(97, 175, 239),   // blue
-        operator: Color.rgb(86, 182, 194),   // cyan
-        punctuation: Color.rgb(171, 178, 191), // light gray
-        variable: Color.rgb(224, 108, 117),  // red
-        property: Color.rgb(224, 108, 117),  // red
-        tag: Color.rgb(224, 108, 117),       // red
-        attribute: Color.rgb(209, 154, 102), // orange
-        default: Color.rgb(171, 178, 191),   // light gray
+        keyword: Color.blue,            // Amp: w0.blue
+        string: Color.green,            // Amp: w0.green
+        comment: Color.brightBlack,     // Amp: w0.index(8) — dark gray
+        number: Color.yellow,           // Amp: w0.yellow
+        type: Color.magenta,            // Amp: w0.magenta
+        function: Color.cyan,           // Amp: w0.cyan
+        operator: Color.defaultColor,   // Amp: w0.default()
+        punctuation: Color.defaultColor, // Amp: no explicit — use terminal default
+        variable: Color.defaultColor,   // Amp: w0.default()
+        property: Color.defaultColor,   // Amp: no explicit — use terminal default
+        tag: Color.red,                 // Amp: closest to destructive/red
+        attribute: Color.yellow,        // Amp: closest to number/yellow
+        default: Color.defaultColor,    // Amp: w0.default()
       },
       colors: {
-        background: Color.rgb(30, 30, 30),     // near-black
-        foreground: Color.rgb(171, 178, 191),  // light gray
-        accent: Color.rgb(97, 175, 239),       // blue
-        muted: Color.rgb(92, 99, 112),         // gray
-        border: Color.rgb(60, 63, 68),         // dark gray
+        background: Color.defaultColor,  // Amp: transparent / terminal bg
+        foreground: Color.defaultColor,  // Amp: w0.default() — terminal fg
+        accent: Color.magenta,           // Amp: w0.magenta (accent in px)
+        muted: Color.brightBlack,        // Amp: w0.index(8) — dark gray
+        border: Color.defaultColor,      // Amp: w0.default()
       },
     };
   }

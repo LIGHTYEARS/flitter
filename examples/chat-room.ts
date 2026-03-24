@@ -74,7 +74,7 @@ const SYSTEM_EVENTS = ['has joined the room', 'has left the room', 'is now away'
 const MAX_VISIBLE_MESSAGES = 18;
 
 // Styles
-const headerStyle = new TextStyle({ bold: true, foreground: Color.brightWhite });
+const headerStyle = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const dimStyle = new TextStyle({ dim: true });
 const systemStyle = new TextStyle({ dim: true, italic: true });
 const timestampStyle = new TextStyle({ dim: true, foreground: Color.brightBlack });
@@ -213,7 +213,7 @@ export class ChatRoomState extends State<ChatRoom> {
   private _getUserColor(username: string): Color {
     if (username === this._myUsername) return Color.brightCyan;
     const found = MOCK_USERS.find((u) => u.name === username);
-    return found ? found.color : Color.white;
+    return found ? found.color : Color.defaultColor;
   }
 
   // --- Build helpers ---

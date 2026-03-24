@@ -52,7 +52,7 @@ type Cell = typeof WALL | typeof FLOOR | typeof PLAYER | typeof EXIT | typeof CO
 // ---------------------------------------------------------------------------
 
 const dimStyle = new TextStyle({ dim: true });
-const boldWhite = new TextStyle({ bold: true, foreground: Color.white });
+const boldWhite = new TextStyle({ bold: true, foreground: Color.defaultColor });
 const greenStyle = new TextStyle({ bold: true, foreground: Color.green });
 const yellowStyle = new TextStyle({ bold: true, foreground: Color.yellow });
 const cyanStyle = new TextStyle({ bold: true, foreground: Color.cyan });
@@ -61,7 +61,7 @@ const floorStyle = new TextStyle({ dim: true, foreground: Color.brightBlack });
 const fogStyle = new TextStyle({ dim: true, foreground: Color.brightBlack });
 const dimYellow = new TextStyle({ dim: true, foreground: Color.yellow });
 const dimCyan = new TextStyle({ dim: true, foreground: Color.cyan });
-const winStyle = new TextStyle({ bold: true, foreground: Color.brightGreen });
+const winStyle = new TextStyle({ bold: true, foreground: Color.green });
 
 // ---------------------------------------------------------------------------
 // Helper

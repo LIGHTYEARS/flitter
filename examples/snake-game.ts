@@ -48,12 +48,12 @@ function txt(content: string, style?: TextStyle): Text {
 const titleStyle = new TextStyle({ bold: true, foreground: Color.green });
 const scoreStyle = new TextStyle({ bold: true, foreground: Color.yellow });
 const highScoreStyle = new TextStyle({ foreground: Color.cyan });
-const dimStyle = new TextStyle({ dim: true });
+const dimStyle = new TextStyle({ foreground: Color.brightBlack });
 const gameOverStyle = new TextStyle({ bold: true, foreground: Color.red });
 const snakeStyle = new TextStyle({ bold: true, foreground: Color.green });
 const foodStyle = new TextStyle({ bold: true, foreground: Color.red });
 const borderStyle = new TextStyle({ foreground: Color.brightBlack });
-const emptyStyle = new TextStyle();
+const emptyStyle = new TextStyle({ foreground: Color.defaultColor });
 
 // ---------------------------------------------------------------------------
 // SnakeGame Widget

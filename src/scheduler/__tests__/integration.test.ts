@@ -48,8 +48,8 @@ class FillingRenderBox extends RenderBox {
 
   paint(context: PaintContext, offset: Offset): void {
     paintCalls.push({
-      x: offset.x,
-      y: offset.y,
+      x: offset.col,
+      y: offset.row,
       w: this.size.width,
       h: this.size.height,
     });

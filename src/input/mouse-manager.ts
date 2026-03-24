@@ -259,8 +259,8 @@ export class MouseManager {
     let globalX = parentOffsetX;
     let globalY = parentOffsetY;
     if (typeof box.offset !== 'undefined' && box.offset !== null) {
-      globalX += box.offset.x;
-      globalY += box.offset.y;
+      globalX += box.offset.col;
+      globalY += box.offset.row;
     }
 
     let opaqueHit = false;
@@ -311,6 +311,78 @@ export class MouseManager {
     }
 
     return opaqueHit;
+  }
+
+  /**
+   * Dispatch a mouse action (scroll, press, release) to the deepest
+   * hit-tested RenderMouseRegion that has a matching handler.
+   *
+   * Called by WidgetsBinding when the mouse event action is not 'move'.
+   * Hit-tests at (x, y), then dispatches to the appropriate callback
+   * on the deepest matching region.
+   *
+   * @param action The mouse action: 'scroll', 'press', or 'release'
+   * @param x Column (0-based)
+   * @param y Row (0-based)
+   * @param button Button code (e.g. 64=scrollUp, 65=scrollDown, 0=left)
+   */
+  dispatchMouseAction(
+    action: 'scroll' | 'press' | 'release',
+    x: number,
+    y: number,
+    button: number,
+  ): void {
+    if (this._disposed) return;
+    if (!this._rootRenderObject) return;
+
+    // Hit-test to find all RenderMouseRegion instances at this position
+    const hitEntries: HitTestEntry[] = [];
+    this._hitTest(
+      this._rootRenderObject,
+      x,
+      y,
+      0, // parentOffsetX
+      0, // parentOffsetY
+      0, // DFS depth
+      hitEntries,
+    );
+
+    if (hitEntries.length === 0) return;
+
+    // Sort by depth so deepest region is last
+    hitEntries.sort((a, b) => a.depth - b.depth);
+
+    // Map action to MouseEventType and the corresponding handler property
+    const event = { x, y, button };
+
+    if (action === 'scroll') {
+      // Find deepest region with onScroll handler
+      for (let i = hitEntries.length - 1; i >= 0; i--) {
+        const region = hitEntries[i].region;
+        if (region.onScroll) {
+          region.handleMouseEvent('scroll', event);
+          return;
+        }
+      }
+    } else if (action === 'press') {
+      // Find deepest region with onClick handler
+      for (let i = hitEntries.length - 1; i >= 0; i--) {
+        const region = hitEntries[i].region;
+        if (region.onClick) {
+          region.handleMouseEvent('click', event);
+          return;
+        }
+      }
+    } else if (action === 'release') {
+      // Find deepest region with onRelease handler
+      for (let i = hitEntries.length - 1; i >= 0; i--) {
+        const region = hitEntries[i].region;
+        if (region.onRelease) {
+          region.handleMouseEvent('release', event);
+          return;
+        }
+      }
+    }
   }
 
   /**

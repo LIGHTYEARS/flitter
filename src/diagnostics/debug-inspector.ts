@@ -164,7 +164,7 @@ export function serializeElementTree(element: Element): ElementNodeJson {
       };
       if (ro instanceof RenderBox) {
         roJson.size = { width: ro.size.width, height: ro.size.height };
-        roJson.offset = { x: ro.offset.x, y: ro.offset.y };
+        roJson.offset = { x: ro.offset.col, y: ro.offset.row };
       }
       node.renderObject = roJson;
     }
@@ -594,7 +594,7 @@ export class DebugInspector {
       };
       if (ro instanceof RenderBox) {
         roDetail.size = { width: ro.size.width, height: ro.size.height };
-        roDetail.offset = { x: ro.offset.x, y: ro.offset.y };
+        roDetail.offset = { x: ro.offset.col, y: ro.offset.row };
       }
       detail.renderObject = roDetail;
     }

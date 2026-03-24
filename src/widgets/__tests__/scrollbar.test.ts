@@ -621,3 +621,280 @@ describe('Scrollbar subCharacterPrecision', () => {
     expect(maxRow).toBe(19); // row 19 is the last row of a 20-row viewport
   });
 });
+
+// ============================================================================
+// Sub-character precision rendering detail tests (Bug #2 fix)
+// ============================================================================
+
+describe('Scrollbar sub-character edge rendering', () => {
+  // BLOCK_ELEMENTS: [' ', '\u2581', '\u2582', '\u2583', '\u2584', '\u2585', '\u2586', '\u2587', '\u2588']
+  // Index 0 = space, 1-7 = lower 1/8 to 7/8, 8 = full block
+
+  test('top-edge rendering: thumb starting mid-row uses lower block element in thumb fg', () => {
+    // Set up a scenario where the thumb starts mid-row.
+    // With height=8, totalContent=64 (8*8 eighths = 64), viewport=8, scroll=0:
+    //   scrollRatio = 8/64 = 0.125
+    //   thumbEighths = max(8, round(0.125*64)) = max(8,8) = 8 (1 full row)
+    //   thumbTopEighths = 0 => starts at top, no partial top edge
+    //
+    // We need the thumb to start mid-row. Let's use a scroll offset that pushes
+    // the thumb partway into a row.
+    // height=10, totalContent=100, viewport=10, scrollOffset=5 (out of 90)
+    //   scrollRatio = 10/100 = 0.1
+    //   totalEighths = 10*8 = 80
+    //   thumbEighths = max(8, round(0.1*80)) = max(8,8) = 8
+    //   scrollPositionRatio = 5/90 = 0.0556
+    //   thumbTopEighths = round(0.0556 * (80-8)) = round(4.0) = 4
+    //   thumbBottomEighths = 4 + 8 = 12
+    //   Row 0: top=0, bottom=8, overlapStart=max(0,4)=4, overlapEnd=min(8,12)=8, covered=4
+    //     overlapStart(4) > rowTopEighths(0) => top edge: BLOCK_ELEMENTS[4] = '\u2584' with thumb fg
+    //   Row 1: top=8, bottom=16, overlapStart=max(8,4)=8, overlapEnd=min(16,12)=12, covered=4
+    //     overlapStart(8) == rowTopEighths(8) => NOT top edge => bottom edge!
+    //     gapEighths = 8-4 = 4, BLOCK_ELEMENTS[4] inverted
+
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    render.thumbColor = Color.green;
+    render.trackColor = Color.brightBlack;
+    render.scrollInfo = {
+      totalContentHeight: 100,
+      viewportHeight: 10,
+      scrollOffset: 5,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Row 0 should be the top edge: lower block with thumb color fg
+    const row0 = ctx.drawn.filter((d) => d.y === 0 && d.char >= '\u2581' && d.char <= '\u2588');
+    expect(row0.length).toBe(1);
+    // The block element for covered=4 is BLOCK_ELEMENTS[4] = '\u2584' (lower half)
+    expect(row0[0]!.char).toBe('\u2584');
+    // Top edge: style should have fg = thumbColor
+    expect(row0[0]!.style).toEqual({ fg: Color.green });
+  });
+
+  test('bottom-edge rendering: thumb ending mid-row uses inverted colors (track fg, thumb bg)', () => {
+    // Using the same scenario from top-edge test:
+    // Row 1 is the bottom edge where thumb covers top 4/8, leaves gap 4/8 at bottom.
+    // Expected: BLOCK_ELEMENTS[4] (for the gap) with fg=trackColor, bg=thumbColor
+
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    render.thumbColor = Color.green;
+    render.trackColor = Color.brightBlack;
+    render.scrollInfo = {
+      totalContentHeight: 100,
+      viewportHeight: 10,
+      scrollOffset: 5,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Row 1 should be the bottom edge: inverted block with track fg + thumb bg
+    const row1 = ctx.drawn.filter((d) => d.y === 1 && d.char >= '\u2581' && d.char <= '\u2588');
+    expect(row1.length).toBe(1);
+    // Gap = 8-4 = 4, so BLOCK_ELEMENTS[4] = '\u2584'
+    expect(row1[0]!.char).toBe('\u2584');
+    // Bottom edge inverted: fg = trackColor, bg = thumbColor
+    expect(row1[0]!.style).toEqual({ fg: Color.brightBlack, bg: Color.green });
+  });
+
+  test('fully covered rows use full block in thumb color', () => {
+    // Use a larger thumb that covers several whole rows.
+    // height=10, totalContent=30, viewport=10, scrollOffset=0
+    //   scrollRatio = 10/30 = 0.333
+    //   totalEighths = 80
+    //   thumbEighths = max(8, round(0.333*80)) = max(8,27) = 27
+    //   thumbTopEighths = 0, thumbBottomEighths = 27
+    //   Row 0: top=0, bottom=8, covered=8 => fully covered
+    //   Row 1: top=8, bottom=16, covered=8 => fully covered
+    //   Row 2: top=16, bottom=24, covered=8 => fully covered
+    //   Row 3: top=24, bottom=32, overlap=24-27=3 => partial (bottom edge)
+
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    render.thumbColor = Color.green;
+    render.scrollInfo = {
+      totalContentHeight: 30,
+      viewportHeight: 10,
+      scrollOffset: 0,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Rows 0, 1, 2 should all be full blocks
+    for (const row of [0, 1, 2]) {
+      const rowDrawn = ctx.drawn.filter((d) => d.y === row && d.char === '\u2588');
+      expect(rowDrawn.length).toBe(1);
+      expect(rowDrawn[0]!.style).toEqual({ fg: Color.green });
+    }
+  });
+
+  test('top and bottom partial edges use different rendering strategies', () => {
+    // Create a scenario where the thumb has BOTH a partial top edge and partial bottom edge.
+    // height=10, totalContent=50, viewport=10, scrollOffset=10 (out of 40)
+    //   scrollRatio = 10/50 = 0.2
+    //   totalEighths = 80
+    //   thumbEighths = max(8, round(0.2*80)) = max(8,16) = 16
+    //   scrollPositionRatio = 10/40 = 0.25
+    //   thumbTopEighths = round(0.25 * (80-16)) = round(16) = 16
+    //   thumbBottomEighths = 16+16 = 32
+    //   Row 2: top=16, bottom=24, overlapStart=16, overlapEnd=24, covered=8 => fully covered
+    //   Row 3: top=24, bottom=32, overlapStart=24, overlapEnd=32, covered=8 => fully covered
+    //
+    // Hmm, let me force partial edges. scrollOffset=8
+    //   scrollPositionRatio = 8/40 = 0.2
+    //   thumbTopEighths = round(0.2 * 64) = round(12.8) = 13
+    //   thumbBottomEighths = 13+16 = 29
+    //   Row 1: top=8, bottom=16, overlapStart=max(8,13)=13, overlapEnd=min(16,29)=16, covered=3
+    //     overlapStart(13) > rowTop(8) => top edge: BLOCK_ELEMENTS[3]
+    //   Row 2: top=16, bottom=24, overlapStart=16, overlapEnd=24, covered=8 => fully covered
+    //   Row 3: top=24, bottom=32, overlapStart=24, overlapEnd=min(32,29)=29, covered=5
+    //     overlapStart(24) == rowTop(24) => bottom edge: gap=3, BLOCK_ELEMENTS[3] inverted
+
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    render.thumbColor = Color.green;
+    render.trackColor = Color.brightBlack;
+    render.scrollInfo = {
+      totalContentHeight: 50,
+      viewportHeight: 10,
+      scrollOffset: 8,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Find partial block elements (not full block \u2588)
+    const partialBlocks = ctx.drawn.filter((d) =>
+      d.char >= '\u2581' && d.char <= '\u2587'
+    );
+
+    // There should be at least 2 partial blocks (top edge and bottom edge)
+    expect(partialBlocks.length).toBeGreaterThanOrEqual(2);
+
+    // Top edge should have fg = thumbColor (thumb fg)
+    const topEdge = partialBlocks.find((d) => d.style && d.style.fg === Color.green && !d.style.bg);
+    expect(topEdge).toBeDefined();
+
+    // Bottom edge should have fg = trackColor, bg = thumbColor (inverted)
+    const bottomEdge = partialBlocks.find((d) =>
+      d.style && d.style.fg === Color.brightBlack && d.style.bg === Color.green
+    );
+    expect(bottomEdge).toBeDefined();
+
+    // They should be on different rows
+    expect(topEdge!.y).not.toBe(bottomEdge!.y);
+    // Top edge row should be above bottom edge row
+    expect(topEdge!.y).toBeLessThan(bottomEdge!.y);
+  });
+
+  test('bottom edge with thumbColor and trackColor uses correct inverted colors', () => {
+    // Specifically verify: fg = trackColor, bg = thumbColor on bottom edge
+    const thumbCol = Color.cyan;
+    const trackCol = Color.brightBlack;
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    render.thumbColor = thumbCol;
+    render.trackColor = trackCol;
+    render.scrollInfo = {
+      totalContentHeight: 50,
+      viewportHeight: 10,
+      scrollOffset: 8,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Find bottom-edge entry (has both fg and bg set, fg = trackColor, bg = thumbColor)
+    const bottomEdgeEntries = ctx.drawn.filter((d) =>
+      d.style &&
+      d.style.bg === thumbCol && // bg = thumbColor
+      d.style.fg === trackCol    // fg = trackColor
+    );
+    expect(bottomEdgeEntries.length).toBeGreaterThanOrEqual(1);
+
+    // Verify the char is a partial block element (not full block)
+    for (const entry of bottomEdgeEntries) {
+      expect(entry.char >= '\u2581' && entry.char <= '\u2587').toBe(true);
+    }
+  });
+
+  test('bottom edge without explicit colors uses inverse attribute', () => {
+    // When neither thumbColor nor trackColor is set, bottom edge should use inverse
+    const render = new RenderScrollbar();
+    render.subCharacterPrecision = true;
+    render.showTrack = false;
+    // No thumbColor or trackColor set
+    render.scrollInfo = {
+      totalContentHeight: 50,
+      viewportHeight: 10,
+      scrollOffset: 8,
+    };
+
+    const constraints = new BoxConstraints({
+      minWidth: 0,
+      maxWidth: 1,
+      minHeight: 0,
+      maxHeight: 10,
+    });
+    render.layout(constraints);
+
+    const ctx = new MockPaintContext();
+    render.paint(ctx as any, new Offset(0, 0));
+
+    // Find entries with inverse style
+    const invertedEntries = ctx.drawn.filter((d) =>
+      d.style && d.style.inverse === true
+    );
+    expect(invertedEntries.length).toBeGreaterThanOrEqual(1);
+  });
+});

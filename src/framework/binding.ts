@@ -833,6 +833,11 @@ export class WidgetsBinding {
     if (this.mouseManager) {
       dispatcher.addMouseHandler((event) => {
         this.mouseManager!.updatePosition(event.x, event.y);
+
+        // Dispatch action-based events (scroll, press, release) to hit-tested regions
+        if (event.action === 'scroll' || event.action === 'press' || event.action === 'release') {
+          this.mouseManager!.dispatchMouseAction(event.action, event.x, event.y, event.button);
+        }
       });
     }
   }

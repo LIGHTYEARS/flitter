@@ -362,10 +362,15 @@ export class RenderScrollbar extends RenderBox {
 
     if (this.subCharacterPrecision) {
       // Sub-character precision rendering using BLOCK_ELEMENTS
-      const metrics = this.computeThumbMetrics(height);
-      if (!metrics) return;
+      // Unicode lower block elements (\u2581-\u2588) fill from the BOTTOM of the cell upward.
+      //
+      // For each character row we determine the overlap with the thumb region:
+      //   - Fully covered → full block (█) in thumb color
+      //   - Top edge (thumb starts mid-row, covers bottom portion) → lower block in thumb fg
+      //   - Bottom edge (thumb covers top portion, stops mid-row) → invert: lower block
+      //     representing the UNCOVERED bottom gap drawn with track fg + thumb bg
+      //   - No overlap → track char already drawn, skip
 
-      // We need the scroll ratio values to compute sub-char positions
       if (!this.scrollInfo || height <= 0) return;
 
       let totalContentHeight = this.scrollInfo.totalContentHeight;
@@ -387,6 +392,7 @@ export class RenderScrollbar extends RenderBox {
       const totalEighths = height * 8;
       const thumbEighths = Math.max(8, Math.round(scrollRatio * totalEighths)); // minimum 1 char
       const thumbTopEighths = Math.round(scrollPositionRatio * (totalEighths - thumbEighths));
+      const thumbBottomEighths = thumbTopEighths + thumbEighths;
 
       for (let row = 0; row < height; row++) {
         const rowTopEighths = row * 8;
@@ -394,37 +400,60 @@ export class RenderScrollbar extends RenderBox {
 
         // Calculate how many eighths of this row are covered by the thumb
         const overlapStart = Math.max(rowTopEighths, thumbTopEighths);
-        const overlapEnd = Math.min(rowBottomEighths, thumbTopEighths + thumbEighths);
+        const overlapEnd = Math.min(rowBottomEighths, thumbBottomEighths);
         const coveredEighths = Math.max(0, overlapEnd - overlapStart);
 
         if (coveredEighths <= 0) {
-          // Empty row - track character already drawn
+          // No overlap — track char already drawn
           continue;
         }
 
-        let ch: string;
-        if (coveredEighths >= 8) {
-          // Fully covered
-          ch = BLOCK_ELEMENTS[8];
-        } else if (overlapStart === rowTopEighths) {
-          // Top-aligned partial: thumb starts at top of this row
-          // Use upper portion = coveredEighths from top
-          // Block elements grow from bottom, so for top-aligned we use full minus gap
-          ch = BLOCK_ELEMENTS[coveredEighths];
-        } else {
-          // Bottom-aligned partial: thumb ends partway through this row
-          // or starts partway through this row
-          ch = BLOCK_ELEMENTS[coveredEighths];
-        }
-
         for (let col = 0; col < width; col++) {
-          ctx.drawChar(
-            offset.col + col,
-            offset.row + row,
-            ch,
-            this.thumbColor ? thumbStyle : undefined,
-            1,
-          );
+          if (coveredEighths >= 8) {
+            // Fully covered by thumb
+            ctx.drawChar(
+              offset.col + col,
+              offset.row + row,
+              BLOCK_ELEMENTS[8], // █
+              this.thumbColor ? thumbStyle : undefined,
+              1,
+            );
+          } else if (overlapStart > rowTopEighths) {
+            // Top edge of thumb: thumb starts mid-row, covers bottom portion.
+            // Lower block element naturally fills from bottom — perfect match.
+            // Draw lower N/8 in thumb color.
+            ctx.drawChar(
+              offset.col + col,
+              offset.row + row,
+              BLOCK_ELEMENTS[coveredEighths],
+              this.thumbColor ? thumbStyle : undefined,
+              1,
+            );
+          } else {
+            // Bottom edge of thumb: thumb covers top portion, stops mid-row.
+            // Lower block elements can't represent top-fill directly.
+            // Trick: draw the UNCOVERED bottom gap as a lower block in track color,
+            // with thumb color as background for the covered top portion.
+            const gapEighths = 8 - coveredEighths;
+            const invertedStyle: any = {};
+            if (this.trackColor) invertedStyle.fg = this.trackColor;
+            if (this.thumbColor) invertedStyle.bg = this.thumbColor;
+            // When no explicit colors, use inverse attribute to swap fg/bg
+            if (!this.trackColor && !this.thumbColor) {
+              invertedStyle.inverse = true;
+            } else if (!this.trackColor) {
+              invertedStyle.bg = this.thumbColor;
+            } else if (!this.thumbColor) {
+              invertedStyle.fg = this.trackColor;
+            }
+            ctx.drawChar(
+              offset.col + col,
+              offset.row + row,
+              BLOCK_ELEMENTS[gapEighths],
+              invertedStyle,
+              1,
+            );
+          }
         }
       }
     } else {

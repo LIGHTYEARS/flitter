@@ -347,12 +347,8 @@ export class MazeGameState extends State<MazeGame> {
 
     return new Column({
       children: [
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: txt(this._won ? ' Maze Escaped! ' : ' Maze Explorer ', new TextStyle({ bold: true, foreground: borderColor })),
-        }),
+        txt(this._won ? ' Maze Escaped! ' : ' Maze Explorer ', new TextStyle({ bold: true, foreground: borderColor })),
+        new Divider({ color: Color.brightBlack }),
         new SizedBox({ height: 1 }),
         ...mazeRows,
         new SizedBox({ height: 1 }),

@@ -210,12 +210,16 @@ export class SplitPaneState extends State<SplitPane> {
   }
 
   private _paneTitle(label: string, active: boolean): Widget {
-    return new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ bottom: new BorderSide({ color: active ? Color.cyan : Color.brightBlack, style: 'solid' }) }),
-      }),
-      padding: padH,
-      child: txt(` ${label} `, active ? new TextStyle({ bold: true, foreground: Color.cyan }) : dim),
+    return new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Container({
+          padding: padH,
+          child: txt(` ${label} `, active ? new TextStyle({ bold: true, foreground: Color.cyan }) : dim),
+        }),
+        new Divider({ color: active ? Color.cyan : Color.brightBlack }),
+      ],
     });
   }
 
@@ -252,12 +256,16 @@ export class SplitPaneState extends State<SplitPane> {
         style: last ? new TextStyle({ foreground: Color.yellow }) : new TextStyle({ foreground: Color.brightBlack }),
       }));
     });
-    return new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      padding: padH,
-      child: new Text({ text: new TextSpan({ children: spans }) }),
+    return new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Container({
+          padding: padH,
+          child: new Text({ text: new TextSpan({ children: spans }) }),
+        }),
+        new Divider({ color: Color.brightBlack }),
+      ],
     });
   }
 

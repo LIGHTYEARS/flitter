@@ -501,22 +501,24 @@ export class TextEditorState extends State<TextEditor> {
     }
 
     // Title bar
-    const titleBar = new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      child: new Padding({
-        padding: EdgeInsets.symmetric({ horizontal: 1 }),
-        child: richText([
-          new TextSpan({ text: ' Text Editor ', style: new TextStyle({ bold: true, foreground: Color.defaultColor }) }),
-          new TextSpan({ text: '- ', style: new TextStyle({ foreground: Color.defaultColor }) }),
-          new TextSpan({ text: this._filename, style: new TextStyle({ foreground: Color.brightYellow }) }),
-          new TextSpan({
-            text: this._savedMessage.length > 0 ? `  ${this._savedMessage}` : '',
-            style: savedStyle,
-          }),
-        ]),
-      }),
+    const titleBar = new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Padding({
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
+          child: richText([
+            new TextSpan({ text: ' Text Editor ', style: new TextStyle({ bold: true, foreground: Color.defaultColor }) }),
+            new TextSpan({ text: '- ', style: new TextStyle({ foreground: Color.defaultColor }) }),
+            new TextSpan({ text: this._filename, style: new TextStyle({ foreground: Color.brightYellow }) }),
+            new TextSpan({
+              text: this._savedMessage.length > 0 ? `  ${this._savedMessage}` : '',
+              style: savedStyle,
+            }),
+          ]),
+        }),
+        new Divider({ color: Color.brightBlack }),
+      ],
     });
 
     // Status bar
@@ -526,22 +528,23 @@ export class TextEditorState extends State<TextEditor> {
       ? Math.round(((this._cursorRow + 1) / totalLines) * 100)
       : 100;
 
-    const statusBar = new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      child: new Padding({
-        padding: EdgeInsets.symmetric({ horizontal: 1 }),
-        child: new Row({
-          children: [
-            richText([
-              new TextSpan({ text: ' ', style: statusStyle }),
-              new TextSpan({ text: this._filename, style: statusStyle }),
-              new TextSpan({ text: '  ', style: statusDimStyle }),
-              new TextSpan({ text: linesCountText, style: statusDimStyle }),
-            ]),
-            new Expanded({
-              child: txt('', normalStyle),
+    const statusBar = new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Divider({ color: Color.brightBlack }),
+        new Padding({
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
+          child: new Row({
+            children: [
+              richText([
+                new TextSpan({ text: ' ', style: statusStyle }),
+                new TextSpan({ text: this._filename, style: statusStyle }),
+                new TextSpan({ text: '  ', style: statusDimStyle }),
+                new TextSpan({ text: linesCountText, style: statusDimStyle }),
+              ]),
+              new Expanded({
+                child: txt('', normalStyle),
             }),
             richText([
               new TextSpan({ text: positionText, style: statusStyle }),
@@ -556,6 +559,7 @@ export class TextEditorState extends State<TextEditor> {
           ],
         }),
       }),
+      ],
     });
 
     // Main layout

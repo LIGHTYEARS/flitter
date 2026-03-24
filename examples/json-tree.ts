@@ -264,9 +264,6 @@ export class JsonTreeState extends State<JsonTree> {
       children: [
         // Header
         new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: new Row({
             children: [
@@ -276,6 +273,7 @@ export class JsonTreeState extends State<JsonTree> {
             ],
           }),
         }),
+        new Divider({ color: Color.brightBlack }),
         // Tree content
         new Expanded({
           child: new Container({
@@ -300,10 +298,8 @@ export class JsonTreeState extends State<JsonTree> {
           }),
         }),
         // Help bar
+        new Divider({ color: Color.brightBlack }),
         new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: txt(
             ' j/k:\u2191\u2193  Enter/Space:expand/collapse  q:quit ',

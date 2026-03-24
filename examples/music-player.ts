@@ -201,12 +201,8 @@ export class MusicPlayerState extends State<MusicPlayer> {
     return new Column({
       children: [
         // Title bar
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: txt('  Music Player  ', new TextStyle({ bold: true, foreground: Color.magenta })),
-        }),
+        txt('  Music Player  ', new TextStyle({ bold: true, foreground: Color.magenta })),
+        new Divider({ color: Color.brightBlack }),
         // Playlist panel
         new Expanded({
           child: new Container({
@@ -244,15 +240,11 @@ export class MusicPlayerState extends State<MusicPlayer> {
           }),
         }),
         // Status bar with keybindings help
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: txt(
-            ' space:play/pause  n:next  p:prev  s:shuffle  r:repeat  +/-:vol  j/k:browse  enter:select  q:quit ',
-            dimStyle,
-          ),
-        }),
+        new Divider({ color: Color.brightBlack }),
+        txt(
+          ' space:play/pause  n:next  p:prev  s:shuffle  r:repeat  +/-:vol  j/k:browse  enter:select  q:quit ',
+          dimStyle,
+        ),
       ],
     });
   }

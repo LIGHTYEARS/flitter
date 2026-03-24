@@ -322,9 +322,6 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
 
     // Formula bar
     const formulaBar = new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
       child: new Row({
         children: [
           txt(' fx ', new TextStyle({ bold: true, foreground: Color.green })),
@@ -336,11 +333,11 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
 
     // Column headers
     const headerCells: Widget[] = [
-      new Container({ width: HEADER_WIDTH, decoration: new BoxDecoration({ border: new Border({ right: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }) }), child: txt('    ', headerStyle) }),
+      new Container({ width: HEADER_WIDTH, child: txt('    ', headerStyle) }),
     ];
     for (let c = 0; c < COLUMNS.length; c++) {
       const label = COLUMNS[c]!.padStart(Math.floor((CELL_WIDTH + 1) / 2)).padEnd(CELL_WIDTH);
-      headerCells.push(new Container({ width: CELL_WIDTH, decoration: new BoxDecoration({ border: new Border({ right: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }) }), child: txt(label, headerStyle) }));
+      headerCells.push(new Container({ width: CELL_WIDTH, child: txt(label, headerStyle) }));
     }
 
     // Data rows
@@ -349,7 +346,6 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
       const rowCells: Widget[] = [
         new Container({
           width: HEADER_WIDTH,
-          decoration: new BoxDecoration({ border: new Border({ right: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }) }),
           child: txt(String(r + 1).padStart(HEADER_WIDTH - 1) + ' ', rowHeaderStyle),
         }),
       ];
@@ -371,7 +367,7 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
         const padded = cellText.length > CELL_WIDTH - 1 ? cellText.slice(0, CELL_WIDTH - 2) + '~' : cellText.padEnd(CELL_WIDTH - 1);
         const deco = bgColor
           ? new BoxDecoration({ color: bgColor })
-          : new BoxDecoration({ border: new Border({ right: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }) });
+          : new BoxDecoration();
         rowCells.push(new Container({ width: CELL_WIDTH, decoration: deco, child: txt(` ${padded}`, cellStyle) }));
       }
       dataRows.push(new Row({ children: rowCells }));
@@ -383,11 +379,7 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
     const modeColor = this._editing
       ? new TextStyle({ bold: true, foreground: Color.magenta })
       : new TextStyle({ bold: true, foreground: Color.green });
-    const statusBar = new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      child: new Row({
+    const statusBar = new Row({
         children: [
           txt(` ${currentKey} `, statusLabelStyle), txt('|', dimStyle),
           txt(` ${cellType} `, statusValueStyle), txt('|', dimStyle),
@@ -396,7 +388,6 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
           txt(this._editing ? 'Enter:confirm Esc:cancel' : 'Arrows:move Tab:next Enter:edit q:quit', dimStyle),
           txt(' ', dimStyle),
         ],
-      }),
     });
 
     return new Container({
@@ -405,7 +396,7 @@ export class SpreadsheetState extends State<SpreadsheetApp> {
         mainAxisSize: 'min',
         crossAxisAlignment: 'stretch',
         children: [
-          new Container({ decoration: new BoxDecoration({ border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }) }), child: txt(' Spreadsheet ', titleStyle) }),
+          txt(' Spreadsheet ', titleStyle),
           formulaBar,
           new Divider(),
           new Row({ children: headerCells }),

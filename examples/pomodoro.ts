@@ -315,14 +315,10 @@ export class PomodoroTimerState extends State<PomodoroTimer> {
       crossAxisAlignment: 'stretch',
       children: [
         // Title bar
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: new Center({
-            child: txt(' Pomodoro Timer ', new TextStyle({ bold: true, foreground: color })),
-          }),
+        new Center({
+          child: txt(' Pomodoro Timer ', new TextStyle({ bold: true, foreground: color })),
         }),
+        new Divider({ color: Color.brightBlack }),
 
         new SizedBox({ height: 1 }),
 
@@ -380,16 +376,12 @@ export class PomodoroTimerState extends State<PomodoroTimer> {
         }),
 
         // Controls help bar
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: new Center({
-            child: txt(
-              ' Space: Start/Pause | r: Reset | n: Next Session | q: Quit ',
-              new TextStyle({ dim: true }),
-            ),
-          }),
+        new Divider({ color: Color.brightBlack }),
+        new Center({
+          child: txt(
+            ' Space: Start/Pause | r: Reset | n: Next Session | q: Quit ',
+            new TextStyle({ dim: true }),
+          ),
         }),
       ],
     });

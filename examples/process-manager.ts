@@ -425,19 +425,21 @@ export class ProcessManagerState extends State<ProcessManager> {
   }
 
   private _buildTitleBar(): Widget {
-    return new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      child: new Row({
-        children: [
-          txt(' Process Manager ', new TextStyle({ bold: true, foreground: Color.cyan })),
-          new Expanded({
-            child: txt('', new TextStyle()),
-          }),
-          txt(`${this._processes.length} processes `, new TextStyle({ dim: true })),
-        ],
-      }),
+    return new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Row({
+          children: [
+            txt(' Process Manager ', new TextStyle({ bold: true, foreground: Color.cyan })),
+            new Expanded({
+              child: txt('', new TextStyle()),
+            }),
+            txt(`${this._processes.length} processes `, new TextStyle({ dim: true })),
+          ],
+        }),
+        new Divider({ color: Color.brightBlack }),
+      ],
     });
   }
 
@@ -521,28 +523,30 @@ export class ProcessManagerState extends State<ProcessManager> {
     const stopped = this._processes.filter(p => p.status === 'stopped').length;
     const zombie = this._processes.filter(p => p.status === 'zombie').length;
 
-    return new Container({
-      decoration: new BoxDecoration({
-        border: new Border({ top: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-      }),
-      child: new Row({
-        children: [
-          txt(` Total: ${this._processes.length}`, new TextStyle({ bold: true, foreground: Color.defaultColor })),
-          txt('  ', new TextStyle()),
-          txt(`Running: ${running}`, new TextStyle({ foreground: Color.green })),
-          txt('  ', new TextStyle()),
-          txt(`Sleeping: ${sleeping}`, new TextStyle({ foreground: Color.cyan })),
-          ...(stopped > 0
-            ? [txt('  ', new TextStyle()), txt(`Stopped: ${stopped}`, new TextStyle({ foreground: Color.yellow }))]
-            : []),
-          ...(zombie > 0
-            ? [txt('  ', new TextStyle()), txt(`Zombie: ${zombie}`, new TextStyle({ foreground: Color.red }))]
-            : []),
-          new Expanded({ child: txt('', new TextStyle()) }),
-          txt(`Sort: ${COLUMN_LABELS[this._sortColumn]} ${this._sortDirection === 'asc' ? '\u25B2' : '\u25BC'} `,
-            new TextStyle({ dim: true })),
-        ],
-      }),
+    return new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Divider({ color: Color.brightBlack }),
+        new Row({
+          children: [
+            txt(` Total: ${this._processes.length}`, new TextStyle({ bold: true, foreground: Color.defaultColor })),
+            txt('  ', new TextStyle()),
+            txt(`Running: ${running}`, new TextStyle({ foreground: Color.green })),
+            txt('  ', new TextStyle()),
+            txt(`Sleeping: ${sleeping}`, new TextStyle({ foreground: Color.cyan })),
+            ...(stopped > 0
+              ? [txt('  ', new TextStyle()), txt(`Stopped: ${stopped}`, new TextStyle({ foreground: Color.yellow }))]
+              : []),
+            ...(zombie > 0
+              ? [txt('  ', new TextStyle()), txt(`Zombie: ${zombie}`, new TextStyle({ foreground: Color.red }))]
+              : []),
+            new Expanded({ child: txt('', new TextStyle()) }),
+            txt(`Sort: ${COLUMN_LABELS[this._sortColumn]} ${this._sortDirection === 'asc' ? '\u25B2' : '\u25BC'} `,
+              new TextStyle({ dim: true })),
+          ],
+        }),
+      ],
     });
   }
 
@@ -551,14 +555,16 @@ export class ProcessManagerState extends State<ProcessManager> {
       const target = filtered[this._selectedIndex];
       const name = target ? target.name : '???';
       const pid = target ? target.pid : 0;
-      return new Container({
-        decoration: new BoxDecoration({
-          border: new Border({ top: new BorderSide({ color: Color.red, style: 'solid' }) }),
-        }),
-        child: txt(
-          ` Kill process ${pid} (${name})? [Y]es / [N]o `,
-          new TextStyle({ bold: true, foreground: Color.red }),
-        ),
+      return new Column({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'stretch',
+        children: [
+          new Divider({ color: Color.red }),
+          txt(
+            ` Kill process ${pid} (${name})? [Y]es / [N]o `,
+            new TextStyle({ bold: true, foreground: Color.red }),
+          ),
+        ],
       });
     }
 

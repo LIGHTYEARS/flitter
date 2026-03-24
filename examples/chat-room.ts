@@ -286,25 +286,16 @@ export class ChatRoomState extends State<ChatRoom> {
       crossAxisAlignment: 'stretch',
       children: [
         // Header
-        new Container({
-          decoration: new BoxDecoration({
-            border: new Border({ bottom: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-          }),
-          child: Row.spaceBetween([
-            txt(' #general ', new TextStyle({ bold: true, foreground: Color.cyan })),
-            txt(`${this._messages.length} messages `, dimStyle),
-          ]),
-        }),
+        Row.spaceBetween([
+          txt(' #general ', new TextStyle({ bold: true, foreground: Color.cyan })),
+          txt(`${this._messages.length} messages `, dimStyle),
+        ]),
+        new Divider({ color: Color.brightBlack }),
         // Main content: messages + sidebar
         new Expanded({
           child: new Row({ crossAxisAlignment: 'start', children: [
             new Expanded({
-              child: new Container({
-                decoration: new BoxDecoration({
-                  border: new Border({ right: new BorderSide({ color: Color.brightBlack, style: 'solid' }) }),
-                }),
-                child: this._buildMessageArea(),
-              }),
+              child: this._buildMessageArea(),
             }),
             this._buildOnlineSidebar(),
           ]}),

@@ -52,10 +52,8 @@ function panel(title: string, borderColor: Color, children: Widget[]): Widget {
       crossAxisAlignment: 'stretch',
       children: [
         // Panel title bar
-        new Container({
-          decoration: new BoxDecoration({ color: borderColor }),
-          child: label(` ${title} `, new TextStyle({ bold: true })),
-        }),
+        label(` ${title} `, new TextStyle({ bold: true, foreground: borderColor })),
+        new Divider({ color: borderColor }),
         // Panel content
         new Padding({
           padding: EdgeInsets.all(1),
@@ -117,7 +115,7 @@ function usageBar(
       // Label row
       new Row({
         children: [
-          label(`${name.padEnd(8)}`, new TextStyle({ bold: true, foreground: Color.white })),
+          label(`${name.padEnd(8)}`, new TextStyle({ bold: true, foreground: Color.defaultColor })),
           label(`${percentage}%`, new TextStyle({ bold: true, foreground: barColor })),
           label(`  ${used} / ${total}`, new TextStyle({ dim: true })),
         ],
@@ -159,7 +157,7 @@ function buildNetworkPanel(): Widget {
     new Row({
       children: [
         label('IP:        ', new TextStyle({ dim: true })),
-        label('10.0.1.42', new TextStyle({ foreground: Color.white })),
+        label('10.0.1.42', new TextStyle({ foreground: Color.defaultColor })),
       ],
     }),
     new Divider({ color: Color.cyan }),
@@ -181,7 +179,7 @@ function buildNetworkPanel(): Widget {
     new Row({
       children: [
         label('Packets:   ', new TextStyle({ dim: true })),
-        label('In: 142K  Out: 98K', new TextStyle({ foreground: Color.white })),
+        label('In: 142K  Out: 98K', new TextStyle({ foreground: Color.defaultColor })),
       ],
     }),
     new Row({
@@ -252,7 +250,7 @@ function buildProcessPanel(): Widget {
       children: [
         new Container({
           width: 6,
-          child: label(String(proc.pid).padStart(5), new TextStyle({ foreground: Color.white })),
+          child: label(String(proc.pid).padStart(5), new TextStyle({ foreground: Color.defaultColor })),
         }),
         new Container({
           width: 12,
@@ -264,7 +262,7 @@ function buildProcessPanel(): Widget {
         }),
         new Container({
           width: 10,
-          child: label(proc.memory.padStart(8), new TextStyle({ foreground: Color.white })),
+          child: label(proc.memory.padStart(8), new TextStyle({ foreground: Color.defaultColor })),
         }),
         label(proc.status, new TextStyle({ foreground: statusColor })),
       ],
@@ -279,7 +277,7 @@ function buildProcessPanel(): Widget {
     new Row({
       children: [
         label('Total: ', new TextStyle({ dim: true })),
-        label(`${PROCESSES.length} processes`, new TextStyle({ foreground: Color.white })),
+        label(`${PROCESSES.length} processes`, new TextStyle({ foreground: Color.defaultColor })),
         label('  CPU Total: ', new TextStyle({ dim: true })),
         label(
           `${PROCESSES.reduce((sum, p) => sum + p.cpu, 0).toFixed(1)}%`,

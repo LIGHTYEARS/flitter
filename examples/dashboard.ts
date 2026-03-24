@@ -140,7 +140,7 @@ function buildActivityPanel(): Widget {
     { time: '14:15', event: 'PR #123 merged', color: Color.magenta },
     { time: '13:50', event: 'Alert: High memory', color: Color.yellow },
     { time: '13:42', event: 'Rollback v2.0.1', color: Color.red },
-    { time: '13:30', event: 'Config updated', color: Color.white },
+    { time: '13:30', event: 'Config updated', color: Color.defaultColor },
     { time: '13:15', event: 'Cache cleared', color: Color.cyan },
   ];
 

@@ -159,7 +159,7 @@ function buildBindingRow(binding: KeyBinding, sectionColor: Color): Widget {
           child: new Row({ children: keyWidgets }),
         }),
         // Description
-        label(binding.description, new TextStyle({ foreground: Color.white })),
+        label(binding.description, new TextStyle({ foreground: Color.defaultColor })),
       ],
     }),
   });

@@ -93,7 +93,7 @@ class CounterState extends State<CounterApp> {
       ? Color.green
       : this.count < 0
         ? Color.red
-        : Color.white;
+        : Color.defaultColor;
 
     return new Center({
       child: new Column({

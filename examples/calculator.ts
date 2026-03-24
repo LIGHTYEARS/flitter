@@ -185,7 +185,7 @@ export class CalculatorState extends State<CalculatorApp> {
       ? Color.red
       : this.result.length > 0
         ? Color.green
-        : Color.white;
+        : Color.defaultColor;
 
     // Display expression (or placeholder if empty)
     const displayExpr = this.expression.length > 0
@@ -214,7 +214,7 @@ export class CalculatorState extends State<CalculatorApp> {
               child: new Center({
                 child: label(k, new TextStyle({
                   bold: true,
-                  foreground: isOp ? Color.yellow : Color.white,
+                  foreground: isOp ? Color.yellow : Color.defaultColor,
                 })),
               }),
             }),
@@ -254,7 +254,7 @@ export class CalculatorState extends State<CalculatorApp> {
                     crossAxisAlignment: 'end',
                     children: [
                       // Expression line
-                      label(displayExpr, new TextStyle({ foreground: Color.white })),
+                      label(displayExpr, new TextStyle({ foreground: Color.defaultColor })),
                       // Result line
                       label(displayResult, new TextStyle({
                         bold: true,

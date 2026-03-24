@@ -178,7 +178,7 @@ function buildCard(card: KanbanCard, columnColor: Color): Widget {
           new Row({
             children: [
               new Expanded({
-                child: label(card.title, new TextStyle({ bold: true, foreground: Color.white })),
+                child: label(card.title, new TextStyle({ bold: true, foreground: Color.defaultColor })),
               }),
               new Container({
                 decoration: new BoxDecoration({ color: pColor }),

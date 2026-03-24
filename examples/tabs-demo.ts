@@ -218,7 +218,7 @@ export class TabsDemoState extends State<TabsDemoApp> {
           children: [
             label(`${item.label}:`, new TextStyle({ bold: true, foreground: tab.color })),
             new SizedBox({ width: 2 }),
-            label(item.value, new TextStyle({ foreground: Color.white })),
+            label(item.value, new TextStyle({ foreground: Color.defaultColor })),
           ],
         }),
       });

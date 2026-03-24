@@ -130,13 +130,13 @@ export class MenuSelectorState extends State<MenuSelectorApp> {
       const indicator = isSelected ? '>' : ' ';
       const indicatorStyle = new TextStyle({
         bold: true,
-        foreground: isSelected ? Color.cyan : Color.white,
+        foreground: isSelected ? Color.cyan : Color.defaultColor,
       });
 
       // Item label style
       const labelStyle = new TextStyle({
         bold: isSelected,
-        foreground: isSelected ? Color.cyan : Color.white,
+        foreground: isSelected ? Color.cyan : Color.defaultColor,
       });
 
       // Description style

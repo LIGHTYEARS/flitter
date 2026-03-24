@@ -60,7 +60,7 @@ function buildRainbowLine(): Text {
         new TextSpan({ text: 'b', style: new TextStyle({ foreground: Color.blue, bold: true }) }),
         new TextSpan({ text: 'o', style: new TextStyle({ foreground: Color.magenta, bold: true }) }),
         new TextSpan({ text: 'w', style: new TextStyle({ foreground: Color.red, bold: true }) }),
-        new TextSpan({ text: ' Text', style: new TextStyle({ foreground: Color.white, bold: true }) }),
+        new TextSpan({ text: ' Text', style: new TextStyle({ foreground: Color.defaultColor, bold: true }) }),
       ],
     }),
   });
@@ -71,13 +71,13 @@ function buildMixedStyleLine(): Text {
   return new Text({
     text: new TextSpan({
       children: [
-        new TextSpan({ text: 'The ', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: 'The ', style: new TextStyle({ foreground: Color.defaultColor }) }),
         new TextSpan({ text: 'quick ', style: new TextStyle({ foreground: Color.cyan, bold: true }) }),
         new TextSpan({ text: 'brown ', style: new TextStyle({ foreground: Color.yellow, italic: true }) }),
         new TextSpan({ text: 'fox ', style: new TextStyle({ foreground: Color.red, bold: true }) }),
         new TextSpan({ text: 'jumps ', style: new TextStyle({ foreground: Color.green, underline: true }) }),
-        new TextSpan({ text: 'over ', style: new TextStyle({ foreground: Color.white, dim: true }) }),
-        new TextSpan({ text: 'the ', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: 'over ', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
+        new TextSpan({ text: 'the ', style: new TextStyle({ foreground: Color.defaultColor }) }),
         new TextSpan({ text: 'lazy ', style: new TextStyle({ foreground: Color.magenta, italic: true }) }),
         new TextSpan({ text: 'dog', style: new TextStyle({ foreground: Color.blue, bold: true, underline: true }) }),
       ],
@@ -98,7 +98,7 @@ function buildNestedInheritance(): Text {
         new TextSpan({ text: 'Parent(bold+cyan) ' }),
         new TextSpan({
           text: '> ',
-          style: new TextStyle({ foreground: Color.white }),
+          style: new TextStyle({ foreground: Color.defaultColor }),
         }),
         new TextSpan({
           style: new TextStyle({ italic: true }),
@@ -119,7 +119,7 @@ function buildDeepNesting(): Text {
   // 4 levels of nesting with cascading styles
   return new Text({
     text: new TextSpan({
-      style: new TextStyle({ foreground: Color.white }),
+      style: new TextStyle({ foreground: Color.defaultColor }),
       children: [
         new TextSpan({ text: 'L0: white ' }),
         new TextSpan({
@@ -154,9 +154,9 @@ function buildCodeSnippet(): Text {
       children: [
         new TextSpan({ text: 'const', style: new TextStyle({ foreground: Color.magenta, bold: true }) }),
         new TextSpan({ text: ' x', style: new TextStyle({ foreground: Color.cyan }) }),
-        new TextSpan({ text: ' = ', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: ' = ', style: new TextStyle({ foreground: Color.defaultColor }) }),
         new TextSpan({ text: '42', style: new TextStyle({ foreground: Color.yellow, bold: true }) }),
-        new TextSpan({ text: ';', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: ';', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
       ],
     }),
   });
@@ -167,15 +167,15 @@ function buildStatusLine(): Text {
   return new Text({
     text: new TextSpan({
       children: [
-        new TextSpan({ text: '[', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: '[', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: 'OK', style: new TextStyle({ foreground: Color.green, bold: true }) }),
-        new TextSpan({ text: '] ', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: '] ', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: 'Build passed', style: new TextStyle({ foreground: Color.green }) }),
-        new TextSpan({ text: ' (', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: ' (', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: '2.3s', style: new TextStyle({ foreground: Color.yellow, bold: true }) }),
-        new TextSpan({ text: ') - ', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: ') - ', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: '47', style: new TextStyle({ foreground: Color.cyan, bold: true }) }),
-        new TextSpan({ text: ' tests', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: ' tests', style: new TextStyle({ foreground: Color.defaultColor }) }),
       ],
     }),
   });
@@ -187,10 +187,10 @@ function buildLogLine(): Text {
     text: new TextSpan({
       children: [
         new TextSpan({ text: '2024-01-15 14:32:01 ', style: new TextStyle({ foreground: Color.brightBlack }) }),
-        new TextSpan({ text: '[', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: '[', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: 'WARN', style: new TextStyle({ foreground: Color.yellow, bold: true }) }),
-        new TextSpan({ text: '] ', style: new TextStyle({ foreground: Color.white, dim: true }) }),
-        new TextSpan({ text: 'Connection timeout on ', style: new TextStyle({ foreground: Color.white }) }),
+        new TextSpan({ text: '] ', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
+        new TextSpan({ text: 'Connection timeout on ', style: new TextStyle({ foreground: Color.defaultColor }) }),
         new TextSpan({ text: 'db-replica-3', style: new TextStyle({ foreground: Color.red, underline: true }) }),
       ],
     }),
@@ -202,8 +202,8 @@ function buildGitDiff(): Text {
   return new Text({
     text: new TextSpan({
       children: [
-        new TextSpan({ text: '  ', style: new TextStyle({ foreground: Color.white }) }),
-        new TextSpan({ text: 'unchanged line\n', style: new TextStyle({ foreground: Color.white, dim: true }) }),
+        new TextSpan({ text: '  ', style: new TextStyle({ foreground: Color.defaultColor }) }),
+        new TextSpan({ text: 'unchanged line\n', style: new TextStyle({ foreground: Color.defaultColor, dim: true }) }),
         new TextSpan({ text: '+ ', style: new TextStyle({ foreground: Color.green, bold: true }) }),
         new TextSpan({ text: 'added line\n', style: new TextStyle({ foreground: Color.green }) }),
         new TextSpan({ text: '- ', style: new TextStyle({ foreground: Color.red, bold: true }) }),

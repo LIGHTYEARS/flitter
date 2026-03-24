@@ -199,7 +199,7 @@ export class LoginFormState extends State<LoginFormApp> {
     isPassword: boolean,
   ): Widget {
     const borderColor = isFocused ? Color.cyan : Color.brightBlack;
-    const labelColor = isFocused ? Color.cyan : Color.white;
+    const labelColor = isFocused ? Color.cyan : Color.defaultColor;
 
     // For password field, show masked text as asterisks
     const displayText = isPassword

@@ -186,14 +186,14 @@ function buildNotificationCard(notification: Notification): Widget {
               new SizedBox({ width: 1 }),
               // Title
               new Expanded({
-                child: label(notification.title, new TextStyle({ bold: true, foreground: Color.white })),
+                child: label(notification.title, new TextStyle({ bold: true, foreground: Color.defaultColor })),
               }),
               // Timestamp
               label(notification.timestamp, new TextStyle({ dim: true })),
             ],
           }),
           // Description
-          label(notification.description, new TextStyle({ foreground: Color.white, dim: true })),
+          label(notification.description, new TextStyle({ foreground: Color.defaultColor, dim: true })),
         ],
       }),
     }),

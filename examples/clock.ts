@@ -201,7 +201,7 @@ export class ClockState extends State<ClockApp> {
 
             // Date display
             new Center({
-              child: label(dateStr, new TextStyle({ foreground: Color.white })),
+              child: label(dateStr, new TextStyle({ foreground: Color.defaultColor })),
             }),
 
             // Period of day

@@ -32,7 +32,7 @@ import { EdgeInsets } from '../src/layout/edge-insets';
 const ITEM_COUNT = 50;
 
 // Alternating colors for visual distinction
-const itemColors = [Color.green, Color.cyan, Color.yellow, Color.magenta, Color.white];
+const itemColors = [Color.green, Color.cyan, Color.yellow, Color.magenta, Color.defaultColor];
 
 export function buildScrollDemo() {
   // Generate 50 list items

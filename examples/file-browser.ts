@@ -109,7 +109,7 @@ const FILESYSTEM: FileEntry = {
 // ---------------------------------------------------------------------------
 
 const dirStyle = new TextStyle({ bold: true, foreground: Color.brightBlue });
-const fileStyle = new TextStyle({ foreground: Color.white });
+const fileStyle = new TextStyle({ foreground: Color.defaultColor });
 const execStyle = new TextStyle({ bold: true, foreground: Color.brightGreen });
 const treeStyle = new TextStyle({ foreground: Color.brightBlack });
 const sizeStyle = new TextStyle({ foreground: Color.yellow, dim: true });

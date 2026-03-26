@@ -5,5 +5,8 @@
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
     "build": "pnpm -r run build"
-  }
+  },
+  "workspaces": [
+    "packages/*"
+  ]
 }

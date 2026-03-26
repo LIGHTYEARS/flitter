@@ -72,7 +72,7 @@
 
 ---
 
-### Phase 5: Permission Dialog and Command Palette
+### Phase 5: Permission Dialog and Command Palette ✓
 
 **Goal:** Handle agent permission requests with SelectionList dialog overlay. Implement Ctrl+O command palette and remaining keyboard shortcuts.
 
@@ -85,7 +85,7 @@
 4. Escape dismisses any open overlay (dialog, palette)
 5. Alt+T toggles all tool call blocks expanded/collapsed
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

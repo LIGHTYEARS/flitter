@@ -1,0 +1,23 @@
+{
+  "name": "flitter-amp",
+  "version": "0.1.0",
+  "description": "ACP client TUI — a reverse-engineered Amp CLI built on flitter-core",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "flitter-amp": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "flitter-core": "workspace:*",
+    "@agentclientprotocol/sdk": "^0.16.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}

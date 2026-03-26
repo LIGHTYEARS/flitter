@@ -4,7 +4,8 @@
 // Assistant messages: no border, no label, plain markdown
 
 import { StatelessWidget, Widget } from 'flitter-core/src/framework/widget';
-import { Column } from 'flitter-core/src/widgets/flex';
+import { Column, Row } from 'flitter-core/src/widgets/flex';
+import { Expanded } from 'flitter-core/src/widgets/flexible';
 import { Text } from 'flitter-core/src/widgets/text';
 import { TextStyle } from 'flitter-core/src/core/text-style';
 import { TextSpan } from 'flitter-core/src/core/text-span';
@@ -20,13 +21,23 @@ import { ThinkingBlock } from './thinking-block';
 import { PlanView } from './plan-view';
 import type { ConversationItem } from '../acp/types';
 
-// Amp-style ASCII art logo
-const AMP_LOGO = [
-  '    _    __  __ ____  ',
-  '   / \\  |  \\/  |  _ \\ ',
-  '  / _ \\ | |\\/| | |_) |',
-  ' / ___ \\| |  | |  __/ ',
-  '/_/   \\_\\_|  |_|_|    ',
+// Amp-style static orb — approximation of the animated $XH orb widget
+// The real Amp orb is a WebGL-style animated sphere; this is a static circle
+const AMP_ORB = [
+  '        .::::::.        ',
+  '     .:::::::::::.     ',
+  '   .:::--====--:::.   ',
+  '  .::--==++++==--::.  ',
+  ' .::--==+****+==--::. ',
+  ' :::--==+****+==--::: ',
+  '.::--=-=+****+==-:::..',
+  '.::--==++****++==--::.',
+  ' :::--==+****+==--::: ',
+  ' .::--==+****+==--::. ',
+  '  .::--==++++==--::.  ',
+  '   .:::--====--:::.   ',
+  '     .:::::::::::.     ',
+  '        .::::::.        ',
 ];
 
 // Inspirational quotes shown on welcome screen (Amp rotates these)
@@ -120,71 +131,88 @@ export class ChatView extends StatelessWidget {
     const dayIndex = Math.floor(Date.now() / 86400000) % QUOTES.length;
     const quote = QUOTES[dayIndex];
 
-    const lines: Widget[] = [];
+    // Amp ref: welcome screen is a Row (Y$, direction:"horizontal")
+    // [orb, SizedBox(width:2), SizedBox(width:50){Column of text}]
 
-    // ASCII art logo in green
-    for (const line of AMP_LOGO) {
-      lines.push(new Text({
+    // Left side: static orb in green
+    const orbLines: Widget[] = [];
+    for (const line of AMP_ORB) {
+      orbLines.push(new Text({
         text: new TextSpan({
           text: line,
-          style: new TextStyle({ foreground: Color.green, bold: true }),
+          style: new TextStyle({ foreground: Color.green }),
         }),
-        textAlign: 'center',
       }));
     }
+    const orbWidget = new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'center',
+      children: orbLines,
+    });
 
-    lines.push(new SizedBox({ height: 1 }));
-
-    // "Welcome to Amp" title
-    lines.push(new Text({
-      text: new TextSpan({
-        text: 'Welcome to Amp',
-        style: new TextStyle({ foreground: Color.green, bold: true }),
-      }),
-      textAlign: 'center',
-    }));
-
-    lines.push(new SizedBox({ height: 1 }));
-
-    // Help hint — Amp: "Ctrl+O" keybind(blue), " for " dim, "help" command(yellow)
-    lines.push(new Text({
-      text: new TextSpan({
-        children: [
-          new TextSpan({
-            text: 'Ctrl+O',
-            style: new TextStyle({ foreground: Color.blue }),
+    // Right side: text content (Amp: SizedBox width:50, Column crossAxisAlignment:start)
+    const textContent = new Column({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'start',
+      children: [
+        // "Welcome to Amp" title
+        new Text({
+          text: new TextSpan({
+            text: 'Welcome to Amp',
+            style: new TextStyle({ foreground: Color.green, bold: true }),
           }),
-          new TextSpan({
-            text: ' for ',
-            style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
+        }),
+
+        new SizedBox({ height: 1 }),
+
+        // Help hint — Amp: "Ctrl+O" blue, " for " dim, "help" yellow
+        new Text({
+          text: new TextSpan({
+            children: [
+              new TextSpan({
+                text: 'Ctrl+O',
+                style: new TextStyle({ foreground: Color.blue }),
+              }),
+              new TextSpan({
+                text: ' for ',
+                style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
+              }),
+              new TextSpan({
+                text: 'help',
+                style: new TextStyle({ foreground: Color.yellow }),
+              }),
+            ],
           }),
-          new TextSpan({
-            text: 'help',
-            style: new TextStyle({ foreground: Color.yellow }),
+        }),
+
+        new SizedBox({ height: 1 }),
+
+        // Inspirational quote
+        new Text({
+          text: new TextSpan({
+            text: quote,
+            style: new TextStyle({ dim: true, italic: true }),
           }),
-        ],
-      }),
-      textAlign: 'center',
-    }));
+        }),
+      ],
+    });
 
-    lines.push(new SizedBox({ height: 1 }));
+    // Amp ref: Row(mainAxisAlignment:center, crossAxisAlignment:center, mainAxisSize:min)
+    const welcomeRow = new Row({
+      mainAxisSize: 'min',
+      crossAxisAlignment: 'center',
+      children: [
+        orbWidget,
+        new SizedBox({ width: 2 }), // horizontal spacer
+        textContent,
+      ],
+    });
 
-    // Inspirational quote
-    lines.push(new Text({
-      text: new TextSpan({
-        text: quote,
-        style: new TextStyle({ dim: true, italic: true }),
-      }),
-      textAlign: 'center',
-    }));
-
-    return new Padding({
-      padding: EdgeInsets.symmetric({ vertical: 4, horizontal: 2 }),
-      child: new Column({
-        mainAxisSize: 'min',
-        crossAxisAlignment: 'center',
-        children: lines,
-      }),
+    // Center the whole thing in the available space
+    return new Column({
+      mainAxisAlignment: 'center',
+      crossAxisAlignment: 'center',
+      children: [welcomeRow],
     });
   }
 

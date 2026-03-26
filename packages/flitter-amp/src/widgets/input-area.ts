@@ -1,6 +1,6 @@
 // InputArea — prompt bar matching Amp's F0H widget
 // Amp ref: F0H with rounded border, borderColor: focused ? A.border : void 0
-// Contains text field with autocomplete, mode label in footer
+// Mode label as border overlay at bottom-right (Amp: overlayTexts position "bottom-right")
 
 import { StatefulWidget, State, Widget } from 'flitter-core/src/framework/widget';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
@@ -12,7 +12,9 @@ import { TextSpan } from 'flitter-core/src/core/text-span';
 import { Color } from 'flitter-core/src/core/color';
 import { TextField, TextEditingController } from 'flitter-core/src/widgets/text-field';
 import { Container } from 'flitter-core/src/widgets/container';
+import { BoxConstraints } from 'flitter-core/src/core/box-constraints';
 import { Border, BorderSide, BoxDecoration } from 'flitter-core/src/layout/render-decorated';
+import { Stack, Positioned } from 'flitter-core/src/widgets/stack';
 
 interface InputAreaProps {
   onSubmit: (text: string) => void;
@@ -44,27 +46,10 @@ class InputAreaState extends State<InputArea> {
     const isProcessing = this.widget.isProcessing;
 
     // Amp ref: F0H — rounded border, borderColor: focused ? A.border : void 0
-    // We always show the border since the input is always the focused element
-    // Amp uses colors.border = rgb(135,139,134) ≈ brightBlack in ANSI
     const border = Border.all(
       new BorderSide({ color: Color.brightBlack, width: 1, style: 'rounded' }),
     );
 
-    // Amp ref: mode label inside the input container at bottom-right
-    // e.g. "smart" in green, "⚠ 6 skills" in yellow
-    const mode = this.widget.mode;
-    const modeWidget = mode ? new Text({
-      text: new TextSpan({
-        text: isProcessing ? `⏳ ${mode}` : mode,
-        style: new TextStyle({
-          foreground: isProcessing ? Color.yellow : Color.green,
-          dim: isProcessing,
-        }),
-      }),
-    }) : null;
-
-    // Build the input container with bordered text field
-    // If mode label exists, use a Row with TextField expanded + mode label right-aligned
     const textField = new TextField({
       controller: this.controller,
       autofocus: true,
@@ -76,24 +61,42 @@ class InputAreaState extends State<InputArea> {
       },
     });
 
-    let innerChild: Widget;
-    if (modeWidget) {
-      // Row: [Expanded(TextField), mode label with right padding]
-      innerChild = new Row({
-        crossAxisAlignment: 'end',
-        children: [
-          new Expanded({ child: textField }),
-          modeWidget,
-        ],
-      });
-    } else {
-      innerChild = textField;
-    }
+    // Amp ref: F0H uses overlayTexts at "bottom-right" for mode label
+    // We approximate with Stack + Positioned
+    const mode = this.widget.mode;
 
-    return new Container({
+    const borderedInput = new Container({
       decoration: new BoxDecoration({ border }),
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
-      child: innerChild,
+      // Amp input box is ~3 rows tall (minHeight includes border)
+      constraints: new BoxConstraints({ minHeight: 3 }),
+      child: textField,
     });
+
+    if (mode) {
+      // Mode label overlaid at bottom-right on the border
+      const modeLabel = new Text({
+        text: new TextSpan({
+          text: isProcessing ? `⏳ ${mode} ` : `${mode} `,
+          style: new TextStyle({
+            foreground: isProcessing ? Color.yellow : Color.green,
+            dim: isProcessing,
+          }),
+        }),
+      });
+
+      return new Stack({
+        children: [
+          borderedInput,
+          new Positioned({
+            bottom: 0,
+            right: 1,
+            child: modeLabel,
+          }),
+        ],
+      });
+    }
+
+    return borderedInput;
   }
 }

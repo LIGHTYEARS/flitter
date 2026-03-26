@@ -179,6 +179,7 @@ class AppStateWidget extends State<App> {
       },
       child: new Column({
         mainAxisSize: 'max',
+        crossAxisAlignment: 'stretch',
         children: [
           // Main content: scrollable chat + scrollbar (Amp: Row with Expanded + Scrollbar)
           new Expanded({

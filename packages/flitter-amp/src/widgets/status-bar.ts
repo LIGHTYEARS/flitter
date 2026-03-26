@@ -83,7 +83,7 @@ export class StatusBar extends StatelessWidget {
 
     if (this.gitBranch) {
       rightSpans.push(new TextSpan({
-        text: ` ${this.gitBranch}`,
+        text: ` (${this.gitBranch})`,
         style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
       }));
     }
@@ -121,10 +121,6 @@ export class StatusBar extends StatelessWidget {
     let p = fullPath;
     if (home && p.startsWith(home)) {
       p = '~' + p.slice(home.length);
-    }
-    const parts = p.split('/');
-    if (parts.length > 3) {
-      return '…/' + parts.slice(-2).join('/');
     }
     return p;
   }

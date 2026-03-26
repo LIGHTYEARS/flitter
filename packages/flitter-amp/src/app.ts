@@ -14,6 +14,9 @@
 // Overlays (Stack-based, priority order):
 //   1. PermissionDialog — agent permission request (modal)
 //   2. CommandPalette — Ctrl+O action palette
+//
+// Mouse: enabled automatically by flitter-core MouseManager (terminal: true)
+// ScrollView responds to mouse wheel; SelectionList supports enableMouseInteraction
 
 import {
   StatefulWidget, State, Widget,
@@ -186,7 +189,7 @@ class AppStateWidget extends State<App> {
                   child: new SingleChildScrollView({
                     controller: this.scrollController,
                     position: 'bottom',
-                    child: new ChatView({ items }),
+                    child: new ChatView({ items, error: appState.error }),
                   }),
                 }),
                 new Scrollbar({

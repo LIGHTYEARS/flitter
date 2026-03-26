@@ -39,6 +39,7 @@ import { InputArea } from './widgets/input-area';
 import { HeaderBar } from './widgets/header-bar';
 import { PermissionDialog } from './widgets/permission-dialog';
 import { CommandPalette } from './widgets/command-palette';
+import { FilePicker } from './widgets/file-picker';
 
 // --- App Widget ---
 
@@ -69,6 +70,8 @@ class AppStateWidget extends State<App> {
   private scrollController = new ScrollController();
   private stateListener: (() => void) | null = null;
   private showCommandPalette = false;
+  private showFilePicker = false;
+  private fileList: string[] = [];
   private promptHistory = new PromptHistory();
 
   override initState(): void {
@@ -112,6 +115,10 @@ class AppStateWidget extends State<App> {
       onKey: (event: KeyEvent): KeyEventResult => {
         // Escape — dismiss overlays (priority: command palette > permission dialog)
         if (event.key === 'Escape') {
+          if (this.showFilePicker) {
+            this.setState(() => { this.showFilePicker = false; });
+            return 'handled';
+          }
           if (this.showCommandPalette) {
             this.setState(() => { this.showCommandPalette = false; });
             return 'handled';
@@ -266,6 +273,29 @@ class AppStateWidget extends State<App> {
               },
               onDismiss: () => {
                 this.setState(() => { this.showCommandPalette = false; });
+              },
+            }),
+          }),
+        ],
+      });
+    }
+
+    if (this.showFilePicker && this.fileList.length > 0) {
+      return new Stack({
+        fit: 'expand',
+        children: [
+          mainContent,
+          new Positioned({
+            left: 1,
+            bottom: 3,
+            child: new FilePicker({
+              files: this.fileList,
+              onSelect: (filePath: string) => {
+                this.setState(() => { this.showFilePicker = false; });
+                // TODO: insert @filePath into InputArea text when controller is exposed
+              },
+              onDismiss: () => {
+                this.setState(() => { this.showFilePicker = false; });
               },
             }),
           }),

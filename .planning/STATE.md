@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-03-26)
 
 **Core value:** The chat TUI must strictly replicate Amp CLI's visual effects and interaction patterns
-**Current focus:** Phase 5 — Permission Dialog and Command Palette
+**Current focus:** All phases complete — milestone v0.1.0 done
 
 ## Current Milestone
 
@@ -19,16 +19,18 @@ See: .planning/PROJECT.md (updated 2026-03-26)
 | 2 | Minimal TUI Shell | Complete | — |
 | 3 | Wire ACP Client to TUI | Complete | — |
 | 4 | Tool Call and Diff Rendering | Complete | — |
-| 5 | Permission Dialog and Command Palette | Pending | 0/0 |
-| 6 | Polish and Production Features | Pending | 0/0 |
+| 5 | Permission Dialog and Command Palette | Complete | 2/2 |
+| 6 | Polish and Production Features | Complete | 3/3 |
 
-Progress: ████████░░ 67% (4/6 phases)
+Progress: ██████████ 100% (6/6 phases)
 
 ## Recent Activity
 
 - 2026-03-26: Project initialized with GSD workflow
 - 2026-03-26: Codebase mapped (7 documents)
 - 2026-03-26: Phases 1-4 retroactively documented as complete
+- 2026-03-26: Phase 5 complete — permission dialog + command palette
+- 2026-03-26: Phase 6 complete — editor, history, file picker, config, error boundaries
 
 ## Decisions Log
 
@@ -43,4 +45,4 @@ Progress: ████████░░ 67% (4/6 phases)
 None currently tracked.
 
 ---
-*Last updated: 2026-03-26 after initialization*
+*Last updated: 2026-03-26 after Phase 6 completion*

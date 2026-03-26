@@ -102,7 +102,7 @@
 4. Mouse click positions cursor, mouse wheel scrolls chat view
 5. Errors display gracefully in TUI without crashing
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -130,27 +130,26 @@
 | TOOL-03 | 4 | Complete |
 | TOOL-04 | 4 | Complete |
 | TOOL-05 | 4 | Complete |
-| PERM-01 | 5 | Pending |
-| PERM-02 | 5 | Pending |
-| PERM-03 | 5 | Pending |
-| PERM-04 | 5 | Pending |
-| CMD-01 | 5 | Pending |
-| CMD-02 | 5 | Pending |
-| CMD-03 | 5 | Pending |
-| KEY-05 | 5 | Pending |
-| KEY-06 | 5 | Pending |
-| KEY-07 | 5 | Pending |
-| POL-01 | 6 | Pending |
-| POL-02 | 6 | Pending |
-| POL-03 | 6 | Pending |
-| POL-04 | 6 | Pending |
-| POL-05 | 6 | Pending |
-| POL-06 | 6 | Pending |
+| PERM-01 | 5 | Complete |
+| PERM-02 | 5 | Complete |
+| PERM-03 | 5 | Complete |
+| PERM-04 | 5 | Complete |
+| CMD-01 | 5 | Complete |
+| CMD-02 | 5 | Complete |
+| CMD-03 | 5 | Complete |
+| KEY-05 | 5 | Complete |
+| KEY-06 | 5 | Complete |
+| KEY-07 | 5 | Complete |
+| POL-01 | 6 | Complete |
+| POL-02 | 6 | Complete |
+| POL-03 | 6 | Complete |
+| POL-04 | 6 | Complete |
+| POL-05 | 6 | Complete |
+| POL-06 | 6 | Complete |
 
 **v1 requirements:** 36 total
 **Mapped:** 36 (100%)
-**Complete:** 20 (Phases 1-4)
-**Pending:** 16 (Phases 5-6)
+**Complete:** 36 (Phases 1-6)
 
 ---
 *Roadmap created: 2026-03-26*

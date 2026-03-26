@@ -49,18 +49,27 @@ export class StatusBar extends StatelessWidget {
       : new TextStyle({ dim: true });
 
     // Amp ref: iJH spinner chars [" ", "∼", "≈", "≋", "≈", "∼"]
-    // We use ⏳ as a simpler approximation in the TUI
     const leftSpans: TextSpan[] = [];
     if (this.isProcessing) {
       leftSpans.push(new TextSpan({
         text: '≈ ',
         style: new TextStyle({ foreground: Color.blue }),
       }));
+      leftSpans.push(new TextSpan({
+        text: leftText,
+        style: leftStyle,
+      }));
+    } else {
+      // Amp ref: "?" in keybind color (blue), " for shortcuts" dim
+      leftSpans.push(new TextSpan({
+        text: '?',
+        style: new TextStyle({ foreground: Color.blue }),
+      }));
+      leftSpans.push(new TextSpan({
+        text: ' for shortcuts',
+        style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
+      }));
     }
-    leftSpans.push(new TextSpan({
-      text: leftText,
-      style: leftStyle,
-    }));
 
     // Right side: cwd + git branch
     // Amp ref: buildDisplayText — dim foreground

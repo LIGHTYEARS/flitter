@@ -4,7 +4,8 @@
 
 import { StatefulWidget, State, Widget } from 'flitter-core/src/framework/widget';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
-import { Column } from 'flitter-core/src/widgets/flex';
+import { Row } from 'flitter-core/src/widgets/flex';
+import { Expanded } from 'flitter-core/src/widgets/flexible';
 import { Text } from 'flitter-core/src/widgets/text';
 import { TextStyle } from 'flitter-core/src/core/text-style';
 import { TextSpan } from 'flitter-core/src/core/text-span';
@@ -49,44 +50,50 @@ class InputAreaState extends State<InputArea> {
       new BorderSide({ color: Color.brightBlack, width: 1, style: 'rounded' }),
     );
 
-    const children: Widget[] = [
-      // Bordered text field container
-      new Container({
-        decoration: new BoxDecoration({ border }),
-        padding: EdgeInsets.only({ left: 1 }),
-        child: new TextField({
-          controller: this.controller,
-          onSubmitted: (text: string) => {
-            if (text.trim().length > 0 && !isProcessing) {
-              this.widget.onSubmit(text.trim());
-              this.controller.clear();
-            }
-          },
+    // Amp ref: mode label inside the input container at bottom-right
+    // e.g. "smart" in green, "⚠ 6 skills" in yellow
+    const mode = this.widget.mode;
+    const modeWidget = mode ? new Text({
+      text: new TextSpan({
+        text: isProcessing ? `⏳ ${mode}` : mode,
+        style: new TextStyle({
+          foreground: isProcessing ? Color.yellow : Color.green,
+          dim: isProcessing,
         }),
       }),
-    ];
+    }) : null;
 
-    // Amp ref: mode label shown as footer text below the input
-    const mode = this.widget.mode;
-    if (mode) {
-      const modeText = isProcessing ? `⏳ ${mode}` : mode;
-      children.push(
-        new Text({
-          text: new TextSpan({
-            text: `  ${modeText}`,
-            style: new TextStyle({
-              foreground: isProcessing ? Color.yellow : Color.brightBlack,
-              dim: !isProcessing,
-            }),
-          }),
-        }),
-      );
+    // Build the input container with bordered text field
+    // If mode label exists, use a Row with TextField expanded + mode label right-aligned
+    const textField = new TextField({
+      controller: this.controller,
+      autofocus: true,
+      onSubmitted: (text: string) => {
+        if (text.trim().length > 0 && !isProcessing) {
+          this.widget.onSubmit(text.trim());
+          this.controller.clear();
+        }
+      },
+    });
+
+    let innerChild: Widget;
+    if (modeWidget) {
+      // Row: [Expanded(TextField), mode label with right padding]
+      innerChild = new Row({
+        crossAxisAlignment: 'end',
+        children: [
+          new Expanded({ child: textField }),
+          modeWidget,
+        ],
+      });
+    } else {
+      innerChild = textField;
     }
 
-    return new Column({
-      mainAxisSize: 'min',
-      crossAxisAlignment: 'stretch',
-      children,
+    return new Container({
+      decoration: new BoxDecoration({ border }),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      child: innerChild,
     });
   }
 }

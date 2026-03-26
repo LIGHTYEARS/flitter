@@ -146,7 +146,7 @@ export class ChatView extends StatelessWidget {
 
     lines.push(new SizedBox({ height: 1 }));
 
-    // Help hint — Amp: "Ctrl+O" in keybind (blue), " for help" in command (yellow)
+    // Help hint — Amp: "Ctrl+O" keybind(blue), " for " dim, "help" command(yellow)
     lines.push(new Text({
       text: new TextSpan({
         children: [
@@ -155,7 +155,11 @@ export class ChatView extends StatelessWidget {
             style: new TextStyle({ foreground: Color.blue }),
           }),
           new TextSpan({
-            text: ' for help',
+            text: ' for ',
+            style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
+          }),
+          new TextSpan({
+            text: 'help',
             style: new TextStyle({ foreground: Color.yellow }),
           }),
         ],

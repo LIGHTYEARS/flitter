@@ -5,18 +5,25 @@ An ACP (Agent Client Protocol) client TUI that replicates the [Amp CLI](https://
 ## Quick Start
 
 ```bash
+cd packages/flitter-amp
+
 # Run with default agent (claude --agent)
-bun run packages/flitter-amp/src/index.ts
+bun run src/index.ts
 
 # Specify a different agent
-bun run packages/flitter-amp/src/index.ts --agent "gemini --experimental-acp"
+bun run src/index.ts --agent "coco acp serve"
 
-# Use Codex CLI
-bun run packages/flitter-amp/src/index.ts --agent "codex --agent"
+# Use Gemini CLI
+bun run src/index.ts --agent "gemini --experimental-acp"
 
 # Set working directory
-bun run packages/flitter-amp/src/index.ts --cwd /path/to/project
+bun run src/index.ts --cwd /path/to/project
+
+# Or use the npm script
+pnpm start -- --agent "coco acp serve"
 ```
+
+> **Note:** Run from the `packages/flitter-amp` directory (or use `pnpm --filter flitter-amp start`), not from the monorepo root.
 
 ## CLI Options
 

@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** A truly functional ACP TUI client that correctly communicates with any ACP agent, renders all protocol messages faithfully, and provides a usable chat experience.
-**Current focus:** Defining requirements for v0.2.0
+**Current focus:** Phase 7 — Protocol Correctness
 
 ## Current Milestone
 
@@ -13,10 +13,10 @@ See: .planning/PROJECT.md (updated 2026-03-27)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 — Protocol Correctness
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-27 — Milestone v0.2.0 started
+Status: Context gathered, ready for planning
+Last activity: 2026-03-28 — Phase 7 context captured
 
 ## Phase Status
 
@@ -36,6 +36,7 @@ Progress: ░░░░░░░░░░ 0% (0/5 phases)
 - 2026-03-26: v0.1.0 milestone complete (Phases 1-6)
 - 2026-03-27: Full E2E audit — found 25 structural defects across 5 layers
 - 2026-03-27: Milestone v0.2.0 initialized — 25 requirements, 5 phases
+- 2026-03-28: Phase 7 context gathered — 11 decisions captured
 
 ## Decisions Log
 
@@ -58,4 +59,4 @@ See REQUIREMENTS.md for full v0.2.0 defect list (25 items across Protocol, Scrol
 - Headless grid tests can pass while real TUI output is broken if test helpers are more permissive than the renderer's SGR builder.
 
 ---
-*Last updated: 2026-03-27 after v0.2.0 milestone initialization*
+*Last updated: 2026-03-28 after Phase 7 context capture*

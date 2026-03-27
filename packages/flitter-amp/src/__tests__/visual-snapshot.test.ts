@@ -691,8 +691,8 @@ describe('Visual Snapshots', () => {
       appState.gitBranch = 'feature/new-api';
       appState.conversation.isProcessing = true;
       appState.conversation.setUsage({
-        inputTokens: 24500,
-        outputTokens: 3200,
+        size: 128000,
+        used: 24500,
       });
 
       appState.conversation.addUserMessage('Implement the new API endpoints');

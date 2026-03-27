@@ -26,6 +26,7 @@ interface BottomGridProps {
   topWidget?: Widget;
   autocompleteTriggers?: AutocompleteTrigger[];
   imageAttachments?: number;
+  skillCount?: number;
 }
 
 export class BottomGrid extends StatefulWidget {
@@ -42,6 +43,7 @@ export class BottomGrid extends StatefulWidget {
   readonly topWidget: Widget | undefined;
   readonly autocompleteTriggers: AutocompleteTrigger[] | undefined;
   readonly imageAttachments: number;
+  readonly skillCount: number;
 
   constructor(props: BottomGridProps) {
     super({});
@@ -54,10 +56,11 @@ export class BottomGrid extends StatefulWidget {
     this.tokenUsage = props.tokenUsage;
     this.shellMode = props.shellMode ?? false;
     this.hintText = props.hintText;
-    this.submitWithMeta = props.submitWithMeta ?? false;
+    this.submitWithMeta = props.submitWithMeta ?? true;
     this.topWidget = props.topWidget;
     this.autocompleteTriggers = props.autocompleteTriggers;
     this.imageAttachments = props.imageAttachments ?? 0;
+    this.skillCount = props.skillCount ?? 0;
   }
 
   createState(): BottomGridState {
@@ -75,11 +78,6 @@ class BottomGridState extends State<BottomGrid> {
     const keybindColor = theme?.app.keybind ?? Color.blue;
 
     const overlayTexts: BorderOverlayText[] = [];
-
-    overlayTexts.push({
-      position: 'bottom-left',
-      child: this.buildBottomLeft(w, mutedColor, keybindColor),
-    });
 
     const cwdWidget = this.buildBottomRight(w, mutedColor);
     if (cwdWidget) {
@@ -99,6 +97,7 @@ class BottomGridState extends State<BottomGrid> {
       topWidget: w.topWidget,
       autocompleteTriggers: w.autocompleteTriggers,
       imageAttachments: w.imageAttachments,
+      skillCount: w.skillCount,
       overlayTexts,
     });
 
@@ -115,6 +114,13 @@ class BottomGridState extends State<BottomGrid> {
 
     children.push(inputArea);
 
+    children.push(
+      new Padding({
+        padding: EdgeInsets.only({ left: 1 }),
+        child: this.buildBottomLeft(w, mutedColor, keybindColor),
+      }),
+    );
+
     return new Column({
       mainAxisSize: 'min',
       crossAxisAlignment: 'stretch',
@@ -125,11 +131,14 @@ class BottomGridState extends State<BottomGrid> {
   private buildTopLeft(w: BottomGrid, mutedColor: Color, _fgColor: Color): Widget {
     if (w.isProcessing) {
       if (w.tokenUsage) {
-        const inTok = this.formatTokenCount(w.tokenUsage.inputTokens);
-        const outTok = this.formatTokenCount(w.tokenUsage.outputTokens);
+        const used = this.formatTokenCount(w.tokenUsage.used);
+        const size = this.formatTokenCount(w.tokenUsage.size);
+        const costStr = w.tokenUsage.cost
+          ? ` · ${w.tokenUsage.cost.currency} ${w.tokenUsage.cost.amount.toFixed(4)}`
+          : '';
         return new Text({
           text: new TextSpan({
-            text: `${inTok} in / ${outTok} out`,
+            text: `${used}/${size} tokens${costStr}`,
             style: new TextStyle({ foreground: mutedColor, dim: true }),
           }),
         });

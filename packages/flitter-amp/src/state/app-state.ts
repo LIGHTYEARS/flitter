@@ -24,6 +24,7 @@ export class AppState implements ClientCallbacks {
   error: string | null = null;
   cwd: string = process.cwd();
   gitBranch: string | null = null;
+  skillCount: number = 0;
 
   private listeners: Set<StateListener> = new Set();
   private pendingPermission: {
@@ -79,7 +80,7 @@ export class AppState implements ClientCallbacks {
         break;
       }
 
-      case 'thinking_chunk': {
+      case 'agent_thought_chunk': {
         const content = update.content as { type: string; text?: string };
         if (content?.type === 'text' && content.text) {
           this.conversation.appendThinkingChunk(content.text);
@@ -119,25 +120,28 @@ export class AppState implements ClientCallbacks {
         break;
       }
 
-      case 'usage': {
-        const usage = update.usage as { input_tokens?: number; output_tokens?: number; cost?: number };
+      case 'usage_update': {
         this.conversation.setUsage({
-          inputTokens: usage.input_tokens ?? 0,
-          outputTokens: usage.output_tokens ?? 0,
-          cost: usage.cost,
+          size: (update as any).size ?? 0,
+          used: (update as any).used ?? 0,
+          cost: (update as any).cost ?? null,
         });
         break;
       }
 
-      case 'current_mode': {
+      case 'current_mode_update': {
         this.currentMode = update.currentModeId as string;
         break;
       }
 
-      case 'session_info': {
-        // Session metadata update
+      case 'session_info_update': {
         break;
       }
+
+      case 'user_message_chunk':
+      case 'available_commands_update':
+      case 'config_option_update':
+        break;
 
       default:
         log.debug(`Unknown session update type: ${type}`);
@@ -174,9 +178,12 @@ export class AppState implements ClientCallbacks {
   }
 
   startProcessing(userText: string): void {
+    log.info(`startProcessing: "${userText}", items before: ${this.conversation.items.length}`);
     this.conversation.addUserMessage(userText);
+    log.info(`startProcessing: items after: ${this.conversation.items.length}, isProcessing: true`);
     this.conversation.isProcessing = true;
     this.notifyListeners();
+    log.info(`startProcessing: notifyListeners done, listeners: ${this.listeners.size}`);
   }
 
   setConnected(sessionId: string, agentName: string | null): void {
@@ -193,6 +200,14 @@ export class AppState implements ClientCallbacks {
 
   clearError(): void {
     this.error = null;
+    this.notifyListeners();
+  }
+
+  handleError(message: string): void {
+    this.conversation.finalizeAssistantMessage();
+    this.conversation.finalizeThinking();
+    this.conversation.isProcessing = false;
+    this.error = message;
     this.notifyListeners();
   }
 }

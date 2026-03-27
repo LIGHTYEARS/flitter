@@ -78,9 +78,9 @@ export interface PlanEntry {
 }
 
 export interface UsageInfo {
-  inputTokens: number;
-  outputTokens: number;
-  cost?: number;
+  size: number;
+  used: number;
+  cost?: { amount: number; currency: string } | null;
 }
 
 export type ConversationItem = UserMessage | AssistantMessage | ToolCallItem | PlanItem | ThinkingItem;

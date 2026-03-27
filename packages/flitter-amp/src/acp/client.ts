@@ -53,7 +53,7 @@ export interface PermissionRequest {
  */
 export class FlitterClient {
   private callbacks: ClientCallbacks;
-  private terminals: Map<string, ChildProcess> = new Map();
+  private terminals: Map<string, { proc: ChildProcess; output: string; outputByteLimit: number }> = new Map();
 
   constructor(callbacks: ClientCallbacks) {
     this.callbacks = callbacks;
@@ -123,7 +123,21 @@ export class FlitterClient {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
-    this.terminals.set(terminalId, proc);
+    const outputByteLimit = params.outputByteLimit ?? Infinity;
+    const terminal = { proc, output: '', outputByteLimit };
+
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      if (terminal.output.length < terminal.outputByteLimit) {
+        terminal.output += chunk.toString();
+      }
+    });
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      if (terminal.output.length < terminal.outputByteLimit) {
+        terminal.output += chunk.toString();
+      }
+    });
+
+    this.terminals.set(terminalId, terminal);
     return { terminalId };
   }
 
@@ -131,54 +145,42 @@ export class FlitterClient {
    * terminal/output — Agent wants current output of a terminal.
    */
   async terminalOutput(params: { terminalId: string; sessionId: string }): Promise<{
-    terminal: { terminalId: string; output: string; exitStatus?: { code: number } | null };
+    output: string;
+    exitStatus?: { exitCode?: number | null; signal?: string | null } | null;
+    truncated: boolean;
   }> {
-    const proc = this.terminals.get(params.terminalId);
-    if (!proc) {
-      return {
-        terminal: { terminalId: params.terminalId, output: '', exitStatus: { code: -1 } },
-      };
+    const terminal = this.terminals.get(params.terminalId);
+    if (!terminal) {
+      return { output: '', exitStatus: { exitCode: -1 }, truncated: false };
     }
 
-    // Collect whatever output is available
-    let output = '';
-    proc.stdout?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-    });
-    proc.stderr?.on('data', (chunk: Buffer) => {
-      output += chunk.toString();
-    });
+    const truncated = terminal.output.length >= terminal.outputByteLimit;
+    const exitStatus = terminal.proc.exitCode !== null
+      ? { exitCode: terminal.proc.exitCode, signal: terminal.proc.signalCode ?? null }
+      : null;
 
-    // Brief wait to collect output
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    return {
-      terminal: {
-        terminalId: params.terminalId,
-        output,
-        exitStatus: proc.exitCode !== null ? { code: proc.exitCode } : null,
-      },
-    };
+    return { output: terminal.output, exitStatus, truncated };
   }
 
   /**
    * terminal/wait_for_exit — Block until the terminal command finishes.
    */
   async waitForTerminalExit(params: { terminalId: string; sessionId: string }): Promise<{
-    exitStatus: { code: number };
+    exitCode?: number | null;
+    signal?: string | null;
   }> {
-    const proc = this.terminals.get(params.terminalId);
-    if (!proc) {
-      return { exitStatus: { code: -1 } };
+    const terminal = this.terminals.get(params.terminalId);
+    if (!terminal) {
+      return { exitCode: -1 };
     }
 
-    if (proc.exitCode !== null) {
-      return { exitStatus: { code: proc.exitCode } };
+    if (terminal.proc.exitCode !== null) {
+      return { exitCode: terminal.proc.exitCode, signal: terminal.proc.signalCode ?? null };
     }
 
     return new Promise(resolve => {
-      proc.on('exit', (code) => {
-        resolve({ exitStatus: { code: code ?? -1 } });
+      terminal.proc.on('exit', (code, signal) => {
+        resolve({ exitCode: code ?? null, signal: signal ?? null });
       });
     });
   }
@@ -187,9 +189,9 @@ export class FlitterClient {
    * terminal/kill — Kill a running terminal.
    */
   async killTerminal(params: { terminalId: string; sessionId: string }): Promise<void> {
-    const proc = this.terminals.get(params.terminalId);
-    if (proc && !proc.killed) {
-      proc.kill('SIGTERM');
+    const terminal = this.terminals.get(params.terminalId);
+    if (terminal && !terminal.proc.killed) {
+      terminal.proc.kill('SIGTERM');
     }
   }
 
@@ -197,17 +199,17 @@ export class FlitterClient {
    * terminal/release — Release terminal resources.
    */
   async releaseTerminal(params: { terminalId: string; sessionId: string }): Promise<void> {
-    const proc = this.terminals.get(params.terminalId);
-    if (proc && !proc.killed) {
-      proc.kill('SIGTERM');
+    const terminal = this.terminals.get(params.terminalId);
+    if (terminal && !terminal.proc.killed) {
+      terminal.proc.kill('SIGTERM');
     }
     this.terminals.delete(params.terminalId);
   }
 
   /** Cleanup all terminals on shutdown */
   cleanup(): void {
-    for (const [_id, proc] of this.terminals) {
-      if (!proc.killed) proc.kill('SIGTERM');
+    for (const [_id, terminal] of this.terminals) {
+      if (!terminal.proc.killed) terminal.proc.kill('SIGTERM');
     }
     this.terminals.clear();
   }

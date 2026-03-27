@@ -3,7 +3,7 @@
 // A reverse-engineered Amp CLI built on flitter-core
 
 import { parseArgs } from './state/config';
-import { setLogLevel, log } from './utils/logger';
+import { setLogLevel, log, initLogFile, closeLogFile } from './utils/logger';
 import { AppState } from './state/app-state';
 import { connectToAgent, sendPrompt, cancelPrompt } from './acp/connection';
 import type { ConnectionHandle } from './acp/connection';
@@ -12,6 +12,7 @@ import { startTUI } from './app';
 async function main(): Promise<void> {
   const config = parseArgs(process.argv);
   setLogLevel(config.logLevel);
+  initLogFile();
 
   log.info('flitter-amp starting...');
   log.info(`Agent: ${config.agentCommand} ${config.agentArgs.join(' ')}`);
@@ -44,11 +45,22 @@ async function main(): Promise<void> {
       config.cwd,
       appState,
     );
-    appState.setConnected(handle.sessionId, handle.capabilities ? 'ACP Agent' : null);
+    appState.setConnected(handle.sessionId, handle.agentName);
+
+    handle.agent.proc.on('exit', (code, signal) => {
+      if (appState.isConnected) {
+        const reason = signal ? `Agent killed by ${signal}` : `Agent exited with code ${code}`;
+        log.error(reason);
+        appState.isConnected = false;
+        appState.handleError(reason);
+      }
+    });
+
     log.info('Connected to agent successfully');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.error(`Failed to connect to agent: ${message}`);
+    closeLogFile();
     process.stderr.write(`\nError: Failed to connect to agent "${config.agentCommand}"\n`);
     process.stderr.write(`  ${message}\n\n`);
     process.stderr.write('Make sure the agent is installed and supports the ACP protocol.\n');
@@ -62,6 +74,7 @@ async function main(): Promise<void> {
   const cleanup = () => {
     handle.client.cleanup();
     handle.agent.kill();
+    closeLogFile();
   };
   process.on('SIGINT', () => {
     log.info('Received SIGINT, shutting down...');
@@ -75,6 +88,7 @@ async function main(): Promise<void> {
 
   // Prompt submission handler — sends text to agent via ACP
   const handleSubmit = async (text: string): Promise<void> => {
+    log.info(`handleSubmit called: "${text}", sessionId: ${handle.sessionId}`);
     if (!handle.sessionId) return;
     appState.startProcessing(text);
     try {
@@ -83,8 +97,7 @@ async function main(): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error(`Prompt failed: ${message}`);
-      appState.setError(message);
-      appState.conversation.isProcessing = false;
+      appState.handleError(message);
     }
   };
 

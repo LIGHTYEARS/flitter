@@ -128,6 +128,28 @@ describe('Cell-Level Assertions', () => {
       expect(countNonBlankRows(grid)).toBeGreaterThan(0);
       expect(findText(grid, 'Welcome to Amp').length).toBeGreaterThanOrEqual(1);
     });
+
+    test('renders "settings: open in editor" prompt', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      const pos = findTextOnce(grid, 'settings: open in editor');
+      expect(pos).toBeDefined();
+    });
+
+    test('renders density characters in welcome orb', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      const screenText = readScreenText(grid).join('\n');
+      const densityChars = ['#', '*', '+', '='];
+      const hasDensity = densityChars.some(ch => screenText.includes(ch));
+      expect(hasDensity).toBe(true);
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════
@@ -436,6 +458,65 @@ describe('Cell-Level Assertions', () => {
       // "smart" mode label should appear somewhere
       expect(findText(grid, 'smart').length).toBeGreaterThanOrEqual(1);
     });
+
+    test('shows skills badge when skillCount > 0', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      appState.skillCount = 7;
+      const grid = capture(appState);
+
+      const warningMatches = findText(grid, '⚠');
+      expect(warningMatches.length).toBeGreaterThanOrEqual(1);
+      assertStyleAt(grid, warningMatches[0]!.x, warningMatches[0]!.y, { fg: WARNING });
+    });
+
+    test('hides skills badge when skillCount is 0', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      appState.skillCount = 0;
+      const grid = capture(appState);
+
+      expect(findText(grid, 'skills').length).toBe(0);
+    });
+
+    test('"? for shortcuts" appears below input box border', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      const borderRow = findRow(grid, '╰');
+      const shortcutRow = findRow(grid, '? for shortcuts');
+      expect(borderRow).toBeDefined();
+      expect(shortcutRow).toBeDefined();
+      expect(shortcutRow!).toBeGreaterThan(borderRow!);
+    });
+
+    test('input box has at least 3 content rows', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      const topRow = findRow(grid, '╭');
+      const bottomRow = findRow(grid, '╰');
+      expect(topRow).toBeDefined();
+      expect(bottomRow).toBeDefined();
+      const contentRows = bottomRow! - topRow! - 1;
+      expect(contentRows).toBeGreaterThanOrEqual(3);
+    });
+
+    test('input box shows no placeholder text', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      expect(findText(grid, 'Ask a question').length).toBe(0);
+      expect(findText(grid, '$ for shell').length).toBe(0);
+    });
   });
 
   // ════════════════════════════════════════════════════════════════════
@@ -448,15 +529,13 @@ describe('Cell-Level Assertions', () => {
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
       appState.conversation.isProcessing = true;
-      appState.conversation.setUsage({ inputTokens: 24500, outputTokens: 3200 });
+      appState.conversation.setUsage({ size: 128000, used: 24500 });
       appState.conversation.addUserMessage('test');
       appState.conversation.appendAssistantChunk('Working...');
       const grid = capture(appState);
 
-      // Token usage should appear somewhere (exact format may vary)
       const screenText = readScreenText(grid).join('\n');
-      // Check for some numeric token representation
-      const hasTokenInfo = screenText.includes('24') || screenText.includes('3200') || screenText.includes('3.2');
+      const hasTokenInfo = screenText.includes('24') || screenText.includes('128') || screenText.includes('24.5');
       expect(hasTokenInfo).toBe(true);
     });
   });

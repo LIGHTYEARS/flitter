@@ -3,14 +3,10 @@ dist/
 *.tgz
 .DS_Store
 coverage/
-bun.lock
 package-lock.json
 yarn.lock
 pnpm-debug.log*
 .pnpm-store/
 *.tsbuildinfo
-.claude/
-USER.md
-CLAUDE.md
 .chat_history.json
 .group_members.json

@@ -5,38 +5,43 @@
 See: .planning/PROJECT.md (updated 2026-03-27)
 
 **Core value:** A truly functional ACP TUI client that correctly communicates with any ACP agent, renders all protocol messages faithfully, and provides a usable chat experience.
-**Current focus:** Phase 7 — Protocol Correctness
+**Current focus:** Milestone v0.2.0 complete — ready for next milestone
 
 ## Current Milestone
 
-**v0.2.0** — Make It Actually Work
+**v0.2.0** — Make It Actually Work (COMPLETED)
 
 ## Current Position
 
-Phase: 7 — Protocol Correctness
+Phase: All phases complete
 Plan: —
-Status: Context gathered, ready for planning
-Last activity: 2026-03-28 — Phase 7 context captured
+Status: Milestone v0.2.0 complete
+Last activity: 2026-03-28 — All 5 phases executed, milestone closed
 
 ## Phase Status
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
 | 1-6 | v0.1.0 Visual Prototype | Complete | — |
-| 7 | Protocol Correctness | Pending | — |
-| 8 | Scroll Infrastructure | Pending | — |
-| 9 | Streaming Experience | Pending | — |
-| 10 | Tool Compatibility | Pending | — |
-| 11 | UX Polish | Pending | — |
+| 7 | Protocol Correctness | Complete | 07-PLAN-01 |
+| 8 | Scroll Infrastructure | Complete | 08-PLAN-01 |
+| 9 | Streaming Experience | Complete | 09-PLAN-01 |
+| 10 | Tool Compatibility | Complete | 10-PLAN-01 |
+| 11 | UX Polish | Complete | 11-PLAN-01 |
 
-Progress: ░░░░░░░░░░ 0% (0/5 phases)
+Progress: ██████████ 100% (5/5 phases)
 
 ## Recent Activity
 
 - 2026-03-26: v0.1.0 milestone complete (Phases 1-6)
 - 2026-03-27: Full E2E audit — found 25 structural defects across 5 layers
 - 2026-03-27: Milestone v0.2.0 initialized — 25 requirements, 5 phases
-- 2026-03-28: Phase 7 context gathered — 11 decisions captured
+- 2026-03-28: Phase 7 complete — Protocol Correctness (9 files, 7 requirements)
+- 2026-03-28: Phase 8 complete — Scroll Infrastructure (2 files, 4 requirements)
+- 2026-03-28: Phase 9 complete — Streaming Experience (4 files, 4 requirements)
+- 2026-03-28: Phase 10 complete — Tool Compatibility (7 files, 4 requirements)
+- 2026-03-28: Phase 11 complete — UX Polish (4 files, 5 requirements)
+- 2026-03-28: Milestone v0.2.0 closed — 25/25 requirements addressed
 
 ## Decisions Log
 
@@ -50,7 +55,7 @@ Progress: ░░░░░░░░░░ 0% (0/5 phases)
 
 ## Known Issues
 
-See REQUIREMENTS.md for full v0.2.0 defect list (25 items across Protocol, Scroll, Streaming, Tool, UX layers).
+All 25 v0.2.0 requirements addressed. See phase summaries for implementation details.
 
 ## Accumulated Context
 
@@ -59,4 +64,4 @@ See REQUIREMENTS.md for full v0.2.0 defect list (25 items across Protocol, Scrol
 - Headless grid tests can pass while real TUI output is broken if test helpers are more permissive than the renderer's SGR builder.
 
 ---
-*Last updated: 2026-03-28 after Phase 7 context capture*
+*Last updated: 2026-03-28 after v0.2.0 milestone completion*

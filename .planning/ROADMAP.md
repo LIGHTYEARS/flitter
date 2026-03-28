@@ -10,7 +10,7 @@ Phases 1-6 built the UI shell. See git history for details.
 
 ---
 
-## Milestone 2: v0.2.0 — Make It Actually Work
+## Milestone 2: v0.2.0 — Make It Actually Work (COMPLETED)
 
 ### Phase 7: Protocol Correctness
 
@@ -34,7 +34,7 @@ Phases 1-6 built the UI shell. See git history for details.
 4. Agent crash displays error message and resets processing state
 5. `bun test` passes in both packages
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -58,7 +58,7 @@ Phases 1-6 built the UI shell. See git history for details.
 5. Scrolling back to bottom re-enables follow mode
 6. Existing scroll tests still pass
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -81,7 +81,7 @@ Phases 1-6 built the UI shell. See git history for details.
 4. Non-text content shows "[unsupported content type: image]" placeholder
 5. ThinkingBlock can display 5000+ characters when expanded
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -103,7 +103,7 @@ Phases 1-6 built the UI shell. See git history for details.
 3. Tool headers show the actual tool name from the agent
 4. ToolCallResult content is correctly extracted regardless of nesting
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -127,7 +127,7 @@ Phases 1-6 built the UI shell. See git history for details.
 4. Multi-line paragraphs in markdown render as single paragraph
 5. Headings are visually distinguishable by level
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -135,35 +135,35 @@ Phases 1-6 built the UI shell. See git history for details.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROTO-01 | 7 | Pending |
-| PROTO-02 | 7 | Pending |
-| PROTO-03 | 7 | Pending |
-| PROTO-04 | 7 | Pending |
-| PROTO-05 | 7 | Pending |
-| PROTO-06 | 7 | Pending |
-| PROTO-07 | 7 | Pending |
-| SCROLL-01 | 8 | Pending |
-| SCROLL-02 | 8 | Pending |
-| SCROLL-03 | 8 | Pending |
-| SCROLL-04 | 8 | Pending |
-| STREAM-01 | 9 | Pending |
-| STREAM-02 | 9 | Pending |
-| STREAM-03 | 9 | Pending |
-| STREAM-04 | 9 | Pending |
-| TOOL-01 | 10 | Pending |
-| TOOL-02 | 10 | Pending |
-| TOOL-03 | 10 | Pending |
-| TOOL-04 | 10 | Pending |
-| UX-01 | 11 | Pending |
-| UX-02 | 11 | Pending |
-| UX-03 | 11 | Pending |
-| UX-04 | 11 | Pending |
-| UX-05 | 11 | Pending |
+| PROTO-01 | 7 | Complete |
+| PROTO-02 | 7 | Complete |
+| PROTO-03 | 7 | Complete |
+| PROTO-04 | 7 | Complete |
+| PROTO-05 | 7 | Complete |
+| PROTO-06 | 7 | Complete |
+| PROTO-07 | 7 | Complete |
+| SCROLL-01 | 8 | Complete |
+| SCROLL-02 | 8 | Complete |
+| SCROLL-03 | 8 | Complete |
+| SCROLL-04 | 8 | Complete |
+| STREAM-01 | 9 | Complete |
+| STREAM-02 | 9 | Complete |
+| STREAM-03 | 9 | Complete |
+| STREAM-04 | 9 | Complete |
+| TOOL-01 | 10 | Complete |
+| TOOL-02 | 10 | Complete |
+| TOOL-03 | 10 | Complete |
+| TOOL-04 | 10 | Complete |
+| UX-01 | 11 | Complete |
+| UX-02 | 11 | Complete |
+| UX-03 | 11 | Complete |
+| UX-04 | 11 | Complete |
+| UX-05 | 11 | Complete |
 
 **v0.2.0 requirements:** 25 total
 **Mapped:** 25 (100%)
-**Complete:** 0
+**Complete:** 25
 
 ---
 *Roadmap created: 2026-03-26*
-*Last updated: 2026-03-27 after v0.2.0 milestone initialization*
+*Last updated: 2026-03-28 after v0.2.0 milestone completion*

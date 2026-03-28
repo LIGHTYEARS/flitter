@@ -4,6 +4,7 @@
 
 import { Widget, StatelessWidget, StatefulWidget, State, type BuildContext } from '../framework/widget';
 import { SingleChildRenderObjectWidget, RenderBox, type PaintContext } from '../framework/render-object';
+import type { PipelineOwner } from '../framework/render-object';
 import { BoxConstraints } from '../core/box-constraints';
 import { Offset, Size } from '../core/types';
 import { ScrollController } from './scroll-controller';
@@ -130,9 +131,11 @@ class ScrollableState extends State<Scrollable> {
       ctrl.scrollBy(1); return 'handled';
     }
     if (event.key === 'k' || event.key === 'ArrowUp') {
+      ctrl.disableFollowMode();
       ctrl.scrollBy(-1); return 'handled';
     }
     if (event.key === 'g' && !event.ctrlKey && !event.shiftKey) {
+      ctrl.disableFollowMode();
       ctrl.jumpTo(0); return 'handled';
     }
     if (event.key === 'G') {
@@ -142,12 +145,14 @@ class ScrollableState extends State<Scrollable> {
       ctrl.scrollBy(pageSize); return 'handled';
     }
     if (event.key === 'PageUp') {
+      ctrl.disableFollowMode();
       ctrl.scrollBy(-pageSize); return 'handled';
     }
     if (event.key === 'd' && event.ctrlKey) {
       ctrl.scrollBy(Math.floor(pageSize / 2)); return 'handled';
     }
     if (event.key === 'u' && event.ctrlKey) {
+      ctrl.disableFollowMode();
       ctrl.scrollBy(-Math.floor(pageSize / 2)); return 'handled';
     }
     return 'ignored';
@@ -155,6 +160,7 @@ class ScrollableState extends State<Scrollable> {
 
   private _handleScroll = (event: { button?: number }): void => {
     if (event.button === 64) {
+      this.effectiveController.disableFollowMode();
       this.effectiveController.scrollBy(-3);
     } else if (event.button === 65) {
       this.effectiveController.scrollBy(3);
@@ -243,8 +249,9 @@ export class ScrollViewport extends SingleChildRenderObjectWidget {
 export class RenderScrollViewport extends RenderBox {
   private _scrollOffset: number = 0;
   private _child: RenderBox | null = null;
+  private _scrollListener: (() => void) | null = null;
 
-  scrollController: ScrollController;
+  private _scrollController: ScrollController;
   axisDirection: 'vertical' | 'horizontal';
   position: 'top' | 'bottom';
 
@@ -254,9 +261,44 @@ export class RenderScrollViewport extends RenderBox {
     position?: 'top' | 'bottom';
   }) {
     super();
-    this.scrollController = opts.scrollController;
+    this._scrollController = opts.scrollController;
     this.axisDirection = opts.axisDirection ?? 'vertical';
     this.position = opts.position ?? 'top';
+  }
+
+  get scrollController(): ScrollController {
+    return this._scrollController;
+  }
+
+  set scrollController(value: ScrollController) {
+    if (this._scrollController === value) return;
+    this._removeScrollListener();
+    this._scrollController = value;
+    this._addScrollListener();
+  }
+
+  private _addScrollListener(): void {
+    this._scrollListener = () => {
+      this.markNeedsPaint();
+    };
+    this._scrollController.addListener(this._scrollListener);
+  }
+
+  private _removeScrollListener(): void {
+    if (this._scrollListener) {
+      this._scrollController.removeListener(this._scrollListener);
+      this._scrollListener = null;
+    }
+  }
+
+  override attach(owner: PipelineOwner): void {
+    super.attach(owner);
+    this._addScrollListener();
+  }
+
+  override detach(): void {
+    this._removeScrollListener();
+    super.detach();
   }
 
   get child(): RenderBox | null {

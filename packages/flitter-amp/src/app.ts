@@ -82,9 +82,10 @@ class AppStateWidget extends State<App> {
     super.initState();
     // Listen to AppState changes and trigger rebuilds
     this.stateListener = () => {
+      const wasAtBottom = this.scrollController.atBottom;
       this.setState(() => {});
-      // Auto-scroll to bottom when new content arrives
-      if (this.widget.appState.isProcessing) {
+      // Only re-enable follow mode if user was already at bottom
+      if (this.widget.appState.isProcessing && wasAtBottom) {
         this.scrollController.enableFollowMode();
       }
     };
@@ -206,6 +207,7 @@ class AppStateWidget extends State<App> {
                       child: new SingleChildScrollView({
                         controller: this.scrollController,
                         position: 'bottom',
+                        enableKeyboardScroll: true,
                         // Amp ref: a$({padding: H$.only({left: 2, right: 2-3, bottom: 1})})
                         child: new Padding({
                           padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),

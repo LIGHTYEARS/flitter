@@ -77,24 +77,24 @@ new BorderSide({
 
 ### BorderStyle 取值
 
-| 值 | 说明 | 角字符 |
-|----|------|--------|
-| `'solid'` | 实线边框 | `┌ ┐ └ ┘` |
-| `'rounded'` | 圆角边框 | `╭ ╮ ╰ ╯` |
+| 值 | 说明 | 角字符 | 水平 | 垂直 |
+|----|------|--------|------|------|
+| `'solid'` | 实线边框 | `┌ ┐ └ ┘` | `─` | `│` |
+| `'rounded'` | 圆角边框 | `╭ ╮ ╰ ╯` | `─` | `│` |
+| `'dashed'` | 虚线边框 | `┌ ┐ └ ┘` | `┄` | `┆` |
+| `'double'` | 双线边框 | `╔ ╗ ╚ ╝` | `═` | `║` |
 
 ::: details Unicode 边框字符对照表
 ```
-solid (实线):
-  ┌──────┐
-  │      │
-  └──────┘
+solid (实线):        rounded (圆角):
+  ┌──────┐             ╭──────╮
+  │      │             │      │
+  └──────┘             ╰──────╯
 
-rounded (圆角):
-  ╭──────╮
-  │      │
-  ╰──────╯
-
-公共字符: ─ (水平线), │ (垂直线)
+dashed (虚线):       double (双线):
+  ┌┄┄┄┄┄┄┐             ╔══════╗
+  ┆      ┆             ║      ║
+  └┄┄┄┄┄┄┘             ╚══════╝
 ```
 :::
 
@@ -107,9 +107,14 @@ rounded (圆角):
 
 ## 绘制算法
 
-1. 填充背景色（在边框内部区域）
-2. 绘制边框（使用 Unicode box-drawing 字符）
-3. 递归绘制子组件
+1. 填充背景色（整个区域，包括边框占据的区域）
+2. 按边独立绘制边框 — 每边的颜色、样式、宽度分别处理，`width <= 0` 的边跳过
+3. 当相邻两边均存在时，在交角处绘制角字符（如 top + left → `┌`）
+4. 递归绘制子组件
+
+::: info
+边框绘制支持单边模式 — 只设 `left` 边时不会绘制其余三边的线和角字符，仅输出左侧垂直线 `│`。
+:::
 
 ## 基本用法
 
@@ -142,6 +147,27 @@ new DecoratedBox({
 ```
 
 ## 进阶用法
+
+### 单边边框（左侧竖线指示器）
+
+```typescript
+new DecoratedBox({
+  decoration: new BoxDecoration({
+    border: new Border({
+      left: new BorderSide({ color: Color.green, width: 2, style: 'solid' }),
+    }),
+  }),
+  child: new Padding({
+    padding: EdgeInsets.only({ left: 1 }),
+    child: label('引用文本', new TextStyle({ italic: true, foreground: Color.green })),
+  }),
+})
+```
+
+输出效果：
+```
+│ 引用文本
+```
 
 ### 带圆角边框和背景色的面板
 

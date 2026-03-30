@@ -43,6 +43,7 @@ export type ImmutableToolCallItem = Readonly<{
   rawInput?: Readonly<Record<string, unknown>>;
   result?: ImmutableToolCallResult;
   collapsed: boolean;
+  parentToolCallId?: string;
   streamingOutput?: string;
   isStreaming?: boolean;
   terminalId?: string;

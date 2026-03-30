@@ -92,6 +92,8 @@ export class ConversationState {
   // as items are append-only (which they are — only clear() removes).
   private _toolCallIndex: Map<string, number> = new Map();
 
+  private _openTaskStack: string[] = [];
+
   /** The current immutable snapshot. Consumers read ONLY this. */
   get snapshot(): ConversationSnapshot {
     return this._snapshot;
@@ -288,6 +290,10 @@ export class ConversationState {
     rawInput?: Record<string, unknown>,
   ): void {
     this.finalizeAssistantMessage();
+    const parentToolCallId =
+      this._openTaskStack.length > 0
+        ? this._openTaskStack[this._openTaskStack.length - 1]
+        : undefined;
     const item: ImmutableToolCallItem = Object.freeze({
       type: 'tool_call' as const,
       toolCallId,
@@ -299,10 +305,14 @@ export class ConversationState {
         : undefined,
       rawInput: rawInput ? Object.freeze({ ...rawInput }) : undefined,
       collapsed: !this._snapshot.toolCallsExpanded,
+      parentToolCallId,
     });
     const newItems = append(this._snapshot.items, item);
-    // Gap #49: index the tool call position for O(1) lookup
     this._toolCallIndex.set(toolCallId, newItems.length - 1);
+    const firstToken = title.split(/\s/)[0] ?? '';
+    if (firstToken.toLowerCase() === 'task') {
+      this._openTaskStack.push(toolCallId);
+    }
     this._snapshot = {
       ...this._snapshot,
       items: newItems,
@@ -334,6 +344,15 @@ export class ConversationState {
       items: replaceAt(this._snapshot.items, index, updated),
       version: nextVersion(this._snapshot.version),
     };
+    const stackIdx = this._openTaskStack.indexOf(toolCallId);
+    if (stackIdx !== -1) this._openTaskStack.splice(stackIdx, 1);
+  }
+
+  getChildToolCalls(parentId: string): ImmutableToolCallItem[] {
+    return this._snapshot.items.filter(
+      (item): item is ImmutableToolCallItem =>
+        item.type === 'tool_call' && item.parentToolCallId === parentId,
+    );
   }
 
   /**
@@ -530,6 +549,7 @@ export class ConversationState {
     this._streamingTextBuffer = '';
     this._streamingThinkingBuffer = '';
     this._toolCallIndex.clear();
+    this._openTaskStack = [];
     this._snapshot = {
       ...EMPTY_SNAPSHOT,
       version: nextVersion(this._snapshot.version),
@@ -551,6 +571,7 @@ export class ConversationState {
     this._streamingTextBuffer = '';
     this._streamingThinkingBuffer = '';
     this._toolCallIndex.clear();
+    this._openTaskStack = [];
 
     // Rebuild the tool call index from restored items
     for (let i = 0; i < items.length; i++) {

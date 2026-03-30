@@ -14,52 +14,27 @@ import { CreateFileTool } from './create-file-tool';
 import { WebSearchTool } from './web-search-tool';
 import { HandoffTool } from './handoff-tool';
 import { TodoListTool } from './todo-list-tool';
+import { TOOL_NAME_MAP, resolveToolName } from './resolve-tool-name';
 
 interface ToolCallWidgetProps {
   toolCall: ToolCallItem;
   isExpanded?: boolean;
   onToggle?: () => void;
+  childWidgets?: Widget[];
 }
 
 /**
- * Normalizes common agent tool name variants to canonical names
- * used by the dispatch switch below.
- */
-const TOOL_NAME_MAP: Record<string, string> = {
-  read_file: 'Read',
-  ReadFile: 'Read',
-  execute_command: 'Bash',
-  shell: 'Bash',
-  run_command: 'Bash',
-  terminal: 'Bash',
-  search: 'Grep',
-  grep: 'Grep',
-  ripgrep: 'Grep',
-  find_files: 'Grep',
-  list_files: 'Grep',
-  write_file: 'create_file',
-  write_to_file: 'create_file',
-  WriteFile: 'create_file',
-  edit: 'edit_file',
-  str_replace_editor: 'edit_file',
-  EditTool: 'edit_file',
-  web_search: 'WebSearch',
-  browser: 'WebSearch',
-  fetch_url: 'WebSearch',
-};
-
-/**
  * Top-level dispatch widget that routes a ToolCallItem to the appropriate
- * specialized renderer based on toolCall.kind (the tool name).
+ * specialized renderer based on resolved tool name.
  *
- * Handles 35+ tool types matching Amp CLI's architecture:
+ * Handles 35+ tool types matching Amp CLI and Coco ACP:
  *   - File I/O: Read, edit_file, create_file, apply_patch, undo_edit
  *   - Shell: Bash, shell_command, REPL
- *   - Search: Grep, glob, Glob, Search, WebSearch, read_web_page
+ *   - Search: Grep, glob, Glob, Search, LS, WebSearch, read_web_page
  *   - Sub-agents: Task, oracle, code_review, librarian, handoff
  *   - Todo: todo_list, todo_write, todo_read
  *   - Visual: painter, mermaid, chart, look_at
- *   - Utility: format_file, skill, get_diagnostics
+ *   - Utility: format_file, skill, get_diagnostics, EnterPlanMode, ExitPlanMode
  *   - Prefixed: sa__* (sub-agent), tb__* (toolbox)
  *   - Default: GenericToolCard fallback
  */
@@ -67,22 +42,29 @@ export class ToolCallWidget extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
   private readonly onToggle?: () => void;
+  private readonly childWidgets?: Widget[];
 
   constructor(props: ToolCallWidgetProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded ?? !props.toolCall.collapsed;
     this.onToggle = props.onToggle;
+    this.childWidgets = props.childWidgets;
   }
 
   build(_context: BuildContext): Widget {
-    const rawName = this.toolCall.kind;
+    const rawName = resolveToolName(this.toolCall);
     const name = TOOL_NAME_MAP[rawName] ?? rawName;
     const expanded = this.isExpanded;
     const toggle = this.onToggle;
 
     if (name.startsWith('sa__') || name.startsWith('tb__')) {
-      return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+      return new TaskTool({
+        toolCall: this.toolCall,
+        isExpanded: expanded,
+        onToggle: toggle,
+        childWidgets: this.childWidgets,
+      });
     }
 
     switch (name) {
@@ -106,6 +88,7 @@ export class ToolCallWidget extends StatelessWidget {
       case 'glob':
       case 'Glob':
       case 'Search':
+      case 'LS':
         return new GrepTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'WebSearch':
@@ -116,7 +99,12 @@ export class ToolCallWidget extends StatelessWidget {
       case 'oracle':
       case 'code_review':
       case 'librarian':
-        return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new TaskTool({
+          toolCall: this.toolCall,
+          isExpanded: expanded,
+          onToggle: toggle,
+          childWidgets: this.childWidgets,
+        });
 
       case 'handoff':
         return new HandoffTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
@@ -133,6 +121,8 @@ export class ToolCallWidget extends StatelessWidget {
       case 'format_file':
       case 'skill':
       case 'get_diagnostics':
+      case 'EnterPlanMode':
+      case 'ExitPlanMode':
         return new GenericToolCard({
           toolCall: this.toolCall,
           isExpanded: expanded,

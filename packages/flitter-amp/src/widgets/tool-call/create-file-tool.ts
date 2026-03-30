@@ -15,6 +15,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT, truncateText } from './truncation-limits';
+import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 
 interface CreateFileToolProps extends BaseToolProps {}
 
@@ -40,9 +41,9 @@ export class CreateFileTool extends StatelessWidget {
     const filePath = pickString(input, ['file_path', 'path', 'filename', 'file', 'destination']);
 
     const header = new ToolHeader({
-      name: this.toolCall.kind ?? 'CreateFile',
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
-      details: filePath ? [filePath] : [],
+      details: filePath ? [shortenPath(filePath)] : [],
       onToggle: this.onToggle,
     });
 

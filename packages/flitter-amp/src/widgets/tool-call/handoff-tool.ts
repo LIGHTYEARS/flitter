@@ -17,6 +17,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
+import { resolveToolDisplayName } from './resolve-tool-name';
 
 interface HandoffToolProps extends BaseToolProps {}
 
@@ -103,7 +104,7 @@ class HandoffToolState extends State<HandoffTool> {
       : undefined;
 
     const header = new ToolHeader({
-      name: 'Handoff',
+      name: resolveToolDisplayName(toolCall),
       status: toolCall.status,
       details,
       onToggle: this.widget.onToggle,

@@ -15,6 +15,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString, pickNumber } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT } from './truncation-limits';
+import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 
 interface ReadToolProps extends BaseToolProps {}
 
@@ -43,7 +44,7 @@ export class ReadTool extends StatelessWidget {
     const limit = pickNumber(input, 'limit');
 
     const details: string[] = [];
-    if (filePath) details.push(filePath);
+    if (filePath) details.push(shortenPath(filePath));
     if (offset !== null && limit !== null) {
       details.push(`L${offset}-${offset + limit}`);
     } else if (offset !== null) {
@@ -51,7 +52,7 @@ export class ReadTool extends StatelessWidget {
     }
 
     const header = new ToolHeader({
-      name: this.toolCall.kind ?? 'Read',
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
       details,
       onToggle: this.onToggle,

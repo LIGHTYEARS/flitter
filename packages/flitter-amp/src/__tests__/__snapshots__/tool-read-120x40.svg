@@ -32,9 +32,9 @@
 <text x="1011.6" y="512.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="530.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="548.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="566.04" style="fill:#2ba12b;font-weight:bold" xml:space="preserve">You</text>
 <text x="1011.6" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="54" y="584.04" style="fill:#f6fff5;font-style:italic" xml:space="preserve">Show me the config file</text>
+<text x="28.8" y="584.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="584.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Show me the config file</text>
 <text x="1011.6" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="602.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="28.8" y="620.04" style="fill:#2ba12b" xml:space="preserve">✓ </text>

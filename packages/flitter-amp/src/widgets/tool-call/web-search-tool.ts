@@ -15,6 +15,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString, isRecord } from '../../utils/raw-input';
 import { extractOutputText, extractRawArray } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT, MAX_DISPLAY_ITEMS } from './truncation-limits';
+import { resolveToolDisplayName } from './resolve-tool-name';
 
 interface WebSearchToolProps extends BaseToolProps {}
 
@@ -41,7 +42,7 @@ export class WebSearchTool extends StatelessWidget {
     const query = pickString(input, ['query', 'url', 'search_query', 'q', 'search']);
 
     const header = new ToolHeader({
-      name: this.toolCall.kind,
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
       details: query ? [query] : [],
       onToggle: this.onToggle,

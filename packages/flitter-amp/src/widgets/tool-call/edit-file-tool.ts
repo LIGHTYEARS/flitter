@@ -16,6 +16,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString, asOptionalString } from '../../utils/raw-input';
 import { extractDiff as extractDiffUtil, extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
+import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 
 interface EditFileToolProps extends BaseToolProps {}
 
@@ -41,9 +42,9 @@ export class EditFileTool extends StatelessWidget {
     const filePath = pickString(input, ['file_path', 'path']);
 
     const header = new ToolHeader({
-      name: this.toolCall.kind,
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
-      details: filePath ? [filePath] : [],
+      details: filePath ? [shortenPath(filePath)] : [],
       onToggle: this.onToggle,
     });
 

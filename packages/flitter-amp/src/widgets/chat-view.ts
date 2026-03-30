@@ -17,6 +17,7 @@ import { Container } from 'flitter-core/src/widgets/container';
 import { Border, BorderSide, BoxDecoration } from 'flitter-core/src/layout/render-decorated';
 import { StickyHeader } from 'flitter-core/src/widgets/sticky-header';
 import { ToolCallWidget } from './tool-call/index';
+import { resolveToolName, TOOL_NAME_MAP } from './tool-call/resolve-tool-name';
 import { StreamingCursor } from './streaming-cursor';
 import { ThinkingBlock } from './thinking-block';
 import { PlanView } from './plan-view';
@@ -103,14 +104,38 @@ export class ChatView extends StatelessWidget {
           } else if (cur.type === 'assistant_message') {
             turnWidgets.push(this.buildAssistantMessage(cur.text, cur.isStreaming, theme));
             i++;
+          } else if (cur.type === 'tool_call' && cur.parentToolCallId) {
+            i++;
+            continue;
           } else if (cur.type === 'tool_call') {
             const toolCallId = cur.toolCallId;
+            const rawName = resolveToolName(cur);
+            const canonicalName = TOOL_NAME_MAP[rawName] ?? rawName;
+            const isTask = canonicalName === 'Task' || rawName.startsWith('sa__') || rawName.startsWith('tb__');
+
+            let childWidgets: Widget[] | undefined;
+            if (isTask) {
+              childWidgets = this.items
+                .filter(
+                  (it): it is typeof cur =>
+                    it.type === 'tool_call' && it.parentToolCallId === toolCallId,
+                )
+                .map(child => new ToolCallWidget({
+                  toolCall: child,
+                  isExpanded: !child.collapsed,
+                  onToggle: this.onToggleToolCall
+                    ? () => this.onToggleToolCall!(child.toolCallId)
+                    : undefined,
+                }));
+            }
+
             turnWidgets.push(new ToolCallWidget({
               toolCall: cur,
               isExpanded: !cur.collapsed,
               onToggle: this.onToggleToolCall
                 ? () => this.onToggleToolCall!(toolCallId)
                 : undefined,
+              childWidgets,
             }));
             i++;
           } else {
@@ -131,20 +156,13 @@ export class ChatView extends StatelessWidget {
   }
 
   /**
-   * Wraps a user message in a StickyHeader with a "You" role label header.
+   * Renders a user message with a green left border and green italic text.
+   * Amp ref: no "You" label — just │ + italic green text.
    */
   private buildUserStickyHeader(text: string, theme?: AmpTheme): Widget {
     const successColor = theme?.base.success ?? Color.green;
-    const fgColor = theme?.base.foreground ?? Color.defaultColor;
 
-    const header = new Text({
-      text: new TextSpan({
-        text: 'You',
-        style: new TextStyle({ foreground: successColor, bold: true }),
-      }),
-    });
-
-    const body = new Container({
+    return new Container({
       decoration: new BoxDecoration({
         border: new Border({
           left: new BorderSide({ color: successColor, width: 2, style: 'solid' }),
@@ -155,14 +173,12 @@ export class ChatView extends StatelessWidget {
         text: new TextSpan({
           text: text,
           style: new TextStyle({
-            foreground: fgColor,
+            foreground: successColor,
             italic: true,
           }),
         }),
       }),
     });
-
-    return new StickyHeader({ header, body });
   }
 
   /**

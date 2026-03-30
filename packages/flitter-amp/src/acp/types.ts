@@ -48,6 +48,8 @@ export interface ToolCallItem {
   rawInput?: Record<string, unknown>;
   result?: ToolCallResult;
   collapsed: boolean;
+  /** If set, this tool call is a child of a Task (subagent) tool call */
+  parentToolCallId?: string;
 
   // Streaming output fields
   /** Accumulated streaming output received while tool is in_progress */

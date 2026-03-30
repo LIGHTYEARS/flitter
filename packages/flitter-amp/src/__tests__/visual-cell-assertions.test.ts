@@ -157,18 +157,7 @@ describe('Cell-Level Assertions', () => {
   // ════════════════════════════════════════════════════════════════════
 
   describe('User Message', () => {
-    test('"You" header is bold with success color', () => {
-      const appState = new AppState();
-      appState.cwd = '/home/user/project';
-      appState.gitBranch = 'main';
-      appState.conversation.addUserMessage('Hello world');
-      const grid = capture(appState);
-
-      const pos = findTextOnce(grid, 'You');
-      assertStyleRange(grid, pos.x, pos.y, 3, { bold: true, fg: SUCCESS });
-    });
-
-    test('user message text is italic', () => {
+    test('user message text is green italic', () => {
       const appState = new AppState();
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
@@ -176,7 +165,7 @@ describe('Cell-Level Assertions', () => {
       const grid = capture(appState);
 
       const pos = findTextOnce(grid, 'Hello world');
-      assertStyleRange(grid, pos.x, pos.y, 'Hello world'.length, { italic: true });
+      assertStyleRange(grid, pos.x, pos.y, 'Hello world'.length, { italic: true, fg: SUCCESS });
     });
   });
 

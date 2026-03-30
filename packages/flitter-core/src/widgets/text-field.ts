@@ -899,7 +899,7 @@ class TextFieldState extends State<TextField> {
       // Printable characters (single char, not shift-only modified)
       if (key.length === 1 && !event.metaKey) {
         const code = key.charCodeAt(0);
-        if (code >= 0x20 && code <= 0x7E) {
+        if (code >= 0x20) {
           this._controller.insertText(key);
           return 'handled';
         }

@@ -61,19 +61,64 @@ context.fillRect(0, 0, 80, 1, ' ', { bg: Color.blue });
 
 ### `drawBorder(x, y, w, h, borderStyle, color?): void`
 
-绘制 Unicode 盒线边框。需要 `w >= 2` 且 `h >= 2`。
+绘制 Unicode 盒线边框（四边统一样式和颜色）。需要 `w >= 2` 且 `h >= 2`。
 
 ```typescript
-type BorderStyle = 'rounded' | 'solid';
+type BorderStyle = 'rounded' | 'solid' | 'dashed' | 'double';
 ```
 
 | 样式 | 角字符 | 水平 | 垂直 |
 |------|--------|------|------|
-| rounded | `\u256D \u256E \u2570 \u256F` | `\u2500` | `\u2502` |
-| solid | `\u250C \u2510 \u2514 \u2518` | `\u2500` | `\u2502` |
+| solid | `┌ ┐ └ ┘` | `─` | `│` |
+| rounded | `╭ ╮ ╰ ╯` | `─` | `│` |
+| dashed | `┌ ┐ └ ┘` | `┄` | `┆` |
+| double | `╔ ╗ ╚ ╝` | `═` | `║` |
 
 ```typescript
 context.drawBorder(0, 0, 40, 10, 'rounded', Color.cyan);
+```
+
+### `drawBorderSides(x, y, w, h, sides): void`
+
+按边独立绘制边框。每边可有不同的颜色、样式和宽度。`width <= 0` 的边跳过。当所有四边存在且样式/颜色一致时，内部优化回退到 `drawBorder()`。
+
+```typescript
+interface BorderSideDesc {
+  width: number;
+  style: BorderStyle;
+  color?: Color;
+}
+
+context.drawBorderSides(x, y, w, h, {
+  top?: BorderSideDesc,
+  right?: BorderSideDesc,
+  bottom?: BorderSideDesc,
+  left?: BorderSideDesc,
+});
+```
+
+绘制规则：
+- 单边模式：只绘制存在的边（如仅 left → 只输出 `│` 竖线列）
+- 角字符：仅当相邻两边均存在时才绘制（如 top + left → `┌`）
+- 每边的线条使用该边自身的 `style` 对应的字符集
+
+```typescript
+// 仅绘制左侧绿色竖线
+context.drawBorderSides(0, 0, 40, 3, {
+  left: { width: 2, style: 'solid', color: Color.green },
+});
+// 输出:
+// │（第 0 行）
+// │（第 1 行）
+// │（第 2 行）
+
+// 四边不同颜色
+context.drawBorderSides(0, 0, 20, 5, {
+  top:    { width: 1, style: 'solid', color: Color.red },
+  bottom: { width: 1, style: 'solid', color: Color.blue },
+  left:   { width: 1, style: 'solid', color: Color.green },
+  right:  { width: 1, style: 'solid', color: Color.yellow },
+});
 ```
 
 ## 裁剪

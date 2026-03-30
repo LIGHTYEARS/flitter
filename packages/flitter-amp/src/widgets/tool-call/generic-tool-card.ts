@@ -24,6 +24,7 @@ import {
   OUTPUT_TRUNCATION_LIMIT,
   truncateInline,
 } from './truncation-limits';
+import { resolveToolDisplayName, extractTitleDetail, shortenPath } from './resolve-tool-name';
 
 interface GenericToolCardProps extends BaseToolProps {
   hideHeader?: boolean;
@@ -63,7 +64,7 @@ export class GenericToolCard extends StatelessWidget {
     const header = this.hideHeader
       ? new SizedBox({})
       : new ToolHeader({
-          name: this.toolCall.kind,
+          name: resolveToolDisplayName(this.toolCall),
           status: this.toolCall.status,
           details,
           onToggle: this.onToggle,
@@ -168,8 +169,9 @@ export class GenericToolCard extends StatelessWidget {
    */
   private extractDetails(): string[] {
     const details: string[] = [];
-    if (this.toolCall.title) {
-      details.push(this.toolCall.title);
+    const titleDetail = extractTitleDetail(this.toolCall);
+    if (titleDetail) {
+      details.push(shortenPath(titleDetail));
     }
 
     // Append location paths as header details

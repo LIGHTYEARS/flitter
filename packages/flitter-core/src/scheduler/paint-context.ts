@@ -261,6 +261,108 @@ export class PaintContext {
   }
 
   /**
+   * Per-side border description for drawBorderSides.
+   * A side with width <= 0 is not drawn.
+   */
+  drawBorderSides(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    sides: {
+      top?: { width: number; style: BoxDrawingStyle; color?: Color };
+      right?: { width: number; style: BoxDrawingStyle; color?: Color };
+      bottom?: { width: number; style: BoxDrawingStyle; color?: Color };
+      left?: { width: number; style: BoxDrawingStyle; color?: Color };
+    },
+  ): void {
+    if (w <= 0 || h <= 0) return;
+
+    const hasTop = (sides.top?.width ?? 0) > 0;
+    const hasRight = (sides.right?.width ?? 0) > 0;
+    const hasBottom = (sides.bottom?.width ?? 0) > 0;
+    const hasLeft = (sides.left?.width ?? 0) > 0;
+
+    const allPresent = hasTop && hasRight && hasBottom && hasLeft;
+
+    if (allPresent && w >= 2 && h >= 2) {
+      const topStyle = sides.top!.style;
+      const topColor = sides.top!.color;
+      const sameStyle =
+        sides.right!.style === topStyle &&
+        sides.bottom!.style === topStyle &&
+        sides.left!.style === topStyle;
+      const sameColor =
+        sides.right!.color === topColor &&
+        sides.bottom!.color === topColor &&
+        sides.left!.color === topColor;
+      if (sameStyle && sameColor) {
+        this.drawBorder(x, y, w, h, topStyle, topColor);
+        return;
+      }
+    }
+
+    if (hasTop) {
+      const { style, color } = sides.top!;
+      const chars = BOX_DRAWING[style];
+      const cs: CellStyle = color ? { fg: color } : {};
+      for (let col = x; col < x + w; col++) {
+        this.drawChar(col, y, chars.h, cs, 1);
+      }
+    }
+
+    if (hasBottom) {
+      const { style, color } = sides.bottom!;
+      const chars = BOX_DRAWING[style];
+      const cs: CellStyle = color ? { fg: color } : {};
+      for (let col = x; col < x + w; col++) {
+        this.drawChar(col, y + h - 1, chars.h, cs, 1);
+      }
+    }
+
+    if (hasLeft) {
+      const { style, color } = sides.left!;
+      const chars = BOX_DRAWING[style];
+      const cs: CellStyle = color ? { fg: color } : {};
+      for (let row = y; row < y + h; row++) {
+        this.drawChar(x, row, chars.v, cs, 1);
+      }
+    }
+
+    if (hasRight) {
+      const { style, color } = sides.right!;
+      const chars = BOX_DRAWING[style];
+      const cs: CellStyle = color ? { fg: color } : {};
+      for (let row = y; row < y + h; row++) {
+        this.drawChar(x + w - 1, row, chars.v, cs, 1);
+      }
+    }
+
+    if (w >= 2 && h >= 2) {
+      if (hasTop && hasLeft) {
+        const chars = BOX_DRAWING[sides.top!.style];
+        const cs: CellStyle = sides.top!.color ? { fg: sides.top!.color } : {};
+        this.drawChar(x, y, chars.tl, cs, 1);
+      }
+      if (hasTop && hasRight) {
+        const chars = BOX_DRAWING[sides.top!.style];
+        const cs: CellStyle = sides.top!.color ? { fg: sides.top!.color } : {};
+        this.drawChar(x + w - 1, y, chars.tr, cs, 1);
+      }
+      if (hasBottom && hasLeft) {
+        const chars = BOX_DRAWING[sides.bottom!.style];
+        const cs: CellStyle = sides.bottom!.color ? { fg: sides.bottom!.color } : {};
+        this.drawChar(x, y + h - 1, chars.bl, cs, 1);
+      }
+      if (hasBottom && hasRight) {
+        const chars = BOX_DRAWING[sides.bottom!.style];
+        const cs: CellStyle = sides.bottom!.color ? { fg: sides.bottom!.color } : {};
+        this.drawChar(x + w - 1, y + h - 1, chars.br, cs, 1);
+      }
+    }
+  }
+
+  /**
    * Create a clipped sub-context that restricts painting to a rect.
    * The clip is intersected with the current clip rect.
    * Any draw call outside the resulting clip rect is silently ignored.

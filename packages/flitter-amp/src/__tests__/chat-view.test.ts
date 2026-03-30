@@ -100,7 +100,7 @@ describe('ChatView: Widget Tree Structure', () => {
       }
     });
 
-    it('user message is wrapped in StickyHeader with border-left container', () => {
+    it('user message is a Container with border-left decoration', () => {
       const items: ConversationItem[] = [makeUserMessage('Hello')];
       const view = buildChatView(items);
       const widget = view.build({} as any) as any;
@@ -108,7 +108,7 @@ describe('ChatView: Widget Tree Structure', () => {
 
       expect(children.length).toBeGreaterThanOrEqual(1);
       const firstChild = children[0];
-      expect(firstChild.constructor.name).toBe('StickyHeader');
+      expect(firstChild.constructor.name).toBe('Container');
     });
 
     it('SizedBox(height:1) spacer between groups', () => {
@@ -137,10 +137,10 @@ describe('ChatView: Widget Tree Structure', () => {
       const widget = view.build({} as any) as any;
       const children = widget.children ?? widget._children;
 
-      // Should be: [StickyHeader(user), SizedBox(1), StickyHeader(assistant-group)]
+      // Should be: [Container(user), SizedBox(1), StickyHeader(assistant-group)]
       // The assistant group StickyHeader contains thinking + message + tool_call
       expect(children.length).toBe(3);
-      expect(children[0].constructor.name).toBe('StickyHeader');
+      expect(children[0].constructor.name).toBe('Container');
       expect(children[2].constructor.name).toBe('StickyHeader');
     });
   });

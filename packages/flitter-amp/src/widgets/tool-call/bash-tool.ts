@@ -14,6 +14,7 @@ import { AmpThemeProvider } from '../../themes/index';
 import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString } from '../../utils/raw-input';
 import { extractShellOutput, extractRawNumber } from './tool-output-utils';
+import { resolveToolDisplayName } from './resolve-tool-name';
 import {
   HEADER_TRUNCATION_LIMIT,
   OUTPUT_TRUNCATION_LIMIT,
@@ -44,7 +45,7 @@ export class BashTool extends StatelessWidget {
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
-    const command = pickString(input, ['command', 'cmd', 'shell_command', 'script', 'args']);
+    const command = pickString(input, ['command', 'Command', 'cmd', 'shell_command', 'script', 'args']);
 
     const details: string[] = [];
     if (command) {
@@ -53,7 +54,7 @@ export class BashTool extends StatelessWidget {
     }
 
     const header = new ToolHeader({
-      name: this.toolCall.kind,
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
       details,
       onToggle: this.onToggle,

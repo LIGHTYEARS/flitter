@@ -90,6 +90,28 @@ new Container({
 })
 ```
 
+### 左侧竖线指示器
+
+仅设置单边边框时，其余三边不会绘制。适合用于引用样式、用户消息标记等场景。
+
+```typescript
+new Container({
+  decoration: new BoxDecoration({
+    border: new Border({
+      left: new BorderSide({ color: Color.green, width: 2, style: 'solid' }),
+    }),
+  }),
+  padding: EdgeInsets.only({ left: 1 }),
+  child: label('delegate subagent to explore the flitter-core',
+    new TextStyle({ italic: true, foreground: Color.green })),
+})
+```
+
+输出效果：
+```
+│ delegate subagent to explore the flitter-core
+```
+
 ## 进阶用法
 
 ### 卡片式面板

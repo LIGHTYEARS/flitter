@@ -14,6 +14,7 @@ import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
 import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { asString, asArray, isTodoEntry } from '../../utils/raw-input';
+import { resolveToolDisplayName, extractTitleDetail } from './resolve-tool-name';
 
 interface TodoListToolProps extends BaseToolProps {}
 
@@ -43,10 +44,11 @@ export class TodoListTool extends StatelessWidget {
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
 
+    const titleDetail = extractTitleDetail(this.toolCall);
     const header = new ToolHeader({
-      name: this.toolCall.kind,
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
-      details: this.toolCall.title ? [this.toolCall.title] : [],
+      details: titleDetail ? [titleDetail] : [],
       onToggle: this.onToggle,
     });
 

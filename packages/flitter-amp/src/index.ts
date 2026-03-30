@@ -14,6 +14,7 @@ import { exportToMarkdown, exportToText } from './state/session-export';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { writeFileSync } from 'node:fs';
+import { setCwd } from './widgets/tool-call/resolve-tool-name';
 
 async function main(): Promise<void> {
   const config = parseArgs(process.argv);
@@ -90,6 +91,7 @@ async function main(): Promise<void> {
   // Create global app state
   const appState = new AppState();
   appState.cwd = config.cwd;
+  setCwd(config.cwd);
   appState.agentCommand = `${config.agentCommand} ${config.agentArgs.join(' ')}`;
 
   // Detect git branch in the working directory

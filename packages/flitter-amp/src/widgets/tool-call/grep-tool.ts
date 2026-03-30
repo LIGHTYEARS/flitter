@@ -15,6 +15,7 @@ import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString } from '../../utils/raw-input';
 import { extractOutputText, extractRawNumber } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT, truncateText } from './truncation-limits';
+import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 
 interface GrepToolProps extends BaseToolProps {}
 
@@ -44,7 +45,7 @@ export class GrepTool extends StatelessWidget {
 
     const details: string[] = [];
     if (pattern) details.push(`/${pattern}/`);
-    if (path) details.push(path);
+    if (path) details.push(shortenPath(path));
 
     const matchCount = extractRawNumber(this.toolCall.result, ['count', 'matchCount', 'total']);
     if (matchCount !== null) {
@@ -52,7 +53,7 @@ export class GrepTool extends StatelessWidget {
     }
 
     const header = new ToolHeader({
-      name: this.toolCall.kind,
+      name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
       details,
       onToggle: this.onToggle,

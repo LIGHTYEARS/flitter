@@ -229,6 +229,8 @@ export class RenderDecoratedBox extends RenderBox {
 
   /**
    * Paint the decoration (background color + border) using PaintContext API.
+   * Delegates to drawBorderSides so each side's color/style is respected
+   * independently — critical when only a subset of sides is set (e.g. left-only).
    */
   private _paintDecoration(ctx: PaintContext, offset: Offset): void {
     const w = this.size.width;
@@ -238,18 +240,23 @@ export class RenderDecoratedBox extends RenderBox {
 
     if (w <= 0 || h <= 0) return;
 
-    // Paint background color (fill the entire area including border region)
     if (this._decoration.color) {
       ctx.fillRect(col, row, w, h, ' ', { bg: this._decoration.color });
     }
 
-    // Paint border
     if (this._decoration.border) {
       const border = this._decoration.border;
-      const style = border.top.style;
-      const borderColor = border.top.color;
-      const color = borderColor.equals(Color.defaultColor) ? undefined : borderColor;
-      ctx.drawBorder(col, row, w, h, style, color);
+      const toSide = (s: BorderSide) => {
+        if (s.width <= 0) return undefined;
+        const color = s.color.equals(Color.defaultColor) ? undefined : s.color;
+        return { width: s.width, style: s.style, color };
+      };
+      ctx.drawBorderSides(col, row, w, h, {
+        top: toSide(border.top),
+        right: toSide(border.right),
+        bottom: toSide(border.bottom),
+        left: toSide(border.left),
+      });
     }
   }
 

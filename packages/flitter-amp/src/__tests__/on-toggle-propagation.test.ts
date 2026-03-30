@@ -160,16 +160,15 @@ describe('Gap #39/40: onToggle stored in all renderers', () => {
   }
 });
 
-describe('Gap #39/40: TaskTool forwards onToggle to GenericToolCard', () => {
+describe('Gap #39/40: TaskTool forwards onToggle to ToolHeader', () => {
   it('TaskTool stores and propagates onToggle', () => {
     const fn = mock(() => {});
     const tc = makeToolCall('Task');
-    const widget = new TaskTool({ toolCall: tc, isExpanded: true, onToggle: fn }) as any;
+    const widget = new TaskTool({ toolCall: tc, isExpanded: false, onToggle: fn }) as any;
     expect(widget.onToggle).toBe(fn);
 
-    // TaskTool delegates to GenericToolCard; check that GenericToolCard gets onToggle
     const tree = widget.build({} as any);
-    expect(tree.constructor.name).toBe('GenericToolCard');
+    expect(tree.constructor.name).toBe('ToolHeader');
     expect((tree as any).onToggle).toBe(fn);
   });
 });

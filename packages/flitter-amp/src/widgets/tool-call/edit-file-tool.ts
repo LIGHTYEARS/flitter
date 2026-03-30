@@ -12,12 +12,12 @@ import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { DiffView } from 'flitter-core/src/widgets/diff-view';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString, asOptionalString } from '../../utils/raw-input';
+import { extractDiff as extractDiffUtil, extractOutputText } from './tool-output-utils';
+import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 
-interface EditFileToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface EditFileToolProps extends BaseToolProps {}
 
 /**
  * Renders an edit_file / apply_patch / undo_edit tool call.
@@ -26,22 +26,25 @@ interface EditFileToolProps {
 export class EditFileTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: EditFileToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
-    const filePath = (input['file_path'] ?? input['path'] ?? '') as string;
+    const filePath = pickString(input, ['file_path', 'path']);
 
     const header = new ToolHeader({
       name: this.toolCall.kind,
       status: this.toolCall.status,
       details: filePath ? [filePath] : [],
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
@@ -59,7 +62,7 @@ export class EditFileTool extends StatelessWidget {
         }),
       );
     } else {
-      const summary = this.extractSummary();
+      const summary = extractOutputText(this.toolCall.result, { maxLength: PREVIEW_TRUNCATION_LIMIT });
       if (summary) {
         bodyChildren.push(
           new Padding({
@@ -91,51 +94,23 @@ export class EditFileTool extends StatelessWidget {
 
   /**
    * Extracts a unified diff from the tool result or rawInput.
+   * Uses the shared extractDiff utility, then falls back to
+   * synthesizing a diff from old_str/new_str if present.
    */
   private extractDiff(): string | null {
-    const checkDiff = (s: string): string | null =>
-      (s.includes('@@') && (s.includes('---') || s.includes('+++'))) ? s : null;
+    const shared = extractDiffUtil(this.toolCall.result);
+    if (shared) return shared;
 
-    if (this.toolCall.result?.rawOutput) {
-      const raw = this.toolCall.result.rawOutput;
-      const rawStr = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
-      const d = checkDiff(rawStr);
-      if (d) return d;
-    }
-
-    if (this.toolCall.result?.content) {
-      for (const c of this.toolCall.result.content) {
-        const text = c.content?.text;
-        if (text) {
-          const d = checkDiff(text);
-          if (d) return d;
-        }
-      }
-    }
-
+    // Edit-specific: synthesize diff from old_str / new_str input
     const input = this.toolCall.rawInput;
     if (input) {
-      const oldStr = input['old_str'] as string | undefined;
-      const newStr = input['new_str'] as string | undefined;
+      const oldStr = asOptionalString(input['old_str']);
+      const newStr = asOptionalString(input['new_str']);
       if (oldStr !== undefined && newStr !== undefined) {
         return `--- a\n+++ b\n@@ @@\n${oldStr.split('\n').map(l => `-${l}`).join('\n')}\n${newStr.split('\n').map(l => `+${l}`).join('\n')}`;
       }
     }
 
     return null;
-  }
-
-  /**
-   * Extracts a text summary when no diff is available.
-   */
-  private extractSummary(): string {
-    if (!this.toolCall.result) return '';
-    if (this.toolCall.result.rawOutput) {
-      return JSON.stringify(this.toolCall.result.rawOutput, null, 2).slice(0, 500);
-    }
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n')
-      .slice(0, 500) ?? '';
   }
 }

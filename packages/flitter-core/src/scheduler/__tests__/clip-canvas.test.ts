@@ -9,6 +9,7 @@ import { TextStyle } from '../../core/text-style';
 import { Color } from '../../core/color';
 import { Rect } from '../../core/types';
 import { PaintContext, BORDER_CHARS } from '../paint-context';
+import { BOX_DRAWING } from '../../painting/border-painter';
 import { ClipCanvas } from '../clip-canvas';
 
 describe('ClipCanvas', () => {
@@ -341,6 +342,54 @@ describe('ClipCanvas', () => {
       canvas.drawBorder(0, 0, 4, 3, 'solid', Color.red);
       const cell = screen.getCell(0, 0);
       expect(cell.style.fg!.equals(Color.red)).toBe(true);
+    });
+
+    // Gap 31: Dashed and double border styles
+    test('draws dashed border fully inside clip', () => {
+      const clip = new Rect(0, 0, 10, 10);
+      const canvas = new ClipCanvas(ctx, clip);
+
+      canvas.drawBorder(1, 1, 5, 3, 'dashed');
+      expect(screen.getCell(1, 1).char).toBe('\u250C'); // solid corner
+      expect(screen.getCell(2, 1).char).toBe('\u2504'); // dashed horizontal
+      expect(screen.getCell(1, 2).char).toBe('\u2506'); // dashed vertical
+    });
+
+    test('draws double border fully inside clip', () => {
+      const clip = new Rect(0, 0, 10, 10);
+      const canvas = new ClipCanvas(ctx, clip);
+
+      canvas.drawBorder(1, 1, 5, 3, 'double');
+      expect(screen.getCell(1, 1).char).toBe('\u2554'); // double corner
+      expect(screen.getCell(2, 1).char).toBe('\u2550'); // double horizontal
+      expect(screen.getCell(1, 2).char).toBe('\u2551'); // double vertical
+    });
+
+    test('clips dashed border at boundary', () => {
+      // Clip allows only first 3 columns
+      const clip = new Rect(0, 0, 3, 5);
+      const canvas = new ClipCanvas(ctx, clip);
+
+      canvas.drawBorder(0, 0, 5, 3, 'dashed');
+      // tl corner visible
+      expect(screen.getCell(0, 0).char).toBe('\u250C');
+      // dashed h edge
+      expect(screen.getCell(1, 0).char).toBe('\u2504');
+      expect(screen.getCell(2, 0).char).toBe('\u2504');
+      // tr corner outside clip
+      expect(screen.getCell(4, 0).char).toBe(' ');
+    });
+
+    test('clips double border at boundary', () => {
+      const clip = new Rect(0, 0, 3, 5);
+      const canvas = new ClipCanvas(ctx, clip);
+
+      canvas.drawBorder(0, 0, 5, 3, 'double');
+      expect(screen.getCell(0, 0).char).toBe('\u2554');
+      expect(screen.getCell(1, 0).char).toBe('\u2550');
+      expect(screen.getCell(2, 0).char).toBe('\u2550');
+      // tr corner outside clip
+      expect(screen.getCell(4, 0).char).toBe(' ');
     });
   });
 

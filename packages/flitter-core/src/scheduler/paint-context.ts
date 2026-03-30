@@ -8,20 +8,12 @@ import { TextSpan } from '../core/text-span.js';
 import { TextStyle } from '../core/text-style.js';
 import { Color } from '../core/color.js';
 import { wcwidth } from '../core/wcwidth.js';
+import { BOX_DRAWING, type BoxDrawingStyle } from '../painting/border-painter.js';
 
-// ---------------------------------------------------------------------------
-// Border character definitions
-// ---------------------------------------------------------------------------
-
-export type BorderStyle = 'rounded' | 'solid';
-
-export const BORDER_CHARS: Record<
-  BorderStyle,
-  { tl: string; tr: string; bl: string; br: string; h: string; v: string }
-> = {
-  rounded: { tl: '\u256D', tr: '\u256E', bl: '\u2570', br: '\u256F', h: '\u2500', v: '\u2502' },
-  solid:   { tl: '\u250C', tr: '\u2510', bl: '\u2514', br: '\u2518', h: '\u2500', v: '\u2502' },
-};
+// Re-export for backward compatibility — consumers that import from paint-context
+// will get the consolidated types from border-painter via these re-exports.
+export { BOX_DRAWING as BORDER_CHARS } from '../painting/border-painter.js';
+export type { BoxDrawingStyle as BorderStyle } from '../painting/border-painter.js';
 
 // ---------------------------------------------------------------------------
 // TextStyle -> CellStyle converter
@@ -238,12 +230,12 @@ export class PaintContext {
     y: number,
     w: number,
     h: number,
-    borderStyle: BorderStyle,
+    borderStyle: BoxDrawingStyle,
     color?: Color,
   ): void {
     if (w < 2 || h < 2) return;
 
-    const chars = BORDER_CHARS[borderStyle];
+    const chars = BOX_DRAWING[borderStyle];
     const style: CellStyle = color ? { fg: color } : {};
 
     // Top-left corner

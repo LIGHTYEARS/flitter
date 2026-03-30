@@ -28,6 +28,7 @@ interface InputAreaProps {
   imageAttachments?: number;
   skillCount?: number;
   overlayTexts?: BorderOverlayText[];
+  controller?: TextEditingController;
 }
 
 type ShellMode = 'shell' | 'background' | null;
@@ -42,6 +43,7 @@ export class InputArea extends StatefulWidget {
   readonly imageAttachments: number;
   readonly skillCount: number;
   readonly overlayTexts: BorderOverlayText[];
+  readonly externalController?: TextEditingController;
 
   constructor(props: InputAreaProps) {
     super({});
@@ -54,6 +56,7 @@ export class InputArea extends StatefulWidget {
     this.imageAttachments = props.imageAttachments ?? 0;
     this.skillCount = props.skillCount ?? 0;
     this.overlayTexts = props.overlayTexts ?? [];
+    this.externalController = props.controller;
   }
 
   createState(): InputAreaState {
@@ -62,16 +65,52 @@ export class InputArea extends StatefulWidget {
 }
 
 class InputAreaState extends State<InputArea> {
-  private controller = new TextEditingController();
+  private controller!: TextEditingController;
+  private ownsController = false;
   private currentText = '';
 
   override initState(): void {
     super.initState();
+    if (this.widget.externalController) {
+      this.controller = this.widget.externalController;
+      this.ownsController = false;
+    } else {
+      this.controller = new TextEditingController();
+      this.ownsController = true;
+    }
     this.controller.addListener(this._onTextChanged);
+  }
+
+  override didUpdateWidget(oldWidget: InputArea): void {
+    const oldCtrl = oldWidget.externalController;
+    const newCtrl = this.widget.externalController;
+
+    if (oldCtrl !== newCtrl) {
+      // Detach from old controller
+      this.controller.removeListener(this._onTextChanged);
+
+      // Dispose old internal controller if we owned it
+      if (this.ownsController) {
+        this.controller.dispose();
+      }
+
+      if (newCtrl) {
+        this.controller = newCtrl;
+        this.ownsController = false;
+      } else {
+        this.controller = new TextEditingController();
+        this.ownsController = true;
+      }
+
+      this.controller.addListener(this._onTextChanged);
+    }
   }
 
   override dispose(): void {
     this.controller.removeListener(this._onTextChanged);
+    if (this.ownsController) {
+      this.controller.dispose();
+    }
     super.dispose();
   }
 

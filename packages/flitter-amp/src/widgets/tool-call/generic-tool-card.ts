@@ -16,12 +16,16 @@ import { DiffView } from 'flitter-core/src/widgets/diff-view';
 import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
+import type { BaseToolProps } from './base-tool-props';
 import type { ToolCallItem } from '../../acp/types';
+import { extractOutputText, extractDiff } from './tool-output-utils';
+import {
+  INPUT_TRUNCATION_LIMIT,
+  OUTPUT_TRUNCATION_LIMIT,
+  truncateInline,
+} from './truncation-limits';
 
-interface GenericToolCardProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-  onToggle?: () => void;
+interface GenericToolCardProps extends BaseToolProps {
   hideHeader?: boolean;
   children?: Widget[];
 }
@@ -42,6 +46,7 @@ export class GenericToolCard extends StatelessWidget {
   private readonly isExpanded: boolean;
   private readonly hideHeader: boolean;
   private readonly extraChildren: Widget[];
+  private readonly onToggle?: () => void;
 
   constructor(props: GenericToolCardProps) {
     super({});
@@ -49,6 +54,7 @@ export class GenericToolCard extends StatelessWidget {
     this.isExpanded = props.isExpanded;
     this.hideHeader = props.hideHeader ?? false;
     this.extraChildren = props.children ?? [];
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
@@ -60,6 +66,7 @@ export class GenericToolCard extends StatelessWidget {
           name: this.toolCall.kind,
           status: this.toolCall.status,
           details,
+          onToggle: this.onToggle,
         });
 
     if (!this.isExpanded) {
@@ -86,7 +93,36 @@ export class GenericToolCard extends StatelessWidget {
       );
     }
 
-    const diff = this.extractDiff();
+    // --- Locations section ---
+    const locationsText = this.extractLocationsText();
+    if (locationsText) {
+      bodyChildren.push(
+        new Padding({
+          padding: EdgeInsets.only({ left: 2 }),
+          child: new Text({
+            text: new TextSpan({
+              children: [
+                new TextSpan({
+                  text: 'Files: ',
+                  style: new TextStyle({
+                    foreground: theme?.base.mutedForeground ?? Color.brightBlack,
+                    dim: true,
+                  }),
+                }),
+                new TextSpan({
+                  text: locationsText,
+                  style: new TextStyle({
+                    foreground: theme?.app.fileReference ?? Color.cyan,
+                  }),
+                }),
+              ],
+            }),
+          }),
+        }),
+      );
+    }
+
+    const diff = extractDiff(this.toolCall.result);
     if (diff) {
       bodyChildren.push(
         new Padding({
@@ -128,13 +164,46 @@ export class GenericToolCard extends StatelessWidget {
 
   /**
    * Extracts human-readable detail strings from the tool call (e.g. file path, command).
+   * Appends shortened location paths for collapsed-view context.
    */
   private extractDetails(): string[] {
     const details: string[] = [];
     if (this.toolCall.title) {
       details.push(this.toolCall.title);
     }
+
+    // Append location paths as header details
+    const locs = this.toolCall.locations;
+    if (locs && locs.length > 0) {
+      const displayPaths = locs.slice(0, 2).map(loc => this.shortenPath(loc.path));
+      details.push(...displayPaths);
+      if (locs.length > 2) {
+        details.push(`+${locs.length - 2} more`);
+      }
+    }
+
     return details;
+  }
+
+  /**
+   * Shortens a file path for header display by showing only the filename
+   * and immediate parent directory.
+   */
+  private shortenPath(fullPath: string): string {
+    const parts = fullPath.split('/').filter(p => p.length > 0);
+    if (parts.length <= 2) return fullPath;
+    return parts.slice(-2).join('/');
+  }
+
+  /**
+   * Formats the locations array into a compact file-reference display.
+   * Returns one path per line, or null if locations is empty/undefined.
+   */
+  private extractLocationsText(): string | null {
+    const locs = this.toolCall.locations;
+    if (!locs || locs.length === 0) return null;
+
+    return locs.map(loc => loc.path).join('\n');
   }
 
   /**
@@ -149,54 +218,28 @@ export class GenericToolCard extends StatelessWidget {
     for (const key of keys) {
       const val = this.toolCall.rawInput[key];
       if (typeof val === 'string') {
-        parts.push(`${key}: ${val.length > 120 ? val.slice(0, 120) + '…' : val}`);
+        parts.push(`${key}: ${truncateInline(val, INPUT_TRUNCATION_LIMIT)}`);
       } else if (val !== undefined && val !== null) {
         const s = JSON.stringify(val);
-        parts.push(`${key}: ${s.length > 120 ? s.slice(0, 120) + '…' : s}`);
+        parts.push(`${key}: ${truncateInline(s, INPUT_TRUNCATION_LIMIT)}`);
       }
     }
     return parts.join('\n');
   }
 
   /**
-   * Attempts to extract a unified diff string from the tool result.
-   */
-  private extractDiff(): string | null {
-    if (!this.toolCall.result) return null;
-
-    const raw = this.toolCall.result.rawOutput;
-    if (raw) {
-      const rawStr = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
-      if (rawStr.includes('@@') && (rawStr.includes('---') || rawStr.includes('+++'))) {
-        return rawStr;
-      }
-    }
-
-    if (this.toolCall.result.content) {
-      for (const c of this.toolCall.result.content) {
-        const text = c.content?.text;
-        if (text && text.includes('@@') && (text.includes('---') || text.includes('+++'))) {
-          return text;
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
    * Extracts plain text output from the tool result for display.
+   * Prefers streaming output during execution, falls back to final result.
    */
   private extractOutputText(): string {
-    if (!this.toolCall.result) return '';
-
-    if (this.toolCall.result.rawOutput) {
-      const s = JSON.stringify(this.toolCall.result.rawOutput, null, 2);
-      return s.length > 2000 ? s.slice(0, 2000) + '\n…(truncated)' : s;
+    // Prefer streaming output during execution
+    if (this.toolCall.isStreaming && this.toolCall.streamingOutput) {
+      const output = this.toolCall.streamingOutput;
+      return output.length > OUTPUT_TRUNCATION_LIMIT
+        ? '...(truncated)\n' + output.slice(-OUTPUT_TRUNCATION_LIMIT) + ' \u2588'
+        : output + ' \u2588';
     }
 
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
+    return extractOutputText(this.toolCall.result, { maxLength: OUTPUT_TRUNCATION_LIMIT });
   }
 }

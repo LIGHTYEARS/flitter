@@ -11,12 +11,12 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString, isRecord } from '../../utils/raw-input';
+import { extractOutputText, extractRawArray } from './tool-output-utils';
+import { OUTPUT_TRUNCATION_LIMIT, MAX_DISPLAY_ITEMS } from './truncation-limits';
 
-interface WebSearchToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface WebSearchToolProps extends BaseToolProps {}
 
 /**
  * Renders a WebSearch / read_web_page tool call.
@@ -25,23 +25,26 @@ interface WebSearchToolProps {
 export class WebSearchTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: WebSearchToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
 
-    const query = (input['query'] ?? input['url'] ?? '') as string;
+    const query = pickString(input, ['query', 'url', 'search_query', 'q', 'search']);
 
     const header = new ToolHeader({
       name: this.toolCall.kind,
       status: this.toolCall.status,
       details: query ? [query] : [],
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
@@ -58,7 +61,7 @@ export class WebSearchTool extends StatelessWidget {
             padding: EdgeInsets.only({ left: 2 }),
             child: new Text({
               text: new TextSpan({
-                text: `→ ${link}`,
+                text: `\u2192 ${link}`,
                 style: new TextStyle({
                   foreground: theme?.app.link ?? Color.cyan,
                 }),
@@ -68,14 +71,14 @@ export class WebSearchTool extends StatelessWidget {
         );
       }
     } else {
-      const output = this.extractOutput();
+      const output = extractOutputText(this.toolCall.result, { maxLength: OUTPUT_TRUNCATION_LIMIT });
       if (output) {
         bodyChildren.push(
           new Padding({
             padding: EdgeInsets.only({ left: 2, right: 2 }),
             child: new Text({
               text: new TextSpan({
-                text: output.length > 1000 ? output.slice(0, 1000) + '\n…(truncated)' : output,
+                text: output,
                 style: new TextStyle({
                   foreground: theme?.base.mutedForeground ?? Color.brightBlack,
                   dim: true,
@@ -99,31 +102,17 @@ export class WebSearchTool extends StatelessWidget {
   }
 
   /**
-   * Extracts URLs from the tool result.
+   * Extracts URLs from the tool result using shared extraction utilities.
    */
   private extractLinks(): string[] {
-    const raw = this.toolCall.result?.rawOutput;
-    if (!raw || typeof raw !== 'object') return [];
-
-    const results = (raw['results'] ?? raw['links'] ?? []) as Array<Record<string, unknown>>;
-    if (!Array.isArray(results)) return [];
-
-    return results
-      .map(r => (r['url'] ?? r['link'] ?? r['href'] ?? '') as string)
+    const candidates = extractRawArray<Record<string, unknown>>(
+      this.toolCall.result,
+      ['results', 'links'],
+    );
+    return candidates
+      .filter(isRecord)
+      .map(r => pickString(r, ['url', 'link', 'href']))
       .filter(Boolean)
-      .slice(0, 10);
-  }
-
-  /**
-   * Extracts text output from the result.
-   */
-  private extractOutput(): string {
-    if (!this.toolCall.result) return '';
-    if (this.toolCall.result.rawOutput) {
-      return JSON.stringify(this.toolCall.result.rawOutput, null, 2);
-    }
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
+      .slice(0, MAX_DISPLAY_ITEMS);
   }
 }

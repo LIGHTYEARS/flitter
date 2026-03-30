@@ -1,6 +1,6 @@
 // ACP type re-exports and custom extensions for flitter-amp
 
-// Re-export everything from the ACP SDK for convenience
+// Re-export ACP SDK types used by flitter-amp's connection and client layers.
 export type {
   InitializeRequest,
   InitializeResponse,
@@ -11,8 +11,6 @@ export type {
   CancelNotification,
   AuthenticateRequest,
   AuthenticateResponse,
-  LoadSessionRequest,
-  LoadSessionResponse,
   SessionNotification,
   RequestPermissionRequest,
   RequestPermissionResponse,
@@ -50,10 +48,18 @@ export interface ToolCallItem {
   rawInput?: Record<string, unknown>;
   result?: ToolCallResult;
   collapsed: boolean;
+
+  // Streaming output fields
+  /** Accumulated streaming output received while tool is in_progress */
+  streamingOutput?: string;
+  /** Whether streaming output is actively being received */
+  isStreaming?: boolean;
+  /** Associated terminal ID for client-side polling (Bash tools) */
+  terminalId?: string;
 }
 
 export interface ToolCallResult {
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'streaming';
   content?: Array<{ type: string; content?: { type: string; text: string } }>;
   rawOutput?: Record<string, unknown>;
 }
@@ -83,4 +89,35 @@ export interface UsageInfo {
   cost?: { amount: number; currency: string } | null;
 }
 
-export type ConversationItem = UserMessage | AssistantMessage | ToolCallItem | PlanItem | ThinkingItem;
+export interface SystemMessage {
+  type: 'system_message';
+  text: string;
+  timestamp: number;
+}
+
+export type ConversationItem = UserMessage | AssistantMessage | ToolCallItem | PlanItem | ThinkingItem | SystemMessage;
+
+// --- Session info update types (Gap #48) ---
+
+export interface SessionTools {
+  name: string;
+  description?: string;
+}
+
+export interface SessionMode {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface SessionInfoPayload {
+  sessionUpdate: 'session_info_update';
+  agentName?: string;
+  agentVersion?: string;
+  cwd?: string;
+  gitBranch?: string | null;
+  tools?: Array<{ name: string; description?: string }>;
+  modes?: Array<{ id: string; name: string; description?: string }>;
+  hintText?: string | null;
+  autocompleteTriggers?: Array<{ trigger: string; description?: string }>;
+}

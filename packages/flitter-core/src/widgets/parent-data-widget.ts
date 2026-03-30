@@ -3,15 +3,17 @@
 // Source: .reference/widgets-catalog.md, element-tree.md
 
 import { Key } from '../core/key';
-import { Widget } from '../framework/widget';
+import { ProxyWidget, Widget } from '../framework/widget';
 import { RenderObject } from '../framework/render-object';
 import {
   Element,
+  ProxyElement,
   RenderObjectElement,
 } from '../framework/element';
 
 // ---------------------------------------------------------------------------
 // ParentDataWidget (Amp: R_ extends Sf)
+// NOTE: In Amp, R_ extends Sf directly. We extend ProxyWidget for DRY.
 // ---------------------------------------------------------------------------
 
 /**
@@ -25,13 +27,11 @@ import {
  * properties like flex and fit on FlexParentData.
  *
  * Amp ref: class R_ extends Sf (Widget)
+ * NOTE: In Amp, R_ extends Sf directly. We extend ProxyWidget for DRY.
  */
-export abstract class ParentDataWidget extends Widget {
-  readonly child: Widget;
-
+export abstract class ParentDataWidget extends ProxyWidget {
   constructor(opts: { key?: Key; child: Widget }) {
-    super(opts.key !== undefined ? { key: opts.key } : undefined);
-    this.child = opts.child;
+    super(opts);
   }
 
   /**
@@ -48,6 +48,7 @@ export abstract class ParentDataWidget extends Widget {
 
 // ---------------------------------------------------------------------------
 // ParentDataElement (Amp: iU0 extends T$)
+// NOTE: In Amp, iU0 extends T$ directly. We extend ProxyElement for DRY.
 // ---------------------------------------------------------------------------
 
 /**
@@ -58,10 +59,9 @@ export abstract class ParentDataWidget extends Widget {
  * widget.applyParentData() on its renderObject.
  *
  * Amp ref: class iU0 extends T$ (Element)
+ * NOTE: In Amp, iU0 extends T$ directly. We extend ProxyElement for DRY.
  */
-export class ParentDataElement extends Element {
-  _child: Element | undefined = undefined;
-
+export class ParentDataElement extends ProxyElement {
   constructor(widget: ParentDataWidget) {
     super(widget);
   }
@@ -70,56 +70,30 @@ export class ParentDataElement extends Element {
     return this.widget as ParentDataWidget;
   }
 
-  override get renderObject(): RenderObject | undefined {
-    return this._child?.renderObject;
-  }
-
-  // Amp ref: iU0.mount()
-  mount(): void {
-    const childWidget = this.parentDataWidget.child;
-    this._child = childWidget.createElement();
-    this.addChild(this._child);
-    this._mountChild(this._child);
+  // Override mount to apply parent data after the child is mounted
+  override mount(): void {
+    super.mount();
     this._applyParentData();
-    this.markMounted();
-  }
-
-  // Amp ref: iU0.unmount()
-  override unmount(): void {
-    if (this._child) {
-      this._child.unmount();
-      this.removeChild(this._child);
-      this._child = undefined;
-    }
-    super.unmount();
   }
 
   // Amp ref: iU0.update(newWidget)
   override update(newWidget: Widget): void {
     if (this.widget === newWidget) return;
-    super.update(newWidget);
 
-    const w = this.parentDataWidget;
-    if (this._child) {
-      if (this._child.widget.canUpdate(w.child)) {
-        this._child.update(w.child);
-      } else {
-        const oldRenderObject = this._child.renderObject;
-        this._child.unmount();
-        this.removeChild(this._child);
-        this._child = w.child.createElement();
-        this.addChild(this._child);
-        this._mountChild(this._child);
-        const newRenderObject = this._child.renderObject;
-        if (oldRenderObject !== newRenderObject) {
-          this._replaceRenderObjectInAncestor(oldRenderObject, newRenderObject);
-        }
-      }
+    const oldRenderObject = this._child?.renderObject;
+
+    // Use the split pattern: swap widget, then update child
+    this._swapWidget(newWidget);
+    this._updateChild();
+
+    // If child was replaced and render objects differ, handle replacement
+    const newRenderObject = this._child?.renderObject;
+    if (oldRenderObject && newRenderObject && oldRenderObject !== newRenderObject) {
+      this._replaceRenderObjectInAncestor(oldRenderObject, newRenderObject);
     }
+
     this._applyParentData();
   }
-
-  override performRebuild(): void {}
 
   /**
    * Walk down child elements to find the first RenderObjectElement
@@ -127,7 +101,7 @@ export class ParentDataElement extends Element {
    *
    * Amp ref: iU0._applyParentData — walks child tree until RenderObjectElement found
    */
-  private _applyParentData(): void {
+  _applyParentData(): void {
     const renderObject = this._findChildRenderObject();
     if (renderObject) {
       this.parentDataWidget.applyParentData(renderObject);
@@ -151,8 +125,9 @@ export class ParentDataElement extends Element {
         current = children[0];
       } else {
         // Check for _child property on component elements
-        if ('_child' in current && (current as any)._child instanceof Element) {
-          current = (current as any)._child;
+        const elemWithChild = current as unknown as { _child?: Element };
+        if (elemWithChild._child instanceof Element) {
+          current = elemWithChild._child;
         } else {
           break;
         }
@@ -161,9 +136,17 @@ export class ParentDataElement extends Element {
     return undefined;
   }
 
-  private _mountChild(child: Element): void {
-    if ('mount' in child && typeof (child as any).mount === 'function') {
-      (child as any).mount();
-    }
+  /**
+   * Replace old render object with new one in the ancestor render object tree.
+   * This handles the case where the child's render object changes during update.
+   */
+  private _replaceRenderObjectInAncestor(
+    _oldRenderObject: RenderObject | undefined,
+    _newRenderObject: RenderObject | undefined,
+  ): void {
+    // This is a placeholder for render object replacement logic.
+    // The actual implementation would walk up to find the ancestor
+    // RenderObjectElement and swap the child render object.
+    // For now, the re-application of parent data handles the common case.
   }
 }

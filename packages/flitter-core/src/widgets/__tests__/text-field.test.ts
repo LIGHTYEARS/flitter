@@ -740,6 +740,61 @@ describe('TextField State - Multi-line Mode', () => {
     expect(result).toBe('ignored');
   });
 
+  // --- Gap 63: ArrowUp/ArrowDown boundary bubbling tests ---
+
+  test('ArrowUp returns ignored on first line of multi-line text (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('line1\nline2');
+    state.controller.cursorPosition = 3; // cursor on line 0
+    const result = state.handleKeyEvent(keyEvent('ArrowUp'));
+    expect(result).toBe('ignored');
+    // Cursor should not have moved
+    expect(state.controller.cursorPosition).toBe(3);
+  });
+
+  test('ArrowDown returns ignored on last line of multi-line text (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('line1\nline2');
+    // cursor is at end (pos 11), on line 1 (last line)
+    const result = state.handleKeyEvent(keyEvent('ArrowDown'));
+    expect(result).toBe('ignored');
+    expect(state.controller.cursorPosition).toBe(11);
+  });
+
+  test('ArrowUp returns ignored on single-line text in multi-line widget (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('no newlines here');
+    const result = state.handleKeyEvent(keyEvent('ArrowUp'));
+    expect(result).toBe('ignored');
+  });
+
+  test('ArrowDown returns ignored on single-line text in multi-line widget (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('no newlines here');
+    const result = state.handleKeyEvent(keyEvent('ArrowDown'));
+    expect(result).toBe('ignored');
+  });
+
+  test('ArrowUp returns handled when moving from line 1 to line 0 (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('line1\nline2\nline3');
+    state.controller.cursorPosition = 8; // middle of line2
+    const result = state.handleKeyEvent(keyEvent('ArrowUp'));
+    expect(result).toBe('handled');
+    // Cursor should have moved to line 0
+    expect(state.controller.cursorPosition).toBe(2);
+  });
+
+  test('ArrowDown returns handled when moving from line 0 to line 1 (Gap 63)', () => {
+    const state = createTextFieldState({ maxLines: 5 });
+    state.controller.insertText('line1\nline2\nline3');
+    state.controller.cursorPosition = 3; // middle of line1
+    const result = state.handleKeyEvent(keyEvent('ArrowDown'));
+    expect(result).toBe('handled');
+    // Cursor should have moved to line 1
+    expect(state.controller.cursorPosition).toBe(9);
+  });
+
   test('Home goes to line start in multi-line', () => {
     const state = createTextFieldState({ maxLines: 5 });
     state.controller.insertText('line1\nline2');

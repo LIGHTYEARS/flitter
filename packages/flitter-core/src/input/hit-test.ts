@@ -5,8 +5,71 @@
 // each node's bounds (offset + size). Builds a path from deepest hit to root.
 
 import { RenderObject, RenderBox, ContainerRenderBox } from '../framework/render-object';
+import { Offset } from '../core/types';
+
+// ---------------------------------------------------------------------------
+// BoxHitTestEntry / BoxHitTestResult (new, method-based hit-test protocol)
+// Amp ref: g.addWithPaintOffset() accumulator in j9.hitTest(g, t, b, s)
+// ---------------------------------------------------------------------------
 
 /**
+ * A single entry in a box hit-test result.
+ * Stores the render object that was hit and the test position
+ * in that object's local coordinate space.
+ *
+ * Amp ref: entries collected by g.addWithPaintOffset()
+ */
+export class BoxHitTestEntry {
+  constructor(
+    /** The render object that was hit. */
+    public readonly target: RenderObject,
+    /** The test position in this object's local coordinate space. */
+    public readonly localPosition: Offset,
+  ) {}
+}
+
+/**
+ * Accumulates hit-test entries during a tree walk.
+ * Passed down through hitTest() calls on RenderBox nodes.
+ *
+ * Amp ref: the `g` parameter in j9.hitTest(g, t, b, s)
+ */
+export class BoxHitTestResult {
+  private readonly _path: BoxHitTestEntry[] = [];
+
+  /** The hit-test path, in insertion order (parents before children per Amp). */
+  get path(): ReadonlyArray<BoxHitTestEntry> {
+    return this._path;
+  }
+
+  /**
+   * Add a render object to the hit-test result with its paint offset.
+   *
+   * Amp ref: g.addWithPaintOffset(this, { x: a, y: r }, t)
+   *
+   * @param target   The render object that was hit
+   * @param offset   The accumulated paint offset of the target (screen-space top-left)
+   * @param position The original test position in screen coordinates
+   */
+  addWithPaintOffset(
+    target: RenderObject,
+    offset: Offset,
+    position: Offset,
+  ): void {
+    const localPosition = new Offset(
+      position.col - offset.col,
+      position.row - offset.row,
+    );
+    this._path.push(new BoxHitTestEntry(target, localPosition));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy hit-test types (deprecated -- use BoxHitTestResult / BoxHitTestEntry)
+// ---------------------------------------------------------------------------
+
+/**
+ * @deprecated Use BoxHitTestEntry instead.
  * A single entry in a hit test result path.
  * Contains the render object and the point in that object's local coordinate space.
  */
@@ -17,6 +80,7 @@ export interface HitTestEntry {
 }
 
 /**
+ * @deprecated Use BoxHitTestResult instead.
  * Result of a hit test at a screen position.
  * `path` is ordered from deepest (most specific) to shallowest (root).
  */
@@ -25,6 +89,8 @@ export interface HitTestResult {
 }
 
 /**
+ * @deprecated Use RenderBox.hitTest() method instead.
+ *
  * Perform hit-test at a screen position against the render tree.
  *
  * Walks the tree from root, accumulating offsets to convert screen coordinates
@@ -107,6 +173,8 @@ function _hitTestNode(
 }
 
 /**
+ * @deprecated Use RenderBox.hitTestSelf() method instead.
+ *
  * Check if a point is within a RenderBox's bounds.
  * The point must be in the render object's local coordinate space.
  *

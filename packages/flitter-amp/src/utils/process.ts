@@ -60,10 +60,20 @@ export function parseCommand(commandStr: string): { command: string; args: strin
 }
 
 /**
+ * Minimal interface for Bun's FileSink (returned by Bun.spawn with stdin: 'pipe').
+ * Extracted as a named interface to avoid the `as any` cast when passing proc.stdin.
+ */
+interface BunFileSink {
+  write(data: string | ArrayBufferView | ArrayBuffer | SharedArrayBuffer): number;
+  flush(): void;
+  end(error?: Error): void;
+}
+
+/**
  * Wrap a Bun FileSink into a standard WritableStream<Uint8Array>.
  * ndJsonStream expects a WritableStream, but Bun.spawn stdin returns a FileSink.
  */
-function fileSinkToWritableStream(sink: ReturnType<typeof Bun.spawn>['stdin'] & { write: Function; flush: Function; end: Function }): WritableStream<Uint8Array> {
+function fileSinkToWritableStream(sink: BunFileSink): WritableStream<Uint8Array> {
   return new WritableStream<Uint8Array>({
     write(chunk) {
       sink.write(chunk);
@@ -117,7 +127,9 @@ export function spawnAgent(command: string, args: string[], cwd: string): AgentP
     })();
   }
 
-  const stdinStream = fileSinkToWritableStream(proc.stdin as any);
+  // proc.stdin is a Bun FileSink when spawned with stdin: 'pipe'.
+  // The BunFileSink interface matches its shape without requiring a cast.
+  const stdinStream = fileSinkToWritableStream(proc.stdin as BunFileSink);
 
   return {
     stdin: stdinStream,

@@ -2,7 +2,7 @@
 // Amp ref: Used in Widget.canUpdate() for element reconciliation (widget-tree.md)
 
 let _nextUniqueId = 0;
-let _nextGlobalId = 0;
+// _nextGlobalId removed — GlobalKey uses static _counter instead
 
 /**
  * Abstract base class for widget keys.
@@ -57,23 +57,138 @@ export class UniqueKey extends Key {
 }
 
 /**
- * GlobalKey placeholder for Phase 3.
- * Will eventually provide access to currentState/currentContext.
- * For now, behaves like UniqueKey with its own ID sequence.
+ * A key that is unique across the entire widget tree and provides
+ * cross-tree access to the associated Element, Widget, and State.
+ *
+ * Amp ref: class Zs extends aJ
+ * Source: .reference/element-tree.md lines 149-196
+ *        .reference/widget-tree.md lines 98-141
+ *
+ * Lifecycle:
+ *   - _setElement(element) called during Element.markMounted()
+ *   - _clearElement() called during Element.unmount()
+ *
+ * Each GlobalKey can only be associated with one element at a time.
+ * Attempting to mount two widgets with the same GlobalKey throws an error.
  */
 export class GlobalKey extends Key {
-  readonly _id: number;
+  // Amp ref: Zs._registry = new Map()
+  // Static registry: id -> GlobalKey instance (for cross-tree lookup)
+  static _registry: Map<string, GlobalKey> = new Map();
+  static _counter: number = 0;
 
-  constructor() {
+  readonly _id: string;
+  _currentElement: any | undefined = undefined; // Element | undefined
+
+  constructor(debugLabel?: string) {
     super();
-    this._id = _nextGlobalId++;
+    if (debugLabel) {
+      this._id = `${debugLabel}_${GlobalKey._counter++}`;
+    } else {
+      this._id = `GlobalKey_${GlobalKey._counter++}`;
+    }
+    // Amp ref: Zs._registry.set(this._id, this)
+    GlobalKey._registry.set(this._id, this);
   }
 
+  // Amp ref: Zs.equals(g)
   equals(other: Key): boolean {
-    return this === other;
+    if (!(other instanceof GlobalKey)) return false;
+    return this._id === other._id;
+  }
+
+  /**
+   * The Element currently associated with this GlobalKey, or undefined
+   * if this key is not currently in the tree.
+   *
+   * Amp ref: Zs.currentElement getter
+   */
+  get currentElement(): any | undefined {
+    return this._currentElement;
+  }
+
+  /**
+   * The Widget of the currently associated Element, or undefined.
+   *
+   * Amp ref: Zs.currentWidget getter -- this._currentElement?.widget
+   */
+  get currentWidget(): any | undefined {
+    return this._currentElement?.widget;
+  }
+
+  /**
+   * The State of the currently associated Element, if it is a StatefulElement.
+   * Returns undefined if the element is not a StatefulElement or if no element
+   * is currently associated.
+   *
+   * Note: Amp does not have a dedicated currentState getter on GlobalKey.
+   * This is a convenience accessor matching Flutter's API, implemented
+   * via the same mechanism (currentElement.state).
+   */
+  get currentState(): any | undefined {
+    const element = this._currentElement;
+    if (element && 'state' in element) {
+      return (element as any).state;
+    }
+    return undefined;
+  }
+
+  /**
+   * The BuildContext of the currently associated Element.
+   * Returns undefined if no element is currently associated.
+   *
+   * Note: In Amp, context is available via the element's _context field.
+   * This provides the same access pattern as Flutter's GlobalKey.currentContext.
+   */
+  get currentContext(): any | undefined {
+    const element = this._currentElement;
+    if (element && '_context' in element) {
+      return (element as any)._context;
+    }
+    return undefined;
+  }
+
+  /**
+   * Called during Element.markMounted() to associate this key with an element.
+   * Asserts that the key is not already associated with a different active element.
+   *
+   * Amp ref: Zs._setElement(g)
+   * Extension: During GlobalKey reparenting, the same element may be re-set
+   * after reactivation. We allow this case.
+   * Amp ref deviation: See .gap/02-deactivate-lifecycle.md
+   */
+  _setElement(element: any): void {
+    if (this._currentElement !== undefined && this._currentElement !== element) {
+      throw new Error(
+        `GlobalKey ${this._id} is already associated with an element. ` +
+        `Each GlobalKey can only be used once in the widget tree.`
+      );
+    }
+    this._currentElement = element;
+  }
+
+  /**
+   * Called during Element.unmount() to disassociate this key from its element.
+   *
+   * Amp ref: Zs._clearElement()
+   */
+  _clearElement(): void {
+    this._currentElement = undefined;
+    // Amp ref: Zs._registry.delete(this._id)
+    GlobalKey._registry.delete(this._id);
   }
 
   toString(): string {
-    return `GlobalKey(#${this._id})`;
+    return `GlobalKey(${this._id})`;
+  }
+
+  /**
+   * Clear the static registry. Used for testing and app teardown.
+   *
+   * Amp ref: Zs._clearRegistry()
+   */
+  static _clearRegistry(): void {
+    GlobalKey._registry.clear();
+    GlobalKey._counter = 0;
   }
 }

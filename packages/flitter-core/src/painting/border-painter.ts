@@ -40,7 +40,7 @@ export interface BoxDrawingChars {
   readonly cross: string;    // ┼ (4-way intersection)
 }
 
-export type BoxDrawingStyle = 'rounded' | 'solid';
+export type BoxDrawingStyle = 'rounded' | 'solid' | 'dashed' | 'double';
 
 export const BOX_DRAWING: Record<BoxDrawingStyle, BoxDrawingChars> = {
   rounded: {
@@ -54,6 +54,18 @@ export const BOX_DRAWING: Record<BoxDrawingStyle, BoxDrawingChars> = {
     h: '\u2500', v: '\u2502',
     teeDown: '\u252C', teeUp: '\u2534', teeRight: '\u251C', teeLeft: '\u2524',
     cross: '\u253C',
+  },
+  dashed: {
+    tl: '\u250C', tr: '\u2510', bl: '\u2514', br: '\u2518',
+    h: '\u2504', v: '\u2506',
+    teeDown: '\u252C', teeUp: '\u2534', teeRight: '\u251C', teeLeft: '\u2524',
+    cross: '\u253C',
+  },
+  double: {
+    tl: '\u2554', tr: '\u2557', bl: '\u255A', br: '\u255D',
+    h: '\u2550', v: '\u2551',
+    teeDown: '\u2566', teeUp: '\u2569', teeRight: '\u2560', teeLeft: '\u2563',
+    cross: '\u256C',
   },
 };
 

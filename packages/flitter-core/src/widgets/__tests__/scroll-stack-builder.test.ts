@@ -12,7 +12,6 @@ import {
   Stack,
   Positioned,
   RenderStack,
-  RenderPositioned,
   StackParentData,
 } from '../stack';
 import { Builder } from '../builder';
@@ -20,6 +19,7 @@ import { BoxConstraints } from '../../core/box-constraints';
 import { Offset, Size } from '../../core/types';
 import { Widget, StatelessWidget, type BuildContext } from '../../framework/widget';
 import { RenderBox, type PaintContext } from '../../framework/render-object';
+import { ParentDataWidget, ParentDataElement } from '../parent-data-widget';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -500,48 +500,156 @@ describe('RenderStack', () => {
 });
 
 // ============================================================================
-// Positioned and RenderPositioned tests
+// Positioned (as ParentDataWidget) tests
 // ============================================================================
 
 describe('Positioned', () => {
-  test('creates RenderPositioned with position data', () => {
+  test('is an instance of ParentDataWidget', () => {
     const positioned = new Positioned({
       child: new TestWidget('test'),
-      left: 10,
-      top: 20,
-      right: 5,
-      bottom: 15,
-      width: 100,
-      height: 50,
+      left: 5,
+      top: 10,
     });
-
-    const ro = positioned.createRenderObject() as RenderPositioned;
-    expect(ro).toBeInstanceOf(RenderPositioned);
-    expect(ro.left).toBe(10);
-    expect(ro.top).toBe(20);
-    expect(ro.right).toBe(5);
-    expect(ro.bottom).toBe(15);
-    expect(ro.widthValue).toBe(100);
-    expect(ro.heightValue).toBe(50);
-    expect(ro.isPositioned()).toBe(true);
+    expect(positioned).toBeInstanceOf(ParentDataWidget);
   });
 
-  test('RenderPositioned without any position data is not positioned', () => {
-    const ro = new RenderPositioned({});
-    expect(ro.isPositioned()).toBe(false);
+  test('createElement returns ParentDataElement', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 5,
+    });
+    const elem = positioned.createElement();
+    expect(elem).toBeInstanceOf(ParentDataElement);
+  });
+
+  test('stores positioning properties', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 1,
+      top: 2,
+      right: 3,
+      bottom: 4,
+      width: 5,
+      height: 6,
+    });
+    expect(positioned.left).toBe(1);
+    expect(positioned.top).toBe(2);
+    expect(positioned.right).toBe(3);
+    expect(positioned.bottom).toBe(4);
+    expect(positioned.width).toBe(5);
+    expect(positioned.height).toBe(6);
+  });
+
+  test('properties default to undefined', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+    });
+    expect(positioned.left).toBeUndefined();
+    expect(positioned.top).toBeUndefined();
+    expect(positioned.right).toBeUndefined();
+    expect(positioned.bottom).toBeUndefined();
+    expect(positioned.width).toBeUndefined();
+    expect(positioned.height).toBeUndefined();
   });
 });
+
+// ============================================================================
+// Positioned.applyParentData tests
+// ============================================================================
+
+describe('Positioned.applyParentData', () => {
+  test('sets all six fields on StackParentData', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 1, top: 2, right: 3, bottom: 4, width: 5, height: 6,
+    });
+
+    const renderObj = new TestRenderBox(new Size(10, 10));
+    renderObj.parentData = new StackParentData();
+
+    positioned.applyParentData(renderObj);
+
+    const pd = renderObj.parentData as StackParentData;
+    expect(pd.left).toBe(1);
+    expect(pd.top).toBe(2);
+    expect(pd.right).toBe(3);
+    expect(pd.bottom).toBe(4);
+    expect(pd.width).toBe(5);
+    expect(pd.height).toBe(6);
+  });
+
+  test('marks parent as needing layout when values change', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 5,
+    });
+
+    const renderObj = new TestRenderBox(new Size(10, 10));
+    const parentObj = new RenderStack();
+    // Insert triggers setupParentData which creates StackParentData
+    parentObj.insert(renderObj);
+
+    let layoutRequested = false;
+    const origMark = parentObj.markNeedsLayout.bind(parentObj);
+    parentObj.markNeedsLayout = () => { layoutRequested = true; origMark(); };
+
+    positioned.applyParentData(renderObj);
+    expect(layoutRequested).toBe(true);
+  });
+
+  test('does not mark layout if values unchanged', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 5,
+    });
+
+    const renderObj = new TestRenderBox(new Size(10, 10));
+    renderObj.parentData = new StackParentData();
+    (renderObj.parentData as StackParentData).left = 5; // already set
+
+    const parentObj = new RenderStack();
+    // We need the parent relationship but don't want setupParentData to overwrite
+    // So first insert, then manually restore the parentData
+    parentObj.insert(renderObj);
+    (renderObj.parentData as StackParentData).left = 5;
+
+    let layoutRequested = false;
+    const origMark = parentObj.markNeedsLayout.bind(parentObj);
+    parentObj.markNeedsLayout = () => { layoutRequested = true; origMark(); };
+
+    positioned.applyParentData(renderObj);
+    expect(layoutRequested).toBe(false);
+  });
+
+  test('does not crash on non-StackParentData', () => {
+    const positioned = new Positioned({
+      child: new TestWidget('test'),
+      left: 5,
+    });
+
+    const renderObj = new TestRenderBox(new Size(10, 10));
+    // parentData is default, not StackParentData
+    expect(() => positioned.applyParentData(renderObj)).not.toThrow();
+  });
+});
+
+// ============================================================================
+// RenderStack with positioned children (via StackParentData)
+// ============================================================================
 
 describe('RenderStack with positioned children', () => {
   test('positioned child with left+top gets correct offset', () => {
     const stack = new RenderStack({ fit: 'loose' });
     const nonPosChild = new TestRenderBox(new Size(40, 30));
-    const posChild = new RenderPositioned({ left: 5, top: 10 });
-    const innerChild = new TestRenderBox(new Size(10, 10));
-    posChild.child = innerChild;
+    const posChild = new TestRenderBox(new Size(10, 10));
 
     stack.insert(nonPosChild);
     stack.insert(posChild);
+
+    // Manually set StackParentData (simulating what ParentDataElement does)
+    const pd = posChild.parentData as StackParentData;
+    pd.left = 5;
+    pd.top = 10;
 
     stack.layout(new BoxConstraints({
       minWidth: 0,
@@ -557,12 +665,14 @@ describe('RenderStack with positioned children', () => {
   test('positioned child with right+bottom gets correct offset', () => {
     const stack = new RenderStack({ fit: 'loose' });
     const nonPosChild = new TestRenderBox(new Size(40, 30));
-    const posChild = new RenderPositioned({ right: 5, bottom: 10 });
-    const innerChild = new TestRenderBox(new Size(10, 8));
-    posChild.child = innerChild;
+    const posChild = new TestRenderBox(new Size(10, 8));
 
     stack.insert(nonPosChild);
     stack.insert(posChild);
+
+    const pd = posChild.parentData as StackParentData;
+    pd.right = 5;
+    pd.bottom = 10;
 
     stack.layout(new BoxConstraints({
       minWidth: 0,
@@ -581,12 +691,14 @@ describe('RenderStack with positioned children', () => {
   test('positioned child with left+right gets determined width', () => {
     const stack = new RenderStack({ fit: 'loose' });
     const nonPosChild = new TestRenderBox(new Size(40, 30));
-    const posChild = new RenderPositioned({ left: 5, right: 10 });
-    const innerChild = new TestRenderBox(new Size(100, 10)); // will be constrained
-    posChild.child = innerChild;
+    const posChild = new TestRenderBox(new Size(100, 10)); // will be constrained
 
     stack.insert(nonPosChild);
     stack.insert(posChild);
+
+    const pd = posChild.parentData as StackParentData;
+    pd.left = 5;
+    pd.right = 10;
 
     stack.layout(new BoxConstraints({
       minWidth: 0,
@@ -603,12 +715,14 @@ describe('RenderStack with positioned children', () => {
   test('positioned child with explicit width gets tight width', () => {
     const stack = new RenderStack({ fit: 'loose' });
     const nonPosChild = new TestRenderBox(new Size(40, 30));
-    const posChild = new RenderPositioned({ left: 5, width: 15 });
-    const innerChild = new TestRenderBox(new Size(100, 10));
-    posChild.child = innerChild;
+    const posChild = new TestRenderBox(new Size(100, 10));
 
     stack.insert(nonPosChild);
     stack.insert(posChild);
+
+    const pd = posChild.parentData as StackParentData;
+    pd.left = 5;
+    pd.width = 15;
 
     stack.layout(new BoxConstraints({
       minWidth: 0,
@@ -619,6 +733,17 @@ describe('RenderStack with positioned children', () => {
 
     expect(posChild.size.width).toBe(15);
     expect(posChild.offset.col).toBe(5);
+  });
+});
+
+// ============================================================================
+// RenderPositioned removal regression test
+// ============================================================================
+
+describe('RenderPositioned removal', () => {
+  test('RenderPositioned is not exported from stack module', () => {
+    const stackModule = require('../stack');
+    expect(stackModule.RenderPositioned).toBeUndefined();
   });
 });
 

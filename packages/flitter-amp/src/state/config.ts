@@ -10,6 +10,8 @@ interface UserConfig {
   cwd?: string;
   expandToolCalls?: boolean;
   historySize?: number;
+  historyFile?: string;
+  sessionRetentionDays?: number;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -28,6 +30,16 @@ export interface AppConfig {
   editor: string;
   /** Maximum prompt history size */
   historySize: number;
+  /** Path to the prompt history file */
+  historyFile: string;
+  /** Days to keep session files (0 = keep forever) */
+  sessionRetentionDays: number;
+  /** Session ID to resume (null = fresh, 'latest' = most recent, or UUID) */
+  resumeSessionId: string | null;
+  /** --list-sessions: print and exit */
+  listSessions: boolean;
+  /** --export <fmt>: export and exit */
+  exportFormat: 'json' | 'md' | 'txt' | null;
 }
 
 const DEFAULT_AGENT = 'claude';
@@ -63,6 +75,9 @@ export function parseArgs(argv: string[]): AppConfig {
   let cwd = process.cwd();
   let expandToolCalls = false;
   let logLevel: AppConfig['logLevel'] = 'info';
+  let resumeSessionId: string | null = null;
+  let listSessions = false;
+  let exportFormat: AppConfig['exportFormat'] = null;
 
   // Apply config file defaults (CLI flags override these below)
   if (userConfig.agent) {
@@ -103,6 +118,28 @@ export function parseArgs(argv: string[]): AppConfig {
       case '--debug':
         logLevel = 'debug';
         break;
+      case '--resume': {
+        const next = args[i + 1];
+        if (next && !next.startsWith('--')) {
+          resumeSessionId = next;
+          i++;
+        } else {
+          resumeSessionId = 'latest';
+        }
+        break;
+      }
+      case '--list-sessions':
+        listSessions = true;
+        break;
+      case '--export': {
+        const fmt = args[++i] as AppConfig['exportFormat'];
+        if (!fmt || !['json', 'md', 'txt'].includes(fmt)) {
+          process.stderr.write('Error: --export requires format: json, md, or txt\n');
+          process.exit(1);
+        }
+        exportFormat = fmt;
+        break;
+      }
       case '--help':
       case '-h':
         printHelp();
@@ -119,10 +156,19 @@ export function parseArgs(argv: string[]): AppConfig {
     }
   }
 
+  const defaultHistoryFile = join(homedir(), '.flitter', 'prompt_history');
+
   return {
     agentCommand, agentArgs, cwd, expandToolCalls, logLevel,
     editor: userConfig.editor || process.env.EDITOR || process.env.VISUAL || 'vi',
     historySize: userConfig.historySize ?? 100,
+    historyFile: userConfig.historyFile
+      ? resolve(userConfig.historyFile)
+      : defaultHistoryFile,
+    sessionRetentionDays: userConfig.sessionRetentionDays ?? 30,
+    resumeSessionId,
+    listSessions,
+    exportFormat,
   };
 }
 
@@ -137,6 +183,9 @@ Options:
   --cwd <dir>      Working directory (default: current directory)
   --expand         Expand tool call details by default
   --debug          Enable debug logging
+  --resume [id]    Resume the most recent session (or specific session by ID)
+  --list-sessions  Print recent sessions and exit
+  --export <fmt>   Export last session to file (json, md, or txt) and exit
   --help, -h       Show this help message
 
 Examples:
@@ -144,5 +193,7 @@ Examples:
   flitter-amp --agent "gemini --experimental-acp"  # Use Gemini CLI
   flitter-amp --agent "codex --agent"              # Use Codex CLI
   flitter-amp --cwd /path/to/project               # Set working directory
+  flitter-amp --resume                             # Resume most recent session
+  flitter-amp --resume abc123                      # Resume specific session
 `);
 }

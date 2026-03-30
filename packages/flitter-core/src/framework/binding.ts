@@ -20,6 +20,7 @@ import { BuildOwner } from './build-owner';
 import { PipelineOwner } from './pipeline-owner';
 import { Widget, StatelessWidget, type BuildContext } from './widget';
 import { Element, StatelessElement } from './element';
+import { RenderObject } from './render-object';
 import { BoxConstraints } from '../core/box-constraints';
 import { Size } from '../core/types';
 import { ScreenBuffer } from '../terminal/screen-buffer';
@@ -34,7 +35,7 @@ import { PerformanceOverlay } from '../diagnostics/perf-overlay';
 import { FrameStats } from '../diagnostics/frame-stats';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
 import { TerminalManager } from '../terminal/terminal-manager';
-import { MockPlatform, BunPlatform } from '../terminal/platform';
+import { MockPlatform, BunPlatform, type PlatformAdapter } from '../terminal/platform';
 import { MediaQuery, MediaQueryData } from '../widgets/media-query';
 
 // ---------------------------------------------------------------------------
@@ -51,9 +52,9 @@ interface BuildScheduler {
 
 /** Paint scheduler interface -- wraps PipelineOwner methods */
 interface PaintScheduler {
-  requestLayout(node?: any): void;
-  requestPaint(node?: any): void;
-  removeFromQueues(node?: any): void;
+  requestLayout(node?: RenderObject): void;
+  requestPaint(node?: RenderObject): void;
+  removeFromQueues(node?: RenderObject): void;
 }
 
 let _buildScheduler: BuildScheduler | null = null;
@@ -108,6 +109,23 @@ export function getPaintScheduler(): PaintScheduler {
 export function resetSchedulers(): void {
   _buildScheduler = null;
   _paintScheduler = null;
+  _buildOwner = null;
+}
+
+// ---------------------------------------------------------------------------
+// Global BuildOwner accessor
+// Used by Element.deactivateChild() to register inactive elements.
+// NOTE: Not present in Amp binary. Extension for GlobalKey reparenting.
+// Amp ref deviation: See .gap/02-deactivate-lifecycle.md
+// ---------------------------------------------------------------------------
+
+let _buildOwner: BuildOwner | null = null;
+
+/**
+ * Get the BuildOwner. Used by Element subclasses for inactive element tracking.
+ */
+export function getBuildOwner(): BuildOwner | null {
+  return _buildOwner;
 }
 
 /**
@@ -260,11 +278,15 @@ export class WidgetsBinding {
       },
       {
         requestLayout: () => this.pipelineOwner.requestLayout(),
-        requestPaint: (node?: any) => this.pipelineOwner.requestPaint(node),
-        removeFromQueues: (node?: any) =>
+        requestPaint: (node?: RenderObject) => this.pipelineOwner.requestPaint(node),
+        removeFromQueues: (node?: RenderObject) =>
           this.pipelineOwner.removeFromQueues(node),
       },
     );
+
+    // Set global BuildOwner reference for Element.deactivateChild() access
+    // Amp ref deviation: See .gap/02-deactivate-lifecycle.md
+    _buildOwner = this.buildOwner;
 
     // Register 6 named frame callbacks with FrameScheduler (Amp ref: J3 constructor)
     // No try/catch, no dynamic require -- static import used.
@@ -286,6 +308,7 @@ export class WidgetsBinding {
       'build',
       () => {
         this.buildOwner.buildScopes();
+        this.buildOwner.finalizeTree(); // Permanently unmount deactivated elements
         this.updateRootRenderObject();
       },
       'build',
@@ -450,12 +473,8 @@ export class WidgetsBinding {
     this._rootElement = rootWidget.createElement();
 
     // Mount the root element (this builds the tree)
-    if (
-      this._rootElement &&
-      'mount' in this._rootElement &&
-      typeof (this._rootElement as any).mount === 'function'
-    ) {
-      (this._rootElement as any).mount();
+    if (this._rootElement) {
+      this._rootElement.mount();
     }
 
     // Set initial constraints based on terminal size
@@ -479,6 +498,50 @@ export class WidgetsBinding {
   }
 
   /**
+   * Hot reload entry point. Replaces the root widget and walks the
+   * entire element tree, calling reassemble() on every element.
+   *
+   * This preserves all State objects while ensuring every element
+   * re-evaluates its build() method with potentially new code.
+   *
+   * The newWidget should be the same widget you would pass to
+   * attachRootWidget() -- i.e., already wrapped in MediaQuery if
+   * the app was started via runApp(). The HotReloadWatcher or
+   * caller is responsible for matching the wrapping.
+   *
+   * Flow:
+   *   1. Create new _RootWidget wrapping the new user widget
+   *   2. Call rootElement.update(newRootWidget) to swap widget refs
+   *   3. Call rootElement.reassemble() to recursively mark dirty
+   *   4. Schedule a frame to process the rebuild
+   *
+   * The reconciliation algorithm in Element.update() / updateChildren()
+   * will match existing elements by constructor + key, preserving State
+   * objects for StatefulWidgets that haven't changed their type/key.
+   */
+  reassemble(newWidget: Widget): void {
+    if (!this._rootElement || !this._isRunning) {
+      throw new Error('Cannot reassemble: app is not running');
+    }
+
+    // Wrap in _RootWidget (matches what attachRootWidget does)
+    const newRootWidget = new _RootWidget({ child: newWidget });
+
+    // Update the root element with the new widget tree.
+    // Because the constructor (_RootWidget) and key (undefined) match,
+    // canUpdate() returns true and the element is reused, not replaced.
+    this._rootElement.update(newRootWidget);
+
+    // Walk the entire element tree calling reassemble()
+    // This marks every element dirty, ensuring all build() methods
+    // re-execute with potentially new code.
+    this._rootElement.reassemble();
+
+    // Force a full repaint since code changes may affect layout/paint
+    this.requestForcedPaintFrame();
+  }
+
+  /**
    * Walk from rootElement to find the first render object and set it
    * on the pipelineOwner.
    * Amp ref: J3 updateRootRenderObject
@@ -488,7 +551,7 @@ export class WidgetsBinding {
 
     const renderObject = this._findRootRenderObject(this._rootElement);
     if (renderObject) {
-      this.pipelineOwner.setRootRenderObject(renderObject as any);
+      this.pipelineOwner.setRootRenderObject(renderObject);
     }
   }
 
@@ -503,7 +566,7 @@ export class WidgetsBinding {
   /**
    * DFS walk to find the first render object in the element tree.
    */
-  private _findRootRenderObject(element: Element): any {
+  private _findRootRenderObject(element: Element): RenderObject | null {
     // Check if this element has a direct render object
     if (element.renderObject) {
       return element.renderObject;
@@ -688,6 +751,7 @@ export class WidgetsBinding {
 
     // BUILD phase
     this.buildOwner.buildScopes();
+    this.buildOwner.finalizeTree(); // Permanently unmount deactivated elements
     this.updateRootRenderObject();
 
     // LAYOUT phase
@@ -739,6 +803,56 @@ export class WidgetsBinding {
     }
     this.buildOwner.dispose();
     this.pipelineOwner.dispose();
+  }
+
+  /**
+   * Suspend the TUI: pause frame scheduling, tear down terminal modes,
+   * and pause input parsing. Used before spawning an external process
+   * that needs direct terminal access (e.g., $EDITOR).
+   *
+   * Amp ref: J3 suspend pattern -- suspends tui, pauses scheduler
+   */
+  suspend(): void {
+    if (!this._isRunning || this._tui.isSuspended) return;
+
+    // 1. Pause the frame scheduler to prevent any frames from firing
+    //    while the terminal is handed off to the child process.
+    this.frameScheduler.pause();
+
+    // 2. Suspend the terminal: exit alt screen, disable raw mode, etc.
+    //    TerminalManager.suspend() handles the escape sequence teardown.
+    this._tui.suspend();
+
+    // 3. Pause the input parser so stdin bytes go to the child process,
+    //    not to our InputParser -> EventDispatcher pipeline.
+    if (this._inputParser) {
+      this._inputParser.pause();
+    }
+  }
+
+  /**
+   * Resume the TUI after an external process exits. Re-enters alt screen,
+   * enables raw mode, reattaches input, resumes frame scheduling, and
+   * forces a full repaint.
+   *
+   * Amp ref: J3 resume pattern -- resumes tui, restarts scheduler
+   */
+  resume(): void {
+    if (!this._isRunning || !this._tui.isSuspended) return;
+
+    // 1. Resume the terminal: raw mode, alt screen, mouse, etc.
+    this._tui.resume();
+
+    // 2. Resume input parsing.
+    if (this._inputParser) {
+      this._inputParser.resume();
+    }
+
+    // 3. Force a complete repaint since the screen was clobbered by the editor.
+    this.requestForcedPaintFrame();
+
+    // 4. Resume the frame scheduler so frames start flowing again.
+    this.frameScheduler.resume();
   }
 
   /**
@@ -819,7 +933,7 @@ export class WidgetsBinding {
     // which InputParser emits as key='c', ctrlKey=true.
     // Apps can handle Ctrl+C themselves (and return 'handled' to suppress this).
     // Amp ref: J3.setupEventHandlers registers Ctrl+C interceptor
-    dispatcher.addKeyInterceptor((event: any) => {
+    dispatcher.addKeyInterceptor((event: KeyEvent) => {
       if (event.key === 'c' && event.ctrlKey) {
         process.exit(0);
       }
@@ -840,6 +954,29 @@ export class WidgetsBinding {
     }
   }
 
+  // --- createMediaQueryWrapper (Amp ref: J3.createMediaQueryWrapper -- widget-tree.md:1277-1282) ---
+
+  /**
+   * Create the MediaQuery wrapper widget with real terminal size and capabilities.
+   *
+   * Amp ref: J3.createMediaQueryWrapper(g) -- widget-tree.md:1277-1282
+   *   let t = this.tui.getCapabilities() || xF();
+   *   let b = this.tui.getSize();
+   *   let s = new nA(b, t);
+   *   return new Q3({ data: s, child: g });
+   */
+  private createMediaQueryWrapper(widget: Widget, cols?: number, rows?: number): MediaQuery {
+    const caps = this._tui.capabilities;
+    const size = (cols !== undefined && rows !== undefined)
+      ? { width: cols, height: rows }
+      : this._tui.getSize();
+
+    return new MediaQuery({
+      data: MediaQueryData.fromTerminal(size.width, size.height, caps),
+      child: widget,
+    });
+  }
+
   // --- runApp instance method (Amp ref: J3.runApp -- widget-tree.md:1189-1236) ---
 
   /**
@@ -848,6 +985,10 @@ export class WidgetsBinding {
    * Amp ref: J3.runApp(g) -- widget-tree.md:1189-1236
    * Handles terminal init, MediaQuery wrapping, input wiring, and first frame scheduling.
    * In test mode, skips terminal init and uses 80x24 defaults.
+   *
+   * Gap R10: Restructured to initialize TerminalManager BEFORE creating MediaQuery,
+   * so that real detected capabilities are available. Amp ref: J3.runApp() calls
+   * this.tui.init() first, then waitForCapabilities, THEN createMediaQueryWrapper.
    */
   async runApp(widget: Widget, options?: RunAppOptions): Promise<void> {
     const inTest = isTestEnvironment();
@@ -887,19 +1028,9 @@ export class WidgetsBinding {
 
     this._renderViewSize = new Size(cols, rows);
 
-    // Wrap the user's widget in MediaQuery so all descendants can access screen size
-    // Amp ref: J3.createMediaQueryWrapper(g)
-    const wrappedWidget = new MediaQuery({
-      data: MediaQueryData.fromTerminal(cols, rows),
-      child: widget,
-    });
-
-    this.attachRootWidget(wrappedWidget);
-
-    // --- Terminal initialization (production only) ---
-    // Replace tui with real BunPlatform, use TerminalManager.initialize() for full init,
-    // then wire event handlers via setupEventHandlers().
-    // Amp ref: J3.runApp() calls this.tui.init(), then this.setupEventHandlers()
+    // --- Phase 1: Terminal initialization (BEFORE MediaQuery) ---
+    // Amp ref: J3.runApp() calls this.tui.init() first, then waits for
+    // capabilities, THEN creates MediaQuery wrapper.
     if (enableTerminal && platform) {
       // Replace MockPlatform tui with real BunPlatform-backed TerminalManager
       // Amp ref: J3.runApp creates wB0 with real platform
@@ -913,6 +1044,24 @@ export class WidgetsBinding {
       // Wire input pipeline: onInput -> InputParser -> EventDispatcher -> FocusManager
       // Amp ref: J3.setupEventHandlers() -- input-system.md:601-634
       this.setupEventHandlers();
+    }
+
+    // --- Phase 2: Create MediaQuery with REAL capabilities ---
+    // Amp ref: J3.createMediaQueryWrapper(g) reads this.tui.getCapabilities()
+    const wrappedWidget = this.createMediaQueryWrapper(widget, cols, rows);
+
+    // --- Phase 3: Mount widget tree ---
+    this.attachRootWidget(wrappedWidget);
+
+    // --- Phase 4: Terminal event wiring and cleanup handlers ---
+    if (enableTerminal && platform) {
+      // Wire capability change handler to update MediaQuery
+      // Amp ref: wB0.capabilityHandlers[] -- late-arriving capability data triggers MediaQuery rebuild
+      this._tui.onCapabilitiesChanged = (_caps) => {
+        const newWrapped = this.createMediaQueryWrapper(widget, this._renderViewSize.width, this._renderViewSize.height);
+        this.attachRootWidget(newWrapped);
+        this.requestForcedPaintFrame();
+      };
 
       // Clean exit handler -- restore terminal state via TerminalManager.dispose()
       // Amp ref: J3 cleanup uses this.tui.deinit()
@@ -937,6 +1086,7 @@ export class WidgetsBinding {
       });
     }
 
+    // --- Phase 5: SIGWINCH handler (with capabilities preservation) ---
     // Register SIGWINCH handler for terminal resize
     if (enableTerminal && typeof process !== 'undefined') {
       process.on('SIGWINCH', () => {
@@ -947,10 +1097,9 @@ export class WidgetsBinding {
           if (p) {
             const size = p.getTerminalSize();
             this.handleResize(size.columns, size.rows);
-            const newWrapped = new MediaQuery({
-              data: MediaQueryData.fromTerminal(size.columns, size.rows),
-              child: widget,
-            });
+            // Use createMediaQueryWrapper to preserve real capabilities
+            // Gap R10: Previously used MediaQueryData.fromTerminal() without caps
+            const newWrapped = this.createMediaQueryWrapper(widget, size.columns, size.rows);
             this.attachRootWidget(newWrapped);
           }
         } catch (_e) {

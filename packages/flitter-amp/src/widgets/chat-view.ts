@@ -17,6 +17,7 @@ import { Container } from 'flitter-core/src/widgets/container';
 import { Border, BorderSide, BoxDecoration } from 'flitter-core/src/layout/render-decorated';
 import { StickyHeader } from 'flitter-core/src/widgets/sticky-header';
 import { ToolCallWidget } from './tool-call/index';
+import { StreamingCursor } from './streaming-cursor';
 import { ThinkingBlock } from './thinking-block';
 import { PlanView } from './plan-view';
 import { AmpThemeProvider } from '../themes/index';
@@ -36,16 +37,19 @@ const QUOTES = [
 interface ChatViewProps {
   items: ConversationItem[];
   error?: string | null;
+  onToggleToolCall?: (toolCallId: string) => void;
 }
 
 export class ChatView extends StatelessWidget {
   private readonly items: ConversationItem[];
   private readonly error: string | null;
+  private readonly onToggleToolCall?: (toolCallId: string) => void;
 
   constructor(props: ChatViewProps) {
     super({});
     this.items = props.items;
     this.error = props.error ?? null;
+    this.onToggleToolCall = props.onToggleToolCall;
   }
 
   build(context: BuildContext): Widget {
@@ -100,9 +104,13 @@ export class ChatView extends StatelessWidget {
             turnWidgets.push(this.buildAssistantMessage(cur.text, cur.isStreaming, theme));
             i++;
           } else if (cur.type === 'tool_call') {
+            const toolCallId = cur.toolCallId;
             turnWidgets.push(new ToolCallWidget({
               toolCall: cur,
               isExpanded: !cur.collapsed,
+              onToggle: this.onToggleToolCall
+                ? () => this.onToggleToolCall!(toolCallId)
+                : undefined,
             }));
             i++;
           } else {
@@ -267,17 +275,9 @@ export class ChatView extends StatelessWidget {
 
   /**
    * Renders an assistant message as Markdown, or a streaming placeholder.
+   * Delegates to StreamingCursor for blink animation support.
    */
-  private buildAssistantMessage(text: string, _isStreaming: boolean, theme?: AmpTheme): Widget {
-    if (text.length > 0) {
-      return new Markdown({ markdown: text });
-    }
-    const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
-    return new Text({
-      text: new TextSpan({
-        text: '...',
-        style: new TextStyle({ foreground: mutedColor }),
-      }),
-    });
+  private buildAssistantMessage(text: string, isStreaming: boolean, _theme?: AmpTheme): Widget {
+    return new StreamingCursor({ text, isStreaming });
   }
 }

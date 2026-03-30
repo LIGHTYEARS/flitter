@@ -9,6 +9,7 @@ import { EdgeInsets } from '../layout/edge-insets';
 import { BoxDecoration } from '../layout/render-decorated';
 import { Padding } from './padding';
 import { SizedBox } from './sized-box';
+import { ConstrainedBox } from './constrained-box';
 import { DecoratedBox } from './decorated-box';
 
 /**
@@ -92,11 +93,10 @@ export class Container extends StatelessWidget {
             maxHeight: this.height,
           });
         }
-        // Use SizedBox-like approach via ConstrainedBox
-        // For simplicity, use SizedBox which wraps RenderConstrainedBox
-        result = new SizedBox({
-          width: c.isTight ? c.minWidth : undefined,
-          height: c.isTight ? c.minHeight : undefined,
+        // Use ConstrainedBox which correctly forwards arbitrary constraints
+        // (Gap 32: fixes lossy constraint forwarding via SizedBox)
+        result = new ConstrainedBox({
+          constraints: c,
           child: result,
         });
       } else {

@@ -12,12 +12,10 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { asString, asArray, isTodoEntry } from '../../utils/raw-input';
 
-interface TodoListToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface TodoListToolProps extends BaseToolProps {}
 
 interface TodoEntry {
   content: string;
@@ -33,11 +31,13 @@ interface TodoEntry {
 export class TodoListTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: TodoListToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
@@ -47,6 +47,7 @@ export class TodoListTool extends StatelessWidget {
       name: this.toolCall.kind,
       status: this.toolCall.status,
       details: this.toolCall.title ? [this.toolCall.title] : [],
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
@@ -104,15 +105,15 @@ export class TodoListTool extends StatelessWidget {
   private getStatusDisplay(status: string, theme: ReturnType<typeof AmpThemeProvider.maybeOf>): { icon: string; color: Color } {
     switch (status) {
       case 'pending':
-        return { icon: '○', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: '\u25cb', color: theme?.base.mutedForeground ?? Color.brightBlack };
       case 'in_progress':
-        return { icon: '◐', color: theme?.base.warning ?? Color.yellow };
+        return { icon: '\u25d0', color: theme?.base.warning ?? Color.yellow };
       case 'completed':
-        return { icon: '●', color: theme?.app.toolSuccess ?? Color.green };
+        return { icon: '\u25cf', color: theme?.app.toolSuccess ?? Color.green };
       case 'cancelled':
-        return { icon: '∅', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: '\u2205', color: theme?.base.mutedForeground ?? Color.brightBlack };
       default:
-        return { icon: '○', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: '\u25cb', color: theme?.base.mutedForeground ?? Color.brightBlack };
     }
   }
 
@@ -122,24 +123,25 @@ export class TodoListTool extends StatelessWidget {
   private extractTodoEntries(): TodoEntry[] {
     const input = this.toolCall.rawInput;
     if (input) {
-      const todos = input['todos'] as TodoEntry[] | undefined;
-      if (Array.isArray(todos)) {
+      const todos = asArray(input['todos'], isTodoEntry);
+      if (todos.length > 0) {
         return todos.map(t => ({
-          content: (t.content ?? '') as string,
-          status: (t.status ?? 'pending') as string,
-          priority: t.priority as string | undefined,
+          content: asString(t.content),
+          status: asString(t.status, 'pending'),
+          priority: typeof t.priority === 'string' ? t.priority : undefined,
         }));
       }
     }
 
     const raw = this.toolCall.result?.rawOutput;
-    if (raw && typeof raw === 'object') {
-      const todos = (raw['todos'] ?? raw['items'] ?? []) as TodoEntry[];
-      if (Array.isArray(todos)) {
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const candidates = raw['todos'] ?? raw['items'];
+      const todos = asArray(candidates, isTodoEntry);
+      if (todos.length > 0) {
         return todos.map(t => ({
-          content: (t.content ?? '') as string,
-          status: (t.status ?? 'pending') as string,
-          priority: t.priority as string | undefined,
+          content: asString(t.content),
+          status: asString(t.status, 'pending'),
+          priority: typeof t.priority === 'string' ? t.priority : undefined,
         }));
       }
     }

@@ -69,6 +69,13 @@ export class BuildOwner {
   private _dirtyElements: Set<Element> = new Set();
   private _building: boolean = false;
 
+  // Inactive elements set — holds deactivated elements until end of frame.
+  // Elements in this set will be permanently unmounted by finalizeTree()
+  // unless they are reactivated via GlobalKey reparenting.
+  // NOTE: Not present in Amp binary. Extension for GlobalKey reparenting.
+  // Amp ref deviation: See .gap/02-deactivate-lifecycle.md
+  _inactiveElements: Set<Element> = new Set();
+
   // Build stats (Amp ref: NB0._stats, NB0._buildTimes, NB0._elementsPerFrame)
   private _stats = {
     totalRebuilds: 0,
@@ -131,8 +138,17 @@ export class BuildOwner {
               element.performRebuild();
               element._dirty = false;
               rebuiltCount++;
-            } catch (_error) {
+            } catch (error) {
               // Amp ref: catch (a) { V.error(...); s._dirty = !1; }
+              // Last-resort safety net — most build errors are caught inside
+              // StatelessElement/StatefulElement.rebuild() and substituted with ErrorWidget.
+              // This catch handles errors in the child diffing logic itself.
+              // Gap ref: .gap/05-error-widget.md
+              console.error('Element rebuild error:', {
+                error: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined,
+                elementType: element.widget?.constructor?.name,
+              });
               // Clear dirty even on error to prevent infinite loops
               element._dirty = false;
             }
@@ -206,7 +222,49 @@ export class BuildOwner {
 
   /** Amp ref: NB0.dispose() */
   dispose(): void {
+    // Unmount any remaining inactive elements
+    for (const element of this._inactiveElements) {
+      element.unmount();
+    }
+    this._inactiveElements.clear();
     this._dirtyElements.clear();
     this.globalKeyRegistry.clear();
+    GlobalKey._clearRegistry();
+  }
+
+  // --- Inactive elements management ---
+  // NOTE: Not present in Amp binary. Extension for GlobalKey reparenting.
+  // Amp ref deviation: See .gap/02-deactivate-lifecycle.md
+
+  /**
+   * Add an element to the inactive set.
+   * Called by deactivateChild() when an element is removed from the tree.
+   * The element will be permanently unmounted at the end of the frame
+   * unless it is reactivated via GlobalKey reparenting.
+   */
+  _addToInactiveElements(element: Element): void {
+    this._inactiveElements.add(element);
+  }
+
+  /**
+   * Remove an element from the inactive set (e.g., when reactivated).
+   */
+  _removeFromInactiveElements(element: Element): void {
+    this._inactiveElements.delete(element);
+  }
+
+  /**
+   * Finalize the tree at the end of the frame.
+   * Permanently unmounts all elements that remain in the inactive set
+   * (i.e., were not reactivated via GlobalKey reparenting during this frame).
+   *
+   * This must be called at the end of every frame, after buildScopes().
+   * Flutter equivalent: BuildOwner.finalizeTree()
+   */
+  finalizeTree(): void {
+    for (const element of this._inactiveElements) {
+      element.unmount();
+    }
+    this._inactiveElements.clear();
   }
 }

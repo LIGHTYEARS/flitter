@@ -11,6 +11,7 @@ import { TextStyle } from 'flitter-core/src/core/text-style';
 import { TextSpan } from 'flitter-core/src/core/text-span';
 import { Color } from 'flitter-core/src/core/color';
 import { BrailleSpinner } from 'flitter-core/src/utilities/braille-spinner';
+import { MouseRegion } from 'flitter-core/src/widgets/mouse-region';
 import { AmpThemeProvider } from '../../themes/index';
 import type { ToolCallItem } from '../../acp/types';
 
@@ -19,13 +20,14 @@ interface ToolHeaderProps {
   status: ToolCallItem['status'];
   details?: string[];
   children?: Widget[];
+  onToggle?: () => void;
 }
 
 /**
  * Renders the header row for a tool call:
  *   [status icon] [ToolName bold] [detail1 detail2 ...dim] [BrailleSpinner if in-progress]
  *
- * Uses StatefulWidget to drive BrailleSpinner animation at ~100ms per frame
+ * Uses StatefulWidget to drive BrailleSpinner animation at ~200ms per frame
  * when toolCall.status === 'in_progress'.
  *
  * Uses AmpThemeProvider for status colors:
@@ -39,6 +41,7 @@ export class ToolHeader extends StatefulWidget {
   readonly status: ToolCallItem['status'];
   readonly details: string[];
   readonly extraChildren: Widget[];
+  readonly onToggle?: () => void;
 
   constructor(props: ToolHeaderProps) {
     super({});
@@ -46,6 +49,7 @@ export class ToolHeader extends StatefulWidget {
     this.status = props.status;
     this.details = props.details ?? [];
     this.extraChildren = props.children ?? [];
+    this.onToggle = props.onToggle;
   }
 
   createState(): ToolHeaderState {
@@ -78,14 +82,15 @@ class ToolHeaderState extends State<ToolHeader> {
   }
 
   /**
-   * Starts the BrailleSpinner animation at ~100ms per frame.
+   * Starts the BrailleSpinner animation at ~200ms per frame.
+   * Amp ref: README section 11.1 -- stepped every 200ms
    */
   private startSpinner(): void {
     this.timer = setInterval(() => {
       this.setState(() => {
         this.spinner.step();
       });
-    }, 100);
+    }, 200);  // Amp ref: braille spinner stepped every 200ms (README section 11.1)
   }
 
   /**
@@ -135,14 +140,24 @@ class ToolHeaderState extends State<ToolHeader> {
       text: new TextSpan({ children: spans }),
     });
 
+    let result: Widget;
     if (this.widget.extraChildren.length === 0) {
-      return headerText;
+      result = headerText;
+    } else {
+      result = new Row({
+        mainAxisSize: 'min',
+        children: [headerText, ...this.widget.extraChildren],
+      });
     }
 
-    return new Row({
-      mainAxisSize: 'min',
-      children: [headerText, ...this.widget.extraChildren],
-    });
+    if (this.widget.onToggle) {
+      result = new MouseRegion({
+        onClick: () => this.widget.onToggle!(),
+        child: result,
+      });
+    }
+
+    return result;
   }
 
   private getStatusIcon(): string {

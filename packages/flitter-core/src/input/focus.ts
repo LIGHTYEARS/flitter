@@ -129,6 +129,20 @@ export class FocusNode {
    */
   detach(): void {
     if (this._parent === null) return;
+
+    // Clean up _focusedChild references in ancestor FocusScopeNodes
+    // to prevent stale references after overlay dismissal (Gap 29 companion fix)
+    let ancestor: FocusNode | null = this._parent;
+    while (ancestor !== null) {
+      if (ancestor instanceof FocusScopeNode) {
+        if (ancestor.focusedChild === this) {
+          ancestor._setFocusedChild(null);
+        }
+        break; // only need to check the nearest scope
+      }
+      ancestor = ancestor.parent;
+    }
+
     const idx = this._parent._children.indexOf(this);
     if (idx !== -1) {
       this._parent._children.splice(idx, 1);
@@ -153,9 +167,11 @@ export class FocusNode {
 
     const manager = FocusManager.instance;
 
-    // Clear existing primary focus
+    // Clear existing primary focus -- push previous node to history
     const current = manager.primaryFocus;
     if (current !== null && current !== this) {
+      // Record the outgoing focus holder in the history stack
+      manager._pushFocusHistory(current);
       current._clearPrimaryFocus();
     }
 
@@ -365,8 +381,8 @@ export class FocusScopeNode extends FocusNode {
     node.requestFocus();
   }
 
-  /** @internal Set the focused child (called from FocusNode.requestFocus) */
-  _setFocusedChild(node: FocusNode): void {
+  /** @internal Set the focused child (called from FocusNode.requestFocus and detach) */
+  _setFocusedChild(node: FocusNode | null): void {
     this._focusedChild = node;
   }
 
@@ -400,6 +416,20 @@ export class FocusManager {
   /** The root focus scope node of the entire focus tree. */
   readonly rootScope: FocusScopeNode;
 
+  /**
+   * Stack of previously focused nodes. When a node receives focus,
+   * the previously focused node is pushed onto this stack. When
+   * restoreFocus() is called, the top of the stack is popped and
+   * re-focused (if still valid).
+   *
+   * The stack is bounded to prevent unbounded growth. A depth of 8
+   * handles any realistic overlay nesting scenario.
+   * Gap 29: Focus restoration mechanism for overlay dismissal.
+   */
+  private _focusHistory: FocusNode[] = [];
+  private _restoringFocus = false;
+  private static readonly MAX_FOCUS_HISTORY = 8;
+
   private constructor() {
     this.rootScope = new FocusScopeNode({ debugLabel: 'Root Focus Scope' });
   }
@@ -414,9 +444,76 @@ export class FocusManager {
   /** Reset the singleton (for testing). */
   static reset(): void {
     if (FocusManager._instance !== null) {
+      FocusManager._instance.clearFocusHistory();
       FocusManager._instance.rootScope.dispose();
       FocusManager._instance = null;
     }
+  }
+
+  /**
+   * Called internally when a node gains primary focus. Records the
+   * previously focused node in the history stack.
+   * @internal
+   */
+  _pushFocusHistory(previousNode: FocusNode): void {
+    if (this._restoringFocus) return; // suppress during restoreFocus()
+    if (previousNode.disposed) return;
+    this._focusHistory.push(previousNode);
+    // Trim if over capacity
+    if (this._focusHistory.length > FocusManager.MAX_FOCUS_HISTORY) {
+      this._focusHistory.shift();
+    }
+  }
+
+  /**
+   * Restore focus to the most recent valid node in the history stack.
+   * Walks backward through the stack, skipping disposed or detached
+   * nodes, until it finds one that can accept focus. Returns true if
+   * focus was restored, false if the stack was exhausted.
+   *
+   * This is the primary API for focus restoration after overlay
+   * dismissal. Gap 29.
+   */
+  restoreFocus(): boolean {
+    while (this._focusHistory.length > 0) {
+      const candidate = this._focusHistory.pop()!;
+      // Skip disposed nodes (e.g., a previous overlay that was also dismissed)
+      if (candidate.disposed) continue;
+      // Skip nodes no longer in the tree (detached from parent)
+      if (candidate.parent === null && candidate !== this.rootScope) continue;
+      // Skip nodes that can no longer accept focus
+      if (!candidate.canRequestFocus) continue;
+      // Valid candidate -- restore focus without re-pushing the outgoing node
+      this._restoringFocus = true;
+      try {
+        candidate.requestFocus();
+      } finally {
+        this._restoringFocus = false;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clear the focus history stack. Called during reset() for testing
+   * and when the focus tree is fundamentally restructured.
+   */
+  clearFocusHistory(): void {
+    this._focusHistory.length = 0;
+  }
+
+  /**
+   * Peek at the top of the focus history without removing it.
+   * Returns null if the stack is empty or all entries are stale.
+   * Useful for debugging and testing.
+   */
+  get previousFocus(): FocusNode | null {
+    for (let i = this._focusHistory.length - 1; i >= 0; i--) {
+      const node = this._focusHistory[i];
+      if (!node.disposed && node.parent !== null) return node;
+    }
+    return null;
   }
 
   /**

@@ -1,25 +1,113 @@
-// ErrorWidget — displayed when a build fails
-// Amp ref: Error handling in buildScopes() — catches errors, logs, continues
+// ErrorWidget -- displayed when a build fails
+// Amp ref: Error handling in buildScopes() -- catches errors, logs, continues
 // In Flutter, ErrorWidget replaces a failed subtree to show error info.
+// Gap ref: .gap/05-error-widget.md
 
-import { Widget, StatelessWidget, type BuildContext } from './widget';
 import { Key } from '../core/key';
-import { StatelessElement } from './element';
+import { Color } from '../core/color';
+import { Offset, Size } from '../core/types';
+import {
+  LeafRenderObjectWidget,
+  RenderBox,
+  type PaintContext,
+} from './render-object';
+import type { Widget } from './widget';
+
+// ---------------------------------------------------------------------------
+// FlutterErrorDetails -- structured error report for build failures
+// ---------------------------------------------------------------------------
+
+export interface FlutterErrorDetails {
+  exception: unknown;
+  message: string;
+  stack?: string;
+  widgetType?: string;
+  context?: string;
+}
+
+// ---------------------------------------------------------------------------
+// ErrorWidgetBuilder -- customizable factory for error presentation
+// ---------------------------------------------------------------------------
+
+export type ErrorWidgetBuilder = (details: FlutterErrorDetails) => Widget;
+
+// ---------------------------------------------------------------------------
+// RenderErrorBox -- renders a visible error indicator
+// ---------------------------------------------------------------------------
+
+export class RenderErrorBox extends RenderBox {
+  private _message: string;
+
+  constructor(message: string) {
+    super();
+    this._message = message;
+  }
+
+  get message(): string {
+    return this._message;
+  }
+
+  set message(value: string) {
+    if (this._message === value) return;
+    this._message = value;
+    this.markNeedsLayout();
+  }
+
+  // Layout: takes 1 row of height, fills available width.
+  // If message is longer than available width, truncates with ellipsis.
+  performLayout(): void {
+    const constraints = this.constraints!;
+    // Error indicator takes exactly 1 row, full available width
+    const width = constraints.maxWidth === Infinity
+      ? Math.min(this._message.length + 4, 80) // "[!] " prefix + message
+      : constraints.maxWidth;
+    // Clamp height to 1 row within constraints
+    const height = Math.max(constraints.minHeight, Math.min(1, constraints.maxHeight));
+    this.size = new Size(width, height);
+  }
+
+  // Paint: red background with white bold text "[!] <message>"
+  paint(context: PaintContext, offset: Offset): void {
+    const ctx = context as any;
+    if (!ctx.drawChar) return;
+
+    const errorStyle: any = {
+      foreground: Color.white,
+      background: Color.red,
+      bold: true,
+    };
+
+    const prefix = '[!] ';
+    const availWidth = this.size.width;
+    const fullText = prefix + this._message;
+
+    for (let col = 0; col < availWidth; col++) {
+      const ch = col < fullText.length ? fullText[col]! : ' ';
+      ctx.drawChar(offset.col + col, offset.row, ch, errorStyle);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // ErrorWidget
-//
-// A simple widget that represents a build error. When a widget's build()
-// method throws, ErrorWidget can replace the failed subtree.
-//
-// For now, this is a leaf — it returns itself from build().
-// Actual rendering (displaying the error message in the terminal) comes
-// in Phase 7 when Text/RenderParagraph are available.
 // ---------------------------------------------------------------------------
 
-export class ErrorWidget extends StatelessWidget {
+export class ErrorWidget extends LeafRenderObjectWidget {
   readonly message: string;
   readonly error?: Error;
+
+  /**
+   * Customizable builder. Applications can override this to provide
+   * their own error display widget. Default creates an ErrorWidget.
+   *
+   * In Flutter: ErrorWidget.builder
+   */
+  static builder: ErrorWidgetBuilder = (details: FlutterErrorDetails) => {
+    return new ErrorWidget({
+      message: details.message,
+      error: details.exception instanceof Error ? details.exception : undefined,
+    });
+  };
 
   constructor(opts: { message: string; error?: Error; key?: Key }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
@@ -32,13 +120,11 @@ export class ErrorWidget extends StatelessWidget {
     return new ErrorWidget({ message: error.message, error });
   }
 
-  build(_context: BuildContext): Widget {
-    // Returns self — acts as leaf for now.
-    // Phase 7 will render the error message with a Text widget.
-    return this;
+  createRenderObject(): RenderErrorBox {
+    return new RenderErrorBox(this.message);
   }
 
-  override createElement(): StatelessElement {
-    return new StatelessElement(this);
+  updateRenderObject(renderObject: RenderErrorBox): void {
+    renderObject.message = this.message;
   }
 }

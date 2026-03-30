@@ -124,6 +124,10 @@ export class FrameScheduler {
   // Amp ref: c9._lastFrameTimestamp = 0
   private _lastFrameTimestamp: number = 0;
 
+  // Pause state for TUI suspend (external editor integration)
+  // When paused, requestFrame() records demand but does not schedule execution.
+  private _paused: boolean = false;
+
   // Amp ref: c9._useFramePacing = !jz8()
   private _useFramePacing: boolean = !isTestEnvironment();
 
@@ -170,6 +174,7 @@ export class FrameScheduler {
       inst._frameInProgress = false;
       inst._executingPostFrameCallbacks = false;
       inst._lastFrameTimestamp = 0;
+      inst._paused = false;
     }
     FrameScheduler._instance = null;
   }
@@ -192,6 +197,39 @@ export class FrameScheduler {
    */
   enableFramePacing(): void {
     this._useFramePacing = true;
+  }
+
+  /**
+   * Pause frame scheduling. Any requestFrame() calls while paused
+   * are recorded but not acted upon until resume().
+   * Used when suspending the TUI for an external process (e.g., $EDITOR).
+   */
+  pause(): void {
+    this._paused = true;
+    // Cancel any pending timer so no frames fire while paused
+    if (this._pendingFrameTimer !== null) {
+      clearTimeout(this._pendingFrameTimer);
+      this._pendingFrameTimer = null;
+    }
+  }
+
+  /**
+   * Resume frame scheduling. If frames were requested while paused,
+   * schedule one immediately.
+   */
+  resume(): void {
+    const wasPaused = this._paused;
+    this._paused = false;
+    if (wasPaused && this._frameScheduled) {
+      this.scheduleFrameExecution(0);
+    }
+  }
+
+  /**
+   * Whether the frame scheduler is currently paused.
+   */
+  get isPaused(): boolean {
+    return this._paused;
   }
 
   setErrorLogger(logger: (msg: string, ...args: unknown[]) => void): void {
@@ -217,6 +255,12 @@ export class FrameScheduler {
 
     // Frame in progress — mark for re-run after current frame
     if (this._frameInProgress) {
+      this._frameScheduled = true;
+      return;
+    }
+
+    // Paused — record demand but do not schedule
+    if (this._paused) {
       this._frameScheduled = true;
       return;
     }

@@ -9,7 +9,8 @@
 // drop-in replacement (Amp: E$ is used interchangeably with the canvas).
 
 import { Rect } from '../core/types.js';
-import { PaintContext, BORDER_CHARS, type BorderStyle } from './paint-context.js';
+import { PaintContext } from './paint-context.js';
+import { BOX_DRAWING, type BoxDrawingStyle } from '../painting/border-painter.js';
 import { type CellStyle } from '../terminal/cell.js';
 import { TextSpan } from '../core/text-span.js';
 import { Color } from '../core/color.js';
@@ -140,12 +141,12 @@ export class ClipCanvas extends PaintContext {
     y: number,
     w: number,
     h: number,
-    borderStyle: BorderStyle,
+    borderStyle: BoxDrawingStyle,
     color?: Color,
   ): void {
     if (w < 2 || h < 2) return;
 
-    const chars = BORDER_CHARS[borderStyle];
+    const chars = BOX_DRAWING[borderStyle];
     const style: CellStyle = color ? { fg: color } : {};
 
     // Draw each border character individually via this.drawChar,

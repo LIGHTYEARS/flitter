@@ -12,6 +12,7 @@ import {
   type PaintContext,
 } from '../framework/render-object';
 import { Widget } from '../framework/widget';
+import type { BoxHitTestResult } from '../input/hit-test';
 
 // ---------------------------------------------------------------------------
 // ClipRect (Amp: nv)
@@ -71,6 +72,47 @@ export class RenderClipRect extends RenderBox {
     this._child = value;
     if (value) {
       this.adoptChild(value);
+    }
+  }
+
+  /**
+   * Hit-test override: clips hit-testing to this object's bounds.
+   * Children outside the clip rect cannot be hit even if they paint
+   * beyond (their painting is clipped, so hit-testing should be too).
+   *
+   * Unlike the base RenderBox.hitTest(), this never checks children
+   * via allowHitTestOutsideBounds -- the clip always wins.
+   */
+  override hitTest(
+    result: BoxHitTestResult,
+    position: Offset,
+    parentOffsetX: number = 0,
+    parentOffsetY: number = 0,
+  ): boolean {
+    const globalX = parentOffsetX + this.offset.col;
+    const globalY = parentOffsetY + this.offset.row;
+
+    // Only proceed if within our clipped bounds
+    if (!this.hitTestSelf(position.col - globalX, position.row - globalY)) {
+      return false;
+    }
+
+    result.addWithPaintOffset(this, new Offset(globalX, globalY), position);
+    this.hitTestChildren(result, position, globalX, globalY);
+    return true;
+  }
+
+  /**
+   * Hit-test the single child if present.
+   */
+  override hitTestChildren(
+    result: BoxHitTestResult,
+    position: Offset,
+    parentOffsetX: number,
+    parentOffsetY: number,
+  ): void {
+    if (this._child) {
+      this._child.hitTest(result, position, parentOffsetX, parentOffsetY);
     }
   }
 

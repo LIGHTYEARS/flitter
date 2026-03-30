@@ -226,9 +226,9 @@ describe('Cell-Level Assertions', () => {
       appState.conversation.finalizeThinking();
 
       // Expand the thinking block
-      const thinkingItem = appState.conversation.items.find(i => i.type === 'thinking');
-      if (thinkingItem && thinkingItem.type === 'thinking') {
-        thinkingItem.collapsed = false;
+      const thinkingIndex = appState.conversation.items.findIndex(i => i.type === 'thinking');
+      if (thinkingIndex >= 0) {
+        appState.conversation.setItemCollapsed(thinkingIndex, false);
       }
 
       appState.conversation.appendAssistantChunk('Done.');
@@ -281,13 +281,7 @@ describe('Cell-Level Assertions', () => {
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
       appState.conversation.addUserMessage('help');
-      appState.conversation.items.push({
-        type: 'thinking',
-        text: '',
-        timestamp: Date.now(),
-        isStreaming: false,
-        collapsed: false,
-      });
+      appState.conversation.addInterruptedThinking();
       appState.conversation.appendAssistantChunk('Here.');
       appState.conversation.finalizeAssistantMessage();
       const grid = capture(appState);
@@ -411,6 +405,35 @@ describe('Cell-Level Assertions', () => {
       expect(findText(grid, 'Analyze architecture').length).toBeGreaterThanOrEqual(1);
       expect(findText(grid, 'Implement refresh').length).toBeGreaterThanOrEqual(1);
       expect(findText(grid, 'Write tests').length).toBeGreaterThanOrEqual(1);
+
+      // Priority tags should be rendered inline with each entry
+      expect(findText(grid, '[H]').length).toBeGreaterThanOrEqual(2); // two high-priority entries
+      expect(findText(grid, '[L]').length).toBeGreaterThanOrEqual(1); // one low-priority entry
+    });
+
+    test('priority tags appear for all priority levels', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      appState.conversation.addUserMessage('plan');
+      appState.conversation.setPlan([
+        { content: 'Critical fix', priority: 'high', status: 'pending' },
+        { content: 'Normal work', priority: 'medium', status: 'pending' },
+        { content: 'Nice to have', priority: 'low', status: 'pending' },
+      ]);
+      appState.conversation.appendAssistantChunk('Planning.');
+      appState.conversation.finalizeAssistantMessage();
+      const grid = capture(appState);
+
+      // All three priority tags should be present
+      expect(findText(grid, '[H]').length).toBeGreaterThanOrEqual(1);
+      expect(findText(grid, '[M]').length).toBeGreaterThanOrEqual(1);
+      expect(findText(grid, '[L]').length).toBeGreaterThanOrEqual(1);
+
+      // Content text should also be visible
+      expect(findText(grid, 'Critical fix').length).toBeGreaterThanOrEqual(1);
+      expect(findText(grid, 'Normal work').length).toBeGreaterThanOrEqual(1);
+      expect(findText(grid, 'Nice to have').length).toBeGreaterThanOrEqual(1);
     });
   });
 

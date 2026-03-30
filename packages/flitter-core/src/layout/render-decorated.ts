@@ -7,12 +7,14 @@ import { BoxConstraints } from '../core/box-constraints';
 import { Color } from '../core/color';
 import { RenderBox } from '../framework/render-object';
 import { PaintContext } from '../scheduler/paint-context';
+import { type BoxDrawingStyle } from '../painting/border-painter';
 
 // ---------------------------------------------------------------------------
 // Decoration types
 // ---------------------------------------------------------------------------
 
-export type BorderStyle = 'rounded' | 'solid';
+// Re-export for backward compatibility
+export type BorderStyle = BoxDrawingStyle;
 
 /**
  * A single side of a border.

@@ -10,6 +10,7 @@ import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { MouseRegion } from 'flitter-core/src/widgets/mouse-region';
 import type { MouseRegionEvent } from 'flitter-core/src/widgets/mouse-region';
 import { AmpThemeProvider } from '../themes/index';
+import { PerlinNoise } from '../utils/perlin-noise';
 
 const CELL_COLS = 40;
 const CELL_ROWS = 20;
@@ -17,70 +18,7 @@ const NOISE_SCALE = 0.08;
 
 const DENSITY_CHARS = ' .:-=+*#';
 
-const PERM = new Uint8Array(512);
-const GRAD = [
-  [1, 1], [-1, 1], [1, -1], [-1, -1],
-  [1, 0], [-1, 0], [0, 1], [0, -1],
-];
-
-function initPerm(): void {
-  const p = new Uint8Array(256);
-  for (let i = 0; i < 256; i++) p[i] = i;
-  for (let i = 255; i > 0; i--) {
-    const j = (Math.random() * (i + 1)) | 0;
-    const tmp = p[i];
-    p[i] = p[j];
-    p[j] = tmp;
-  }
-  for (let i = 0; i < 512; i++) PERM[i] = p[i & 255];
-}
-
-initPerm();
-
-function fade(t: number): number {
-  return t * t * t * (t * (t * 6 - 15) + 10);
-}
-
-function grad2d(hash: number, x: number, y: number): number {
-  const g = GRAD[hash & 7]!;
-  return g[0]! * x + g[1]! * y;
-}
-
-function noise2d(x: number, y: number): number {
-  const xi = Math.floor(x) & 255;
-  const yi = Math.floor(y) & 255;
-  const xf = x - Math.floor(x);
-  const yf = y - Math.floor(y);
-
-  const u = fade(xf);
-  const v = fade(yf);
-
-  const aa = PERM[PERM[xi]! + yi]!;
-  const ab = PERM[PERM[xi]! + yi + 1]!;
-  const ba = PERM[PERM[xi + 1]! + yi]!;
-  const bb = PERM[PERM[xi + 1]! + yi + 1]!;
-
-  const x1 = grad2d(aa, xf, yf) * (1 - u) + grad2d(ba, xf - 1, yf) * u;
-  const x2 = grad2d(ab, xf, yf - 1) * (1 - u) + grad2d(bb, xf - 1, yf - 1) * u;
-
-  return x1 * (1 - v) + x2 * v;
-}
-
-function fbm(x: number, y: number, octaves: number): number {
-  let value = 0;
-  let amplitude = 1;
-  let frequency = 1;
-  let maxAmplitude = 0;
-
-  for (let i = 0; i < octaves; i++) {
-    value += noise2d(x * frequency, y * frequency) * amplitude;
-    maxAmplitude += amplitude;
-    amplitude *= 0.5;
-    frequency *= 2;
-  }
-
-  return (value / maxAmplitude + 1) * 0.5;
-}
+const noise = PerlinNoise.shared;
 
 interface Shockwave {
   col: number;
@@ -290,10 +228,9 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
           continue;
         }
 
-        const n = fbm(
+        const n = noise.fbm(
           cellCol * NOISE_SCALE + this.timeOffset,
           cellRow * NOISE_SCALE + this.timeOffset * 0.7,
-          3,
         );
 
         const edgeFade = 1 - dist;

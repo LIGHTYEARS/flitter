@@ -1042,14 +1042,15 @@ describe('RenderObjectElement', () => {
   test('mount marks as mounted', () => {
     const widget = new TestTerminalLeaf();
     const element = new RenderObjectElement(widget);
-    element.mount();
+    // Use markMounted() directly since TestTerminalLeaf is not a RenderObjectWidget
+    element.markMounted();
     expect(element.mounted).toBe(true);
   });
 
   test('unmount marks as defunct', () => {
     const widget = new TestTerminalLeaf();
     const element = new RenderObjectElement(widget);
-    element.mount();
+    element.markMounted();
     element.unmount();
     expect(element.mounted).toBe(false);
   });
@@ -1057,7 +1058,7 @@ describe('RenderObjectElement', () => {
   test('performRebuild is a no-op', () => {
     const widget = new TestTerminalLeaf();
     const element = new RenderObjectElement(widget);
-    element.mount();
+    element.markMounted();
     // Should not throw
     element.performRebuild();
   });
@@ -1071,7 +1072,8 @@ describe('LeafRenderObjectElement', () => {
   test('performRebuild is a no-op', () => {
     const widget = new TestTerminalLeaf();
     const element = new LeafRenderObjectElement(widget);
-    element.mount();
+    // Use markMounted() directly since TestTerminalLeaf is not a RenderObjectWidget
+    element.markMounted();
     element.performRebuild();
     // no-op, should not throw
     expect(element.mounted).toBe(true);

@@ -56,6 +56,10 @@ export class TerminalManager {
   onInput?: (data: Buffer) => void;
   onResize?: (width: number, height: number) => void;
 
+  // Capability update callback
+  // Amp ref: wB0.onCapabilities(handler) -- screen-buffer.md:769
+  onCapabilitiesChanged?: (caps: TerminalCapabilities) => void;
+
   // Bound handlers for cleanup
   private boundInputHandler: ((data: Buffer) => void) | null = null;
   private boundResizeHandler: ((cols: number, rows: number) => void) | null = null;
@@ -91,6 +95,18 @@ export class TerminalManager {
    */
   get capabilities(): TerminalCapabilities {
     return this._capabilities;
+  }
+
+  /**
+   * Update capabilities after async detection completes.
+   * Notifies the callback so WidgetsBinding can update MediaQuery.
+   *
+   * Amp ref: wB0.onCapabilities(handler) -- screen-buffer.md:769
+   */
+  updateCapabilities(newCaps: TerminalCapabilities): void {
+    this._capabilities = newCaps;
+    this.renderer.setCapabilities(newCaps);
+    this.onCapabilitiesChanged?.(newCaps);
   }
 
   // ---------------------------------------------------------------------------

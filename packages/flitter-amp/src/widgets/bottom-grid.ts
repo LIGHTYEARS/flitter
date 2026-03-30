@@ -7,6 +7,7 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { Column } from 'flitter-core/src/widgets/flex';
+import { TextEditingController } from 'flitter-core/src/widgets/text-field';
 import { AmpThemeProvider } from '../themes/index';
 import type { UsageInfo } from '../acp/types';
 import { InputArea, type BorderOverlayText } from './input-area';
@@ -16,51 +17,54 @@ interface BottomGridProps {
   onSubmit: (text: string) => void;
   isProcessing: boolean;
   currentMode: string;
-  agentMode?: string;
+  agentName?: string;
   cwd: string;
   gitBranch?: string;
   tokenUsage?: UsageInfo;
-  shellMode?: boolean;
   hintText?: string;
   submitWithMeta?: boolean;
   topWidget?: Widget;
   autocompleteTriggers?: AutocompleteTrigger[];
   imageAttachments?: number;
   skillCount?: number;
+  controller?: TextEditingController;
+  searchState?: { query: string; isFailing: boolean } | null;
 }
 
 export class BottomGrid extends StatefulWidget {
   readonly onSubmit: (text: string) => void;
   readonly isProcessing: boolean;
   readonly currentMode: string;
-  readonly agentMode: string | undefined;
+  readonly agentName: string | undefined;
   readonly cwd: string;
   readonly gitBranch: string | undefined;
   readonly tokenUsage: UsageInfo | undefined;
-  readonly shellMode: boolean;
   readonly hintText: string | undefined;
   readonly submitWithMeta: boolean;
   readonly topWidget: Widget | undefined;
   readonly autocompleteTriggers: AutocompleteTrigger[] | undefined;
   readonly imageAttachments: number;
   readonly skillCount: number;
+  readonly controller: TextEditingController | undefined;
+  readonly searchState: { query: string; isFailing: boolean } | null;
 
   constructor(props: BottomGridProps) {
     super({});
     this.onSubmit = props.onSubmit;
     this.isProcessing = props.isProcessing;
     this.currentMode = props.currentMode;
-    this.agentMode = props.agentMode;
+    this.agentName = props.agentName;
     this.cwd = props.cwd;
     this.gitBranch = props.gitBranch;
     this.tokenUsage = props.tokenUsage;
-    this.shellMode = props.shellMode ?? false;
     this.hintText = props.hintText;
     this.submitWithMeta = props.submitWithMeta ?? true;
     this.topWidget = props.topWidget;
     this.autocompleteTriggers = props.autocompleteTriggers;
     this.imageAttachments = props.imageAttachments ?? 0;
     this.skillCount = props.skillCount ?? 0;
+    this.controller = props.controller;
+    this.searchState = props.searchState ?? null;
   }
 
   createState(): BottomGridState {
@@ -99,6 +103,7 @@ class BottomGridState extends State<BottomGrid> {
       imageAttachments: w.imageAttachments,
       skillCount: w.skillCount,
       overlayTexts,
+      controller: w.controller,
     });
 
     const children: Widget[] = [];
@@ -155,6 +160,39 @@ class BottomGridState extends State<BottomGrid> {
   }
 
   private buildBottomLeft(w: BottomGrid, mutedColor: Color, keybindColor: Color): Widget {
+    // Gap 64: Search mode indicator takes priority
+    if (w.searchState) {
+      const prefix = w.searchState.isFailing
+        ? '(failing reverse-i-search)'
+        : '(reverse-i-search)';
+      const errorColor = Color.red;
+      const infoColor = Color.cyan;
+
+      return new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: prefix,
+              style: new TextStyle({
+                foreground: w.searchState.isFailing ? errorColor : infoColor,
+              }),
+            }),
+            new TextSpan({
+              text: `'${w.searchState.query}'`,
+              style: new TextStyle({
+                foreground: keybindColor,
+                bold: true,
+              }),
+            }),
+            new TextSpan({
+              text: ': ',
+              style: new TextStyle({ foreground: mutedColor }),
+            }),
+          ],
+        }),
+      });
+    }
+
     if (w.hintText) {
       return new Text({
         text: new TextSpan({
@@ -204,6 +242,9 @@ class BottomGridState extends State<BottomGrid> {
     let cwdBranch = shortCwd;
     if (w.gitBranch) {
       cwdBranch += ` (${w.gitBranch})`;
+    }
+    if (w.agentName) {
+      cwdBranch += ` · ${w.agentName}`;
     }
 
     return new Text({

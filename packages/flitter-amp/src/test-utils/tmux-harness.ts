@@ -66,9 +66,9 @@ function buildAppState(scenario: Scenario): AppState {
       );
       appState.conversation.finalizeThinking();
       // Expand the thinking block
-      const thinkingItem = appState.conversation.items.find(i => i.type === 'thinking');
-      if (thinkingItem && thinkingItem.type === 'thinking') {
-        thinkingItem.collapsed = false;
+      const thinkingIndex = appState.conversation.items.findIndex(i => i.type === 'thinking');
+      if (thinkingIndex >= 0) {
+        appState.conversation.setItemCollapsed(thinkingIndex, false);
       }
       appState.conversation.appendAssistantChunk(
         'The project follows a layered architecture with core rendering, widgets, and application layers.',

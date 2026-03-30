@@ -79,8 +79,8 @@ export class ThinkingBlock extends StatelessWidget {
     ];
 
     if (!item.collapsed && item.text.length > 0) {
-      const displayText = item.text.length > 500
-        ? item.text.slice(0, 500) + '...'
+      const displayText = item.text.length > 10000
+        ? item.text.slice(0, 10000) + '...'
         : item.text;
 
       children.push(

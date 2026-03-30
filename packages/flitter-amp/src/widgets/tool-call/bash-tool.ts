@@ -11,12 +11,18 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString } from '../../utils/raw-input';
+import { extractShellOutput, extractRawNumber } from './tool-output-utils';
+import {
+  HEADER_TRUNCATION_LIMIT,
+  OUTPUT_TRUNCATION_LIMIT,
+  truncateInline,
+  truncateText,
+  TRUNCATION_SUFFIX,
+} from './truncation-limits';
 
-interface BashToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface BashToolProps extends BaseToolProps {}
 
 /**
  * Renders a Bash / shell_command tool call.
@@ -26,21 +32,23 @@ interface BashToolProps {
 export class BashTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: BashToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
-    const command = (input['command'] ?? input['cmd'] ?? '') as string;
+    const command = pickString(input, ['command', 'cmd', 'shell_command', 'script', 'args']);
 
     const details: string[] = [];
     if (command) {
-      const shortCmd = command.length > 80 ? command.slice(0, 80) + '…' : command;
+      const shortCmd = truncateInline(command, HEADER_TRUNCATION_LIMIT);
       details.push(`$ ${shortCmd}`);
     }
 
@@ -48,6 +56,7 @@ export class BashTool extends StatelessWidget {
       name: this.toolCall.kind,
       status: this.toolCall.status,
       details,
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
@@ -58,12 +67,20 @@ export class BashTool extends StatelessWidget {
 
     const output = this.extractOutput();
     if (output) {
+      // During streaming, show the TAIL of output with a block cursor.
+      // After completion, show the HEAD of output (standard behavior).
+      const displayOutput = this.toolCall.isStreaming
+        ? (output.length > OUTPUT_TRUNCATION_LIMIT
+            ? '...(truncated)\n' + output.slice(-OUTPUT_TRUNCATION_LIMIT) + ' \u2588'
+            : output + ' \u2588')
+        : truncateText(output, OUTPUT_TRUNCATION_LIMIT);
+
       bodyChildren.push(
         new Padding({
           padding: EdgeInsets.only({ left: 2, right: 2 }),
           child: new Text({
             text: new TextSpan({
-              text: output.length > 2000 ? output.slice(0, 2000) + '\n…(truncated)' : output,
+              text: displayOutput,
               style: new TextStyle({
                 foreground: theme?.base.mutedForeground ?? Color.brightBlack,
                 dim: true,
@@ -74,7 +91,7 @@ export class BashTool extends StatelessWidget {
       );
     }
 
-    const exitCode = this.extractExitCode();
+    const exitCode = extractRawNumber(this.toolCall.result, ['exit_code']);
     if (exitCode !== null) {
       const exitColor = exitCode === 0
         ? (theme?.app.toolSuccess ?? Color.green)
@@ -104,31 +121,16 @@ export class BashTool extends StatelessWidget {
   }
 
   /**
-   * Extracts stdout/stderr output from the result.
+   * Extracts stdout/stderr output from the result or streaming output.
+   * During execution, prefers streamingOutput (populated by appendToolOutput).
+   * After completion, uses result.rawOutput (populated by tool_call_update).
    */
   private extractOutput(): string {
-    if (!this.toolCall.result) return '';
-    if (this.toolCall.result.rawOutput) {
-      const raw = this.toolCall.result.rawOutput;
-      if (typeof raw === 'string') return raw;
-      const stdout = (raw['stdout'] ?? '') as string;
-      const stderr = (raw['stderr'] ?? '') as string;
-      if (stdout || stderr) return [stdout, stderr].filter(Boolean).join('\n');
-      return JSON.stringify(raw, null, 2);
+    // Prefer streaming output during execution
+    if (this.toolCall.isStreaming && this.toolCall.streamingOutput) {
+      return this.toolCall.streamingOutput;
     }
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
-  }
 
-  /**
-   * Extracts the exit code from the result.
-   */
-  private extractExitCode(): number | null {
-    const raw = this.toolCall.result?.rawOutput;
-    if (raw && typeof raw === 'object' && 'exit_code' in raw) {
-      return raw['exit_code'] as number;
-    }
-    return null;
+    return extractShellOutput(this.toolCall.result);
   }
 }

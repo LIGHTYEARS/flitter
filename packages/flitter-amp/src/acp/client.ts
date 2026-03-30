@@ -3,44 +3,27 @@
 
 import * as fs from 'node:fs/promises';
 import { spawn, type ChildProcess } from 'node:child_process';
+import type * as acp from '@agentclientprotocol/sdk';
 import { log } from '../utils/logger';
+import { safeUtf8Slice } from '../utils/buffer';
 
 /**
  * Callback interface for the TUI layer to handle agent events.
  * The ACP client delegates UI-related actions to the app via these callbacks.
+ *
+ * Uses SDK types directly so that downstream handlers benefit from
+ * discriminated union narrowing (SessionUpdate) and literal types
+ * (StopReason, PermissionOptionKind).
  */
 export interface ClientCallbacks {
   /** Called when the agent sends a session update (streaming text, tool calls, etc.) */
-  onSessionUpdate(sessionId: string, update: SessionUpdate): void;
+  onSessionUpdate(sessionId: string, update: acp.SessionUpdate): void;
   /** Called when the agent requests permission — returns the selected option ID or null */
-  onPermissionRequest(request: PermissionRequest): Promise<string | null>;
+  onPermissionRequest(request: acp.RequestPermissionRequest): Promise<string | null>;
   /** Called when a session completes a prompt (stop reason received) */
-  onPromptComplete(sessionId: string, stopReason: string): void;
+  onPromptComplete(sessionId: string, stopReason: acp.StopReason): void;
   /** Called when the agent connection is closed unexpectedly */
   onConnectionClosed(reason: string): void;
-}
-
-export interface SessionUpdate {
-  sessionUpdate: string;
-  [key: string]: unknown;
-}
-
-export interface PermissionRequest {
-  sessionId: string;
-  toolCall: {
-    toolCallId: string;
-    title: string;
-    kind: string;
-    status: string;
-    locations?: Array<{ path: string }>;
-    rawInput?: Record<string, unknown>;
-  };
-  prompt: string;
-  options: Array<{
-    kind: string;
-    name: string;
-    optionId: string;
-  }>;
 }
 
 interface TerminalBuffer {
@@ -55,8 +38,11 @@ interface TerminalBuffer {
  * When the ACP agent needs something from us (read a file, write a file,
  * run a terminal command, ask for permission), it calls methods on this client
  * via JSON-RPC. We handle these requests and respond.
+ *
+ * Implements acp.Client directly so that no `as unknown as acp.Client` cast
+ * is needed when creating a ClientSideConnection.
  */
-export class FlitterClient {
+export class FlitterClient implements acp.Client {
   private callbacks: ClientCallbacks;
   private terminals: Map<string, ChildProcess> = new Map();
   private terminalBuffers: Map<string, TerminalBuffer> = new Map();
@@ -69,7 +55,7 @@ export class FlitterClient {
    * session/update — Agent sends real-time streaming updates.
    * This is the main event channel: text chunks, tool calls, plan updates, usage.
    */
-  async sessionUpdate(params: { sessionId: string; update: SessionUpdate }): Promise<void> {
+  async sessionUpdate(params: acp.SessionNotification): Promise<void> {
     this.callbacks.onSessionUpdate(params.sessionId, params.update);
   }
 
@@ -77,7 +63,7 @@ export class FlitterClient {
    * session/request_permission — Agent asks user to approve a tool call.
    * We show a dialog in the TUI and return the user's choice.
    */
-  async requestPermission(params: PermissionRequest): Promise<{ outcome: { outcome: string; optionId?: string } }> {
+  async requestPermission(params: acp.RequestPermissionRequest): Promise<acp.RequestPermissionResponse> {
     const selectedId = await this.callbacks.onPermissionRequest(params);
     if (selectedId === null) {
       return { outcome: { outcome: 'cancelled' } };
@@ -88,7 +74,7 @@ export class FlitterClient {
   /**
    * fs/read_text_file — Agent wants to read a file from our filesystem.
    */
-  async readTextFile(params: { path: string; sessionId: string }): Promise<{ content: string }> {
+  async readTextFile(params: acp.ReadTextFileRequest): Promise<acp.ReadTextFileResponse> {
     log.debug(`Agent reading file: ${params.path}`);
     const content = await fs.readFile(params.path, 'utf-8');
     return { content };
@@ -96,24 +82,19 @@ export class FlitterClient {
 
   /**
    * fs/write_text_file — Agent wants to write a file to our filesystem.
+   * SDK expects WriteTextFileResponse (an object), not void.
    */
-  async writeTextFile(params: { content: string; path: string; sessionId: string }): Promise<void> {
+  async writeTextFile(params: acp.WriteTextFileRequest): Promise<acp.WriteTextFileResponse> {
     log.debug(`Agent writing file: ${params.path}`);
     await fs.writeFile(params.path, params.content, 'utf-8');
+    return {};
   }
 
   /**
    * terminal/create — Agent wants to run a command.
    * Starts persistent output collection immediately.
    */
-  async createTerminal(params: {
-    command: string;
-    args?: string[];
-    cwd?: string | null;
-    env?: Array<{ name: string; value: string }>;
-    outputByteLimit?: number | null;
-    sessionId: string;
-  }): Promise<{ terminalId: string }> {
+  async createTerminal(params: acp.CreateTerminalRequest): Promise<acp.CreateTerminalResponse> {
     const terminalId = crypto.randomUUID();
     log.debug(`Agent creating terminal ${terminalId}: ${params.command} ${(params.args || []).join(' ')}`);
 
@@ -142,14 +123,18 @@ export class FlitterClient {
 
     const appendOutput = (chunk: Buffer) => {
       if (buffer.limit !== null && buffer.byteCount >= buffer.limit) return;
-      const text = chunk.toString();
+
       const bytes = chunk.byteLength;
+
       if (buffer.limit !== null && buffer.byteCount + bytes > buffer.limit) {
+        // Must truncate this chunk to stay within the byte budget.
+        // Slice the raw buffer at a UTF-8-safe boundary, then decode.
         const remaining = buffer.limit - buffer.byteCount;
-        buffer.output += text.slice(0, remaining);
-        buffer.byteCount = buffer.limit;
+        const truncated = safeUtf8Slice(chunk, remaining);
+        buffer.output += truncated.toString('utf-8');
+        buffer.byteCount += truncated.byteLength;
       } else {
-        buffer.output += text;
+        buffer.output += chunk.toString('utf-8');
         buffer.byteCount += bytes;
       }
     };
@@ -162,26 +147,21 @@ export class FlitterClient {
 
   /**
    * terminal/output — Agent wants current output of a terminal.
-   * Reads from the persistent buffer — no new listeners registered.
+   * Returns flat shape with `truncated` field as required by SDK TerminalOutputResponse.
    */
-  async terminalOutput(params: { terminalId: string; sessionId: string }): Promise<{
-    terminal: { terminalId: string; output: string; exitStatus?: { code: number } | null };
-  }> {
+  async terminalOutput(params: acp.TerminalOutputRequest): Promise<acp.TerminalOutputResponse> {
     const proc = this.terminals.get(params.terminalId);
     const buffer = this.terminalBuffers.get(params.terminalId);
 
     if (!proc || !buffer) {
-      return {
-        terminal: { terminalId: params.terminalId, output: '', exitStatus: { code: -1 } },
-      };
+      return { output: '', truncated: false, exitStatus: { exitCode: -1 } };
     }
 
+    const truncated = buffer.limit !== null && buffer.byteCount >= buffer.limit;
     return {
-      terminal: {
-        terminalId: params.terminalId,
-        output: buffer.output,
-        exitStatus: proc.exitCode !== null ? { code: proc.exitCode } : null,
-      },
+      output: buffer.output,
+      truncated,
+      exitStatus: proc.exitCode !== null ? { exitCode: proc.exitCode } : null,
     };
   }
 
@@ -189,10 +169,7 @@ export class FlitterClient {
    * terminal/wait_for_exit — Block until the terminal command finishes.
    * Returns flat {exitCode, signal} to match SDK WaitForTerminalExitResponse.
    */
-  async waitForTerminalExit(params: { terminalId: string; sessionId: string }): Promise<{
-    exitCode?: number | null;
-    signal?: string | null;
-  }> {
+  async waitForTerminalExit(params: acp.WaitForTerminalExitRequest): Promise<acp.WaitForTerminalExitResponse> {
     const proc = this.terminals.get(params.terminalId);
     if (!proc) {
       return { exitCode: -1, signal: null };
@@ -212,7 +189,7 @@ export class FlitterClient {
   /**
    * terminal/kill — Kill a running terminal.
    */
-  async killTerminal(params: { terminalId: string; sessionId: string }): Promise<void> {
+  async killTerminal(params: acp.KillTerminalRequest): Promise<acp.KillTerminalResponse | void> {
     const proc = this.terminals.get(params.terminalId);
     if (proc && !proc.killed) {
       proc.kill('SIGTERM');
@@ -222,7 +199,7 @@ export class FlitterClient {
   /**
    * terminal/release — Release terminal resources.
    */
-  async releaseTerminal(params: { terminalId: string; sessionId: string }): Promise<void> {
+  async releaseTerminal(params: acp.ReleaseTerminalRequest): Promise<acp.ReleaseTerminalResponse | void> {
     const proc = this.terminals.get(params.terminalId);
     if (proc && !proc.killed) {
       proc.kill('SIGTERM');

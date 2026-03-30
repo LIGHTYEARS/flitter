@@ -22,6 +22,33 @@ interface ToolCallWidgetProps {
 }
 
 /**
+ * Normalizes common agent tool name variants to canonical names
+ * used by the dispatch switch below.
+ */
+const TOOL_NAME_MAP: Record<string, string> = {
+  read_file: 'Read',
+  ReadFile: 'Read',
+  execute_command: 'Bash',
+  shell: 'Bash',
+  run_command: 'Bash',
+  terminal: 'Bash',
+  search: 'Grep',
+  grep: 'Grep',
+  ripgrep: 'Grep',
+  find_files: 'Grep',
+  list_files: 'Grep',
+  write_file: 'create_file',
+  write_to_file: 'create_file',
+  WriteFile: 'create_file',
+  edit: 'edit_file',
+  str_replace_editor: 'edit_file',
+  EditTool: 'edit_file',
+  web_search: 'WebSearch',
+  browser: 'WebSearch',
+  fetch_url: 'WebSearch',
+};
+
+/**
  * Top-level dispatch widget that routes a ToolCallItem to the appropriate
  * specialized renderer based on toolCall.kind (the tool name).
  *
@@ -49,53 +76,55 @@ export class ToolCallWidget extends StatelessWidget {
   }
 
   build(_context: BuildContext): Widget {
-    const name = this.toolCall.kind;
+    const rawName = this.toolCall.kind;
+    const name = TOOL_NAME_MAP[rawName] ?? rawName;
     const expanded = this.isExpanded;
+    const toggle = this.onToggle;
 
     if (name.startsWith('sa__') || name.startsWith('tb__')) {
-      return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded });
+      return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
     }
 
     switch (name) {
       case 'Read':
-        return new ReadTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new ReadTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'edit_file':
       case 'apply_patch':
       case 'undo_edit':
-        return new EditFileTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new EditFileTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'create_file':
-        return new CreateFileTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new CreateFileTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Bash':
       case 'shell_command':
       case 'REPL':
-        return new BashTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new BashTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Grep':
       case 'glob':
       case 'Glob':
       case 'Search':
-        return new GrepTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new GrepTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'WebSearch':
       case 'read_web_page':
-        return new WebSearchTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new WebSearchTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Task':
       case 'oracle':
       case 'code_review':
       case 'librarian':
-        return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new TaskTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'handoff':
-        return new HandoffTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new HandoffTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'todo_list':
       case 'todo_write':
       case 'todo_read':
-        return new TodoListTool({ toolCall: this.toolCall, isExpanded: expanded });
+        return new TodoListTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'painter':
       case 'mermaid':
@@ -107,14 +136,14 @@ export class ToolCallWidget extends StatelessWidget {
         return new GenericToolCard({
           toolCall: this.toolCall,
           isExpanded: expanded,
-          onToggle: this.onToggle,
+          onToggle: toggle,
         });
 
       default:
         return new GenericToolCard({
           toolCall: this.toolCall,
           isExpanded: expanded,
-          onToggle: this.onToggle,
+          onToggle: toggle,
         });
     }
   }

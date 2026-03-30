@@ -263,9 +263,9 @@ describe('Visual Snapshots', () => {
         "database, so I should focus on parameterized queries and input validation.",
       );
       appState.conversation.finalizeThinking();
-      const thinkingItem = appState.conversation.items.find(i => i.type === 'thinking');
-      if (thinkingItem && thinkingItem.type === 'thinking') {
-        thinkingItem.collapsed = false;
+      const thinkingIndex = appState.conversation.items.findIndex(i => i.type === 'thinking');
+      if (thinkingIndex >= 0) {
+        appState.conversation.setItemCollapsed(thinkingIndex, false);
       }
 
       appState.conversation.appendAssistantChunk(
@@ -330,9 +330,9 @@ describe('Visual Snapshots', () => {
         "Let me think about the best architecture for this...",
       );
       // Don't finalize — still streaming; expand to see content
-      const thinkingItem = appState.conversation.items.find(i => i.type === 'thinking');
-      if (thinkingItem && thinkingItem.type === 'thinking') {
-        thinkingItem.collapsed = false;
+      const thinkingIndex = appState.conversation.items.findIndex(i => i.type === 'thinking');
+      if (thinkingIndex >= 0) {
+        appState.conversation.setItemCollapsed(thinkingIndex, false);
       }
 
       const app = makeApp(appState);
@@ -356,13 +356,7 @@ describe('Visual Snapshots', () => {
       appState.conversation.addUserMessage('Help me with this');
 
       // Empty thinking = interrupted
-      appState.conversation.items.push({
-        type: 'thinking',
-        text: '',
-        timestamp: Date.now(),
-        isStreaming: false,
-        collapsed: false,
-      });
+      appState.conversation.addInterruptedThinking();
 
       appState.conversation.appendAssistantChunk("Here's what I can help with.");
       appState.conversation.finalizeAssistantMessage();

@@ -11,12 +11,12 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString, pickNumber } from '../../utils/raw-input';
+import { extractOutputText } from './tool-output-utils';
+import { OUTPUT_TRUNCATION_LIMIT } from './truncation-limits';
 
-interface ReadToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface ReadToolProps extends BaseToolProps {}
 
 /**
  * Renders a Read tool call showing the file path and optional line range.
@@ -25,40 +25,43 @@ interface ReadToolProps {
 export class ReadTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: ReadToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
 
-    const filePath = (input['file_path'] ?? input['path'] ?? '') as string;
-    const offset = input['offset'] as number | undefined;
-    const limit = input['limit'] as number | undefined;
+    const filePath = pickString(input, ['file_path', 'path', 'filename', 'file']);
+    const offset = pickNumber(input, 'offset');
+    const limit = pickNumber(input, 'limit');
 
     const details: string[] = [];
     if (filePath) details.push(filePath);
-    if (offset !== undefined && limit !== undefined) {
+    if (offset !== null && limit !== null) {
       details.push(`L${offset}-${offset + limit}`);
-    } else if (offset !== undefined) {
+    } else if (offset !== null) {
       details.push(`L${offset}`);
     }
 
     const header = new ToolHeader({
-      name: 'Read',
+      name: this.toolCall.kind ?? 'Read',
       status: this.toolCall.status,
       details,
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
       return header;
     }
 
-    const outputText = this.extractOutput();
+    const outputText = extractOutputText(this.toolCall.result, { maxLength: OUTPUT_TRUNCATION_LIMIT });
     const bodyChildren: Widget[] = [];
 
     if (outputText) {
@@ -67,7 +70,7 @@ export class ReadTool extends StatelessWidget {
           padding: EdgeInsets.only({ left: 2, right: 2 }),
           child: new Text({
             text: new TextSpan({
-              text: outputText.length > 1000 ? outputText.slice(0, 1000) + '\n…(truncated)' : outputText,
+              text: outputText,
               style: new TextStyle({
                 foreground: theme?.base.mutedForeground ?? Color.brightBlack,
                 dim: true,
@@ -87,18 +90,5 @@ export class ReadTool extends StatelessWidget {
       crossAxisAlignment: 'stretch',
       children: [header, ...bodyChildren],
     });
-  }
-
-  /**
-   * Extracts file content text from the tool result.
-   */
-  private extractOutput(): string {
-    if (!this.toolCall.result) return '';
-    if (this.toolCall.result.rawOutput) {
-      return JSON.stringify(this.toolCall.result.rawOutput, null, 2);
-    }
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
   }
 }

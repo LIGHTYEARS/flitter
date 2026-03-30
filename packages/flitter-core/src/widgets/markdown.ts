@@ -22,6 +22,22 @@ import { EdgeInsets } from '../layout/edge-insets';
 import { SizedBox } from './sized-box';
 import { Container } from './container';
 import { BoxDecoration } from '../layout/render-decorated';
+import { stringWidth } from '../core/wcwidth';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Pad a string with trailing spaces until its terminal display width
+ * reaches the target column count. Unlike String.padEnd(), this correctly
+ * handles CJK / fullwidth / emoji characters that occupy 2 columns.
+ */
+function padEndDisplayWidth(str: string, targetWidth: number): string {
+  const currentWidth = stringWidth(str);
+  if (currentWidth >= targetWidth) return str;
+  return str + ' '.repeat(targetWidth - currentWidth);
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -69,6 +85,22 @@ export interface InlineSegment {
   readonly strikethrough?: boolean;
   readonly boldItalic?: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Internal: recursive inline parser context
+// ---------------------------------------------------------------------------
+
+/** Accumulated formatting state from enclosing scopes. */
+interface InlineStyleContext {
+  bold?: boolean;
+  italic?: boolean;
+  strikethrough?: boolean;
+  code?: boolean;
+  linkUrl?: string;
+  linkText?: string;
+}
+
+type DelimiterKind = '***' | '**' | '*' | '~~' | '`';
 
 // ---------------------------------------------------------------------------
 // LRU AST Cache (Amp caches 100 entries)
@@ -374,9 +406,30 @@ export class Markdown extends StatelessWidget {
         continue;
       }
 
-      // Regular paragraph
-      blocks.push({ type: 'paragraph', content: line });
-      i++;
+      // Regular paragraph — merge consecutive non-empty, non-special lines
+      {
+        const paragraphLines: string[] = [line];
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i]!;
+          // Stop merging at empty lines or special block starts
+          if (
+            nextLine.trim() === '' ||
+            nextLine.startsWith('#') ||
+            nextLine.startsWith('```') ||
+            nextLine.startsWith('>') ||
+            /^[\-\*]\s+/.test(nextLine) ||
+            /^\d+\.\s+/.test(nextLine) ||
+            /^[-*_]{3,}\s*$/.test(nextLine) ||
+            (i + 1 < lines.length && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(lines[i + 1]!) && nextLine.includes('|'))
+          ) {
+            break;
+          }
+          paragraphLines.push(nextLine);
+          i++;
+        }
+        blocks.push({ type: 'paragraph', content: paragraphLines.join(' ') });
+      }
     }
 
     return blocks;
@@ -395,83 +448,219 @@ export class Markdown extends StatelessWidget {
 
   /**
    * Parse inline markdown formatting within a text string.
-   * Handles: **bold**, *italic*, `code`, [text](url)
+   * Handles nested formatting: **bold *italic* bold** produces
+   * three segments with correct style inheritance.
    * Exported as static for testability.
    */
   static parseInline(text: string): InlineSegment[] {
+    if (text.length === 0) return [];
+    const result = Markdown._parseInlineRecursive(text, {});
+    return result.segments;
+  }
+
+  /**
+   * Recursively parse inline markdown with style context inheritance.
+   * Each formatting delimiter opens a scope; within that scope, the parser
+   * recursively parses inner content, producing child segments that inherit
+   * the outer scope's formatting flags.
+   *
+   * Returns { segments, consumed, closed }.
+   * - closed=true means the stopDelim was found and consumed.
+   * - closed=false means end-of-text was reached without finding stopDelim.
+   */
+  private static _parseInlineRecursive(
+    text: string,
+    ctx: InlineStyleContext,
+    stopDelim?: DelimiterKind,
+  ): { segments: InlineSegment[]; consumed: number; closed: boolean } {
     const segments: InlineSegment[] = [];
-    let remaining = text;
+    let pos = 0;
+    let plainStart = 0;
 
-    while (remaining.length > 0) {
-      // Try to match inline patterns
-      // Order matters: ***boldItalic*** before **bold** before *italic*
+    const flushPlain = () => {
+      if (pos > plainStart) {
+        segments.push(Markdown._makeSegment(text.slice(plainStart, pos), ctx));
+      }
+    };
 
-      // Bold+Italic: ***text***
-      const boldItalicMatch = remaining.match(/^\*\*\*(.+?)\*\*\*/);
-      if (boldItalicMatch) {
-        segments.push({ text: boldItalicMatch[1]!, boldItalic: true });
-        remaining = remaining.slice(boldItalicMatch[0]!.length);
-        continue;
+    while (pos < text.length) {
+      // Check if we've hit the stop delimiter for the current scope.
+      // For single-char delimiters (* or ~), ensure we don't match the
+      // start of a multi-char delimiter (** or ~~).
+      if (stopDelim && text.startsWith(stopDelim, pos)) {
+        const afterDelim = pos + stopDelim.length;
+        let isRealStop = true;
+
+        if (stopDelim === '*') {
+          // Don't match * if the next char is also * (would be ** or ***)
+          if (afterDelim < text.length && text[afterDelim] === '*') {
+            isRealStop = false;
+          }
+        }
+
+        if (isRealStop) {
+          flushPlain();
+          return { segments, consumed: pos + stopDelim.length, closed: true };
+        }
       }
 
-      // Bold: **text**
-      const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
-      if (boldMatch) {
-        segments.push({ text: boldMatch[1]!, bold: true });
-        remaining = remaining.slice(boldMatch[0]!.length);
-        continue;
+      // --- Inline code: `code` (no recursion inside code spans) ---
+      if (text[pos] === '`') {
+        const closeIdx = text.indexOf('`', pos + 1);
+        if (closeIdx !== -1) {
+          flushPlain();
+          const codeText = text.slice(pos + 1, closeIdx);
+          segments.push(Markdown._makeSegment(codeText, { ...ctx, code: true }));
+          pos = closeIdx + 1;
+          plainStart = pos;
+          continue;
+        }
       }
 
-      // Italic: *text*
-      const italicMatch = remaining.match(/^\*(.+?)\*/);
-      if (italicMatch) {
-        segments.push({ text: italicMatch[1]!, italic: true });
-        remaining = remaining.slice(italicMatch[0]!.length);
-        continue;
+      // --- Link: [text](url) ---
+      if (text[pos] === '[') {
+        const closeBracket = Markdown._findMatchingBracket(text, pos);
+        if (closeBracket !== -1 && closeBracket + 1 < text.length && text[closeBracket + 1] === '(') {
+          const closeParen = text.indexOf(')', closeBracket + 2);
+          if (closeParen !== -1) {
+            flushPlain();
+            const linkTextStr = text.slice(pos + 1, closeBracket);
+            const linkUrlStr = text.slice(closeBracket + 2, closeParen);
+            // Recursively parse the link text for nested formatting
+            const linkCtx: InlineStyleContext = {
+              ...ctx,
+              linkUrl: linkUrlStr,
+              linkText: linkTextStr,
+            };
+            const inner = Markdown._parseInlineRecursive(linkTextStr, linkCtx);
+            segments.push(...inner.segments);
+            pos = closeParen + 1;
+            plainStart = pos;
+            continue;
+          }
+        }
       }
 
-      // Strikethrough: ~~text~~
-      const strikeMatch = remaining.match(/^~~(.+?)~~/);
-      if (strikeMatch) {
-        segments.push({ text: strikeMatch[1]!, strikethrough: true });
-        remaining = remaining.slice(strikeMatch[0]!.length);
-        continue;
+      // --- Bold-italic: ***text*** ---
+      if (text.startsWith('***', pos)) {
+        const innerStart = pos + 3;
+        const result = Markdown._parseInlineRecursive(
+          text.slice(innerStart),
+          { ...ctx, bold: true, italic: true },
+          '***',
+        );
+        if (result.closed) {
+          flushPlain();
+          segments.push(...result.segments);
+          pos = innerStart + result.consumed;
+          plainStart = pos;
+          continue;
+        }
       }
 
-      // Inline code: `code`
-      const codeMatch = remaining.match(/^`([^`]+)`/);
-      if (codeMatch) {
-        segments.push({ text: codeMatch[1]!, code: true });
-        remaining = remaining.slice(codeMatch[0]!.length);
-        continue;
+      // --- Bold: **text** ---
+      if (text.startsWith('**', pos) && !text.startsWith('***', pos)) {
+        const innerStart = pos + 2;
+        const result = Markdown._parseInlineRecursive(
+          text.slice(innerStart),
+          { ...ctx, bold: true },
+          '**',
+        );
+        if (result.closed) {
+          flushPlain();
+          segments.push(...result.segments);
+          pos = innerStart + result.consumed;
+          plainStart = pos;
+          continue;
+        }
       }
 
-      // Link: [text](url)
-      const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
-      if (linkMatch) {
-        segments.push({
-          text: linkMatch[1]!,
-          linkText: linkMatch[1]!,
-          linkUrl: linkMatch[2]!,
-        });
-        remaining = remaining.slice(linkMatch[0]!.length);
-        continue;
+      // --- Italic: *text* ---
+      if (text[pos] === '*' && !text.startsWith('**', pos)) {
+        const innerStart = pos + 1;
+        const result = Markdown._parseInlineRecursive(
+          text.slice(innerStart),
+          { ...ctx, italic: true },
+          '*',
+        );
+        if (result.closed) {
+          flushPlain();
+          segments.push(...result.segments);
+          pos = innerStart + result.consumed;
+          plainStart = pos;
+          continue;
+        }
       }
 
-      // Plain text: consume until next special character or end
-      const plainMatch = remaining.match(/^[^*`\[~]+/);
-      if (plainMatch) {
-        segments.push({ text: plainMatch[0]! });
-        remaining = remaining.slice(plainMatch[0]!.length);
-        continue;
+      // --- Strikethrough: ~~text~~ ---
+      if (text.startsWith('~~', pos)) {
+        const innerStart = pos + 2;
+        const result = Markdown._parseInlineRecursive(
+          text.slice(innerStart),
+          { ...ctx, strikethrough: true },
+          '~~',
+        );
+        if (result.closed) {
+          flushPlain();
+          segments.push(...result.segments);
+          pos = innerStart + result.consumed;
+          plainStart = pos;
+          continue;
+        }
       }
 
-      // If no pattern matches, consume one character as plain text
-      segments.push({ text: remaining[0]! });
-      remaining = remaining.slice(1);
+      // No pattern matched at this position; advance one character
+      pos++;
     }
 
-    return segments;
+    // Flush any remaining plain text
+    flushPlain();
+    return { segments, consumed: pos, closed: false };
+  }
+
+  /**
+   * Create an InlineSegment with the given text and style context.
+   * Merges boolean flags so the segment carries the union of all
+   * enclosing scopes' formatting.
+   */
+  private static _makeSegment(text: string, ctx: InlineStyleContext): InlineSegment {
+    const seg: Record<string, unknown> = { text };
+
+    const isBold = !!ctx.bold;
+    const isItalic = !!ctx.italic;
+
+    if (isBold && isItalic) {
+      seg.boldItalic = true;
+    } else if (isBold) {
+      seg.bold = true;
+    } else if (isItalic) {
+      seg.italic = true;
+    }
+
+    if (ctx.strikethrough) seg.strikethrough = true;
+    if (ctx.code) seg.code = true;
+    if (ctx.linkUrl) {
+      seg.linkUrl = ctx.linkUrl;
+      seg.linkText = ctx.linkText;
+    }
+
+    return seg as InlineSegment;
+  }
+
+  /**
+   * Find the index of the closing ']' that matches the opening '[' at
+   * position `start`. Returns -1 if not found. Handles nested brackets.
+   */
+  private static _findMatchingBracket(text: string, start: number): number {
+    let depth = 0;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '[') depth++;
+      else if (text[i] === ']') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+    return -1;
   }
 
   // ---------------------------------------------------------------------------
@@ -526,7 +715,7 @@ export class Markdown extends StatelessWidget {
       bold: true,
     });
 
-    const prefix = level === 1 ? '' : level === 2 ? '' : '';
+    const prefix = level === 1 ? '━ ' : level === 2 ? '─ ' : level === 3 ? '· ' : '';
     const text = prefix + content;
 
     // Parse inline formatting within the heading
@@ -728,10 +917,10 @@ export class Markdown extends StatelessWidget {
 
     // Compute column widths (max of header and each row)
     const colCount = headers.length;
-    const colWidths: number[] = headers.map((h) => h.length);
+    const colWidths: number[] = headers.map((h) => stringWidth(h));
     for (const row of rows) {
       for (let c = 0; c < colCount; c++) {
-        const cellLen = (row[c] ?? '').length;
+        const cellLen = stringWidth(row[c] ?? '');
         if (cellLen > colWidths[c]!) colWidths[c] = cellLen;
       }
     }
@@ -739,7 +928,7 @@ export class Markdown extends StatelessWidget {
     const tableLines: Widget[] = [];
 
     // Header row
-    const headerCells = headers.map((h, c) => h.padEnd(colWidths[c]!));
+    const headerCells = headers.map((h, c) => padEndDisplayWidth(h, colWidths[c]!));
     const headerText = '  ' + headerCells.join(' \u2502 ');
     tableLines.push(
       new Text({
@@ -766,7 +955,7 @@ export class Markdown extends StatelessWidget {
 
     // Data rows
     for (const row of rows) {
-      const cells = headers.map((_, c) => (row[c] ?? '').padEnd(colWidths[c]!));
+      const cells = headers.map((_, c) => padEndDisplayWidth(row[c] ?? '', colWidths[c]!));
       const rowText = '  ' + cells.join(' \u2502 ');
       tableLines.push(
         new Text({

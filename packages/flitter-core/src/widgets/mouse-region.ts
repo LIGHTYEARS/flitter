@@ -12,6 +12,7 @@ import {
   RenderObject,
   type PaintContext,
 } from '../framework/render-object';
+import type { BoxHitTestResult } from '../input/hit-test';
 
 // ---------------------------------------------------------------------------
 // Mouse event types for MouseRegion
@@ -125,6 +126,21 @@ export class RenderMouseRegion extends RenderBox {
       case 'scroll':
         this.onScroll?.(event);
         break;
+    }
+  }
+
+  /**
+   * Hit-test the single child. RenderMouseRegion is a single-child container,
+   * so it delegates to its child if present.
+   */
+  override hitTestChildren(
+    result: BoxHitTestResult,
+    position: Offset,
+    parentOffsetX: number,
+    parentOffsetY: number,
+  ): void {
+    if (this._child) {
+      this._child.hitTest(result, position, parentOffsetX, parentOffsetY);
     }
   }
 

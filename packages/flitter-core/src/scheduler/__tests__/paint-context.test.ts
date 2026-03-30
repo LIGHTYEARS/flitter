@@ -8,6 +8,7 @@ import { TextSpan } from '../../core/text-span';
 import { TextStyle } from '../../core/text-style';
 import { Color } from '../../core/color';
 import { PaintContext, BORDER_CHARS, textStyleToCellStyle } from '../paint-context';
+import { BOX_DRAWING } from '../../painting/border-painter';
 import { buildSgrDelta } from '../../terminal/renderer';
 import { paintRenderTree, paintRenderObject } from '../paint';
 import { RenderBox, RenderObject, ContainerRenderBox } from '../../framework/render-object';
@@ -307,6 +308,52 @@ describe('PaintContext', () => {
       ctx.drawBorder(0, 0, 1, 1, 'solid');
       // All cells should still be empty
       expect(screen.getCell(0, 0).char).toBe(' ');
+    });
+
+    // Gap 31: Dashed and double border styles
+    test('draws dashed border with correct corners and edges', () => {
+      ctx.drawBorder(0, 0, 5, 3, 'dashed');
+
+      const chars = BOX_DRAWING.dashed;
+
+      // Corners (reuse solid)
+      expect(screen.getCell(0, 0).char).toBe(chars.tl); // \u250C
+      expect(screen.getCell(4, 0).char).toBe(chars.tr); // \u2510
+      expect(screen.getCell(0, 2).char).toBe(chars.bl); // \u2514
+      expect(screen.getCell(4, 2).char).toBe(chars.br); // \u2518
+
+      // Top edge (dashed horizontal)
+      expect(screen.getCell(1, 0).char).toBe('\u2504');
+      expect(screen.getCell(2, 0).char).toBe('\u2504');
+      expect(screen.getCell(3, 0).char).toBe('\u2504');
+
+      // Bottom edge (dashed horizontal)
+      expect(screen.getCell(1, 2).char).toBe('\u2504');
+
+      // Left edge (dashed vertical)
+      expect(screen.getCell(0, 1).char).toBe('\u2506');
+
+      // Right edge (dashed vertical)
+      expect(screen.getCell(4, 1).char).toBe('\u2506');
+    });
+
+    test('draws double border with correct corners and edges', () => {
+      ctx.drawBorder(0, 0, 5, 3, 'double');
+
+      // Double corners
+      expect(screen.getCell(0, 0).char).toBe('\u2554'); // top-left
+      expect(screen.getCell(4, 0).char).toBe('\u2557'); // top-right
+      expect(screen.getCell(0, 2).char).toBe('\u255A'); // bottom-left
+      expect(screen.getCell(4, 2).char).toBe('\u255D'); // bottom-right
+
+      // Double horizontal edge
+      expect(screen.getCell(1, 0).char).toBe('\u2550');
+      expect(screen.getCell(2, 0).char).toBe('\u2550');
+      expect(screen.getCell(3, 0).char).toBe('\u2550');
+
+      // Double vertical edge
+      expect(screen.getCell(0, 1).char).toBe('\u2551');
+      expect(screen.getCell(4, 1).char).toBe('\u2551');
     });
   });
 

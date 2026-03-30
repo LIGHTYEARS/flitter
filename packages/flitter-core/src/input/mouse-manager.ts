@@ -1,31 +1,18 @@
-// MouseManager — global mouse tracking singleton
-// Amp ref: Pg class — coordinates hover enter/exit events between RenderMouseRegion instances
+// MouseManager -- global mouse tracking singleton
+// Amp ref: Pg class -- coordinates hover enter/exit events between RenderMouseRegion instances
 // Tracks mouse position, hovered regions, and cursor shape
 
 import type { RenderMouseRegion } from '../widgets/mouse-region';
-import type { RenderBox, RenderObject } from '../framework/render-object';
-
-// Lazily cached RenderMouseRegion class to avoid require() per DFS node
-let _RenderMouseRegionClass: any = null;
-
-function getRenderMouseRegionClass(): any {
-  if (_RenderMouseRegionClass === null) {
-    const mod = require('../widgets/mouse-region');
-    _RenderMouseRegionClass = mod.RenderMouseRegion;
-  }
-  return _RenderMouseRegionClass;
-}
-
-/** Hit-test result entry with DFS depth for z-ordering. */
-interface HitTestEntry {
-  region: RenderMouseRegion;
-  depth: number;
-}
+import { RenderBox, type RenderObject } from '../framework/render-object';
+import { BoxHitTestResult, BoxHitTestEntry } from '../input/hit-test';
+import { Offset } from '../core/types';
 
 /**
  * Global mouse tracking manager.
  * Singleton that coordinates mouse position, hover state, and cursor shape
  * across all RenderMouseRegion instances.
+ *
+ * Uses RenderBox.hitTest() for unified hit-testing (Gap #13 / #22).
  *
  * Amp ref: Pg class (mouse-manager singleton)
  */
@@ -38,6 +25,17 @@ export class MouseManager {
   private _hoveredRegions: Set<RenderMouseRegion> = new Set();
   private _rootRenderObject: RenderObject | null = null;
   private _disposed: boolean = false;
+
+  // Lazily cached RenderMouseRegion class to avoid require() per hit-test entry
+  private static _RenderMouseRegionClass: any = null;
+
+  private static getRenderMouseRegionClass(): any {
+    if (MouseManager._RenderMouseRegionClass === null) {
+      const mod = require('../widgets/mouse-region');
+      MouseManager._RenderMouseRegionClass = mod.RenderMouseRegion;
+    }
+    return MouseManager._RenderMouseRegionClass;
+  }
 
   private constructor() {}
 
@@ -180,142 +178,106 @@ export class MouseManager {
     this._currentCursor = cursor;
   }
 
+  // -------------------------------------------------------------------------
+  // Unified hit-testing via RenderBox.hitTest() (Gap #13 / #22)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Perform a hit-test at the given screen position using the unified
+   * RenderBox.hitTest() protocol. Returns all hit BoxHitTestEntry items.
+   */
+  private _performHitTest(x: number, y: number): BoxHitTestEntry[] {
+    if (!this._rootRenderObject) return [];
+    if (!(this._rootRenderObject instanceof RenderBox)) return [];
+
+    const result = new BoxHitTestResult();
+    (this._rootRenderObject as RenderBox).hitTest(
+      result,
+      new Offset(x, y),
+      0, // parentOffsetX  (root starts at origin)
+      0, // parentOffsetY
+    );
+    return [...result.path];
+  }
+
+  /**
+   * Filter BoxHitTestEntry entries to find RenderMouseRegion instances.
+   *
+   * The hit-test path is ordered parent-first (root -> ... -> leaf).
+   * We scan from the deepest (end) toward the shallowest (start).
+   * All RenderMouseRegion entries in the path are collected.
+   *
+   * Opaque semantics: when an opaque RenderMouseRegion is encountered
+   * during the backward scan, we stop -- regions shallower than the
+   * opaque one are excluded because the opaque region "blocks" them.
+   * This prevents a parent region from receiving events that should be
+   * consumed by a nested opaque child.
+   *
+   * The returned array is ordered from shallowest to deepest so that
+   * the caller can iterate from the end to find the deepest handler.
+   */
+  private _extractMouseRegions(entries: BoxHitTestEntry[]): RenderMouseRegion[] {
+    const RMR = MouseManager.getRenderMouseRegionClass();
+    const regions: RenderMouseRegion[] = [];
+
+    // Scan from deepest (last) to shallowest (first)
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i]!;
+      if (entry.target instanceof RMR) {
+        const region = entry.target as unknown as RenderMouseRegion;
+        regions.push(region);
+        if (region.opaque) {
+          break; // opaque region blocks shallower regions
+        }
+      }
+    }
+
+    // Reverse so the array is shallowest-first (consistent with old behavior)
+    regions.reverse();
+    return regions;
+  }
+
   /**
    * Re-evaluate hover state after layout changes.
    * Called as a post-frame callback to ensure that widgets which moved
    * under/out from the cursor are properly updated.
    *
-   * Uses accumulated offsets during DFS traversal so nested layouts
-   * are correctly positioned. Respects opaque regions to block hit-testing.
+   * Uses RenderBox.hitTest() for unified hit-testing (Gap #13 / #22).
    *
-   * Amp ref: Pg.reestablishHoverState() — registered as post-frame callback
+   * Amp ref: Pg.reestablishHoverState() -- registered as post-frame callback
    */
   reestablishHoverState(): void {
     if (this._disposed) return;
     if (this._lastPosition.x < 0 || this._lastPosition.y < 0) return;
     if (!this._rootRenderObject) return;
 
-    // Collect all hit RenderMouseRegion instances with DFS depth
-    const hitEntries: HitTestEntry[] = [];
-    this._hitTest(
-      this._rootRenderObject,
-      this._lastPosition.x,
-      this._lastPosition.y,
-      0, // parentOffsetX
-      0, // parentOffsetY
-      0, // DFS depth
-      hitEntries,
-    );
+    // Run unified hit-test
+    const entries = this._performHitTest(this._lastPosition.x, this._lastPosition.y);
+    const hitRegions = this._extractMouseRegions(entries);
 
-    // Build a set of hit regions for quick lookup
-    const hitRegions = new Set<RenderMouseRegion>();
-    for (const entry of hitEntries) {
-      hitRegions.add(entry.region);
-    }
+    // Build a set for quick lookup
+    const hitSet = new Set<RenderMouseRegion>(hitRegions);
 
     // Unregister regions that are no longer hit
     for (const region of [...this._hoveredRegions]) {
-      if (!hitRegions.has(region)) {
+      if (!hitSet.has(region)) {
         this.unregisterHover(region);
       }
     }
 
-    // Register regions that are newly hit (in DFS order — shallowest first)
-    // Sort by depth so deepest regions are added last (for cursor z-order,
-    // since updateCursor picks the last region with a cursor).
-    hitEntries.sort((a, b) => a.depth - b.depth);
-    for (const entry of hitEntries) {
-      if (!this._hoveredRegions.has(entry.region)) {
-        this.registerHover(entry.region);
+    // Register regions that are newly hit
+    for (const region of hitRegions) {
+      if (!this._hoveredRegions.has(region)) {
+        this.registerHover(region);
       }
     }
-  }
-
-  /**
-   * DFS hit-test traversal of the render tree to find RenderMouseRegion
-   * instances that contain the given position.
-   *
-   * Accumulates global offsets during traversal so nested layouts are
-   * correctly positioned.
-   *
-   * Respects RenderMouseRegion.opaque to block hit-testing of regions
-   * behind opaque ones.
-   *
-   * Returns true if an opaque region was hit (to signal parent to stop).
-   */
-  private _hitTest(
-    node: RenderObject,
-    x: number,
-    y: number,
-    parentOffsetX: number,
-    parentOffsetY: number,
-    depth: number,
-    results: HitTestEntry[],
-  ): boolean {
-    const RMR = getRenderMouseRegionClass();
-
-    // Calculate this node's global offset by adding parent offset + own offset
-    const box = node as unknown as RenderBox;
-    let globalX = parentOffsetX;
-    let globalY = parentOffsetY;
-    if (typeof box.offset !== 'undefined' && box.offset !== null) {
-      globalX += box.offset.col;
-      globalY += box.offset.row;
-    }
-
-    let opaqueHit = false;
-
-    // Check if this node is a RenderMouseRegion
-    if (node instanceof RMR) {
-      const region = node as unknown as RenderMouseRegion;
-      if (typeof box.size !== 'undefined' && box.size !== null) {
-        if (
-          x >= globalX &&
-          x < globalX + box.size.width &&
-          y >= globalY &&
-          y < globalY + box.size.height
-        ) {
-          results.push({ region, depth });
-          // If this region is opaque, signal that regions behind it are blocked
-          if (region.opaque) {
-            opaqueHit = true;
-          }
-        }
-      }
-    }
-
-    // Visit children in reverse order (last child = topmost = highest z-order)
-    // so that if an opaque child is hit, we can stop checking lower siblings
-    const children: RenderObject[] = [];
-    node.visitChildren((child: RenderObject) => {
-      children.push(child);
-    });
-
-    // Traverse children back-to-front (topmost first for opaque blocking)
-    for (let i = children.length - 1; i >= 0; i--) {
-      const childOpaqueHit = this._hitTest(
-        children[i],
-        x,
-        y,
-        globalX,
-        globalY,
-        depth + 1,
-        results,
-      );
-      if (childOpaqueHit) {
-        // An opaque region deeper in this subtree was hit.
-        // Skip remaining siblings (they are behind the opaque region).
-        opaqueHit = true;
-        break;
-      }
-    }
-
-    return opaqueHit;
   }
 
   /**
    * Dispatch a mouse action (scroll, press, release) to the deepest
    * hit-tested RenderMouseRegion that has a matching handler.
+   *
+   * Uses RenderBox.hitTest() for unified hit-testing (Gap #13 / #22).
    *
    * Called by WidgetsBinding when the mouse event action is not 'move'.
    * Hit-tests at (x, y), then dispatches to the appropriate callback
@@ -335,30 +297,19 @@ export class MouseManager {
     if (this._disposed) return;
     if (!this._rootRenderObject) return;
 
-    // Hit-test to find all RenderMouseRegion instances at this position
-    const hitEntries: HitTestEntry[] = [];
-    this._hitTest(
-      this._rootRenderObject,
-      x,
-      y,
-      0, // parentOffsetX
-      0, // parentOffsetY
-      0, // DFS depth
-      hitEntries,
-    );
+    // Run unified hit-test
+    const entries = this._performHitTest(x, y);
+    const hitRegions = this._extractMouseRegions(entries);
 
-    if (hitEntries.length === 0) return;
-
-    // Sort by depth so deepest region is last
-    hitEntries.sort((a, b) => a.depth - b.depth);
+    if (hitRegions.length === 0) return;
 
     // Map action to MouseEventType and the corresponding handler property
     const event = { x, y, button };
 
     if (action === 'scroll') {
       // Find deepest region with onScroll handler
-      for (let i = hitEntries.length - 1; i >= 0; i--) {
-        const region = hitEntries[i].region;
+      for (let i = hitRegions.length - 1; i >= 0; i--) {
+        const region = hitRegions[i]!;
         if (region.onScroll) {
           region.handleMouseEvent('scroll', event);
           return;
@@ -366,8 +317,8 @@ export class MouseManager {
       }
     } else if (action === 'press') {
       // Find deepest region with onClick handler
-      for (let i = hitEntries.length - 1; i >= 0; i--) {
-        const region = hitEntries[i].region;
+      for (let i = hitRegions.length - 1; i >= 0; i--) {
+        const region = hitRegions[i]!;
         if (region.onClick) {
           region.handleMouseEvent('click', event);
           return;
@@ -375,8 +326,8 @@ export class MouseManager {
       }
     } else if (action === 'release') {
       // Find deepest region with onRelease handler
-      for (let i = hitEntries.length - 1; i >= 0; i--) {
-        const region = hitEntries[i].region;
+      for (let i = hitRegions.length - 1; i >= 0; i--) {
+        const region = hitRegions[i]!;
         if (region.onRelease) {
           region.handleMouseEvent('release', event);
           return;

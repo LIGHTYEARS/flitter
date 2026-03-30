@@ -3,12 +3,9 @@
 
 import { StatelessWidget, Widget, BuildContext } from 'flitter-core/src/framework/widget';
 import { GenericToolCard } from './generic-tool-card';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 
-interface TaskToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface TaskToolProps extends BaseToolProps {}
 
 /**
  * Renders a Task / oracle sub-agent tool call.
@@ -17,17 +14,20 @@ interface TaskToolProps {
 export class TaskTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: TaskToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(_context: BuildContext): Widget {
     return new GenericToolCard({
       toolCall: this.toolCall,
       isExpanded: this.isExpanded,
+      onToggle: this.onToggle,
     });
   }
 }

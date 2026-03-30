@@ -4,6 +4,7 @@
 
 import { Key } from '../core/key';
 import { Widget, InheritedWidget, BuildContext } from '../framework/widget';
+import type { TerminalCapabilities as PlatformCapabilities } from '../terminal/platform';
 
 // ---------------------------------------------------------------------------
 // MediaQueryData (Amp: nA)
@@ -46,12 +47,65 @@ export class MediaQueryData {
   }
 
   /**
-   * Static factory with safe defaults — constructs from terminal columns and rows.
-   * Capabilities default to conservative values (ansi256, no mouse, unknown emoji width).
+   * Convert platform-level detected capabilities into MediaQuery-level
+   * capabilities for the widget tree.
+   *
+   * Amp ref: J3.createMediaQueryWrapper reads wB0.getCapabilities()
+   * and passes them directly to nA constructor. In Flitter, the two
+   * capability interfaces have different shapes, so this translation
+   * is needed.
    */
-  static fromTerminal(cols: number, rows: number): MediaQueryData {
+  static fromPlatformCapabilities(
+    platformCaps: PlatformCapabilities,
+  ): TerminalCapabilities {
+    // Determine colorDepth from the boolean flags
+    let colorDepth: 'none' | 'ansi256' | 'truecolor';
+    if (platformCaps.trueColor) {
+      colorDepth = 'truecolor';
+    } else if (platformCaps.ansi256) {
+      colorDepth = 'ansi256';
+    } else {
+      colorDepth = 'none';
+    }
+
+    // Determine emojiWidth from boolean flag
+    let emojiWidth: 'unknown' | 'narrow' | 'wide';
+    if (platformCaps.emojiWidth === true) {
+      // Terminal supports mode 2027 emoji width reporting
+      // Default to 'wide' when the terminal is known to support it
+      emojiWidth = 'wide';
+    } else {
+      emojiWidth = 'unknown';
+    }
+
+    return {
+      colorDepth,
+      mouseSupport: platformCaps.mouse,
+      emojiWidth,
+      kittyGraphics: platformCaps.kittyGraphics ?? false,
+    };
+  }
+
+  /**
+   * Static factory with safe defaults — constructs from terminal columns and rows.
+   * Optionally accepts platform capabilities for real detection.
+   * Capabilities default to conservative values (ansi256, no mouse, unknown emoji width).
+   *
+   * Amp ref: nA constructor takes (size, capabilities). The xF() fallback
+   * provides conservative defaults when capabilities are null.
+   */
+  static fromTerminal(
+    cols: number,
+    rows: number,
+    platformCaps?: PlatformCapabilities,
+  ): MediaQueryData {
+    const capabilities = platformCaps
+      ? MediaQueryData.fromPlatformCapabilities(platformCaps)
+      : undefined;
+
     return new MediaQueryData({
       size: { width: cols, height: rows },
+      capabilities,
     });
   }
 
@@ -160,7 +214,7 @@ export class MediaQuery extends InheritedWidget {
    * or undefined if none is found.
    */
   static maybeOf(context: BuildContext): MediaQueryData | undefined {
-    const ctx = context as any;
+    const ctx = context as unknown as { dependOnInheritedWidgetOfExactType?: (widgetType: Function) => { widget: Widget } | null };
     if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
       const element = ctx.dependOnInheritedWidgetOfExactType(MediaQuery);
       if (element) {

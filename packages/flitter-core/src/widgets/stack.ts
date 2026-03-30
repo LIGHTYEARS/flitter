@@ -5,10 +5,8 @@
 import { Widget } from '../framework/widget';
 import {
   MultiChildRenderObjectWidget,
-  SingleChildRenderObjectWidget,
   RenderBox,
   ContainerRenderBox,
-  ParentData,
   BoxParentData,
   type PaintContext,
   type RenderObject,
@@ -16,6 +14,7 @@ import {
 import { BoxConstraints } from '../core/box-constraints';
 import { Offset, Size } from '../core/types';
 import { Key } from '../core/key';
+import { ParentDataWidget } from './parent-data-widget';
 
 // ---------------------------------------------------------------------------
 // StackParentData
@@ -90,21 +89,17 @@ export class Stack extends MultiChildRenderObjectWidget {
 
 /**
  * A widget that controls where a child of a Stack is positioned.
- * Wraps a child and applies StackParentData fields.
+ * Wraps a child and applies StackParentData fields to the child's render object.
  *
- * Since ParentDataWidget may not be available yet (Plan 07-01b),
- * we implement this as a SingleChildRenderObjectWidget that
- * sets parent data on its child's render object.
- *
- * Amp ref: class L4 extends ParentDataWidget
+ * Amp ref: class L4 extends R_ (ParentDataWidget)
  */
-export class Positioned extends SingleChildRenderObjectWidget {
+export class Positioned extends ParentDataWidget {
   readonly left?: number;
   readonly top?: number;
   readonly right?: number;
   readonly bottom?: number;
-  readonly widthValue?: number;
-  readonly heightValue?: number;
+  readonly width?: number;
+  readonly height?: number;
 
   constructor(opts: {
     key?: Key;
@@ -121,103 +116,48 @@ export class Positioned extends SingleChildRenderObjectWidget {
     this.top = opts.top;
     this.right = opts.right;
     this.bottom = opts.bottom;
-    this.widthValue = opts.width;
-    this.heightValue = opts.height;
+    this.width = opts.width;
+    this.height = opts.height;
   }
 
-  createRenderObject(): RenderPositioned {
-    return new RenderPositioned({
-      left: this.left,
-      top: this.top,
-      right: this.right,
-      bottom: this.bottom,
-      width: this.widthValue,
-      height: this.heightValue,
-    });
-  }
+  /**
+   * Apply positioning data to the child's render object's parentData.
+   *
+   * Amp ref: L4.applyParentData(renderObject) via R_.applyParentData
+   */
+  applyParentData(renderObject: RenderObject): void {
+    if (renderObject.parentData instanceof StackParentData) {
+      const pd = renderObject.parentData;
+      let needsLayout = false;
 
-  updateRenderObject(renderObject: RenderPositioned): void {
-    renderObject.left = this.left;
-    renderObject.top = this.top;
-    renderObject.right = this.right;
-    renderObject.bottom = this.bottom;
-    renderObject.widthValue = this.widthValue;
-    renderObject.heightValue = this.heightValue;
-  }
-}
+      if (pd.left !== this.left) {
+        pd.left = this.left;
+        needsLayout = true;
+      }
+      if (pd.top !== this.top) {
+        pd.top = this.top;
+        needsLayout = true;
+      }
+      if (pd.right !== this.right) {
+        pd.right = this.right;
+        needsLayout = true;
+      }
+      if (pd.bottom !== this.bottom) {
+        pd.bottom = this.bottom;
+        needsLayout = true;
+      }
+      if (pd.width !== this.width) {
+        pd.width = this.width;
+        needsLayout = true;
+      }
+      if (pd.height !== this.height) {
+        pd.height = this.height;
+        needsLayout = true;
+      }
 
-// ---------------------------------------------------------------------------
-// RenderPositioned — thin wrapper that stores position data and passes through
-// ---------------------------------------------------------------------------
-
-/**
- * A RenderBox that stores Positioned data and delegates layout to its child.
- * The parent RenderStack reads the positioning info from this render object.
- */
-export class RenderPositioned extends RenderBox {
-  left?: number;
-  top?: number;
-  right?: number;
-  bottom?: number;
-  widthValue?: number;
-  heightValue?: number;
-  private _child: RenderBox | null = null;
-
-  constructor(opts: {
-    left?: number;
-    top?: number;
-    right?: number;
-    bottom?: number;
-    width?: number;
-    height?: number;
-  }) {
-    super();
-    this.left = opts.left;
-    this.top = opts.top;
-    this.right = opts.right;
-    this.bottom = opts.bottom;
-    this.widthValue = opts.width;
-    this.heightValue = opts.height;
-  }
-
-  get child(): RenderBox | null {
-    return this._child;
-  }
-
-  set child(value: RenderBox | null) {
-    if (this._child === value) return;
-    if (this._child) this.dropChild(this._child);
-    this._child = value;
-    if (this._child) this.adoptChild(this._child);
-  }
-
-  isPositioned(): boolean {
-    return (
-      this.left !== undefined ||
-      this.top !== undefined ||
-      this.right !== undefined ||
-      this.bottom !== undefined ||
-      this.widthValue !== undefined ||
-      this.heightValue !== undefined
-    );
-  }
-
-  override visitChildren(visitor: (child: RenderObject) => void): void {
-    if (this._child) visitor(this._child);
-  }
-
-  performLayout(): void {
-    if (!this._child) {
-      this.size = this.constraints!.constrain(Size.zero);
-      return;
-    }
-    this._child.layout(this.constraints!);
-    this.size = this._child.size;
-  }
-
-  paint(context: PaintContext, offset: Offset): void {
-    if (this._child) {
-      this._child.paint(context, offset);
+      if (needsLayout && renderObject.parent) {
+        (renderObject.parent as RenderObject).markNeedsLayout();
+      }
     }
   }
 }
@@ -239,6 +179,10 @@ export class RenderStack extends ContainerRenderBox {
   constructor(opts?: { fit?: StackFit }) {
     super();
     this.fit = opts?.fit ?? 'loose';
+    // Positioned children can overflow the Stack's own bounds, so hit-testing
+    // must check children even when the position is outside our bounds.
+    // Amp ref: hF.allowHitTestOutsideBounds = !0
+    this.allowHitTestOutsideBounds = true;
   }
 
   override setupParentData(child: RenderObject): void {
@@ -313,9 +257,6 @@ export class RenderStack extends ContainerRenderBox {
   // --- Internal helpers ---
 
   private _isPositioned(child: RenderBox): boolean {
-    if (child instanceof RenderPositioned) {
-      return child.isPositioned();
-    }
     if (child.parentData instanceof StackParentData) {
       return child.parentData.isPositioned();
     }
@@ -330,16 +271,6 @@ export class RenderStack extends ContainerRenderBox {
     width?: number;
     height?: number;
   } {
-    if (child instanceof RenderPositioned) {
-      return {
-        left: child.left,
-        top: child.top,
-        right: child.right,
-        bottom: child.bottom,
-        width: child.widthValue,
-        height: child.heightValue,
-      };
-    }
     if (child.parentData instanceof StackParentData) {
       const pd = child.parentData;
       return {

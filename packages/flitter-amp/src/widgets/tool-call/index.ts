@@ -12,3 +12,8 @@ export { CreateFileTool } from './create-file-tool';
 export { WebSearchTool } from './web-search-tool';
 export { HandoffTool } from './handoff-tool';
 export { TodoListTool } from './todo-list-tool';
+export type { BaseToolProps } from './base-tool-props';
+
+// Shared utilities (Gaps #44, #45, #46)
+export * from './truncation-limits';
+export * from './tool-output-utils';

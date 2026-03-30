@@ -48,11 +48,16 @@ class TestContainerRenderBox extends ContainerRenderBox {
 class MockPipelineOwner implements PipelineOwner {
   layoutRequested = false;
   paintRequested = false;
+  nodesNeedingLayout: RenderObject[] = [];
   requestLayout(): void {
     this.layoutRequested = true;
   }
   requestPaint(): void {
     this.paintRequested = true;
+  }
+  addNodeNeedingLayout(node: RenderObject): void {
+    this.nodesNeedingLayout.push(node);
+    this.layoutRequested = true;
   }
 }
 
@@ -128,7 +133,7 @@ describe('RenderBox', () => {
 // ============================================================
 
 describe('markNeedsLayout', () => {
-  it('propagates to parent', () => {
+  it('propagates to parent when not a relayout boundary', () => {
     const owner = new MockPipelineOwner();
     const parent = new TestContainerRenderBox();
     const child = new TestRenderBox();
@@ -137,16 +142,43 @@ describe('markNeedsLayout', () => {
     parent.insert(child);
     child.attach(owner);
 
-    // Layout both so they become clean
-    parent.layout(BoxConstraints.tight(new Size(80, 24)));
+    // Layout both with loose constraints so child is NOT a relayout boundary.
+    // (Tight constraints would make the child its own boundary.)
+    parent.layout(BoxConstraints.loose(new Size(80, 24)));
     expect(parent.needsLayout).toBe(false);
     expect(child.needsLayout).toBe(false);
 
-    // Marking child dirty should propagate to parent
+    // Marking child dirty should propagate to parent since
+    // child is not a relayout boundary (loose constraints).
     owner.layoutRequested = false;
     child.markNeedsLayout();
     expect(child.needsLayout).toBe(true);
     expect(parent.needsLayout).toBe(true);
+  });
+
+  it('does not propagate past relayout boundary (tight constraints)', () => {
+    const owner = new MockPipelineOwner();
+    const parent = new TestContainerRenderBox();
+    const child = new TestRenderBox();
+
+    parent.attach(owner);
+    parent.insert(child);
+    child.attach(owner);
+
+    // Layout with tight constraints: child becomes its own relayout boundary.
+    parent.layout(BoxConstraints.tight(new Size(80, 24)));
+    expect(parent.needsLayout).toBe(false);
+    expect(child.needsLayout).toBe(false);
+
+    // Marking child dirty: propagation stops at child (the boundary).
+    // Parent stays clean.
+    owner.layoutRequested = false;
+    owner.nodesNeedingLayout = [];
+    child.markNeedsLayout();
+    expect(child.needsLayout).toBe(true);
+    expect(parent.needsLayout).toBe(false);
+    // The child should be registered with PipelineOwner
+    expect(owner.nodesNeedingLayout).toContain(child);
   });
 
   it('on root notifies owner', () => {

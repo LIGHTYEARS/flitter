@@ -860,14 +860,14 @@ class TextFieldState extends State<TextField> {
           return 'handled';
         case 'ArrowUp':
           if (isMultiLine) {
-            this._controller.moveCursorUp();
-            return 'handled';
+            const movedUp = this._controller.moveCursorUp();
+            return movedUp ? 'handled' : 'ignored';
           }
           return 'ignored';
         case 'ArrowDown':
           if (isMultiLine) {
-            this._controller.moveCursorDown();
-            return 'handled';
+            const movedDown = this._controller.moveCursorDown();
+            return movedDown ? 'handled' : 'ignored';
           }
           return 'ignored';
         case 'Home':

@@ -1,181 +1,147 @@
-// BrailleSpinner — cellular automaton spinner mapped to Unicode braille characters
-// Amp ref: class Af in amp-js-strings.txt
+// BrailleSpinner -- cellular automaton spinner mapped to Unicode braille characters
+// Amp ref: class Af in braille-spinner-Af.js
 //
-// Uses a 2×4 grid (matching the braille dot layout) running a simplified
-// Game of Life-like rule set. Each generation maps to a single Unicode
-// braille character (U+2800 range).
+// Uses an 8-cell state with a custom neighbor topology (hardcoded adjacency
+// list). Each generation applies Conway-like rules and maps the state to a
+// single Unicode braille character (U+2800 range) via a bit permutation.
 //
 // Usage:
 //   const spinner = new BrailleSpinner();
 //   setInterval(() => {
 //     spinner.step();
 //     setText(spinner.toBraille());
-//   }, 100);
+//   }, 200);
 
 // ---------------------------------------------------------------------------
-// Braille dot layout (2 cols × 4 rows):
+// Braille bit permutation: maps flat cell index to braille dot bit position.
+// Amp ref: Af.toBraille() -- H = [0, 1, 2, 6, 3, 4, 5, 7]
 //
-//   dot1(0,0)  dot4(1,0)
-//   dot2(0,1)  dot5(1,1)
-//   dot3(0,2)  dot6(1,2)
-//   dot7(0,3)  dot8(1,3)
+// Cells 0-3 = left column (dots 1,2,3,7)
+// Cells 4-7 = right column (dots 4,5,6,8)
 //
-// Braille codepoint = 0x2800 + weighted sum of active dots
+//   Cell 0 -> bit 0 (0x01) dot1    Cell 4 -> bit 3 (0x08) dot4
+//   Cell 1 -> bit 1 (0x02) dot2    Cell 5 -> bit 4 (0x10) dot5
+//   Cell 2 -> bit 2 (0x04) dot3    Cell 6 -> bit 5 (0x20) dot6
+//   Cell 3 -> bit 6 (0x40) dot7    Cell 7 -> bit 7 (0x80) dot8
 // ---------------------------------------------------------------------------
 
-const DOT_WEIGHTS = [
-  [0x01, 0x08],  // row 0: dot1, dot4
-  [0x02, 0x10],  // row 1: dot2, dot5
-  [0x04, 0x20],  // row 2: dot3, dot6
-  [0x40, 0x80],  // row 3: dot7, dot8
+const BRAILLE_BIT_MAP = [0, 1, 2, 6, 3, 4, 5, 7];
+
+const CELL_COUNT = 8;
+const BRAILLE_BASE = 0x2800;
+
+// Amp ref: class Af.neighborMap -- custom non-planar graph where every cell
+// has exactly 5 neighbors. This is NOT a standard 2D grid adjacency.
+const NEIGHBOR_MAP: ReadonlyArray<ReadonlyArray<number>> = [
+  [1, 3, 4, 5, 7], // cell 0
+  [0, 2, 4, 5, 6], // cell 1
+  [1, 3, 5, 6, 7], // cell 2
+  [0, 2, 4, 6, 7], // cell 3
+  [0, 1, 3, 5, 7], // cell 4
+  [0, 1, 2, 4, 6], // cell 5
+  [1, 2, 3, 5, 7], // cell 6
+  [0, 2, 3, 4, 6], // cell 7
 ];
 
-const GRID_ROWS = 4;
-const GRID_COLS = 2;
+// Amp ref: maxGenerations = 15
+const MAX_GENERATIONS = 15;
 
 /**
  * A cellular automaton-based spinner that outputs a single Unicode braille
  * character per frame.
  *
- * The automaton runs on a 2×4 grid using Game of Life-like rules:
- * - A live cell with 1-3 live neighbors survives
- * - A dead cell with exactly 2-3 live neighbors is born
+ * Amp ref: class Af in braille-spinner-Af.js
+ *
+ * The automaton runs on 8 cells with a custom neighbor topology:
+ * - A live cell with exactly 2 or 3 live neighbors survives
+ * - A dead cell with exactly 3 live neighbors is born
  * - Otherwise the cell dies
  *
- * Auto-reseeds when the state becomes static, cyclical (period ≤ 4),
- * or depleted (fewer than 2 live cells).
+ * Auto-reseeds when the state becomes static, oscillating (period 2),
+ * all dead, depleted (fewer than 2 live cells), or after 15 generations.
  */
 export class BrailleSpinner {
-  private _grid: boolean[][];
-  private _history: number[] = [];
-  private _maxHistory = 5;
-
-  constructor() {
-    this._grid = this._randomGrid();
-  }
+  // Amp ref: state = [!0, !1, !0, !1, !0, !1, !0, !1]
+  private _state: boolean[] = [true, false, true, false, true, false, true, false];
+  private _previousState: boolean[] = [];
+  private _generation = 0;
 
   /** Advance one generation. */
   step(): void {
-    const next = this._emptyGrid();
+    // Amp ref: Af.step()
+    const next = this._state.map((alive, i) => {
+      const neighbors = NEIGHBOR_MAP[i].filter((n) => this._state[n]).length;
+      if (alive) return neighbors === 2 || neighbors === 3;
+      // Amp also checks neighbors === 6, but max neighbors is 5, so it
+      // is unreachable. Included for reference fidelity.
+      return neighbors === 3 || neighbors === 6;
+    });
 
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        const neighbors = this._countNeighbors(r, c);
-        if (this._grid[r][c]) {
-          // Survive with 1-3 neighbors
-          next[r][c] = neighbors >= 1 && neighbors <= 3;
-        } else {
-          // Born with 2-3 neighbors
-          next[r][c] = neighbors >= 2 && neighbors <= 3;
-        }
-      }
-    }
+    // Amp ref: static and period-2 oscillation detection
+    const isStatic = next.every((v, i) => v === this._state[i]);
+    const isOscillating =
+      this._previousState.length > 0 &&
+      next.every((v, i) => v === this._previousState[i]);
 
-    this._grid = next;
+    this._previousState = [...this._state];
+    this._state = next;
+    this._generation++;
 
-    // Track history for cycle/stagnation detection
-    const code = this._toCode();
-    this._history.push(code);
-    if (this._history.length > this._maxHistory) {
-      this._history.shift();
-    }
+    const allDead = next.every((v) => !v);
+    const liveCount = next.filter((v) => v).length;
 
-    // Check for stagnation or depletion
-    if (this._shouldReseed()) {
-      this._grid = this._randomGrid();
-      this._history = [];
+    // Amp ref: reseed conditions
+    if (
+      isStatic ||
+      isOscillating ||
+      this._generation >= MAX_GENERATIONS ||
+      allDead ||
+      liveCount < 2
+    ) {
+      this._reseed();
     }
   }
 
-  /** Convert current grid state to a single braille character. */
+  /** Convert current state to a single braille character. */
   toBraille(): string {
-    return String.fromCodePoint(0x2800 + this._toCode());
+    // Amp ref: Af.toBraille() with permutation [0,1,2,6,3,4,5,7]
+    let code = BRAILLE_BASE;
+    for (let i = 0; i < CELL_COUNT; i++) {
+      if (this._state[i]) {
+        code |= 1 << BRAILLE_BIT_MAP[i];
+      }
+    }
+    return String.fromCharCode(code);
   }
 
   /** Get the raw braille code point offset (0-255). */
   toCode(): number {
-    return this._toCode();
+    let code = 0;
+    for (let i = 0; i < CELL_COUNT; i++) {
+      if (this._state[i]) {
+        code |= 1 << BRAILLE_BIT_MAP[i];
+      }
+    }
+    return code;
   }
 
   /** Reset with a fresh random state. */
   reset(): void {
-    this._grid = this._randomGrid();
-    this._history = [];
+    this._reseed();
   }
 
   // ---------------------------------------------------------------------------
   // Internal
   // ---------------------------------------------------------------------------
 
-  private _toCode(): number {
-    let code = 0;
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (this._grid[r][c]) {
-          code |= DOT_WEIGHTS[r][c];
-        }
-      }
-    }
-    return code;
-  }
-
-  private _countNeighbors(row: number, col: number): number {
-    let count = 0;
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        if (dr === 0 && dc === 0) continue;
-        const nr = row + dr;
-        const nc = col + dc;
-        if (nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS) {
-          if (this._grid[nr][nc]) count++;
-        }
-      }
-    }
-    return count;
-  }
-
-  private _shouldReseed(): boolean {
-    // Depleted: fewer than 2 live cells
-    let liveCount = 0;
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (this._grid[r][c]) liveCount++;
-      }
-    }
-    if (liveCount < 2) return true;
-
-    // Static: last 2+ frames identical
-    const h = this._history;
-    if (h.length >= 2 && h[h.length - 1] === h[h.length - 2]) return true;
-
-    // Cyclical: period ≤ 4 (check if current appears earlier in history)
-    if (h.length >= 4) {
-      const current = h[h.length - 1];
-      for (let i = 0; i < h.length - 1; i++) {
-        if (h[i] === current) return true;
-      }
-    }
-
-    return false;
-  }
-
-  private _randomGrid(): boolean[][] {
-    const grid: boolean[][] = [];
-    for (let r = 0; r < GRID_ROWS; r++) {
-      const row: boolean[] = [];
-      for (let c = 0; c < GRID_COLS; c++) {
-        row.push(Math.random() > 0.4); // ~60% initial density
-      }
-      grid.push(row);
-    }
-    return grid;
-  }
-
-  private _emptyGrid(): boolean[][] {
-    const grid: boolean[][] = [];
-    for (let r = 0; r < GRID_ROWS; r++) {
-      grid.push(new Array(GRID_COLS).fill(false));
-    }
-    return grid;
+  /** Amp ref: reseed with ~40% density, minimum 3 live cells. */
+  private _reseed(): void {
+    let state: boolean[];
+    do {
+      state = Array.from({ length: CELL_COUNT }, () => Math.random() > 0.6);
+    } while (state.filter((v) => v).length < 3);
+    this._state = state;
+    this._previousState = [];
+    this._generation = 0;
   }
 }

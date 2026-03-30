@@ -11,12 +11,12 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString } from '../../utils/raw-input';
+import { extractOutputText, extractRawNumber } from './tool-output-utils';
+import { OUTPUT_TRUNCATION_LIMIT, truncateText } from './truncation-limits';
 
-interface GrepToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface GrepToolProps extends BaseToolProps {}
 
 /**
  * Renders a Grep / glob / Glob / Search tool call.
@@ -26,25 +26,27 @@ interface GrepToolProps {
 export class GrepTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
+  private readonly onToggle?: () => void;
 
   constructor(props: GrepToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const input = this.toolCall.rawInput ?? {};
 
-    const pattern = (input['pattern'] ?? input['query'] ?? input['glob'] ?? '') as string;
-    const path = (input['path'] ?? '') as string;
+    const pattern = pickString(input, ['pattern', 'query', 'glob', 'search_pattern', 'regex', 'search']);
+    const path = pickString(input, ['path', 'directory']);
 
     const details: string[] = [];
     if (pattern) details.push(`/${pattern}/`);
     if (path) details.push(path);
 
-    const matchCount = this.extractMatchCount();
+    const matchCount = extractRawNumber(this.toolCall.result, ['count', 'matchCount', 'total']);
     if (matchCount !== null) {
       details.push(`(${matchCount} matches)`);
     }
@@ -53,13 +55,14 @@ export class GrepTool extends StatelessWidget {
       name: this.toolCall.kind,
       status: this.toolCall.status,
       details,
+      onToggle: this.onToggle,
     });
 
     if (!this.isExpanded) {
       return header;
     }
 
-    const output = this.extractOutput();
+    const output = extractOutputText(this.toolCall.result, { maxLength: OUTPUT_TRUNCATION_LIMIT });
     if (!output) {
       return header;
     }
@@ -73,7 +76,7 @@ export class GrepTool extends StatelessWidget {
           padding: EdgeInsets.only({ left: 2, right: 2 }),
           child: new Text({
             text: new TextSpan({
-              text: output.length > 2000 ? output.slice(0, 2000) + '\n…(truncated)' : output,
+              text: output,
               style: new TextStyle({
                 foreground: theme?.base.mutedForeground ?? Color.brightBlack,
                 dim: true,
@@ -83,31 +86,5 @@ export class GrepTool extends StatelessWidget {
         }),
       ],
     });
-  }
-
-  /**
-   * Attempts to extract match count from the result metadata.
-   */
-  private extractMatchCount(): number | null {
-    const raw = this.toolCall.result?.rawOutput;
-    if (raw && typeof raw === 'object') {
-      if ('count' in raw) return raw['count'] as number;
-      if ('matchCount' in raw) return raw['matchCount'] as number;
-      if ('total' in raw) return raw['total'] as number;
-    }
-    return null;
-  }
-
-  /**
-   * Extracts search result text from the tool result.
-   */
-  private extractOutput(): string {
-    if (!this.toolCall.result) return '';
-    if (this.toolCall.result.rawOutput) {
-      return JSON.stringify(this.toolCall.result.rawOutput, null, 2);
-    }
-    return this.toolCall.result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
   }
 }

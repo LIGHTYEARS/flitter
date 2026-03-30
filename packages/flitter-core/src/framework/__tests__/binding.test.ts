@@ -3,7 +3,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { WidgetsBinding, runApp, resetSchedulers } from '../binding';
-import { ErrorWidget } from '../error-widget';
+import { ErrorWidget, RenderErrorBox } from '../error-widget';
 import { Widget, StatelessWidget, type BuildContext } from '../widget';
 import {
   StatelessElement,
@@ -249,16 +249,16 @@ describe('ErrorWidget', () => {
     expect(ew.message).toBe('oops');
   });
 
-  it('build returns self (leaf widget)', () => {
-    const ew = new ErrorWidget({ message: 'test' });
-    const context = { widget: ew, mounted: true } as BuildContext;
-    const result = ew.build(context);
-    expect(result).toBe(ew);
+  it('createRenderObject returns RenderErrorBox with message', () => {
+    const ew = new ErrorWidget({ message: 'test error' });
+    const renderObj = ew.createRenderObject();
+    expect(renderObj).toBeInstanceOf(RenderErrorBox);
+    expect(renderObj.message).toBe('test error');
   });
 
-  it('createElement returns StatelessElement', () => {
+  it('createElement returns LeafRenderObjectElement', () => {
     const ew = new ErrorWidget({ message: 'test' });
     const elem = ew.createElement();
-    expect(elem).toBeInstanceOf(StatelessElement);
+    expect(elem).toBeInstanceOf(LeafRenderObjectElement);
   });
 });

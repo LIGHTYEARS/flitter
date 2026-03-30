@@ -869,4 +869,78 @@ describe('InputParser', () => {
       parser.dispose();
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Pause / Resume (TUI suspend for external editor)
+  // -----------------------------------------------------------------------
+
+  describe('pause / resume', () => {
+    test('isPaused is false by default', () => {
+      const parser = new InputParser(() => {});
+      expect(parser.isPaused).toBe(false);
+      parser.dispose();
+    });
+
+    test('pause() sets isPaused to true', () => {
+      const parser = new InputParser(() => {});
+      parser.pause();
+      expect(parser.isPaused).toBe(true);
+      parser.dispose();
+    });
+
+    test('resume() sets isPaused back to false', () => {
+      const parser = new InputParser(() => {});
+      parser.pause();
+      parser.resume();
+      expect(parser.isPaused).toBe(false);
+      parser.dispose();
+    });
+
+    test('feed() while paused discards data', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      parser.pause();
+      parser.feed('abc');
+
+      expect(events.length).toBe(0);
+      parser.dispose();
+    });
+
+    test('feed() after resume processes normally', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      parser.pause();
+      parser.feed('a'); // should be discarded
+      expect(events.length).toBe(0);
+
+      parser.resume();
+      parser.feed('b'); // should be processed
+      expect(events.length).toBe(1);
+      expect((events[0] as KeyEvent).key).toBe('b');
+
+      parser.dispose();
+    });
+
+    test('pause does not lose state for in-flight sequences after resume', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      // Feed a character, pause, resume, and feed another
+      parser.feed('x');
+      expect(events.length).toBe(1);
+
+      parser.pause();
+      parser.feed('y'); // discarded
+      expect(events.length).toBe(1);
+
+      parser.resume();
+      parser.feed('z');
+      expect(events.length).toBe(2);
+      expect((events[1] as KeyEvent).key).toBe('z');
+
+      parser.dispose();
+    });
+  });
 });

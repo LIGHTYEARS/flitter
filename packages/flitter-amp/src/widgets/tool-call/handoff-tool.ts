@@ -13,12 +13,12 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import { AmpThemeProvider } from '../../themes/index';
-import type { ToolCallItem } from '../../acp/types';
+import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { pickString } from '../../utils/raw-input';
+import { extractOutputText } from './tool-output-utils';
+import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 
-interface HandoffToolProps {
-  toolCall: ToolCallItem;
-  isExpanded: boolean;
-}
+interface HandoffToolProps extends BaseToolProps {}
 
 /**
  * Renders a handoff tool call with a blinking thread link indicator.
@@ -27,11 +27,13 @@ interface HandoffToolProps {
 export class HandoffTool extends StatefulWidget {
   readonly toolCall: ToolCallItem;
   readonly isExpanded: boolean;
+  readonly onToggle?: () => void;
 
   constructor(props: HandoffToolProps) {
     super({});
     this.toolCall = props.toolCall;
     this.isExpanded = props.isExpanded;
+    this.onToggle = props.onToggle;
   }
 
   createState(): HandoffToolState {
@@ -88,7 +90,7 @@ class HandoffToolState extends State<HandoffTool> {
     const theme = AmpThemeProvider.maybeOf(context);
     const toolCall = this.widget.toolCall;
     const input = toolCall.rawInput ?? {};
-    const threadId = (input['thread_id'] ?? input['threadId'] ?? '') as string;
+    const threadId = pickString(input, ['thread_id', 'threadId']);
 
     const details: string[] = [];
     if (threadId) details.push(threadId);
@@ -104,6 +106,7 @@ class HandoffToolState extends State<HandoffTool> {
       name: 'Handoff',
       status: toolCall.status,
       details,
+      onToggle: this.widget.onToggle,
     });
 
     if (!this.widget.isExpanded && !isInProgress) {
@@ -173,13 +176,6 @@ class HandoffToolState extends State<HandoffTool> {
    * Extracts output text from the tool result.
    */
   private extractOutput(): string {
-    const result = this.widget.toolCall.result;
-    if (!result) return '';
-    if (result.rawOutput) {
-      return JSON.stringify(result.rawOutput, null, 2).slice(0, 500);
-    }
-    return result.content
-      ?.map(c => c.content?.text ?? '')
-      .join('\n') ?? '';
+    return extractOutputText(this.widget.toolCall.result, { maxLength: PREVIEW_TRUNCATION_LIMIT });
   }
 }

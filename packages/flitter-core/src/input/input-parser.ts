@@ -64,6 +64,7 @@ export class InputParser {
   private _pasteBuffer: string | null = null;
   private _escaped: boolean = false; // Whether we entered via bare ESC (meta=true)
   private _disposed: boolean = false;
+  private _paused: boolean = false; // When paused, feed() discards data (TUI suspend)
 
   constructor(callback: (event: InputEvent) => void) {
     this._callback = callback;
@@ -75,7 +76,7 @@ export class InputParser {
    * to handle partial/interleaved input correctly.
    */
   feed(data: string | Buffer): void {
-    if (this._disposed) return;
+    if (this._disposed || this._paused) return;
 
     const str = typeof data === 'string' ? data : data.toString('utf8');
     for (const char of str) {
@@ -640,6 +641,30 @@ export class InputParser {
     if (!this._disposed) {
       this._callback(event);
     }
+  }
+
+  /**
+   * Pause the parser. While paused, feed() silently discards data.
+   * Used during TUI suspend to prevent input from being processed
+   * while an external process has terminal control.
+   */
+  pause(): void {
+    this._paused = true;
+  }
+
+  /**
+   * Resume the parser after a pause. Subsequent feed() calls will
+   * process input normally.
+   */
+  resume(): void {
+    this._paused = false;
+  }
+
+  /**
+   * Whether the parser is currently paused.
+   */
+  get isPaused(): boolean {
+    return this._paused;
   }
 
   /**

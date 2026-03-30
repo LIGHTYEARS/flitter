@@ -150,9 +150,9 @@ describe('syntaxHighlight', () => {
       expect(result[0]!.style?.foreground?.equals(config.default)).toBe(true);
     });
 
-    it('handles file with no extension', () => {
+    it('handles file with truly unknown name', () => {
       const config = defaultConfig();
-      const result = syntaxHighlight('content', config, 'Makefile');
+      const result = syntaxHighlight('content', config, 'UNKNOWNFILE');
       expect(result.length).toBe(1);
       expect(result[0]!.style?.foreground?.equals(config.default)).toBe(true);
     });
@@ -479,6 +479,586 @@ describe('syntaxHighlight', () => {
       // Extension detection is case-insensitive
       expect(detectLanguage('test.TS')).toBe('typescript');
       expect(detectLanguage('test.PY')).toBe('python');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap #69 — New language detection (extension mapping)
+  // ---------------------------------------------------------------------------
+
+  describe('new language detection (Gap #69)', () => {
+    it('maps .c to c', () => {
+      expect(detectLanguage('main.c')).toBe('c');
+    });
+
+    it('maps .cpp .cc .cxx .hpp .hh .h to cpp', () => {
+      expect(detectLanguage('main.cpp')).toBe('cpp');
+      expect(detectLanguage('main.cc')).toBe('cpp');
+      expect(detectLanguage('main.cxx')).toBe('cpp');
+      expect(detectLanguage('main.hpp')).toBe('cpp');
+      expect(detectLanguage('main.hh')).toBe('cpp');
+      expect(detectLanguage('main.h')).toBe('cpp');
+    });
+
+    it('maps .java to java', () => {
+      expect(detectLanguage('Main.java')).toBe('java');
+    });
+
+    it('maps .html .htm to html', () => {
+      expect(detectLanguage('index.html')).toBe('html');
+      expect(detectLanguage('index.htm')).toBe('html');
+    });
+
+    it('maps .css to css', () => {
+      expect(detectLanguage('style.css')).toBe('css');
+    });
+
+    it('maps .sql to sql', () => {
+      expect(detectLanguage('query.sql')).toBe('sql');
+    });
+
+    it('maps .toml to toml', () => {
+      expect(detectLanguage('config.toml')).toBe('toml');
+    });
+
+    it('maps .rb .rake .gemspec to ruby', () => {
+      expect(detectLanguage('app.rb')).toBe('ruby');
+      expect(detectLanguage('build.rake')).toBe('ruby');
+      expect(detectLanguage('test.gemspec')).toBe('ruby');
+    });
+
+    it('maps .php to php', () => {
+      expect(detectLanguage('index.php')).toBe('php');
+    });
+
+    it('maps .swift to swift', () => {
+      expect(detectLanguage('main.swift')).toBe('swift');
+    });
+
+    it('maps .kt .kts to kotlin', () => {
+      expect(detectLanguage('Main.kt')).toBe('kotlin');
+      expect(detectLanguage('build.kts')).toBe('kotlin');
+    });
+
+    it('maps .cs to csharp', () => {
+      expect(detectLanguage('Program.cs')).toBe('csharp');
+    });
+
+    it('maps .lua to lua', () => {
+      expect(detectLanguage('init.lua')).toBe('lua');
+    });
+
+    it('maps .scss .sass to scss', () => {
+      expect(detectLanguage('style.scss')).toBe('scss');
+      expect(detectLanguage('style.sass')).toBe('scss');
+    });
+
+    it('maps .xml .svg .xsl to xml', () => {
+      expect(detectLanguage('data.xml')).toBe('xml');
+      expect(detectLanguage('icon.svg')).toBe('xml');
+      expect(detectLanguage('transform.xsl')).toBe('xml');
+    });
+
+    it('maps .scala .sc to scala', () => {
+      expect(detectLanguage('Main.scala')).toBe('scala');
+      expect(detectLanguage('script.sc')).toBe('scala');
+    });
+
+    it('maps .ex .exs to elixir', () => {
+      expect(detectLanguage('app.ex')).toBe('elixir');
+      expect(detectLanguage('test.exs')).toBe('elixir');
+    });
+
+    it('maps .hs to haskell', () => {
+      expect(detectLanguage('Main.hs')).toBe('haskell');
+    });
+
+    it('maps .zig to zig', () => {
+      expect(detectLanguage('main.zig')).toBe('zig');
+    });
+
+    it('maps .ml .mli to ocaml', () => {
+      expect(detectLanguage('main.ml')).toBe('ocaml');
+      expect(detectLanguage('main.mli')).toBe('ocaml');
+    });
+
+    it('maps .mk to makefile', () => {
+      expect(detectLanguage('build.mk')).toBe('makefile');
+    });
+
+    it('detects Dockerfile by filename', () => {
+      expect(detectLanguage('Dockerfile')).toBe('dockerfile');
+      expect(detectLanguage('/path/to/Dockerfile')).toBe('dockerfile');
+    });
+
+    it('detects Makefile by filename', () => {
+      expect(detectLanguage('Makefile')).toBe('makefile');
+      expect(detectLanguage('/path/to/Makefile')).toBe('makefile');
+      expect(detectLanguage('GNUmakefile')).toBe('makefile');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap #69 — New language highlighting (basic token coverage)
+  // ---------------------------------------------------------------------------
+
+  describe('C highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('int main(void) {', config, 'test.c');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights preprocessor directives', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('#include <stdio.h>', config, 'test.c');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+
+    it('highlights comments', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('// a comment', config, 'test.c');
+      expect(hasColor(result, config.comment)).toBe(true);
+    });
+  });
+
+  describe('C++ highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('class Foo : public Bar {', config, 'test.cpp');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights strings', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('auto s = "hello";', config, 'test.cpp');
+      expect(hasColor(result, config.string)).toBe(true);
+    });
+  });
+
+  describe('Java highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('public class Main {', config, 'test.java');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights annotations', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('@Override', config, 'test.java');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+  });
+
+  describe('HTML highlighting', () => {
+    it('highlights tags', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('<div class="foo">', config, 'test.html');
+      expect(hasColor(result, config.tag)).toBe(true);
+    });
+
+    it('highlights attribute values', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('<div class="foo">', config, 'test.html');
+      expect(hasColor(result, config.string)).toBe(true);
+    });
+  });
+
+  describe('CSS highlighting', () => {
+    it('highlights selectors', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('.container { color: red; }', config, 'test.css');
+      expect(hasColor(result, config.tag)).toBe(true);
+    });
+
+    it('highlights property names', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('color: red;', config, 'test.css');
+      expect(hasColor(result, config.property)).toBe(true);
+    });
+  });
+
+  describe('SQL highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('SELECT * FROM users WHERE id = 1;', config, 'test.sql');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights line comments', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('-- a comment', config, 'test.sql');
+      expect(hasColor(result, config.comment)).toBe(true);
+    });
+  });
+
+  describe('TOML highlighting', () => {
+    it('highlights section headers', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('[package]', config, 'test.toml');
+      expect(hasColor(result, config.tag)).toBe(true);
+    });
+
+    it('highlights keys', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('name = "app"', config, 'test.toml');
+      expect(hasColor(result, config.property)).toBe(true);
+    });
+  });
+
+  describe('Ruby highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('def hello', config, 'test.rb');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights symbols', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('x = :symbol', config, 'test.rb');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+  });
+
+  describe('PHP highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('<?php function foo() {', config, 'test.php');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights variables', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('$name = "test";', config, 'test.php');
+      expect(hasColor(result, config.variable)).toBe(true);
+    });
+  });
+
+  describe('Swift highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('func main() {', config, 'test.swift');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights attributes', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('@objc class Foo {}', config, 'test.swift');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+  });
+
+  describe('Kotlin highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('fun main() {', config, 'test.kt');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights annotations', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('@JvmStatic', config, 'test.kt');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+  });
+
+  describe('C# highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('public class Foo {', config, 'test.cs');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights strings', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('var s = "hello";', config, 'test.cs');
+      expect(hasColor(result, config.string)).toBe(true);
+    });
+  });
+
+  describe('Lua highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('local x = 10', config, 'test.lua');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights comments', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('-- comment', config, 'test.lua');
+      expect(hasColor(result, config.comment)).toBe(true);
+    });
+  });
+
+  describe('SCSS highlighting', () => {
+    it('highlights variables', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('$primary: #333;', config, 'test.scss');
+      expect(hasColor(result, config.variable)).toBe(true);
+    });
+
+    it('highlights at-rules', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('@mixin flex {', config, 'test.scss');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+  });
+
+  describe('XML highlighting', () => {
+    it('highlights tags', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('<root attr="val">', config, 'test.xml');
+      expect(hasColor(result, config.tag)).toBe(true);
+    });
+
+    it('highlights attribute values', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('<item name="foo"/>', config, 'test.xml');
+      expect(hasColor(result, config.string)).toBe(true);
+    });
+  });
+
+  describe('Dockerfile highlighting', () => {
+    it('highlights instructions', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('FROM node:18-alpine', config, 'Dockerfile');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights variables', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('ENV APP_HOME=$HOME/app', config, 'Dockerfile');
+      expect(hasColor(result, config.variable)).toBe(true);
+    });
+  });
+
+  describe('Scala highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('def main(args: Array[String]): Unit = {', config, 'test.scala');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+  });
+
+  describe('Elixir highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('defmodule App do', config, 'test.ex');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights atoms', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('x = :hello', config, 'test.ex');
+      expect(hasColor(result, config.attribute)).toBe(true);
+    });
+  });
+
+  describe('Haskell highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('module Main where', config, 'test.hs');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights line comments', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('-- a comment', config, 'test.hs');
+      expect(hasColor(result, config.comment)).toBe(true);
+    });
+  });
+
+  describe('Zig highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('const std = @import("std");', config, 'test.zig');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights built-in functions', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('@import("std")', config, 'test.zig');
+      expect(hasColor(result, config.function)).toBe(true);
+    });
+  });
+
+  describe('OCaml highlighting', () => {
+    it('highlights keywords', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('let x = 42 in x', config, 'test.ml');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+
+    it('highlights strings', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('let s = "hello"', config, 'test.ml');
+      expect(hasColor(result, config.string)).toBe(true);
+    });
+  });
+
+  describe('Makefile highlighting', () => {
+    it('highlights comments', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('# comment', config, 'Makefile');
+      expect(hasColor(result, config.comment)).toBe(true);
+    });
+
+    it('highlights directives', () => {
+      const config = defaultConfig();
+      const result = syntaxHighlight('include common.mk', config, 'Makefile');
+      expect(hasColor(result, config.keyword)).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Gap #70 — Multi-line construct support
+  // ---------------------------------------------------------------------------
+
+  describe('multi-line constructs (Gap #70)', () => {
+    describe('block comments', () => {
+      it('highlights multi-line block comments in JS/TS', () => {
+        const config = defaultConfig();
+        const content = 'x = 1;\n/* this is\na comment */\ny = 2;';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        // Line 2 should have comment color
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+        // Line 3 should have comment color (up to */) and then other tokens
+        expect(hasColor([result[2]!], config.comment)).toBe(true);
+      });
+
+      it('preserves text content across multi-line blocks', () => {
+        const config = defaultConfig();
+        const content = '/* start\nmiddle\nend */';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        expect(collectText(result)).toBe(content);
+      });
+
+      it('highlights C multi-line block comments', () => {
+        const config = defaultConfig();
+        const content = '/* block\ncomment */\nint x;';
+        const result = syntaxHighlight(content, config, 'test.c');
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+      });
+
+      it('handles inline block comment (opens and closes on same line)', () => {
+        const config = defaultConfig();
+        const content = 'x = /* inline */ 42;';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        expect(hasColor(result, config.comment)).toBe(true);
+        expect(hasColor(result, config.number)).toBe(true);
+      });
+
+      it('handles block comment spanning blank lines', () => {
+        const config = defaultConfig();
+        const content = '/*\n\n*/';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        expect(result.length).toBe(3);
+        // All three lines should relate to the comment
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+      });
+
+      it('highlights Haskell block comments {- ... -}', () => {
+        const config = defaultConfig();
+        const content = '{- multi\nline -}';
+        const result = syntaxHighlight(content, config, 'test.hs');
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+      });
+
+      it('highlights OCaml block comments (* ... *)', () => {
+        const config = defaultConfig();
+        const content = '(* multi\nline *)';
+        const result = syntaxHighlight(content, config, 'test.ml');
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+      });
+
+      it('highlights HTML comments <!-- ... -->', () => {
+        const config = defaultConfig();
+        const content = '<!-- multi\nline -->';
+        const result = syntaxHighlight(content, config, 'test.html');
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+      });
+
+      it('highlights Lua block comments --[[ ... ]]', () => {
+        const config = defaultConfig();
+        const content = '--[[ multi\nline ]]';
+        const result = syntaxHighlight(content, config, 'test.lua');
+        expect(hasColor([result[0]!], config.comment)).toBe(true);
+        expect(hasColor([result[1]!], config.comment)).toBe(true);
+      });
+    });
+
+    describe('multi-line strings', () => {
+      it('highlights Python triple-quoted strings across lines', () => {
+        const config = defaultConfig();
+        const content = 'x = """\nhello\nworld"""';
+        const result = syntaxHighlight(content, config, 'test.py');
+        // Line 2 and 3 should be string-colored
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+        expect(hasColor([result[2]!], config.string)).toBe(true);
+      });
+
+      it('highlights JS template literals across lines', () => {
+        const config = defaultConfig();
+        const content = 'const s = `hello\nworld`;';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        // Both lines should have string color
+        expect(hasColor([result[0]!], config.string)).toBe(true);
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+      });
+
+      it('highlights Go raw strings across lines', () => {
+        const config = defaultConfig();
+        const content = 's := `hello\nworld`';
+        const result = syntaxHighlight(content, config, 'test.go');
+        expect(hasColor([result[0]!], config.string)).toBe(true);
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+      });
+
+      it('highlights TOML multi-line strings', () => {
+        const config = defaultConfig();
+        const content = 'desc = """\nhello\n"""';
+        const result = syntaxHighlight(content, config, 'test.toml');
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+      });
+
+      it('highlights Elixir heredoc strings', () => {
+        const config = defaultConfig();
+        const content = '"""\nhello\n"""';
+        const result = syntaxHighlight(content, config, 'test.ex');
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+      });
+
+      it('highlights Markdown fenced code blocks', () => {
+        const config = defaultConfig();
+        const content = '```js\nconst x = 1;\n```';
+        const result = syntaxHighlight(content, config, 'test.md');
+        // The fenced content line should be string color
+        expect(hasColor([result[1]!], config.string)).toBe(true);
+      });
+    });
+
+    describe('multi-line comment with code after close', () => {
+      it('resumes normal tokenization after block comment ends', () => {
+        const config = defaultConfig();
+        const content = '/* comment */const x = 42;';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        // Should have both comment and keyword colors
+        expect(hasColor(result, config.comment)).toBe(true);
+        expect(hasColor(result, config.keyword)).toBe(true);
+      });
+    });
+
+    describe('text preservation', () => {
+      it('preserves all text content across multi-line constructs', () => {
+        const config = defaultConfig();
+        const content = 'a = 1;\n/* block\ncomment */\nb = 2;';
+        const result = syntaxHighlight(content, config, 'test.ts');
+        expect(collectText(result)).toBe(content);
+      });
     });
   });
 });

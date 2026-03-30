@@ -150,7 +150,7 @@ class AppStateWidget extends State<App> {
     this.widget.appState.addListener(this.stateListener);
 
     // Listen to OverlayManager changes to trigger rebuilds
-    this.overlayListener = () => { this.setState(() => {}); };
+    this.overlayListener = () => { this.setState(() => { }); };
     this.overlayManager.addListener(this.overlayListener);
   }
 
@@ -161,9 +161,8 @@ class AppStateWidget extends State<App> {
     }
     this._lastUpdate = Date.now();
     const wasAtBottom = this.scrollController.atBottom;
-    // Flush any accumulated streaming text into an immutable snapshot (Gap #50)
     this.widget.appState.conversation.flushStreamingText();
-    this.setState(() => {});
+    this.setState(() => { });
     if (this.widget.appState.isProcessing && wasAtBottom) {
       this.scrollController.enableFollowMode();
     }
@@ -232,7 +231,7 @@ class AppStateWidget extends State<App> {
       isFailing: false,
       savedInput: this.inputController.text,
     };
-    this.setState(() => {});  // rebuild to show search indicator
+    this.setState(() => { });  // rebuild to show search indicator
   }
 
   /**
@@ -260,7 +259,7 @@ class AppStateWidget extends State<App> {
     }
 
     this._reverseSearch = null;
-    this.setState(() => {});  // rebuild to hide search indicator
+    this.setState(() => { });  // rebuild to hide search indicator
   }
 
   /**
@@ -287,7 +286,7 @@ class AppStateWidget extends State<App> {
           rs.isFailing = true;
         }
       }
-      this.setState(() => {});
+      this.setState(() => { });
       return 'handled';
     }
 
@@ -307,7 +306,7 @@ class AppStateWidget extends State<App> {
           rs.isFailing = true;
         }
       }
-      this.setState(() => {});
+      this.setState(() => { });
       return 'handled';
     }
 
@@ -352,7 +351,7 @@ class AppStateWidget extends State<App> {
         // Backspace on empty query: exit search mode, restore saved input
         this._exitSearchMode(false);
       }
-      this.setState(() => {});
+      this.setState(() => { });
       return 'handled';
     }
 
@@ -380,13 +379,13 @@ class AppStateWidget extends State<App> {
       if (ch.length === 1 && ch.charCodeAt(0) >= 0x20 && ch.charCodeAt(0) <= 0x7E) {
         rs.query += ch;
         this._performSearch();
-        this.setState(() => {});
+        this.setState(() => { });
         return 'handled';
       }
       if (ch === 'Space') {
         rs.query += ' ';
         this._performSearch();
-        this.setState(() => {});
+        this.setState(() => { });
         return 'handled';
       }
     }
@@ -494,7 +493,7 @@ class AppStateWidget extends State<App> {
       binding.resume();
 
       // 5. Trigger a rebuild to reflect any text changes
-      this.setState(() => {});
+      this.setState(() => { });
     }
   }
 
@@ -630,7 +629,6 @@ class AppStateWidget extends State<App> {
   build(): Widget {
     const appState = this.widget.appState;
     const items = appState.conversation.items;
-    log.debug(`build: items.length=${items.length}, isProcessing=${appState.isProcessing}`);
 
     // Amp ref: scrollbarThumb = foreground (gH.default()), scrollbarTrack = index(8)
     const scrollThumbColor = Color.defaultColor;
@@ -680,47 +678,47 @@ class AppStateWidget extends State<App> {
           new Expanded({
             child: items.length === 0
               ? new Center({
-                  child: new Padding({
-                    padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
-                    child: new ChatView({
-                      items,
-                      error: appState.error,
-                      onToggleToolCall: (toolCallId: string) => {
-                        appState.conversation.toggleSingleToolCall(toolCallId);
-                        this.setState(() => {});
-                      },
-                    }),
+                child: new Padding({
+                  padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
+                  child: new ChatView({
+                    items,
+                    error: appState.error,
+                    onToggleToolCall: (toolCallId: string) => {
+                      appState.conversation.toggleSingleToolCall(toolCallId);
+                      this.setState(() => { });
+                    },
                   }),
-                })
+                }),
+              })
               : new Row({
-                  crossAxisAlignment: 'stretch',
-                  children: [
-                    new Expanded({
-                      child: new SingleChildScrollView({
-                        controller: this.scrollController,
-                        position: 'bottom',
-                        enableKeyboardScroll: true,
-                        // Amp ref: a$({padding: H$.only({left: 2, right: 2-3, bottom: 1})})
-                        child: new Padding({
-                          padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
-                          child: new ChatView({
-                            items,
-                            error: appState.error,
-                            onToggleToolCall: (toolCallId: string) => {
-                              appState.conversation.toggleSingleToolCall(toolCallId);
-                              this.setState(() => {});
-                            },
-                          }),
+                crossAxisAlignment: 'stretch',
+                children: [
+                  new Expanded({
+                    child: new SingleChildScrollView({
+                      controller: this.scrollController,
+                      position: 'bottom',
+                      enableKeyboardScroll: true,
+                      // Amp ref: a$({padding: H$.only({left: 2, right: 2-3, bottom: 1})})
+                      child: new Padding({
+                        padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
+                        child: new ChatView({
+                          items,
+                          error: appState.error,
+                          onToggleToolCall: (toolCallId: string) => {
+                            appState.conversation.toggleSingleToolCall(toolCallId);
+                            this.setState(() => { });
+                          },
                         }),
                       }),
                     }),
-                    new Scrollbar({
-                      controller: this.scrollController,
-                      thumbColor: scrollThumbColor,
-                      trackColor: scrollTrackColor,
-                    }),
-                  ],
-                }),
+                  }),
+                  new Scrollbar({
+                    controller: this.scrollController,
+                    thumbColor: scrollThumbColor,
+                    trackColor: scrollTrackColor,
+                  }),
+                ],
+              }),
           }),
 
           // Bottom grid — input area with 4-corner overlay status (Amp: ContainerWithOverlays)
@@ -745,9 +743,9 @@ class AppStateWidget extends State<App> {
             hintText: appState.hintText ?? undefined,
             autocompleteTriggers: appState.autocompleteTriggers.length > 0
               ? appState.autocompleteTriggers.map(t => ({
-                  trigger: t.trigger,
-                  description: t.description,
-                }))
+                trigger: t.trigger,
+                description: t.description,
+              }))
               : undefined,
             searchState: this._reverseSearch
               ? { query: this._reverseSearch.query, isFailing: this._reverseSearch.isFailing }

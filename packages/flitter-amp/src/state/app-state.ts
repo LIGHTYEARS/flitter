@@ -260,7 +260,7 @@ export class AppState implements ClientCallbacks {
     this.conversation.finalizeAssistantMessage();
     this.conversation.finalizeThinking();
     this.conversation.isProcessing = false;
-    log.info(`Prompt complete: ${stopReason}`);
+    log.info(`Prompt complete: ${stopReason}, items=${this.conversation.items.length}`);
     this.notifyListeners();
   }
 
@@ -292,12 +292,9 @@ export class AppState implements ClientCallbacks {
   }
 
   startProcessing(userText: string): void {
-    log.info(`startProcessing: "${userText}", items before: ${this.conversation.items.length}`);
     this.conversation.addUserMessage(userText);
-    log.info(`startProcessing: items after: ${this.conversation.items.length}, isProcessing: true`);
     this.conversation.isProcessing = true;
     this.notifyListeners();
-    log.info(`startProcessing: notifyListeners done, listeners: ${this.listeners.size}`);
   }
 
   setConnected(sessionId: string, agentName: string | null): void {

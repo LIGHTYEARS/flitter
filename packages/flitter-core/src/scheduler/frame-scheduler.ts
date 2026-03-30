@@ -10,6 +10,9 @@
 // - Test mode: _useFramePacing = false, frames execute immediately via setImmediate
 // - No setInterval — entirely on-demand / event-driven
 
+import { debugFlags } from '../diagnostics/debug-flags';
+import { pipelineLog } from '../diagnostics/pipeline-debug';
+
 // ---------------------------------------------------------------------------
 // Phase Enum (Amp: oJ)
 // Amp ref: amp-strings.txt:530126
@@ -375,6 +378,18 @@ export class FrameScheduler {
       this._lastFrameTimestamp = startTime;
       this._lastCompletedStats = this.deepCopyStats(this._stats);
       this._frameInProgress = false;
+
+      if (debugFlags.debugShowFrameStats) {
+        const ps = this._stats.phaseStats;
+        pipelineLog(
+          'FRAME',
+          `total=${this._stats.lastFrameTime.toFixed(2)}ms `
+            + `build=${ps.build.lastTime.toFixed(2)}ms `
+            + `layout=${ps.layout.lastTime.toFixed(2)}ms `
+            + `paint=${ps.paint.lastTime.toFixed(2)}ms `
+            + `render=${ps.render.lastTime.toFixed(2)}ms`,
+        );
+      }
 
       // If another frame was requested during execution, re-schedule
       // Amp ref: if (this._frameScheduled) { ... scheduleFrameExecution(b) }

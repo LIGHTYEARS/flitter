@@ -1380,10 +1380,20 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
     return elem;
   }
 
+  /**
+   * Removes the child render object from this element's render object,
+   * then deactivates and removes the child element.
+   */
   deactivateChild(elem: Element): void {
+    if (elem.renderObject && this.renderObject) {
+      if (isContainerRenderObject(this.renderObject)) {
+        this.renderObject.remove(elem.renderObject as any);
+      } else if (isSingleChildRenderObject(this.renderObject)) {
+        this.renderObject.child = null;
+      }
+    }
     elem.deactivate();
     this.removeChild(elem);
-    // Register with BuildOwner's inactive elements for end-of-frame cleanup
     try {
       const binding = require('./binding');
       const buildOwner = binding.getBuildOwner?.();
@@ -1391,7 +1401,6 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
         buildOwner._addToInactiveElements(elem);
       }
     } catch (_e) {
-      // BuildOwner not yet initialized — skip inactive element registration
     }
   }
 

@@ -4,13 +4,12 @@
 
 import { Key } from '../core/key';
 import { ProxyWidget, Widget } from '../framework/widget';
-import { RenderObject } from '../framework/render-object';
+import { RenderObject, isContainerRenderObject, isSingleChildRenderObject } from '../framework/render-object';
 import {
   Element,
   ProxyElement,
   RenderObjectElement,
 } from '../framework/element';
-
 // ---------------------------------------------------------------------------
 // ParentDataWidget (Amp: R_ extends Sf)
 // NOTE: In Amp, R_ extends Sf directly. We extend ProxyWidget for DRY.
@@ -82,12 +81,11 @@ export class ParentDataElement extends ProxyElement {
 
     const oldRenderObject = this._child?.renderObject;
 
-    // Use the split pattern: swap widget, then update child
     this._swapWidget(newWidget);
     this._updateChild();
 
-    // If child was replaced and render objects differ, handle replacement
     const newRenderObject = this._child?.renderObject;
+
     if (oldRenderObject && newRenderObject && oldRenderObject !== newRenderObject) {
       this._replaceRenderObjectInAncestor(oldRenderObject, newRenderObject);
     }
@@ -137,16 +135,45 @@ export class ParentDataElement extends ProxyElement {
   }
 
   /**
-   * Replace old render object with new one in the ancestor render object tree.
-   * This handles the case where the child's render object changes during update.
+   * Walk up the element tree to find the nearest RenderObjectElement ancestor,
+   * then swap the old child render object for the new one in the ancestor's
+   * render object. This is needed because ParentDataElement itself is not a
+   * RenderObjectElement and cannot host render objects directly.
    */
   private _replaceRenderObjectInAncestor(
-    _oldRenderObject: RenderObject | undefined,
-    _newRenderObject: RenderObject | undefined,
+    oldRenderObject: RenderObject | undefined,
+    newRenderObject: RenderObject | undefined,
   ): void {
-    // This is a placeholder for render object replacement logic.
-    // The actual implementation would walk up to find the ancestor
-    // RenderObjectElement and swap the child render object.
-    // For now, the re-application of parent data handles the common case.
+    if (!oldRenderObject || !newRenderObject) return;
+
+    let ancestor: Element | undefined = this.parent;
+    while (ancestor && !(ancestor instanceof RenderObjectElement)) {
+      ancestor = ancestor.parent;
+    }
+    if (!ancestor) return;
+
+    const ancestorRO = (ancestor as RenderObjectElement).renderObject;
+    if (!ancestorRO) return;
+
+    if (isContainerRenderObject(ancestorRO)) {
+      const container = ancestorRO as RenderObject & {
+        children: ReadonlyArray<RenderObject>;
+        remove(child: RenderObject): void;
+        insert(child: RenderObject, after?: RenderObject): void;
+        move(child: RenderObject, after?: RenderObject): void;
+      };
+      const children = container.children;
+      const idx = children.indexOf(oldRenderObject);
+      if (idx >= 0) {
+        const after = idx > 0 ? children[idx - 1] : undefined;
+        container.remove(oldRenderObject);
+        container.insert(newRenderObject);
+        if (after || idx === 0) {
+          container.move(newRenderObject, after);
+        }
+      }
+    } else if (isSingleChildRenderObject(ancestorRO)) {
+      ancestorRO.child = newRenderObject;
+    }
   }
 }

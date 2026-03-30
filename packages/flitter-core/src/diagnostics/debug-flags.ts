@@ -40,3 +40,25 @@ export function resetDebugFlags(): void {
     debugFlags[key] = false;
   }
 }
+
+/**
+ * Apply debug flags based on the FLITTER_DEBUG environment variable.
+ *
+ * - "pipeline" → enables debugShowFrameStats
+ * - "verbose"  → enables debugShowFrameStats, debugPrintBuilds,
+ *                 debugPrintLayouts, debugPrintPaints
+ * - unset or unknown → no change (all flags remain at current value)
+ */
+export function applyEnvDebugFlags(): void {
+  const level = process.env.FLITTER_DEBUG;
+  if (level === 'pipeline') {
+    debugFlags.debugShowFrameStats = true;
+  } else if (level === 'verbose') {
+    debugFlags.debugShowFrameStats = true;
+    debugFlags.debugPrintBuilds = true;
+    debugFlags.debugPrintLayouts = true;
+    debugFlags.debugPrintPaints = true;
+  }
+}
+
+applyEnvDebugFlags();

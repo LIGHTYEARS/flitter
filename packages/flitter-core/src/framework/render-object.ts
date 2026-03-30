@@ -9,7 +9,8 @@ import { BoxConstraints } from '../core/box-constraints';
 import { Widget, type ElementLike } from './widget';
 import { Key } from '../core/key';
 import type { BoxHitTestResult } from '../input/hit-test';
-
+import { debugFlags } from '../diagnostics/debug-flags';
+import { logMutation } from '../diagnostics/pipeline-debug';
 // ---------------------------------------------------------------------------
 // PaintContext (minimal forward declaration — full implementation in Phase 5)
 // ---------------------------------------------------------------------------
@@ -225,29 +226,37 @@ export abstract class RenderObject {
     this.markNeedsLayout();
   }
 
-  // Amp ref: n_.attach() — sets _attached=true, recurses to children
+  /**
+   * Attaches this render object and all descendants to the given PipelineOwner.
+   * After attach, markNeedsLayout/markNeedsPaint will register with the owner.
+   */
   attach(owner: PipelineOwner): void {
     if (this._attached) return;
     this._owner = owner;
     this._attached = true;
 
-    // Compute repaint boundary reference (Gap R02)
     if (this.isRepaintBoundary) {
       this._repaintBoundary = this;
     } else if (this.parent) {
       this._repaintBoundary = this.parent._repaintBoundary;
     } else {
-      this._repaintBoundary = this; // root is an implicit boundary
+      this._repaintBoundary = this;
     }
+
+    this.visitChildren((child) => child.attach(owner));
   }
 
-  // Amp ref: n_.detach() — sets _attached=false, recurses to children
+  /**
+   * Detaches this render object and all descendants from the PipelineOwner.
+   */
   detach(): void {
     if (!this._attached) return;
     this._owner = null;
     this._attached = false;
     this._relayoutBoundary = null;
     this._repaintBoundary = null;
+
+    this.visitChildren((child) => child.detach());
   }
 
   // --- Layout ---
@@ -704,6 +713,7 @@ export abstract class ContainerRenderBox extends RenderBox {
 
   // Amp ref: adoptChild pushes to _children array
   insert(child: RenderBox, after?: RenderBox): void {
+    if (debugFlags.debugPrintBuilds) logMutation('insert', child, this);
     this.setupParentData(child);
     this.adoptChild(child);
     if (after) {
@@ -718,8 +728,8 @@ export abstract class ContainerRenderBox extends RenderBox {
     }
   }
 
-  // Amp ref: dropChild splices from _children
   remove(child: RenderBox): void {
+    if (debugFlags.debugPrintBuilds) logMutation('remove', child, this);
     const idx = this._children.indexOf(child);
     if (idx >= 0) {
       this._children.splice(idx, 1);
@@ -727,7 +737,6 @@ export abstract class ContainerRenderBox extends RenderBox {
     }
   }
 
-  // Amp ref: n_.removeAllChildren()
   removeAll(): void {
     for (const child of [...this._children]) {
       this.dropChild(child);
@@ -736,6 +745,7 @@ export abstract class ContainerRenderBox extends RenderBox {
   }
 
   move(child: RenderBox, after?: RenderBox): void {
+    if (debugFlags.debugPrintBuilds) logMutation('move', child, this);
     const idx = this._children.indexOf(child);
     if (idx >= 0) this._children.splice(idx, 1);
     if (after) {

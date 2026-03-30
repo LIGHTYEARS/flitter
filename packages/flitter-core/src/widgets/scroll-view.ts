@@ -184,7 +184,7 @@ class ScrollableState extends State<Scrollable> {
 
     if (this.widget.enableKeyboardScroll) {
       child = new FocusScope({
-        autofocus: true,
+        autofocus: false,
         onKey: this._handleKey,
         child,
       });

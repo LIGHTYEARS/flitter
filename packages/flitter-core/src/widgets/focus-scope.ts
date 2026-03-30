@@ -227,9 +227,6 @@ class FocusScopeState extends State<FocusScope> {
   private _registerNode(): void {
     let parentFocusNode: FocusNode | null = null;
 
-    // Walk up the tree to find the nearest ancestor FocusScopeState
-    // Amp ref: KJ uses context.findAncestorStateOfType(KJ) to find parent
-    // Guard: context may be a mock in tests without findAncestorStateOfType
     const ctx = this.context as any;
     if (typeof ctx.findAncestorStateOfType === 'function') {
       const ancestorState = ctx.findAncestorStateOfType(FocusScopeState);

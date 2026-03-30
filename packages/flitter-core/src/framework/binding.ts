@@ -28,6 +28,8 @@ import { Renderer, type CursorState } from '../terminal/renderer';
 import { paintRenderTree } from '../scheduler/paint';
 import type { KeyEvent, MouseEvent as TuiMouseEvent } from '../input/events';
 import { MouseManager } from '../input/mouse-manager';
+import { debugFlags } from '../diagnostics/debug-flags';
+import { pipelineLog, dumpPaintTree } from '../diagnostics/pipeline-debug';
 import { FocusManager } from '../input/focus';
 import { InputParser } from '../input/input-parser';
 import { EventDispatcher } from '../input/event-dispatcher';
@@ -637,6 +639,9 @@ export class WidgetsBinding {
 
     paintRenderTree(rootRO, screen);
 
+    if (debugFlags.debugPrintPaints) {
+      pipelineLog('PAINT_TREE', '\n' + dumpPaintTree(rootRO));
+    }
 
     // Draw performance overlay on top if enabled (Phase 21: PERF-03)
     if (this._showFrameStatsOverlay && this._perfOverlay) {
@@ -671,6 +676,10 @@ export class WidgetsBinding {
 
     // Generate ANSI output
     const output = renderer.render(patches, cursor);
+
+    if (debugFlags.debugPrintPaints) {
+      pipelineLog('RENDER', 'patches=' + patches.length + ' outputLen=' + output.length);
+    }
 
     if (this._output && output.length > 0) {
       this._output.write(output);

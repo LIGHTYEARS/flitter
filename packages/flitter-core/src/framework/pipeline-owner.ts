@@ -13,6 +13,8 @@
 import { RenderBox, type RenderObject, type PipelineOwner as PipelineOwnerInterface } from './render-object';
 import { BoxConstraints } from '../core/box-constraints';
 import { Size } from '../core/types';
+import { debugFlags } from '../diagnostics/debug-flags';
+import { pipelineLog } from '../diagnostics/pipeline-debug';
 
 // ---------------------------------------------------------------------------
 // PipelineOwner (Amp: UB0)
@@ -169,6 +171,10 @@ export class PipelineOwner implements PipelineOwnerInterface {
       return false;
     }
 
+    if (debugFlags.debugPrintLayouts) {
+      pipelineLog('LAYOUT', `nodesNeedingLayout=${this._nodesNeedingLayout.length}`);
+    }
+
     let layoutPerformed = false;
 
     while (this._nodesNeedingLayout.length > 0) {
@@ -185,18 +191,31 @@ export class PipelineOwner implements PipelineOwnerInterface {
         // Skip if already cleaned (a parent's layout handled this child)
         // or if detached from the tree.
         if (!node.needsLayout || !node.attached) {
+          if (debugFlags.debugPrintLayouts) {
+            pipelineLog('LAYOUT', `skipped ${node.constructor.name} needsLayout=${node.needsLayout} attached=${node.attached}`);
+          }
           continue;
         }
 
         // Root gets rootConstraints; other nodes use their cached constraints.
         if (node === this._rootRenderObject && this._rootConstraints) {
+          if (debugFlags.debugPrintLayouts) {
+            pipelineLog('LAYOUT', `layout ROOT ${node.constructor.name}`);
+          }
           (node as RenderBox).layout(this._rootConstraints);
           layoutPerformed = true;
         } else if (node instanceof RenderBox) {
           const cached = node.constraints;
           if (cached) {
+            if (debugFlags.debugPrintLayouts) {
+              pipelineLog('LAYOUT', `layout ${node.constructor.name} constraints=${cached.minWidth}x${cached.minHeight}-${cached.maxWidth}x${cached.maxHeight}`);
+            }
             node.layout(cached);
             layoutPerformed = true;
+          } else {
+            if (debugFlags.debugPrintLayouts) {
+              pipelineLog('LAYOUT', `NO CONSTRAINTS for ${node.constructor.name}!`);
+            }
           }
         }
       }

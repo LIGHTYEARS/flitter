@@ -11,7 +11,6 @@ import {
   PaintContext,
 } from '../framework/render-object';
 import { FlexParentData } from './parent-data';
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

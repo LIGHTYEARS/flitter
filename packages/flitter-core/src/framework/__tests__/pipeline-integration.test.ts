@@ -7,6 +7,7 @@ import { WidgetsBinding, resetSchedulers } from '../binding';
 import { Widget, StatefulWidget, StatelessWidget, State, type BuildContext } from '../widget';
 import { StatefulElement, StatelessElement, LeafRenderObjectElement } from '../element';
 import { LeafRenderObjectWidget, RenderBox, RenderObject } from '../render-object';
+import { readScreenRow, readFrontCell } from '../../test-utils/pipeline-helpers';
 import { BoxConstraints } from '../../core/box-constraints';
 import { Offset, Size } from '../../core/types';
 import { BuildOwner } from '../build-owner';
@@ -131,26 +132,6 @@ class NoopLeafWidget extends LeafRenderObjectWidget {
   createRenderObject(): RenderObject {
     return new NoopRenderBox();
   }
-}
-
-// Helper to extract text from screen buffer cells at a given row.
-// After drawFrameSync() → render() → present(), the painted content lives in the FRONT buffer
-// because present() swaps front/back and clears the new back buffer.
-function readScreenRow(binding: WidgetsBinding, row: number, maxCols?: number): string {
-  const screen = binding.getScreen();
-  const frontBuffer = screen.getFrontBuffer();
-  const cols = maxCols ?? screen.width;
-  let result = '';
-  for (let x = 0; x < cols; x++) {
-    const cell = frontBuffer.getCell(x, row);
-    result += cell.char;
-  }
-  return result;
-}
-
-// Helper to read a single cell from the front buffer (committed frame)
-function readFrontCell(binding: WidgetsBinding, x: number, y: number) {
-  return binding.getScreen().getFrontBuffer().getCell(x, y);
 }
 
 // ---------------------------------------------------------------------------

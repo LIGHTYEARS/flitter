@@ -11,6 +11,8 @@
 import { Element } from './element';
 import { GlobalKey } from '../core/key';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
+import { debugFlags } from '../diagnostics/debug-flags';
+import { pipelineLog } from '../diagnostics/pipeline-debug';
 
 // ---------------------------------------------------------------------------
 // GlobalKeyRegistry — tracks GlobalKey -> Element associations
@@ -124,6 +126,7 @@ export class BuildOwner {
 
     try {
       // Amp: while (this._dirtyElements.size > 0)
+      const dirtyCount = this._dirtyElements.size;
       while (this._dirtyElements.size > 0) {
         const elements = Array.from(this._dirtyElements);
         this._dirtyElements.clear();
@@ -156,6 +159,10 @@ export class BuildOwner {
         }
         // If rebuild() called setState() or markNeedsBuild() on other elements,
         // _dirtyElements may have new entries — while loop handles this
+      }
+
+      if (debugFlags.debugPrintBuilds) {
+        pipelineLog('BUILD', `dirty=${dirtyCount} rebuilt=${rebuiltCount}`);
       }
     } finally {
       this._recordBuildStats(performance.now() - startTime, rebuiltCount);

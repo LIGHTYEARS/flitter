@@ -19,14 +19,28 @@ export interface CellStyle {
 }
 
 /**
+ * OSC 8 hyperlink descriptor for a terminal cell.
+ * Supports an optional id parameter for link grouping.
+ */
+export interface CellHyperlink {
+  uri: string;
+  id?: string;
+}
+
+/**
+ * Union type for cell hyperlinks: plain string (URI only) or structured object with optional id.
+ */
+export type CellHyperlinkValue = string | CellHyperlink;
+
+/**
  * A single cell in the terminal grid.
  * Amp ref: q3 createCell — { char, style, width, hyperlink }
  */
 export interface Cell {
-  char: string;       // single grapheme (default ' ')
-  style: CellStyle;   // fg, bg, bold, italic, etc.
-  width: number;      // display width (1 or 2 for CJK)
-  hyperlink?: string; // OSC 8 hyperlink URL
+  char: string;              // single grapheme (default ' ')
+  style: CellStyle;          // fg, bg, bold, italic, etc.
+  width: number;             // display width (1 or 2 for CJK)
+  hyperlink?: CellHyperlinkValue; // OSC 8 hyperlink URL, optionally with id
 }
 
 /**
@@ -48,7 +62,7 @@ export function createCell(
   char: string = ' ',
   style: CellStyle = {},
   width: number = 1,
-  hyperlink?: string,
+  hyperlink?: CellHyperlinkValue,
 ): Cell {
   return {
     char,
@@ -59,9 +73,7 @@ export function createCell(
 }
 
 /**
- * Deep equality check for two Color values.
- * Both undefined => equal. One undefined => not equal.
- * Amp ref: Nu0 colorsEqual
+ * Compare two optional Color values for equality.
  */
 function colorsEqual(a: Color | undefined, b: Color | undefined): boolean {
   if (a === b) return true;
@@ -87,6 +99,26 @@ export function stylesEqual(a: CellStyle, b: CellStyle): boolean {
 }
 
 /**
+ * Deep equality check for two CellHyperlinkValue values.
+ * Handles string, object, and undefined forms.
+ */
+export function hyperlinksEqual(
+  a: CellHyperlinkValue | undefined,
+  b: CellHyperlinkValue | undefined,
+): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+
+  const aUri = typeof a === 'string' ? a : a.uri;
+  const bUri = typeof b === 'string' ? b : b.uri;
+  if (aUri !== bUri) return false;
+
+  const aId = typeof a === 'string' ? undefined : a.id;
+  const bId = typeof b === 'string' ? undefined : b.id;
+  return aId === bId;
+}
+
+/**
  * Deep equality check for two Cell objects.
  * Amp ref: bF8 cellsEqual — compares char, width, style, hyperlink
  */
@@ -96,7 +128,7 @@ export function cellsEqual(a: Cell, b: Cell): boolean {
     a.char === b.char &&
     a.width === b.width &&
     stylesEqual(a.style, b.style) &&
-    a.hyperlink === b.hyperlink
+    hyperlinksEqual(a.hyperlink, b.hyperlink)
   );
 }
 
@@ -108,7 +140,9 @@ export function cloneCell(cell: Cell): Cell {
     char: cell.char,
     style: { ...cell.style },
     width: cell.width,
-    hyperlink: cell.hyperlink,
+    hyperlink: cell.hyperlink !== undefined && typeof cell.hyperlink === 'object'
+      ? { ...cell.hyperlink }
+      : cell.hyperlink,
   };
 }
 

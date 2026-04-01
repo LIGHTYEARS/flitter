@@ -125,6 +125,7 @@ export class RenderText extends RenderBox {
   private _selectionColor?: Color;
   private _copyHighlightColor?: Color;
   private _highlightMode: 'selection' | 'copy' | 'none' = 'none';
+  private _copyFadeTimer: ReturnType<typeof setTimeout> | null = null;
   selectableId?: string;
 
   // --- Character position cache (rebuilt during layout) ---

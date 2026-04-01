@@ -70,8 +70,8 @@ export async function connectToAgent(
     agent.kill(); // Prevent zombie process on init failure
     throw err;
   }
-  log.info('Agent initialized:', initResponse.agentInfo?.name ?? 'unknown');
-  log.info('Agent capabilities:', JSON.stringify(initResponse.agentCapabilities));
+  log.info(`Agent initialized: ${initResponse.agentInfo?.name ?? 'unknown'}`);
+  log.info(`Agent capabilities: ${JSON.stringify(initResponse.agentCapabilities)}`);
 
   // 5. Create a new session (15s timeout)
   log.info('Creating new session...');
@@ -237,7 +237,7 @@ export async function connectToAgentWithResume(
     agent.kill();
     throw err;
   }
-  log.info('Agent initialized:', initResponse.agentInfo?.name ?? 'unknown');
+  log.info(`Agent initialized: ${initResponse.agentInfo?.name ?? 'unknown'}`);
 
   // Step 5: Try loadSession, fall back to newSession
   let sessionId: string;

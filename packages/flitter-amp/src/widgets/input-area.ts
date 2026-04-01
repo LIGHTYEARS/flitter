@@ -12,6 +12,7 @@ import { Stack, Positioned } from 'flitter-core/src/widgets/stack';
 import { Autocomplete } from 'flitter-core/src/widgets/autocomplete';
 import type { AutocompleteTrigger } from 'flitter-core/src/widgets/autocomplete';
 import { AmpThemeProvider, agentModeColor } from '../themes/index';
+import { icon } from '../ui/icons/icon-registry';
 
 export interface BorderOverlayText {
   position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
@@ -192,7 +193,9 @@ class InputAreaState extends State<InputArea> {
           ? agentModeColor(effectiveLabel, theme)
           : Color.green;
 
-      const labelText = isProcessing && !shellLabel ? ` ⏳ ${effectiveLabel} ` : ` ${effectiveLabel} `;
+      const labelText = isProcessing && !shellLabel
+        ? ` ${icon('status.processing')} ${effectiveLabel} `
+        : ` ${effectiveLabel} `;
       const labelSpan = new TextSpan({
         text: labelText,
         style: new TextStyle({
@@ -209,7 +212,7 @@ class InputAreaState extends State<InputArea> {
         const warningColor = theme?.base.warning ?? Color.yellow;
         badgeChildren.push(
           new TextSpan({ text: '──', style: new TextStyle({ foreground: mutedColor }) }),
-          new TextSpan({ text: '⚠', style: new TextStyle({ foreground: warningColor }) }),
+          new TextSpan({ text: icon('status.warning'), style: new TextStyle({ foreground: warningColor }) }),
           new TextSpan({ text: '─', style: new TextStyle({ foreground: mutedColor }) }),
           new TextSpan({ text: `${skillCount}`, style: new TextStyle({ foreground: mutedColor }) }),
           new TextSpan({ text: '─', style: new TextStyle({ foreground: mutedColor }) }),

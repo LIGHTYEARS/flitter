@@ -89,7 +89,7 @@ export class ChatView extends StatelessWidget {
       }
 
       if (item.type === 'user_message') {
-        children.push(this.buildUserStickyHeader(item.text, theme));
+        children.push(this.buildUserStickyHeader(item.text, theme, item.interrupted));
         i++;
       } else if (item.type === 'plan') {
         children.push(new PlanView({ entries: item.entries }));
@@ -156,16 +156,19 @@ export class ChatView extends StatelessWidget {
   }
 
   /**
-   * Renders a user message with a green left border and green italic text.
-   * Amp ref: no "You" label — just │ + italic green text.
+   * Renders a user message with a colored left border and italic text.
+   * Uses warning (yellow) color when interrupted, success (green) otherwise.
+   * Amp ref: no "You" label — just │ + italic colored text.
    */
-  private buildUserStickyHeader(text: string, theme?: AmpTheme): Widget {
-    const successColor = theme?.base.success ?? Color.green;
+  private buildUserStickyHeader(text: string, theme?: AmpTheme, interrupted?: boolean): Widget {
+    const color = interrupted
+      ? (theme?.base.warning ?? Color.yellow)
+      : (theme?.base.success ?? Color.green);
 
     return new Container({
       decoration: new BoxDecoration({
         border: new Border({
-          left: new BorderSide({ color: successColor, width: 2, style: 'solid' }),
+          left: new BorderSide({ color, width: 2, style: 'solid' }),
         }),
       }),
       padding: EdgeInsets.only({ left: 1 }),
@@ -173,7 +176,7 @@ export class ChatView extends StatelessWidget {
         text: new TextSpan({
           text: text,
           style: new TextStyle({
-            foreground: successColor,
+            foreground: color,
             italic: true,
           }),
         }),

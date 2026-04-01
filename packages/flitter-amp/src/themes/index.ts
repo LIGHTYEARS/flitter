@@ -6,7 +6,7 @@
 import { Color } from 'flitter-core/src/core/color';
 import { Key } from 'flitter-core/src/core/key';
 import { Widget, InheritedWidget, BuildContext } from 'flitter-core/src/framework/widget';
-import type { AmpBaseTheme, AmpAppColors, AmpTheme } from './amp-theme-data';
+import type { AmpBaseTheme, AmpAppColors, AmpTheme, AmpSyntaxHighlight } from './amp-theme-data';
 import { darkTheme } from './dark';
 import { lightTheme } from './light';
 import { catppuccinMochaTheme } from './catppuccin-mocha';
@@ -51,42 +51,87 @@ export const ampThemes: Readonly<Record<string, AmpBaseTheme>> = {
 // ---------------------------------------------------------------------------
 
 /**
- * Derives application-specific semantic colors from a base theme.
- * Maps base palette colors to their semantic roles in the Amp UI:
- *   toolName → foreground, toolSuccess → success, toolError → destructive,
- *   toolCancelled → warning, fileReference → primary, command → warning,
- *   keybind → info, link → primary, recommendation → info,
- *   shellMode → info, handoffMode → secondary, queueMode → info,
- *   scrollbarThumb → foreground, scrollbarTrack → ansi256(8),
- *   toolRunning → info, userMessage → success,
- *   smartModeColor → conditional green, rushModeColor → conditional gold,
- *   diffAdded → success, diffRemoved → destructive, diffContext → mutedForeground,
- *   waiting → warning.
+ * Derives AMP application semantic colors from a base theme.
+ *
+ * Strict parity mode:
+ * - Mirrors AMP's `x1.default(mode)` inventory and default mappings.
+ * - Uses ANSI named colors / ansi256 indices for semantic roles.
+ * - Only mode-sensitive values are `smartModeColor` and `rushModeColor`.
  */
 export function deriveAppColors(base: AmpBaseTheme): AmpAppColors {
+  const ansi8 = Color.ansi256(8);
+  const smartModeColor = base.isLight ? Color.rgb(0, 140, 70) : Color.rgb(0, 255, 136);
+  const rushModeColor = base.isLight ? Color.rgb(180, 100, 0) : Color.rgb(255, 215, 0);
+
+  const syntaxHighlight: AmpSyntaxHighlight = {
+    keyword: Color.blue,
+    string: Color.green,
+    number: Color.yellow,
+    comment: ansi8,
+    function: Color.cyan,
+    variable: Color.defaultColor,
+    type: Color.magenta,
+    operator: Color.defaultColor,
+  };
+
   return {
-    toolName: base.foreground,
-    toolSuccess: base.success,
-    toolError: base.destructive,
-    toolCancelled: base.warning,
-    fileReference: base.primary,
-    command: base.warning,
-    keybind: base.info,
-    link: base.primary,
-    recommendation: base.info,
-    shellMode: base.info,
-    handoffMode: base.secondary,
-    queueMode: base.info,
-    scrollbarThumb: base.foreground,
-    scrollbarTrack: Color.ansi256(8),
-    toolRunning: base.info,
-    userMessage: base.success,
-    smartModeColor: base.isLight ? Color.rgb(0, 140, 70) : Color.rgb(0, 255, 136),
-    rushModeColor: base.isLight ? Color.rgb(180, 100, 0) : Color.rgb(255, 215, 0),
-    diffAdded: base.success,
-    diffRemoved: base.destructive,
-    diffContext: base.mutedForeground,
-    waiting: base.warning,
+    toolRunning: Color.blue,
+    toolSuccess: Color.green,
+    toolError: Color.red,
+    toolCancelled: Color.yellow,
+    toolName: Color.defaultColor,
+
+    userMessage: Color.cyan,
+    assistantMessage: Color.defaultColor,
+    systemMessage: ansi8,
+
+    codeBlock: Color.defaultColor,
+    inlineCode: Color.yellow,
+    syntaxHighlight,
+
+    fileReference: Color.cyan,
+    processing: Color.blue,
+    waiting: Color.yellow,
+    completed: Color.green,
+    cancelled: ansi8,
+
+    recommendation: Color.blue,
+    suggestion: Color.magenta,
+    command: Color.yellow,
+    filename: Color.cyan,
+    keybind: Color.blue,
+    button: Color.cyan,
+    link: Color.blue,
+
+    shellMode: Color.blue,
+    shellModeHidden: ansi8,
+    handoffMode: Color.magenta,
+    handoffModeDim: Color.rgb(128, 0, 128),
+    queueMode: Color.rgb(160, 160, 160),
+
+    diffAdded: Color.green,
+    diffRemoved: Color.red,
+    diffChanged: Color.yellow,
+    diffContext: ansi8,
+
+    ideConnected: Color.green,
+    ideDisconnected: Color.red,
+    ideWarning: Color.yellow,
+
+    scrollbarThumb: Color.defaultColor,
+    scrollbarTrack: ansi8,
+    tableBorder: ansi8,
+
+    selectionBackground: Color.yellow,
+    selectionForeground: Color.black,
+    selectedMessage: Color.green,
+
+    smartModeColor,
+    rushModeColor,
+
+    threadGraphNode: Color.blue,
+    threadGraphNodeSelected: Color.yellow,
+    threadGraphConnector: Color.defaultColor,
   };
 }
 
@@ -224,27 +269,58 @@ function ampBaseThemeEquals(a: AmpBaseTheme, b: AmpBaseTheme): boolean {
  */
 function ampAppColorsEquals(a: AmpAppColors, b: AmpAppColors): boolean {
   return (
-    a.toolName.equals(b.toolName) &&
+    a.toolRunning.equals(b.toolRunning) &&
     a.toolSuccess.equals(b.toolSuccess) &&
     a.toolError.equals(b.toolError) &&
     a.toolCancelled.equals(b.toolCancelled) &&
-    a.fileReference.equals(b.fileReference) &&
-    a.command.equals(b.command) &&
-    a.keybind.equals(b.keybind) &&
-    a.link.equals(b.link) &&
-    a.recommendation.equals(b.recommendation) &&
-    a.shellMode.equals(b.shellMode) &&
-    a.handoffMode.equals(b.handoffMode) &&
-    a.queueMode.equals(b.queueMode) &&
-    a.scrollbarThumb.equals(b.scrollbarThumb) &&
-    a.scrollbarTrack.equals(b.scrollbarTrack) &&
-    a.toolRunning.equals(b.toolRunning) &&
+    a.toolName.equals(b.toolName) &&
     a.userMessage.equals(b.userMessage) &&
-    a.smartModeColor.equals(b.smartModeColor) &&
-    a.rushModeColor.equals(b.rushModeColor) &&
+    a.assistantMessage.equals(b.assistantMessage) &&
+    a.systemMessage.equals(b.systemMessage) &&
+    a.codeBlock.equals(b.codeBlock) &&
+    a.inlineCode.equals(b.inlineCode) &&
+    a.syntaxHighlight.keyword.equals(b.syntaxHighlight.keyword) &&
+    a.syntaxHighlight.string.equals(b.syntaxHighlight.string) &&
+    a.syntaxHighlight.number.equals(b.syntaxHighlight.number) &&
+    a.syntaxHighlight.comment.equals(b.syntaxHighlight.comment) &&
+    a.syntaxHighlight.function.equals(b.syntaxHighlight.function) &&
+    a.syntaxHighlight.variable.equals(b.syntaxHighlight.variable) &&
+    a.syntaxHighlight.type.equals(b.syntaxHighlight.type) &&
+    a.syntaxHighlight.operator.equals(b.syntaxHighlight.operator) &&
+    a.fileReference.equals(b.fileReference) &&
+    a.processing.equals(b.processing) &&
+    a.waiting.equals(b.waiting) &&
+    a.completed.equals(b.completed) &&
+    a.cancelled.equals(b.cancelled) &&
+    a.recommendation.equals(b.recommendation) &&
+    a.suggestion.equals(b.suggestion) &&
+    a.command.equals(b.command) &&
+    a.filename.equals(b.filename) &&
+    a.keybind.equals(b.keybind) &&
+    a.button.equals(b.button) &&
+    a.link.equals(b.link) &&
+    a.shellMode.equals(b.shellMode) &&
+    a.shellModeHidden.equals(b.shellModeHidden) &&
+    a.handoffMode.equals(b.handoffMode) &&
+    a.handoffModeDim.equals(b.handoffModeDim) &&
+    a.queueMode.equals(b.queueMode) &&
     a.diffAdded.equals(b.diffAdded) &&
     a.diffRemoved.equals(b.diffRemoved) &&
+    a.diffChanged.equals(b.diffChanged) &&
     a.diffContext.equals(b.diffContext) &&
-    a.waiting.equals(b.waiting)
+    a.ideConnected.equals(b.ideConnected) &&
+    a.ideDisconnected.equals(b.ideDisconnected) &&
+    a.ideWarning.equals(b.ideWarning) &&
+    a.scrollbarThumb.equals(b.scrollbarThumb) &&
+    a.scrollbarTrack.equals(b.scrollbarTrack) &&
+    a.tableBorder.equals(b.tableBorder) &&
+    a.selectionBackground.equals(b.selectionBackground) &&
+    a.selectionForeground.equals(b.selectionForeground) &&
+    a.selectedMessage.equals(b.selectedMessage) &&
+    a.smartModeColor.equals(b.smartModeColor) &&
+    a.rushModeColor.equals(b.rushModeColor) &&
+    a.threadGraphNode.equals(b.threadGraphNode) &&
+    a.threadGraphNodeSelected.equals(b.threadGraphNodeSelected) &&
+    a.threadGraphConnector.equals(b.threadGraphConnector)
   );
 }

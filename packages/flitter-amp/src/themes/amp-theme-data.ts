@@ -1,81 +1,123 @@
-// AmpThemeData — Interfaces and type definitions for Amp CLI's RGB true-color theme system.
-// Defines three layers: AmpBaseTheme (core palette), AmpAppColors (app-specific semantic
-// colors), and AmpTheme (the combined theme object).
-
-import { Color } from 'flitter-core/src/core/color';
+import type { Color } from 'flitter-core/src/core/color';
 
 /**
- * Syntax highlighting color configuration for code blocks.
- * Each field maps a token type to an RGB Color.
+ * AMP theme mode.
+ *
+ * Mirrors AMP's `x1.default(mode)` behavior where some semantic colors differ
+ * between light and dark mode (notably agent mode colors).
  */
-export interface AmpSyntaxHighlight {
-  readonly keyword: Color;
-  readonly string: Color;
-  readonly number: Color;
-  readonly comment: Color;
-  readonly function: Color;
-  readonly variable: Color;
-  readonly type: Color;
-  readonly operator: Color;
-}
+export type AmpThemeMode = 'light' | 'dark';
 
 /**
- * Base theme defining the core palette for the entire UI.
- * All colors use RGB true-color (Color.rgb()) for precise rendering.
+ * Syntax highlight color roles.
  */
-export interface AmpBaseTheme {
-  readonly background: Color;
-  readonly foreground: Color;
-  readonly mutedForeground: Color;
-  readonly border: Color;
-  readonly selection: Color;
-  readonly primary: Color;
-  readonly secondary: Color;
-  readonly accent: Color;
-  readonly success: Color;
-  readonly warning: Color;
-  readonly info: Color;
-  readonly destructive: Color;
-  readonly copyHighlight: Color;
-  readonly tableBorder: Color;
-  readonly cursor: Color;
-  readonly isLight: boolean;
-  readonly syntaxHighlight: AmpSyntaxHighlight;
-}
+export type AmpSyntaxHighlight = {
+  keyword: Color;
+  string: Color;
+  number: Color;
+  comment: Color;
+  function: Color;
+  variable: Color;
+  type: Color;
+  operator: Color;
+};
 
 /**
- * Application-specific semantic colors derived from the base theme.
- * These map to specific UI roles in the Amp CLI interface.
+ * Base theme palette (terminal color scheme).
+ *
+ * This is the "base" (Qt.base) side of AMP theming, typically derived from
+ * terminal or predefined truecolor palettes.
  */
-export interface AmpAppColors {
-  readonly toolName: Color;
-  readonly toolSuccess: Color;
-  readonly toolError: Color;
-  readonly toolCancelled: Color;
-  readonly fileReference: Color;
-  readonly command: Color;
-  readonly keybind: Color;
-  readonly link: Color;
-  readonly recommendation: Color;
-  readonly shellMode: Color;
-  readonly handoffMode: Color;
-  readonly queueMode: Color;
-  readonly scrollbarThumb: Color;
-  readonly scrollbarTrack: Color;
-  readonly toolRunning: Color;
-  readonly userMessage: Color;
-  readonly smartModeColor: Color;
-  readonly rushModeColor: Color;
-  readonly diffAdded: Color;
-  readonly diffRemoved: Color;
-  readonly diffContext: Color;
-  readonly waiting: Color;
-}
+export type AmpBaseTheme = {
+  background: Color;
+  foreground: Color;
+  mutedForeground: Color;
+  border: Color;
+  selection: Color;
+  primary: Color;
+  secondary: Color;
+  accent: Color;
+  success: Color;
+  warning: Color;
+  info: Color;
+  destructive: Color;
+  copyHighlight: Color;
+  tableBorder: Color;
+  cursor: Color;
+  isLight: boolean;
+  syntaxHighlight: AmpSyntaxHighlight;
+};
 
 /**
- * The combined Amp theme object containing both base palette and app-specific colors.
+ * App semantic colors (Qt.app) matching AMP's `x1` token inventory.
+ *
+ * NOTE: This is intentionally strict (no extra tokens) to keep parity with
+ * the reference AMP bundle (`packages/flitter-amp/.ref/amp-cli/app-theme-x1.js`).
  */
-export interface AmpTheme {
-  readonly base: AmpBaseTheme;
-  readonly app: AmpAppColors;
-}
+export type AmpAppColors = {
+  toolRunning: Color;
+  toolSuccess: Color;
+  toolError: Color;
+  toolCancelled: Color;
+  toolName: Color;
+
+  userMessage: Color;
+  assistantMessage: Color;
+  systemMessage: Color;
+
+  codeBlock: Color;
+  inlineCode: Color;
+  syntaxHighlight: AmpSyntaxHighlight;
+
+  fileReference: Color;
+  processing: Color;
+  waiting: Color;
+  completed: Color;
+  cancelled: Color;
+
+  recommendation: Color;
+  suggestion: Color;
+  command: Color;
+  filename: Color;
+  keybind: Color;
+  button: Color;
+  link: Color;
+
+  shellMode: Color;
+  shellModeHidden: Color;
+  handoffMode: Color;
+  handoffModeDim: Color;
+  queueMode: Color;
+
+  diffAdded: Color;
+  diffRemoved: Color;
+  diffChanged: Color;
+  diffContext: Color;
+
+  ideConnected: Color;
+  ideDisconnected: Color;
+  ideWarning: Color;
+
+  scrollbarThumb: Color;
+  scrollbarTrack: Color;
+  tableBorder: Color;
+
+  selectionBackground: Color;
+  selectionForeground: Color;
+  selectedMessage: Color;
+
+  smartModeColor: Color;
+  rushModeColor: Color;
+
+  threadGraphNode: Color;
+  threadGraphNodeSelected: Color;
+  threadGraphConnector: Color;
+};
+
+/**
+ * Full theme container, combining base palette and app semantic colors.
+ */
+export type AmpTheme = {
+  base: AmpBaseTheme;
+  app: AmpAppColors;
+};

@@ -50,6 +50,7 @@ export class SessionStore {
   private readonly sessionsDir: string;
   private readonly indexPath: string;
   private readonly retentionMs: number;
+  private lastWriteTimestamp: number = 0;
 
   constructor(
     baseDir: string,
@@ -79,9 +80,14 @@ export class SessionStore {
 
       // Finalize streaming state before serialization
       const sanitizedItems = session.items.map(item => this.sanitizeItem(item));
+      // Ensure monotonic updatedAt (Date.now() can be equal across rapid saves).
+      const now = Date.now();
+      const updatedAt = now <= this.lastWriteTimestamp ? this.lastWriteTimestamp + 1 : now;
+      this.lastWriteTimestamp = updatedAt;
+
       const fileData: SessionFile = {
         ...session,
-        updatedAt: Date.now(),
+        updatedAt,
         items: sanitizedItems,
       };
 
@@ -91,7 +97,7 @@ export class SessionStore {
       this.updateIndex(fileData);
       log.info(`Session saved: ${session.sessionId} (${sanitizedItems.length} items)`);
     } catch (err) {
-      log.error(`Failed to save session: ${err}`);
+      log.error('Failed to save session', err);
       // Intentionally non-fatal: session loss is acceptable; app crash is not
     }
   }
@@ -112,7 +118,7 @@ export class SessionStore {
       }
       return data;
     } catch (err) {
-      log.error(`Failed to load session ${sessionId}: ${err}`);
+      log.error(`Failed to load session ${sessionId}`, err);
       return null;
     }
   }
@@ -195,7 +201,7 @@ export class SessionStore {
       this.ensureDir();
       writeFileSync(this.indexPath, JSON.stringify(index, null, 2), 'utf-8');
     } catch (err) {
-      log.error(`Failed to save session index: ${err}`);
+      log.error('Failed to save session index', err);
     }
   }
 

@@ -60,6 +60,9 @@ export { encodeKittyGraphics, buildKittyGraphicsPayload, uint8ArrayToBase64, spl
 export { DebugInspector, serializeElementTree, serializeFocusTree, findElementById, buildRenderObjectToElementMap, resetStableIds } from './diagnostics/debug-inspector';
 export type { ElementNodeJson, RenderObjectJson, FocusNodeJson, KeystrokeEntry } from './diagnostics/debug-inspector';
 
+// Pipeline debug sink redirection
+export { setPipelineLogSink, resetPipelineLogSink } from './diagnostics/pipeline-debug';
+
 // Phase 22: Minor Fidelity Fixes
 export { estimateIntrinsicWidth } from './layout/layout-helpers';
 
@@ -94,6 +97,9 @@ export type { TableConfig, TableCellParentData } from './layout/render-table';
 
 // BrailleSpinner utility
 export { BrailleSpinner } from './utilities/braille-spinner';
+
+// WaveSpinner widget (animated wave character cycling)
+export { WaveSpinner, WaveSpinnerState } from './widgets/wave-spinner';
 
 // ForceDim inherited widget
 export { ForceDim } from './widgets/force-dim';

@@ -68,6 +68,9 @@ export class AppState implements ClientCallbacks {
   modes: SessionMode[] = [];
   autocompleteTriggers: Array<{ trigger: string; description?: string }> = [];
 
+  /** Last stop reason from onPromptComplete, used to detect interrupted state. */
+  lastStopReason: string | null = null;
+
   private listeners: Set<StateListener> = new Set();
   private pendingPermission: {
     resolve: (optionId: string | null) => void;
@@ -129,6 +132,13 @@ export class AppState implements ClientCallbacks {
 
   get isProcessing(): boolean {
     return this.conversation.isProcessing;
+  }
+
+  /** True when the last prompt was cancelled/interrupted (not a normal end_turn). */
+  get isInterrupted(): boolean {
+    return this.lastStopReason !== null
+      && this.lastStopReason !== 'end_turn'
+      && !this.conversation.isProcessing;
   }
 
   get usage(): UsageInfo | null {
@@ -260,6 +270,7 @@ export class AppState implements ClientCallbacks {
     this.conversation.finalizeAssistantMessage();
     this.conversation.finalizeThinking();
     this.conversation.isProcessing = false;
+    this.lastStopReason = stopReason;
     log.info(`Prompt complete: ${stopReason}, items=${this.conversation.items.length}`);
     this.notifyListeners();
   }
@@ -292,6 +303,7 @@ export class AppState implements ClientCallbacks {
   }
 
   startProcessing(userText: string): void {
+    this.lastStopReason = null;
     this.conversation.addUserMessage(userText);
     this.conversation.isProcessing = true;
     this.notifyListeners();

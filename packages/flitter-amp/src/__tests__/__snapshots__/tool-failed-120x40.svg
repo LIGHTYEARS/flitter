@@ -32,22 +32,21 @@
 <text x="1011.6" y="512.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="530.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="548.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="566.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="566.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Run the deploy script</text>
 <text x="1011.6" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="584.04" style="fill:#2ba12b" xml:space="preserve">│</text>
-<text x="54" y="584.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Run the deploy script</text>
 <text x="1011.6" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="602.04" style="fill:#bd2b2b" xml:space="preserve">✕ </text>
+<text x="45.6" y="602.04" style="fill:#c0caf5;font-weight:bold" xml:space="preserve">$</text>
+<text x="54" y="602.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> ./deploy.sh</text>
 <text x="1011.6" y="602.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="620.04" style="fill:#bd2b2b" xml:space="preserve">✗ </text>
-<text x="45.6" y="620.04" style="fill:#f6fff5;font-weight:bold" xml:space="preserve">$</text>
-<text x="54" y="620.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> ./deploy.sh</text>
+<text x="28.8" y="620.04" style="fill:#dcdcdc" xml:space="preserve">The deploy script </text>
+<text x="180" y="620.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">failed</text>
+<text x="230.4" y="620.04" style="fill:#dcdcdc" xml:space="preserve"> with exit code 1. The error indicates a missing environment variable </text>
+<text x="818.4000000000001" y="620.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">DATABASE_URL</text>
+<text x="919.2" y="620.04" style="fill:#dcdcdc" xml:space="preserve">.</text>
 <text x="1011.6" y="620.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="638.04" style="fill:#dcdcdc" xml:space="preserve">The deploy script </text>
-<text x="180" y="638.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">failed</text>
-<text x="230.4" y="638.04" style="fill:#dcdcdc" xml:space="preserve"> with exit code 1. The error indicates a missing environment variable </text>
-<text x="818.4000000000001" y="638.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">DATABASE_URL</text>
-<text x="919.2" y="638.04" style="fill:#dcdcdc" xml:space="preserve">.</text>
 <text x="1011.6" y="638.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="1011.6" y="656.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="12" y="674.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="952.8000000000001" y="674.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
 <text x="1011.6" y="674.04" style="fill:#878b86" xml:space="preserve">╮</text>
@@ -61,6 +60,6 @@
 <text x="12" y="746.04" style="fill:#878b86" xml:space="preserve">╰───────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="784.8000000000001" y="746.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─/home/user/project (main)─</text>
 <text x="1011.6" y="746.04" style="fill:#878b86" xml:space="preserve">╯</text>
-<text x="20.4" y="764.04" style="fill:#42a1ff" xml:space="preserve">?</text>
+<text x="20.4" y="764.04" style="fill:#81a2be" xml:space="preserve">?</text>
 <text x="28.8" y="764.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> for shortcuts</text>
 </svg>

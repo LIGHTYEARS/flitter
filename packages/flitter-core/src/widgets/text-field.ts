@@ -756,11 +756,27 @@ class TextFieldState extends State<TextField> {
     const { key, ctrlKey, shiftKey, altKey } = event;
     const isMultiLine = !this.widget.isSingleLine;
 
-    // --- Ctrl combinations ---
+    // --- Ctrl combinations (includes Emacs keybindings) ---
     if (ctrlKey && !shiftKey && !altKey) {
       switch (key) {
         case 'a':
-          this._controller.selectAll();
+          /** Emacs Ctrl+A: move cursor to beginning of current line. */
+          this._controller.moveCursorLineHome();
+          return 'handled';
+        case 'e':
+          /** Emacs Ctrl+E: move cursor to end of current line. */
+          this._controller.moveCursorLineEnd();
+          return 'handled';
+        case 'x':
+          /** Emacs Ctrl+X: cut selection (delete selected text; no-op if no selection). */
+          if (this._controller.hasSelection) {
+            this._copySelectionToClipboard();
+            this._controller.insertText('');
+          }
+          return 'handled';
+        case 'w':
+          /** Emacs Ctrl+W: delete the word before the cursor (backward word delete). */
+          this._controller.deleteWordBackward();
           return 'handled';
         case 'Backspace':
           this._controller.deleteWordBackward();
@@ -827,6 +843,20 @@ class TextFieldState extends State<TextField> {
     if (altKey && !ctrlKey && !shiftKey && (key === 'Enter' || key === 'Return')) {
       this._controller.insertText('\n');
       return 'handled';
+    }
+
+    // --- Alt combinations (Emacs word-level movement) ---
+    if (altKey && !ctrlKey && !shiftKey) {
+      switch (key) {
+        case 'b':
+          /** Emacs Alt+B: move cursor backward one word (backward-word). */
+          this._controller.moveCursorWordLeft();
+          return 'handled';
+        case 'f':
+          /** Emacs Alt+F: move cursor forward one word (forward-word). */
+          this._controller.moveCursorWordRight();
+          return 'handled';
+      }
     }
 
     // --- Plain keys (no ctrl/alt/meta) ---

@@ -15,6 +15,7 @@
 
 import { WidgetsBinding } from 'flitter-core/src/framework/binding';
 import { FrameScheduler } from 'flitter-core/src/scheduler/frame-scheduler';
+import { TextEditingController } from 'flitter-core/src/widgets/text-field';
 import type * as acp from '@agentclientprotocol/sdk';
 import { AppState } from '../state/app-state';
 import { App } from '../app';
@@ -22,6 +23,7 @@ import { App } from '../app';
 export interface AppTestHarness {
   binding: WidgetsBinding;
   appState: AppState;
+  inputController: TextEditingController;
 
   /** Flush streaming text and draw a synchronous frame. */
   drawFrame: () => void;
@@ -68,11 +70,13 @@ export function createAppTestHarness(cols?: number, rows?: number): AppTestHarne
   binding.handleResize(c, r);
 
   const appState = new AppState();
+  const inputController = new TextEditingController();
 
   const app = new App({
     appState,
     onSubmit: () => {},
     onCancel: () => {},
+    inputController,
   });
 
   binding.attachRootWidget(app);
@@ -97,6 +101,7 @@ export function createAppTestHarness(cols?: number, rows?: number): AppTestHarne
   return {
     binding,
     appState,
+    inputController,
 
     /**
      * Flush any buffered streaming text, then force a synchronous frame.

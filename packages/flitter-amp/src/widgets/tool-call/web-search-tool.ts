@@ -16,6 +16,7 @@ import { pickString, isRecord } from '../../utils/raw-input';
 import { extractOutputText, extractRawArray } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT, MAX_DISPLAY_ITEMS } from './truncation-limits';
 import { resolveToolDisplayName } from './resolve-tool-name';
+import { icon } from '../../ui/icons/icon-registry';
 
 interface WebSearchToolProps extends BaseToolProps {}
 
@@ -62,7 +63,7 @@ export class WebSearchTool extends StatelessWidget {
             padding: EdgeInsets.only({ left: 2 }),
             child: new Text({
               text: new TextSpan({
-                text: `\u2192 ${link}`,
+                text: `${icon('arrow.right')} ${link}`,
                 style: new TextStyle({
                   foreground: theme?.app.link ?? Color.cyan,
                 }),

@@ -27,7 +27,11 @@ import {
   assertRowContains,
   countNonBlankRows,
   type Grid,
+  type TextLocation,
 } from '../test-utils/grid-helpers';
+import { createAppTestHarness } from '../test-utils/app-test-harness';
+import { icon } from '../ui/icons/icon-registry';
+import { toolStatusIcon } from '../ui/icons/icon-registry';
 
 // ── Theme color constants (from dark.ts) ──────────────────────────────
 const SUCCESS = Color.rgb(43, 161, 43);
@@ -36,6 +40,21 @@ const WARNING = Color.rgb(255, 183, 27);
 const DESTRUCTIVE = Color.rgb(189, 43, 43);
 const ACCENT = Color.rgb(234, 123, 188);
 const MUTED = Color.rgb(156, 156, 156);
+
+function findFirstBrailleSpinner(grid: Grid): TextLocation | null {
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
+      const ch = grid.getCell(x, y).char;
+      if (!ch) continue;
+      const code = ch.codePointAt(0);
+      if (!code) continue;
+      if (code >= 0x2800 && code <= 0x28ff) {
+        return { x, y };
+      }
+    }
+  }
+  return null;
+}
 
 // ── Quote computation (matches chat-view.ts:179) ──────────────────────
 const QUOTES = [
@@ -92,7 +111,7 @@ describe('Cell-Level Assertions', () => {
 
       // "Ctrl+O" in info/keybind color (blue)
       const ctrlPos = findTextOnce(grid, 'Ctrl+O');
-      assertStyleAt(grid, ctrlPos.x, ctrlPos.y, { fg: INFO });
+      assertStyleAt(grid, ctrlPos.x, ctrlPos.y, { fg: Color.blue });
 
       // "for help" in warning color (yellow)
       const helpRow = readRow(grid, ctrlPos.y);
@@ -258,11 +277,11 @@ describe('Cell-Level Assertions', () => {
 
       const grid = capture(appState);
 
-      // The streaming indicator "●" should be present
-      const bulletPos = findText(grid, '●');
-      expect(bulletPos.length).toBeGreaterThanOrEqual(1);
-      // Should be accent colored (magenta)
-      assertStyleAt(grid, bulletPos[0]!.x, bulletPos[0]!.y, { fg: ACCENT });
+      // AMP-style streaming indicator is a braille spinner (U+2800..U+28FF)
+      const spinnerPos = findFirstBrailleSpinner(grid);
+      expect(spinnerPos).not.toBeNull();
+      // Should be accent colored
+      assertStyleAt(grid, spinnerPos!.x, spinnerPos!.y, { fg: ACCENT });
     });
 
     test('interrupted thinking shows warning text', () => {
@@ -298,11 +317,11 @@ describe('Cell-Level Assertions', () => {
       appState.conversation.finalizeAssistantMessage();
       const grid = capture(appState);
 
-      const checkmarks = findText(grid, '✓');
+      const checkmarks = findText(grid, toolStatusIcon('completed'));
       expect(checkmarks.length).toBeGreaterThanOrEqual(1);
       // The checkmark near the tool call should be success-colored
       const pos = checkmarks[0]!;
-      assertStyleAt(grid, pos.x, pos.y, { fg: SUCCESS });
+      assertStyleAt(grid, pos.x, pos.y, { fg: Color.green });
     });
 
     test('failed tool shows X with destructive color', () => {
@@ -318,7 +337,7 @@ describe('Cell-Level Assertions', () => {
       appState.conversation.finalizeAssistantMessage();
       const grid = capture(appState);
 
-      const xs = findText(grid, '✗');
+      const xs = findText(grid, toolStatusIcon('failed'));
       expect(xs.length).toBeGreaterThanOrEqual(1);
       assertStyleAt(grid, xs[0]!.x, xs[0]!.y, { fg: DESTRUCTIVE });
     });
@@ -334,7 +353,7 @@ describe('Cell-Level Assertions', () => {
       );
       const grid = capture(appState);
 
-      const ellipsis = findText(grid, '⋯');
+      const ellipsis = findText(grid, toolStatusIcon('in_progress'));
       expect(ellipsis.length).toBeGreaterThanOrEqual(1);
     });
 
@@ -478,7 +497,7 @@ describe('Cell-Level Assertions', () => {
       appState.skillCount = 7;
       const grid = capture(appState);
 
-      const warningMatches = findText(grid, '⚠');
+      const warningMatches = findText(grid, icon('status.warning'));
       expect(warningMatches.length).toBeGreaterThanOrEqual(1);
       assertStyleAt(grid, warningMatches[0]!.x, warningMatches[0]!.y, { fg: WARNING });
     });
@@ -529,8 +548,68 @@ describe('Cell-Level Assertions', () => {
       expect(findText(grid, 'Ask a question').length).toBe(0);
       expect(findText(grid, '$ for shell').length).toBe(0);
     });
-  });
 
+    test('hides "? for shortcuts" when input has text', () => {
+      const h = createAppTestHarness(120, 40);
+      h.appState.cwd = '/home/user/project';
+      h.inputController.text = 'hello';
+      h.drawFrame();
+      const grid = h.readGrid();
+      expect(findText(grid, '? for shortcuts').length).toBe(0);
+      h.cleanup();
+    });
+
+    test('shows "? for shortcuts" when input is empty', () => {
+      const h = createAppTestHarness(120, 40);
+      h.appState.cwd = '/home/user/project';
+      h.inputController.text = '';
+      h.drawFrame();
+      const grid = h.readGrid();
+      expect(findText(grid, '? for shortcuts').length).toBeGreaterThan(0);
+      h.cleanup();
+    });
+
+    test('shows "Esc to cancel" during processing regardless of input', () => {
+      const h = createAppTestHarness(120, 40);
+      h.appState.cwd = '/home/user/project';
+      h.inputController.text = 'some text';
+      h.appState.startProcessing('test');
+      h.drawFrame();
+      const grid = h.readGrid();
+      expect(findText(grid, 'Esc').length).toBeGreaterThan(0);
+      expect(findText(grid, 'to cancel').length).toBeGreaterThan(0);
+      h.cleanup();
+    });
+
+    test('status line remains as blank placeholder when input has text and not processing', () => {
+      const h = createAppTestHarness(120, 40);
+      h.appState.cwd = '/home/user/project';
+      h.inputController.text = 'hello';
+      h.drawFrame();
+      const grid = h.readGrid();
+      expect(findText(grid, '? for shortcuts').length).toBe(0);
+      expect(findText(grid, 'Esc').length).toBe(0);
+      const borderRow = findRow(grid, '╰');
+      expect(borderRow).toBeDefined();
+      expect(borderRow! + 1).toBeLessThan(grid.height);
+      h.cleanup();
+    });
+
+    test('input box border position stays constant across processing state changes', () => {
+      const h = createAppTestHarness(120, 40);
+      h.appState.cwd = '/test';
+
+      h.drawFrame();
+      const idleBorderRow = findRow(h.readGrid(), '╭');
+
+      h.appState.startProcessing('test');
+      h.drawFrame();
+      const processingBorderRow = findRow(h.readGrid(), '╭');
+
+      expect(processingBorderRow).toBe(idleBorderRow);
+      h.cleanup();
+    });
+  });
   // ════════════════════════════════════════════════════════════════════
   //  Token Usage
   // ════════════════════════════════════════════════════════════════════

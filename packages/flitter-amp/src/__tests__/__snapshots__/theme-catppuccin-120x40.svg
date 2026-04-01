@@ -24,47 +24,42 @@
 <text x="1011.6" y="368.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="386.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="404.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="422.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="422.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Explain this code</text>
 <text x="1011.6" y="422.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="440.04" style="fill:#2ba12b" xml:space="preserve">│</text>
-<text x="54" y="440.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Explain this code</text>
 <text x="1011.6" y="440.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="458.04" style="fill:#2ba12b" xml:space="preserve">✓ </text>
+<text x="45.6" y="458.04" style="fill:#2ba12b;opacity:0.5" xml:space="preserve">Thinking</text>
+<text x="112.80000000000001" y="458.04" style="fill:#9c9c9c" xml:space="preserve"> ▶</text>
 <text x="1011.6" y="458.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="476.04" style="fill:#9c9c9c" xml:space="preserve">▶ </text>
-<text x="45.6" y="476.04" style="fill:#2ba12b" xml:space="preserve">✓ </text>
-<text x="62.400000000000006" y="476.04" style="fill:#2ba12b;opacity:0.5" xml:space="preserve">Thinking</text>
+<text x="28.8" y="476.04" style="fill:#b5bd68" xml:space="preserve">✓ </text>
+<text x="45.6" y="476.04" style="fill:#cdd6f4;font-weight:bold" xml:space="preserve">Read</text>
 <text x="1011.6" y="476.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="494.04" style="fill:#2ba12b" xml:space="preserve">✓ </text>
-<text x="45.6" y="494.04" style="fill:#f6fff5;font-weight:bold" xml:space="preserve">Read</text>
+<text x="28.8" y="494.04" style="fill:#dcdcdc" xml:space="preserve">This code implements a </text>
+<text x="222" y="494.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">REST API</text>
+<text x="289.2" y="494.04" style="fill:#dcdcdc" xml:space="preserve"> with the following endpoints:</text>
 <text x="1011.6" y="494.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="512.04" style="fill:#dcdcdc" xml:space="preserve">This code implements a </text>
-<text x="222" y="512.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">REST API</text>
-<text x="289.2" y="512.04" style="fill:#dcdcdc" xml:space="preserve"> with the following endpoints:</text>
+<text x="28.8" y="512.04" style="fill:#969696" xml:space="preserve">  • </text>
+<text x="62.400000000000006" y="512.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">GET /api/users</text>
+<text x="180" y="512.04" style="fill:#dcdcdc" xml:space="preserve"> — List all users</text>
 <text x="1011.6" y="512.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="28.8" y="530.04" style="fill:#969696" xml:space="preserve">  • </text>
-<text x="62.400000000000006" y="530.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">GET /api/users</text>
-<text x="180" y="530.04" style="fill:#dcdcdc" xml:space="preserve"> — List all users</text>
+<text x="62.400000000000006" y="530.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">POST /api/users</text>
+<text x="188.4" y="530.04" style="fill:#dcdcdc" xml:space="preserve"> — Create a user</text>
 <text x="1011.6" y="530.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="28.8" y="548.04" style="fill:#969696" xml:space="preserve">  • </text>
-<text x="62.400000000000006" y="548.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">POST /api/users</text>
-<text x="188.4" y="548.04" style="fill:#dcdcdc" xml:space="preserve"> — Create a user</text>
+<text x="62.400000000000006" y="548.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">DELETE /api/users/:id</text>
+<text x="238.8" y="548.04" style="fill:#dcdcdc" xml:space="preserve"> — Delete a user</text>
 <text x="1011.6" y="548.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="566.04" style="fill:#969696" xml:space="preserve">  • </text>
-<text x="62.400000000000006" y="566.04" style="fill:#f0c674;font-weight:bold" xml:space="preserve">DELETE /api/users/:id</text>
-<text x="238.8" y="566.04" style="fill:#dcdcdc" xml:space="preserve"> — Delete a user</text>
+<text x="28.8" y="566.04" style="fill:#dcdcdc" xml:space="preserve">app.get(&apos;/api/users&apos;, async (req, res) =&gt; {</text>
 <text x="1011.6" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="570" width="361.2" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="584.04" style="fill:#dcdcdc" xml:space="preserve">app.get(&apos;/api/users&apos;, async (req, res) =&gt; {</text>
+<text x="28.8" y="584.04" style="fill:#dcdcdc" xml:space="preserve">  const users = await db.query(&apos;SELECT * FROM users&apos;);</text>
 <text x="1011.6" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="588" width="453.6" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="602.04" style="fill:#dcdcdc" xml:space="preserve">  const users = await db.query(&apos;SELECT * FROM users&apos;);</text>
+<text x="28.8" y="602.04" style="fill:#dcdcdc" xml:space="preserve">  res.json({ success: true, data: users });</text>
 <text x="1011.6" y="602.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="606" width="361.2" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="620.04" style="fill:#dcdcdc" xml:space="preserve">  res.json({ success: true, data: users });</text>
+<text x="28.8" y="620.04" style="fill:#dcdcdc" xml:space="preserve">});</text>
 <text x="1011.6" y="620.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="624" width="25.200000000000003" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="638.04" style="fill:#dcdcdc" xml:space="preserve">});</text>
 <text x="1011.6" y="638.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="1011.6" y="656.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="12" y="674.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="952.8000000000001" y="674.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
 <text x="1011.6" y="674.04" style="fill:#878b86" xml:space="preserve">╮</text>
@@ -78,6 +73,6 @@
 <text x="12" y="746.04" style="fill:#878b86" xml:space="preserve">╰───────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="784.8000000000001" y="746.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─/home/user/project (main)─</text>
 <text x="1011.6" y="746.04" style="fill:#878b86" xml:space="preserve">╯</text>
-<text x="20.4" y="764.04" style="fill:#42a1ff" xml:space="preserve">?</text>
+<text x="20.4" y="764.04" style="fill:#81a2be" xml:space="preserve">?</text>
 <text x="28.8" y="764.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> for shortcuts</text>
 </svg>

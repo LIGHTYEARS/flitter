@@ -18,6 +18,7 @@ import { pickString } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName } from './resolve-tool-name';
+import { icon } from '../../ui/icons/icon-registry';
 
 interface HandoffToolProps extends BaseToolProps {}
 
@@ -130,7 +131,7 @@ class HandoffToolState extends State<HandoffTool> {
                   }),
                 }),
                 new TextSpan({
-                  text: '●',
+                  text: icon('plan.status.in_progress'),
                   style: new TextStyle({
                     foreground: blinkColor,
                   }),

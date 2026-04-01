@@ -14,6 +14,7 @@
 // or I/O gets stuck.
 
 import { log, closeLogFile } from '../utils/logger';
+import { resetPipelineLogSink } from 'flitter-core';
 import { closeSession } from './connection';
 import type { ConnectionHandle } from './connection';
 
@@ -52,8 +53,7 @@ export async function gracefulShutdown(
       deps.saveSession();
       log.info('Session saved');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn(`Session save failed during shutdown: ${msg}`);
+      log.warn('Session save failed during shutdown', err instanceof Error ? { error: err.message } : undefined);
     }
 
     // Phase 2: Send closeSession RPC (if supported)
@@ -76,8 +76,7 @@ export async function gracefulShutdown(
       log.info('Shutdown phase 3: cleaning up terminals...');
       deps.handle.client.cleanup();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn(`Terminal cleanup failed during shutdown: ${msg}`);
+      log.warn('Terminal cleanup failed during shutdown', err instanceof Error ? { error: err.message } : undefined);
     }
 
     // Phase 4: Kill agent subprocess
@@ -85,12 +84,12 @@ export async function gracefulShutdown(
       log.info('Shutdown phase 4: killing agent process...');
       deps.handle.agent.kill();
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn(`Agent kill failed during shutdown: ${msg}`);
+      log.warn('Agent kill failed during shutdown', err instanceof Error ? { error: err.message } : undefined);
     }
 
     // Phase 5: Close log file
     log.info(`Shutdown complete in ${Date.now() - start}ms`);
+    resetPipelineLogSink();
     closeLogFile();
 
     return 'done';

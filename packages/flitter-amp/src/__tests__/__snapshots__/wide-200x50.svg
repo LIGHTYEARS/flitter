@@ -35,38 +35,29 @@
 <text x="1683.6000000000001" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1683.6000000000001" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1683.6000000000001" y="602.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="620.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="620.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Show me the project structure</text>
 <text x="1683.6000000000001" y="620.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="638.04" style="fill:#2ba12b" xml:space="preserve">│</text>
-<text x="54" y="638.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Show me the project structure</text>
 <text x="1683.6000000000001" y="638.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="656.04" style="fill:#dcdcdc" xml:space="preserve">Here&apos;s the project structure:</text>
 <text x="1683.6000000000001" y="656.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="674.04" style="fill:#dcdcdc" xml:space="preserve">Here&apos;s the project structure:</text>
+<text x="28.8" y="674.04" style="fill:#dcdcdc" xml:space="preserve">├── packages/</text>
 <text x="1683.6000000000001" y="674.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="678" width="109.2" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="692.04" style="fill:#dcdcdc" xml:space="preserve">├── packages/</text>
+<text x="28.8" y="692.04" style="fill:#dcdcdc" xml:space="preserve">│   ├── core/          # Core library</text>
 <text x="1683.6000000000001" y="692.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="696" width="310.8" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="710.04" style="fill:#dcdcdc" xml:space="preserve">│   ├── core/          # Core library</text>
+<text x="28.8" y="710.04" style="fill:#dcdcdc" xml:space="preserve">│   ├── cli/           # CLI tool</text>
 <text x="1683.6000000000001" y="710.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="714" width="277.2" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="728.04" style="fill:#dcdcdc" xml:space="preserve">│   ├── cli/           # CLI tool</text>
+<text x="28.8" y="728.04" style="fill:#dcdcdc" xml:space="preserve">│   └── web/           # Web interface</text>
 <text x="1683.6000000000001" y="728.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="732" width="319.2" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="746.04" style="fill:#dcdcdc" xml:space="preserve">│   └── web/           # Web interface</text>
+<text x="28.8" y="746.04" style="fill:#dcdcdc" xml:space="preserve">├── scripts/</text>
 <text x="1683.6000000000001" y="746.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="750" width="100.80000000000001" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="764.04" style="fill:#dcdcdc" xml:space="preserve">├── scripts/</text>
+<text x="28.8" y="764.04" style="fill:#dcdcdc" xml:space="preserve">│   └── build.ts</text>
 <text x="1683.6000000000001" y="764.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="768" width="134.4" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="782.04" style="fill:#dcdcdc" xml:space="preserve">│   └── build.ts</text>
+<text x="28.8" y="782.04" style="fill:#dcdcdc" xml:space="preserve">├── package.json</text>
 <text x="1683.6000000000001" y="782.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="786" width="134.4" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="800.04" style="fill:#dcdcdc" xml:space="preserve">├── package.json</text>
+<text x="28.8" y="800.04" style="fill:#dcdcdc" xml:space="preserve">└── tsconfig.json</text>
 <text x="1683.6000000000001" y="800.04" style="fill:#969896" xml:space="preserve">░</text>
-<rect x="28.8" y="804" width="142.8" height="18" fill="#2d2d2d"/>
-<text x="28.8" y="818.04" style="fill:#dcdcdc" xml:space="preserve">└── tsconfig.json</text>
 <text x="1683.6000000000001" y="818.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="1683.6000000000001" y="836.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="12" y="854.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="1624.8000000000002" y="854.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
 <text x="1683.6000000000001" y="854.04" style="fill:#878b86" xml:space="preserve">╮</text>
@@ -80,6 +71,6 @@
 <text x="12" y="926.04" style="fill:#878b86" xml:space="preserve">╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="1171.2" y="926.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─/home/user/workspace/monorepo/packages/my-library (develop)─</text>
 <text x="1683.6000000000001" y="926.04" style="fill:#878b86" xml:space="preserve">╯</text>
-<text x="20.4" y="944.04" style="fill:#42a1ff" xml:space="preserve">?</text>
+<text x="20.4" y="944.04" style="fill:#81a2be" xml:space="preserve">?</text>
 <text x="28.8" y="944.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> for shortcuts</text>
 </svg>

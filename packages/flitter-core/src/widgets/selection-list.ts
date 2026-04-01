@@ -14,6 +14,8 @@ import {
 import { Column } from './flex';
 import { Text } from './text';
 import { FocusScope } from './focus-scope';
+import { SingleChildScrollView } from './scroll-view';
+import { ScrollController } from './scroll-controller';
 import type { KeyEvent, KeyEventResult } from '../input/events';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +42,10 @@ export interface SelectionItem {
  * Supports keyboard navigation (ArrowUp/ArrowDown/j/k, Tab to cycle,
  * Enter to confirm, Escape to cancel) and optional mouse interaction.
  *
+ * When the list exceeds the available viewport, it auto-scrolls to keep the
+ * selected item visible. An optional ScrollController can be provided for
+ * external scroll control.
+ *
  * Usage:
  *   new SelectionList({
  *     items: [
@@ -60,6 +66,7 @@ export class SelectionList extends StatefulWidget {
   readonly initialIndex?: number;
   readonly enableMouseInteraction: boolean;
   readonly showDescription: boolean;
+  readonly scrollController?: ScrollController;
 
   constructor(opts: {
     key?: Key;
@@ -69,6 +76,7 @@ export class SelectionList extends StatefulWidget {
     initialIndex?: number;
     enableMouseInteraction?: boolean;
     showDescription?: boolean;
+    scrollController?: ScrollController;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.items = opts.items;
@@ -77,6 +85,7 @@ export class SelectionList extends StatefulWidget {
     this.initialIndex = opts.initialIndex;
     this.enableMouseInteraction = opts.enableMouseInteraction ?? true;
     this.showDescription = opts.showDescription ?? true;
+    this.scrollController = opts.scrollController;
   }
 
   createState(): State<SelectionList> {
@@ -89,7 +98,8 @@ export class SelectionList extends StatefulWidget {
 // ---------------------------------------------------------------------------
 
 /**
- * State for SelectionList. Manages selected index and keyboard/mouse input.
+ * State for SelectionList. Manages selected index, keyboard/mouse input,
+ * and auto-scroll to keep the selected item visible.
  *
  * Navigation:
  * - ArrowUp / k: Move selection up (wraps, skips disabled)
@@ -100,18 +110,36 @@ export class SelectionList extends StatefulWidget {
  *
  * Mouse (when enableMouseInteraction is true):
  * - Click on an item -> select + confirm (calls onSelect)
+ *
+ * Auto-scroll:
+ * - Internally wraps the item column with SingleChildScrollView
+ * - When selectedIndex changes, adjusts scroll offset to keep the
+ *   selected item within the visible viewport
  */
 export class SelectionListState extends State<SelectionList> {
   private _selectedIndex: number = 0;
+  private _ownScrollController?: ScrollController;
 
   /** Current selected index (0-based). */
   get selectedIndex(): number {
     return this._selectedIndex;
   }
 
+  /**
+   * Returns the effective scroll controller — either the one provided by the
+   * widget or the internally-created one.
+   */
+  get scrollController(): ScrollController {
+    return this.widget.scrollController ?? this._ownScrollController!;
+  }
+
   initState(): void {
     super.initState();
     const items = this.widget.items;
+
+    if (!this.widget.scrollController) {
+      this._ownScrollController = new ScrollController();
+    }
 
     if (this.widget.initialIndex !== undefined) {
       // Use the provided initial index, clamped to bounds
@@ -122,6 +150,14 @@ export class SelectionListState extends State<SelectionList> {
     if (items.length > 0 && items[this._selectedIndex]?.disabled) {
       this._moveToNextEnabled(1);
     }
+  }
+
+  dispose(): void {
+    if (this._ownScrollController) {
+      this._ownScrollController.dispose();
+      this._ownScrollController = undefined;
+    }
+    super.dispose();
   }
 
   didUpdateWidget(oldWidget: SelectionList): void {
@@ -237,13 +273,18 @@ export class SelectionListState extends State<SelectionList> {
       mainAxisSize: 'min',
     });
 
+    const scrollChild = new SingleChildScrollView({
+      controller: this.scrollController,
+      child: column,
+    });
+
     // Wrap with FocusScope for keyboard handling
     return new FocusScope({
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => {
         return this.handleKeyEvent(event);
       },
-      child: column,
+      child: scrollChild,
     });
   }
 
@@ -251,19 +292,23 @@ export class SelectionListState extends State<SelectionList> {
 
   /**
    * Move selection to the previous enabled item, wrapping around.
+   * After moving, adjusts scroll to keep the selected item visible.
    */
   private _movePrevious(): void {
     this.setState(() => {
       this._moveToNextEnabled(-1);
+      this._ensureSelectedVisible();
     });
   }
 
   /**
    * Move selection to the next enabled item, wrapping around.
+   * After moving, adjusts scroll to keep the selected item visible.
    */
   private _moveNext(): void {
     this.setState(() => {
       this._moveToNextEnabled(1);
+      this._ensureSelectedVisible();
     });
   }
 
@@ -298,6 +343,27 @@ export class SelectionListState extends State<SelectionList> {
       }
     }
     // All items disabled — stay at current index
+  }
+
+  /**
+   * Adjust scroll offset so the currently selected item is visible within
+   * the viewport. Each item occupies 1 row of height. If the viewport
+   * size is not yet known (0), this is a no-op.
+   */
+  private _ensureSelectedVisible(): void {
+    const ctrl = this.scrollController;
+    const viewportSize = ctrl.viewportSize;
+    if (viewportSize <= 0) return;
+
+    const itemTop = this._selectedIndex;
+    const itemBottom = this._selectedIndex + 1;
+    const currentOffset = ctrl.offset;
+
+    if (itemTop < currentOffset) {
+      ctrl.jumpTo(itemTop);
+    } else if (itemBottom > currentOffset + viewportSize) {
+      ctrl.jumpTo(itemBottom - viewportSize);
+    }
   }
 
   /**

@@ -1,6 +1,29 @@
 // Pipeline debug logging — writes tagged diagnostic messages to stderr.
 // Callers are responsible for checking debugFlags before calling pipelineLog.
 
+const _defaultSink = (tag: string, msg: string): void => {
+  process.stderr.write(`[${tag}] ${msg}\n`);
+};
+
+let _sink: (tag: string, msg: string) => void = _defaultSink;
+
+/**
+ * Replace the pipeline log sink with a custom function.
+ *
+ * All subsequent calls to `pipelineLog` will be forwarded to `sink`
+ * instead of the default stderr writer.
+ */
+export function setPipelineLogSink(sink: (tag: string, msg: string) => void): void {
+  _sink = sink;
+}
+
+/**
+ * Restore the pipeline log sink to the default stderr writer.
+ */
+export function resetPipelineLogSink(): void {
+  _sink = _defaultSink;
+}
+
 /**
  * Write a tagged debug message to process.stderr.
  *
@@ -9,7 +32,7 @@
  * by checking the appropriate debugFlags field.
  */
 export function pipelineLog(tag: string, msg: string): void {
-  process.stderr.write(`[${tag}] ${msg}\n`);
+  _sink(tag, msg);
 }
 
 /**

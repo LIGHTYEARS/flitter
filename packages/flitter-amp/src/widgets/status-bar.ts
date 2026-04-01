@@ -15,19 +15,34 @@ import { TextSpan } from 'flitter-core/src/core/text-span';
 import { Color } from 'flitter-core/src/core/color';
 import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
+import { WaveSpinner } from 'flitter-core/src/widgets/wave-spinner';
+import { icon } from '../ui/icons/icon-registry';
 
 interface StatusBarProps {
   cwd: string;
   gitBranch: string | null;
   isProcessing: boolean;
+  isInterrupted?: boolean;
   statusMessage?: string | null;
 }
 
-/** @deprecated Use {@link BottomGrid} instead, which implements Amp's 4-corner overlay system. */
+/**
+ * Bottom status bar with contextual state messages and animated wave spinner.
+ *
+ * States:
+ *   - Idle: "? for shortcuts" (dim)
+ *   - Streaming: WaveSpinner + status text (foreground)
+ *   - Interrupted: "[warning] Response interrupted" (warning yellow)
+ *
+ * Height is always exactly 1 line.
+ *
+ * @deprecated Use {@link BottomGrid} instead, which implements Amp's 4-corner overlay system.
+ */
 export class StatusBar extends StatelessWidget {
   private readonly cwd: string;
   private readonly gitBranch: string | null;
   private readonly isProcessing: boolean;
+  private readonly isInterrupted: boolean;
   private readonly statusMessage: string | null;
 
   constructor(props: StatusBarProps) {
@@ -35,47 +50,14 @@ export class StatusBar extends StatelessWidget {
     this.cwd = props.cwd;
     this.gitBranch = props.gitBranch;
     this.isProcessing = props.isProcessing;
+    this.isInterrupted = props.isInterrupted ?? false;
     this.statusMessage = props.statusMessage ?? null;
   }
 
+  /** Builds the status bar row: left status region + right cwd/branch region. */
   build(): Widget {
-    // Amp ref: dy() function — contextual footer text
-    // Idle: "? for shortcuts"
-    // Processing: "Streaming response..." / "Running tools..." / etc.
-    const leftText = this.getStatusText();
+    const leftChildren: Widget[] = this.buildLeftChildren();
 
-    // Amp ref: status text color
-    // Idle hint: dim (mutedForeground)
-    // Active status: foreground
-    const leftStyle = this.isProcessing
-      ? new TextStyle({ foreground: Color.defaultColor })
-      : new TextStyle({ dim: true });
-
-    // Amp ref: iJH spinner chars [" ", "∼", "≈", "≋", "≈", "∼"]
-    const leftSpans: TextSpan[] = [];
-    if (this.isProcessing) {
-      leftSpans.push(new TextSpan({
-        text: '≈ ',
-        style: new TextStyle({ foreground: Color.blue }),
-      }));
-      leftSpans.push(new TextSpan({
-        text: leftText,
-        style: leftStyle,
-      }));
-    } else {
-      // Amp ref: "?" in keybind color (blue), " for shortcuts" dim
-      leftSpans.push(new TextSpan({
-        text: '?',
-        style: new TextStyle({ foreground: Color.blue }),
-      }));
-      leftSpans.push(new TextSpan({
-        text: ' for shortcuts',
-        style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
-      }));
-    }
-
-    // Right side: cwd + git branch
-    // Amp ref: buildDisplayText — dim foreground
     const shortCwd = this.shortenPath(this.cwd);
     const rightSpans: TextSpan[] = [
       new TextSpan({
@@ -96,9 +78,7 @@ export class StatusBar extends StatelessWidget {
       child: new Row({
         children: [
           new Expanded({
-            child: new Text({
-              text: new TextSpan({ children: leftSpans }),
-            }),
+            child: new Row({ children: leftChildren }),
           }),
           new Text({
             text: new TextSpan({ children: rightSpans }),
@@ -108,7 +88,62 @@ export class StatusBar extends StatelessWidget {
     });
   }
 
-  // Amp ref: dy() function — maps state to status message
+  /**
+   * Builds left-side children based on current state.
+   * Returns an array of widgets suitable for a Row.
+   */
+  private buildLeftChildren(): Widget[] {
+    if (this.isInterrupted) {
+      return [
+        new Text({
+          text: new TextSpan({
+            children: [
+              new TextSpan({
+                text: `${icon('status.warning')} `,
+                style: new TextStyle({ foreground: Color.yellow }),
+              }),
+              new TextSpan({
+                text: 'Response interrupted',
+                style: new TextStyle({ foreground: Color.yellow }),
+              }),
+            ],
+          }),
+        }),
+      ];
+    }
+
+    if (this.isProcessing) {
+      const leftText = this.getStatusText();
+      return [
+        new WaveSpinner(),
+        new Text({
+          text: new TextSpan({
+            text: ` ${leftText}`,
+            style: new TextStyle({ foreground: Color.defaultColor }),
+          }),
+        }),
+      ];
+    }
+
+    return [
+      new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: '?',
+              style: new TextStyle({ foreground: Color.blue }),
+            }),
+            new TextSpan({
+              text: ' for shortcuts',
+              style: new TextStyle({ foreground: Color.defaultColor, dim: true }),
+            }),
+          ],
+        }),
+      }),
+    ];
+  }
+
+  /** Maps state to the appropriate status message string. */
   private getStatusText(): string {
     if (!this.isProcessing) {
       if (this.statusMessage) return this.statusMessage;
@@ -119,6 +154,7 @@ export class StatusBar extends StatelessWidget {
     return 'Streaming response...';
   }
 
+  /** Shortens a filesystem path by replacing $HOME with ~. */
   private shortenPath(fullPath: string): string {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     let p = fullPath;

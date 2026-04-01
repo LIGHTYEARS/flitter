@@ -33,6 +33,9 @@ pnpm start -- --agent "coco acp serve"
 | `--cwd <dir>` | `.` | Working directory for the session |
 | `--expand` | off | Expand tool call details by default |
 | `--debug` | off | Enable debug logging |
+| `--resume [id]` | off | Resume the most recent session (or a specific session ID) |
+| `--list-sessions` | off | Print recent sessions and exit |
+| `--export <fmt>` | off | Export most recent session to `session-export.<fmt>` and exit (`json`/`md`/`txt`) |
 | `--help` | — | Show help message |
 
 ## Keyboard Shortcuts
@@ -45,6 +48,7 @@ pnpm start -- --agent "coco acp serve"
 | `Ctrl+O` | Open command palette |
 | `Ctrl+G` | Open prompt in $EDITOR |
 | `Ctrl+R` | Navigate prompt history (backward) |
+| `Ctrl+S` | Navigate prompt history (forward) |
 | `Alt+T` | Toggle tool call expansion |
 | `Escape` | Dismiss open overlay |
 
@@ -67,6 +71,9 @@ Optional config file at `~/.flitter-amp/config.json`:
   "cwd": "/default/project/path",
   "expandToolCalls": false,
   "historySize": 100,
+  "historyFile": "~/.flitter/prompt_history",
+  "sessionRetentionDays": 30,
+  "logRetentionDays": 7,
   "logLevel": "info"
 }
 ```
@@ -80,7 +87,37 @@ CLI flags override config file values. Config file is entirely optional — all 
 | `cwd` | string | current dir | Working directory |
 | `expandToolCalls` | boolean | `false` | Expand tool blocks by default |
 | `historySize` | number | `100` | Max prompt history entries |
+| `historyFile` | string | `~/.flitter/prompt_history` | Prompt history file path |
+| `sessionRetentionDays` | number | `30` | Days to keep session files (`0` = keep forever) |
+| `logRetentionDays` | number | `7` | Days to keep log files (`0` = keep forever) |
 | `logLevel` | string | `"info"` | Log level: debug/info/warn/error |
+
+## 测试（Unit → Integration → E2E）
+
+从 monorepo 根目录运行：
+
+```bash
+# 全量测试
+pnpm test
+
+# 仅 flitter-amp
+pnpm --filter flitter-amp test
+
+# 仅 e2e（tmux 伪 TTY）
+cd packages/flitter-amp
+bun test src/__tests__/e2e-tmux-welcome.test.ts
+```
+
+E2E 依赖 `tmux`（本机安装即可）。
+
+## 本地 E2E 手动运行（tmux 场景）
+
+```bash
+cd packages/flitter-amp
+
+# 启动真实 TUI（无 agent 连接，预置场景数据）
+bun run src/test-utils/tmux-harness.ts --scenario welcome
+```
 
 ## Architecture
 
@@ -91,13 +128,17 @@ packages/flitter-amp/src/
 ├── acp/
 │   ├── client.ts         # ACP protocol client with callbacks
 │   ├── connection.ts     # Agent connection management
-│   ├── session.ts        # Session lifecycle
+│   ├── graceful-shutdown.ts # SIGINT/SIGTERM cleanup sequence
+│   ├── heartbeat-monitor.ts # Keepalive + health transitions
+│   ├── reconnection-manager.ts # Backoff-based reconnection
 │   └── types.ts          # ACP type definitions
 ├── state/
 │   ├── app-state.ts      # Global state (connection, error, permissions)
 │   ├── config.ts         # CLI args + config file parsing
 │   ├── conversation.ts   # Conversation items (messages, tools, plans)
-│   └── history.ts        # Prompt history with cursor navigation
+│   ├── history.ts        # Prompt history with cursor navigation
+│   ├── overlay-manager.ts # Overlay stack + dismiss rules
+│   └── session-store.ts  # Session persistence (save/load/list/prune)
 ├── utils/
 │   ├── editor.ts         # $EDITOR integration (temp file workflow)
 │   ├── logger.ts         # Leveled logging
@@ -107,20 +148,23 @@ packages/flitter-amp/src/
     ├── command-palette.ts # Ctrl+O action selector
     ├── diff-card.ts       # Unified diff rendering
     ├── file-picker.ts     # @file mention selector
-    ├── header-bar.ts      # Agent name, mode, token usage
     ├── input-area.ts      # Bordered text input
+    ├── bottom-grid.ts     # Bottom status + mode indicators
     ├── permission-dialog.ts # Agent permission request modal
     ├── plan-view.ts       # Plan checklist display
     ├── thinking-block.ts  # Collapsible thinking sections
     └── tool-call-block.ts # Collapsible tool call blocks
 ```
 
+## 开发协作约定（进度记录）
+
+在进行 AMP 对齐 / Gap 修复的迭代中：
+- 每个 agent / workstream 都需要把进度追加到 `<project-root>/progress.md`。
+
 ## TUI Layout
 
 ```
 ┌─────────────────────────────────────────┐
-│ Agent Name    │ plan │ $0.02 │ 1.2k tok │  ← HeaderBar
-├─────────────────────────────────────────┤
 │                                       ▲ │
 │  You                                  █ │
 │    What files handle routing?         █ │

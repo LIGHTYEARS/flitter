@@ -62,6 +62,32 @@ export class BoxConstraints {
 
   // --- Constraint operations ---
 
+  /**
+   * Return a normalized copy where max >= min on both axes.
+   * If min > max on an axis, max is raised to equal min (Flutter semantics).
+   */
+  normalize(): BoxConstraints {
+    return new BoxConstraints({
+      minWidth: this.minWidth,
+      maxWidth: Math.max(this.minWidth, this.maxWidth),
+      minHeight: this.minHeight,
+      maxHeight: Math.max(this.minHeight, this.maxHeight),
+    });
+  }
+
+  /**
+   * Return a copy with the specified axes tightened (min = max = value).
+   * Axes not specified are left unchanged.
+   */
+  tighten(opts?: { width?: number; height?: number }): BoxConstraints {
+    return new BoxConstraints({
+      minWidth: opts?.width ?? this.minWidth,
+      maxWidth: opts?.width ?? this.maxWidth,
+      minHeight: opts?.height ?? this.minHeight,
+      maxHeight: opts?.height ?? this.maxHeight,
+    });
+  }
+
   /** Return a copy with minWidth=0 and minHeight=0, keeping max values. */
   loosen(): BoxConstraints {
     return new BoxConstraints({
@@ -78,6 +104,16 @@ export class BoxConstraints {
       clamp(size.width, this.minWidth, this.maxWidth),
       clamp(size.height, this.minHeight, this.maxHeight),
     );
+  }
+
+  /** Clamp a width value to [minWidth, maxWidth]. Defaults to minWidth if no argument given. */
+  constrainWidth(width?: number): number {
+    return clamp(width ?? this.minWidth, this.minWidth, this.maxWidth);
+  }
+
+  /** Clamp a height value to [minHeight, maxHeight]. Defaults to minHeight if no argument given. */
+  constrainHeight(height?: number): number {
+    return clamp(height ?? this.minHeight, this.minHeight, this.maxHeight);
   }
 
   /**
@@ -126,9 +162,14 @@ export class BoxConstraints {
     return this.maxHeight < Infinity;
   }
 
-  /** True if min <= max on both axes. */
+  /** True if all values are non-negative and min <= max on both axes (Flutter semantics). */
   get isNormalized(): boolean {
-    return this.minWidth <= this.maxWidth && this.minHeight <= this.maxHeight;
+    return (
+      this.minWidth >= 0 &&
+      this.minHeight >= 0 &&
+      this.minWidth <= this.maxWidth &&
+      this.minHeight <= this.maxHeight
+    );
   }
 
   /** The largest size that satisfies the constraints. */

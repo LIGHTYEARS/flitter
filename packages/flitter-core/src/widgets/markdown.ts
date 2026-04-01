@@ -57,6 +57,30 @@ export type MarkdownBlockType =
   | 'code-block'
   | 'paragraph';
 
+/**
+ * Style properties that can override the default styling for a markdown block type.
+ * `fontStyle` maps to TextStyle boolean flags (e.g., 'italic' → italic: true).
+ * Other fields (dim, bold, underline, etc.) map directly to TextStyle properties.
+ */
+export interface MarkdownBlockStyleOverride {
+  readonly fontStyle?: 'italic' | 'normal';
+  readonly dim?: boolean;
+  readonly bold?: boolean;
+  readonly underline?: boolean;
+  readonly strikethrough?: boolean;
+  readonly foreground?: Color;
+  readonly background?: Color;
+}
+
+/**
+ * A mapping from MarkdownBlockType to style overrides.
+ * When provided to Markdown, each block type's default style is merged
+ * with the corresponding override entry (if present).
+ */
+export type MarkdownStyleScheme = {
+  [K in MarkdownBlockType]?: MarkdownBlockStyleOverride;
+};
+
 /** A parsed markdown block. */
 export interface MarkdownBlock {
   readonly type: MarkdownBlockType;
@@ -198,6 +222,7 @@ export class Markdown extends StatelessWidget {
   readonly maxLines?: number;
   readonly overflow: 'clip' | 'ellipsis';
   readonly enableCache: boolean;
+  readonly styleOverrides?: Partial<MarkdownStyleScheme>;
 
   constructor(opts: {
     key?: Key;
@@ -206,6 +231,7 @@ export class Markdown extends StatelessWidget {
     maxLines?: number;
     overflow?: 'clip' | 'ellipsis';
     enableCache?: boolean;
+    styleOverrides?: Partial<MarkdownStyleScheme>;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.markdown = opts.markdown;
@@ -213,6 +239,7 @@ export class Markdown extends StatelessWidget {
     this.maxLines = opts.maxLines;
     this.overflow = opts.overflow ?? 'clip';
     this.enableCache = opts.enableCache ?? true;
+    this.styleOverrides = opts.styleOverrides;
   }
 
   static invalidateCache(markdown: string): void {
@@ -224,7 +251,7 @@ export class Markdown extends StatelessWidget {
   }
 
   build(context: BuildContext): Widget {
-    const themeData = Theme.maybeOf(context);
+    const themeData = context != null ? Theme.maybeOf(context) : undefined;
     const blocks = this.enableCache
       ? Markdown.parseMarkdown(this.markdown)
       : Markdown._parseMarkdownNoCache(this.markdown);
@@ -760,10 +787,10 @@ export class Markdown extends StatelessWidget {
   }
 
   /**
-   * Render a code block with background styling and optional syntax highlighting.
+   * Render a code block with optional syntax highlighting.
+   * Does NOT apply a fallback background color — only foreground is styled in the fallback path.
    */
   private _renderCodeBlock(content: string, themeData?: ThemeData, language?: string, context?: BuildContext): Widget {
-    const bgColor = themeData?.surface ?? Color.rgb(45, 45, 45);
     const fgColor = themeData?.text ?? Color.rgb(220, 220, 220);
 
     // Try syntax highlighting if we have a context and AppTheme
@@ -788,7 +815,6 @@ export class Markdown extends StatelessWidget {
     // Fallback: simple styled text
     const style = new TextStyle({
       foreground: fgColor,
-      background: bgColor,
     });
 
     return new Text({
@@ -801,11 +827,17 @@ export class Markdown extends StatelessWidget {
 
   /**
    * Render a paragraph with inline formatting.
+   * Applies styleOverrides for the 'paragraph' block type if provided.
    */
   private _renderParagraph(content: string, themeData?: ThemeData): Widget {
-    const baseStyle = new TextStyle({
+    let baseStyle = new TextStyle({
       foreground: themeData?.text ?? Color.rgb(220, 220, 220),
     });
+
+    const override = this.styleOverrides?.paragraph;
+    if (override) {
+      baseStyle = this._applyStyleOverride(baseStyle, override);
+    }
 
     const segments = Markdown.parseInline(content);
     const children = segments.map((seg) => this._segmentToSpan(seg, baseStyle, themeData));
@@ -1008,5 +1040,21 @@ export class Markdown extends StatelessWidget {
     }
 
     return new TextSpan({ text: segment.text, style });
+  }
+
+  /**
+   * Apply a MarkdownBlockStyleOverride to a TextStyle, returning a new TextStyle
+   * with the override fields merged in. `fontStyle: 'italic'` maps to `italic: true`.
+   */
+  private _applyStyleOverride(base: TextStyle, override: MarkdownBlockStyleOverride): TextStyle {
+    const overrides: Record<string, unknown> = {};
+    if (override.fontStyle === 'italic') overrides.italic = true;
+    if (override.dim !== undefined) overrides.dim = override.dim;
+    if (override.bold !== undefined) overrides.bold = override.bold;
+    if (override.underline !== undefined) overrides.underline = override.underline;
+    if (override.strikethrough !== undefined) overrides.strikethrough = override.strikethrough;
+    if (override.foreground !== undefined) overrides.foreground = override.foreground;
+    if (override.background !== undefined) overrides.background = override.background;
+    return base.copyWith(overrides as any);
   }
 }

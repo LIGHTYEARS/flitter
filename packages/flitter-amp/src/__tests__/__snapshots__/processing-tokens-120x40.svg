@@ -40,9 +40,9 @@
 <text x="28.8" y="620.04" style="fill:#dcdcdc" xml:space="preserve">I&apos;ll implement the new API endpoints. Let me start by reading the existing route definitions... ▌</text>
 <text x="1011.6" y="620.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="638.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="20.4" y="656.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">27.7k / 128.0k</text>
+<text x="37.2" y="656.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">27.7k / 128.0k</text>
 <text x="12" y="674.04" style="fill:#878b86" xml:space="preserve">╭─────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
-<text x="936" y="674.04" style="fill:#00ff88;opacity:0.5" xml:space="preserve"> ⏳ smart </text>
+<text x="936" y="674.04" style="fill:#00ff88;opacity:0.5" xml:space="preserve"> … smart </text>
 <text x="1011.6" y="674.04" style="fill:#878b86" xml:space="preserve">╮</text>
 <text x="12" y="692.04" style="fill:#878b86" xml:space="preserve">│</text>
 <text x="28.8" y="692.04" style="fill:#f6fff5" xml:space="preserve">█</text>
@@ -54,6 +54,6 @@
 <text x="12" y="746.04" style="fill:#878b86" xml:space="preserve">╰────────────────────────────────────────────────────────────────────────────────</text>
 <text x="692.4" y="746.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─/home/user/project (feature/new-api)─</text>
 <text x="1011.6" y="746.04" style="fill:#878b86" xml:space="preserve">╯</text>
-<text x="20.4" y="764.04" style="fill:#42a1ff" xml:space="preserve">Esc</text>
+<text x="20.4" y="764.04" style="fill:#81a2be" xml:space="preserve">Esc</text>
 <text x="45.6" y="764.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> to cancel</text>
 </svg>

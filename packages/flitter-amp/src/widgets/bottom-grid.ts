@@ -6,16 +6,19 @@ import { Color } from 'flitter-core/src/core/color';
 import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { SizedBox } from 'flitter-core/src/widgets/sized-box';
-import { Column } from 'flitter-core/src/widgets/flex';
+import { Row, Column } from 'flitter-core/src/widgets/flex';
 import { TextEditingController } from 'flitter-core/src/widgets/text-field';
+import { WaveSpinner } from 'flitter-core/src/widgets/wave-spinner';
 import { AmpThemeProvider } from '../themes/index';
 import type { UsageInfo } from '../acp/types';
 import { InputArea, type BorderOverlayText } from './input-area';
 import type { AutocompleteTrigger } from 'flitter-core/src/widgets/autocomplete';
+import { icon } from '../ui/icons/icon-registry';
 
 interface BottomGridProps {
   onSubmit: (text: string) => void;
   isProcessing: boolean;
+  isInterrupted?: boolean;
   currentMode: string;
   agentName?: string;
   cwd: string;
@@ -34,6 +37,7 @@ interface BottomGridProps {
 export class BottomGrid extends StatefulWidget {
   readonly onSubmit: (text: string) => void;
   readonly isProcessing: boolean;
+  readonly isInterrupted: boolean;
   readonly currentMode: string;
   readonly agentName: string | undefined;
   readonly cwd: string;
@@ -52,6 +56,7 @@ export class BottomGrid extends StatefulWidget {
     super({});
     this.onSubmit = props.onSubmit;
     this.isProcessing = props.isProcessing;
+    this.isInterrupted = props.isInterrupted ?? false;
     this.currentMode = props.currentMode;
     this.agentName = props.agentName;
     this.cwd = props.cwd;
@@ -73,6 +78,28 @@ export class BottomGrid extends StatefulWidget {
 }
 
 class BottomGridState extends State<BottomGrid> {
+  private _onTextChanged = (): void => {
+    this.setState(() => {});
+  };
+
+  override initState(): void {
+    super.initState();
+    this.widget.controller?.addListener(this._onTextChanged);
+  }
+
+  override didUpdateWidget(oldWidget: BottomGrid): void {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller !== this.widget.controller) {
+      oldWidget.controller?.removeListener(this._onTextChanged);
+      this.widget.controller?.addListener(this._onTextChanged);
+    }
+  }
+
+  override dispose(): void {
+    this.widget.controller?.removeListener(this._onTextChanged);
+    super.dispose();
+  }
+
   build(): Widget {
     const w = this.widget;
     const theme = AmpThemeProvider.maybeOf(this.context);
@@ -108,21 +135,20 @@ class BottomGridState extends State<BottomGrid> {
 
     const children: Widget[] = [];
 
-    if (w.isProcessing) {
-      children.push(
-        new Padding({
-          padding: EdgeInsets.symmetric({ horizontal: 1 }),
-          child: topLeft,
-        }),
-      );
-    }
+    children.push(
+      new Padding({
+        padding: EdgeInsets.symmetric({ horizontal: 1 }),
+        child: (w.isProcessing || w.isInterrupted) ? topLeft : new SizedBox({ height: 1 }),
+      }),
+    );
 
     children.push(inputArea);
 
+    const bottomLeft = this.buildBottomLeft(w, mutedColor, keybindColor);
     children.push(
       new Padding({
         padding: EdgeInsets.only({ left: 1 }),
-        child: this.buildBottomLeft(w, mutedColor, keybindColor),
+        child: bottomLeft ?? new SizedBox({ height: 1 }),
       }),
     );
 
@@ -133,33 +159,75 @@ class BottomGridState extends State<BottomGrid> {
     });
   }
 
+  /**
+   * Builds the top-left status area above the input.
+   * During streaming: WaveSpinner + token usage or "Streaming..." text.
+   * When interrupted: warning icon + "Response interrupted" in yellow.
+   */
   private buildTopLeft(w: BottomGrid, mutedColor: Color, _fgColor: Color): Widget {
-    if (w.isProcessing) {
-      if (w.tokenUsage) {
-        const used = this.formatTokenCount(w.tokenUsage.used);
-        const size = this.formatTokenCount(w.tokenUsage.size);
-        let display = `${used} / ${size}`;
-        if (w.tokenUsage.cost) {
-          display += ` · ${w.tokenUsage.cost.currency}${w.tokenUsage.cost.amount.toFixed(4)}`;
-        }
-        return new Text({
-          text: new TextSpan({
-            text: display,
-            style: new TextStyle({ foreground: mutedColor, dim: true }),
-          }),
-        });
-      }
+    if (w.isInterrupted) {
       return new Text({
         text: new TextSpan({
-          text: 'Streaming...',
-          style: new TextStyle({ foreground: mutedColor, dim: true }),
+          children: [
+            new TextSpan({
+              text: `${icon('status.warning')} `,
+              style: new TextStyle({ foreground: Color.yellow }),
+            }),
+            new TextSpan({
+              text: 'Response interrupted',
+              style: new TextStyle({ foreground: Color.yellow }),
+            }),
+          ],
         }),
+      });
+    }
+
+    if (w.isProcessing) {
+      const statusText = w.tokenUsage
+        ? this.formatUsageDisplay(w.tokenUsage, mutedColor)
+        : new Text({
+            text: new TextSpan({
+              text: 'Streaming...',
+              style: new TextStyle({ foreground: mutedColor, dim: true }),
+            }),
+          });
+
+      return new Row({
+        mainAxisSize: 'min',
+        children: [
+          new WaveSpinner(),
+          new Text({
+            text: new TextSpan({
+              text: ' ',
+              style: new TextStyle({ foreground: mutedColor }),
+            }),
+          }),
+          statusText,
+        ],
       });
     }
     return SizedBox.shrink();
   }
 
-  private buildBottomLeft(w: BottomGrid, mutedColor: Color, keybindColor: Color): Widget {
+  /**
+   * Formats token usage info into a Text widget.
+   */
+  private formatUsageDisplay(usage: UsageInfo, mutedColor: Color): Widget {
+    const used = this.formatTokenCount(usage.used);
+    const size = this.formatTokenCount(usage.size);
+    let display = `${used} / ${size}`;
+    if (usage.cost) {
+      display += ` · ${usage.cost.currency}${usage.cost.amount.toFixed(4)}`;
+    }
+    return new Text({
+      text: new TextSpan({
+        text: display,
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
+      }),
+    });
+  }
+
+  private buildBottomLeft(w: BottomGrid, mutedColor: Color, keybindColor: Color): Widget | null {
     // Gap 64: Search mode indicator takes priority
     if (w.searchState) {
       const prefix = w.searchState.isFailing
@@ -218,6 +286,9 @@ class BottomGridState extends State<BottomGrid> {
         }),
       });
     }
+
+    const hasInput = (w.controller?.text.length ?? 0) > 0;
+    if (hasInput) return null;
 
     return new Text({
       text: new TextSpan({

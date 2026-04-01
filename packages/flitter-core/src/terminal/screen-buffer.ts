@@ -323,6 +323,10 @@ export class ScreenBuffer {
     const tmp = this.frontBuffer;
     this.frontBuffer = this.backBuffer;
     this.backBuffer = tmp;
+
+    // Clear the recycled back buffer so the next paint starts from a blank slate.
+    // This matches classic double-buffer semantics and prevents stale cells from
+    // reappearing after two consecutive presents.
     this.backBuffer.clear();
   }
 

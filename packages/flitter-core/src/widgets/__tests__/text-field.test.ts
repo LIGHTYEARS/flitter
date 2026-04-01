@@ -961,12 +961,12 @@ describe('TextField State - Selection', () => {
     expect(state.controller.selectionEnd).toBe(1);
   });
 
-  test('Ctrl+A selects all', () => {
+  test('Ctrl+A moves cursor to beginning of line (Emacs)', () => {
     const state = createTextFieldState({ maxLines: 1 });
     state.controller.insertText('hello');
     state.handleKeyEvent(keyEvent('a', { ctrlKey: true }));
-    expect(state.controller.selectionStart).toBe(0);
-    expect(state.controller.selectionEnd).toBe(5);
+    expect(state.controller.cursorPosition).toBe(0);
+    expect(state.controller.hasSelection).toBe(false);
   });
 
   test('Ctrl+Shift+Left selects word left', () => {

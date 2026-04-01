@@ -138,6 +138,34 @@ export class ScrollController {
   }
 
   /**
+   * Ensure the region [targetOffset, targetOffset + targetSize] is fully visible
+   * within the viewport. If it is already visible, do nothing. If it extends below
+   * the viewport, scroll down so the region's bottom aligns with the viewport bottom.
+   * If it extends above the viewport, scroll up so the region's top aligns with the
+   * viewport top.
+   *
+   * @param targetOffset - Start position of the target region in scroll content coordinates
+   * @param targetSize - Size of the target region along the scroll axis
+   */
+  ensureVisible(targetOffset: number, targetSize: number): void {
+    if (this._disposed) return;
+
+    const viewportStart = this._offset;
+    const viewportEnd = this._offset + this._viewportSize;
+    const targetEnd = targetOffset + targetSize;
+
+    if (targetOffset >= viewportStart && targetEnd <= viewportEnd) {
+      return;
+    }
+
+    if (targetEnd > viewportEnd) {
+      this.jumpTo(targetEnd - this._viewportSize);
+    } else if (targetOffset < viewportStart) {
+      this.jumpTo(targetOffset);
+    }
+  }
+
+  /**
    * Update the maximum scroll extent.
    * If followMode is active and we were at the bottom, auto-scroll to the new end.
    */

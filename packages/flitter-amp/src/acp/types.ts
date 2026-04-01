@@ -29,6 +29,10 @@ export interface UserMessage {
   type: 'user_message';
   text: string;
   timestamp: number;
+  /** When true, indicates the response following this message was interrupted. */
+  interrupted?: boolean;
+  /** When true, indicates the response following this message was interrupted. */
+  interrupted?: boolean;
 }
 
 export interface AssistantMessage {

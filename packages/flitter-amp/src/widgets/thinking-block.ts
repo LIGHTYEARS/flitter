@@ -1,11 +1,14 @@
 // ThinkingBlock — collapsible thinking/reasoning display
 // Amp ref: zk widget
-// Streaming: accent (magenta) with braille spinner ●
-// Done: success (green) with ✓
+// Streaming: accent (magenta) with animated BrailleSpinner
+// Done: success (green) with icon('tool.status.done')
 // Cancelled: warning (yellow) with "(interrupted)"
 // Content: dim, italic when expanded
+// Chevron appears at end of the header line (AMP ref: expand-collapse-lT.js)
 
-import { StatelessWidget, Widget, type BuildContext } from 'flitter-core/src/framework/widget';
+import {
+  StatefulWidget, State, Widget, type BuildContext,
+} from 'flitter-core/src/framework/widget';
 import { Column } from 'flitter-core/src/widgets/flex';
 import { Text } from 'flitter-core/src/widgets/text';
 import { TextStyle } from 'flitter-core/src/core/text-style';
@@ -13,50 +16,125 @@ import { TextSpan } from 'flitter-core/src/core/text-span';
 import { Color } from 'flitter-core/src/core/color';
 import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
+import { BrailleSpinner } from 'flitter-core/src/utilities/braille-spinner';
 import type { ThinkingItem } from '../acp/types';
 import { AmpThemeProvider } from '../themes';
+import { icon } from '../ui/icons/icon-registry';
 
 interface ThinkingBlockProps {
   item: ThinkingItem;
 }
 
-export class ThinkingBlock extends StatelessWidget {
-  private readonly item: ThinkingItem;
+/**
+ * A collapsible thinking/reasoning display block.
+ *
+ * Layout: [status icon] [label] [suffix?] [BrailleSpinner | chevron]
+ *   - Streaming: animated BrailleSpinner at ~200ms per frame (accent color)
+ *   - Done: icon('tool.status.done') (green), disclosure icon at end of line
+ *   - Cancelled: "(interrupted)" suffix (yellow), chevron at end
+ *
+ * Uses StatefulWidget to drive BrailleSpinner animation when isStreaming=true.
+ */
+export class ThinkingBlock extends StatefulWidget {
+  readonly item: ThinkingItem;
 
   constructor(props: ThinkingBlockProps) {
     super({});
     this.item = props.item;
   }
 
+  /** Creates the mutable state that drives the BrailleSpinner animation. */
+  createState(): ThinkingBlockState {
+    return new ThinkingBlockState();
+  }
+}
+
+/**
+ * State for ThinkingBlock.
+ *
+ * Manages a BrailleSpinner instance and a setInterval timer that advances
+ * the spinner at ~200ms intervals while the thinking item is streaming.
+ * Follows the same conditional timer lifecycle as ToolHeader:
+ *   initState  → start if streaming
+ *   didUpdateWidget → start/stop based on streaming transition
+ *   dispose    → always stop
+ */
+export class ThinkingBlockState extends State<ThinkingBlock> {
+  private spinner = new BrailleSpinner();
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  override initState(): void {
+    super.initState();
+    if (this.widget.item.isStreaming) {
+      this.startSpinner();
+    }
+  }
+
+  override didUpdateWidget(_oldWidget: ThinkingBlock): void {
+    if (this.widget.item.isStreaming && !this.timer) {
+      this.startSpinner();
+    } else if (!this.widget.item.isStreaming && this.timer) {
+      this.stopSpinner();
+    }
+  }
+
+  override dispose(): void {
+    this.stopSpinner();
+    super.dispose();
+  }
+
+  /**
+   * Starts the BrailleSpinner animation at ~200ms per frame.
+   * Matches ToolHeader spinner interval (README section 11.1).
+   */
+  private startSpinner(): void {
+    this.timer = setInterval(() => {
+      this.setState(() => {
+        this.spinner.step();
+      });
+    }, 200);
+  }
+
+  /**
+   * Stops the BrailleSpinner animation interval.
+   */
+  private stopSpinner(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  /**
+   * Builds the ThinkingBlock widget tree.
+   *
+   * Header layout: [icon] [Thinking] [suffix?] [spinner or chevron]
+   *   - Chevron is placed at the END of the header line (not the beginning)
+   *   - During streaming, a BrailleSpinner replaces the chevron
+   */
   build(context: BuildContext): Widget {
-    const { item } = this;
+    const { item } = this.widget;
     const theme = AmpThemeProvider.maybeOf(context);
 
-    let icon: string;
+    let statusGlyph: string;
     let color: Color;
     let suffix = '';
 
     if (item.isStreaming) {
-      icon = '● ';
+      statusGlyph = `${this.spinner.toBraille()} `;
       color = theme?.base.accent ?? Color.magenta;
     } else if (item.text.length > 0) {
-      icon = '\u2713 ';
+      statusGlyph = `${icon('tool.status.done')} `;
       color = theme?.base.success ?? Color.green;
     } else {
-      icon = '';
+      statusGlyph = '';
       color = theme?.base.warning ?? Color.yellow;
       suffix = ' (interrupted)';
     }
 
-    const chevron = item.collapsed ? '\u25B6' : '\u25BC';
-
     const labelSpans: TextSpan[] = [
       new TextSpan({
-        text: `${chevron} `,
-        style: new TextStyle({ foreground: theme?.base.mutedForeground ?? Color.brightBlack }),
-      }),
-      new TextSpan({
-        text: icon,
+        text: statusGlyph,
         style: new TextStyle({ foreground: color }),
       }),
       new TextSpan({
@@ -69,6 +147,16 @@ export class ThinkingBlock extends StatelessWidget {
       labelSpans.push(new TextSpan({
         text: suffix,
         style: new TextStyle({ foreground: theme?.base.warning ?? Color.yellow, italic: true }),
+      }));
+    }
+
+    if (!item.isStreaming && item.text.trim().length > 0) {
+      const chevron = item.collapsed
+        ? icon('disclosure.collapsed')
+        : icon('disclosure.expanded');
+      labelSpans.push(new TextSpan({
+        text: ` ${chevron}`,
+        style: new TextStyle({ foreground: theme?.base.mutedForeground ?? Color.brightBlack }),
       }));
     }
 

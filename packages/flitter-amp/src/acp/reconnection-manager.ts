@@ -104,8 +104,8 @@ export class ReconnectionManager {
         this.onPhaseChange('connected', 0);
         return handle;
       } catch (err) {
+        log.error(`Reconnect attempt ${this._attempt} failed`, err);
         const message = err instanceof Error ? err.message : String(err);
-        log.error(`Reconnect attempt ${this._attempt} failed: ${message}`);
         this.onPhaseChange('reconnecting', this._attempt, message);
       }
     }

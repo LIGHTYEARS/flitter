@@ -196,20 +196,24 @@ export class FocusNode {
 
   /**
    * Move focus to the next focusable node in traversal order.
+   * When inside a FocusScopeNode with trapFocus=true, wraps within
+   * that scope instead of escaping to the parent.
    * Returns true if focus was moved, false if no suitable target found.
    */
   nextFocus(): boolean {
-    const traversable = FocusManager.instance.getTraversableNodes();
+    const mgr = FocusManager.instance;
+    const trappingScope = this._findTrappingScope();
+    const traversable = trappingScope
+      ? mgr.getTraversableNodesInScope(trappingScope)
+      : mgr.getTraversableNodes();
     if (traversable.length === 0) return false;
 
     const currentIndex = traversable.indexOf(this);
     if (currentIndex === -1) {
-      // Not in traversal list, focus the first node
       traversable[0].requestFocus();
       return true;
     }
 
-    // Wrap around
     const nextIndex = (currentIndex + 1) % traversable.length;
     traversable[nextIndex].requestFocus();
     return true;
@@ -217,23 +221,42 @@ export class FocusNode {
 
   /**
    * Move focus to the previous focusable node in traversal order.
+   * When inside a FocusScopeNode with trapFocus=true, wraps within
+   * that scope instead of escaping to the parent.
    * Returns true if focus was moved, false if no suitable target found.
    */
   previousFocus(): boolean {
-    const traversable = FocusManager.instance.getTraversableNodes();
+    const mgr = FocusManager.instance;
+    const trappingScope = this._findTrappingScope();
+    const traversable = trappingScope
+      ? mgr.getTraversableNodesInScope(trappingScope)
+      : mgr.getTraversableNodes();
     if (traversable.length === 0) return false;
 
     const currentIndex = traversable.indexOf(this);
     if (currentIndex === -1) {
-      // Not in traversal list, focus the last node
       traversable[traversable.length - 1].requestFocus();
       return true;
     }
 
-    // Wrap around
     const prevIndex = (currentIndex - 1 + traversable.length) % traversable.length;
     traversable[prevIndex].requestFocus();
     return true;
+  }
+
+  /**
+   * Walk up the tree to find the nearest ancestor FocusScopeNode
+   * with trapFocus=true. Returns null if no trapping scope is found.
+   */
+  private _findTrappingScope(): FocusScopeNode | null {
+    let node: FocusNode | null = this._parent;
+    while (node !== null) {
+      if (node instanceof FocusScopeNode && node.trapFocus) {
+        return node;
+      }
+      node = node._parent;
+    }
+    return null;
   }
 
   // -- Key handler registration --
@@ -364,6 +387,13 @@ export class FocusNode {
  */
 export class FocusScopeNode extends FocusNode {
   private _focusedChild: FocusNode | null = null;
+
+  /**
+   * When true, Tab/Shift+Tab traversal wraps within this scope's
+   * focusable descendants instead of escaping to the parent scope.
+   * Defaults to false (standard traversal across scopes).
+   */
+  trapFocus: boolean = false;
 
   /**
    * The currently focused child within this scope.
@@ -586,6 +616,17 @@ export class FocusManager {
     return result;
   }
 
+  /**
+   * Collect traversable nodes scoped to a specific FocusScopeNode.
+   * Only includes descendants of the given scope. Used when a scope
+   * has trapFocus=true to restrict Tab/Shift+Tab within that scope.
+   */
+  getTraversableNodesInScope(scope: FocusScopeNode): FocusNode[] {
+    const result: FocusNode[] = [];
+    this._collectTraversable(scope, result, scope);
+    return result;
+  }
+
   // -- Internal helpers --
 
   private _findPrimaryFocus(node: FocusNode): FocusNode | null {
@@ -597,14 +638,17 @@ export class FocusManager {
     return null;
   }
 
-  private _collectTraversable(node: FocusNode, result: FocusNode[]): void {
-    // Only include leaf-like nodes that are traversable
-    // The root scope itself is not traversable (it's a container)
-    if (node !== this.rootScope && node.canRequestFocus && !node.skipTraversal) {
+  private _collectTraversable(
+    node: FocusNode,
+    result: FocusNode[],
+    root?: FocusNode,
+  ): void {
+    const skipRoot = root ?? this.rootScope;
+    if (node !== skipRoot && node.canRequestFocus && !node.skipTraversal) {
       result.push(node);
     }
     for (const child of node.children) {
-      this._collectTraversable(child, result);
+      this._collectTraversable(child, result, skipRoot);
     }
   }
 }

@@ -1,6 +1,6 @@
 // TodoListTool — todo list display with status icons
 // Amp ref: todo_list/todo_write/todo_read tools
-// Status icons: ○ pending, ◐ in-progress, ● completed, ∅ cancelled
+// Status icons are resolved via icon('todo.status.*')
 
 import { StatelessWidget, Widget, BuildContext } from 'flitter-core/src/framework/widget';
 import { Column } from 'flitter-core/src/widgets/flex';
@@ -15,6 +15,7 @@ import { AmpThemeProvider } from '../../themes/index';
 import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { asString, asArray, isTodoEntry } from '../../utils/raw-input';
 import { resolveToolDisplayName, extractTitleDetail } from './resolve-tool-name';
+import { icon } from '../../ui/icons/icon-registry';
 
 interface TodoListToolProps extends BaseToolProps {}
 
@@ -26,8 +27,7 @@ interface TodoEntry {
 
 /**
  * Renders a todo_list / todo_write / todo_read tool call.
- * Shows a checklist with status icons:
- *   ○ pending, ◐ in-progress, ● completed, ∅ cancelled
+ * Shows a checklist with status icons resolved from the icon registry.
  */
 export class TodoListTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
@@ -107,15 +107,15 @@ export class TodoListTool extends StatelessWidget {
   private getStatusDisplay(status: string, theme: ReturnType<typeof AmpThemeProvider.maybeOf>): { icon: string; color: Color } {
     switch (status) {
       case 'pending':
-        return { icon: '\u25cb', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: icon('todo.status.pending'), color: theme?.base.mutedForeground ?? Color.brightBlack };
       case 'in_progress':
-        return { icon: '\u25d0', color: theme?.base.warning ?? Color.yellow };
+        return { icon: icon('todo.status.in_progress'), color: theme?.base.warning ?? Color.yellow };
       case 'completed':
-        return { icon: '\u25cf', color: theme?.app.toolSuccess ?? Color.green };
+        return { icon: icon('todo.status.completed'), color: theme?.app.toolSuccess ?? Color.green };
       case 'cancelled':
-        return { icon: '\u2205', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: icon('todo.status.cancelled'), color: theme?.base.mutedForeground ?? Color.brightBlack };
       default:
-        return { icon: '\u25cb', color: theme?.base.mutedForeground ?? Color.brightBlack };
+        return { icon: icon('todo.status.pending'), color: theme?.base.mutedForeground ?? Color.brightBlack };
     }
   }
 

@@ -52,6 +52,20 @@ export class RenderFlex extends ContainerRenderBox {
   private _crossAxisAlignment: CrossAxisAlignment;
   private _mainAxisSize: MainAxisSize;
 
+  /**
+   * Indicates whether children overflowed the main axis after layout.
+   * Set to true when the total non-flex child sizes exceed the available
+   * main axis constraint.
+   */
+  private _hasOverflow: boolean = false;
+
+  /**
+   * Returns true if children overflowed the main axis during the last layout pass.
+   */
+  get hasOverflow(): boolean {
+    return this._hasOverflow;
+  }
+
   constructor(opts?: {
     direction?: Axis;
     mainAxisAlignment?: MainAxisAlignment;
@@ -268,7 +282,8 @@ export class RenderFlex extends ContainerRenderBox {
     const minCross = isHorizontal ? constraints.minHeight : constraints.minWidth;
 
     // ---------------------------------------------------------------
-    // Step 1: Separate flex and non-flex children
+    // Step 1: Separate flex and non-flex children.
+    // Negative flex values are clamped to 0 to prevent invalid layouts.
     // ---------------------------------------------------------------
     let totalFlex = 0;
     const flexChildren: RenderBox[] = [];
@@ -276,6 +291,9 @@ export class RenderFlex extends ContainerRenderBox {
 
     for (const child of this.children) {
       const pd = child.parentData as FlexParentData;
+      if (pd.flex < 0) {
+        pd.flex = 0;
+      }
       if (pd.flex > 0) {
         totalFlex += pd.flex;
         flexChildren.push(child);
@@ -339,12 +357,13 @@ export class RenderFlex extends ContainerRenderBox {
     }
 
     // ---------------------------------------------------------------
-    // Step 3: Distribute remaining space to flex children
+    // Step 3: Distribute remaining space to flex children.
+    // When the main axis is unbounded (Infinity), flex children cannot
+    // expand — they receive 0 main-axis space instead of Infinity.
     // ---------------------------------------------------------------
-    // mainAxisLimit: for mainAxisSize="max" use maxMain; for "min" use allocatedSize so far
-    // But freeSpace must come from the actual available main axis space
+    const canFlex = Number.isFinite(maxMain);
     const mainAxisLimit = maxMain;
-    const freeSpace = Math.max(0, mainAxisLimit - allocatedSize);
+    const freeSpace = canFlex ? Math.max(0, mainAxisLimit - allocatedSize) : 0;
     const spacePerFlex = totalFlex > 0 ? freeSpace / totalFlex : 0;
 
     for (const child of flexChildren) {
@@ -457,6 +476,21 @@ export class RenderFlex extends ContainerRenderBox {
       this.size = constraints.constrain(new Size(mainSize, crossSize));
     } else {
       this.size = constraints.constrain(new Size(crossSize, mainSize));
+    }
+
+    // ---------------------------------------------------------------
+    // Overflow detection: check if allocated children exceed the
+    // resolved main axis size. If so, flag overflow and emit a
+    // diagnostic warning to stderr via console.error.
+    // ---------------------------------------------------------------
+    const resolvedMainSize = isHorizontal ? this.size.width : this.size.height;
+    this._hasOverflow = allocatedSize > resolvedMainSize;
+
+    if (this._hasOverflow) {
+      const overflowAmount = allocatedSize - resolvedMainSize;
+      console.error(
+        `A RenderFlex overflowed by ${overflowAmount}px on the ${this._direction === 'horizontal' ? 'right' : 'bottom'}.`,
+      );
     }
 
     // ---------------------------------------------------------------

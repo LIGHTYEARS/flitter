@@ -61,6 +61,7 @@ interface AppProps {
   onCancel: () => void;
   historySize?: number;
   historyFile?: string;
+  inputController?: TextEditingController;
 }
 
 export class App extends StatefulWidget {
@@ -69,6 +70,7 @@ export class App extends StatefulWidget {
   readonly onCancel: () => void;
   readonly historySize: number;
   readonly historyFile: string | null;
+  readonly inputController: TextEditingController | undefined;
 
   constructor(props: AppProps) {
     super({});
@@ -77,6 +79,7 @@ export class App extends StatefulWidget {
     this.onCancel = props.onCancel;
     this.historySize = props.historySize ?? 100;
     this.historyFile = props.historyFile ?? null;
+    this.inputController = props.inputController;
   }
 
   createState(): AppStateWidget {
@@ -106,7 +109,8 @@ interface ReverseSearchState {
 
 class AppStateWidget extends State<App> {
   private scrollController = new ScrollController();
-  private inputController = new TextEditingController();
+  private inputController!: TextEditingController;
+  private _ownsController = false;
   private stateListener: (() => void) | null = null;
   private overlayListener: (() => void) | null = null;
   readonly overlayManager = new OverlayManager();
@@ -121,6 +125,14 @@ class AppStateWidget extends State<App> {
 
   override initState(): void {
     super.initState();
+
+    if (this.widget.inputController) {
+      this.inputController = this.widget.inputController;
+      this._ownsController = false;
+    } else {
+      this.inputController = new TextEditingController();
+      this._ownsController = true;
+    }
 
     // Wire config historySize and historyFile to PromptHistory (Gap 52 + 53)
     this.promptHistory = new PromptHistory(
@@ -732,6 +744,7 @@ class AppStateWidget extends State<App> {
               this.widget.onSubmit(text);
             },
             isProcessing: appState.isProcessing,
+            isInterrupted: appState.isInterrupted,
             currentMode: appState.currentMode ?? 'smart',
             agentName: appState.agentName ?? undefined,
             cwd: appState.cwd,
@@ -796,6 +809,6 @@ export async function startTUI(
   return runApp(app, {
     output: process.stdout,
     terminal: true,
-    errorLogger: log.error,
+    errorLogger: (msg, ...args) => log.error(msg, args[0], args[1] as Record<string, unknown>),
   });
 }

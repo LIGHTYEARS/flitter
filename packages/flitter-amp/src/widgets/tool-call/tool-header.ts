@@ -1,6 +1,6 @@
 // ToolHeader — status icon + tool name + details + spinner row
 // Amp ref: wQ function — [statusIcon colored] [ToolName bold accent] [details dim] [spinner]
-// Status: ✓ completed (toolSuccess), ✗ failed (destructive), ⋯ in-progress (toolRunning), ⋯ pending (waiting)
+// Status icons are resolved via toolStatusIcon() (AMP ref: status-icon-rR.js)
 
 import {
   StatefulWidget, State, Widget, BuildContext,
@@ -14,6 +14,7 @@ import { BrailleSpinner } from 'flitter-core/src/utilities/braille-spinner';
 import { MouseRegion } from 'flitter-core/src/widgets/mouse-region';
 import { AmpThemeProvider } from '../../themes/index';
 import type { ToolCallItem } from '../../acp/types';
+import { toolStatusIcon } from '../../ui/icons/icon-registry';
 
 interface ToolHeaderProps {
   name: string;
@@ -109,7 +110,7 @@ class ToolHeaderState extends State<ToolHeader> {
     const statusColor = this.getStatusColor(theme);
     const toolNameColor = theme?.app.toolName ?? Color.cyan;
 
-    const statusIcon = this.getStatusIcon();
+    const statusIcon = toolStatusIcon(this.widget.status);
 
     const spans: TextSpan[] = [
       new TextSpan({
@@ -158,19 +159,6 @@ class ToolHeaderState extends State<ToolHeader> {
     }
 
     return result;
-  }
-
-  private getStatusIcon(): string {
-    switch (this.widget.status) {
-      case 'completed':
-        return '✓';
-      case 'failed':
-        return '✗';
-      case 'in_progress':
-      case 'pending':
-      default:
-        return '⋯';
-    }
   }
 
   private getStatusColor(theme: ReturnType<typeof AmpThemeProvider.maybeOf>): Color {

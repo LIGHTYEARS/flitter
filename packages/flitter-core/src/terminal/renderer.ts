@@ -4,8 +4,8 @@
 // Amp ref: amp-strings.txt:529716 — z_0 Renderer, bJ StringBuilder, WF8 buildSgrDelta, Wu0 colorToSgr
 
 import { Color } from '../core/color.js';
-import type { CellStyle, RowPatch } from './cell.js';
-import { stylesEqual } from './cell.js';
+import type { CellStyle, RowPatch, CellHyperlinkValue } from './cell.js';
+import { stylesEqual, hyperlinksEqual } from './cell.js';
 import type { TerminalCapabilities } from './platform.js';
 
 // ── Escape Sequences ────────────────────────────────────────────
@@ -305,6 +305,12 @@ export class Renderer {
   private lastStyle: CellStyle;
   private lastHyperlink: string | undefined;
 
+  /** Tracked cursor column during render (0-based). -1 means unknown. */
+  private _currentCol: number = -1;
+
+  /** Tracked cursor row during render (0-based). -1 means unknown. */
+  private _currentRow: number = -1;
+
   constructor() {
     this.lastStyle = {};
     this.lastHyperlink = undefined;
@@ -367,12 +373,22 @@ export class Renderer {
     // 3. Render each row patch (sorted by row)
     const sortedPatches = [...patches].sort((a, b) => a.row - b.row);
 
+    // Reset cursor tracking at the start of each render pass
+    this._currentCol = -1;
+    this._currentRow = -1;
+
     for (const rowPatch of sortedPatches) {
       for (const cellPatch of rowPatch.patches) {
         let col = cellPatch.col;
 
-        // Move cursor to start of this patch
-        parts.push(CURSOR_MOVE(col, rowPatch.row));
+        // Emit CUP only when cursor is not already at the expected position.
+        // After writing a character of width W the terminal auto-advances
+        // the cursor by W columns, so consecutive cells can skip the CUP.
+        if (col !== this._currentCol || rowPatch.row !== this._currentRow) {
+          parts.push(CURSOR_MOVE(col, rowPatch.row));
+          this._currentCol = col;
+          this._currentRow = rowPatch.row;
+        }
 
         for (let i = 0; i < cellPatch.cells.length; i++) {
           const cell = cellPatch.cells[i]!;
@@ -380,6 +396,7 @@ export class Renderer {
           // Skip continuation cells (width=0, part of a wide character)
           if (cell.width === 0) {
             col++;
+            this._currentCol++;
             continue;
           }
 
@@ -396,9 +413,13 @@ export class Renderer {
             parts.push(hyperlinkDelta);
           }
 
-          // Emit the character
-          parts.push(cell.char);
+          // Emit the character, filtering control characters (U+0000–U+001F)
+          const ch = cell.char;
+          const code = ch.charCodeAt(0);
+          parts.push(code <= 0x1f ? ' ' : ch);
+
           col += cell.width;
+          this._currentCol += cell.width;
         }
       }
     }

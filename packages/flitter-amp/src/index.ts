@@ -4,6 +4,7 @@
 
 import { parseArgs } from './state/config';
 import { setLogLevel, log, initLogFile, closeLogFile } from './utils/logger';
+import { setPipelineLogSink, resetPipelineLogSink } from 'flitter-core';
 import { AppState } from './state/app-state';
 import { connectToAgent, connectToAgentWithResume, sendPrompt, cancelPrompt } from './acp/connection';
 import type { ConnectionHandle } from './acp/connection';
@@ -19,7 +20,8 @@ import { setCwd } from './widgets/tool-call/resolve-tool-name';
 async function main(): Promise<void> {
   const config = parseArgs(process.argv);
   setLogLevel(config.logLevel);
-  initLogFile();
+  initLogFile(config.logRetentionDays);
+  setPipelineLogSink((tag, msg) => log.debug(`[${tag}] ${msg}`));
 
   log.info('flitter-amp starting...');
   log.info(`Agent: ${config.agentCommand} ${config.agentArgs.join(' ')}`);
@@ -150,9 +152,9 @@ async function main(): Promise<void> {
     appState.setConnected(handle.sessionId, handle.agentInfo?.name ?? null);
     log.info('Connected to agent successfully');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    log.error(`Failed to connect to agent: ${message}`);
+    log.error('Failed to connect to agent', err);
     closeLogFile();
+    const message = err instanceof Error ? err.message : String(err);
     process.stderr.write(`\nError: Failed to connect to agent "${config.agentCommand}"\n`);
     process.stderr.write(`  ${message}\n\n`);
     process.stderr.write('Make sure the agent is installed and supports the ACP protocol.\n');
@@ -209,8 +211,8 @@ async function main(): Promise<void> {
       // Auto-save after each prompt completion
       saveSession();
     } catch (err) {
+      log.error('Prompt failed', err);
       const message = err instanceof Error ? err.message : String(err);
-      log.error(`Prompt failed: ${message}`);
       appState.handleError(message);
     }
   };
@@ -225,7 +227,7 @@ async function main(): Promise<void> {
     try {
       await cancelPrompt(handle.connection, handle.sessionId);
     } catch (err) {
-      log.error('Cancel failed:', err);
+      log.error('Cancel failed', err);
     }
   };
 
@@ -238,6 +240,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((err) => {
-  process.stderr.write(`\nFatal error: ${err.message}\n`);
+  log.fatal('Fatal startup error', err);
+  process.stderr.write(`\nFatal error: ${err instanceof Error ? err.message : String(err)}\n`);
   process.exit(1);
 });

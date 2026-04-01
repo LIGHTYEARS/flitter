@@ -11,6 +11,7 @@ import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import type { PlanEntry } from '../acp/types';
 import { AmpThemeProvider } from '../themes';
+import { icon } from '../ui/icons/icon-registry';
 
 interface PlanViewProps {
   entries: PlanEntry[];
@@ -40,9 +41,9 @@ export class PlanView extends StatelessWidget {
     ];
 
     for (const entry of this.entries) {
-      const icon =
-        entry.status === 'completed' ? '\u2713' :
-        entry.status === 'in_progress' ? '\u25CF' : '\u25CB';
+      const iconChar =
+        entry.status === 'completed' ? icon('plan.status.completed') :
+        entry.status === 'in_progress' ? icon('plan.status.in_progress') : icon('plan.status.pending');
 
       const color =
         entry.status === 'completed' ? (theme?.base.success ?? Color.green) :
@@ -56,7 +57,7 @@ export class PlanView extends StatelessWidget {
           text: new TextSpan({
             children: [
               new TextSpan({
-                text: `    ${icon} `,
+                text: `    ${iconChar} `,
                 style: new TextStyle({ foreground: color }),
               }),
               new TextSpan({

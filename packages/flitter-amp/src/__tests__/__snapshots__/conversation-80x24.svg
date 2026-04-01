@@ -14,25 +14,24 @@
 <text x="675.6" y="188.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="675.6" y="206.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="675.6" y="224.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="242.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="242.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">What does this function do?</text>
 <text x="675.6" y="242.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="260.04" style="fill:#2ba12b" xml:space="preserve">│</text>
-<text x="54" y="260.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">What does this function do?</text>
 <text x="675.6" y="260.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="278.04" style="fill:#dcdcdc" xml:space="preserve">This function </text>
+<text x="146.4" y="278.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">validates</text>
+<text x="222" y="278.04" style="fill:#dcdcdc" xml:space="preserve"> user input and returns a sanitized result. It perfo</text>
 <text x="675.6" y="278.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="296.04" style="fill:#dcdcdc" xml:space="preserve">This function </text>
-<text x="146.4" y="296.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">validates</text>
-<text x="222" y="296.04" style="fill:#dcdcdc" xml:space="preserve"> user input and returns a sanitized result. It perfo</text>
+<text x="28.8" y="296.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  1. </text>
+<text x="70.80000000000001" y="296.04" style="fill:#dcdcdc" xml:space="preserve">Input trimming</text>
 <text x="675.6" y="296.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="314.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  1. </text>
-<text x="70.80000000000001" y="314.04" style="fill:#dcdcdc" xml:space="preserve">Input trimming</text>
+<text x="28.8" y="314.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  2. </text>
+<text x="70.80000000000001" y="314.04" style="fill:#dcdcdc" xml:space="preserve">XSS prevention</text>
 <text x="675.6" y="314.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="332.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  2. </text>
-<text x="70.80000000000001" y="332.04" style="fill:#dcdcdc" xml:space="preserve">XSS prevention</text>
+<text x="28.8" y="332.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  3. </text>
+<text x="70.80000000000001" y="332.04" style="fill:#dcdcdc" xml:space="preserve">Length validation</text>
 <text x="675.6" y="332.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="350.04" style="fill:#969896;opacity:0.5" xml:space="preserve">  3. </text>
-<text x="70.80000000000001" y="350.04" style="fill:#dcdcdc" xml:space="preserve">Length validation</text>
 <text x="675.6" y="350.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="675.6" y="368.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="12" y="386.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────</text>
 <text x="616.8000000000001" y="386.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
 <text x="675.6" y="386.04" style="fill:#878b86" xml:space="preserve">╮</text>
@@ -46,6 +45,6 @@
 <text x="12" y="458.04" style="fill:#878b86" xml:space="preserve">╰────────────────────────────────────────────────────────────</text>
 <text x="524.4" y="458.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─~/project (main)─</text>
 <text x="675.6" y="458.04" style="fill:#878b86" xml:space="preserve">╯</text>
-<text x="20.4" y="476.04" style="fill:#42a1ff" xml:space="preserve">?</text>
+<text x="20.4" y="476.04" style="fill:#81a2be" xml:space="preserve">?</text>
 <text x="28.8" y="476.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve"> for shortcuts</text>
 </svg>

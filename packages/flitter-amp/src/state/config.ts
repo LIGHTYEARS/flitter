@@ -12,6 +12,7 @@ interface UserConfig {
   historySize?: number;
   historyFile?: string;
   sessionRetentionDays?: number;
+  logRetentionDays?: number;
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 }
 
@@ -34,6 +35,8 @@ export interface AppConfig {
   historyFile: string;
   /** Days to keep session files (0 = keep forever) */
   sessionRetentionDays: number;
+  /** Days to keep log files (default 7) */
+  logRetentionDays: number;
   /** Session ID to resume (null = fresh, 'latest' = most recent, or UUID) */
   resumeSessionId: string | null;
   /** --list-sessions: print and exit */
@@ -166,6 +169,7 @@ export function parseArgs(argv: string[]): AppConfig {
       ? resolve(userConfig.historyFile)
       : defaultHistoryFile,
     sessionRetentionDays: userConfig.sessionRetentionDays ?? 30,
+    logRetentionDays: userConfig.logRetentionDays ?? 7,
     resumeSessionId,
     listSessions,
     exportFormat,

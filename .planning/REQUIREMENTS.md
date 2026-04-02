@@ -14,10 +14,10 @@
 
 ### Session Lifecycle
 
-- [ ] **SESS-01**: User can start a new session with a deterministic startup sequence that matches Amp lifecycle ordering
-- [ ] **SESS-02**: Prompt submission, in-flight processing state, completion, and cancellation follow Amp turn semantics exactly
-- [ ] **SESS-03**: Connection/runtime failures surface through the application state and visible UI states without corrupting the terminal
-- [ ] **SESS-04**: Session state tracks enough metadata to drive status widgets, persistence, resume, and cleanup
+- [x] **SESS-01**: User can start a new session with a deterministic startup sequence that matches Amp lifecycle ordering
+- [x] **SESS-02**: Prompt submission, in-flight processing state, completion, and cancellation follow Amp turn semantics exactly
+- [x] **SESS-03**: Connection/runtime failures surface through the application state and visible UI states without corrupting the terminal
+- [x] **SESS-04**: Session state tracks enough metadata to drive status widgets, persistence, resume, and cleanup
 
 ### Conversation and Turn Model
 
@@ -116,10 +116,10 @@
 | BOOT-02 | Phase 12 | Complete |
 | BOOT-03 | Phase 12 | Complete |
 | BOOT-04 | Phase 12 | Complete |
-| SESS-01 | Phase 13 | Pending |
-| SESS-02 | Phase 13 | Pending |
-| SESS-03 | Phase 13 | Pending |
-| SESS-04 | Phase 13 | Pending |
+| SESS-01 | Phase 13 | Complete |
+| SESS-02 | Phase 13 | Complete |
+| SESS-03 | Phase 13 | Complete |
+| SESS-04 | Phase 13 | Complete |
 | TURN-01 | Phase 14 | Pending |
 | TURN-02 | Phase 14 | Pending |
 | TURN-03 | Phase 14 | Pending |

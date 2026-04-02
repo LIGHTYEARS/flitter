@@ -60,7 +60,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 4. Session metadata is complete enough for later phases
 5. Session guardrails are defined so later UI phases cannot reinterpret lifecycle semantics
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

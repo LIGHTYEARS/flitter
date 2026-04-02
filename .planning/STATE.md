@@ -1,3 +1,18 @@
+---
+gsd_state_version: 1.0
+milestone: v0.3.0
+milestone_name: — flitter-cli Full Parity
+status: executing
+last_updated: "2026-04-03T18:30:00Z"
+last_activity: 2026-04-03 -- Phase 13 Plan 01 complete
+progress:
+  total_phases: 11
+  completed_phases: 1
+  total_plans: 4
+  completed_plans: 2
+  percent: 18
+---
+
 # Project State: flitter-cli
 
 ## Project Reference
@@ -5,7 +20,7 @@
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 12 scaffold landed; ready to start Phase 13 session lifecycle work
+**Current focus:** Phase 13 — session-lifecycle-and-app-state
 
 ## Current Milestone
 
@@ -13,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 13
-Plan: —
-Status: Phase 12 complete; Phase 13 ready
-Last activity: 2026-04-03 — Phase 12 scaffold verified and closed
+Phase: 13 (session-lifecycle-and-app-state) — EXECUTING
+Plan: 2 of 3
+Status: Plan 01 complete, ready for Plan 02
+Last activity: 2026-04-03 -- Phase 13 Plan 01 complete (types, session state machine, provider)
 
 ## Phase Status
 
@@ -29,8 +44,9 @@ Last activity: 2026-04-03 — Phase 12 scaffold verified and closed
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
+| 13 | Session Lifecycle and App State | In Progress | 13-01 done, 13-02/03 pending |
 
-Progress: █░░░░░░░░░ 9% (1/11 phases)
+Progress: ██░░░░░░░░ 18% (2/11 plans)
 
 ## Recent Activity
 
@@ -41,6 +57,7 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 - 2026-04-03: Requirements and roadmap expanded to full Amp parity scope across phases 12-22
 - 2026-04-03: Guardrails hardened so parity failures are treated as scope failures, with scaffold-first sequencing
 - 2026-04-03: Phase 12 complete — `packages/flitter-cli` scaffold, config namespace, logger, and bootstrap shell landed
+- 2026-04-03: Phase 13 Plan 01 complete — native type system, session state machine, provider interface, Anthropic SSE implementation
 
 ## Decisions Log
 
@@ -51,6 +68,9 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 | 2026-04-03 | Use reverse-engineered Amp behavior as the milestone spec | This milestone is about full feature recreation, not partial resemblance |
 | 2026-04-03 | All identified Amp capabilities are mandatory | Product decision: 100% parity, no scope cuts |
 | 2026-04-03 | Guardrails first, execution next; scaffold first, details next | Lock invariants before implementation waves begin |
+| 2026-04-03 | Self-contained type system with zero flitter-amp/ACP imports | Clean package boundary for flitter-cli |
+| 2026-04-03 | Provider uses AsyncIterable<StreamEvent> for streaming | Composable with for-await-of, no callback coupling |
+| 2026-04-03 | AnthropicProvider uses native fetch, no HTTP library | Bun provides fetch; minimizes dependencies |
 
 ## Known Issues
 
@@ -66,6 +86,7 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 - The Amp capability matrix is fully in-scope; no identified product-facing module is allowed to fall back to approximation
 - Shortcut drift, nested task/handoff simplification, theme-surface reduction, and status-area weakening are explicit parity violations
 - Phase 12 established the new workspace package, config namespace, logging namespace, and a minimal native runtime shell without ACP/coco in the boot path
+- Phase 13 Plan 01 established the type system (types.ts), session state machine (session.ts with 37 tests), and provider contract (provider.ts + anthropic.ts) — all zero-dependency on flitter-amp
 
 ---
-*Last updated: 2026-04-03 after Phase 12 completion*
+*Last updated: 2026-04-03 after Phase 13 Plan 01 completion*

@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 12 complete, ready to start Phase 13 session lifecycle work
+**Current focus:** Phase 12 scaffold landed; ready to start Phase 13 session lifecycle work
 
 ## Current Milestone
 
@@ -15,8 +15,8 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 Phase: 13
 Plan: —
-Status: Phase 12 complete, Phase 13 ready
-Last activity: 2026-04-03 — Phase 12 scaffold completed and verified
+Status: Phase 12 complete; Phase 13 ready
+Last activity: 2026-04-03 — Phase 12 scaffold verified and closed
 
 ## Phase Status
 
@@ -28,6 +28,7 @@ Last activity: 2026-04-03 — Phase 12 scaffold completed and verified
 | 9 | Streaming Experience | Complete | 09-PLAN-01 |
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
+| 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
 
 Progress: █░░░░░░░░░ 9% (1/11 phases)
 
@@ -39,7 +40,7 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 - 2026-04-03: New milestone initialized for `flitter-cli` package, runtime, and parity roadmap
 - 2026-04-03: Requirements and roadmap expanded to full Amp parity scope across phases 12-22
 - 2026-04-03: Guardrails hardened so parity failures are treated as scope failures, with scaffold-first sequencing
-- 2026-04-03: Phase 12 complete — `flitter-cli` package scaffold, config namespace, logger, and bootstrap shell verified
+- 2026-04-03: Phase 12 complete — `packages/flitter-cli` scaffold, config namespace, logger, and bootstrap shell landed
 
 ## Decisions Log
 
@@ -53,6 +54,7 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 
 ## Known Issues
 
+- `init milestone-op` currently misreads the active milestone as complete while `roadmap analyze` correctly shows phases 12-22 pending; use roadmap analysis as source of truth
 - Legacy code and docs still reference `flitter-amp`; implementation phases must retire those paths carefully
 - The source tree contains substantial unrelated in-progress edits; migration work must isolate changes carefully
 
@@ -63,6 +65,7 @@ Progress: █░░░░░░░░░ 9% (1/11 phases)
 - Reverse-engineering artifacts in `amp-src-analysis-*.md` are now milestone inputs, not archival notes
 - The Amp capability matrix is fully in-scope; no identified product-facing module is allowed to fall back to approximation
 - Shortcut drift, nested task/handoff simplification, theme-surface reduction, and status-area weakening are explicit parity violations
+- Phase 12 established the new workspace package, config namespace, logging namespace, and a minimal native runtime shell without ACP/coco in the boot path
 
 ---
-*Last updated: 2026-04-03 after v0.3.0 parity guardrail hardening*
+*Last updated: 2026-04-03 after Phase 12 completion*

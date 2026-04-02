@@ -2,35 +2,45 @@
 
 ## Changes
 
-### 1. New `flitter-cli` workspace package (BOOT-01)
-**Files:** `packages/flitter-cli/package.json`, `packages/flitter-cli/tsconfig.json`
-- Added a first-class workspace package at `packages/flitter-cli`
-- Declared `flitter-cli` as the package bin target
+### 1. Created first-class `flitter-cli` package scaffold (BOOT-01)
+**Files:**
+- `packages/flitter-cli/package.json`
+- `packages/flitter-cli/tsconfig.json`
+
+- Added a new workspace package with its own `flitter-cli` bin target
 - Added `start`, `test`, and `typecheck` scripts
+- Kept dependencies minimal: `flitter-core` only
 
-### 2. Native config namespace (BOOT-02)
+### 2. Added native CLI config and namespace (BOOT-02)
 **File:** `packages/flitter-cli/src/state/config.ts`
-- Added native CLI parsing for `--cwd`, `--editor`, `--debug`, and `--help`
-- Moved config lookup to `~/.flitter-cli/config.json`
-- Resolved cwd/editor defaults at the package boundary
 
-### 3. Native log bootstrap (BOOT-03)
+- Added config loading from `~/.flitter-cli/config.json`
+- Added native CLI flags for `--cwd`, `--editor`, `--debug`, and `--help`
+- Resolved cwd/editor defaults without any ACP/coco boot dependency
+
+### 3. Added native logging bootstrap (BOOT-03)
 **File:** `packages/flitter-cli/src/utils/logger.ts`
-- Added file-based logging under `~/.flitter-cli/logs`
-- Added retention-based pruning for `flitter-cli-YYYY-MM-DD.log`
-- Exposed active log-path lookup for bootstrap diagnostics
 
-### 4. Independent runtime shell (BOOT-04)
-**Files:** `packages/flitter-cli/src/index.ts`, `packages/flitter-cli/src/bootstrap-shell.ts`
-- Added a standalone `flitter-cli` bootstrap entrypoint
-- Bootstrapped a minimal `flitter-core` shell without coco/ACP bridge requirements
-- Added clean shell exit behavior for `Ctrl+C`, `Esc`, and `q`
+- Added file logging under `~/.flitter-cli/logs`
+- Added retention-based pruning
+- Added stderr fallback and current log-path reporting
 
-### 5. Scaffold verification seed
+### 4. Added minimal native runtime shell (BOOT-04)
+**Files:**
+- `packages/flitter-cli/src/index.ts`
+- `packages/flitter-cli/src/bootstrap-shell.ts`
+
+- Added a Bun entrypoint that initializes config and logging before boot
+- Added a minimal `flitter-core` shell with visible bootstrap/runtime metadata
+- Added clean exit via `Ctrl+C`, `Esc`, and `q`
+- Kept the boot path free of ACP/coco coupling
+
+### 5. Added baseline scaffold verification
 **File:** `packages/flitter-cli/src/__tests__/config.test.ts`
-- Added a config parsing test for the new package namespace
 
-## Files Added
+- Added a smoke test for CLI config parsing
+
+## Files Modified
 
 - `packages/flitter-cli/package.json`
 - `packages/flitter-cli/tsconfig.json`
@@ -39,3 +49,8 @@
 - `packages/flitter-cli/src/state/config.ts`
 - `packages/flitter-cli/src/utils/logger.ts`
 - `packages/flitter-cli/src/__tests__/config.test.ts`
+- `pnpm-lock.yaml`
+
+## Commit
+
+- `31af0f8` — `feat(12): scaffold flitter-cli runtime shell`

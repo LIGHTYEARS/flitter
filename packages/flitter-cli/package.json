@@ -1,0 +1,23 @@
+{
+  "name": "flitter-cli",
+  "version": "0.1.0",
+  "description": "Native flitter CLI scaffold built on flitter-core",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "flitter-cli": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "flitter-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-types": "^1.3.11",
+    "typescript": "^5.7.0"
+  }
+}

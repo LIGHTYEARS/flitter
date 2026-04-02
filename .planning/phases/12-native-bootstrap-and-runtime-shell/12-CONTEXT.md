@@ -1,55 +1,17 @@
-# Phase 12: Native Bootstrap and Runtime Shell - Context
+# Phase 12: Native Bootstrap and Runtime Shell — Context
 
-**Gathered:** 2026-04-03
-**Status:** Ready for planning
-**Mode:** Auto-generated (infrastructure phase; discuss skipped)
+**Auto-generated:** Infrastructure phase, minimal context required.
 
-<domain>
 ## Phase Boundary
 
-Establish `flitter-cli` as a first-class package with native bootstrap, config, logging, and terminal lifecycle behavior.
+Create `packages/flitter-cli` as a first-class workspace package and establish its runtime shell: entrypoint, package metadata, scripts, config namespace, logging bootstrap, and clean terminal lifecycle.
 
-This phase is scaffold-first. It must lock the package/runtime boundary and remove coco/ACP bridge assumptions from the boot path before later phases add detailed parity behavior.
+This phase is scaffold-first. It defines the package boundary and startup contract that later parity phases build on.
 
-</domain>
+## Key Decisions
 
-<decisions>
-## Implementation Decisions
-
-### Guardrails
-- Parity failures are scope failures, not polish debt
-- Guardrails first, execution next
-- Scaffold first, details next
-
-### the agent's Discretion
-Within those guardrails, the agent may choose the safest package/bootstrap structure that fits the existing monorepo and preserves compatibility with later full-parity phases.
-
-</decisions>
-
-<code_context>
-## Existing Code Insights
-
-- `packages/flitter-core` is the rendering/input substrate and remains the only UI framework
-- `packages/flitter-amp` currently owns the closest bootstrap/runtime shell patterns and is the primary migration source for this phase
-- Existing monorepo package and TypeScript conventions should be reused where safe
-
-</code_context>
-
-<specifics>
-## Specific Ideas
-
-- Create `packages/flitter-cli` with package metadata, scripts, tsconfig, and entrypoint
-- Establish native config/logging namespace for `flitter-cli`
-- Define top-level startup/shutdown/error lifecycle before implementing deeper parity details
-- Keep this phase focused on scaffold and runtime boundary, not feature-complete parity surfaces
-
-</specifics>
-
-<deferred>
-## Deferred Ideas
-
-- Detailed session lifecycle parity
-- Detailed chat/tool/content/status parity
-- History, persistence, and migration closure details beyond what Phase 12 needs to scaffold safely
-
-</deferred>
+- **D-01**: `flitter-cli` is a new workspace package, not a rename of `flitter-amp`
+- **D-02**: No core bootstrap path may depend on coco or ACP bridge commands
+- **D-03**: Guardrails first, execution next; scaffold first, details next
+- **D-04**: Parity failures are scope failures, but this phase only locks runtime shell and startup invariants, not later UI detail parity
+- **D-05**: Reuse monorepo conventions from existing packages where safe, but do not preserve `flitter-amp` naming in the new package boundary

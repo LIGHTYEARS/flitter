@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Full-parity milestone initialized, guardrails locked, ready to start Phase 12 scaffold work
+**Current focus:** Phase 12 complete, ready to start Phase 13 session lifecycle work
 
 ## Current Milestone
 
@@ -13,10 +13,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: Not started (ready for Phase 12)
+Phase: 13
 Plan: —
-Status: Full-parity roadmap approved, with guardrails locked before implementation
-Last activity: 2026-04-03 — Guardrails hardened for parity-first, scaffold-first execution
+Status: Phase 12 complete, Phase 13 ready
+Last activity: 2026-04-03 — Phase 12 scaffold completed and verified
 
 ## Phase Status
 
@@ -29,7 +29,7 @@ Last activity: 2026-04-03 — Guardrails hardened for parity-first, scaffold-fir
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 
-Progress: ░░░░░░░░░░ 0% (0/11 phases)
+Progress: █░░░░░░░░░ 9% (1/11 phases)
 
 ## Recent Activity
 
@@ -39,6 +39,7 @@ Progress: ░░░░░░░░░░ 0% (0/11 phases)
 - 2026-04-03: New milestone initialized for `flitter-cli` package, runtime, and parity roadmap
 - 2026-04-03: Requirements and roadmap expanded to full Amp parity scope across phases 12-22
 - 2026-04-03: Guardrails hardened so parity failures are treated as scope failures, with scaffold-first sequencing
+- 2026-04-03: Phase 12 complete — `flitter-cli` package scaffold, config namespace, logger, and bootstrap shell verified
 
 ## Decisions Log
 

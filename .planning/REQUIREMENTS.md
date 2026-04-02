@@ -112,10 +112,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | Phase 12 | Pending |
-| BOOT-02 | Phase 12 | Pending |
-| BOOT-03 | Phase 12 | Pending |
-| BOOT-04 | Phase 12 | Pending |
+| BOOT-01 | Phase 12 | Complete |
+| BOOT-02 | Phase 12 | Complete |
+| BOOT-03 | Phase 12 | Complete |
+| BOOT-04 | Phase 12 | Complete |
 | SESS-01 | Phase 13 | Pending |
 | SESS-02 | Phase 13 | Pending |
 | SESS-03 | Phase 13 | Pending |

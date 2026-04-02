@@ -37,7 +37,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 4. No core boot path depends on coco bridge commands
 5. Scaffold decisions lock the runtime boundary before detailed parity work begins
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -273,10 +273,10 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BOOT-01 | 12 | Pending |
-| BOOT-02 | 12 | Pending |
-| BOOT-03 | 12 | Pending |
-| BOOT-04 | 12 | Pending |
+| BOOT-01 | 12 | Complete |
+| BOOT-02 | 12 | Complete |
+| BOOT-03 | 12 | Complete |
+| BOOT-04 | 12 | Complete |
 | SESS-01 | 13 | Pending |
 | SESS-02 | 13 | Pending |
 | SESS-03 | 13 | Pending |
@@ -330,7 +330,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 **v0.3.0 requirements:** 55 total
 **Mapped:** 55 (100%)
-**Complete:** 0
+**Complete:** 4
 
 ---
 *Roadmap created: 2026-04-03*

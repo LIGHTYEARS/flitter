@@ -5,7 +5,7 @@
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that reproduces Amp's end-to-end CLI behavior and TUI experience without depending on coco or ACP bridging.
-**Current focus:** Milestone v0.3.0 definition complete, ready to plan execution
+**Current focus:** Milestone v0.3.0 initialized, ready to start Phase 12
 
 ## Current Milestone
 
@@ -13,10 +13,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (ready for Phase 12)
 Plan: —
-Status: Defining requirements and roadmap for `flitter-cli`
-Last activity: 2026-04-03 — Milestone v0.3.0 started
+Status: Roadmap approved, ready to begin implementation
+Last activity: 2026-04-03 — Milestone v0.3.0 roadmap created
 
 ## Phase Status
 
@@ -29,7 +29,7 @@ Last activity: 2026-04-03 — Milestone v0.3.0 started
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 
-Progress: ░░░░░░░░░░ 0% (0/new milestone phases)
+Progress: ░░░░░░░░░░ 0% (0/5 phases)
 
 ## Recent Activity
 
@@ -37,6 +37,7 @@ Progress: ░░░░░░░░░░ 0% (0/new milestone phases)
 - 2026-03-28: v0.2.0 milestone complete
 - 2026-04-03: Product direction reset from `flitter-amp` ACP client to native `flitter-cli`
 - 2026-04-03: New milestone initialized for `flitter-cli` package, runtime, and parity roadmap
+- 2026-04-03: Requirements and roadmap approved for phases 12-16
 
 ## Decisions Log
 
@@ -48,7 +49,7 @@ Progress: ░░░░░░░░░░ 0% (0/new milestone phases)
 
 ## Known Issues
 
-- Current product docs, requirements, and roadmap were written for `flitter-amp`; they are being replaced this milestone
+- Legacy code and docs still reference `flitter-amp`; implementation phases must retire those paths carefully
 - The source tree contains substantial unrelated in-progress edits; migration work must isolate changes carefully
 
 ## Accumulated Context

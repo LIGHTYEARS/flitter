@@ -162,9 +162,7 @@ export class SessionState {
 
   /** Notify all registered listeners. Called after every valid state transition. */
   private notifyListeners(): void {
-    for (const fn of this._listeners) {
-      fn();
-    }
+    this._listeners.forEach(fn => fn());
   }
 
   /** Bump the version counter. Called on every snapshot mutation. */

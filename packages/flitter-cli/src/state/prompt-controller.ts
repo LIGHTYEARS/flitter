@@ -103,8 +103,10 @@ export class PromptController {
       const errMsg = err instanceof Error ? err.message : String(err);
       log.error(`PromptController: provider error: ${errMsg}`);
 
-      // Only route to handleError if session is still in an active state
-      const currentLifecycle = this._session.lifecycle;
+      // Only route to handleError if session is still in an active state.
+      // The session may have already transitioned (e.g., cancelled) so we
+      // read lifecycle as a string to avoid tsc narrowing issues.
+      const currentLifecycle: string = this._session.lifecycle;
       if (currentLifecycle === 'processing' || currentLifecycle === 'streaming') {
         this._session.handleError({
           message: errMsg,

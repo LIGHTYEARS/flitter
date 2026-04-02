@@ -1,121 +1,79 @@
-# flitter-amp
+# flitter-cli
 
 ## What This Is
 
-A TUI ACP (Agent Client Protocol) client that reverse-engineers Amp CLI's visual interface. It spawns external ACP-compatible agents (Claude Code, Gemini CLI, Codex, etc.) as subprocesses, communicates via JSON-RPC over stdio, and renders the agent's streaming responses in a rich terminal UI built on `flitter-core`. It is NOT an LLM provider or agent — it is a client that talks to agents.
+`flitter-cli` is a terminal-first coding assistant client built inside the `flitter` monorepo. It replaces the current `flitter-amp` ACP bridge approach with a native CLI product that recreates Amp's complete interaction model, tool surface, and screen behavior using `flitter-core` as the rendering and input framework.
+
+The product direction is no longer "an ACP client that looks like Amp." It is "a full Amp-style CLI implemented locally on top of flitter-core," using reverse-engineered source behavior as the primary specification.
 
 ## Core Value
 
-A truly functional ACP TUI client that correctly communicates with any ACP agent, renders all protocol messages faithfully, and provides a usable chat experience — not just a visual clone of Amp's layout.
+Ship a native `flitter-cli` that reproduces Amp's end-to-end CLI behavior and TUI experience without depending on coco or ACP bridging.
 
 ## Milestones
 
 ### v0.1.0 — Visual Prototype (COMPLETED 2026-03-27)
-Built the UI shell: widget tree matching Amp's layout, 7 themes, 10 specialized tool renderers, welcome screen, density orb, input area. Established flitter-core rendering pipeline.
+Built the UI shell: widget tree matching Amp's layout, themes, tool renderers, welcome screen, density orb, and input area. Established `flitter-core` rendering pipeline.
 
-**Known debt carried into v0.2.0:**
-- 4 ACP sessionUpdate event names wrong (thinking/usage/mode/session_info never worked)
-- Scroll infrastructure broken (3 independent bugs: no controller listener, no followMode disable, no keyboard scroll)
-- Tool names hardcoded to Amp convention only
-- No connection drop detection
+### v0.2.0 — Make It Actually Work (COMPLETED 2026-03-28)
+Fixed ACP protocol correctness, scroll behavior, streaming, tool compatibility, and UX polish so `flitter-amp` became a functional ACP TUI client.
 
-### v0.2.0 — Make It Actually Work (CURRENT)
-Fix all 5 layers of structural defects found in the full E2E audit. Goal: connect to any ACP agent, correctly handle all protocol events, render streaming content reliably, provide working scroll and keyboard interaction.
+### v0.3.0 — flitter-cli (CURRENT)
+Replace `flitter-amp` as the product direction with a new `flitter-cli` subpackage. Rebuild the application as a native CLI around `flitter-core`, using reverse-engineered Amp source behavior to reproduce command flow, session model, tool execution, status surfaces, and interactive TUI semantics end to end.
 
-**Guardrail:** If 3+ consecutive fixes fail to align with Amp CLI chat view behavior, trigger deep research to find remaining implementation gaps before continuing.
+**Target features:**
+- Create `packages/flitter-cli` as the new primary application package
+- Stop relying on coco and ACP bridging for core product behavior
+- Reconstruct Amp-equivalent CLI runtime, command dispatch, and tool orchestration
+- Reuse and extend `flitter-core` as the rendering, input, layout, and diagnostics foundation
+- Preserve and port useful UI work from `flitter-amp` only where it serves the native CLI design
 
 ## Requirements
 
-### Validated (v0.1.0)
+### Validated
 
-- ACP client connection — spawns agent subprocess, initializes via ACP protocol, creates sessions
-- Full-screen TUI shell — scrollable chat area, scrollbar, bordered input field, bottom grid
-- ACP-to-TUI wiring — streaming text and tool call events flow from agent to widgets
-- Tool call rendering — collapsible blocks with status icons, inline diff display
-- Thinking block rendering — collapsible streaming thinking/reasoning display
-- Plan view — checklist display from agent plan updates
-- 7 built-in themes with InheritedWidget propagation
+- `flitter-core` provides a usable TUI framework with widget, element, render-object, layout, input, and terminal rendering infrastructure
+- `flitter-amp` proved the monorepo can render rich chat, tool cards, sticky sections, dialogs, overlays, markdown, and scrolling on top of `flitter-core`
+- Amp reverse-engineering artifacts exist in this repo and can be used as implementation reference
 
-### Active (v0.2.0)
+### Active (v0.3.0)
 
-#### Protocol Correctness
-- [ ] **PROTO-01**: Fix 4 sessionUpdate event names to match ACP SDK schema
-- [ ] **PROTO-02**: Fix usage_update field mapping (size/used/cost, not input_tokens/output_tokens)
-- [ ] **PROTO-03**: Declare clientCapabilities in initialize (fs, terminal)
-- [ ] **PROTO-04**: Monitor connection.signal/connection.closed for agent crash detection
-- [ ] **PROTO-05**: Fix terminalOutput listener leak and return type mismatch
-- [ ] **PROTO-06**: Fix waitForTerminalExit return type to match SDK
-- [ ] **PROTO-07**: Fix handleSubmit error path to call notifyListeners()
-
-#### Scroll Infrastructure
-- [ ] **SCROLL-01**: RenderScrollViewport must addListener on ScrollController and markNeedsPaint
-- [ ] **SCROLL-02**: User scroll-up must call disableFollowMode()
-- [ ] **SCROLL-03**: enableFollowMode() must be conditional (only when user hasn't scrolled away)
-- [ ] **SCROLL-04**: Pass enableKeyboardScroll: true to chat ScrollView
-
-#### Streaming Experience
-- [ ] **STREAM-01**: Add streaming cursor/indicator to assistant messages
-- [ ] **STREAM-02**: Throttle setState during streaming (batch chunks)
-- [ ] **STREAM-03**: Handle non-text content types (image, tool_result) gracefully
-- [ ] **STREAM-04**: Remove ThinkingBlock 500-char truncation (or raise significantly)
-
-#### Tool Compatibility
-- [ ] **TOOL-01**: Normalize tool names — map common variants (read_file→Read, execute_command→Bash, etc.)
-- [ ] **TOOL-02**: Fix ToolCallResult.content to handle both nested and flat structures
-- [ ] **TOOL-03**: Use actual tool name in headers instead of hardcoded strings
-- [ ] **TOOL-04**: Make rawInput field extraction resilient to different agent formats
-
-#### UX Polish
-- [ ] **UX-01**: Add background mask to Permission Dialog
-- [ ] **UX-02**: Remove all console.error debug logs from production code
-- [ ] **UX-03**: Use agentInfo.name from initialize response
-- [ ] **UX-04**: Fix Markdown paragraph merging (consecutive non-empty lines)
-- [ ] **UX-05**: Fix Markdown heading prefix (currently all empty strings)
-
-### Deferred (v0.3.0+)
-
-- $EDITOR integration (Ctrl+G) — requires WidgetsBinding.suspend()/resume()
-- Prompt history injection (Ctrl+R) — requires TextEditingController exposure
-- @file mentions / FilePicker — requires file list data source
-- Session persistence — save/restore conversation threads
-- Reconnection on agent crash
-- authenticate() flow for agents that require auth
-- Virtual list for long conversations (performance)
-- StickyHeader stack coordination (multiple headers overlapping)
+- [ ] `flitter-cli` exists as a first-class subpackage with its own entrypoint, runtime wiring, and package scripts
+- [ ] Core runtime behavior is native to `flitter-cli`, not delegated through coco ACP bridging
+- [ ] Session model, turn lifecycle, tool execution, and status surfaces follow the reverse-engineered Amp behavior closely enough to serve as the implementation contract
+- [ ] Existing `flitter-amp` code is either migrated intentionally or removed from the active product path
 
 ### Out of Scope
 
-- LLM API calls — the ACP agent handles all LLM communication
-- Agent implementation — we only implement the client side
-- Mobile/web UI — terminal only
-- Plugin system — direct implementation, no extensibility layer for v1
-- Image rendering — terminal text only (no Kitty graphics protocol for v1)
+- Rebuilding around ACP as the long-term architecture — this milestone replaces that direction
+- Non-TUI GUI clients — `flitter-core` terminal UI remains the product surface
+- Plugin architecture before core Amp parity — direct implementation first
+- Reinventing a second rendering framework outside `flitter-core`
 
 ## Context
 
-This is a brownfield project within the `flitter` pnpm monorepo. `flitter-core` provides a Flutter-faithful TUI framework with three-tree architecture (Widget/Element/RenderObject), box-constraint layout, 60fps cell-level diff rendering, and a rich widget library (Text, Container, Flex, ScrollView, Dialog, TextField, SelectionList, DiffView, Scrollbar, etc.).
+This is a brownfield pivot inside the `flitter` pnpm monorepo. `packages/flitter-core` already provides the terminal rendering stack, while `packages/flitter-amp` contains a large amount of reusable UI and state logic built under the older ACP-client framing.
 
-The ACP SDK (`@agentclientprotocol/sdk` v0.16.0) provides `ClientSideConnection`, JSON-RPC streaming, and typed interfaces for the protocol. The client implements `acp.Client` to handle agent callbacks (sessionUpdate, requestPermission, readTextFile, writeTextFile, createTerminal).
+The repo also contains reverse-engineering notes (`amp-src-analysis-*.md`) that describe Amp's widget composition, state flow, CLI behavior, and architectural patterns. Those notes now become the primary product spec for the next milestone.
 
-Phases 1-4 are already implemented with 17 source files covering: ACP connection, TUI shell, streaming wiring, and tool call/diff/thinking rendering.
+The current codebase has significant in-flight changes outside `.planning/`; milestone initialization must avoid disturbing that work and only redefine planning artifacts for the new direction.
 
 ## Constraints
 
-- **Runtime**: Bun-first (uses Bun-specific APIs via platform.ts adapter)
-- **UI Framework**: Must use flitter-core widgets — no direct terminal escape sequences
-- **Protocol**: ACP SDK v0.16.x — must track upstream protocol changes
-- **Visual Fidelity**: Must match Amp CLI's layout and interaction patterns
-- **No Direct LLM**: Zero LLM dependencies — all intelligence comes from the spawned agent
+- **UI Framework**: `flitter-core` remains the only rendering and input foundation
+- **Product Direction**: `flitter-amp` is legacy; new work centers on `flitter-cli`
+- **Spec Source**: Reverse-engineered Amp behavior is the contract when implementation choices are ambiguous
+- **Migration Safety**: Planning work must not overwrite unrelated in-progress source edits in the dirty worktree
+- **Terminal Scope**: Desktop terminal experience first; no web/mobile fallback in this milestone
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use `@agentclientprotocol/sdk` | Standard protocol, multi-agent support | — Pending |
-| Build on flitter-core widgets | Consistent with monorepo, Flutter-faithful architecture | Good |
-| Spawn agent as subprocess | Clean separation, agent manages its own state | Good |
-| Ctrl+Enter to submit (multi-line default) | Matches Amp CLI behavior | Good |
-| InheritedWidget for AppState | Flutter-faithful state propagation | Good |
+| Create `flitter-cli` instead of extending `flitter-amp` | The ACP-bridge architecture is the wrong product boundary | — Pending |
+| Use reverse-engineered Amp behavior as spec | The goal is full feature recreation, not approximate visual homage | — Pending |
+| Keep `flitter-core` as the rendering substrate | Existing framework already matches the desired TUI architecture | ✓ Good |
+| Treat `flitter-amp` as a migration source, not the destination | Some code is reusable, but the package framing is not | — Pending |
 
 ## Evolution
 
@@ -135,4 +93,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-27 after v0.2.0 milestone initialization (full E2E audit)*
+*Last updated: 2026-04-03 after v0.3.0 milestone initialization*

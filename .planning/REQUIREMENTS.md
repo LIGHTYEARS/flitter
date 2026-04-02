@@ -1,106 +1,87 @@
-# Requirements: flitter-amp v0.2.0
+# Requirements: flitter-cli v0.3.0
 
-**Defined:** 2026-03-27
-**Core Value:** A truly functional ACP TUI client that correctly communicates with any ACP agent, renders all protocol messages faithfully, and provides a usable chat experience.
+**Defined:** 2026-04-03
+**Core Value:** Ship a native `flitter-cli` that reproduces Amp's end-to-end CLI behavior and TUI experience without depending on coco or ACP bridging.
 
-## v0.2.0 Requirements
+## v0.3.0 Requirements
 
-### Protocol Correctness
+### Package and Runtime Foundation
 
-- [ ] **PROTO-01**: Fix 4 sessionUpdate event names to match ACP SDK schema (`agent_thought_chunk`, `usage_update`, `current_mode_update`, `session_info_update`)
-- [ ] **PROTO-02**: Fix usage_update field mapping to use SDK's `{size, used, cost}` structure
-- [ ] **PROTO-03**: Declare `clientCapabilities` in initialize request (fs.readTextFile, fs.writeTextFile, terminal)
-- [ ] **PROTO-04**: Monitor `connection.signal`/`connection.closed` for agent crash — display error in UI and exit processing state
-- [ ] **PROTO-05**: Fix terminalOutput: collect output continuously from createTerminal, stop leaking listeners, match SDK `TerminalOutputResponse` shape
-- [ ] **PROTO-06**: Fix waitForTerminalExit return type to match SDK `WaitForTerminalExitResponse`
-- [ ] **PROTO-07**: Fix handleSubmit error path — call `notifyListeners()` and `finalizeAssistantMessage()`
+- [ ] **CLI-01**: Developer can launch `flitter-cli` from a dedicated `packages/flitter-cli` entrypoint and package script
+- [ ] **CLI-02**: `flitter-cli` bootstraps its own runtime and working-directory context without requiring coco ACP bridge commands
+- [ ] **CLI-03**: `flitter-cli` defines its own configuration and data namespace separate from `flitter-amp`
+- [ ] **CLI-04**: `flitter-cli` shutdown and error handling leave the terminal in a clean state
 
-### Scroll Infrastructure
+### Conversation and TUI Semantics
 
-- [ ] **SCROLL-01**: `RenderScrollViewport` must `addListener` on ScrollController and call `markNeedsPaint()` on scroll offset change
-- [ ] **SCROLL-02**: User scroll-up (keyboard or mouse) must call `disableFollowMode()`
-- [ ] **SCROLL-03**: `enableFollowMode()` in stateListener must be conditional — only when user hasn't manually scrolled away from bottom
-- [ ] **SCROLL-04**: Pass `enableKeyboardScroll: true` to the chat area's SingleChildScrollView
+- [ ] **TUI-01**: User, assistant, thinking, tool, and plan content render as native `flitter-cli` turn state rather than ACP callback artifacts
+- [ ] **TUI-02**: Streaming responses update incrementally with stable scroll and follow behavior
+- [ ] **TUI-03**: Sticky sections, overlays, status bars, and input flows preserve the Amp-style interaction model on `flitter-core`
+- [ ] **TUI-04**: Welcome, empty, loading, and error states are defined for the native CLI lifecycle
 
-### Streaming Experience
+### Tool and Command Workflow
 
-- [ ] **STREAM-01**: Show streaming cursor/indicator on in-progress assistant messages (use `_isStreaming` param)
-- [ ] **STREAM-02**: Throttle/batch setState during streaming to reduce full-tree rebuilds
-- [ ] **STREAM-03**: Handle non-text content types in `agent_message_chunk` gracefully (log + placeholder widget)
-- [ ] **STREAM-04**: Raise ThinkingBlock content display limit from 500 to 5000+ characters
+- [ ] **TOOL-01**: `flitter-cli` executes or orchestrates tool actions through a native internal event model instead of coco transport assumptions
+- [ ] **TOOL-02**: Tool headers, status transitions, payload extraction, and result rendering match the reverse-engineered Amp behavior closely enough for parity work
+- [ ] **TOOL-03**: Permission and confirmation flows remain available for commands that require user approval
+- [ ] **TOOL-04**: Command-oriented workflows surface progress and failures in the TUI without relying on ACP protocol event names
 
-### Tool Compatibility
+### Session, History, and Persistence
 
-- [ ] **TOOL-01**: Normalize tool names — map common agent variants to specialized renderers (e.g., `read_file`→ReadTool, `execute_command`/`shell`→BashTool, `search`/`grep`→GrepTool)
-- [ ] **TOOL-02**: Fix ToolCallResult.content to handle both nested `{type, content: {type, text}}` and flat `{type, text}` structures
-- [ ] **TOOL-03**: Use actual `toolCall.kind` in tool headers instead of hardcoded strings
-- [ ] **TOOL-04**: Make rawInput field extraction resilient — try multiple field name variants for command, file_path, etc.
+- [ ] **SESS-01**: User can start a new session and resume a previous one through `flitter-cli`
+- [ ] **SESS-02**: Prompt history, thread/session lists, and export flows work under the new package namespace
+- [ ] **SESS-03**: Session persistence records enough metadata for resume, inspection, and cleanup
 
-### UX Polish
+### Migration and Retirement
 
-- [ ] **UX-01**: Add full-screen semi-transparent background mask to Permission Dialog
-- [ ] **UX-02**: Remove all `console.error` debug logs from production code (app.ts, binding.ts)
-- [ ] **UX-03**: Display `agentInfo.name`/`agentInfo.title` from initialize response in BottomGrid
-- [ ] **UX-04**: Fix Markdown paragraph merging — consecutive non-empty lines form one paragraph
-- [ ] **UX-05**: Fix Markdown heading prefix rendering (currently all empty strings)
+- [ ] **MIG-01**: The codebase clearly identifies which `flitter-amp` modules are migrated, adapted, or dropped for `flitter-cli`
+- [ ] **MIG-02**: `flitter-amp` is removed from the active product path so new development and usage center on `flitter-cli`
+- [ ] **MIG-03**: Tests cover migration-critical behavior, including startup, turn rendering, persistence, and retirement/cleanup paths
 
-## Deferred (v0.3.0+)
+## v0.4.0+ Requirements
 
-- **DEFER-01**: $EDITOR integration (Ctrl+G) — requires WidgetsBinding.suspend()/resume()
-- **DEFER-02**: Prompt history injection (Ctrl+R) — requires TextEditingController exposure
-- **DEFER-03**: @file mentions / FilePicker — requires file list data source
-- **DEFER-04**: Session persistence — save/restore conversation threads
-- **DEFER-05**: Reconnection on agent crash — auto-restart agent process
-- **DEFER-06**: authenticate() flow for agents that require auth
-- **DEFER-07**: Virtual list for long conversations (performance)
-- **DEFER-08**: StickyHeader stack coordination (multiple headers overlapping)
-- **DEFER-09**: Nested tool call rendering (sa__*/tb__* subagent tools)
+### Extended Parity
+
+- **PAR-01**: Add advanced workflows discovered later in the reverse-engineered source but not required for the first native milestone
+- **PAR-02**: Add performance tuning for long transcripts and heavier tool output after baseline parity lands
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| LLM API calls | The ACP agent handles all LLM communication |
-| Agent implementation | We only implement the client side |
-| Mobile/web UI | Terminal only |
-| Plugin system | Direct implementation, no extensibility for v0.2 |
-| Image rendering | No Kitty graphics protocol for v0.2 |
-| OAuth/SSO | Deferred until agents require it |
+| Keeping ACP bridge architecture as the final runtime | Directly conflicts with the milestone goal |
+| Running `flitter-amp` and `flitter-cli` as equal long-term products | Creates split product direction and duplicated maintenance |
+| Web or desktop GUI surface | Terminal-first product remains the focus |
+| Plugin architecture before parity | Adds abstraction before the baseline product exists |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PROTO-01 | Phase 7 | Pending |
-| PROTO-02 | Phase 7 | Pending |
-| PROTO-03 | Phase 7 | Pending |
-| PROTO-04 | Phase 7 | Pending |
-| PROTO-05 | Phase 7 | Pending |
-| PROTO-06 | Phase 7 | Pending |
-| PROTO-07 | Phase 7 | Pending |
-| SCROLL-01 | Phase 8 | Pending |
-| SCROLL-02 | Phase 8 | Pending |
-| SCROLL-03 | Phase 8 | Pending |
-| SCROLL-04 | Phase 8 | Pending |
-| STREAM-01 | Phase 9 | Pending |
-| STREAM-02 | Phase 9 | Pending |
-| STREAM-03 | Phase 9 | Pending |
-| STREAM-04 | Phase 9 | Pending |
-| TOOL-01 | Phase 10 | Pending |
-| TOOL-02 | Phase 10 | Pending |
-| TOOL-03 | Phase 10 | Pending |
-| TOOL-04 | Phase 10 | Pending |
-| UX-01 | Phase 11 | Pending |
-| UX-02 | Phase 11 | Pending |
-| UX-03 | Phase 11 | Pending |
-| UX-04 | Phase 11 | Pending |
-| UX-05 | Phase 11 | Pending |
+| CLI-01 | Phase 12 | Pending |
+| CLI-02 | Phase 12 | Pending |
+| CLI-03 | Phase 12 | Pending |
+| CLI-04 | Phase 12 | Pending |
+| TUI-01 | Phase 13 | Pending |
+| TUI-02 | Phase 13 | Pending |
+| TUI-03 | Phase 13 | Pending |
+| TUI-04 | Phase 13 | Pending |
+| TOOL-01 | Phase 14 | Pending |
+| TOOL-02 | Phase 14 | Pending |
+| TOOL-03 | Phase 14 | Pending |
+| TOOL-04 | Phase 14 | Pending |
+| SESS-01 | Phase 15 | Pending |
+| SESS-02 | Phase 15 | Pending |
+| SESS-03 | Phase 15 | Pending |
+| MIG-01 | Phase 16 | Pending |
+| MIG-02 | Phase 16 | Pending |
+| MIG-03 | Phase 16 | Pending |
 
 **Coverage:**
-- v0.2.0 requirements: 25 total
-- Mapped to phases: 25
+- v0.3.0 requirements: 18 total
+- Mapped to phases: 18
 - Unmapped: 0 ✓
 
 ---
-*Requirements defined: 2026-03-27*
-*Last updated: 2026-03-27 after v0.2.0 milestone initialization*
+*Requirements defined: 2026-04-03*
+*Last updated: 2026-04-03 after v0.3.0 milestone initialization*

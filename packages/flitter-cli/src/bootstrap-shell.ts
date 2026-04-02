@@ -9,19 +9,35 @@ import { Column } from '../../flitter-core/src/widgets/flex';
 import { FocusScope } from '../../flitter-core/src/widgets/focus-scope';
 import { Padding } from '../../flitter-core/src/widgets/padding';
 import { Text } from '../../flitter-core/src/widgets/text';
+import type { AppState } from './state/app-state';
 
+/** Props for the bootstrap shell, now including session-aware AppState. */
 interface BootstrapShellProps {
   cwd: string;
   configPath: string;
   logPath: string | null;
+  /** Top-level application state for session-aware rendering. */
+  appState: AppState;
 }
 
+/**
+ * BootstrapShell — the initial TUI shell for flitter-cli.
+ *
+ * Displays session lifecycle state, model, and cwd. Handles Ctrl+C to
+ * cancel in-flight prompts or exit, and Esc/q to exit.
+ */
 class BootstrapShell extends FocusScope {
   constructor(props: BootstrapShellProps) {
+    const { appState } = props;
     super({
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => {
         if (event.ctrlKey && event.key.toLowerCase() === 'c') {
+          // If processing, cancel the prompt; otherwise exit
+          if (appState.isProcessing) {
+            appState.cancelPrompt();
+            return 'handled';
+          }
           WidgetsBinding.instance.stop();
           return 'handled';
         }
@@ -40,7 +56,7 @@ class BootstrapShell extends FocusScope {
             children: [
               new Text({
                 text: new TextSpan({
-                  text: 'flitter-cli bootstrap shell',
+                  text: 'flitter-cli',
                   style: new TextStyle({
                     bold: true,
                     foreground: Color.cyan,
@@ -49,9 +65,17 @@ class BootstrapShell extends FocusScope {
               }),
               new Text({
                 text: new TextSpan({
-                  text: 'Phase 12 scaffold is active.',
+                  text: `lifecycle: ${appState.lifecycle}`,
                   style: new TextStyle({
                     foreground: Color.defaultColor,
+                  }),
+                }),
+              }),
+              new Text({
+                text: new TextSpan({
+                  text: `model: ${appState.metadata.model}`,
+                  style: new TextStyle({
+                    foreground: Color.blue,
                   }),
                 }),
               }),
@@ -81,7 +105,7 @@ class BootstrapShell extends FocusScope {
               }),
               new Text({
                 text: new TextSpan({
-                  text: 'Ctrl+C / Esc / q to exit',
+                  text: 'Ctrl+C to cancel/exit | Esc/q to exit',
                   style: new TextStyle({
                     foreground: Color.brightBlack,
                     dim: true,
@@ -96,6 +120,7 @@ class BootstrapShell extends FocusScope {
   }
 }
 
+/** Start the bootstrap shell TUI with session-aware AppState. */
 export async function startBootstrapShell(props: BootstrapShellProps): Promise<WidgetsBinding> {
   return runApp(new BootstrapShell(props), {
     output: process.stdout,

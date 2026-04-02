@@ -9,6 +9,10 @@ interface UserConfig {
   editor?: string;
   logLevel?: LogLevel;
   logRetentionDays?: number;
+  /** Anthropic API key (alternative to ANTHROPIC_API_KEY env var). */
+  apiKey?: string;
+  /** Model identifier override. */
+  model?: string;
 }
 
 export interface AppConfig {
@@ -16,6 +20,10 @@ export interface AppConfig {
   editor: string;
   logLevel: LogLevel;
   logRetentionDays: number;
+  /** API key resolved from config, then ANTHROPIC_API_KEY env var, then null. */
+  apiKey: string | null;
+  /** Model identifier. Defaults to claude-sonnet-4-20250514. */
+  model: string;
 }
 
 export function getUserConfigPath(): string {
@@ -40,6 +48,7 @@ export function parseArgs(argv: string[]): AppConfig {
   let cwd = userConfig.cwd ? resolve(userConfig.cwd) : process.cwd();
   let editor = userConfig.editor || process.env.EDITOR || process.env.VISUAL || 'vi';
   let logLevel: LogLevel = userConfig.logLevel ?? 'info';
+  let model = userConfig.model ?? 'claude-sonnet-4-20250514';
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -61,6 +70,15 @@ export function parseArgs(argv: string[]): AppConfig {
         editor = command;
         break;
       }
+      case '--model': {
+        const id = args[++i];
+        if (!id) {
+          process.stderr.write('Error: --model requires a model identifier argument\n');
+          process.exit(1);
+        }
+        model = id;
+        break;
+      }
       case '--debug':
         logLevel = 'debug';
         break;
@@ -76,30 +94,39 @@ export function parseArgs(argv: string[]): AppConfig {
     }
   }
 
+  // Resolve API key: config.json -> ANTHROPIC_API_KEY env var -> null
+  const apiKey = userConfig.apiKey ?? process.env.ANTHROPIC_API_KEY ?? null;
+
   return {
     cwd,
     editor,
     logLevel,
     logRetentionDays: userConfig.logRetentionDays ?? 7,
+    apiKey,
+    model,
   };
 }
 
 function printHelp(): void {
   process.stderr.write(`
-flitter-cli — Native flitter CLI scaffold
+flitter-cli — Native flitter CLI
 
 Usage: flitter-cli [options]
 
 Options:
   --cwd <dir>      Working directory (default: current directory)
   --editor <cmd>   External editor command (default: $EDITOR / $VISUAL / vi)
+  --model <id>     Model identifier (default: claude-sonnet-4-20250514)
   --debug          Enable debug logging
   --help, -h       Show help message
+
+Environment:
+  ANTHROPIC_API_KEY   API key for the Anthropic provider
 
 Examples:
   flitter-cli
   flitter-cli --cwd /path/to/project
-  flitter-cli --editor nvim
-  flitter-cli --debug
+  flitter-cli --model claude-sonnet-4-20250514
+  flitter-cli --editor nvim --debug
 `);
 }

@@ -15,8 +15,17 @@ export interface ConnectionHandle {
   capabilities: acp.AgentCapabilities | undefined;
   agentInfo: Implementation | null | undefined;
   sessionId: string;
-  /** Precomputed: whether the agent advertises session.close capability */
   supportsCloseSession: boolean;
+}
+
+export function nullifyHandle(handle: ConnectionHandle): void {
+  const h = handle as unknown as Record<string, unknown>;
+  h.connection = null;
+  h.client = null;
+  h.agent = null;
+  h.capabilities = undefined;
+  h.agentInfo = null;
+  h.sessionId = '';
 }
 
 /**
@@ -208,7 +217,7 @@ export async function connectToAgentWithResume(
   cwd: string,
   callbacks: ClientCallbacks,
   resumeSessionId: string,
-): Promise<ConnectionHandle> {
+): Promise<ConnectionHandle & { resumeFailed: boolean }> {
   // Steps 1-4 are identical to connectToAgent
   const agent = spawnAgent(agentCommand, agentArgs, cwd);
   const stream = acp.ndJsonStream(agent.stdin, agent.stdout);
@@ -241,20 +250,23 @@ export async function connectToAgentWithResume(
 
   // Step 5: Try loadSession, fall back to newSession
   let sessionId: string;
+  let resumeFailed = false;
 
   try {
     log.info(`Attempting to load session: ${resumeSessionId}`);
     const loadResponse = await withTimeout(
       connection.loadSession({
         sessionId: resumeSessionId,
+        cwd,
+        mcpServers: [],
       }),
       15_000,
       'loadSession',
     );
-    sessionId = loadResponse.sessionId;
+    sessionId = resumeSessionId;
     log.info(`Session loaded successfully: ${sessionId}`);
   } catch (err) {
-    // Agent does not support loadSession or session not found
+    resumeFailed = true;
     log.warn(`loadSession failed, falling back to newSession: ${err}`);
     try {
       const sessionResponse = await withTimeout(
@@ -278,5 +290,6 @@ export async function connectToAgentWithResume(
     agentInfo: initResponse.agentInfo,
     sessionId,
     supportsCloseSession: supportsCloseSession(initResponse.agentCapabilities),
+    resumeFailed,
   };
 }

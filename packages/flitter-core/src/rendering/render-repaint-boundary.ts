@@ -2,6 +2,7 @@
 // output in a CellLayer. When the subtree is clean, paint() blits the cached
 // cells instead of recursively painting all descendants.
 // Gap R02: RepaintBoundary enhancement per .gap/12-repaint-boundary.md
+// GAP-SUM-016: Registers dirty region on ScreenBuffer when subtree is repainted.
 
 import { RenderBox, type PaintContext as PaintContextInterface } from '../framework/render-object';
 import { CellLayer } from './cell-layer';
@@ -16,7 +17,9 @@ import { PaintContext } from '../scheduler/paint-context';
  * recursively executing paint() on all descendants.
  *
  * When the subtree is dirty, paint() executes normally, then captures
- * the painted cells into the CellLayer for future reuse.
+ * the painted cells into the CellLayer for future reuse. The screen-space
+ * rect is registered as a dirty region on the ScreenBuffer so that
+ * getDiff() only scans the affected rows (GAP-SUM-016).
  */
 export class RenderRepaintBoundary extends RenderBox {
   private _child: RenderBox | null = null;
@@ -48,7 +51,6 @@ export class RenderRepaintBoundary extends RenderBox {
       this.size = this.constraints!.smallest;
     }
 
-    // If size changed, layer cache must be invalidated/resized
     if (this._layer) {
       const w = Math.round(this.size.width);
       const h = Math.round(this.size.height);
@@ -66,7 +68,9 @@ export class RenderRepaintBoundary extends RenderBox {
     const ox = Math.round(offset.col);
     const oy = Math.round(offset.row);
 
-    // FAST PATH: layer is clean and position unchanged -- blit from cache
+    // FAST PATH: layer is clean and position unchanged -- blit from cache.
+    // The blit writes identical cells to what was already in the front buffer
+    // from last frame, so no dirty region is needed for getDiff().
     if (
       this._layer &&
       !this._layer.isDirty &&
@@ -84,12 +88,14 @@ export class RenderRepaintBoundary extends RenderBox {
     // SLOW PATH: layer is dirty or missing -- paint subtree and capture
     this._ensureLayer(w, h);
 
-    // Paint child normally (writes directly to screen buffer back buffer)
     this._child.paint(context, offset.add(this._child.offset));
 
-    // Capture the painted region into the CellLayer for future reuse
     const screen = PaintContext.getScreen(context as PaintContext);
     this._layer!.captureFrom(screen.getBackBuffer(), ox, oy);
+
+    // GAP-SUM-016: Register the repainted region so getDiff() can restrict
+    // scanning to only the affected rows.
+    screen.addDirtyRegion({ x: ox, y: oy, width: w, height: h });
   }
 
   private _ensureLayer(w: number, h: number): void {
@@ -106,7 +112,5 @@ export class RenderRepaintBoundary extends RenderBox {
 
   override detach(): void {
     super.detach();
-    // Layer cache persists across detach/reattach for potential reuse.
-    // It will be invalidated if size changes when re-laid-out.
   }
 }

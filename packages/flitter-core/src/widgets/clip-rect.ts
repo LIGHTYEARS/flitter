@@ -139,19 +139,13 @@ export class RenderClipRect extends RenderBox {
     if (!this._child) return;
 
     // Create a clipped paint context restricted to our bounds
-    const paintContext = context as any;
-    if (typeof paintContext.withClip === 'function') {
-      const clippedContext = paintContext.withClip(
-        offset.col,
-        offset.row,
-        this.size.width,
-        this.size.height,
-      );
-      this._child.paint(clippedContext, offset.add(this._child.offset));
-    } else {
-      // Fallback: paint without clipping if context doesn't support withClip
-      this._child.paint(context, offset.add(this._child.offset));
-    }
+    const clippedContext = context.withClip?.(
+      offset.col,
+      offset.row,
+      this.size.width,
+      this.size.height,
+    ) ?? context;
+    this._child.paint(clippedContext, offset.add(this._child.offset));
   }
 
   visitChildren(visitor: (child: RenderObject) => void): void {

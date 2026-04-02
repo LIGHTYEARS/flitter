@@ -14,6 +14,7 @@
 import type { Widget } from 'flitter-core/src/framework/widget';
 import { Stack, Positioned } from 'flitter-core/src/widgets/stack';
 import { Container } from 'flitter-core/src/widgets/container';
+import { BoxDecoration } from 'flitter-core/src/layout/render-decorated';
 import { Color } from 'flitter-core/src/core/color';
 import type { StateListener } from './app-state';
 
@@ -217,7 +218,7 @@ export class OverlayManager {
             right: 0,
             bottom: 0,
             child: new Container({
-              color: Color.rgb(0, 0, 0).withAlpha(0.6),
+              decoration: new BoxDecoration({ color: Color.rgb(0, 0, 0).withAlpha(0.6) }),
             }),
           }),
         );

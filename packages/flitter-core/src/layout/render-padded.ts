@@ -3,7 +3,6 @@
 // Source: .reference/widgets-catalog.md
 
 import { Offset, Size } from '../core/types';
-import { BoxConstraints } from '../core/box-constraints';
 import { RenderBox, PaintContext } from '../framework/render-object';
 import { EdgeInsets } from './edge-insets';
 
@@ -62,26 +61,17 @@ export class RenderPadding extends RenderBox {
     const v = this._padding.vertical;
 
     if (this._child) {
-      // Deflate constraints by padding
-      const childConstraints = new BoxConstraints({
-        minWidth: Math.max(0, constraints.minWidth - h),
-        maxWidth: Math.max(0, constraints.maxWidth - h),
-        minHeight: Math.max(0, constraints.minHeight - v),
-        maxHeight: Math.max(0, constraints.maxHeight - v),
-      });
+      const childConstraints = constraints.deflate(this._padding);
 
       this._child.layout(childConstraints);
 
-      // Set child offset to padding origin
       this._child.offset = new Offset(this._padding.left, this._padding.top);
 
-      // Self-size = child + padding, constrained
       const result = constraints.constrain(
         new Size(this._child.size.width + h, this._child.size.height + v),
       );
       this.size = result;
     } else {
-      // No child: self-size is just the padding amount, constrained
       const result = constraints.constrain(new Size(h, v));
       this.size = result;
     }

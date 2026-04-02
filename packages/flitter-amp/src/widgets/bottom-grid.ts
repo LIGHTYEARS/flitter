@@ -15,6 +15,45 @@ import { InputArea, type BorderOverlayText } from './input-area';
 import type { AutocompleteTrigger } from 'flitter-core/src/widgets/autocomplete';
 import { icon } from '../ui/icons/icon-registry';
 
+/**
+ * Auto-scale a token count to k/M with 1 decimal place.
+ * Returns a compact human-readable string (e.g. "1.2k", "3.5M", "42").
+ */
+export function formatTokenCount(count: number): string {
+  if (count >= 1_000_000) {
+    return `${(count / 1_000_000).toFixed(1)}M`;
+  }
+  if (count >= 1_000) {
+    return `${(count / 1_000).toFixed(1)}k`;
+  }
+  return `${count}`;
+}
+
+/**
+ * Formats elapsed milliseconds into a compact duration string.
+ * <60s → "12s", ≥60s → "1m 23s", ≥3600s → "1h 2m".
+ */
+function formatElapsed(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  if (min < 60) return `${min}m ${sec}s`;
+  const hr = Math.floor(min / 60);
+  const remainMin = min % 60;
+  return `${hr}h ${remainMin}m`;
+}
+
+/**
+ * Returns threshold color for context window usage percentage.
+ * <50% → blue (dim), 50-80% → yellow, >80% → red.
+ */
+function thresholdColor(percent: number): Color {
+  if (percent > 80) return Color.red;
+  if (percent >= 50) return Color.yellow;
+  return Color.blue;
+}
+
 interface BottomGridProps {
   onSubmit: (text: string) => void;
   isProcessing: boolean;
@@ -32,6 +71,49 @@ interface BottomGridProps {
   skillCount?: number;
   controller?: TextEditingController;
   searchState?: { query: string; isFailing: boolean } | null;
+  inputTokens?: number;
+  outputTokens?: number;
+  contextWindowSize?: number;
+  costUsd?: number;
+  elapsedMs?: number;
+  deepReasoningActive?: boolean;
+  copyHighlight?: boolean;
+  isExecutingCommand?: boolean;
+  isRunningShell?: boolean;
+  isAutoCompacting?: boolean;
+  isHandingOff?: boolean;
+  contextWindowUsagePercent?: number;
+  minAutoContentLines?: number;
+}
+
+export function getFooterText(props: {
+  isProcessing: boolean;
+  isInterrupted: boolean;
+  isExecutingCommand: boolean;
+  isRunningShell: boolean;
+  isAutoCompacting: boolean;
+  isHandingOff: boolean;
+  tokenUsage?: UsageInfo;
+  contextWindowSize: number;
+  contextWindowUsagePercent?: number;
+}): string {
+  if (props.isInterrupted) return 'Stream interrupted';
+  if (props.isExecutingCommand) return 'Executing command...';
+  if (props.isRunningShell) return 'Running shell...';
+  if (props.isAutoCompacting) return 'Auto-compacting context...';
+  if (props.isHandingOff) return 'Handing off to subagent...';
+  if (props.isProcessing) {
+    const usage = props.tokenUsage;
+    const size = usage?.size || props.contextWindowSize;
+    if (usage && size > 0) {
+      const percent = Math.round((usage.used / size) * 100);
+      if (percent > 80) return `High context usage (${percent}%) — consider compacting`;
+    }
+    return 'Streaming response...';
+  }
+  const pct = props.contextWindowUsagePercent ?? 0;
+  if (pct > 80) return `⚠ Context window at ${pct}% — auto-compact recommended`;
+  return '';
 }
 
 export class BottomGrid extends StatefulWidget {
@@ -51,6 +133,19 @@ export class BottomGrid extends StatefulWidget {
   readonly skillCount: number;
   readonly controller: TextEditingController | undefined;
   readonly searchState: { query: string; isFailing: boolean } | null;
+  readonly copyHighlight: boolean;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly contextWindowSize: number;
+  readonly costUsd: number;
+  readonly elapsedMs: number;
+  readonly deepReasoningActive: boolean;
+  readonly isExecutingCommand: boolean;
+  readonly isRunningShell: boolean;
+  readonly isAutoCompacting: boolean;
+  readonly isHandingOff: boolean;
+  readonly contextWindowUsagePercent: number;
+  readonly minAutoContentLines: number;
 
   constructor(props: BottomGridProps) {
     super({});
@@ -70,6 +165,19 @@ export class BottomGrid extends StatefulWidget {
     this.skillCount = props.skillCount ?? 0;
     this.controller = props.controller;
     this.searchState = props.searchState ?? null;
+    this.copyHighlight = props.copyHighlight ?? false;
+    this.inputTokens = props.inputTokens ?? 0;
+    this.outputTokens = props.outputTokens ?? 0;
+    this.contextWindowSize = props.contextWindowSize ?? 0;
+    this.costUsd = props.costUsd ?? 0;
+    this.elapsedMs = props.elapsedMs ?? 0;
+    this.deepReasoningActive = props.deepReasoningActive ?? false;
+    this.isExecutingCommand = props.isExecutingCommand ?? false;
+    this.isRunningShell = props.isRunningShell ?? false;
+    this.isAutoCompacting = props.isAutoCompacting ?? false;
+    this.isHandingOff = props.isHandingOff ?? false;
+    this.contextWindowUsagePercent = props.contextWindowUsagePercent ?? 0;
+    this.minAutoContentLines = props.minAutoContentLines ?? 1;
   }
 
   createState(): BottomGridState {
@@ -131,6 +239,7 @@ class BottomGridState extends State<BottomGrid> {
       skillCount: w.skillCount,
       overlayTexts,
       controller: w.controller,
+      minAutoContentLines: w.minAutoContentLines,
     });
 
     const children: Widget[] = [];
@@ -165,6 +274,18 @@ class BottomGridState extends State<BottomGrid> {
    * When interrupted: warning icon + "Response interrupted" in yellow.
    */
   private buildTopLeft(w: BottomGrid, mutedColor: Color, _fgColor: Color): Widget {
+    const footerText = getFooterText({
+      isProcessing: w.isProcessing,
+      isInterrupted: w.isInterrupted,
+      isExecutingCommand: w.isExecutingCommand,
+      isRunningShell: w.isRunningShell,
+      isAutoCompacting: w.isAutoCompacting,
+      isHandingOff: w.isHandingOff,
+      tokenUsage: w.tokenUsage,
+      contextWindowSize: w.contextWindowSize,
+      contextWindowUsagePercent: w.contextWindowUsagePercent,
+    });
+
     if (w.isInterrupted) {
       return new Text({
         text: new TextSpan({
@@ -174,7 +295,7 @@ class BottomGridState extends State<BottomGrid> {
               style: new TextStyle({ foreground: Color.yellow }),
             }),
             new TextSpan({
-              text: 'Response interrupted',
+              text: footerText || 'Response interrupted',
               style: new TextStyle({ foreground: Color.yellow }),
             }),
           ],
@@ -184,10 +305,10 @@ class BottomGridState extends State<BottomGrid> {
 
     if (w.isProcessing) {
       const statusText = w.tokenUsage
-        ? this.formatUsageDisplay(w.tokenUsage, mutedColor)
+        ? this.formatUsageDisplay(w, mutedColor)
         : new Text({
             text: new TextSpan({
-              text: 'Streaming...',
+              text: footerText || 'Streaming...',
               style: new TextStyle({ foreground: mutedColor, dim: true }),
             }),
           });
@@ -210,24 +331,60 @@ class BottomGridState extends State<BottomGrid> {
   }
 
   /**
-   * Formats token usage info into a Text widget.
+   * Formats token usage into a rich Text widget with threshold coloring.
+   * Format: "{percent}% of {formatted}k · ${cost} · {elapsed}"
    */
-  private formatUsageDisplay(usage: UsageInfo, mutedColor: Color): Widget {
-    const used = this.formatTokenCount(usage.used);
-    const size = this.formatTokenCount(usage.size);
-    let display = `${used} / ${size}`;
-    if (usage.cost) {
-      display += ` · ${usage.cost.currency}${usage.cost.amount.toFixed(4)}`;
-    }
-    return new Text({
-      text: new TextSpan({
-        text: display,
+  private formatUsageDisplay(w: BottomGrid, mutedColor: Color): Widget {
+    const usage = w.tokenUsage!;
+    const used = usage.used;
+    const size = usage.size || w.contextWindowSize;
+    const percent = size > 0 ? Math.round((used / size) * 100) : 0;
+    const formattedSize = formatTokenCount(size);
+    const color = thresholdColor(percent);
+
+    const spans: TextSpan[] = [];
+
+    spans.push(new TextSpan({
+      text: `${percent}%`,
+      style: new TextStyle({ foreground: color, dim: percent < 50 }),
+    }));
+
+    spans.push(new TextSpan({
+      text: ` of ${formattedSize}`,
+      style: new TextStyle({ foreground: mutedColor, dim: true }),
+    }));
+
+    const cost = w.costUsd || (usage.cost?.amount ?? 0);
+    if (cost > 0) {
+      const currency = usage.cost?.currency ?? '$';
+      spans.push(new TextSpan({
+        text: ` · ${currency}${cost.toFixed(4)}`,
         style: new TextStyle({ foreground: mutedColor, dim: true }),
-      }),
+      }));
+    }
+
+    if (w.elapsedMs > 0) {
+      spans.push(new TextSpan({
+        text: ` · ${formatElapsed(w.elapsedMs)}`,
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
+      }));
+    }
+
+    return new Text({
+      text: new TextSpan({ children: spans }),
     });
   }
 
   private buildBottomLeft(w: BottomGrid, mutedColor: Color, keybindColor: Color): Widget | null {
+    if (w.copyHighlight) {
+      return new Text({
+        text: new TextSpan({
+          text: 'Copied!',
+          style: new TextStyle({ foreground: Color.green, bold: true }),
+        }),
+      });
+    }
+
     // Gap 64: Search mode indicator takes priority
     if (w.searchState) {
       const prefix = w.searchState.isFailing
@@ -332,15 +489,5 @@ class BottomGridState extends State<BottomGrid> {
       return '~' + fullPath.slice(home.length);
     }
     return fullPath;
-  }
-
-  private formatTokenCount(count: number): string {
-    if (count >= 1_000_000) {
-      return `${(count / 1_000_000).toFixed(1)}M`;
-    }
-    if (count >= 1_000) {
-      return `${(count / 1_000).toFixed(1)}k`;
-    }
-    return `${count}`;
   }
 }

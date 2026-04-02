@@ -35,6 +35,10 @@ export class FlexParentData extends BoxParentData {
     this.flex = flex;
     this.fit = fit;
   }
+
+  toString(): string {
+    return `FlexParentData(flex: ${this.flex}, fit: ${this.fit})`;
+  }
 }
 
 // ---------------------------------------------------------------------------

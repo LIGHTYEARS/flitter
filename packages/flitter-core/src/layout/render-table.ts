@@ -218,7 +218,7 @@ export class RenderTable extends ContainerRenderBox {
               minWidth: 0,
               maxWidth: availableWidth,
               minHeight: 0,
-              maxHeight: Number.isFinite(constraints.maxHeight) ? constraints.maxHeight : 1000,
+              maxHeight: Number.isFinite(constraints.maxHeight) ? constraints.maxHeight : Infinity,
             }));
             maxW = Math.max(maxW, child.size.width - pad2);
           }

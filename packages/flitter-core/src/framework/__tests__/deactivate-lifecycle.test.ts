@@ -699,9 +699,11 @@ describe('RenderObjectElement deactivate/activate', () => {
     const element = new RenderObjectElement(widget);
 
     let attachCalled = false;
+    const mockOwner = {};
     element._renderObject = {
       detach: () => {},
       attach: () => { attachCalled = true; },
+      owner: mockOwner,
     };
 
     element.markMounted();

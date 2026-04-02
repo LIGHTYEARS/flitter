@@ -5,6 +5,7 @@
 // - linear: no easing (backward compatible with existing animations)
 // - easeIn: quadratic ease-in (accelerating)
 // - easeOut: quadratic ease-out (decelerating)
+// - easeOutCubic: cubic ease-out (smoother deceleration for scroll)
 // - easeInOut: cubic ease-in-out (smooth start and end)
 // - decelerate: deceleration curve (for scroll fling)
 //
@@ -54,6 +55,14 @@ class EaseInCurve extends Curve {
 class EaseOutCurve extends Curve {
   transform(t: number): number {
     return t * (2 - t);
+  }
+}
+
+/** Cubic ease-out: starts fast, decelerates smoothly. t' = 1 - (1-t)^3 */
+class EaseOutCubicCurve extends Curve {
+  transform(t: number): number {
+    const inv = 1 - t;
+    return 1 - inv * inv * inv;
   }
 }
 
@@ -135,6 +144,9 @@ export const Curves = {
 
   /** Quadratic ease-out. Useful for entry animations (decelerating into place). */
   easeOut: new EaseOutCurve() as Curve,
+
+  /** Cubic ease-out. Default for scroll animations — smoother deceleration. */
+  easeOutCubic: new EaseOutCubicCurve() as Curve,
 
   /** Cubic ease-in-out. Useful for bidirectional animations. */
   easeInOut: new EaseInOutCurve() as Curve,

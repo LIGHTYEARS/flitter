@@ -16,6 +16,16 @@ import { AmpThemeProvider } from '../../themes/index';
 import type { ToolCallItem } from '../../acp/types';
 import { toolStatusIcon } from '../../ui/icons/icon-registry';
 
+const MAX_DETAIL_LENGTH = 80;
+
+function normalizeInput(input: string): string {
+  let normalized = input.replace(/\s+/g, ' ').trim();
+  if (normalized.length > MAX_DETAIL_LENGTH) {
+    normalized = normalized.slice(0, MAX_DETAIL_LENGTH - 1) + '\u2026';
+  }
+  return normalized;
+}
+
 interface ToolHeaderProps {
   name: string;
   status: ToolCallItem['status'];
@@ -28,14 +38,14 @@ interface ToolHeaderProps {
  * Renders the header row for a tool call:
  *   [status icon] [ToolName bold] [detail1 detail2 ...dim] [BrailleSpinner if in-progress]
  *
- * Uses StatefulWidget to drive BrailleSpinner animation at ~200ms per frame
- * when toolCall.status === 'in_progress'.
- *
- * Uses AmpThemeProvider for status colors:
- *   in-progress → app.toolRunning
- *   pending     → app.waiting
- *   completed   → app.toolSuccess
- *   failed      → base.destructive
+ * Extended status colors:
+ *   in-progress  -> app.toolRunning (blue)
+ *   pending      -> app.waiting (yellow)
+ *   completed    -> app.toolSuccess (green)
+ *   failed       -> base.destructive (red)
+ *   cancelled    -> base.warning (yellow)
+ *   queued       -> mutedForeground (dim)
+ *   blocked      -> base.destructive (red)
  */
 export class ToolHeader extends StatefulWidget {
   readonly name: string;
@@ -48,7 +58,7 @@ export class ToolHeader extends StatefulWidget {
     super({});
     this.name = props.name;
     this.status = props.status;
-    this.details = props.details ?? [];
+    this.details = (props.details ?? []).map(normalizeInput);
     this.extraChildren = props.children ?? [];
     this.onToggle = props.onToggle;
   }
@@ -82,21 +92,14 @@ class ToolHeaderState extends State<ToolHeader> {
     super.dispose();
   }
 
-  /**
-   * Starts the BrailleSpinner animation at ~200ms per frame.
-   * Amp ref: README section 11.1 -- stepped every 200ms
-   */
   private startSpinner(): void {
     this.timer = setInterval(() => {
       this.setState(() => {
         this.spinner.step();
       });
-    }, 200);  // Amp ref: braille spinner stepped every 200ms (README section 11.1)
+    }, 200);
   }
 
-  /**
-   * Stops the BrailleSpinner animation interval.
-   */
   private stopSpinner(): void {
     if (this.timer) {
       clearInterval(this.timer);
@@ -106,20 +109,19 @@ class ToolHeaderState extends State<ToolHeader> {
 
   build(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
-
     const statusColor = this.getStatusColor(theme);
     const toolNameColor = theme?.app.toolName ?? Color.cyan;
-
     const statusIcon = toolStatusIcon(this.widget.status);
+    const statusDim = (this.widget.status as string) === 'queued';
 
     const spans: TextSpan[] = [
       new TextSpan({
         text: `${statusIcon} `,
-        style: new TextStyle({ foreground: statusColor }),
+        style: new TextStyle({ foreground: statusColor, dim: statusDim }),
       }),
       new TextSpan({
         text: this.widget.name,
-        style: new TextStyle({ foreground: toolNameColor, bold: true }),
+        style: new TextStyle({ foreground: toolNameColor, bold: true, dim: statusDim }),
       }),
     ];
 
@@ -161,14 +163,27 @@ class ToolHeaderState extends State<ToolHeader> {
     return result;
   }
 
+  /**
+   * Maps tool status to the appropriate color.
+   * Extended: cancelled=yellow, queued=dim/muted, blocked=red.
+   */
   private getStatusColor(theme: ReturnType<typeof AmpThemeProvider.maybeOf>): Color {
-    switch (this.widget.status) {
+    const status = this.widget.status as string;
+    switch (status) {
       case 'completed':
         return theme?.app.toolSuccess ?? Color.green;
       case 'failed':
+      case 'blocked':
+      case 'blocked-on-user':
         return theme?.base.destructive ?? Color.red;
+      case 'cancelled':
+      case 'cancellation-requested':
+      case 'rejected-by-user':
+        return theme?.base.warning ?? Color.yellow;
       case 'in_progress':
         return theme?.app.toolRunning ?? Color.blue;
+      case 'queued':
+        return theme?.base.mutedForeground ?? Color.brightBlack;
       case 'pending':
       default:
         return theme?.app.waiting ?? Color.yellow;

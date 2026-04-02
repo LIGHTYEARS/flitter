@@ -227,9 +227,8 @@ class FocusScopeState extends State<FocusScope> {
   private _registerNode(): void {
     let parentFocusNode: FocusNode | null = null;
 
-    const ctx = this.context as any;
-    if (typeof ctx.findAncestorStateOfType === 'function') {
-      const ancestorState = ctx.findAncestorStateOfType(FocusScopeState);
+    if (typeof this.context.findAncestorStateOfType === 'function') {
+      const ancestorState = this.context.findAncestorStateOfType(FocusScopeState);
       if (ancestorState && ancestorState instanceof FocusScopeState) {
         parentFocusNode = ancestorState.effectiveFocusNode;
       }

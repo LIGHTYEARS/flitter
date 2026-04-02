@@ -5,7 +5,7 @@
 // CRITICAL Amp fidelity notes:
 // - Uses Set (not List) for dirty elements — auto-dedup
 // - Rebuild loop uses while loop for cascading dirtying (not for loop)
-// - buildScopes() sorts by depth (parents before children)
+// - buildScopes() uses min-heap by depth (parents before children)
 // - performRebuild() is called, then _dirty is cleared (even on error)
 
 import { Element } from './element';
@@ -13,6 +13,98 @@ import { GlobalKey } from '../core/key';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
 import { debugFlags } from '../diagnostics/debug-flags';
 import { pipelineLog } from '../diagnostics/pipeline-debug';
+
+// ---------------------------------------------------------------------------
+// _ElementMinHeap — binary min-heap keyed by Element.depth
+//
+// Replaces Array.sort() in buildScope() to avoid O(n log n) per frame.
+// Heap construction via heapify is O(n); each extract-min is O(log n).
+// For cascading dirtying (elements added mid-rebuild), new elements are
+// inserted in O(log n) rather than requiring a full re-sort.
+// ---------------------------------------------------------------------------
+
+class _ElementMinHeap {
+  private _heap: Element[] = [];
+
+  get length(): number {
+    return this._heap.length;
+  }
+
+  /** Insert an element into the heap. O(log n). */
+  insert(element: Element): void {
+    const heap = this._heap;
+    heap.push(element);
+    this._siftUp(heap.length - 1);
+  }
+
+  /** Remove and return the element with the smallest depth. O(log n). */
+  extractMin(): Element {
+    const heap = this._heap;
+    const min = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      this._siftDown(0);
+    }
+    return min;
+  }
+
+  /** Build heap from an array in-place. O(n). */
+  static fromArray(elements: Element[]): _ElementMinHeap {
+    const h = new _ElementMinHeap();
+    h._heap = elements;
+    const n = elements.length;
+    for (let i = (n >> 1) - 1; i >= 0; i--) {
+      h._siftDown(i);
+    }
+    return h;
+  }
+
+  /** Reset the heap for reuse. */
+  clear(): void {
+    this._heap.length = 0;
+  }
+
+  private _siftUp(i: number): void {
+    const heap = this._heap;
+    const el = heap[i];
+    const elDepth = el.depth;
+    while (i > 0) {
+      const parentIdx = (i - 1) >> 1;
+      const parent = heap[parentIdx];
+      if (elDepth >= parent.depth) break;
+      heap[i] = parent;
+      i = parentIdx;
+    }
+    heap[i] = el;
+  }
+
+  private _siftDown(i: number): void {
+    const heap = this._heap;
+    const n = heap.length;
+    const el = heap[i];
+    const elDepth = el.depth;
+    const half = n >> 1;
+    while (i < half) {
+      let childIdx = (i << 1) + 1;
+      let child = heap[childIdx];
+      let childDepth = child.depth;
+      const rightIdx = childIdx + 1;
+      if (rightIdx < n) {
+        const rightDepth = heap[rightIdx].depth;
+        if (rightDepth < childDepth) {
+          childIdx = rightIdx;
+          child = heap[rightIdx];
+          childDepth = rightDepth;
+        }
+      }
+      if (elDepth <= childDepth) break;
+      heap[i] = child;
+      i = childIdx;
+    }
+    heap[i] = el;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // GlobalKeyRegistry — tracks GlobalKey -> Element associations
@@ -27,7 +119,7 @@ export class GlobalKeyRegistry {
     if (this._registry.has(keyStr)) {
       throw new Error(
         `GlobalKey ${keyStr} is already associated with an element. ` +
-          `Each GlobalKey can only be used once in the widget tree.`,
+        `Each GlobalKey can only be used once in the widget tree.`,
       );
     }
     this._registry.set(keyStr, element);
@@ -110,9 +202,9 @@ export class BuildOwner {
   /**
    * Process all dirty elements in depth-first order.
    *
-   * From Amp: sorts by depth, uses while loop for cascading dirtying.
-   * - Snapshot the dirty set, clear it, sort by depth
-   * - Rebuild each element (performRebuild + clear dirty flag)
+   * From Amp: uses min-heap by depth, while loop for cascading dirtying.
+   * - Snapshot the dirty set into a min-heap (O(n) heapify), clear set
+   * - Extract-min and rebuild each element (parents before children)
    * - If rebuilds added new dirty elements, loop again
    *
    * Amp ref: NB0.buildScopes()
@@ -128,14 +220,14 @@ export class BuildOwner {
       // Amp: while (this._dirtyElements.size > 0)
       const dirtyCount = this._dirtyElements.size;
       while (this._dirtyElements.size > 0) {
-        const elements = Array.from(this._dirtyElements);
+        // Build a min-heap from dirty elements keyed by depth — O(n) heapify
+        // replaces previous O(n log n) Array.sort()
+        const heap = _ElementMinHeap.fromArray(Array.from(this._dirtyElements));
         this._dirtyElements.clear();
 
-        // Sort by depth — parents (shallowest) rebuild before children
-        // Amp ref: b.sort((s, a) => s.depth - a.depth)
-        elements.sort((a, b) => a.depth - b.depth);
-
-        for (const element of elements) {
+        // Extract-min loop: parents (shallowest) rebuild before children
+        while (heap.length > 0) {
+          const element = heap.extractMin();
           if (element.dirty) {
             try {
               element.performRebuild();
@@ -165,6 +257,9 @@ export class BuildOwner {
         pipelineLog('BUILD', `dirty=${dirtyCount} rebuilt=${rebuiltCount}`);
       }
     } finally {
+      if (debugFlags.debugMode) {
+        Element._debugBuildPhase = false;
+      }
       this._recordBuildStats(performance.now() - startTime, rebuiltCount);
       this._building = false;
     }

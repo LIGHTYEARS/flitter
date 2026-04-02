@@ -296,7 +296,7 @@ class RingBuffer<T> {
 export class DebugInspector {
   private static _instance: DebugInspector | null = null;
 
-  private _server: any = null;
+  private _server: ReturnType<typeof Bun.serve> | null = null;
   private _port: number;
   private _enabled: boolean = false;
   private _selectedElementId: number | null = null;
@@ -491,9 +491,10 @@ export class DebugInspector {
             { status: 404, headers },
           );
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Internal server error';
       return new Response(
-        JSON.stringify({ error: e.message || 'Internal server error' }),
+        JSON.stringify({ error: message }),
         { status: 500, headers },
       );
     }

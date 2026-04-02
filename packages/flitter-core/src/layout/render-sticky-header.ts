@@ -100,9 +100,8 @@ export class RenderStickyHeader extends ContainerRenderBox {
       if ((offset.row + totalH) - viewTop < headerH) {
         pinnedY = (offset.row + totalH) - headerH;
       }
-      const paintCtx = context as any;
-      if (typeof paintCtx.fillRect === 'function') {
-        paintCtx.fillRect(clip.left, pinnedY, clip.width, headerH, ' ');
+      if (typeof context.fillRect === 'function') {
+        context.fillRect(clip.left, pinnedY, clip.width, headerH, ' ');
       }
       header.paint(context, new Offset(offset.col + header.offset.col, pinnedY));
     } else {
@@ -116,7 +115,7 @@ export class RenderStickyHeader extends ContainerRenderBox {
    * (has protected clipX/Y/W/H fields accessible via cast).
    */
   private _getCurrentClip(context: PaintContext): Rect | null {
-    const ctx = context as any;
+    const ctx = context as unknown as { clip?: Rect; clipX?: number; clipY?: number; clipW?: number; clipH?: number };
     if (ctx.clip instanceof Rect) {
       return ctx.clip;
     }

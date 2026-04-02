@@ -13,6 +13,10 @@ import type { KeyEvent, KeyEventResult, MouseEvent as TuiMouseEvent } from '../i
 import { FocusNode } from '../input/focus';
 import { Text } from './text';
 import { FocusScope } from './focus-scope';
+import { Theme } from './theme';
+
+/** Cursor blink half-period in milliseconds. */
+const CURSOR_BLINK_INTERVAL_MS = 530;
 
 // ---------------------------------------------------------------------------
 // Word boundary helpers
@@ -588,6 +592,7 @@ export class TextEditingController extends ChangeNotifier {
  * - Selection (Shift+arrows, Ctrl+A, Ctrl+Shift+Left/Right)
  * - Mouse: click to place cursor, double-click to select word, drag to select
  * - Renders via Text widget with TextSpan for consistent rendering
+ * - Cursor blink (530ms interval), reset on input
  */
 export class TextField extends StatefulWidget {
   readonly controller?: TextEditingController;
@@ -644,8 +649,8 @@ export class TextField extends StatefulWidget {
 }
 
 /**
- * State for TextField. Manages the controller lifecycle and builds
- * a Text widget representation of the input content.
+ * State for TextField. Manages the controller lifecycle, cursor blink timer,
+ * and builds a Text widget representation of the input content.
  */
 class TextFieldState extends State<TextField> {
   private _controller!: TextEditingController;
@@ -658,6 +663,10 @@ class TextFieldState extends State<TextField> {
   private _lastClickPos: number = -1;
   private _isDragging: boolean = false;
   private _dragAnchor: number = -1;
+
+  // Cursor blink state
+  private _cursorVisible: boolean = true;
+  private _blinkTimer: ReturnType<typeof setInterval> | null = null;
 
   initState(): void {
     super.initState();
@@ -682,10 +691,46 @@ class TextFieldState extends State<TextField> {
     }
     this._focusNode.onKey = this._handleKeyEvent;
     this._focusNode.onPaste = this._handlePaste;
+
+    this._startBlinkTimer();
+  }
+
+  /**
+   * Start (or restart) the cursor blink interval timer.
+   * Each tick toggles _cursorVisible and triggers a rebuild.
+   */
+  private _startBlinkTimer(): void {
+    this._stopBlinkTimer();
+    this._cursorVisible = true;
+    this._blinkTimer = setInterval(() => {
+      this._cursorVisible = !this._cursorVisible;
+      if (this.mounted) {
+        this.setState();
+      }
+    }, CURSOR_BLINK_INTERVAL_MS);
+  }
+
+  /** Stop the blink timer if running. */
+  private _stopBlinkTimer(): void {
+    if (this._blinkTimer !== null) {
+      clearInterval(this._blinkTimer);
+      this._blinkTimer = null;
+    }
+  }
+
+  /**
+   * Reset blink: make cursor visible and restart timer.
+   * Called on every input/controller change so the cursor stays visible
+   * while the user is actively typing.
+   */
+  private _resetBlink(): void {
+    this._cursorVisible = true;
+    this._startBlinkTimer();
   }
 
   private _onControllerChanged = (): void => {
     if (this.mounted) {
+      this._resetBlink();
       this.setState();
       this.widget.onChanged?.(this._controller.text);
     }
@@ -726,6 +771,7 @@ class TextFieldState extends State<TextField> {
   }
 
   dispose(): void {
+    this._stopBlinkTimer();
     this._controller.removeListener(this._onControllerChanged);
     if (this._ownsController) {
       this._controller.dispose();
@@ -1098,6 +1144,13 @@ class TextFieldState extends State<TextField> {
     return this._focusNode;
   }
 
+  /**
+   * Build the Text widget tree for this text field.
+   *
+   * W6-11: selectionColor falls back to theme.selectionBackground when
+   *        neither the widget prop nor the explicit selectionColor is set.
+   * W6-12: cursor character is hidden when _cursorVisible is false (blink off).
+   */
   build(_context: BuildContext): Widget {
     const text = this._controller.text;
     const cursorPos = this._controller.cursorPosition;
@@ -1105,8 +1158,14 @@ class TextFieldState extends State<TextField> {
     const selStart = this._controller.selectionStart;
     const selEnd = this._controller.selectionEnd;
     const baseStyle = this.widget.style ?? new TextStyle();
-    const selectionColor = this.widget.selectionColor ?? Color.rgb(50, 50, 180);
+
+    const themeData = Theme.maybeOf(_context);
+    const selectionColor = this.widget.selectionColor
+      ?? themeData?.selectionBackground
+      ?? Color.rgb(50, 50, 180);
+
     const cursorChar = this.widget.cursorChar ?? '\u2502';
+    const showCursor = this._cursorVisible;
 
     // Build display text with cursor indicator
     let displayText: string;
@@ -1114,13 +1173,13 @@ class TextFieldState extends State<TextField> {
       // Show placeholder or cursor
       displayText = this.widget.placeholder ?? '';
       if (displayText.length === 0) {
-        displayText = cursorChar;
+        displayText = showCursor ? cursorChar : ' ';
       }
     } else {
-      // Insert cursor indicator at position
+      // Insert cursor indicator at position (or nothing when blink is off)
       const before = text.slice(0, cursorPos);
       const after = text.slice(cursorPos);
-      displayText = before + cursorChar + after;
+      displayText = before + (showCursor ? cursorChar : '') + after;
     }
 
     // Build TextSpan with selection highlighting
@@ -1134,7 +1193,8 @@ class TextFieldState extends State<TextField> {
       // The cursor is at cursorPos in the original text.
       // In displayText: positions before cursorPos are the same,
       // the cursor char is at cursorPos, positions after shift by 1.
-      const adjustSel = (pos: number) => pos <= cursorPos ? pos : pos + 1;
+      const cursorOffset = showCursor ? 1 : 0;
+      const adjustSel = (pos: number) => pos <= cursorPos ? pos : pos + cursorOffset;
       const adjMin = adjustSel(minSel);
       const adjMax = adjustSel(maxSel);
 

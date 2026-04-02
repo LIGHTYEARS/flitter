@@ -28,6 +28,14 @@ export interface PaintContext {
     style?: Record<string, unknown>,
     width?: number,
   ): void;
+  fillRect?(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    char?: string,
+    style?: Record<string, unknown>,
+  ): void;
   withClip?(
     x: number,
     y: number,
@@ -776,7 +784,9 @@ export interface SingleChildRenderObjectProtocol {
 
 /** Render objects that manage a list of children via `.insert()` */
 export interface ContainerRenderObjectProtocol {
+  readonly children?: ReadonlyArray<RenderObject>;
   insert(child: RenderObject, after?: RenderObject): void;
+  remove?(child: RenderObject): void;
   removeAllChildren?(): void;
 }
 

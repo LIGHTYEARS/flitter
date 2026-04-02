@@ -5,7 +5,7 @@
 
 import { ScreenBuffer } from './screen-buffer.js';
 import { Renderer } from './renderer.js';
-import { type PlatformAdapter, type TerminalCapabilities, detectCapabilities } from './platform.js';
+import { type PlatformAdapter, type TerminalCapabilities, type ParsedCapabilities, detectCapabilities, mergeCapabilities } from './platform.js';
 import { terminalCleanup } from './terminal-cleanup.js';
 
 /**
@@ -42,14 +42,11 @@ export class TerminalManager {
   };
 
   // --- MINR-01: JetBrains terminal wheel filter ---
-  // Amp ref: wB0 — JetBrains IDEs send rapid repeated scroll events;
-  // debounce them to prevent jitter.
   jetBrainsWheelFilter: boolean;
   private _lastWheelTimestamp: number = 0;
   private static readonly WHEEL_DEBOUNCE_MS = 50;
 
   // --- MINR-05: Configurable scroll step ---
-  // Amp ref: wB0.scrollStep — lines per scroll wheel event
   private _scrollStep: number = 3;
 
   // Event callbacks
@@ -57,7 +54,6 @@ export class TerminalManager {
   onResize?: (width: number, height: number) => void;
 
   // Capability update callback
-  // Amp ref: wB0.onCapabilities(handler) -- screen-buffer.md:769
   onCapabilitiesChanged?: (caps: TerminalCapabilities) => void;
 
   // Bound handlers for cleanup
@@ -71,28 +67,17 @@ export class TerminalManager {
     this.renderer = new Renderer();
     this._capabilities = detectCapabilities();
     this.renderer.setCapabilities(this._capabilities);
-
-    // MINR-01: Auto-detect JetBrains terminal
     this.jetBrainsWheelFilter = TerminalManager._detectJetBrains();
   }
 
-  /**
-   * Whether the terminal manager has been initialized.
-   */
   get isInitialized(): boolean {
     return this._isInitialized;
   }
 
-  /**
-   * Whether the terminal is currently suspended (e.g., for external editor).
-   */
   get isSuspended(): boolean {
     return this._suspended;
   }
 
-  /**
-   * Get detected terminal capabilities.
-   */
   get capabilities(): TerminalCapabilities {
     return this._capabilities;
   }
@@ -100,8 +85,6 @@ export class TerminalManager {
   /**
    * Update capabilities after async detection completes.
    * Notifies the callback so WidgetsBinding can update MediaQuery.
-   *
-   * Amp ref: wB0.onCapabilities(handler) -- screen-buffer.md:769
    */
   updateCapabilities(newCaps: TerminalCapabilities): void {
     this._capabilities = newCaps;
@@ -111,38 +94,35 @@ export class TerminalManager {
 
   // ---------------------------------------------------------------------------
   // Lifecycle
-  // Amp ref: wB0.init() — sets up parser, registers event handlers, enters alt screen
   // ---------------------------------------------------------------------------
 
   /**
    * Initialize the terminal: enable raw mode, alt screen, hide cursor, mouse on,
-   * bracketed paste on. Registers input and resize handlers.
+   * bracketed paste on, in-band resize on. Registers input and resize handlers.
    *
    * Amp ref: wB0.init()
    */
   initialize(): void {
     if (this._isInitialized) return;
 
-    // Enable raw mode
     this.platform.enableRawMode();
 
-    // Build initialization sequence
-    // Amp ref: wB0.init() — enters alt screen, hides cursor, enables mouse + bracketed paste
+    // GAP-SUM-056: enable in-band resize (mode 2048) alongside other modes
     const initSequence =
       this.renderer.enterAltScreen() +
       this.renderer.hideCursor() +
       this.renderer.enableMouse() +
-      this.renderer.enableBracketedPaste();
+      this.renderer.enableBracketedPaste() +
+      this.renderer.enableInBandResize() +
+      this.renderer.enableEmojiWidth();
 
     this.platform.writeStdout(initSequence);
 
-    // Register input handler
     this.boundInputHandler = (data: Buffer) => {
       this.onInput?.(data);
     };
     this.platform.onStdinData(this.boundInputHandler);
 
-    // Register resize handler
     this.boundResizeHandler = (cols: number, rows: number) => {
       this.handleResize(cols, rows);
     };
@@ -154,19 +134,13 @@ export class TerminalManager {
   /**
    * Dispose the terminal: restore cursor, disable mouse, exit alt screen,
    * disable raw mode. Unregisters all handlers.
-   *
-   * Amp ref: wB0.deinit() / zG8 terminal cleanup function
    */
   dispose(): void {
     if (!this._isInitialized) return;
 
-    // Build dispose sequence using comprehensive cleanup
-    // Amp ref: zG8 cleanup — disables all modes, restores cursor, exits alt screen
     const disposeSequence = terminalCleanup(this.renderer);
-
     this.platform.writeStdout(disposeSequence);
 
-    // Unregister handlers
     if (this.boundInputHandler) {
       this.platform.removeStdinData(this.boundInputHandler);
       this.boundInputHandler = null;
@@ -176,26 +150,16 @@ export class TerminalManager {
       this.boundResizeHandler = null;
     }
 
-    // Disable raw mode
     this.platform.disableRawMode();
-
     this._isInitialized = false;
   }
 
   // ---------------------------------------------------------------------------
   // Render cycle
-  // Amp ref: wB0.render() — section 6 of screen-buffer.md
   // ---------------------------------------------------------------------------
 
   /**
    * Execute a full render cycle: getDiff -> render -> writeStdout -> present.
-   *
-   * Amp ref: wB0.render()
-   *   1. screen.getDiff()
-   *   2. Build cursor state
-   *   3. renderer.render(diff, cursor) — wraps in BSU/ESU, handles SGR, cursor
-   *   4. write to stdout
-   *   5. screen.present()
    */
   flush(): void {
     if (!this._isInitialized) {
@@ -203,12 +167,10 @@ export class TerminalManager {
     }
     if (this._suspended) return;
 
-    // 1. Diff
     const diff = this.screenBuffer.getDiff();
     const size = this.screenBuffer.getSize();
     const totalCells = size.width * size.height;
 
-    // Count changed cells from RowPatch[]
     let changedCells = 0;
     for (const rowPatch of diff) {
       for (const cellPatch of rowPatch.patches) {
@@ -228,35 +190,28 @@ export class TerminalManager {
     const cursorPos = this.screenBuffer.getCursor();
 
     if (diff.length > 0 || cursorPos !== null) {
-      // 2. Build cursor state for renderer
       const cursorState = {
         position: cursorPos,
         visible: this.screenBuffer.isCursorVisible(),
         shape: this.screenBuffer.getCursorShape(),
       };
 
-      // 3. Render: the renderer handles BSU/ESU, hide cursor, SGR deltas,
-      //    cursor positioning, and SGR reset
       const output = this.renderer.render(diff, cursorState);
-
-      // 4. Write to stdout
       this.lastRenderStats.bytesWritten = output.length;
       this.platform.writeStdout(output);
-
-      // 5. Swap buffers
       this.screenBuffer.present();
     }
   }
 
   // ---------------------------------------------------------------------------
   // Resize handling
-  // Amp ref: SIGWINCH -> resize ScreenBuffer, mark for refresh
   // ---------------------------------------------------------------------------
 
   /**
    * Handle terminal resize. Updates ScreenBuffer dimensions and marks for full refresh.
+   * Called both from SIGWINCH (via platform) and from in-band resize events (mode 2048).
    */
-  private handleResize(cols: number, rows: number): void {
+  handleResize(cols: number, rows: number): void {
     this.screenBuffer.resize(cols, rows);
     this.onResize?.(cols, rows);
   }
@@ -265,10 +220,6 @@ export class TerminalManager {
   // Size
   // ---------------------------------------------------------------------------
 
-  /**
-   * Get current terminal size.
-   * Amp ref: wB0.getSize()
-   */
   getSize(): { width: number; height: number } {
     return this.screenBuffer.getSize();
   }
@@ -277,17 +228,12 @@ export class TerminalManager {
   // Render stats
   // ---------------------------------------------------------------------------
 
-  /**
-   * Get stats from the last render cycle.
-   * Amp ref: wB0.getLastRenderDiffStats()
-   */
   getLastRenderStats(): RenderStats {
     return { ...this.lastRenderStats };
   }
 
   // ---------------------------------------------------------------------------
   // Suspend / Resume
-  // Amp ref: wB0.suspend() / resume() for external editor integration
   // ---------------------------------------------------------------------------
 
   /**
@@ -300,6 +246,8 @@ export class TerminalManager {
     const suspendSequence =
       this.renderer.disableMouse() +
       this.renderer.disableBracketedPaste() +
+      this.renderer.disableInBandResize() +
+      this.renderer.disableEmojiWidth() +
       this.renderer.showCursor() +
       this.renderer.exitAltScreen();
 
@@ -321,7 +269,9 @@ export class TerminalManager {
       this.renderer.enterAltScreen() +
       this.renderer.hideCursor() +
       this.renderer.enableMouse() +
-      this.renderer.enableBracketedPaste();
+      this.renderer.enableBracketedPaste() +
+      this.renderer.enableInBandResize() +
+      this.renderer.enableEmojiWidth();
 
     this.platform.writeStdout(resumeSequence);
     this.screenBuffer.markForRefresh();
@@ -330,13 +280,8 @@ export class TerminalManager {
 
   // ---------------------------------------------------------------------------
   // MINR-01: JetBrains terminal wheel filter
-  // Amp ref: wB0 — JetBrains IDEs send rapid repeated scroll events
   // ---------------------------------------------------------------------------
 
-  /**
-   * Detect whether we're running inside a JetBrains terminal.
-   * Checks TERMINAL_EMULATOR and TERM_PROGRAM environment variables.
-   */
   private static _detectJetBrains(): boolean {
     const env = typeof process !== 'undefined' ? process.env : {};
     if (env.TERMINAL_EMULATOR?.includes('JetBrains')) return true;
@@ -347,66 +292,68 @@ export class TerminalManager {
   /**
    * Filter a wheel event. Returns true if the event should be processed,
    * false if it should be discarded (filtered out).
-   *
-   * When jetBrainsWheelFilter is enabled, rapid successive scroll events
-   * (within 50ms of each other) are debounced: only the first event in
-   * a burst is kept.
-   *
-   * @param _buttonCode The mouse button code for the scroll event (unused in current impl)
-   * @returns true if the event should be processed, false if filtered
    */
   filterWheelEvent(_buttonCode: number): boolean {
     if (!this.jetBrainsWheelFilter) {
-      return true; // filter disabled, pass all events
+      return true;
     }
 
     const now = Date.now();
     const elapsed = now - this._lastWheelTimestamp;
 
     if (elapsed < TerminalManager.WHEEL_DEBOUNCE_MS) {
-      return false; // too rapid, filter out
+      return false;
     }
 
     this._lastWheelTimestamp = now;
-    return true; // first event in burst, allow
+    return true;
   }
 
   // ---------------------------------------------------------------------------
   // MINR-05: Configurable scroll step
-  // Amp ref: wB0.scrollStep — lines per scroll wheel event
   // ---------------------------------------------------------------------------
 
-  /**
-   * Get the number of lines to scroll per wheel event.
-   * Default: 3 lines.
-   */
   get scrollStep(): number {
     return this._scrollStep;
   }
 
-  /**
-   * Set the number of lines to scroll per wheel event.
-   * Clamped to the range [1, 20].
-   *
-   * @param lines Number of lines per scroll step
-   */
   setScrollStep(lines: number): void {
     this._scrollStep = Math.max(1, Math.min(20, Math.round(lines)));
   }
 
   // ---------------------------------------------------------------------------
   // OSC 52 Clipboard
-  // Amp ref: wB0 — terminal clipboard via OSC 52
   // ---------------------------------------------------------------------------
 
   /**
    * Copy text to the system clipboard via OSC 52.
    * Writes the escape sequence directly to stdout.
-   *
-   * @param text The text to copy to clipboard
    */
   copyToClipboard(text: string): void {
     if (!this._isInitialized || this._suspended) return;
     this.platform.writeStdout(this.renderer.copyToClipboard(text));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Terminal capability auto-detection from response events
+  // ---------------------------------------------------------------------------
+
+  applyParsedCapabilities(parsed: ParsedCapabilities): void {
+    const merged = mergeCapabilities(this._capabilities, parsed);
+    this.updateCapabilities(merged);
+  }
+
+  // ---------------------------------------------------------------------------
+  // OSC 9;4 Progress Bar (ConEmu/Windows Terminal/iTerm2)
+  // ---------------------------------------------------------------------------
+
+  setProgress(percent: number): void {
+    if (!this._isInitialized || this._suspended) return;
+    this.platform.writeStdout(this.renderer.setProgressBar(percent));
+  }
+
+  clearProgress(): void {
+    if (!this._isInitialized || this._suspended) return;
+    this.platform.writeStdout(this.renderer.setProgressBarOff());
   }
 }

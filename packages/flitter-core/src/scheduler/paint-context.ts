@@ -3,10 +3,10 @@
 // Amp ref: amp-strings.txt — paint context wraps ScreenBuffer for DFS paint traversal
 
 import { ScreenBuffer } from '../terminal/screen-buffer.js';
-import { type CellStyle } from '../terminal/cell.js';
+import { type CellStyle, type CellHyperlinkValue } from '../terminal/cell.js';
 import { TextSpan } from '../core/text-span.js';
 import { TextStyle } from '../core/text-style.js';
-import { Color } from '../core/color.js';
+import { Color, blendColor } from '../core/color.js';
 import { wcwidth } from '../core/wcwidth.js';
 import { BOX_DRAWING, type BoxDrawingStyle } from '../painting/border-painter.js';
 
@@ -31,6 +31,18 @@ export function textStyleToCellStyle(ts: TextStyle): CellStyle {
   if (ts.inverse !== undefined) cs.inverse = ts.inverse;
   return cs;
 }
+
+/**
+ * Writable view of PaintContext's readonly fields, used exclusively during
+ * controlled internal construction (createClipped / setClipBounds).
+ */
+type WritablePaintContext = {
+  screen: ScreenBuffer;
+  clipX: number;
+  clipY: number;
+  clipW: number;
+  clipH: number;
+};
 
 // ---------------------------------------------------------------------------
 // PaintContext
@@ -66,17 +78,18 @@ export class PaintContext {
     clipH: number,
   ): PaintContext {
     const ctx = Object.create(PaintContext.prototype) as PaintContext;
-    (ctx as any).screen = screen;
-    (ctx as any).clipX = clipX;
-    (ctx as any).clipY = clipY;
-    (ctx as any).clipW = clipW;
-    (ctx as any).clipH = clipH;
+    const w = ctx as unknown as WritablePaintContext;
+    w.screen = screen;
+    w.clipX = clipX;
+    w.clipY = clipY;
+    w.clipW = clipW;
+    w.clipH = clipH;
     return ctx;
   }
 
   /**
    * Get the screen buffer from a PaintContext.
-   * Used by ClipCanvas to pass screen to super() without `as any`.
+   * Used by ClipCanvas to pass screen to super() without casting.
    */
   static getScreen(ctx: PaintContext): ScreenBuffer {
     return ctx.screen;
@@ -84,13 +97,14 @@ export class PaintContext {
 
   /**
    * Set clip bounds on a PaintContext subclass instance.
-   * Used by ClipCanvas constructor to avoid `as any` casts on readonly fields.
+   * Used by ClipCanvas constructor to set readonly fields during construction.
    */
   static setClipBounds(ctx: PaintContext, x: number, y: number, w: number, h: number): void {
-    (ctx as any).clipX = x;
-    (ctx as any).clipY = y;
-    (ctx as any).clipW = w;
-    (ctx as any).clipH = h;
+    const m = ctx as unknown as WritablePaintContext;
+    m.clipX = x;
+    m.clipY = y;
+    m.clipW = w;
+    m.clipH = h;
   }
 
   /**
@@ -128,14 +142,14 @@ export class PaintContext {
    * Draw a single character at (x, y) with optional style and width.
    * Silently ignores draws outside the clip rect.
    */
-  drawChar(x: number, y: number, char: string, style?: CellStyle, width?: number): void {
+  drawChar(x: number, y: number, char: string, style?: CellStyle, width?: number, hyperlink?: CellHyperlinkValue): void {
     const charWidth = width ?? (char.length > 0 ? wcwidth(char.codePointAt(0)!) : 1);
     const effectiveWidth = Math.max(1, charWidth);
 
     if (!this.isInClip(x, y, effectiveWidth)) return;
 
     const merged = this._mergeWithExistingBg(x, y, style);
-    this.screen.setChar(x, y, char, merged, effectiveWidth);
+    this.screen.setChar(x, y, char, merged, effectiveWidth, hyperlink);
   }
 
   /**
@@ -168,19 +182,21 @@ export class PaintContext {
     let curX = x;
     const limit = maxWidth !== undefined ? x + maxWidth : Infinity;
 
-    span.visitChildren((text: string, textStyle: TextStyle) => {
+    span.visitChildren((text: string, textStyle: TextStyle, hyperlink) => {
       const cellStyle = textStyleToCellStyle(textStyle);
+      const hlValue: CellHyperlinkValue | undefined = hyperlink
+        ? (hyperlink.id ? { uri: hyperlink.uri, id: hyperlink.id } : hyperlink.uri)
+        : undefined;
       for (const char of text) {
         const cp = char.codePointAt(0)!;
         const w = wcwidth(cp);
         if (w === 0) continue;
 
-        // Check maxWidth limit
         if (curX + w > limit) return;
 
         if (this.isInClip(curX, y, w)) {
           const merged = this._mergeWithExistingBg(curX, y, cellStyle);
-          this.screen.setChar(curX, y, char, merged, w);
+          this.screen.setChar(curX, y, char, merged, w, hlValue);
         }
         curX += w;
       }
@@ -194,10 +210,29 @@ export class PaintContext {
    * If the new style has no bg, inherit the existing cell's bg.
    */
   private _mergeWithExistingBg(x: number, y: number, style?: CellStyle): CellStyle | undefined {
-    if (style?.bg) return style; // new style has explicit bg, use it
+    if (!style) {
+      const existing = this.screen.getCell(x, y);
+      if (!existing.style?.bg) return style;
+      return { bg: existing.style.bg };
+    }
+
     const existing = this.screen.getCell(x, y);
-    if (!existing.style?.bg) return style; // no existing bg to inherit
-    return { ...style, bg: existing.style.bg };
+    let fg = style.fg;
+    let bg = style.bg;
+
+    if (fg && fg.alpha < 1.0 && existing.style?.fg) {
+      fg = blendColor(fg, existing.style.fg);
+    }
+
+    if (!bg && existing.style?.bg) {
+      bg = existing.style.bg;
+    }
+
+    if (fg !== style.fg || bg !== style.bg) {
+      return { ...style, fg, bg };
+    }
+
+    return style;
   }
 
   /**

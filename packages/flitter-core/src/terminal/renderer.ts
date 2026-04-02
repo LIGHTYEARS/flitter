@@ -85,6 +85,11 @@ export const PROGRESS_BAR_OFF = `${OSC}9;4;0${ST}`;
 export const PROGRESS_BAR_INDETERMINATE = `${OSC}9;4;3${ST}`;
 export const PROGRESS_BAR_PAUSED = `${OSC}9;4;4${ST}`;
 
+export function progressBarPercent(percent: number): string {
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  return `${OSC}9;4;1;${clamped}${ST}`;
+}
+
 // Window Title OSC 0 (TPRO-06)
 export function windowTitle(title: string): string {
   return `${ESC}]0;${title}\x07`;
@@ -283,4 +288,255 @@ function addColorCodes(
 export interface CursorState {
   position: { x: number; y: number } | null;
   visible: boolean;
-  shape: number;  // DECSCUSR: 0=defa
+  shape: number;
+}
+
+// ── Renderer ────────────────────────────────────────────────────
+
+/**
+ * ANSI string renderer.
+ * Converts diff patches (RowPatch[]) into minimal ANSI escape strings.
+ * Maintains SGR state across calls to emit minimal escape sequences.
+ *
+ * Amp ref: z_0 Renderer — owns lastStyle, emits BSU/ESU envelope, cursor moves, SGR deltas.
+ */
+export class Renderer {
+  private _lastStyle: CellStyle = {};
+  private _lastHyperlink: CellHyperlinkValue | undefined = undefined;
+  private _capabilities: TerminalCapabilities | null = null;
+  private _currentRow: number = -1;
+  private _currentCol: number = -1;
+
+  /**
+   * Main render method.
+   * Wraps output in BSU + CURSOR_HIDE ... ESU + SGR_RESET envelope.
+   * Sorts patches by row, emits CUP + SGR delta + chars for each cell.
+   * Tracks cursor position to skip redundant CUP sequences.
+   */
+  render(patches: RowPatch[], cursor?: CursorState): string {
+    let out = BSU + CURSOR_HIDE;
+
+    this._currentRow = -1;
+    this._currentCol = -1;
+
+    const sorted = patches.slice().sort((a, b) => a.row - b.row);
+
+    for (const rowPatch of sorted) {
+      const row = rowPatch.row;
+      for (const cellPatch of rowPatch.patches) {
+        let col = cellPatch.col;
+        if (this._currentRow !== row || this._currentCol !== col) {
+          out += CURSOR_MOVE(col, row);
+          this._currentRow = row;
+          this._currentCol = col;
+        }
+        for (const cell of cellPatch.cells) {
+          if (cell.width === 0) continue;
+
+          const sgrDelta = buildSgrDelta(this._lastStyle, cell.style, this._capabilities);
+          if (sgrDelta) out += sgrDelta;
+          this._lastStyle = cell.style;
+
+          if (!hyperlinksEqual(this._lastHyperlink, cell.hyperlink)) {
+            if (cell.hyperlink) {
+              const uri = typeof cell.hyperlink === 'string' ? cell.hyperlink : cell.hyperlink.uri;
+              const id = typeof cell.hyperlink === 'string' ? undefined : cell.hyperlink.id;
+              out += hyperlinkOpen(uri, id);
+            } else {
+              out += HYPERLINK_CLOSE;
+            }
+            this._lastHyperlink = cell.hyperlink;
+          }
+
+          let ch = cell.char;
+          if (ch.length === 1) {
+            const cp = ch.codePointAt(0)!;
+            if (cp < 0x20 && cp !== 0x09) {
+              ch = ' ';
+            }
+          }
+          out += ch;
+          this._currentCol += cell.width;
+        }
+      }
+    }
+
+    if (cursor && cursor.visible && cursor.position != null) {
+      out += CURSOR_MOVE(cursor.position.x, cursor.position.y);
+      out += CURSOR_SHOW;
+      out += CURSOR_SHAPE(cursor.shape);
+    }
+
+    out += ESU + SGR_RESET;
+
+    this._lastStyle = {};
+    this._lastHyperlink = undefined;
+
+    return out;
+  }
+
+  /** Returns CURSOR_HIDE escape sequence. */
+  hideCursor(): string {
+    return CURSOR_HIDE;
+  }
+
+  /** Returns CURSOR_SHOW escape sequence. */
+  showCursor(): string {
+    return CURSOR_SHOW;
+  }
+
+  /** Returns DECSCUSR cursor shape escape sequence. */
+  setCursorShape(n: number): string {
+    return CURSOR_SHAPE(n);
+  }
+
+  /** Returns CUP cursor move escape sequence (0-based coordinates). */
+  moveTo(x: number, y: number): string {
+    return CURSOR_MOVE(x, y);
+  }
+
+  /** Returns BSU (Begin Synchronized Update) escape sequence. */
+  startSync(): string {
+    return BSU;
+  }
+
+  /** Returns ESU (End Synchronized Update) escape sequence. */
+  endSync(): string {
+    return ESU;
+  }
+
+  /** Returns full screen clear sequence: SGR reset + hyperlink close + clear + home. */
+  clearScreen(): string {
+    return SGR_RESET + HYPERLINK_CLOSE + CLEAR_SCREEN + CSI + 'H';
+  }
+
+  /** Returns SGR reset + hyperlink close sequence. */
+  reset(): string {
+    return SGR_RESET + HYPERLINK_CLOSE;
+  }
+
+  /** Returns alt screen on + clear screen sequence. */
+  enterAltScreen(): string {
+    return ALT_SCREEN_ON + CLEAR_SCREEN;
+  }
+
+  /** Returns alt screen off sequence. */
+  exitAltScreen(): string {
+    return ALT_SCREEN_OFF;
+  }
+
+  /** Returns mouse tracking enable sequences (modes 1002, 1003, 1004, 1006). */
+  enableMouse(): string {
+    return `${CSI}?1002h${CSI}?1003h${CSI}?1004h${CSI}?1006h`;
+  }
+
+  /** Returns mouse tracking disable sequences (modes 1002, 1003, 1004, 1006, 1016). */
+  disableMouse(): string {
+    return `${CSI}?1002l${CSI}?1003l${CSI}?1004l${CSI}?1006l${CSI}?1016l`;
+  }
+
+  /** Returns bracketed paste mode enable sequence. */
+  enableBracketedPaste(): string {
+    return BRACKET_PASTE_ON;
+  }
+
+  /** Returns bracketed paste mode disable sequence. */
+  disableBracketedPaste(): string {
+    return BRACKET_PASTE_OFF;
+  }
+
+  /** Returns OSC 52 clipboard copy sequence. */
+  copyToClipboard(text: string): string {
+    return osc52Copy(text);
+  }
+
+  /** Returns Kitty keyboard protocol enable sequence (TPRO-01). */
+  enableKittyKeyboard(): string {
+    return KITTY_KEYBOARD_ON;
+  }
+
+  /** Returns Kitty keyboard protocol disable sequence (TPRO-01). */
+  disableKittyKeyboard(): string {
+    return KITTY_KEYBOARD_OFF;
+  }
+
+  /** Returns ModifyOtherKeys enable sequence (TPRO-02). */
+  enableModifyOtherKeys(): string {
+    return MODIFY_OTHER_KEYS_ON;
+  }
+
+  /** Returns ModifyOtherKeys disable sequence (TPRO-02). */
+  disableModifyOtherKeys(): string {
+    return MODIFY_OTHER_KEYS_OFF;
+  }
+
+  /** Returns emoji width mode enable sequence (TPRO-03). */
+  enableEmojiWidth(): string {
+    return EMOJI_WIDTH_ON;
+  }
+
+  /** Returns emoji width mode disable sequence (TPRO-03). */
+  disableEmojiWidth(): string {
+    return EMOJI_WIDTH_OFF;
+  }
+
+  /** Returns in-band resize enable sequence (TPRO-04). */
+  enableInBandResize(): string {
+    return IN_BAND_RESIZE_ON;
+  }
+
+  /** Returns in-band resize disable sequence (TPRO-04). */
+  disableInBandResize(): string {
+    return IN_BAND_RESIZE_OFF;
+  }
+
+  /** Returns progress bar indeterminate OSC sequence (TPRO-05). */
+  setProgressBarIndeterminate(): string {
+    return PROGRESS_BAR_INDETERMINATE;
+  }
+
+  /** Returns progress bar off OSC sequence (TPRO-05). */
+  setProgressBarOff(): string {
+    return PROGRESS_BAR_OFF;
+  }
+
+  /** Returns progress bar paused OSC sequence (TPRO-05). */
+  setProgressBarPaused(): string {
+    return PROGRESS_BAR_PAUSED;
+  }
+
+  setProgressBar(percent: number): string {
+    return progressBarPercent(percent);
+  }
+
+  /** Returns window title OSC sequence (TPRO-06). */
+  setTitle(title: string): string {
+    return windowTitle(title);
+  }
+
+  /** Returns mouse cursor shape OSC sequence (TPRO-07). */
+  setMouseShape(name: string): string {
+    return mouseShape(name);
+  }
+
+  /** Returns pixel mouse mode enable sequence (TPRO-08). */
+  enablePixelMouse(): string {
+    return PIXEL_MOUSE_ON;
+  }
+
+  /** Returns pixel mouse mode disable sequence (TPRO-08). */
+  disablePixelMouse(): string {
+    return PIXEL_MOUSE_OFF;
+  }
+
+  /** Set terminal capabilities for color fallback decisions. */
+  setCapabilities(caps: TerminalCapabilities): void {
+    this._capabilities = caps;
+  }
+
+  /** Reset internal SGR tracking state. */
+  resetState(): void {
+    this._lastStyle = {};
+    this._lastHyperlink = undefined;
+  }
+}

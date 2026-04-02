@@ -12,6 +12,9 @@ export const OVERLAY_IDS = {
   SHORTCUT_HELP: 'shortcutHelp',
   FILE_PICKER: 'filePicker',
   TOAST: 'toast',
+  THREAD_LIST: 'threadList',
+  PROMPT_HISTORY: 'promptHistory',
+  MYSTERY_MODAL: 'mysteryModal',
 } as const;
 
 /**
@@ -30,4 +33,7 @@ export const OVERLAY_PRIORITIES = {
   SHORTCUT_HELP: 50,
   FILE_PICKER: 25,
   TOAST: 10,
+  THREAD_LIST: 50,
+  PROMPT_HISTORY: 50,
+  MYSTERY_MODAL: 90,
 } as const;

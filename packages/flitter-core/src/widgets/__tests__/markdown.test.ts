@@ -2,7 +2,7 @@
 // Verifies markdown parsing, inline formatting, block types, and widget construction
 
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { Markdown } from '../markdown';
+import { Markdown, type TableColumnAlignment } from '../markdown';
 import { stringWidth } from '../../core/wcwidth';
 
 // ---------------------------------------------------------------------------
@@ -957,5 +957,135 @@ describe('GFM table CJK width handling', () => {
     });
     expect(md.markdown).toContain('名前');
     expect(typeof md.build).toBe('function');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GFM table column alignment tests (GAP-SUM-025)
+// ---------------------------------------------------------------------------
+
+describe('GFM table column alignment parsing', () => {
+  test('parses left alignment (:---)', () => {
+    const alignments = Markdown._parseTableAlignments('| :--- | :--- |');
+    expect(alignments).toEqual(['left', 'left']);
+  });
+
+  test('parses right alignment (---:)', () => {
+    const alignments = Markdown._parseTableAlignments('| ---: | ---: |');
+    expect(alignments).toEqual(['right', 'right']);
+  });
+
+  test('parses center alignment (:---:)', () => {
+    const alignments = Markdown._parseTableAlignments('| :---: | :---: |');
+    expect(alignments).toEqual(['center', 'center']);
+  });
+
+  test('parses mixed alignment markers', () => {
+    const alignments = Markdown._parseTableAlignments('| :--- | :---: | ---: |');
+    expect(alignments).toEqual(['left', 'center', 'right']);
+  });
+
+  test('defaults to left when no colons', () => {
+    const alignments = Markdown._parseTableAlignments('| --- | --- | --- |');
+    expect(alignments).toEqual(['left', 'left', 'left']);
+  });
+
+  test('handles separator without leading/trailing pipes', () => {
+    const alignments = Markdown._parseTableAlignments(':--- | :---: | ---:');
+    expect(alignments).toEqual(['left', 'center', 'right']);
+  });
+
+  test('handles extra dashes in separator cells', () => {
+    const alignments = Markdown._parseTableAlignments('| :---------- | :---------: | ---------: |');
+    expect(alignments).toEqual(['left', 'center', 'right']);
+  });
+
+  test('single column alignment', () => {
+    const alignments = Markdown._parseTableAlignments('| :---: |');
+    expect(alignments).toEqual(['center']);
+  });
+});
+
+describe('GFM table alignment stored in parsed blocks', () => {
+  beforeEach(() => {
+    Markdown.clearCache();
+  });
+
+  test('table block includes alignment markers', () => {
+    const md = '| Left | Center | Right |\n| :--- | :---: | ---: |\n| a | b | c |';
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks.length).toBe(1);
+    expect(blocks[0]!.type).toBe('table');
+    expect(blocks[0]!.tableAlignments).toEqual(['left', 'center', 'right']);
+  });
+
+  test('table without alignment markers defaults to all left', () => {
+    const md = '| A | B |\n| --- | --- |\n| 1 | 2 |';
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments).toEqual(['left', 'left']);
+  });
+
+  test('table alignment with no pipes', () => {
+    const md = 'Name | Value\n:--- | ---:\nfoo | 42';
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments).toEqual(['left', 'right']);
+  });
+});
+
+describe('GFM table alignment rendering', () => {
+  beforeEach(() => {
+    Markdown.clearCache();
+  });
+
+  test('left-aligned cells are padded with trailing spaces (padEnd)', () => {
+    const md = [
+      '| Name  | Age |',
+      '| :---- | :--- |',
+      '| Al    | 30  |',
+      '| Bobby | 5   |',
+    ].join('\n');
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments).toEqual(['left', 'left']);
+    const row0col0 = blocks[0]!.tableRows![0]![0]!;
+    const row1col0 = blocks[0]!.tableRows![1]![0]!;
+    expect(row0col0).toBe('Al');
+    expect(row1col0).toBe('Bobby');
+  });
+
+  test('right-aligned cells use padStart style', () => {
+    const md = [
+      '| Item  | Price |',
+      '| :---- | ----: |',
+      '| Apple | 1     |',
+      '| Bread | 25    |',
+    ].join('\n');
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments![1]).toBe('right');
+  });
+
+  test('center-aligned cells are centered', () => {
+    const md = [
+      '| Status |',
+      '| :----: |',
+      '| OK     |',
+      '| FAIL   |',
+    ].join('\n');
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments).toEqual(['center']);
+  });
+
+  test('mixed alignment table parses headers and rows correctly', () => {
+    const md = [
+      '| Left | Center | Right |',
+      '| :--- | :----: | ----: |',
+      '| a    | bb     |   ccc |',
+      '| dddd | e      |     f |',
+    ].join('\n');
+    const blocks = Markdown.parseMarkdown(md);
+    expect(blocks[0]!.tableAlignments).toEqual(['left', 'center', 'right']);
+    expect(blocks[0]!.tableHeaders).toEqual(['Left', 'Center', 'Right']);
+    expect(blocks[0]!.tableRows!.length).toBe(2);
+    expect(blocks[0]!.tableRows![0]).toEqual(['a', 'bb', 'ccc']);
+    expect(blocks[0]!.tableRows![1]).toEqual(['dddd', 'e', 'f']);
   });
 });

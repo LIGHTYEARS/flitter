@@ -20,6 +20,8 @@ export const debugFlags = {
   debugShowFrameStats: false,
   /** Enable HTTP debug inspector on port 9876 (Amp ref: Mu) */
   debugInspectorEnabled: false,
+  /** Enable debug-only invariant checks (e.g. setState() build-phase guard). Zero cost when false. */
+  debugMode: false,
 };
 
 /**

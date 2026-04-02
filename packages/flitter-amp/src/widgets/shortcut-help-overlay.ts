@@ -158,7 +158,7 @@ export class ShortcutHelpOverlay extends StatelessWidget {
     const side = new BorderSide({
       color: infoColor,
       width: 1,
-      style: 'rounded' as any,
+      style: 'rounded',
     });
 
     // Derive groups from registry or use fallback
@@ -264,7 +264,7 @@ export class ShortcutHelpOverlay extends StatelessWidget {
           right: 0,
           bottom: 0,
           child: new Container({
-            color: Color.rgba(0, 0, 0, 0.6),
+            decoration: new BoxDecoration({ color: Color.rgb(0, 0, 0).withAlpha(0.6) }),
           }),
         }),
         // Centered overlay

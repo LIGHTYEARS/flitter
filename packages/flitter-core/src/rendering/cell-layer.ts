@@ -117,10 +117,16 @@ export class CellLayer {
   /**
    * Blit cached cells to a Buffer at the given absolute screen offset.
    * Used for clean boundaries -- skips the entire subtree paint.
+   * GAP-SUM-045: Clamp source coordinates to layer bounds before copying,
+   * preventing out-of-bounds reads when screenX/screenY are negative or
+   * the layer extends beyond the buffer.
    */
   blitTo(backBuffer: Buffer, screenX: number, screenY: number): void {
-    for (let ly = 0; ly < this._height; ly++) {
-      for (let lx = 0; lx < this._width; ) {
+    const startLX = Math.max(0, -screenX);
+    const startLY = Math.max(0, -screenY);
+
+    for (let ly = startLY; ly < this._height; ly++) {
+      for (let lx = startLX; lx < this._width; ) {
         const cell = this._cells[ly * this._width + lx];
         if (cell !== EMPTY_CELL) {
           backBuffer.setCell(screenX + lx, screenY + ly, cloneCell(cell));

@@ -10,7 +10,9 @@ import { Container } from 'flitter-core/src/widgets/container';
 import { Border, BorderSide, BoxDecoration } from 'flitter-core/src/layout/render-decorated';
 import { Stack, Positioned } from 'flitter-core/src/widgets/stack';
 import { Autocomplete } from 'flitter-core/src/widgets/autocomplete';
-import type { AutocompleteTrigger } from 'flitter-core/src/widgets/autocomplete';
+import type { AutocompleteTrigger, AutocompleteOption } from 'flitter-core/src/widgets/autocomplete';
+import { MouseRegion } from 'flitter-core/src/widgets/mouse-region';
+import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { AmpThemeProvider, agentModeColor } from '../themes/index';
 import { icon } from '../ui/icons/icon-registry';
 
@@ -30,10 +32,27 @@ interface InputAreaProps {
   skillCount?: number;
   overlayTexts?: BorderOverlayText[];
   controller?: TextEditingController;
+  /** Callback fired when the @ file trigger is activated. Receives the query text after @. */
+  onFileTrigger?: (query: string) => void;
+  /** Callback fired when the @@ special command trigger is activated. */
+  onSpecialCommandTrigger?: (query: string) => void;
+  /** Callback fired when the @: commit mode trigger is activated. */
+  onCommitTrigger?: (query: string) => void;
+  /** Maximum number of lines before the input area stops expanding. Default 10. */
+  maxExpandLines?: number;
+  /** Minimum number of auto-visible content lines before user input expands further. */
+  minAutoContentLines?: number;
 }
 
 type ShellMode = 'shell' | 'background' | null;
 
+/**
+ * Multi-line input area widget with auto-expanding height and drag-resize.
+ *
+ * Auto-expand: height grows with content line count up to maxExpandLines.
+ * Drag-resize: user can drag the top border to manually set height,
+ * clamped between MIN_HEIGHT (3) and half-screen.
+ */
 export class InputArea extends StatefulWidget {
   readonly onSubmit: (text: string) => void;
   readonly isProcessing: boolean;
@@ -45,6 +64,11 @@ export class InputArea extends StatefulWidget {
   readonly skillCount: number;
   readonly overlayTexts: BorderOverlayText[];
   readonly externalController?: TextEditingController;
+  readonly onFileTrigger?: (query: string) => void;
+  readonly onSpecialCommandTrigger?: (query: string) => void;
+  readonly onCommitTrigger?: (query: string) => void;
+  readonly maxExpandLines: number;
+  readonly minAutoContentLines: number;
 
   constructor(props: InputAreaProps) {
     super({});
@@ -58,6 +82,11 @@ export class InputArea extends StatefulWidget {
     this.skillCount = props.skillCount ?? 0;
     this.overlayTexts = props.overlayTexts ?? [];
     this.externalController = props.controller;
+    this.onFileTrigger = props.onFileTrigger;
+    this.onSpecialCommandTrigger = props.onSpecialCommandTrigger;
+    this.onCommitTrigger = props.onCommitTrigger;
+    this.maxExpandLines = props.maxExpandLines ?? 10;
+    this.minAutoContentLines = props.minAutoContentLines ?? 1;
   }
 
   createState(): InputAreaState {
@@ -65,10 +94,17 @@ export class InputArea extends StatefulWidget {
   }
 }
 
+/** Minimum container height: 1 content line + 2 border rows. */
+const MIN_HEIGHT = 3;
+
 class InputAreaState extends State<InputArea> {
   private controller!: TextEditingController;
   private ownsController = false;
   private currentText = '';
+  /** User-overridden height via drag; null means auto-expand is active. */
+  private dragHeight: number | null = null;
+  private dragStartY: number | null = null;
+  private dragStartHeight: number | null = null;
 
   override initState(): void {
     super.initState();
@@ -87,10 +123,8 @@ class InputAreaState extends State<InputArea> {
     const newCtrl = this.widget.externalController;
 
     if (oldCtrl !== newCtrl) {
-      // Detach from old controller
       this.controller.removeListener(this._onTextChanged);
 
-      // Dispose old internal controller if we owned it
       if (this.ownsController) {
         this.controller.dispose();
       }
@@ -115,13 +149,38 @@ class InputAreaState extends State<InputArea> {
     super.dispose();
   }
 
+  /**
+   * Compute the number of content lines (at least 1).
+   */
+  private _lineCount(): number {
+    const text = this.controller.text;
+    if (text.length === 0) return 1;
+    return text.split('\n').length;
+  }
+
+  /**
+   * Compute the container height: 2 (border rows) + visible content lines.
+   * When dragHeight is set the user's manual resize wins; otherwise
+   * auto-expand kicks in, clamped to [MIN_HEIGHT, maxExpandLines + 2].
+   */
+  private _computeHeight(): number {
+    if (this.dragHeight !== null) {
+      return this.dragHeight;
+    }
+    const contentLines = Math.max(this._lineCount(), this.widget.minAutoContentLines);
+    const visibleLines = Math.min(contentLines, this.widget.maxExpandLines);
+    return visibleLines + 2;
+  }
+
   private _onTextChanged = (): void => {
     const newText = this.controller.text;
     if (newText !== this.currentText) {
       const oldShell = detectShellMode(this.currentText);
       const newShell = detectShellMode(newText);
+      const oldLineCount = this.currentText.split('\n').length;
+      const newLineCount = newText.split('\n').length;
       this.currentText = newText;
-      if (oldShell !== newShell) {
+      if (oldShell !== newShell || oldLineCount !== newLineCount) {
         this.setState(() => { });
       }
     }
@@ -131,8 +190,49 @@ class InputAreaState extends State<InputArea> {
     if (text.trim().length > 0 && !this.widget.isProcessing) {
       this.widget.onSubmit(text.trim());
       this.controller.clear();
+      this.dragHeight = null;
     }
   };
+
+  /**
+   * Handle mouse events on the top border for drag-resize.
+   * action: 'press' | 'drag' | 'release'
+   */
+  handleMouseEvent(action: string, _x: number, y: number): void {
+    switch (action) {
+      case 'press': {
+        this.dragStartY = y;
+        this.dragStartHeight = this._computeHeight();
+        break;
+      }
+      case 'drag':
+      case 'move': {
+        if (this.dragStartY !== null && this.dragStartHeight !== null) {
+          const delta = this.dragStartY - y;
+          const maxHeight = Math.max(MIN_HEIGHT, Math.floor(50 / 2));
+          const newHeight = Math.max(MIN_HEIGHT, Math.min(this.dragStartHeight + delta, maxHeight));
+          if (newHeight !== this.dragHeight) {
+            this.dragHeight = newHeight;
+            this.setState(() => { });
+          }
+        }
+        break;
+      }
+      case 'release': {
+        this.dragStartY = null;
+        this.dragStartHeight = null;
+        break;
+      }
+    }
+  }
+
+  private _getSpecialCommandCompletions(_query: string): AutocompleteOption[] {
+    return [];
+  }
+
+  private _getCommitCompletions(_query: string): AutocompleteOption[] {
+    return [];
+  }
 
   build(context: BuildContext): Widget {
     const isProcessing = this.widget.isProcessing;
@@ -157,12 +257,43 @@ class InputAreaState extends State<InputArea> {
       onSubmit: this._handleSubmit,
     });
 
+    const onFileTrigger = this.widget.onFileTrigger;
+    const onSpecialCommandTrigger = this.widget.onSpecialCommandTrigger;
+    const onCommitTrigger = this.widget.onCommitTrigger;
+
+    const specialCommandTrigger: AutocompleteTrigger = {
+      triggerCharacter: '@@',
+      optionsBuilder: (query: string) => {
+        if (onSpecialCommandTrigger) {
+          onSpecialCommandTrigger(query);
+        }
+        return this._getSpecialCommandCompletions(query);
+      },
+    };
+
+    const commitTrigger: AutocompleteTrigger = {
+      triggerCharacter: '@:',
+      optionsBuilder: (query: string) => {
+        if (onCommitTrigger) {
+          onCommitTrigger(query);
+        }
+        return this._getCommitCompletions(query);
+      },
+    };
+
     const defaultFileTrigger: AutocompleteTrigger = {
       triggerCharacter: '@',
-      optionsBuilder: () => [],
+      optionsBuilder: (query: string) => {
+        if (onFileTrigger) {
+          onFileTrigger(query);
+        }
+        return [];
+      },
     };
 
     const triggers: AutocompleteTrigger[] = [
+      specialCommandTrigger,
+      commitTrigger,
       defaultFileTrigger,
       ...(this.widget.autocompleteTriggers ?? []),
     ];
@@ -176,7 +307,7 @@ class InputAreaState extends State<InputArea> {
     const borderedInput = new Container({
       decoration: new BoxDecoration({ border }),
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
-      height: 5,
+      height: this._computeHeight(),
       child: autocompleteWrapped,
     });
 
@@ -262,15 +393,25 @@ class InputAreaState extends State<InputArea> {
       );
     }
 
-    let inputWidget: Widget;
-    if (overlays.length > 0) {
-      inputWidget = new Stack({
-        fit: 'passthrough',
-        children: [borderedInput, ...overlays],
-      });
-    } else {
-      inputWidget = borderedInput;
-    }
+    overlays.push(
+      new Positioned({
+        top: 0,
+        left: 0,
+        right: 0,
+        child: new MouseRegion({
+          cursor: 'ns-resize',
+          onClick: (e) => this.handleMouseEvent('press', e.x, e.y),
+          onDrag: (e) => this.handleMouseEvent('drag', e.x, e.y),
+          onRelease: (e) => this.handleMouseEvent('release', e.x, e.y),
+          child: new SizedBox({ height: 1 }),
+        }),
+      }),
+    );
+
+    const inputWidget: Widget = new Stack({
+      fit: 'passthrough',
+      children: [borderedInput, ...overlays],
+    });
 
     if (this.widget.topWidget) {
       return new Column({

@@ -2,7 +2,7 @@
 // Amp ref: Pg class -- coordinates hover enter/exit events between RenderMouseRegion instances
 // Tracks mouse position, hovered regions, and cursor shape
 
-import type { RenderMouseRegion } from '../widgets/mouse-region';
+import { RenderMouseRegion } from '../widgets/mouse-region';
 import { RenderBox, type RenderObject } from '../framework/render-object';
 import { BoxHitTestResult, BoxHitTestEntry } from '../input/hit-test';
 import { Offset } from '../core/types';
@@ -25,17 +25,6 @@ export class MouseManager {
   private _hoveredRegions: Set<RenderMouseRegion> = new Set();
   private _rootRenderObject: RenderObject | null = null;
   private _disposed: boolean = false;
-
-  // Lazily cached RenderMouseRegion class to avoid require() per hit-test entry
-  private static _RenderMouseRegionClass: any = null;
-
-  private static getRenderMouseRegionClass(): any {
-    if (MouseManager._RenderMouseRegionClass === null) {
-      const mod = require('../widgets/mouse-region');
-      MouseManager._RenderMouseRegionClass = mod.RenderMouseRegion;
-    }
-    return MouseManager._RenderMouseRegionClass;
-  }
 
   private constructor() {}
 
@@ -217,13 +206,11 @@ export class MouseManager {
    * the caller can iterate from the end to find the deepest handler.
    */
   private _extractMouseRegions(entries: BoxHitTestEntry[]): RenderMouseRegion[] {
-    const RMR = MouseManager.getRenderMouseRegionClass();
     const regions: RenderMouseRegion[] = [];
 
-    // Scan from deepest (last) to shallowest (first)
     for (let i = entries.length - 1; i >= 0; i--) {
       const entry = entries[i]!;
-      if (entry.target instanceof RMR) {
+      if (entry.target instanceof RenderMouseRegion) {
         const region = entry.target as unknown as RenderMouseRegion;
         regions.push(region);
         if (region.opaque) {

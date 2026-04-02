@@ -19,6 +19,7 @@ import type {
   FocusEvent,
   KeyEventResult,
 } from './events';
+import { FocusManager } from './focus';
 
 // Handler type aliases
 export type KeyHandler = (event: KeyEvent) => KeyEventResult;
@@ -213,16 +214,11 @@ export class EventDispatcher {
     }
 
     // Step 2: Try FocusManager dispatch (if available)
-    try {
-      const { FocusManager } = require('./focus');
-      if (FocusManager?.instance) {
-        const result = FocusManager.instance.dispatchKeyEvent(event);
-        if (result === 'handled') {
-          return 'handled';
-        }
+    if (FocusManager.instance) {
+      const result = FocusManager.instance.dispatchKeyEvent(event);
+      if (result === 'handled') {
+        return 'handled';
       }
-    } catch {
-      // FocusManager not available yet — skip focus dispatch
     }
 
     // Step 3: Run registered key handlers
@@ -276,15 +272,10 @@ export class EventDispatcher {
   dispatchPasteEvent(event: PasteEvent): void {
     // Try FocusManager paste dispatch — only if there's a focused node
     // that might handle the paste. Otherwise fall through to registered handlers.
-    try {
-      const { FocusManager } = require('./focus');
-      const fm = FocusManager?.instance;
-      if (fm && fm.primaryFocus) {
-        fm.dispatchPasteEvent(event.text);
-        return;
-      }
-    } catch {
-      // FocusManager not available — use fallback handlers
+    const fm = FocusManager.instance;
+    if (fm && fm.primaryFocus) {
+      fm.dispatchPasteEvent(event.text);
+      return;
     }
 
     // Fallback: registered paste handlers

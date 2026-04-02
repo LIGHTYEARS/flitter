@@ -543,6 +543,41 @@ export class ConversationState {
     };
   }
 
+  /**
+   * Returns the text of the user message at the given items-array index,
+   * or null if the index is invalid or not a user_message.
+   */
+  getMessageAt(index: number): string | null {
+    const item = this._snapshot.items[index];
+    if (!item || item.type !== 'user_message') return null;
+    return item.text;
+  }
+
+  /**
+   * Remove all conversation items after the given items-array index.
+   * Rebuilds the tool call index from the remaining items.
+   */
+  truncateAfter(index: number): void {
+    const newItems = this._snapshot.items.slice(0, index + 1);
+    this._toolCallIndex.clear();
+    this._openTaskStack = [];
+    for (let i = 0; i < newItems.length; i++) {
+      const item = newItems[i];
+      if (item.type === 'tool_call') {
+        this._toolCallIndex.set(item.toolCallId, i);
+      }
+    }
+    this._streamingMsgIndex = -1;
+    this._streamingThinkingIndex = -1;
+    this._streamingTextBuffer = '';
+    this._streamingThinkingBuffer = '';
+    this._snapshot = {
+      ...this._snapshot,
+      items: newItems,
+      version: nextVersion(this._snapshot.version),
+    };
+  }
+
   clear(): void {
     this._streamingMsgIndex = -1;
     this._streamingThinkingIndex = -1;

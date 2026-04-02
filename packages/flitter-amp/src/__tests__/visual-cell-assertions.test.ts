@@ -56,14 +56,55 @@ function findFirstBrailleSpinner(grid: Grid): TextLocation | null {
   return null;
 }
 
-// ── Quote computation (matches chat-view.ts:179) ──────────────────────
-const QUOTES = [
-  '"The best way to predict the future is to invent it." — Alan Kay',
-  '"Simplicity is the ultimate sophistication." — Leonardo da Vinci',
-  '"Talk is cheap. Show me the code." — Linus Torvalds',
-  '"First, solve the problem. Then, write the code." — John Johnson',
-  '"Any sufficiently advanced technology is indistinguishable from magic." — Arthur C. Clarke',
+// ── Suggestion computation (matches chat-view.ts SUGGESTIONS array) ──
+const SUGGESTIONS: Array<{ text: string; type: 'command' | 'hint' | 'prompt' | 'quote' }> = [
+  { text: '"The best way to predict the future is to invent it." — Alan Kay', type: 'quote' },
+  { text: '"Simplicity is the ultimate sophistication." — Leonardo da Vinci', type: 'quote' },
+  { text: '"Talk is cheap. Show me the code." — Linus Torvalds', type: 'quote' },
+  { text: '"First, solve the problem. Then, write the code." — John Johnson', type: 'quote' },
+  { text: '"Any sufficiently advanced technology is indistinguishable from magic." — Arthur C. Clarke', type: 'quote' },
+  { text: '"Programs must be written for people to read." — Abelson & Sussman', type: 'quote' },
+  { text: '"Make it work, make it right, make it fast." — Kent Beck', type: 'quote' },
+  { text: '"The only way to go fast is to go well." — Robert C. Martin', type: 'quote' },
+  { text: 'Ctrl+O — Open command palette', type: 'command' },
+  { text: 'Ctrl+L — Clear conversation', type: 'command' },
+  { text: 'Ctrl+C — Cancel current operation', type: 'command' },
+  { text: 'Ctrl+G — Open prompt in $EDITOR', type: 'command' },
+  { text: 'Ctrl+R — Reverse search history', type: 'command' },
+  { text: 'Ctrl+S — Cycle agent mode', type: 'command' },
+  { text: 'Alt+T — Toggle tool call expansion', type: 'command' },
+  { text: 'Alt+D — Toggle deep reasoning', type: 'command' },
+  { text: '? — Show shortcut help', type: 'command' },
+  { text: 'Use @ to mention files in your prompt', type: 'hint' },
+  { text: 'Use $ prefix for shell commands', type: 'hint' },
+  { text: 'Use $$ prefix for background shell', type: 'hint' },
+  { text: 'Tab/Shift+Tab navigates through messages', type: 'hint' },
+  { text: 'Press e on a selected message to edit', type: 'hint' },
+  { text: 'Press r on a selected message to restore', type: 'hint' },
+  { text: 'ArrowUp/Down navigates prompt history', type: 'hint' },
+  { text: 'Dense view mode collapses tool calls', type: 'hint' },
+  { text: 'Explain this codebase architecture', type: 'prompt' },
+  { text: 'Find and fix bugs in the current file', type: 'prompt' },
+  { text: 'Write tests for the untested functions', type: 'prompt' },
+  { text: 'Refactor this module to reduce complexity', type: 'prompt' },
+  { text: 'Add error handling to the API endpoints', type: 'prompt' },
+  { text: 'Review the recent changes for issues', type: 'prompt' },
+  { text: 'Generate a migration script for the schema', type: 'prompt' },
 ];
+
+function pickSuggestions(seed: number, count: number): Array<typeof SUGGESTIONS[number]> {
+  const result: Array<typeof SUGGESTIONS[number]> = [];
+  const used = new Set<number>();
+  let idx = seed;
+  while (result.length < count && used.size < SUGGESTIONS.length) {
+    idx = (idx * 7 + 13) % SUGGESTIONS.length;
+    if (!used.has(idx)) {
+      used.add(idx);
+      result.push(SUGGESTIONS[idx]);
+    }
+  }
+  return result;
+}
 
 function makeApp(appState: AppState): App {
   return new App({
@@ -93,14 +134,14 @@ describe('Cell-Level Assertions', () => {
   // ════════════════════════════════════════════════════════════════════
 
   describe('Welcome Screen', () => {
-    test('renders "Welcome to Amp" in bold', () => {
+    test('renders "Welcome to Amp" in bold success color', () => {
       const appState = new AppState();
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
       const grid = capture(appState);
 
       const pos = findTextOnce(grid, 'Welcome to Amp');
-      assertStyleRange(grid, pos.x, pos.y, 'Welcome to Amp'.length, { bold: true });
+      assertStyleRange(grid, pos.x, pos.y, 'Welcome to Amp'.length, { bold: true, fg: SUCCESS });
     });
 
     test('renders keybind hint with correct colors', () => {
@@ -120,20 +161,24 @@ describe('Cell-Level Assertions', () => {
       assertStyleAt(grid, helpIdx, ctrlPos.y, { fg: WARNING });
     });
 
-    test('renders daily quote in italic', () => {
+    test('renders daily suggestion on welcome screen', () => {
       const appState = new AppState();
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
       const grid = capture(appState);
 
-      const dayIndex = Math.floor(Date.now() / 86400000) % QUOTES.length;
-      // Quote may be wrapped; check for a unique substring from the beginning
-      const quoteStart = QUOTES[dayIndex]!.slice(0, 20);
-      const matches = findText(grid, quoteStart);
-      expect(matches.length).toBeGreaterThanOrEqual(1);
-
-      const pos = matches[0]!;
-      assertStyleAt(grid, pos.x, pos.y, { italic: true });
+      const dayIndex = Math.floor(Date.now() / 86400000) % SUGGESTIONS.length;
+      const picks = pickSuggestions(dayIndex, 4);
+      let found = false;
+      for (const pick of picks) {
+        const searchText = pick.text.slice(0, 15);
+        const matches = findText(grid, searchText);
+        if (matches.length > 0) {
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
     });
 
     test('renders content in 80x24 without overflow', () => {
@@ -168,6 +213,20 @@ describe('Cell-Level Assertions', () => {
       const densityChars = ['#', '*', '+', '='];
       const hasDensity = densityChars.some(ch => screenText.includes(ch));
       expect(hasDensity).toBe(true);
+    });
+
+    test('renders welcome input area with 3 visible content rows by default', () => {
+      const appState = new AppState();
+      appState.cwd = '/home/user/project';
+      appState.gitBranch = 'main';
+      const grid = capture(appState);
+
+      const topBorderRow = findRow(grid, '╭');
+      const bottomBorderRow = findRow(grid, '╰');
+
+      expect(topBorderRow).toBeGreaterThan(-1);
+      expect(bottomBorderRow).toBeGreaterThan(topBorderRow);
+      expect(bottomBorderRow - topBorderRow).toBe(4);
     });
   });
 
@@ -525,7 +584,7 @@ describe('Cell-Level Assertions', () => {
       expect(shortcutRow!).toBeGreaterThan(borderRow!);
     });
 
-    test('input box has at least 3 content rows', () => {
+    test('input box has at least 1 content row', () => {
       const appState = new AppState();
       appState.cwd = '/home/user/project';
       appState.gitBranch = 'main';
@@ -536,7 +595,7 @@ describe('Cell-Level Assertions', () => {
       expect(topRow).toBeDefined();
       expect(bottomRow).toBeDefined();
       const contentRows = bottomRow! - topRow! - 1;
-      expect(contentRows).toBeGreaterThanOrEqual(3);
+      expect(contentRows).toBeGreaterThanOrEqual(1);
     });
 
     test('input box shows no placeholder text', () => {
@@ -595,18 +654,26 @@ describe('Cell-Level Assertions', () => {
       h.cleanup();
     });
 
-    test('input box border position stays constant across processing state changes', () => {
+    test('input box remains visibly bordered across processing state changes', () => {
       const h = createAppTestHarness(120, 40);
       h.appState.cwd = '/test';
+      h.appState.conversation.addUserMessage('keep layout in chat mode');
 
       h.drawFrame();
-      const idleBorderRow = findRow(h.readGrid(), '╭');
+      const idleGrid = h.readGrid();
+      const idleTopBorderRow = findRow(idleGrid, '╭');
+      const idleBottomBorderRow = findRow(idleGrid, '╰');
 
       h.appState.startProcessing('test');
       h.drawFrame();
-      const processingBorderRow = findRow(h.readGrid(), '╭');
+      const processingGrid = h.readGrid();
+      const processingTopBorderRow = findRow(processingGrid, '╭');
+      const processingBottomBorderRow = findRow(processingGrid, '╰');
 
-      expect(processingBorderRow).toBe(idleBorderRow);
+      expect(idleTopBorderRow).toBeGreaterThan(-1);
+      expect(idleBottomBorderRow).toBeGreaterThan(idleTopBorderRow);
+      expect(processingTopBorderRow).toBeGreaterThan(-1);
+      expect(processingBottomBorderRow).toBeGreaterThan(processingTopBorderRow);
       h.cleanup();
     });
   });

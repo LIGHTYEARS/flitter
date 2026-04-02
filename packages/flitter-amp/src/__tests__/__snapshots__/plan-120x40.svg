@@ -23,51 +23,49 @@
 <text x="1011.6" y="350.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="368.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="386.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="404.04" style="fill:#2ba12b" xml:space="preserve">│</text>
-<text x="54" y="404.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Refactor the authentication system</text>
 <text x="1011.6" y="404.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="422.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="440.04" style="fill:#2ba12b" xml:space="preserve">│</text>
+<text x="54" y="440.04" style="fill:#2ba12b;font-style:italic" xml:space="preserve">Refactor the authentication system</text>
 <text x="1011.6" y="440.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="458.04" style="fill:#42a1ff;font-weight:bold" xml:space="preserve">  Plan</text>
 <text x="1011.6" y="458.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="476.04" style="fill:#2ba12b" xml:space="preserve">    ✓ </text>
-<text x="79.2" y="476.04" style="fill:#bd2b2b;font-weight:bold" xml:space="preserve">[H] </text>
-<text x="112.80000000000001" y="476.04" style="fill:#2ba12b" xml:space="preserve">Analyze current auth architecture</text>
 <text x="1011.6" y="476.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="494.04" style="fill:#2ba12b" xml:space="preserve">    ✓ </text>
-<text x="79.2" y="494.04" style="fill:#bd2b2b;font-weight:bold" xml:space="preserve">[H] </text>
-<text x="112.80000000000001" y="494.04" style="fill:#2ba12b" xml:space="preserve">Extract JWT token handling</text>
+<text x="28.8" y="494.04" style="fill:#42a1ff;font-weight:bold" xml:space="preserve">  Plan</text>
 <text x="1011.6" y="494.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="512.04" style="fill:#ffb71b" xml:space="preserve">    ● </text>
+<text x="28.8" y="512.04" style="fill:#2ba12b" xml:space="preserve">    ✓ </text>
 <text x="79.2" y="512.04" style="fill:#bd2b2b;font-weight:bold" xml:space="preserve">[H] </text>
-<text x="112.80000000000001" y="512.04" style="fill:#ffb71b" xml:space="preserve">Implement token refresh flow</text>
+<text x="112.80000000000001" y="512.04" style="fill:#2ba12b" xml:space="preserve">Analyze current auth architecture</text>
 <text x="1011.6" y="512.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="530.04" style="fill:#9c9c9c" xml:space="preserve">    ○ </text>
-<text x="79.2" y="530.04" style="fill:#ffb71b;font-weight:bold" xml:space="preserve">[M] </text>
-<text x="112.80000000000001" y="530.04" style="fill:#9c9c9c" xml:space="preserve">Update middleware chain</text>
+<text x="28.8" y="530.04" style="fill:#2ba12b" xml:space="preserve">    ✓ </text>
+<text x="79.2" y="530.04" style="fill:#bd2b2b;font-weight:bold" xml:space="preserve">[H] </text>
+<text x="112.80000000000001" y="530.04" style="fill:#2ba12b" xml:space="preserve">Extract JWT token handling</text>
 <text x="1011.6" y="530.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="548.04" style="fill:#9c9c9c" xml:space="preserve">    ○ </text>
-<text x="79.2" y="548.04" style="fill:#ffb71b;font-weight:bold" xml:space="preserve">[M] </text>
-<text x="112.80000000000001" y="548.04" style="fill:#9c9c9c" xml:space="preserve">Add rate limiting</text>
+<text x="28.8" y="548.04" style="fill:#ffb71b" xml:space="preserve">    ● </text>
+<text x="79.2" y="548.04" style="fill:#bd2b2b;font-weight:bold" xml:space="preserve">[H] </text>
+<text x="112.80000000000001" y="548.04" style="fill:#ffb71b" xml:space="preserve">Implement token refresh flow</text>
 <text x="1011.6" y="548.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="28.8" y="566.04" style="fill:#9c9c9c" xml:space="preserve">    ○ </text>
-<text x="79.2" y="566.04" style="fill:#9c9c9c;font-weight:bold" xml:space="preserve">[L] </text>
-<text x="112.80000000000001" y="566.04" style="fill:#9c9c9c" xml:space="preserve">Write integration tests</text>
+<text x="79.2" y="566.04" style="fill:#ffb71b;font-weight:bold" xml:space="preserve">[M] </text>
+<text x="112.80000000000001" y="566.04" style="fill:#9c9c9c" xml:space="preserve">Update middleware chain</text>
 <text x="1011.6" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="584.04" style="fill:#9c9c9c" xml:space="preserve">    ○ </text>
+<text x="79.2" y="584.04" style="fill:#ffb71b;font-weight:bold" xml:space="preserve">[M] </text>
+<text x="112.80000000000001" y="584.04" style="fill:#9c9c9c" xml:space="preserve">Add rate limiting</text>
 <text x="1011.6" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="28.8" y="602.04" style="fill:#9c9c9c" xml:space="preserve">    ○ </text>
+<text x="79.2" y="602.04" style="fill:#9c9c9c;font-weight:bold" xml:space="preserve">[L] </text>
+<text x="112.80000000000001" y="602.04" style="fill:#9c9c9c" xml:space="preserve">Write integration tests</text>
 <text x="1011.6" y="602.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="28.8" y="620.04" style="fill:#dcdcdc" xml:space="preserve">I&apos;m working through the plan. Steps 1-2 are complete, and I&apos;m currently implementing the token refresh flow.</text>
 <text x="1011.6" y="620.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="1011.6" y="638.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="12" y="674.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
-<text x="952.8000000000001" y="674.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
-<text x="1011.6" y="674.04" style="fill:#878b86" xml:space="preserve">╮</text>
-<text x="12" y="692.04" style="fill:#878b86" xml:space="preserve">│</text>
-<text x="28.8" y="692.04" style="fill:#f6fff5" xml:space="preserve">█</text>
-<text x="1011.6" y="692.04" style="fill:#878b86" xml:space="preserve">│</text>
-<text x="12" y="710.04" style="fill:#878b86" xml:space="preserve">│</text>
-<text x="1011.6" y="710.04" style="fill:#878b86" xml:space="preserve">│</text>
+<text x="28.8" y="656.04" style="fill:#dcdcdc" xml:space="preserve">I&apos;m working through the plan. Steps 1-2 are complete, and I&apos;m currently implementing the token refresh flow.</text>
+<text x="1011.6" y="656.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="1011.6" y="674.04" style="fill:#969896" xml:space="preserve">░</text>
+<text x="12" y="710.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────</text>
+<text x="952.8000000000001" y="710.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
+<text x="1011.6" y="710.04" style="fill:#878b86" xml:space="preserve">╮</text>
 <text x="12" y="728.04" style="fill:#878b86" xml:space="preserve">│</text>
+<text x="28.8" y="728.04" style="fill:#f6fff5" xml:space="preserve">█</text>
 <text x="1011.6" y="728.04" style="fill:#878b86" xml:space="preserve">│</text>
 <text x="12" y="746.04" style="fill:#878b86" xml:space="preserve">╰───────────────────────────────────────────────────────────────────────────────────────────</text>
 <text x="784.8000000000001" y="746.04" style="fill:#9c9c9c;opacity:0.5" xml:space="preserve">─/home/user/project (main)─</text>

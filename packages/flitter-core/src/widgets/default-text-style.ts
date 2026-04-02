@@ -42,10 +42,8 @@ export class DefaultTextStyle extends InheritedWidget {
    * or undefined if none is found.
    */
   static maybeOf(context: BuildContext): TextStyle | undefined {
-    // Use the BuildContext to find an ancestor InheritedElement of this type
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(DefaultTextStyle);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(DefaultTextStyle);
       if (element) {
         const widget = element.widget as DefaultTextStyle;
         return widget.style;

@@ -2,9 +2,10 @@
 
 import {
   readFileSync, writeFileSync, existsSync, mkdirSync,
-  unlinkSync,
+  unlinkSync, renameSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { log } from '../utils/logger';
 import type {
   ConversationItem, UserMessage,
@@ -70,6 +71,17 @@ export class SessionStore {
     }
   }
 
+  private atomicWriteFileSync(filePath: string, data: string): void {
+    const tmpPath = `${filePath}.${randomBytes(6).toString('hex')}.tmp`;
+    try {
+      writeFileSync(tmpPath, data, 'utf-8');
+      renameSync(tmpPath, filePath);
+    } catch (err) {
+      try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+      throw err;
+    }
+  }
+
   /**
    * Save a session snapshot to disk and update the index.
    * Sanitizes streaming state before writing (isStreaming -> false).
@@ -92,7 +104,7 @@ export class SessionStore {
       };
 
       const filePath = join(this.sessionsDir, `${session.sessionId}.json`);
-      writeFileSync(filePath, JSON.stringify(fileData, null, 2), 'utf-8');
+      this.atomicWriteFileSync(filePath, JSON.stringify(fileData, null, 2));
 
       this.updateIndex(fileData);
       log.info(`Session saved: ${session.sessionId} (${sanitizedItems.length} items)`);
@@ -199,7 +211,7 @@ export class SessionStore {
   private saveIndex(index: SessionIndex): void {
     try {
       this.ensureDir();
-      writeFileSync(this.indexPath, JSON.stringify(index, null, 2), 'utf-8');
+      this.atomicWriteFileSync(this.indexPath, JSON.stringify(index, null, 2));
     } catch (err) {
       log.error('Failed to save session index', err);
     }

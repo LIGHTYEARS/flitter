@@ -238,9 +238,8 @@ export class ImagePreviewProvider extends InheritedWidget {
    * or undefined if none is found.
    */
   static maybeOf(context: BuildContext): ImagePreviewData | undefined {
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(ImagePreviewProvider);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(ImagePreviewProvider);
       if (element) {
         const widget = element.widget as ImagePreviewProvider;
         return widget.data;
@@ -460,7 +459,7 @@ export class RenderKittyImage extends RenderBox {
     // Write the escape sequence payload to the paint context
     // PaintContext implementations that support raw escape output
     // will handle the Kitty protocol sequences
-    const ctx = context as any;
+    const ctx = context as unknown as { writeRawEscape?: (payload: string, col: number, row: number) => void };
     if (typeof ctx.writeRawEscape === 'function') {
       ctx.writeRawEscape(this._cachedPayload, offset.col, offset.row);
     }

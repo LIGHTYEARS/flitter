@@ -5,12 +5,23 @@
 // list). Each generation applies Conway-like rules and maps the state to a
 // single Unicode braille character (U+2800 range) via a bit permutation.
 //
-// Usage:
+// W4-6: Added optional Ticker-based mode via startTicker()/stopTicker().
+// The spinner remains fully usable without a Ticker (manual step() calls).
+//
+// Usage (manual):
 //   const spinner = new BrailleSpinner();
 //   setInterval(() => {
 //     spinner.step();
 //     setText(spinner.toBraille());
 //   }, 200);
+//
+// Usage (Ticker-based):
+//   const spinner = new BrailleSpinner();
+//   spinner.startTicker(200, (braille) => setText(braille));
+//   // ... later
+//   spinner.stopTicker();
+
+import { Ticker } from '../animation/ticker';
 
 // ---------------------------------------------------------------------------
 // Braille bit permutation: maps flat cell index to braille dot bit position.
@@ -59,12 +70,28 @@ const MAX_GENERATIONS = 15;
  *
  * Auto-reseeds when the state becomes static, oscillating (period 2),
  * all dead, depleted (fewer than 2 live cells), or after 15 generations.
+ *
+ * Supports two modes:
+ * - Manual: call step() yourself (e.g. from setInterval or external tick)
+ * - Ticker-based: call startTicker(intervalMs, onFrame) for frame-synchronized stepping
  */
 export class BrailleSpinner {
   // Amp ref: state = [!0, !1, !0, !1, !0, !1, !0, !1]
   private _state: boolean[] = [true, false, true, false, true, false, true, false];
   private _previousState: boolean[] = [];
   private _generation = 0;
+
+  /** Ticker instance for frame-synchronized mode, null when not in Ticker mode. */
+  private _ticker: Ticker | null = null;
+
+  /** Elapsed time of the last Ticker-driven step, for interval gating. */
+  private _lastTickerStepElapsed: number = 0;
+
+  /** The step interval in ms for Ticker-based mode. */
+  private _tickerInterval: number = 200;
+
+  /** User callback for Ticker-based mode, called with braille string after each step. */
+  private _tickerOnFrame: ((braille: string) => void) | null = null;
 
   /** Advance one generation. */
   step(): void {
@@ -130,9 +157,58 @@ export class BrailleSpinner {
     this._reseed();
   }
 
+  /**
+   * Start Ticker-based automatic stepping. Each frame, if the elapsed time
+   * since the last step exceeds intervalMs, step() is called and onFrame
+   * receives the new braille character.
+   *
+   * This replaces a manual setInterval + step() loop with frame-synchronized
+   * timing driven by the FrameScheduler.
+   *
+   * @param intervalMs - Minimum ms between steps (default 200)
+   * @param onFrame - Callback receiving the braille string after each step
+   */
+  startTicker(intervalMs: number = 200, onFrame: (braille: string) => void): void {
+    this.stopTicker();
+
+    this._tickerInterval = intervalMs;
+    this._tickerOnFrame = onFrame;
+    this._lastTickerStepElapsed = 0;
+
+    this._ticker = new Ticker((elapsed) => this._onTick(elapsed));
+    this._ticker.start();
+  }
+
+  /** Stop Ticker-based automatic stepping. The spinner can still be used manually. */
+  stopTicker(): void {
+    if (this._ticker !== null) {
+      this._ticker.dispose();
+      this._ticker = null;
+    }
+    this._tickerOnFrame = null;
+    this._lastTickerStepElapsed = 0;
+  }
+
+  /** Whether the spinner is currently in Ticker-based mode. */
+  get isTickerActive(): boolean {
+    return this._ticker?.isActive ?? false;
+  }
+
   // ---------------------------------------------------------------------------
   // Internal
   // ---------------------------------------------------------------------------
+
+  /**
+   * Ticker callback: gate steps to the configured interval.
+   * Only steps and notifies when enough elapsed time has passed.
+   */
+  private _onTick(elapsed: number): void {
+    if (elapsed - this._lastTickerStepElapsed >= this._tickerInterval) {
+      this._lastTickerStepElapsed = elapsed;
+      this.step();
+      this._tickerOnFrame?.(this.toBraille());
+    }
+  }
 
   /** Amp ref: reseed with ~40% density, minimum 3 live cells. */
   private _reseed(): void {

@@ -6,7 +6,7 @@ import { parseArgs } from './state/config';
 import { setLogLevel, log, initLogFile, closeLogFile } from './utils/logger';
 import { setPipelineLogSink, resetPipelineLogSink } from 'flitter-core';
 import { AppState } from './state/app-state';
-import { connectToAgent, connectToAgentWithResume, sendPrompt, cancelPrompt } from './acp/connection';
+import { connectToAgent, connectToAgentWithResume, sendPrompt, cancelPrompt, nullifyHandle } from './acp/connection';
 import type { ConnectionHandle } from './acp/connection';
 import { gracefulShutdown } from './acp/graceful-shutdown';
 import { startTUI } from './app';
@@ -16,6 +16,11 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { writeFileSync } from 'node:fs';
 import { setCwd } from './widgets/tool-call/resolve-tool-name';
+import { LiveHandle } from './acp/live-handle';
+import { ReconnectionManager } from './acp/reconnection-manager';
+import { HeartbeatMonitor } from './acp/heartbeat-monitor';
+import { ActivityTracker } from './acp/activity-tracker';
+import { pingAgent } from './acp/ping';
 
 async function main(): Promise<void> {
   const config = parseArgs(process.argv);
@@ -125,31 +130,38 @@ async function main(): Promise<void> {
   }
 
   // Connect to the ACP agent
-  let handle: ConnectionHandle;
+  let initialHandle: ConnectionHandle;
   try {
     if (resumeSessionId) {
-      handle = await connectToAgentWithResume(
+      const resumeResult = await connectToAgentWithResume(
         config.agentCommand,
         config.agentArgs,
         config.cwd,
         appState,
         resumeSessionId,
       );
-      // Restore local conversation state from saved session
-      const savedSession = sessionStore.load(resumeSessionId);
-      if (savedSession) {
-        appState.restoreFromSession(savedSession);
-        log.info(`Restored ${savedSession.items.length} conversation items from disk`);
+      initialHandle = resumeResult;
+      if (resumeResult.resumeFailed) {
+        appState.conversation.addSystemMessage(
+          'Session resume failed — started new session',
+        );
+        log.warn(`Resume failed for session ${resumeSessionId}; started new session ${resumeResult.sessionId}`);
+      } else {
+        const savedSession = sessionStore.load(resumeSessionId);
+        if (savedSession) {
+          appState.restoreFromSession(savedSession);
+          log.info(`Restored ${savedSession.items.length} conversation items from disk`);
+        }
       }
     } else {
-      handle = await connectToAgent(
+      initialHandle = await connectToAgent(
         config.agentCommand,
         config.agentArgs,
         config.cwd,
         appState,
       );
     }
-    appState.setConnected(handle.sessionId, handle.agentInfo?.name ?? null);
+    appState.setConnected(initialHandle.sessionId, initialHandle.agentInfo?.name ?? null);
     log.info('Connected to agent successfully');
   } catch (err) {
     log.error('Failed to connect to agent', err);
@@ -164,14 +176,76 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Monitor agent process for unexpected exit (PROTO-04)
-  handle.agent.onExit((code, signal) => {
-    if (appState.isConnected) {
+  /** Stable indirect reference — closures read liveHandle.current instead of a bare variable. */
+  const liveHandle = new LiveHandle<ConnectionHandle>(initialHandle);
+
+  /** Tracks user/protocol activity for adaptive heartbeat intervals. */
+  const activityTracker = new ActivityTracker();
+
+  /** Reconnection manager — exponential backoff reconnect loop. */
+  const reconnectionManager = new ReconnectionManager(
+    config.agentCommand,
+    config.agentArgs,
+    config.cwd,
+    appState,
+    (phase, attempt, error, nextRetryAt) => {
+      appState.setConnectionPhase(phase, attempt, error ?? null, nextRetryAt ?? null);
+    },
+  );
+
+  /**
+   * Heartbeat monitor — periodic health probing of the agent connection.
+   * Uses pingAgent() as the probe function; updates appState health fields
+   * on every status transition.
+   */
+  const heartbeatMonitor = new HeartbeatMonitor(
+    () => pingAgent(liveHandle.current.connection),
+    (report) => {
+      appState.healthStatus = report.status;
+      if (report.status === 'healthy') {
+        appState.clearHealthWarning();
+      } else {
+        appState.setHealthDegraded(report.consecutiveMisses, report.avgLatencyMs);
+      }
+    },
+  );
+  heartbeatMonitor.start();
+
+  /**
+   * Wire the onExit handler for the current agent process.
+   * On unexpected exit: stop heartbeat, attempt auto-reconnect, and if
+   * successful hot-swap the live handle and re-attach the exit monitor.
+   */
+  const attachExitMonitor = (handle: ConnectionHandle): void => {
+    handle.agent.onExit((code, signal) => {
+      if (!appState.isConnected) {
+        nullifyHandle(handle);
+        return;
+      }
+
       const reason = signal ? `killed by ${signal}` : `exited with code ${code}`;
       log.error(`Agent process ${reason}`);
       appState.onConnectionClosed(reason);
-    }
-  });
+
+      heartbeatMonitor.stop();
+
+      const deadHandle = handle;
+      reconnectionManager.reconnect().then((newHandle) => {
+        nullifyHandle(deadHandle);
+        if (newHandle) {
+          liveHandle.replace(newHandle);
+          appState.setConnected(newHandle.sessionId, newHandle.agentInfo?.name ?? null);
+          appState.conversation.addSystemMessage('--- Reconnected ---');
+          activityTracker.reset();
+          heartbeatMonitor.reset();
+          heartbeatMonitor.start();
+          attachExitMonitor(newHandle);
+          log.info('Reconnected and hot-swapped connection handle');
+        }
+      });
+    });
+  };
+  attachExitMonitor(initialHandle);
 
   /**
    * Save the current session state to disk.
@@ -187,9 +261,14 @@ async function main(): Promise<void> {
   // Handle process cleanup (Gap #60: async gracefulShutdown)
   let shutdownInProgress = false;
   const shutdown = async () => {
-    if (shutdownInProgress) return; // prevent double-shutdown
+    if (shutdownInProgress) return;
     shutdownInProgress = true;
-    await gracefulShutdown({ handle, saveSession });
+    reconnectionManager.abort();
+    heartbeatMonitor.stop();
+    const currentHandle = liveHandle.current;
+    liveHandle.dispose();
+    await gracefulShutdown({ handle: currentHandle, saveSession });
+    nullifyHandle(currentHandle);
   };
 
   process.on('SIGINT', () => {
@@ -202,13 +281,15 @@ async function main(): Promise<void> {
 
   // Prompt submission handler — sends text to agent via ACP
   const handleSubmit = async (text: string): Promise<void> => {
+    const handle = liveHandle.current;
     log.info(`handleSubmit called: "${text}", sessionId: ${handle.sessionId}`);
     if (!handle.sessionId) return;
     appState.startProcessing(text);
+    activityTracker.recordActivity();
     try {
       const result = await sendPrompt(handle.connection, handle.sessionId, text);
+      activityTracker.recordActivity();
       appState.onPromptComplete(handle.sessionId, result.stopReason);
-      // Auto-save after each prompt completion
       saveSession();
     } catch (err) {
       log.error('Prompt failed', err);
@@ -219,8 +300,8 @@ async function main(): Promise<void> {
 
   // Cancel handler — cancels current agent operation
   const handleCancel = async (): Promise<void> => {
+    const handle = liveHandle.current;
     if (!handle.sessionId || !appState.isProcessing) {
-      // Not processing — exit via graceful shutdown
       await shutdown();
       process.exit(0);
     }

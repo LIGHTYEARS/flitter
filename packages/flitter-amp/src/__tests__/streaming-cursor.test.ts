@@ -16,12 +16,12 @@ import type { BuildContext } from 'flitter-core/src/framework/widget';
  */
 function mountState(widget: StreamingCursor): StreamingCursorState {
   const state = widget.createState() as StreamingCursorState;
-  const mockElement = {
+  const mockElement: BuildContext & { markNeedsBuild: () => void } = {
     widget,
     mounted: true,
     markNeedsBuild: () => {},
   };
-  (state as any)._mount(widget, mockElement as unknown as BuildContext);
+  (state as any)._mount(widget, mockElement);
   return state;
 }
 

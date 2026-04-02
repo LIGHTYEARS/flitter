@@ -14,14 +14,14 @@ export { Key, ValueKey, UniqueKey, GlobalKey } from './core/key';
 
 // Phase 10: Infrastructure Layer
 export { MediaQueryData, MediaQuery } from './widgets/media-query';
-export type { TerminalCapabilities } from './widgets/media-query';
+export type { TerminalCapabilities, MediaQueryAspect } from './widgets/media-query';
 export { Theme } from './widgets/theme';
-export type { ThemeData } from './widgets/theme';
+export type { ThemeData, ThemeAspect } from './widgets/theme';
 export { HoverContext } from './widgets/hover-context';
 
 // Phase 16: AppTheme & Syntax Highlighting
 export { AppTheme } from './widgets/app-theme';
-export type { AppThemeData, SyntaxHighlightConfig } from './widgets/app-theme';
+export type { AppThemeData, AppThemeAspect, SyntaxHighlightConfig } from './widgets/app-theme';
 export { syntaxHighlight, detectLanguage } from './widgets/syntax-highlight';
 
 // Phase 12: Core Missing Widgets
@@ -30,6 +30,9 @@ export { ClipRect, RenderClipRect } from './widgets/clip-rect';
 export { Scrollbar, RenderScrollbar } from './widgets/scrollbar';
 export type { ScrollInfo } from './widgets/scrollbar';
 export { IntrinsicHeight, RenderIntrinsicHeight } from './widgets/intrinsic-height';
+
+// Scroll + Virtualization
+export { ListView } from './widgets/list-view';
 
 // Phase 13: Advanced Widgets
 export { Dialog } from './widgets/dialog';

@@ -1,10 +1,13 @@
-// Theme — InheritedWidget that provides color scheme data to descendants
+// Theme — InheritedModel that provides color scheme data to descendants
+// Migrated from InheritedWidget to InheritedModel for aspect-based dependency
+// tracking (GAP-SUM-071 / W5-4). Dependents can subscribe to specific aspects
+// (e.g. 'primary', 'diffAdded') and only rebuild when those aspects change.
 // Amp ref: w3 class. DiffView, Button, RenderText all read colors from Theme.
 // Source: .reference/widgets-catalog.md
 
 import { Key } from '../core/key';
 import { Color } from '../core/color';
-import { Widget, InheritedWidget, BuildContext } from '../framework/widget';
+import { Widget, InheritedModel, InheritedWidget, BuildContext } from '../framework/widget';
 
 /**
  * Immutable data class holding all color definitions for a theme.
@@ -31,7 +34,15 @@ export interface ThemeData {
 }
 
 /**
- * An InheritedWidget that propagates ThemeData down the widget tree.
+ * Aspect type for Theme — each key of ThemeData is a subscribable aspect.
+ * Consumers that only need e.g. 'diffAdded' can use Theme.aspectOf() to
+ * avoid rebuilds when unrelated colors change.
+ */
+export type ThemeAspect = keyof ThemeData;
+
+/**
+ * An InheritedModel that propagates ThemeData down the widget tree with
+ * fine-grained aspect-based dependency tracking.
  *
  * Usage:
  *   new Theme({
@@ -39,12 +50,16 @@ export interface ThemeData {
  *     child: appRoot,
  *   })
  *
- * Descendants read the theme via:
+ * Descendants read the full theme (unconditional rebuild) via:
  *   Theme.of(context)
+ *
+ * Descendants that only need specific aspects use:
+ *   Theme.aspectOf(context, 'primary')
+ *   Theme.aspectOf(context, 'diffAdded')
  *
  * Amp ref: w3 class
  */
-export class Theme extends InheritedWidget {
+export class Theme extends InheritedModel<ThemeAspect> {
   readonly data: ThemeData;
 
   constructor(opts: { data: ThemeData; child: Widget; key?: Key }) {
@@ -57,6 +72,8 @@ export class Theme extends InheritedWidget {
 
   /**
    * Look up the nearest ancestor Theme and return its ThemeData.
+   * Registers an unconditional dependency — the caller rebuilds whenever
+   * any theme color changes.
    * Throws if no Theme ancestor is found.
    */
   static of(context: BuildContext): ThemeData {
@@ -64,7 +81,7 @@ export class Theme extends InheritedWidget {
     if (result === undefined) {
       throw new Error(
         'Theme.of() called with a context that does not contain a Theme ancestor. ' +
-          'Ensure a Theme widget is an ancestor of this widget.',
+        'Ensure a Theme widget is an ancestor of this widget.',
       );
     }
     return result;
@@ -73,6 +90,7 @@ export class Theme extends InheritedWidget {
   /**
    * Look up the nearest ancestor Theme and return its ThemeData,
    * or undefined if none is found.
+   * Registers an unconditional dependency (rebuilds on any change).
    */
   static maybeOf(context: BuildContext): ThemeData | undefined {
     const ctx = context as any;
@@ -84,6 +102,23 @@ export class Theme extends InheritedWidget {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Look up the nearest ancestor Theme and return its ThemeData,
+   * registering a dependency on a specific aspect only.
+   * The caller will only rebuild when the specified aspect changes.
+   *
+   * @param context - The BuildContext of the consuming widget
+   * @param aspect - The ThemeData field to subscribe to (e.g. 'primary', 'diffAdded')
+   * @returns The ThemeData, or undefined if no Theme ancestor exists
+   */
+  static aspectOf(context: BuildContext, aspect: ThemeAspect): ThemeData | undefined {
+    const theme = InheritedModel.inheritFrom<Theme, ThemeAspect>(context, {
+      widgetType: Theme,
+      aspect,
+    });
+    return theme?.data;
   }
 
   /**
@@ -110,9 +145,31 @@ export class Theme extends InheritedWidget {
     };
   }
 
+  /**
+   * Coarse-grained notification check (InheritedWidget contract).
+   * Returns true if any color field changed between old and new widget.
+   */
   updateShouldNotify(oldWidget: InheritedWidget): boolean {
     const old = oldWidget as Theme;
     return !themeDataEquals(this.data, old.data);
+  }
+
+  /**
+   * Fine-grained notification check (InheritedModel contract).
+   * Only returns true if at least one of the aspects the dependent
+   * subscribed to actually changed.
+   */
+  updateShouldNotifyDependent(
+    oldWidget: InheritedModel<ThemeAspect>,
+    dependencies: Set<ThemeAspect>,
+  ): boolean {
+    const old = oldWidget as Theme;
+    for (const aspect of dependencies) {
+      if (!this.data[aspect].equals(old.data[aspect])) {
+        return true;
+      }
+    }
+    return false;
   }
 }
 

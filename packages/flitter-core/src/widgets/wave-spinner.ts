@@ -1,12 +1,15 @@
 // WaveSpinner — StatefulWidget that cycles through wave characters on a timer
-// Pattern: setInterval(200ms) + setState() frame cycling,
-// matching AnimatedExpandSection's timer-driven animation pattern
+//
+// W4-6: Added optional Ticker-based mode for frame-synchronized animation.
+// Default uses setInterval for backward compatibility; set useTicker=true
+// to use FrameScheduler-integrated Ticker instead.
 
 import {
   StatefulWidget, State, Widget, type BuildContext,
 } from '../framework/widget';
 import { Text } from './text';
 import { TextSpan } from '../core/text-span';
+import { Ticker } from '../animation/ticker';
 
 // ---------------------------------------------------------------------------
 // Frame sequence for the wave animation
@@ -21,14 +24,22 @@ const WAVE_INTERVAL_MS = 200;
 
 /**
  * A StatefulWidget that displays a cycling wave animation using Unicode
- * characters. Cycles through the frame sequence [" ", "∼", "≈", "≋", "≈", "∼"]
- * at 200ms intervals, looping continuously.
+ * characters. Cycles through the frame sequence at 200ms intervals,
+ * looping continuously.
  *
- * The widget manages its own setInterval timer, starting in initState and
- * cleaning up in dispose. Each tick advances the frame index and triggers
- * a rebuild via setState.
+ * Supports two animation modes:
+ * - Default (setInterval): backward-compatible timer-driven animation
+ * - Ticker mode (useTicker=true): frame-synchronized timing via FrameScheduler
  */
 export class WaveSpinner extends StatefulWidget {
+  /** When true, use Ticker for frame-synchronized animation instead of setInterval. */
+  readonly useTicker: boolean;
+
+  constructor(opts?: { useTicker?: boolean }) {
+    super();
+    this.useTicker = opts?.useTicker ?? false;
+  }
+
   /**
    * Creates a new WaveSpinner widget.
    */
@@ -42,30 +53,40 @@ export class WaveSpinner extends StatefulWidget {
 // ---------------------------------------------------------------------------
 
 /**
- * State for WaveSpinner. Manages a setInterval timer that advances the
- * current frame index through the WAVE_FRAMES sequence, rebuilding the
- * widget on each tick.
+ * State for WaveSpinner. Supports two animation modes:
+ * - setInterval (default): advances frame index via a periodic timer
+ * - Ticker (opt-in): uses FrameScheduler-integrated Ticker with elapsed-time gating
  */
 export class WaveSpinnerState extends State<WaveSpinner> {
   /** Current index into the WAVE_FRAMES array. */
   private _frameIndex: number = 0;
 
-  /** The setInterval handle, null when not running. */
+  /** Ticker for frame-synchronized animation, null when using setInterval mode. */
+  private _ticker: Ticker | null = null;
+
+  /** Elapsed time of the last frame advancement (for Ticker interval gating). */
+  private _lastFrameElapsed: number = 0;
+
+  /** The setInterval handle, null when using Ticker mode. */
   private _timer: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * Start the animation timer when the widget is first inserted into the tree.
+   * Start the animation when the widget is first inserted into the tree.
    */
   override initState(): void {
     super.initState();
-    this._startTimer();
+    if (this.widget.useTicker) {
+      this._startTicker();
+    } else {
+      this._startTimer();
+    }
   }
 
   /**
-   * Cancel the animation timer when the widget is removed from the tree.
+   * Cancel the animation when the widget is removed from the tree.
    */
   override dispose(): void {
-    this._stopTimer();
+    this._stopAnimation();
     super.dispose();
   }
 
@@ -79,11 +100,33 @@ export class WaveSpinnerState extends State<WaveSpinner> {
   }
 
   // -----------------------------------------------------------------------
-  // Timer management
+  // Animation management
   // -----------------------------------------------------------------------
 
   /**
-   * Start the periodic timer that advances the frame index every WAVE_INTERVAL_MS.
+   * Start Ticker-based animation (frame-synchronized via FrameScheduler).
+   */
+  private _startTicker(): void {
+    this._ticker = new Ticker((elapsed) => this._onTick(elapsed));
+    this._lastFrameElapsed = 0;
+    this._ticker.start();
+  }
+
+  /**
+   * Ticker callback: advance the frame when WAVE_INTERVAL_MS has elapsed
+   * since the last frame change.
+   */
+  private _onTick(elapsed: number): void {
+    if (elapsed - this._lastFrameElapsed >= WAVE_INTERVAL_MS) {
+      this._lastFrameElapsed = elapsed;
+      this.setState(() => {
+        this._frameIndex = (this._frameIndex + 1) % WAVE_FRAMES.length;
+      });
+    }
+  }
+
+  /**
+   * Start the periodic setInterval timer (backward-compatible default path).
    */
   private _startTimer(): void {
     this._timer = setInterval(() => {
@@ -94,9 +137,13 @@ export class WaveSpinnerState extends State<WaveSpinner> {
   }
 
   /**
-   * Stop and clear the animation timer.
+   * Stop all animation sources (Ticker and setInterval timer).
    */
-  private _stopTimer(): void {
+  private _stopAnimation(): void {
+    if (this._ticker !== null) {
+      this._ticker.dispose();
+      this._ticker = null;
+    }
     if (this._timer !== null) {
       clearInterval(this._timer);
       this._timer = null;

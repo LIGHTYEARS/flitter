@@ -29,6 +29,12 @@ const COMMANDS: SelectionItem[] = [
   { label: 'Clear conversation', value: 'clear', description: 'Remove all messages (Ctrl+L)' },
   { label: 'Toggle tool calls', value: 'toggle-tools', description: 'Expand/collapse all tool blocks (Alt+T)' },
   { label: 'Toggle thinking', value: 'toggle-thinking', description: 'Expand/collapse all thinking blocks' },
+  { label: 'New thread', value: 'new-thread', description: 'Start a fresh conversation' },
+  { label: 'Switch model', value: 'switch-model', description: 'Open model selection' },
+  { label: 'Copy last response', value: 'copy-last-response', description: 'Copy last assistant message to clipboard' },
+  { label: 'Toggle dense view', value: 'toggle-dense-view', description: 'Toggle compact display mode' },
+  { label: 'View usage', value: 'view-usage', description: 'Show token/cost summary' },
+  { label: 'Show shortcuts help', value: 'show-shortcuts-help', description: 'Open shortcut reference overlay' },
 ];
 
 interface CommandPaletteProps {
@@ -118,7 +124,7 @@ class CommandPaletteState extends State<CommandPalette> {
     const side = new BorderSide({
       color: infoColor,
       width: 1,
-      style: 'rounded' as any,
+      style: 'rounded',
     });
 
     // Search input field

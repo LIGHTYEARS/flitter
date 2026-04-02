@@ -11,11 +11,13 @@ import {
   State,
   type BuildContext,
 } from '../framework/widget';
-import { Column } from './flex';
+import { Column, Row } from './flex';
+import { Expanded } from './flexible';
 import { Text } from './text';
 import { FocusScope } from './focus-scope';
 import { SingleChildScrollView } from './scroll-view';
 import { ScrollController } from './scroll-controller';
+import { Scrollbar } from './scrollbar';
 import type { KeyEvent, KeyEventResult } from '../input/events';
 
 // ---------------------------------------------------------------------------
@@ -67,6 +69,7 @@ export class SelectionList extends StatefulWidget {
   readonly enableMouseInteraction: boolean;
   readonly showDescription: boolean;
   readonly scrollController?: ScrollController;
+  readonly showScrollbar: boolean;
 
   constructor(opts: {
     key?: Key;
@@ -77,6 +80,7 @@ export class SelectionList extends StatefulWidget {
     enableMouseInteraction?: boolean;
     showDescription?: boolean;
     scrollController?: ScrollController;
+    showScrollbar?: boolean;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.items = opts.items;
@@ -86,6 +90,7 @@ export class SelectionList extends StatefulWidget {
     this.enableMouseInteraction = opts.enableMouseInteraction ?? true;
     this.showDescription = opts.showDescription ?? true;
     this.scrollController = opts.scrollController;
+    this.showScrollbar = opts.showScrollbar ?? true;
   }
 
   createState(): State<SelectionList> {
@@ -180,8 +185,8 @@ export class SelectionListState extends State<SelectionList> {
    */
   handleKeyEvent(event: KeyEvent): KeyEventResult {
     const key = event.key;
-    const ctrl = event.ctrl === true;
-    const shift = event.shift === true;
+    const ctrl = event.ctrlKey === true;
+    const shift = event.shiftKey === true;
 
     // Ctrl+n — move next (Amp ref: ap Ctrl+n)
     if (ctrl && key === 'n') {
@@ -253,7 +258,6 @@ export class SelectionListState extends State<SelectionList> {
       const isSelected = i === this._selectedIndex;
       const isDisabled = item.disabled === true;
 
-      // Build label text with styling
       let labelText = isSelected ? `> ${item.label}` : `  ${item.label}`;
       if (this.widget.showDescription && item.description) {
         labelText += ` - ${item.description}`;
@@ -278,13 +282,24 @@ export class SelectionListState extends State<SelectionList> {
       child: column,
     });
 
-    // Wrap with FocusScope for keyboard handling
+    let scrollContent: Widget;
+    if (this.widget.showScrollbar) {
+      scrollContent = new Row({
+        children: [
+          new Expanded({ child: scrollChild }),
+          new Scrollbar({ controller: this.scrollController }),
+        ],
+      });
+    } else {
+      scrollContent = scrollChild;
+    }
+
     return new FocusScope({
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => {
         return this.handleKeyEvent(event);
       },
-      child: scrollChild,
+      child: scrollContent,
     });
   }
 

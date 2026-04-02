@@ -30,8 +30,10 @@ export interface ElementLike {
 export interface BuildContext {
   readonly widget: Widget;
   readonly mounted: boolean;
-  /** Convenience shortcut: returns MediaQueryData from nearest ancestor MediaQuery, or undefined. */
   readonly mediaQuery?: MediaQueryData;
+  dependOnInheritedWidgetOfExactType?(widgetType: Function): { widget: Widget } | null;
+  dependOnInheritedModel?<T>(widgetType: Function, aspect?: T): { widget: Widget } | null;
+  findAncestorStateOfType?<T extends State<StatefulWidget>>(stateType: AbstractConstructor<T>): T | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +376,17 @@ export abstract class State<T extends StatefulWidget = StatefulWidget> {
     if (!this._mounted) {
       throw new Error('setState() called after dispose()');
     }
+    const { debugFlags } = require('../diagnostics/debug-flags');
+    if (debugFlags.debugMode) {
+      const { Element } = require('./element');
+      if (Element._debugBuildPhase) {
+        throw new Error(
+          'setState() called during build phase. ' +
+          'This typically indicates setState() was called from a build() method. ' +
+          'Move the setState() call to a post-frame callback or user event handler.',
+        );
+      }
+    }
     if (fn) fn();
     this._markNeedsBuild();
   }
@@ -473,8 +486,8 @@ export abstract class InheritedModel<T> extends InheritedWidget {
   }
 
   createElement(): ElementLike {
-    const { InheritedModelElement } = require('./element');
-    return new InheritedModelElement<T>(this);
+    const { InheritedModelElement } = require('./element') as { InheritedModelElement: new (widget: InheritedModel<T>) => ElementLike };
+    return new InheritedModelElement(this);
   }
 
   /**
@@ -502,18 +515,16 @@ export abstract class InheritedModel<T> extends InheritedWidget {
   static inheritFrom<M extends InheritedModel<A>, A>(
     context: BuildContext,
     opts: {
-      widgetType: new (...args: any[]) => M;
+      widgetType: abstract new (...args: never[]) => M;
       aspect?: A;
     },
   ): M | null {
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedModel === 'function') {
-      const element = ctx.dependOnInheritedModel(opts.widgetType, opts.aspect);
+    if (typeof context.dependOnInheritedModel === 'function') {
+      const element = context.dependOnInheritedModel(opts.widgetType, opts.aspect);
       return element ? (element.widget as M) : null;
     }
-    // Fallback: use non-aspect-aware lookup
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(opts.widgetType);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(opts.widgetType);
       return element ? (element.widget as M) : null;
     }
     return null;

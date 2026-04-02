@@ -1,6 +1,16 @@
 // Key system for widget identity and reconciliation
 // Amp ref: Used in Widget.canUpdate() for element reconciliation (widget-tree.md)
 
+/**
+ * Minimal element shape used by GlobalKey to avoid circular imports with widget.ts/element.ts.
+ * Covers the union of fields accessed: widget, state, _context.
+ */
+interface GlobalKeyElement {
+  readonly widget: unknown;
+  readonly state?: unknown;
+  readonly _context?: unknown;
+}
+
 let _nextUniqueId = 0;
 // _nextGlobalId removed — GlobalKey uses static _counter instead
 
@@ -78,7 +88,7 @@ export class GlobalKey extends Key {
   static _counter: number = 0;
 
   readonly _id: string;
-  _currentElement: any | undefined = undefined; // Element | undefined
+  _currentElement: GlobalKeyElement | undefined = undefined;
 
   constructor(debugLabel?: string) {
     super();
@@ -103,7 +113,7 @@ export class GlobalKey extends Key {
    *
    * Amp ref: Zs.currentElement getter
    */
-  get currentElement(): any | undefined {
+  get currentElement(): GlobalKeyElement | undefined {
     return this._currentElement;
   }
 
@@ -112,7 +122,7 @@ export class GlobalKey extends Key {
    *
    * Amp ref: Zs.currentWidget getter -- this._currentElement?.widget
    */
-  get currentWidget(): any | undefined {
+  get currentWidget(): unknown | undefined {
     return this._currentElement?.widget;
   }
 
@@ -125,10 +135,10 @@ export class GlobalKey extends Key {
    * This is a convenience accessor matching Flutter's API, implemented
    * via the same mechanism (currentElement.state).
    */
-  get currentState(): any | undefined {
+  get currentState(): unknown | undefined {
     const element = this._currentElement;
     if (element && 'state' in element) {
-      return (element as any).state;
+      return element.state;
     }
     return undefined;
   }
@@ -140,10 +150,10 @@ export class GlobalKey extends Key {
    * Note: In Amp, context is available via the element's _context field.
    * This provides the same access pattern as Flutter's GlobalKey.currentContext.
    */
-  get currentContext(): any | undefined {
+  get currentContext(): unknown | undefined {
     const element = this._currentElement;
     if (element && '_context' in element) {
-      return (element as any)._context;
+      return element._context;
     }
     return undefined;
   }
@@ -157,7 +167,7 @@ export class GlobalKey extends Key {
    * after reactivation. We allow this case.
    * Amp ref deviation: See .gap/02-deactivate-lifecycle.md
    */
-  _setElement(element: any): void {
+  _setElement(element: GlobalKeyElement): void {
     if (this._currentElement !== undefined && this._currentElement !== element) {
       throw new Error(
         `GlobalKey ${this._id} is already associated with an element. ` +

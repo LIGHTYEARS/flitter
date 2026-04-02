@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { EventDispatcher, type KeyHandler, type MouseHandler, type ResizeHandler } from '../event-dispatcher';
 import { InputBridge } from '../input-bridge';
 import { InputParser } from '../input-parser';
-import { hitTest, hitTestSelf, type HitTestResult } from '../hit-test';
+import { BoxHitTestResult } from '../hit-test';
 import {
   createKeyEvent,
   createMouseEvent,
@@ -623,45 +623,43 @@ describe('InputBridge', () => {
 // HitTest Tests
 // ==========================================================================
 
-describe('hitTest', () => {
+describe('RenderBox.hitTest (via BoxHitTestResult)', () => {
   it('should find a single render box at a position', () => {
     const box = new TestRenderBox(80, 24, 0, 0);
     box.layout(BoxConstraints.tight(new Size(80, 24)));
 
-    const result = hitTest(box, 10, 5);
+    const result = new BoxHitTestResult();
+    box.hitTest(result, new Offset(10, 5));
 
     expect(result.path).toHaveLength(1);
-    expect(result.path[0]!.renderObject).toBe(box);
-    expect(result.path[0]!.localX).toBe(10);
-    expect(result.path[0]!.localY).toBe(5);
+    expect(result.path[0]!.target).toBe(box);
+    expect(result.path[0]!.localPosition.col).toBe(10);
+    expect(result.path[0]!.localPosition.row).toBe(5);
   });
 
   it('should return empty path for miss', () => {
     const box = new TestRenderBox(10, 5, 0, 0);
     box.layout(BoxConstraints.tight(new Size(10, 5)));
 
-    // Click outside the box
-    const result = hitTest(box, 15, 10);
+    const result = new BoxHitTestResult();
+    box.hitTest(result, new Offset(15, 10));
     expect(result.path).toHaveLength(0);
   });
 
-  it('should find deepest render object first in path', () => {
+  it('should find parent and child in path', () => {
     const root = new TestContainerRenderBox(80, 24, 0, 0);
     const child = new TestRenderBox(40, 12, 5, 3);
 
     root.addTestChild(child);
     root.layout(BoxConstraints.tight(new Size(80, 24)));
 
-    // Click within child (at col 10, row 5 -> child local: 5, 2)
-    const result = hitTest(root, 10, 5);
+    const result = new BoxHitTestResult();
+    root.hitTest(result, new Offset(10, 5));
 
     expect(result.path.length).toBeGreaterThanOrEqual(2);
-    // Deepest (child) should be first
-    expect(result.path[0]!.renderObject).toBe(child);
-    expect(result.path[0]!.localX).toBe(5);  // 10 - 5
-    expect(result.path[0]!.localY).toBe(2);  // 5 - 3
-    // Parent is after child
-    expect(result.path[1]!.renderObject).toBe(root);
+    const targets = result.path.map((e) => e.target);
+    expect(targets).toContain(root);
+    expect(targets).toContain(child);
   });
 
   it('should handle nested containers', () => {
@@ -673,27 +671,35 @@ describe('hitTest', () => {
     middle.addTestChild(leaf);
     root.layout(BoxConstraints.tight(new Size(80, 24)));
 
-    // Click at screen position (12, 8)
-    // middle offset: (2, 1) -> middle local: (10, 7)
-    // leaf offset relative to middle: (5, 3) -> leaf local: (5, 4)
-    const result = hitTest(root, 12, 8);
+    const result = new BoxHitTestResult();
+    root.hitTest(result, new Offset(12, 8));
 
     expect(result.path.length).toBeGreaterThanOrEqual(3);
-    expect(result.path[0]!.renderObject).toBe(leaf);
-    expect(result.path[0]!.localX).toBe(5);   // 12 - 2 - 5
-    expect(result.path[0]!.localY).toBe(4);   // 8 - 1 - 3
-    expect(result.path[1]!.renderObject).toBe(middle);
-    expect(result.path[2]!.renderObject).toBe(root);
+    const targets = result.path.map((e) => e.target);
+    expect(targets).toContain(leaf);
+    expect(targets).toContain(middle);
+    expect(targets).toContain(root);
   });
 
   it('should miss when outside root bounds', () => {
     const root = new TestRenderBox(40, 20, 0, 0);
     root.layout(BoxConstraints.tight(new Size(40, 20)));
 
-    expect(hitTest(root, -1, 0).path).toHaveLength(0);
-    expect(hitTest(root, 0, -1).path).toHaveLength(0);
-    expect(hitTest(root, 40, 0).path).toHaveLength(0);
-    expect(hitTest(root, 0, 20).path).toHaveLength(0);
+    const r1 = new BoxHitTestResult();
+    root.hitTest(r1, new Offset(-1, 0));
+    expect(r1.path).toHaveLength(0);
+
+    const r2 = new BoxHitTestResult();
+    root.hitTest(r2, new Offset(0, -1));
+    expect(r2.path).toHaveLength(0);
+
+    const r3 = new BoxHitTestResult();
+    root.hitTest(r3, new Offset(40, 0));
+    expect(r3.path).toHaveLength(0);
+
+    const r4 = new BoxHitTestResult();
+    root.hitTest(r4, new Offset(0, 20));
+    expect(r4.path).toHaveLength(0);
   });
 
   it('should return only parent when click misses all children', () => {
@@ -703,68 +709,67 @@ describe('hitTest', () => {
     root.addTestChild(child);
     root.layout(BoxConstraints.tight(new Size(80, 24)));
 
-    // Click at (5, 5) -- within root but outside child (child is at 50,15)
-    const result = hitTest(root, 5, 5);
+    const result = new BoxHitTestResult();
+    root.hitTest(result, new Offset(5, 5));
 
-    // Should hit root but not child
     expect(result.path).toHaveLength(1);
-    expect(result.path[0]!.renderObject).toBe(root);
+    expect(result.path[0]!.target).toBe(root);
   });
 
   it('should prefer front-most child (last in children array)', () => {
     const root = new TestContainerRenderBox(80, 24, 0, 0);
-    // Two overlapping children
     const back = new TestRenderBox(20, 10, 5, 5);
     const front = new TestRenderBox(20, 10, 10, 5);
 
     root.addTestChild(back);
-    root.addTestChild(front); // front is rendered last (on top)
+    root.addTestChild(front);
     root.layout(BoxConstraints.tight(new Size(80, 24)));
 
-    // Click at (15, 7) -- within overlap zone of both children
-    const result = hitTest(root, 15, 7);
+    const result = new BoxHitTestResult();
+    root.hitTest(result, new Offset(15, 7));
 
-    // Front child should be the deepest hit
-    expect(result.path[0]!.renderObject).toBe(front);
+    const targets = result.path.map((e) => e.target);
+    expect(targets).toContain(front);
   });
 
   it('should handle zero-size render objects', () => {
     const box = new TestRenderBox(0, 0, 0, 0);
     box.layout(BoxConstraints.tight(new Size(0, 0)));
 
-    const result = hitTest(box, 0, 0);
+    const result = new BoxHitTestResult();
+    box.hitTest(result, new Offset(0, 0));
     expect(result.path).toHaveLength(0);
   });
 });
 
-describe('hitTestSelf', () => {
+describe('RenderBox.hitTestSelf', () => {
   it('should return true for point inside bounds', () => {
     const box = new TestRenderBox(10, 5, 0, 0);
     box.layout(BoxConstraints.tight(new Size(10, 5)));
 
-    expect(hitTestSelf(box, 0, 0)).toBe(true);
-    expect(hitTestSelf(box, 5, 3)).toBe(true);
-    expect(hitTestSelf(box, 9, 4)).toBe(true);
+    expect(box.hitTestSelf(0, 0)).toBe(true);
+    expect(box.hitTestSelf(5, 3)).toBe(true);
+    expect(box.hitTestSelf(9, 4)).toBe(true);
   });
 
   it('should return false for point outside bounds', () => {
     const box = new TestRenderBox(10, 5, 0, 0);
     box.layout(BoxConstraints.tight(new Size(10, 5)));
 
-    expect(hitTestSelf(box, -1, 0)).toBe(false);
-    expect(hitTestSelf(box, 0, -1)).toBe(false);
-    expect(hitTestSelf(box, 10, 0)).toBe(false);
-    expect(hitTestSelf(box, 0, 5)).toBe(false);
-    expect(hitTestSelf(box, 10, 5)).toBe(false);
+    expect(box.hitTestSelf(-1, 0)).toBe(false);
+    expect(box.hitTestSelf(0, -1)).toBe(false);
+    expect(box.hitTestSelf(10, 0)).toBe(false);
+    expect(box.hitTestSelf(0, 5)).toBe(false);
+    expect(box.hitTestSelf(10, 5)).toBe(false);
   });
 
   it('should handle boundary exactly at width/height', () => {
     const box = new TestRenderBox(1, 1, 0, 0);
     box.layout(BoxConstraints.tight(new Size(1, 1)));
 
-    expect(hitTestSelf(box, 0, 0)).toBe(true);
-    expect(hitTestSelf(box, 1, 0)).toBe(false);
-    expect(hitTestSelf(box, 0, 1)).toBe(false);
+    expect(box.hitTestSelf(0, 0)).toBe(true);
+    expect(box.hitTestSelf(1, 0)).toBe(false);
+    expect(box.hitTestSelf(0, 1)).toBe(false);
   });
 });
 

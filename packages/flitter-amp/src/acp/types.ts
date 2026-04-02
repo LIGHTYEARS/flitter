@@ -29,10 +29,8 @@ export interface UserMessage {
   type: 'user_message';
   text: string;
   timestamp: number;
-  /** When true, indicates the response following this message was interrupted. */
   interrupted?: boolean;
-  /** When true, indicates the response following this message was interrupted. */
-  interrupted?: boolean;
+  images?: Array<{ filename: string }>;
 }
 
 export interface AssistantMessage {
@@ -67,7 +65,7 @@ export interface ToolCallItem {
 export interface ToolCallResult {
   status: 'completed' | 'failed' | 'streaming';
   content?: Array<{ type: string; content?: { type: string; text: string } }>;
-  rawOutput?: Record<string, unknown>;
+  rawOutput?: Record<string, unknown> | string;
 }
 
 export interface ThinkingItem {
@@ -126,4 +124,30 @@ export interface SessionInfoPayload {
   modes?: Array<{ id: string; name: string; description?: string }>;
   hintText?: string | null;
   autocompleteTriggers?: Array<{ trigger: string; description?: string }>;
+}
+
+/**
+ * Safely extracts agent-specific extension fields from a session_info_update.
+ *
+ * The ACP SDK's SessionInfoUpdate only defines `title`, `updatedAt`, and `_meta`,
+ * but agents deliver additional properties (agentName, cwd, tools, etc.) as
+ * top-level fields.  This guard accesses them through a `Record<string, unknown>`
+ * view so that no `as unknown as` double-cast is needed.
+ */
+export function asSessionInfoPayload(update: object): SessionInfoPayload {
+  const rec = update as Record<string, unknown>;
+  return {
+    sessionUpdate: 'session_info_update',
+    agentName: typeof rec.agentName === 'string' ? rec.agentName : undefined,
+    agentVersion: typeof rec.agentVersion === 'string' ? rec.agentVersion : undefined,
+    cwd: typeof rec.cwd === 'string' ? rec.cwd : undefined,
+    gitBranch: typeof rec.gitBranch === 'string' ? rec.gitBranch
+      : rec.gitBranch === null ? null : undefined,
+    tools: Array.isArray(rec.tools) ? rec.tools : undefined,
+    modes: Array.isArray(rec.modes) ? rec.modes : undefined,
+    hintText: typeof rec.hintText === 'string' ? rec.hintText
+      : rec.hintText === null ? null : undefined,
+    autocompleteTriggers: Array.isArray(rec.autocompleteTriggers)
+      ? rec.autocompleteTriggers : undefined,
+  };
 }

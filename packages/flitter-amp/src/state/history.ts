@@ -10,12 +10,14 @@ export class PromptHistory {
   private entries: string[] = [];
   private cursor = -1;
   private readonly maxSize: number;
+  private readonly maxEntryLength: number;
   private readonly filePath: string | null;
   private needsFullRewrite = false;
 
-  constructor(maxSize = 100, filePath: string | null = null) {
+  constructor(maxSize = 100, filePath: string | null = null, maxEntryLength = 10_000) {
     this.maxSize = maxSize;
     this.filePath = filePath;
+    this.maxEntryLength = maxEntryLength;
 
     if (filePath) {
       this.load();
@@ -141,19 +143,26 @@ export class PromptHistory {
 
   // --- Core API (unchanged behavior, persistence hooks added) ---
 
+  private sanitize(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    let cleaned = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+    if (cleaned.length > this.maxEntryLength) {
+      cleaned = cleaned.slice(0, this.maxEntryLength);
+    }
+    return cleaned;
+  }
+
   push(text: string): void {
-    if (text.trim() === '') return;
-    // Deduplicate consecutive identical entries
-    if (this.entries.length > 0 && this.entries[this.entries.length - 1] === text) return;
-    this.entries.push(text);
+    const sanitized = this.sanitize(text);
+    if (sanitized.trim() === '') return;
+    if (this.entries.length > 0 && this.entries[this.entries.length - 1] === sanitized) return;
+    this.entries.push(sanitized);
     if (this.entries.length > this.maxSize) {
       this.entries.shift();
-      // Eviction happened -- file needs a full rewrite to stay in sync
       this.needsFullRewrite = true;
     }
     this.cursor = -1;
-    // Persist to disk
-    this.appendToFile(text);
+    this.appendToFile(sanitized);
   }
 
   previous(): string | null {
@@ -190,6 +199,10 @@ export class PromptHistory {
   /** Return the number of entries currently in history. */
   get length(): number {
     return this.entries.length;
+  }
+
+  getEntries(): string[] {
+    return [...this.entries];
   }
 
   /**

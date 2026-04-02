@@ -5,8 +5,8 @@
 // emits InputEvent objects via a callback. It faithfully reproduces the
 // Bun/Node readline emitKeys() state machine found at amp-strings.txt:241761.
 
-import type { InputEvent, KeyEvent, MouseEvent, PasteEvent, FocusEvent } from './events';
-import { createKeyEvent, createPasteEvent, createFocusEvent } from './events';
+import type { InputEvent, KeyEvent, MouseEvent, PasteEvent, FocusEvent, TerminalResponseEvent } from './events';
+import { createKeyEvent, createPasteEvent, createImagePasteEvent, createFocusEvent, createTerminalResponseEvent } from './events';
 import { LogicalKey, LOW_LEVEL_TO_TUI_KEY } from './keyboard';
 import {
   extractMouseModifiers,
@@ -27,6 +27,10 @@ const enum ParserState {
   SS3,
   /** Inside bracketed paste (collecting text) */
   Paste,
+  /** Inside an OSC sequence (ESC ]) — GAP-SUM-055 */
+  OSC,
+  /** Inside a DCS sequence (ESC P) — GAP-SUM-055 */
+  DCS,
 }
 
 // -- Regex patterns for CSI parameter parsing --
@@ -47,6 +51,31 @@ const SGR_MOUSE_RE = /^<(\d+);(\d+);(\d+)$/;
  */
 const ESCAPE_TIMEOUT_MS = 500;
 
+const BASE64_IMAGE_RE = /^data:(image\/[a-zA-Z+.-]+);base64,([A-Za-z0-9+/=\s]+)$/;
+
+// -- Regex patterns for terminal response detection (GAP-SUM-055) --
+
+/** DA1 response: ESC [ ? Ps ; ... c */
+const DA1_RESPONSE_RE = /^\?[\d;]+$/;
+
+/** DA2 response: ESC [ > Ps ; Ps ; Ps c */
+const DA2_RESPONSE_RE = /^>[\d;]+$/;
+
+/** DA3 response: ESC [ = ... c */
+const DA3_RESPONSE_RE = /^=.*$/;
+
+/** DSR response: ESC [ Ps n (typically ESC [ 0 n) */
+const DSR_RESPONSE_RE = /^\d+$/;
+
+/** DECRPM (mode report): ESC [ ? Ps ; Ps $ y */
+const DECRPM_RESPONSE_RE = /^\?\d+;\d+\$$/;
+
+/** Kitty keyboard query response: ESC [ ? flags u */
+const KITTY_KB_RESPONSE_RE = /^\?\d+$/;
+
+/** In-band resize (mode 2048): ESC [ 8 ; rows ; cols t — GAP-SUM-056 */
+const IN_BAND_RESIZE_RE = /^8;(\d+);(\d+)$/;
+
 /**
  * InputParser: converts raw terminal input into structured InputEvent objects.
  *
@@ -62,9 +91,9 @@ export class InputParser {
   private _buffer: string = '';
   private _escapeTimer: ReturnType<typeof setTimeout> | null = null;
   private _pasteBuffer: string | null = null;
-  private _escaped: boolean = false; // Whether we entered via bare ESC (meta=true)
+  private _escaped: boolean = false;
   private _disposed: boolean = false;
-  private _paused: boolean = false; // When paused, feed() discards data (TUI suspend)
+  private _paused: boolean = false;
 
   constructor(callback: (event: InputEvent) => void) {
     this._callback = callback;
@@ -104,6 +133,12 @@ export class InputParser {
       case ParserState.Paste:
         this._processPaste(char);
         break;
+      case ParserState.OSC:
+        this._processOSC(char);
+        break;
+      case ParserState.DCS:
+        this._processDCS(char);
+        break;
     }
   }
 
@@ -113,7 +148,6 @@ export class InputParser {
   private _processIdle(char: string): void {
     const code = char.charCodeAt(0);
 
-    // ESC starts an escape sequence
     if (char === '\x1b') {
       this._clearEscapeTimeout();
       this._state = ParserState.Escape;
@@ -123,7 +157,6 @@ export class InputParser {
       return;
     }
 
-    // Single character processing (non-escape)
     this._emitSingleChar(char, code, false);
   }
 
@@ -137,8 +170,6 @@ export class InputParser {
     let shift = false;
 
     if (char === '\r' || char === '\n') {
-      // Both \r (carriage return) and \n (line feed) map to 'Enter'.
-      // Real terminals send \r when the Enter key is pressed.
       key = 'Enter';
     } else if (char === '\t') {
       key = 'Tab';
@@ -147,25 +178,18 @@ export class InputParser {
     } else if (char === ' ') {
       key = 'Space';
     } else if (code >= 0x01 && code <= 0x1A) {
-      // Control characters: 0x01 = ctrl+a, etc.
-      // Amp ref: input-system.md line 242044
       ctrl = true;
-      key = String.fromCharCode(code + 0x60); // 0x01 -> 'a'
+      key = String.fromCharCode(code + 0x60);
     } else if (code >= 0x20 && code <= 0x7E) {
-      // Printable ASCII
       key = char;
-      // Uppercase letters have shift set
-      // Amp ref: input-system.md line 242046
       if (code >= 0x41 && code <= 0x5A) {
         shift = true;
         key = char.toLowerCase();
       }
     } else {
-      // Any other character (unicode, etc.)
       key = char;
     }
 
-    // Map to TUI-level key name
     const tuiKey = LOW_LEVEL_TO_TUI_KEY[key] ?? key;
 
     this._emit(createKeyEvent(tuiKey, {
@@ -185,21 +209,30 @@ export class InputParser {
     this._clearEscapeTimeout();
 
     if (char === '[') {
-      // CSI mode: ESC [
       this._state = ParserState.CSI;
       this._buffer = '';
       return;
     }
 
     if (char === 'O') {
-      // SS3 mode: ESC O
       this._state = ParserState.SS3;
       this._buffer = '';
       return;
     }
 
+    if (char === ']') {
+      this._state = ParserState.OSC;
+      this._buffer = '';
+      return;
+    }
+
+    if (char === 'P') {
+      this._state = ParserState.DCS;
+      this._buffer = '';
+      return;
+    }
+
     if (char === '\x1b') {
-      // Double ESC: emit first as Escape, start new escape sequence
       this._emit(createKeyEvent('Escape', { sequence: '\x1b' }));
       this._state = ParserState.Escape;
       this._buffer = '';
@@ -208,13 +241,10 @@ export class InputParser {
     }
 
     if (char === '') {
-      // Empty string from timeout trigger — emit bare ESC
       this._emitBareEscape();
       return;
     }
 
-    // Bare escape + char = meta modifier on the character
-    // Amp ref: input-system.md Section 1.2 (bare escape path)
     this._state = ParserState.Idle;
     const code = char.charCodeAt(0);
     this._emitSingleChar(char, code, true);
@@ -228,17 +258,14 @@ export class InputParser {
   private _processCSI(char: string): void {
     const code = char.charCodeAt(0);
 
-    // Collect digits, semicolons, '<', and intermediate bytes
     if (
-      (code >= 0x30 && code <= 0x3F) || // 0-9, :, ;, <, =, >, ?
-      char === '[' // double-bracket prefix like [[A for f1
+      (code >= 0x30 && code <= 0x3F) ||
+      char === '['
     ) {
       this._buffer += char;
       return;
     }
 
-    // Final byte: 0x40-0x7E (letters, ~, ^) plus $ (0x24)
-    // Standard CSI final bytes are 0x40-0x7E, but rxvt uses $ as terminator
     if ((code >= 0x40 && code <= 0x7E) || char === '$') {
       const params = this._buffer;
       const final = char;
@@ -247,7 +274,6 @@ export class InputParser {
       return;
     }
 
-    // Unexpected character — reset to idle
     this._state = ParserState.Idle;
   }
 
@@ -258,9 +284,52 @@ export class InputParser {
     const fullCode = '[' + params + final;
     const sequence = '\x1b' + fullCode;
 
+    // -- Terminal response detection (GAP-SUM-055) --
+
+    if (final === 'c' && DA1_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('da1', sequence, params));
+      return;
+    }
+
+    if (final === 'c' && DA2_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('da2', sequence, params));
+      return;
+    }
+
+    if (final === 'c' && DA3_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('da3', sequence, params));
+      return;
+    }
+
+    if (final === 'n' && DSR_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('dsr', sequence, params));
+      return;
+    }
+
+    if (final === 'y' && DECRPM_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('decrpm', sequence, params));
+      return;
+    }
+
+    if (final === 'u' && KITTY_KB_RESPONSE_RE.test(params)) {
+      this._emit(createTerminalResponseEvent('kitty_keyboard', sequence, params));
+      return;
+    }
+
+    // In-band resize (mode 2048): ESC [ 8 ; rows ; cols t — GAP-SUM-056
+    if (final === 't') {
+      const resizeMatch = IN_BAND_RESIZE_RE.exec(params);
+      if (resizeMatch) {
+        const rows = parseInt(resizeMatch[1]!, 10);
+        const cols = parseInt(resizeMatch[2]!, 10);
+        this._emit({ type: 'resize', width: cols, height: rows });
+        return;
+      }
+    }
+
     // Check for SGR mouse: ESC [ < button ; col ; row M|m
     if (params.startsWith('<') && (final === 'M' || final === 'm')) {
-      const mouseParams = params.slice(1); // strip leading '<'
+      const mouseParams = params.slice(1);
       this._parseSGRMouse(mouseParams, final, sequence);
       return;
     }
@@ -282,12 +351,10 @@ export class InputParser {
       return;
     }
     if (params + final === '201~') {
-      // paste-end without paste-start (shouldn't normally happen)
       this._state = ParserState.Idle;
       return;
     }
 
-    // Try to match the code against the key mapping table
     const csiCode = params + final;
 
     // Check for Linux console double-bracket function keys: [[A through [[E
@@ -302,21 +369,24 @@ export class InputParser {
       }
     }
 
-    // Try numeric code regex: "11~", "2;5~", "200~", etc.
+    // Kitty CSI u keyboard protocol
+    if (final === 'u') {
+      this._resolveKittyCSIu(params, sequence);
+      return;
+    }
+
     const numericMatch = CSI_NUMERIC_RE.exec(csiCode);
     if (numericMatch) {
       this._resolveNumericCSI(numericMatch, fullCode, sequence);
       return;
     }
 
-    // Try letter code regex: "A", "1;5A", etc.
     const letterMatch = CSI_LETTER_RE.exec(csiCode);
     if (letterMatch) {
       this._resolveLetterCSI(letterMatch, fullCode, sequence);
       return;
     }
 
-    // Unknown CSI sequence — emit as undefined key with the raw sequence
     this._emit(createKeyEvent('Undefined', { sequence }));
   }
 
@@ -335,8 +405,6 @@ export class InputParser {
     let ctrl = false;
 
     if (match[4]) {
-      // 3-digit numeric code: e.g. "200~" (handled above for paste),
-      // but could be other 3-digit codes
       keyName = this._lookupNumericCode(match[4].slice(0, -1), '~');
     } else {
       const code = match[1]!;
@@ -347,13 +415,9 @@ export class InputParser {
         modifier = (parseInt(modStr, 10) || 1) - 1;
       }
 
-      // Shift variants (rxvt-style $)
-      // Amp ref: input-system.md Section 2.4
       if (terminator === '$') {
         shift = true;
       }
-      // Ctrl variants (rxvt-style ^)
-      // Amp ref: input-system.md Section 2.5
       if (terminator === '^') {
         ctrl = true;
       }
@@ -366,11 +430,7 @@ export class InputParser {
       return;
     }
 
-    // Decode modifier bits from CSI parameter
-    // Amp ref: input-system.md Section 1.3
     const modifiers = this._decodeModifier(modifier);
-
-    // Map to TUI key name
     const tuiKey = LOW_LEVEL_TO_TUI_KEY[keyName] ?? keyName;
 
     this._emit(createKeyEvent(tuiKey, {
@@ -399,21 +459,14 @@ export class InputParser {
       modifier = (parseInt(modStr, 10) || 1) - 1;
     }
 
-    // For Linux console double-bracket codes, the buffer contains "[" prefix
-    // e.g., buffer="[" final="A" → code="[[A"
-    // These are now handled above in _resolveCSI before reaching regex matching.
     const code = '[' + letter;
     let keyName = this._lookupLetterCode(code);
     let extraShift = false;
 
-    // Shift+Tab special case: [Z maps to tab with shift=true
-    // Amp ref: input-system.md Section 2.6
     if (code === '[Z' && keyName === 'tab') {
       extraShift = true;
     }
 
-    // Check for rxvt-style shift variants (lowercase letters)
-    // Amp ref: input-system.md Section 2.4
     if (!keyName) {
       const shiftName = RXVT_SHIFT_MAP['[' + letter];
       if (shiftName) {
@@ -440,20 +493,56 @@ export class InputParser {
   }
 
   /**
+   * Resolve Kitty CSI u keyboard protocol sequence.
+   * Format: ESC [ key-code[:shifted-key] [;modifiers[:event-type]] u
+   */
+  private _resolveKittyCSIu(params: string, sequence: string): void {
+    const parts = params.split(';');
+    const keyPart = parts[0] ?? '';
+    const modPart = parts[1] ?? '';
+
+    const keySegments = keyPart.split(':');
+    const keyCode = parseInt(keySegments[0]!, 10);
+    if (isNaN(keyCode)) {
+      this._emit(createKeyEvent('Undefined', { sequence }));
+      return;
+    }
+
+    const modSegments = modPart.split(':');
+    const modifierRaw = modSegments[0] ? parseInt(modSegments[0], 10) : 1;
+    const modifier = (modifierRaw || 1) - 1;
+    const eventType = modSegments[1] ? parseInt(modSegments[1], 10) : 1;
+
+    if (eventType === 3) {
+      return;
+    }
+
+    const key = KITTY_SPECIAL_KEY_MAP[keyCode] ?? String.fromCodePoint(keyCode);
+    const tuiKey = LOW_LEVEL_TO_TUI_KEY[key] ?? key;
+
+    const modifiers = this._decodeModifier(modifier);
+
+    this._emit(createKeyEvent(tuiKey, {
+      ctrlKey: modifiers.ctrl,
+      altKey: modifiers.alt,
+      shiftKey: modifiers.shift,
+      metaKey: modifiers.meta,
+      sequence,
+    }));
+  }
+
+  /**
    * SS3 state: inside ESC O ... sequence.
-   * SS3 sequences are typically a single letter, optionally preceded by a modifier digit.
    * Amp ref: input-system.md Section 1.2 (SS3 mode)
    */
   private _processSS3(char: string): void {
     const code = char.charCodeAt(0);
 
-    // Collect digits (modifier)
     if (code >= 0x30 && code <= 0x39) {
       this._buffer += char;
       return;
     }
 
-    // Final letter
     if (code >= 0x40 && code <= 0x7E) {
       const modStr = this._buffer;
       this._state = ParserState.Idle;
@@ -462,8 +551,6 @@ export class InputParser {
       let keyName = this._lookupSS3Code(ss3Code);
       let ctrl = false;
 
-      // Check for rxvt-style ctrl variants: Oa, Ob, Oc, Od, Oe
-      // Amp ref: input-system.md Section 2.5
       if (!keyName) {
         const rxvtName = RXVT_CTRL_SS3_MAP[ss3Code];
         if (rxvtName) {
@@ -495,7 +582,6 @@ export class InputParser {
       return;
     }
 
-    // Unexpected — reset to idle
     this._state = ParserState.Idle;
   }
 
@@ -504,30 +590,122 @@ export class InputParser {
    * Amp ref: input-system.md Section 11
    */
   private _processPaste(char: string): void {
-    // We need to detect ESC [ 201 ~ to end paste mode.
-    // Buffer potential escape sequence endings.
     if (this._pasteBuffer === null) {
       this._pasteBuffer = '';
     }
 
     this._pasteBuffer += char;
 
-    // Check if the paste buffer ends with the paste-end sequence
     const PASTE_END = '\x1b[201~';
     if (this._pasteBuffer.endsWith(PASTE_END)) {
       const text = this._pasteBuffer.slice(0, -PASTE_END.length);
       this._pasteBuffer = null;
       this._state = ParserState.Idle;
-      this._emit(createPasteEvent(text));
+
+      const imageMatch = BASE64_IMAGE_RE.exec(text.trim());
+      if (imageMatch) {
+        this._emit(createImagePasteEvent(imageMatch[2]!, imageMatch[1]!));
+      } else {
+        this._emit(createPasteEvent(text));
+      }
     }
   }
 
   /**
-   * Parse SGR mouse event.
-   * Format: button;col;row with M (press/motion) or m (release)
-   * Amp ref: input-system.md Section 4.3
+   * OSC state: inside ESC ] ... sequence (Operating System Command).
+   * Collects until BEL (\x07) or ST (ESC \).
    *
-   * Note: SGR coordinates are 1-based, we convert to 0-based.
+   * Amp ref: GAP-SUM-055 — OSC response handling
+   */
+  private _processOSC(char: string): void {
+    if (char === '\x07') {
+      this._resolveOSC(this._buffer);
+      this._state = ParserState.Idle;
+      return;
+    }
+
+    if (char === '\\' && this._buffer.endsWith('\x1b')) {
+      const oscData = this._buffer.slice(0, -1);
+      this._resolveOSC(oscData);
+      this._state = ParserState.Idle;
+      return;
+    }
+
+    this._buffer += char;
+
+    if (this._buffer.length > 4096) {
+      this._state = ParserState.Idle;
+    }
+  }
+
+  /**
+   * Resolve a complete OSC sequence payload.
+   * Classifies common terminal responses and emits TerminalResponseEvent.
+   */
+  private _resolveOSC(data: string): void {
+    const raw = '\x1b]' + data;
+    const semiIdx = data.indexOf(';');
+    const oscNum = semiIdx >= 0 ? data.slice(0, semiIdx) : data;
+    const oscPayload = semiIdx >= 0 ? data.slice(semiIdx + 1) : '';
+
+    if (oscNum === '10') {
+      this._emit(createTerminalResponseEvent('fg_color', raw, oscPayload));
+      return;
+    }
+
+    if (oscNum === '11') {
+      this._emit(createTerminalResponseEvent('bg_color', raw, oscPayload));
+      return;
+    }
+
+    this._emit(createTerminalResponseEvent('osc_generic', raw, data));
+  }
+
+  /**
+   * DCS state: inside ESC P ... sequence (Device Control String).
+   * Collects until ST (ESC \).
+   *
+   * Amp ref: GAP-SUM-055 — DCS response handling
+   */
+  private _processDCS(char: string): void {
+    if (char === '\\' && this._buffer.endsWith('\x1b')) {
+      const dcsData = this._buffer.slice(0, -1);
+      this._resolveDCS(dcsData);
+      this._state = ParserState.Idle;
+      return;
+    }
+
+    this._buffer += char;
+
+    if (this._buffer.length > 4096) {
+      this._state = ParserState.Idle;
+    }
+  }
+
+  /**
+   * Resolve a complete DCS sequence payload.
+   * Classifies common terminal responses and emits TerminalResponseEvent.
+   */
+  private _resolveDCS(data: string): void {
+    const raw = '\x1bP' + data;
+
+    if (data.startsWith('>|')) {
+      const version = data.slice(2);
+      this._emit(createTerminalResponseEvent('xtversion', raw, version));
+      return;
+    }
+
+    if (data.startsWith('G')) {
+      this._emit(createTerminalResponseEvent('kitty_graphics', raw, data.slice(1)));
+      return;
+    }
+
+    this._emit(createTerminalResponseEvent('dcs_generic', raw, data));
+  }
+
+  /**
+   * Parse SGR mouse event.
+   * Amp ref: input-system.md Section 4.3
    */
   private _parseSGRMouse(params: string, final: string, sequence: string): void {
     const match = SGR_MOUSE_RE.exec('<' + params);
@@ -545,8 +723,8 @@ export class InputParser {
       type: 'mouse',
       action,
       button: baseButton,
-      x: col - 1,  // Convert 1-based to 0-based
-      y: row - 1,  // Convert 1-based to 0-based
+      x: col - 1,
+      y: row - 1,
       ctrlKey: mods.ctrl,
       altKey: mods.alt,
       shiftKey: mods.shift,
@@ -596,8 +774,6 @@ export class InputParser {
   /**
    * Decode CSI modifier parameter into individual modifier flags.
    * Amp ref: input-system.md Section 1.3 (line 241805)
-   *   modifier = (param || 1) - 1
-   *   bit 0 = Shift, bit 1 = Alt, bit 2 = Ctrl, bit 3 = Meta
    */
   private _decodeModifier(modifier: number): {
     shift: boolean;
@@ -684,29 +860,26 @@ export class InputParser {
  * Codes from the switch statement at amp-strings.txt:241805-242030
  */
 const NUMERIC_CODE_MAP: Record<string, string> = {
-  // Function keys (tilde-terminated)
-  '11': 'f1',     // [11~
-  '12': 'f2',     // [12~
-  '13': 'f3',     // [13~
-  '14': 'f4',     // [14~
-  '15': 'f5',     // [15~
-  '17': 'f6',     // [17~
-  '18': 'f7',     // [18~
-  '19': 'f8',     // [19~
-  '20': 'f9',     // [20~
-  '21': 'f10',    // [21~
-  '23': 'f11',    // [23~
-  '24': 'f12',    // [24~
-
-  // Editing keys
-  '1': 'home',    // [1~
-  '2': 'insert',  // [2~
-  '3': 'delete',  // [3~
-  '4': 'end',     // [4~
-  '5': 'pageup',  // [5~
-  '6': 'pagedown',// [6~
-  '7': 'home',    // [7~ (rxvt)
-  '8': 'end',     // [8~ (rxvt)
+  '11': 'f1',
+  '12': 'f2',
+  '13': 'f3',
+  '14': 'f4',
+  '15': 'f5',
+  '17': 'f6',
+  '18': 'f7',
+  '19': 'f8',
+  '20': 'f9',
+  '21': 'f10',
+  '23': 'f11',
+  '24': 'f12',
+  '1': 'home',
+  '2': 'insert',
+  '3': 'delete',
+  '4': 'end',
+  '5': 'pageup',
+  '6': 'pagedown',
+  '7': 'home',
+  '8': 'end',
 };
 
 /**
@@ -714,25 +887,18 @@ const NUMERIC_CODE_MAP: Record<string, string> = {
  * Amp ref: input-system.md Section 2.2
  */
 const CSI_LETTER_MAP: Record<string, string> = {
-  // Arrow keys
   '[A': 'up',
   '[B': 'down',
   '[C': 'right',
   '[D': 'left',
-
-  // Navigation
   '[E': 'clear',
   '[F': 'end',
   '[H': 'home',
-
-  // Function keys (CSI letter form)
   '[P': 'f1',
   '[Q': 'f2',
   '[R': 'f3',
   '[S': 'f4',
-
-  // Shift+Tab
-  '[Z': 'tab',  // with shift=true (handled in resolveLetterCSI)
+  '[Z': 'tab',
 };
 
 /**
@@ -752,18 +918,13 @@ const RXVT_SHIFT_MAP: Record<string, string> = {
  * Amp ref: input-system.md Section 2.1-2.2
  */
 const SS3_CODE_MAP: Record<string, string> = {
-  // Arrow keys (SS3 form)
   'OA': 'up',
   'OB': 'down',
   'OC': 'right',
   'OD': 'left',
-
-  // Navigation (SS3 form)
   'OE': 'clear',
   'OF': 'end',
   'OH': 'home',
-
-  // Function keys (SS3 form)
   'OP': 'f1',
   'OQ': 'f2',
   'OR': 'f3',
@@ -786,8 +947,6 @@ const RXVT_CTRL_SS3_MAP: Record<string, string> = {
  * Linux console double-bracket function key codes.
  * Amp ref: input-system.md Section 2.1
  */
-// These are handled in resolveCSI via the buffer containing "["
-// e.g., ESC [ [ A = f1 on Linux console
 const LINUX_CONSOLE_FKEY_MAP: Record<string, string> = {
   '[[A': 'f1',
   '[[B': 'f2',
@@ -796,11 +955,34 @@ const LINUX_CONSOLE_FKEY_MAP: Record<string, string> = {
   '[[E': 'f5',
 };
 
-// Register Linux console codes into CSI_LETTER_MAP
-// These come in as CSI with buffer="[" and final letter
 for (const [code, name] of Object.entries(LINUX_CONSOLE_FKEY_MAP)) {
-  // The code "[A" with a preceding "[" in buffer
-  // In our parser, buffer will be "[" and final will be "A"
-  // So fullCode = "[" + "[" + "A" => "[[A"
   CSI_LETTER_MAP[code] = name;
 }
+
+/**
+ * Kitty CSI u special key codepoint -> low-level key name mapping.
+ */
+const KITTY_SPECIAL_KEY_MAP: Record<number, string> = {
+  9: 'tab',
+  13: 'enter',
+  27: 'escape',
+  127: 'backspace',
+  57358: 'insert',
+  57359: 'delete',
+  57360: 'pageup',
+  57361: 'pagedown',
+  57362: 'home',
+  57363: 'end',
+  57376: 'f1',
+  57377: 'f2',
+  57378: 'f3',
+  57379: 'f4',
+  57380: 'f5',
+  57381: 'f6',
+  57382: 'f7',
+  57383: 'f8',
+  57384: 'f9',
+  57385: 'f10',
+  57386: 'f11',
+  57387: 'f12',
+};

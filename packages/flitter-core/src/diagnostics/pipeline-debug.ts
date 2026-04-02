@@ -42,18 +42,21 @@ export function pipelineLog(tag: string, msg: string): void {
  *
  * Children are accessed via `ro._children || (ro._child ? [ro._child] : [])`.
  */
-export function dumpPaintTree(rootRO: any): string {
-  const walk = (ro: any, depth: number): string => {
+export function dumpPaintTree(rootRO: unknown): string {
+  const walk = (ro: unknown, depth: number): string => {
+    const obj = ro as Record<string, unknown>;
     const indent = '  '.repeat(depth);
-    const sz = ro.hasSize ? `${ro.size?.width}x${ro.size?.height}` : 'NO_SIZE';
-    const att = ro._attached ? '' : ' DETACHED';
-    const nl = ro._needsLayout ? ' needsLayout' : '';
+    const size = obj.size as Record<string, unknown> | undefined;
+    const sz = obj.hasSize ? `${size?.width}x${size?.height}` : 'NO_SIZE';
+    const att = obj._attached ? '' : ' DETACHED';
+    const nl = obj._needsLayout ? ' needsLayout' : '';
     let extra = '';
-    if (ro.constructor.name === 'RenderText' && ro._text) {
-      extra = ` text="${String(ro._text.text ?? ro._text).slice(0, 40)}"`;
+    if ((ro as object).constructor.name === 'RenderText' && obj._text) {
+      const textVal = obj._text as Record<string, unknown>;
+      extra = ` text="${String(textVal.text ?? obj._text).slice(0, 40)}"`;
     }
-    let s = `${indent}${ro.constructor.name} ${sz}${att}${nl}${extra}\n`;
-    const kids = ro._children || (ro._child ? [ro._child] : []);
+    let s = `${indent}${(ro as object).constructor.name} ${sz}${att}${nl}${extra}\n`;
+    const kids = (obj._children || (obj._child ? [obj._child] : [])) as unknown[];
     for (const kid of kids) s += walk(kid, depth + 1);
     return s;
   };
@@ -66,11 +69,11 @@ export function dumpPaintTree(rootRO: any): string {
  *
  * Callers must guard with `debugFlags.debugPrintBuilds` before calling.
  */
-export function logMutation(op: string, child: any, parent: any): void {
+export function logMutation(op: string, child: unknown, parent: unknown): void {
   const stack = new Error().stack ?? '';
   const traceLines = stack.split('\n').slice(1, 6).join('\n');
   pipelineLog(
     'MUTATION',
-    `${op} child=${child?.constructor?.name} parent=${parent?.constructor?.name}\n${traceLines}`,
+    `${op} child=${(child as Record<string, unknown>)?.constructor?.name} parent=${(parent as Record<string, unknown>)?.constructor?.name}\n${traceLines}`,
   );
 }

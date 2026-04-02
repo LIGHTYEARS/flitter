@@ -11,7 +11,7 @@
 import { Rect } from '../core/types.js';
 import { PaintContext } from './paint-context.js';
 import { BOX_DRAWING, type BoxDrawingStyle } from '../painting/border-painter.js';
-import { type CellStyle } from '../terminal/cell.js';
+import { type CellStyle, type CellHyperlinkValue } from '../terminal/cell.js';
 import { TextSpan } from '../core/text-span.js';
 import { Color } from '../core/color.js';
 import { wcwidth } from '../core/wcwidth.js';
@@ -56,7 +56,7 @@ export class ClipCanvas extends PaintContext {
    * Handles CJK wide characters (width 2) — a wide char is rejected if its
    * full width would bleed past the clip boundary.
    */
-  override drawChar(col: number, row: number, char: string, style?: CellStyle, width?: number): void {
+  override drawChar(col: number, row: number, char: string, style?: CellStyle, width?: number, hyperlink?: CellHyperlinkValue): void {
     if (row < this._clip.top || row >= this._clip.bottom) return;
 
     const charWidth = width ?? (char.length > 0 ? wcwidth(char.codePointAt(0)!) : 1);
@@ -65,7 +65,7 @@ export class ClipCanvas extends PaintContext {
     // Check full width fits within clip
     if (col < this._clip.left || col + effectiveWidth > this._clip.right) return;
 
-    this._innerContext.drawChar(col, row, char, style, width);
+    this._innerContext.drawChar(col, row, char, style, width, hyperlink);
   }
 
   /**

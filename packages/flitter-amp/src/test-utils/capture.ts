@@ -13,6 +13,7 @@
 import { WidgetsBinding } from 'flitter-core/src/framework/binding';
 import { FrameScheduler } from 'flitter-core/src/scheduler/frame-scheduler';
 import type { Widget } from 'flitter-core/src/framework/widget';
+import type { CellStyle } from 'flitter-core/src/terminal/cell';
 import { bufferToSvg, type SvgConfig } from './termshot';
 
 export interface CaptureOptions extends SvgConfig {
@@ -81,7 +82,7 @@ export function captureToGrid(
   widget: Widget,
   options?: { cols?: number; rows?: number },
 ): {
-  getCell: (x: number, y: number) => { char: string; style: any };
+  getCell: (x: number, y: number) => { char: string; style: CellStyle };
   width: number;
   height: number;
 } {
@@ -102,7 +103,7 @@ export function captureToGrid(
     const frontBuffer = screen.getFrontBuffer();
 
     // Return a snapshot (deep copy the cells we need)
-    const cells: Array<{ char: string; style: any }> = [];
+    const cells: Array<{ char: string; style: CellStyle }> = [];
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const cell = frontBuffer.getCell(x, y);

@@ -32,8 +32,14 @@ import { Scrollbar } from 'flitter-core/src/widgets/scrollbar';
 import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { Color } from 'flitter-core/src/core/color';
+import { Text } from 'flitter-core/src/widgets/text';
+import { TextSpan } from 'flitter-core/src/core/text-span';
+import { TextStyle } from 'flitter-core/src/core/text-style';
+import { Container } from 'flitter-core/src/widgets/container';
+import { BoxDecoration, Border, BorderSide } from 'flitter-core/src/layout/render-decorated';
 import { FocusScope } from 'flitter-core/src/widgets/focus-scope';
 import { Center } from 'flitter-core/src/widgets/center';
+import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { TextEditingController } from 'flitter-core/src/widgets/text-field';
 import type { KeyEvent, KeyEventResult } from 'flitter-core/src/input/events';
 
@@ -47,7 +53,11 @@ import { PermissionDialog } from './widgets/permission-dialog';
 import { CommandPalette } from './widgets/command-palette';
 import { FilePicker } from './widgets/file-picker';
 import { ShortcutHelpOverlay } from './widgets/shortcut-help-overlay';
+import { ThreadList } from './widgets/thread-list';
+import type { ThreadEntry } from './widgets/thread-list';
+import { PromptHistoryPicker } from './widgets/prompt-history-picker';
 import { launchEditor } from './utils/editor-launcher';
+import type { ConversationItem } from './acp/types';
 import { AmpThemeProvider, createAmpTheme, darkTheme as darkBaseTheme } from './themes/index';
 import { log } from './utils/logger';
 import { ShortcutRegistry, registerDefaultShortcuts } from './shortcuts';
@@ -121,7 +131,11 @@ class AppStateWidget extends State<App> {
   private _reverseSearch: ReverseSearchState | null = null;
   private _lastUpdate = 0;
   private _pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private _copyHighlight = false;
+  private _copyHighlightTimer: ReturnType<typeof setTimeout> | null = null;
   readonly shortcutRegistry = new ShortcutRegistry();
+  private _mysterySequence: number = 0;
+  private _mysteryTimer: ReturnType<typeof setTimeout> | null = null;
 
   override initState(): void {
     super.initState();
@@ -464,6 +478,14 @@ class AppStateWidget extends State<App> {
       clearTimeout(this._pendingTimer);
       this._pendingTimer = null;
     }
+    if (this._copyHighlightTimer) {
+      clearTimeout(this._copyHighlightTimer);
+      this._copyHighlightTimer = null;
+    }
+    if (this._mysteryTimer) {
+      clearTimeout(this._mysteryTimer);
+      this._mysteryTimer = null;
+    }
     if (this.stateListener) {
       this.widget.appState.removeListener(this.stateListener);
     }
@@ -532,6 +554,17 @@ class AppStateWidget extends State<App> {
       description: 'Expand/collapse all thinking blocks',
     });
 
+    // Add palette-only commands (W4-3) that have no keyboard shortcut binding
+    registryCommands.push(
+      { label: 'New thread', value: 'new-thread', description: 'Start a fresh conversation' },
+      { label: 'Switch model', value: 'switch-model', description: 'Open model selection' },
+      { label: 'Copy last response', value: 'copy-last-response', description: 'Copy last assistant message to clipboard' },
+      { label: 'Toggle dense view', value: 'toggle-dense-view', description: 'Toggle compact display mode' },
+      { label: 'View usage', value: 'view-usage', description: 'Show token/cost summary' },
+      { label: 'Show shortcuts help', value: 'show-shortcuts-help', description: 'Open shortcut reference overlay' },
+      { label: 'Open thread list', value: 'open-thread-list', description: 'Browse and switch threads' },
+    );
+
     this.overlayManager.show({
       id: OVERLAY_IDS.COMMAND_PALETTE,
       priority: OVERLAY_PRIORITIES.COMMAND_PALETTE,
@@ -569,6 +602,37 @@ class AppStateWidget extends State<App> {
             case 'toggle-shortcut-help':
               this._showShortcutHelp();
               break;
+            case 'new-thread':
+              appState.newThread();
+              break;
+            case 'switch-model':
+              // Opens model selection sub-menu (placeholder: logs available modes)
+              break;
+            case 'copy-last-response':
+              this._copyLastResponse();
+              break;
+            case 'toggle-dense-view':
+              appState.toggleDenseView();
+              break;
+            case 'view-usage': {
+              const summary = appState.getUsageSummary();
+              if (summary) {
+                appState.setError(summary);
+              }
+              break;
+            }
+            case 'show-shortcuts-help':
+              this._showShortcutHelp();
+              break;
+            case 'open-thread-list':
+              this._showThreadList();
+              break;
+            case 'cycle-mode':
+              appState.cycleMode();
+              break;
+            case 'toggle-deep-reasoning':
+              appState.toggleDeepReasoning();
+              break;
             default:
               // Unknown command, no-op
               break;
@@ -599,12 +663,108 @@ class AppStateWidget extends State<App> {
     });
   }
 
+  private _showThreadList(): void {
+    const appState = this.widget.appState;
+    const threads: ThreadEntry[] = appState.conversation.items.length > 0
+      ? [{
+          sessionId: appState.sessionId ?? 'current',
+          summary: 'Current thread',
+          updatedAt: Date.now(),
+          messageCount: appState.conversation.items.filter(i => i.type === 'user_message').length,
+          cwd: appState.cwd,
+        }]
+      : [];
+
+    this.overlayManager.show({
+      id: OVERLAY_IDS.THREAD_LIST,
+      priority: OVERLAY_PRIORITIES.THREAD_LIST,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (_onDismiss) => new ThreadList({
+        threads,
+        currentSessionId: appState.sessionId,
+        onSelect: (sessionId: string) => {
+          this.overlayManager.dismiss(OVERLAY_IDS.THREAD_LIST);
+          if (sessionId !== appState.sessionId) {
+            appState.newThread();
+          }
+        },
+        onDismiss: () => {
+          this.overlayManager.dismiss(OVERLAY_IDS.THREAD_LIST);
+        },
+      }),
+    });
+  }
+
+  /**
+   * Show the file picker overlay.
+   */
+  private _showFilePicker(query: string): void {
+    if (this.overlayManager.has(OVERLAY_IDS.FILE_PICKER)) return;
+    this.overlayManager.show({
+      id: OVERLAY_IDS.FILE_PICKER,
+      priority: OVERLAY_PRIORITIES.FILE_PICKER,
+      modal: false,
+      placement: { type: 'anchored', left: 1, bottom: 3 },
+      builder: (_onDismiss) => new FilePicker({
+        files: this.fileList,
+        initialQuery: query,
+        onSelect: (filePath: string) => {
+          this.overlayManager.dismiss(OVERLAY_IDS.FILE_PICKER);
+          const text = this.inputController.text;
+          const cursorPos = this.inputController.cursorPosition;
+          const atIndex = text.lastIndexOf('@', cursorPos - 1);
+          if (atIndex >= 0) {
+            const before = text.slice(0, atIndex);
+            const after = text.slice(cursorPos);
+            const replacement = `@${filePath} `;
+            this.inputController.text = before + replacement + after;
+            this.inputController.cursorPosition = before.length + replacement.length;
+          }
+        },
+        onDismiss: () => {
+          this.overlayManager.dismiss(OVERLAY_IDS.FILE_PICKER);
+        },
+      }),
+    });
+  }
   /**
    * Navigate prompt history backward.
    * Called by Ctrl+R shortcut -- enters incremental reverse search mode (Gap 64).
    */
   private _historyPrevious(): void {
-    this._enterSearchMode();
+    this._showPromptHistoryPicker();
+  }
+
+  private _showPromptHistoryPicker(): void {
+    if (this.overlayManager.has(OVERLAY_IDS.PROMPT_HISTORY)) return;
+    const entries = this.promptHistory.getEntries();
+    if (entries.length === 0) {
+      this._enterSearchMode();
+      return;
+    }
+    this.overlayManager.show({
+      id: OVERLAY_IDS.PROMPT_HISTORY,
+      priority: OVERLAY_PRIORITIES.PROMPT_HISTORY,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (_onDismiss) => new PromptHistoryPicker({
+        entries,
+        onSelect: (entry: string) => {
+          this.overlayManager.dismiss(OVERLAY_IDS.PROMPT_HISTORY);
+          this._isNavigatingHistory = true;
+          try {
+            this.inputController.text = entry;
+            this.inputController.cursorPosition = entry.length;
+          } finally {
+            this._isNavigatingHistory = false;
+          }
+        },
+        onDismiss: () => {
+          this.overlayManager.dismiss(OVERLAY_IDS.PROMPT_HISTORY);
+        },
+      }),
+    });
   }
 
   /**
@@ -613,6 +773,135 @@ class AppStateWidget extends State<App> {
    */
   private _historyNext(): void {
     this._navigateHistory('forward');
+  }
+
+  /**
+   * Copy the last assistant response to the system clipboard via OSC 52.
+   * Sets a brief highlight state for visual feedback, auto-dismissed after 300ms.
+   * Repeated copies reset the timer to prevent stale dismissals.
+   */
+  private _copyLastResponse(): void {
+    const items = this.widget.appState.conversation.items;
+    let lastText: string | null = null;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type === 'assistant_message' && item.text) {
+        lastText = item.text;
+        break;
+      }
+    }
+    if (!lastText) return;
+
+    try {
+      const binding = WidgetsBinding.instance;
+      if (binding?.tui) {
+        binding.tui.copyToClipboard(lastText);
+      }
+    } catch {
+      return;
+    }
+
+    if (this._copyHighlightTimer) {
+      clearTimeout(this._copyHighlightTimer);
+    }
+    this._copyHighlight = true;
+    this.setState(() => {});
+    this._copyHighlightTimer = setTimeout(() => {
+      this._copyHighlight = false;
+      this._copyHighlightTimer = null;
+      this.setState(() => {});
+    }, 300);
+  }
+
+  private _checkMysterySequence(event: KeyEvent): KeyEventResult {
+    if (this._mysteryTimer) {
+      clearTimeout(this._mysteryTimer);
+      this._mysteryTimer = null;
+    }
+
+    if (this._mysterySequence === 0 && event.ctrlKey && event.key === 'x') {
+      this._mysterySequence = 1;
+      this._mysteryTimer = setTimeout(() => { this._mysterySequence = 0; }, 2000);
+      return 'ignored';
+    }
+    if (this._mysterySequence === 1 && !event.ctrlKey && !event.altKey && event.key === 'y') {
+      this._mysterySequence = 2;
+      this._mysteryTimer = setTimeout(() => { this._mysterySequence = 0; }, 2000);
+      return 'handled';
+    }
+    if (this._mysterySequence === 2 && !event.ctrlKey && !event.altKey && event.key === 'z') {
+      this._mysterySequence = 0;
+      this._showMysteryModal();
+      return 'handled';
+    }
+
+    this._mysterySequence = 0;
+    return 'ignored';
+  }
+
+  private _showMysteryModal(): void {
+    this.overlayManager.show({
+      id: OVERLAY_IDS.MYSTERY_MODAL,
+      priority: OVERLAY_PRIORITIES.MYSTERY_MODAL,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (_onDismiss) => new FocusScope({
+        autofocus: true,
+        onKey: (event: KeyEvent): KeyEventResult => {
+          if (event.key === 'Escape' || event.key === 'Enter') {
+            this.overlayManager.dismiss(OVERLAY_IDS.MYSTERY_MODAL);
+            return 'handled';
+          }
+          return 'ignored';
+        },
+        child: new Center({
+          child: new Container({
+            decoration: new BoxDecoration({
+              border: Border.all(new BorderSide({ color: Color.magenta, width: 1, style: 'rounded' })),
+            }),
+            padding: EdgeInsets.symmetric({ horizontal: 3, vertical: 2 }),
+            child: new Column({
+              mainAxisSize: 'min',
+              crossAxisAlignment: 'center',
+              children: [
+                new Text({
+                  text: new TextSpan({
+                    text: '✦ The Machine Dreams ✦',
+                    style: new TextStyle({ foreground: Color.magenta, bold: true }),
+                  }),
+                }),
+                new SizedBox({ height: 1 }),
+                new Text({
+                  text: new TextSpan({
+                    text: 'In the spaces between keystrokes,',
+                    style: new TextStyle({ foreground: Color.cyan, italic: true }),
+                  }),
+                }),
+                new Text({
+                  text: new TextSpan({
+                    text: 'the electrons whisper secrets',
+                    style: new TextStyle({ foreground: Color.cyan, italic: true }),
+                  }),
+                }),
+                new Text({
+                  text: new TextSpan({
+                    text: 'of programs yet unwritten.',
+                    style: new TextStyle({ foreground: Color.cyan, italic: true }),
+                  }),
+                }),
+                new SizedBox({ height: 1 }),
+                new Text({
+                  text: new TextSpan({
+                    text: '— Press Escape to return —',
+                    style: new TextStyle({ foreground: Color.brightBlack, dim: true }),
+                  }),
+                }),
+              ],
+            }),
+          }),
+        }),
+      }),
+    });
   }
 
   /**
@@ -626,6 +915,7 @@ class AppStateWidget extends State<App> {
       historyPrevious: () => this._historyPrevious(),
       historyNext: () => this._historyNext(),
       toggleThinking: () => this.toggleThinking(appState),
+      copyLastResponse: () => this._copyLastResponse(),
     };
 
     return {
@@ -640,7 +930,7 @@ class AppStateWidget extends State<App> {
 
   build(): Widget {
     const appState = this.widget.appState;
-    const items = appState.conversation.items;
+    const items = appState.conversation.items as readonly ConversationItem[];
 
     // Amp ref: scrollbarThumb = foreground (gH.default()), scrollbarTrack = index(8)
     const scrollThumbColor = Color.defaultColor;
@@ -657,9 +947,48 @@ class AppStateWidget extends State<App> {
           return this._handleSearchModeKey(event);
         }
 
+        // W4-1: Tab/Shift+Tab navigation through user messages
+        if (!event.ctrlKey && !event.altKey && !event.metaKey && event.key === 'Tab') {
+          if (event.shiftKey) {
+            appState.selectNextMessage();
+          } else {
+            appState.selectPrevMessage();
+          }
+          return 'handled';
+        }
+
+        // W4-1: Escape clears message selection (only when a message is selected)
+        if (event.key === 'Escape' && appState.selectedMessageIndex !== null) {
+          appState.clearMessageSelection();
+          return 'handled';
+        }
+
+        // W4-2: 'e' key edits selected message, 'r' key restores (truncates after)
+        if (appState.selectedMessageIndex !== null && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey) {
+          if (event.key === 'e') {
+            const text = appState.getMessageAt(appState.selectedMessageIndex);
+            appState.clearMessageSelection();
+            if (text !== null) {
+              this.inputController.text = text;
+              this.inputController.cursorPosition = text.length;
+            }
+            return 'handled';
+          }
+          if (event.key === 'r') {
+            const idx = appState.selectedMessageIndex;
+            appState.clearMessageSelection();
+            appState.truncateAfter(idx);
+            return 'handled';
+          }
+        }
+
         // Dispatch through the centralized ShortcutRegistry
         const registryResult = this.shortcutRegistry.dispatch(event, shortcutCtx);
         if (registryResult === 'handled') return 'handled';
+
+        // W6-46: Mystery Sequence (Ctrl+X -> Y -> Z)
+        const mysteryResult = this._checkMysterySequence(event);
+        if (mysteryResult === 'handled') return 'handled';
 
         // Gap 63: ArrowUp (plain, no modifiers) -- navigate prompt history backward.
         // This only fires when TextField returns 'ignored' (cursor on first line
@@ -695,6 +1024,8 @@ class AppStateWidget extends State<App> {
                   child: new ChatView({
                     items,
                     error: appState.error,
+                    selectedMessageIndex: appState.selectedMessageIndex,
+                    denseView: appState.denseView,
                     onToggleToolCall: (toolCallId: string) => {
                       appState.conversation.toggleSingleToolCall(toolCallId);
                       this.setState(() => { });
@@ -716,6 +1047,8 @@ class AppStateWidget extends State<App> {
                         child: new ChatView({
                           items,
                           error: appState.error,
+                          selectedMessageIndex: appState.selectedMessageIndex,
+                          denseView: appState.denseView,
                           onToggleToolCall: (toolCallId: string) => {
                             appState.conversation.toggleSingleToolCall(toolCallId);
                             this.setState(() => { });
@@ -750,19 +1083,27 @@ class AppStateWidget extends State<App> {
             cwd: appState.cwd,
             gitBranch: appState.gitBranch ?? undefined,
             tokenUsage: appState.usage ?? undefined,
+            inputTokens: appState.inputTokens,
+            outputTokens: appState.outputTokens,
+            contextWindowSize: appState.contextWindowSize,
+            costUsd: appState.costUsd,
+            elapsedMs: appState.elapsedMs,
+            deepReasoningActive: appState.deepReasoningActive,
             skillCount: appState.skillCount,
             submitWithMeta: true,
             controller: this.inputController,
             hintText: appState.hintText ?? undefined,
             autocompleteTriggers: appState.autocompleteTriggers.length > 0
               ? appState.autocompleteTriggers.map(t => ({
-                trigger: t.trigger,
-                description: t.description,
+                triggerCharacter: t.trigger,
+                optionsBuilder: () => [{ label: t.description ?? t.trigger, value: t.trigger }],
               }))
               : undefined,
             searchState: this._reverseSearch
               ? { query: this._reverseSearch.query, isFailing: this._reverseSearch.isFailing }
               : null,
+            copyHighlight: this._copyHighlight,
+            minAutoContentLines: items.length === 0 ? 3 : undefined,
           }),
         ],
       }),

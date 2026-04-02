@@ -14,6 +14,7 @@ import { MouseManager } from '../input/mouse-manager';
 import { SystemMouseCursors } from '../input/mouse-cursors';
 import { textStyleToCellStyle } from '../scheduler/paint-context';
 import type { CellStyle } from '../terminal/cell';
+import type { CellHyperlinkValue } from '../terminal/cell';
 
 // ---------------------------------------------------------------------------
 // Selection range type
@@ -50,7 +51,7 @@ export interface CharacterInteraction {
 // ---------------------------------------------------------------------------
 
 export interface TextPaintContext extends PaintContext {
-  drawChar?(col: number, row: number, char: string, style?: CellStyle): void;
+  drawChar(col: number, row: number, char: string, style?: CellStyle, width?: number, hyperlink?: CellHyperlinkValue): void;
   drawText?(col: number, row: number, text: string, style?: CellStyle): void;
 }
 
@@ -132,9 +133,6 @@ export class RenderText extends RenderBox {
   private _characterPositions: CharacterPosition[] = [];
   private _visualLines: VisualLine[] = [];
   private _characterInteractions: CharacterInteraction[] = [];
-
-  // --- Emoji width support ---
-  private _emojiWidthSupported: boolean = false;
 
   constructor(opts: {
     text: TextSpan;
@@ -228,23 +226,6 @@ export class RenderText extends RenderBox {
 
   get visualLines(): ReadonlyArray<VisualLine> {
     return this._visualLines;
-  }
-
-  /** Whether the terminal supports wide (2-column) emoji rendering. */
-  get emojiWidthSupported(): boolean {
-    return this._emojiWidthSupported;
-  }
-
-  /**
-   * Update emoji width support flag.
-   * When true, emoji characters are treated as 2 columns wide.
-   * Typically read from MediaQueryData.capabilities.emojiWidth.
-   */
-  updateEmojiSupport(emojiWidth: 'unknown' | 'narrow' | 'wide'): void {
-    const supported = emojiWidth === 'wide';
-    if (this._emojiWidthSupported === supported) return;
-    this._emojiWidthSupported = supported;
-    this.markNeedsLayout();
   }
 
   // --- Selection methods ---
@@ -599,17 +580,20 @@ export class RenderText extends RenderBox {
       let col = offset.col + leftOffset;
       const row = offset.row + lineIdx;
       for (let ci = 0; ci < line.length; ci++) {
-        const { char, style } = line[ci]!;
+        const { char, style, hyperlink } = line[ci]!;
         const charW = stringWidth(char);
         if (col - offset.col + charW > availWidth) break; // clip at width boundary
 
-        // Apply selection highlight if this character is selected
+        const hlValue: CellHyperlinkValue | undefined = hyperlink
+          ? (hyperlink.id ? { uri: hyperlink.uri, id: hyperlink.id } : hyperlink.uri)
+          : undefined;
+
         const globalCharIdx = charIndex + ci;
         if (this.selectable && highlightColor && highlightedIndices.has(globalCharIdx)) {
           const highlightedStyle = style.copyWith({ background: highlightColor });
-          ctx.drawChar!(col, row, char, textStyleToCellStyle(highlightedStyle));
+          ctx.drawChar!(col, row, char, textStyleToCellStyle(highlightedStyle), undefined, hlValue);
         } else {
-          ctx.drawChar!(col, row, char, textStyleToCellStyle(style));
+          ctx.drawChar!(col, row, char, textStyleToCellStyle(style), undefined, hlValue);
         }
         col += charW;
       }

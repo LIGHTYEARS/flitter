@@ -3,7 +3,7 @@
 // Streaming: accent (magenta) with animated BrailleSpinner
 // Done: success (green) with icon('tool.status.done')
 // Cancelled: warning (yellow) with "(interrupted)"
-// Content: dim, italic when expanded
+// Content: dim, italic when expanded (rendered via Markdown for rich formatting)
 // Chevron appears at end of the header line (AMP ref: expand-collapse-lT.js)
 
 import {
@@ -17,6 +17,7 @@ import { Color } from 'flitter-core/src/core/color';
 import { Padding } from 'flitter-core/src/widgets/padding';
 import { EdgeInsets } from 'flitter-core/src/layout/edge-insets';
 import { BrailleSpinner } from 'flitter-core/src/utilities/braille-spinner';
+import { Markdown } from 'flitter-core/src/widgets/markdown';
 import type { ThinkingItem } from '../acp/types';
 import { AmpThemeProvider } from '../themes';
 import { icon } from '../ui/icons/icon-registry';
@@ -33,6 +34,7 @@ interface ThinkingBlockProps {
  *   - Done: icon('tool.status.done') (green), disclosure icon at end of line
  *   - Cancelled: "(interrupted)" suffix (yellow), chevron at end
  *
+ * Expanded content is rendered via Markdown for rich formatting support.
  * Uses StatefulWidget to drive BrailleSpinner animation when isStreaming=true.
  */
 export class ThinkingBlock extends StatefulWidget {
@@ -111,6 +113,7 @@ export class ThinkingBlockState extends State<ThinkingBlock> {
    * Header layout: [icon] [Thinking] [suffix?] [spinner or chevron]
    *   - Chevron is placed at the END of the header line (not the beginning)
    *   - During streaming, a BrailleSpinner replaces the chevron
+   * Expanded content: Markdown rendering of thinking text (dim + italic via styleOverrides).
    */
   build(context: BuildContext): Widget {
     const { item } = this.widget;
@@ -171,18 +174,16 @@ export class ThinkingBlockState extends State<ThinkingBlock> {
         ? item.text.slice(0, 10000) + '...'
         : item.text;
 
+      const dimFg = theme?.base.foreground ?? Color.defaultColor;
       children.push(
         new Padding({
           padding: EdgeInsets.only({ left: 2, right: 2 }),
-          child: new Text({
-            text: new TextSpan({
-              text: displayText,
-              style: new TextStyle({
-                foreground: theme?.base.foreground ?? Color.defaultColor,
-                dim: true,
-                italic: true,
-              }),
-            }),
+          child: new Markdown({
+            markdown: displayText,
+            styleOverrides: {
+              paragraph: { dim: true, italic: true, foreground: dimFg },
+              'code-block': { dim: true },
+            },
           }),
         }),
       );

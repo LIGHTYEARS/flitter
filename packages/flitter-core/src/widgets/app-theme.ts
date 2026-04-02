@@ -1,11 +1,11 @@
-// AppTheme — InheritedWidget that provides application-specific theme data
+// AppTheme — InheritedModel that provides application-specific theme data
 // Amp ref: h8 class. Distinct from Theme (w3) — both coexist in widget tree.
 // AppTheme provides syntax highlighting config, app-level colors, etc.
 // Source: .reference/widgets-catalog.md
 
 import { Key } from '../core/key';
 import { Color } from '../core/color';
-import { Widget, InheritedWidget, BuildContext } from '../framework/widget';
+import { Widget, InheritedModel, InheritedWidget, BuildContext } from '../framework/widget';
 
 // ---------------------------------------------------------------------------
 // Data types
@@ -48,28 +48,12 @@ export interface AppThemeData {
 }
 
 // ---------------------------------------------------------------------------
-// AppTheme InheritedWidget (Amp: h8)
+// AppTheme InheritedModel (Amp: h8)
 // ---------------------------------------------------------------------------
 
-/**
- * An InheritedWidget that propagates AppThemeData down the widget tree.
- *
- * Usage:
- *   new AppTheme({
- *     data: AppTheme.defaultTheme(),
- *     child: appRoot,
- *   })
- *
- * Descendants read the theme via:
- *   AppTheme.of(context)
- *
- * AppTheme is DISTINCT from Theme (w3) -- both can coexist as ancestors
- * in the widget tree. Theme provides base UI colors; AppTheme provides
- * application-specific configuration like syntax highlighting.
- *
- * Amp ref: h8 class
- */
-export class AppTheme extends InheritedWidget {
+export type AppThemeAspect = 'syntaxHighlight' | 'colors';
+
+export class AppTheme extends InheritedModel<AppThemeAspect> {
   readonly data: AppThemeData;
 
   constructor(opts: { data: AppThemeData; child: Widget; key?: Key }) {
@@ -80,10 +64,6 @@ export class AppTheme extends InheritedWidget {
     this.data = opts.data;
   }
 
-  /**
-   * Look up the nearest ancestor AppTheme and return its AppThemeData.
-   * Throws if no AppTheme ancestor is found.
-   */
   static of(context: BuildContext): AppThemeData {
     const result = AppTheme.maybeOf(context);
     if (result === undefined) {
@@ -95,14 +75,9 @@ export class AppTheme extends InheritedWidget {
     return result;
   }
 
-  /**
-   * Look up the nearest ancestor AppTheme and return its AppThemeData,
-   * or undefined if none is found.
-   */
   static maybeOf(context: BuildContext): AppThemeData | undefined {
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(AppTheme);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(AppTheme);
       if (element) {
         const widget = element.widget as AppTheme;
         return widget.data;
@@ -111,33 +86,45 @@ export class AppTheme extends InheritedWidget {
     return undefined;
   }
 
-  /**
-   * Returns a default AppTheme matching Amp CLI's app theme (XP.default("dark")).
-   * Uses ANSI named colors so the palette adapts to the user's terminal theme.
-   */
+  static syntaxHighlightOf(context: BuildContext): SyntaxHighlightConfig | undefined {
+    const theme = InheritedModel.inheritFrom<AppTheme, AppThemeAspect>(context, {
+      widgetType: AppTheme,
+      aspect: 'syntaxHighlight',
+    });
+    return theme?.data.syntaxHighlight;
+  }
+
+  static colorsOf(context: BuildContext): AppThemeData['colors'] | undefined {
+    const theme = InheritedModel.inheritFrom<AppTheme, AppThemeAspect>(context, {
+      widgetType: AppTheme,
+      aspect: 'colors',
+    });
+    return theme?.data.colors;
+  }
+
   static defaultTheme(): AppThemeData {
     return {
       syntaxHighlight: {
-        keyword: Color.blue,            // Amp: w0.blue
-        string: Color.green,            // Amp: w0.green
-        comment: Color.brightBlack,     // Amp: w0.index(8) — dark gray
-        number: Color.yellow,           // Amp: w0.yellow
-        type: Color.magenta,            // Amp: w0.magenta
-        function: Color.cyan,           // Amp: w0.cyan
-        operator: Color.defaultColor,   // Amp: w0.default()
-        punctuation: Color.defaultColor, // Amp: no explicit — use terminal default
-        variable: Color.defaultColor,   // Amp: w0.default()
-        property: Color.defaultColor,   // Amp: no explicit — use terminal default
-        tag: Color.red,                 // Amp: closest to destructive/red
-        attribute: Color.yellow,        // Amp: closest to number/yellow
-        default: Color.defaultColor,    // Amp: w0.default()
+        keyword: Color.blue,
+        string: Color.green,
+        comment: Color.brightBlack,
+        number: Color.yellow,
+        type: Color.magenta,
+        function: Color.cyan,
+        operator: Color.defaultColor,
+        punctuation: Color.defaultColor,
+        variable: Color.defaultColor,
+        property: Color.defaultColor,
+        tag: Color.red,
+        attribute: Color.yellow,
+        default: Color.defaultColor,
       },
       colors: {
-        background: Color.defaultColor,  // Amp: transparent / terminal bg
-        foreground: Color.defaultColor,  // Amp: w0.default() — terminal fg
-        accent: Color.magenta,           // Amp: w0.magenta (accent in px)
-        muted: Color.brightBlack,        // Amp: w0.index(8) — dark gray
-        border: Color.defaultColor,      // Amp: w0.default()
+        background: Color.defaultColor,
+        foreground: Color.defaultColor,
+        accent: Color.magenta,
+        muted: Color.brightBlack,
+        border: Color.defaultColor,
       },
     };
   }
@@ -145,6 +132,34 @@ export class AppTheme extends InheritedWidget {
   updateShouldNotify(oldWidget: InheritedWidget): boolean {
     const old = oldWidget as AppTheme;
     return !appThemeDataEquals(this.data, old.data);
+  }
+
+  updateShouldNotifyDependent(
+    oldWidget: InheritedModel<AppThemeAspect>,
+    dependencies: Set<AppThemeAspect>,
+  ): boolean {
+    const old = oldWidget as AppTheme;
+    for (const aspect of dependencies) {
+      switch (aspect) {
+        case 'syntaxHighlight':
+          if (!syntaxHighlightConfigEquals(this.data.syntaxHighlight, old.data.syntaxHighlight)) {
+            return true;
+          }
+          break;
+        case 'colors':
+          if (
+            !this.data.colors.background.equals(old.data.colors.background) ||
+            !this.data.colors.foreground.equals(old.data.colors.foreground) ||
+            !this.data.colors.accent.equals(old.data.colors.accent) ||
+            !this.data.colors.muted.equals(old.data.colors.muted) ||
+            !this.data.colors.border.equals(old.data.colors.border)
+          ) {
+            return true;
+          }
+          break;
+      }
+    }
+    return false;
   }
 }
 

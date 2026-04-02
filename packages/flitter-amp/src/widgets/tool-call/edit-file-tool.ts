@@ -56,6 +56,40 @@ export class EditFileTool extends StatelessWidget {
     const bodyChildren: Widget[] = [];
 
     if (diff) {
+      const { added, removed } = this.countDiffStats(diff);
+      if (added > 0 || removed > 0) {
+        const statSpans: TextSpan[] = [];
+        if (added > 0) {
+          statSpans.push(new TextSpan({
+            text: `+${added}`,
+            style: new TextStyle({ foreground: theme?.app.diffAdded ?? Color.green }),
+          }));
+        }
+        if (added > 0 && removed > 0) {
+          statSpans.push(new TextSpan({
+            text: ' / ',
+            style: new TextStyle({ foreground: theme?.base.mutedForeground ?? Color.brightBlack, dim: true }),
+          }));
+        }
+        if (removed > 0) {
+          statSpans.push(new TextSpan({
+            text: `-${removed}`,
+            style: new TextStyle({ foreground: theme?.app.diffRemoved ?? Color.red }),
+          }));
+        }
+        statSpans.push(new TextSpan({
+          text: ' lines',
+          style: new TextStyle({ foreground: theme?.base.mutedForeground ?? Color.brightBlack, dim: true }),
+        }));
+        bodyChildren.push(
+          new Padding({
+            padding: EdgeInsets.only({ left: 2, right: 2 }),
+            child: new Text({
+              text: new TextSpan({ children: statSpans }),
+            }),
+          }),
+        );
+      }
       bodyChildren.push(
         new Padding({
           padding: EdgeInsets.only({ left: 2, right: 2 }),
@@ -102,7 +136,6 @@ export class EditFileTool extends StatelessWidget {
     const shared = extractDiffUtil(this.toolCall.result);
     if (shared) return shared;
 
-    // Edit-specific: synthesize diff from old_str / new_str input
     const input = this.toolCall.rawInput;
     if (input) {
       const oldStr = asOptionalString(input['old_str']);
@@ -113,5 +146,15 @@ export class EditFileTool extends StatelessWidget {
     }
 
     return null;
+  }
+
+  private countDiffStats(diff: string): { added: number; removed: number } {
+    let added = 0;
+    let removed = 0;
+    for (const line of diff.split('\n')) {
+      if (line.startsWith('+') && !line.startsWith('+++')) added++;
+      else if (line.startsWith('-') && !line.startsWith('---')) removed++;
+    }
+    return { added, removed };
   }
 }

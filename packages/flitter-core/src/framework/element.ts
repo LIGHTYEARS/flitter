@@ -15,7 +15,7 @@ import {
   type BuildContext,
   type AbstractConstructor,
 } from './widget';
-import { Key, GlobalKey } from '../core/key';
+import { GlobalKey } from '../core/key';
 import type {
   RenderObject,
   RenderObjectWidget,
@@ -65,6 +65,8 @@ export enum _ElementLifecycleState {
 // ---------------------------------------------------------------------------
 
 export class Element {
+  static _debugBuildPhase: boolean = false;
+
   widget: Widget;
   parent: Element | undefined = undefined;
   _children: Element[] = [];
@@ -467,15 +469,15 @@ export class StatelessElement extends Element {
         // Replace child: unmount old, inflate new
         this._child.unmount();
         this.removeChild(this._child);
-        this._child = newWidget.createElement();
-        this.addChild(this._child);
-        this._mountChild(this._child);
+        this._child = newWidget.createElement() as Element;
+        this.addChild(this._child!);
+        this._mountChild(this._child!);
       }
     } else {
       // First build: inflate
-      this._child = newWidget.createElement();
-      this.addChild(this._child);
-      this._mountChild(this._child);
+      this._child = newWidget.createElement() as Element;
+      this.addChild(this._child!);
+      this._mountChild(this._child!);
     }
   }
 
@@ -644,15 +646,15 @@ export class StatefulElement extends Element {
         // Replace child
         this._child.unmount();
         this.removeChild(this._child);
-        this._child = newWidget.createElement();
-        this.addChild(this._child);
-        this._mountChild(this._child);
+        this._child = newWidget.createElement() as Element;
+        this.addChild(this._child!);
+        this._mountChild(this._child!);
       }
     } else {
       // First build: inflate
-      this._child = newWidget.createElement();
-      this.addChild(this._child);
-      this._mountChild(this._child);
+      this._child = newWidget.createElement() as Element;
+      this.addChild(this._child!);
+      this._mountChild(this._child!);
     }
   }
 
@@ -691,9 +693,9 @@ export abstract class ProxyElement extends Element {
 
   mount(): void {
     const childWidget = this.proxyWidget.child;
-    this._child = childWidget.createElement();
-    this.addChild(this._child);
-    this._mountChild(this._child);
+    this._child = childWidget.createElement() as Element;
+    this.addChild(this._child!);
+    this._mountChild(this._child!);
     this.markMounted();
   }
 
@@ -739,9 +741,9 @@ export abstract class ProxyElement extends Element {
         this._child.unmount();
         this.removeChild(this._child);
       }
-      this._child = newChildWidget.createElement();
-      this.addChild(this._child);
-      this._mountChild(this._child);
+      this._child = newChildWidget.createElement() as Element;
+      this.addChild(this._child!);
+      this._mountChild(this._child!);
     }
   }
 
@@ -943,7 +945,7 @@ export class InheritedModelElement<T> extends InheritedElement {
         dep.didChangeDependencies();
       } else if (oldWidget && this.widget instanceof InheritedModel) {
         // Aspect-filtered dependency -- ask the model
-        if ((this.widget as any).updateShouldNotifyDependent(oldWidget, aspects)) {
+        if ((this.widget as unknown as { updateShouldNotifyDependent(o: Widget, a: Set<unknown>): boolean }).updateShouldNotifyDependent(oldWidget, aspects)) {
           dep.didChangeDependencies();
         }
       } else {
@@ -1001,10 +1003,10 @@ export class RenderObjectElement extends Element {
 
   override activate(): void {
     super.activate();
-    // Re-attach render object when reactivated
-    if (this._renderObject) {
-      if (typeof this._renderObject.attach === 'function') {
-        this._renderObject.attach();
+    if (this._renderObject && typeof this._renderObject.attach === 'function') {
+      const owner = this._renderObject.owner ?? this.parent?.renderObject?.owner;
+      if (owner) {
+        this._renderObject.attach(owner);
       }
     }
   }
@@ -1053,17 +1055,14 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
     super.mount();
     const w = this.singleChildWidget;
     if (w.child) {
-      this._child = w.child.createElement();
-      this.addChild(this._child);
-      this._mountChild(this._child);
-      if (this._child.renderObject && this.renderObject) {
-        // Use the 'child' setter if available (e.g., RenderCenter, RenderPadding).
-        // The setter handles both setting _child and calling adoptChild.
-        // Fall back to adoptChild for render objects without a child setter.
+      this._child = w.child.createElement() as Element;
+      this.addChild(this._child!);
+      this._mountChild(this._child!);
+      if (this._child!.renderObject && this.renderObject) {
         if (isSingleChildRenderObject(this.renderObject)) {
-          this.renderObject.child = this._child.renderObject!;
+          this.renderObject.child = this._child!.renderObject!;
         } else {
-          this.renderObject.adoptChild(this._child.renderObject!);
+          this.renderObject.adoptChild(this._child!.renderObject!);
         }
       }
     }
@@ -1100,29 +1099,29 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
       } else {
         this._child.unmount();
         this.removeChild(this._child);
-        this._child = w.child.createElement();
-        this.addChild(this._child);
-        this._mountChild(this._child);
+        this._child = w.child.createElement() as Element;
+        this.addChild(this._child!);
+        this._mountChild(this._child!);
         if (this.renderObject) {
           if (isContainerRenderObject(this.renderObject) && this.renderObject.removeAllChildren) {
             this.renderObject.removeAllChildren();
           }
-          if (this._child.renderObject) {
+          if (this._child!.renderObject) {
             if (isSingleChildRenderObject(this.renderObject)) {
-              this.renderObject.child = this._child.renderObject!;
+              this.renderObject.child = this._child!.renderObject!;
             } else {
-              this.renderObject.adoptChild(this._child.renderObject!);
+              this.renderObject.adoptChild(this._child!.renderObject!);
             }
           }
         }
       }
     } else if (w.child && !this._child) {
       // Case: (old=null, new=widget) -> inflate
-      this._child = w.child.createElement();
-      this.addChild(this._child);
-      this._mountChild(this._child);
-      if (this.renderObject && this._child.renderObject) {
-        this.renderObject.adoptChild(this._child.renderObject);
+      this._child = w.child.createElement() as Element;
+      this.addChild(this._child!);
+      this._mountChild(this._child!);
+      if (this.renderObject && this._child!.renderObject) {
+        this.renderObject.adoptChild(this._child!.renderObject!);
       }
     } else if (!w.child && this._child) {
       // Case: (old=child, new=null) -> unmount
@@ -1169,7 +1168,7 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
     const w = this.multiChildWidget;
     if (w.children) {
       for (const childWidget of w.children) {
-        const elem = childWidget.createElement();
+        const elem = childWidget.createElement() as Element;
         this._childElements.push(elem);
         this.addChild(elem);
         this._mountChild(elem);
@@ -1364,7 +1363,7 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
   }
 
   createChildElement(widget: Widget): Element {
-    const elem = widget.createElement();
+    const elem = widget.createElement() as Element;
     this.addChild(elem);
     this._mountChild(elem);
     // Wire render object to parent
@@ -1387,7 +1386,7 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
   deactivateChild(elem: Element): void {
     if (elem.renderObject && this.renderObject) {
       if (isContainerRenderObject(this.renderObject)) {
-        this.renderObject.remove(elem.renderObject as any);
+        this.renderObject.remove?.(elem.renderObject);
       } else if (isSingleChildRenderObject(this.renderObject)) {
         this.renderObject.child = null;
       }

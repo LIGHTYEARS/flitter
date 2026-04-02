@@ -4,7 +4,8 @@ import type * as acp from '@agentclientprotocol/sdk';
 import { ConversationState } from './conversation';
 import { log } from '../utils/logger';
 import type { ClientCallbacks } from '../acp/client';
-import type { UsageInfo, SessionInfoPayload, SessionTools, SessionMode, ConversationItem, PlanEntry } from '../acp/types';
+import { asSessionInfoPayload } from '../acp/types';
+import type { UsageInfo, SessionTools, SessionMode, ConversationItem, PlanEntry } from '../acp/types';
 import type { SessionFile } from './session-store';
 import type { ConnectionPhase, ConnectionStatus } from './connection-state';
 import type { HealthStatus } from '../acp/heartbeat-monitor';
@@ -30,6 +31,9 @@ export class AppState implements ClientCallbacks {
   skillCount: number = 0;
   agentCommand: string = '';
   sessionCreatedAt: number = Date.now();
+
+  /** Whether the TUI is in dense (compact) view mode. */
+  denseView: boolean = false;
 
   // --- Connection state machine (Gap #57) ---
   private _connectionStatus: ConnectionStatus = {
@@ -70,6 +74,22 @@ export class AppState implements ClientCallbacks {
 
   /** Last stop reason from onPromptComplete, used to detect interrupted state. */
   lastStopReason: string | null = null;
+
+  /**
+   * Index into conversation.items of the currently-selected user message,
+   * or null when no message is selected. Used by Tab/Shift+Tab navigation.
+   */
+  selectedMessageIndex: number | null = null;
+
+  // --- Token tracking (NEW-008) ---
+  inputTokens: number = 0;
+  outputTokens: number = 0;
+  contextWindowSize: number = 0;
+  costUsd: number = 0;
+  elapsedMs: number = 0;
+  deepReasoningActive: boolean = false;
+  private _promptStartedAt: number | null = null;
+  private _elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
   private listeners: Set<StateListener> = new Set();
   private pendingPermission: {
@@ -149,6 +169,18 @@ export class AppState implements ClientCallbacks {
     return this.pendingPermission !== null;
   }
 
+  get contextWindowUsagePercent(): number {
+    const usage = this.conversation.usage;
+    const size = usage?.size || this.contextWindowSize;
+    if (size <= 0) return 0;
+    const used = usage?.used ?? 0;
+    return Math.round((used / size) * 100);
+  }
+
+  get isContextWindowHigh(): boolean {
+    return this.contextWindowUsagePercent > 80;
+  }
+
   get permissionRequest(): acp.RequestPermissionRequest | null {
     return this.pendingPermission?.request ?? null;
   }
@@ -173,6 +205,7 @@ export class AppState implements ClientCallbacks {
         const content = update.content;
         if (content.type === 'text' && content.text) {
           this.conversation.appendThinkingChunk(content.text);
+          this.deepReasoningActive = true;
         }
         break;
       }
@@ -210,6 +243,20 @@ export class AppState implements ClientCallbacks {
           used: update.used,
           cost: update.cost as UsageInfo['cost'],
         });
+        this.contextWindowSize = update.size;
+        const costObj = update.cost as UsageInfo['cost'];
+        if (costObj && costObj.amount !== undefined) {
+          this.costUsd = costObj.amount;
+        }
+        if ((update as Record<string, unknown>).inputTokens !== undefined) {
+          this.inputTokens = (update as Record<string, unknown>).inputTokens as number;
+        }
+        if ((update as Record<string, unknown>).outputTokens !== undefined) {
+          this.outputTokens = (update as Record<string, unknown>).outputTokens as number;
+        }
+        if ((update as Record<string, unknown>).deepReasoningActive !== undefined) {
+          this.deepReasoningActive = !!(update as Record<string, unknown>).deepReasoningActive;
+        }
         break;
       }
 
@@ -221,9 +268,9 @@ export class AppState implements ClientCallbacks {
       case 'session_info_update': {
         // The SDK's SessionInfoUpdate type only defines `title` and `updatedAt`.
         // Agent-specific extensions (agentName, cwd, tools, etc.) are delivered
-        // as extra properties on the update object. We access them through an
-        // extension-aware type to avoid losing type coverage elsewhere.
-        const info = update as unknown as SessionInfoPayload;
+        // as extra properties on the update object. asSessionInfoPayload()
+        // extracts them safely via runtime type checks.
+        const info = asSessionInfoPayload(update);
 
         if (info.agentName !== undefined) this.agentName = info.agentName;
         if (info.agentVersion !== undefined) this.agentVersion = info.agentVersion;
@@ -271,6 +318,10 @@ export class AppState implements ClientCallbacks {
     this.conversation.finalizeThinking();
     this.conversation.isProcessing = false;
     this.lastStopReason = stopReason;
+    this._stopElapsedTimer();
+    if (this._promptStartedAt !== null) {
+      this.elapsedMs = Date.now() - this._promptStartedAt;
+    }
     log.info(`Prompt complete: ${stopReason}, items=${this.conversation.items.length}`);
     this.notifyListeners();
   }
@@ -288,6 +339,10 @@ export class AppState implements ClientCallbacks {
     this.conversation.finalizeAssistantMessage();
     this.conversation.finalizeThinking();
     this.conversation.isProcessing = false;
+    this._stopElapsedTimer();
+    if (this._promptStartedAt !== null) {
+      this.elapsedMs = Date.now() - this._promptStartedAt;
+    }
     this.error = message;
     this.notifyListeners();
   }
@@ -304,9 +359,31 @@ export class AppState implements ClientCallbacks {
 
   startProcessing(userText: string): void {
     this.lastStopReason = null;
+    this._promptStartedAt = Date.now();
+    this.elapsedMs = 0;
+    this._startElapsedTimer();
     this.conversation.addUserMessage(userText);
     this.conversation.isProcessing = true;
     this.notifyListeners();
+  }
+
+  /** Starts a periodic timer that updates elapsedMs every 100ms while processing. */
+  private _startElapsedTimer(): void {
+    this._stopElapsedTimer();
+    this._elapsedTimer = setInterval(() => {
+      if (this._promptStartedAt !== null) {
+        this.elapsedMs = Date.now() - this._promptStartedAt;
+        this.notifyListeners();
+      }
+    }, 100);
+  }
+
+  /** Stops the elapsed-time timer. */
+  private _stopElapsedTimer(): void {
+    if (this._elapsedTimer !== null) {
+      clearInterval(this._elapsedTimer);
+      this._elapsedTimer = null;
+    }
   }
 
   setConnected(sessionId: string, agentName: string | null): void {
@@ -323,6 +400,178 @@ export class AppState implements ClientCallbacks {
 
   clearError(): void {
     this.error = null;
+    this.notifyListeners();
+  }
+
+  // --- Command Palette Actions (W4-3) ---
+
+  /**
+   * Reset conversation state for a new thread.
+   * Clears items, plan, and usage while keeping session metadata.
+   */
+  newThread(): void {
+    this.conversation.clear();
+    this.lastStopReason = null;
+    this.error = null;
+    this.notifyListeners();
+  }
+
+  /** Toggle dense (compact) view mode. */
+  toggleDenseView(): void {
+    this.denseView = !this.denseView;
+    this.notifyListeners();
+  }
+
+  cycleMode(): void {
+    const available = this.modes.length > 0
+      ? this.modes.map(m => m.id ?? m.name ?? 'smart')
+      : ['smart', 'code', 'ask'];
+    const current = this.currentMode ?? available[0];
+    const idx = available.indexOf(current);
+    this.currentMode = available[(idx + 1) % available.length];
+    this.notifyListeners();
+  }
+
+  toggleDeepReasoning(): void {
+    this.deepReasoningActive = !this.deepReasoningActive;
+    this.notifyListeners();
+  }
+
+  /**
+   * Return the text of the last assistant message, or null if none.
+   * Scans conversation items in reverse to find the most recent one.
+   */
+  getLastAssistantMessage(): string | null {
+    const items = this.conversation.items;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const item = items[i];
+      if (item.type === 'assistant_message' && item.text) {
+        return item.text;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Copy the last assistant response to the system clipboard.
+   * Uses platform-specific clipboard commands for portability.
+   * Returns true if a message was found to copy.
+   */
+  async copyLastResponse(): Promise<boolean> {
+    const text = this.getLastAssistantMessage();
+    if (!text) return false;
+
+    try {
+      const platform = process.platform;
+      let cmd: string[];
+      if (platform === 'darwin') {
+        cmd = ['pbcopy'];
+      } else if (platform === 'win32') {
+        cmd = ['clip'];
+      } else {
+        cmd = ['xclip', '-selection', 'clipboard'];
+      }
+      const proc = Bun.spawn(cmd, { stdin: 'pipe' });
+      proc.stdin.write(text);
+      proc.stdin.end();
+      await proc.exited;
+    } catch {
+      // Silently fail -- clipboard access may not be available
+    }
+    return true;
+  }
+
+  /**
+   * Build a human-readable usage summary string.
+   * Returns null if no usage data is available.
+   */
+  getUsageSummary(): string | null {
+    const usage = this.conversation.usage;
+    if (!usage) return null;
+
+    const pct = usage.size > 0
+      ? ((usage.used / usage.size) * 100).toFixed(1)
+      : '0.0';
+    let summary = `Tokens: ${usage.used.toLocaleString()} / ${usage.size.toLocaleString()} (${pct}%)`;
+    if (usage.cost) {
+      summary += ` | Cost: ${usage.cost.currency}${usage.cost.amount.toFixed(4)}`;
+    }
+    return summary;
+  }
+
+  // --- Message Selection Navigation (W4-1) ---
+
+  /**
+   * Returns the items-array indices of all user_message items,
+   * in order of appearance.
+   */
+  private userMessageIndices(): number[] {
+    const indices: number[] = [];
+    const items = this.conversation.items;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type === 'user_message') indices.push(i);
+    }
+    return indices;
+  }
+
+  /**
+   * Select the next (older) user message. Tab moves backward through
+   * user messages. When nothing is selected, starts from the newest.
+   */
+  selectPrevMessage(): void {
+    const indices = this.userMessageIndices();
+    if (indices.length === 0) return;
+    if (this.selectedMessageIndex === null) {
+      this.selectedMessageIndex = indices[indices.length - 1];
+    } else {
+      const pos = indices.indexOf(this.selectedMessageIndex);
+      if (pos > 0) {
+        this.selectedMessageIndex = indices[pos - 1];
+      }
+    }
+    this.notifyListeners();
+  }
+
+  /**
+   * Select the next (newer) user message. Shift+Tab moves forward.
+   * If already at the newest message, clears selection.
+   */
+  selectNextMessage(): void {
+    const indices = this.userMessageIndices();
+    if (indices.length === 0 || this.selectedMessageIndex === null) return;
+    const pos = indices.indexOf(this.selectedMessageIndex);
+    if (pos < indices.length - 1) {
+      this.selectedMessageIndex = indices[pos + 1];
+    } else {
+      this.selectedMessageIndex = null;
+    }
+    this.notifyListeners();
+  }
+
+  /** Clear the current message selection. */
+  clearMessageSelection(): void {
+    if (this.selectedMessageIndex !== null) {
+      this.selectedMessageIndex = null;
+      this.notifyListeners();
+    }
+  }
+
+  // --- Message Edit / Restore (W4-2) ---
+
+  /**
+   * Returns the text of the user message at the given items-array index,
+   * or null if the index is invalid or not a user_message.
+   */
+  getMessageAt(index: number): string | null {
+    return this.conversation.getMessageAt(index);
+  }
+
+  /**
+   * Remove all conversation items after the given items-array index.
+   * Used by the "restore" (r) action to replay from a selected message.
+   */
+  truncateAfter(index: number): void {
+    this.conversation.truncateAfter(index);
     this.notifyListeners();
   }
 

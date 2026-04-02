@@ -30,7 +30,7 @@ export type ImmutableToolCallResult = Readonly<{
     type: string;
     content?: Readonly<{ type: string; text: string }>;
   }>>;
-  rawOutput?: Readonly<Record<string, unknown>>;
+  rawOutput?: Readonly<Record<string, unknown>> | string;
 }>;
 
 export type ImmutableToolCallItem = Readonly<{

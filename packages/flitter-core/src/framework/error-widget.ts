@@ -68,10 +68,9 @@ export class RenderErrorBox extends RenderBox {
 
   // Paint: red background with white bold text "[!] <message>"
   paint(context: PaintContext, offset: Offset): void {
-    const ctx = context as any;
-    if (!ctx.drawChar) return;
+    if (typeof context.drawChar !== 'function') return;
 
-    const errorStyle: any = {
+    const errorStyle: Record<string, unknown> = {
       foreground: Color.white,
       background: Color.red,
       bold: true,
@@ -83,7 +82,7 @@ export class RenderErrorBox extends RenderBox {
 
     for (let col = 0; col < availWidth; col++) {
       const ch = col < fullText.length ? fullText[col]! : ' ';
-      ctx.drawChar(offset.col + col, offset.row, ch, errorStyle);
+      context.drawChar(offset.col + col, offset.row, ch, errorStyle);
     }
   }
 }

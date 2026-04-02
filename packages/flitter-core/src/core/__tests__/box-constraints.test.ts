@@ -327,4 +327,131 @@ describe('BoxConstraints', () => {
       expect(c.maxHeight).toBe(Infinity);
     });
   });
+
+  describe('tightForFinite()', () => {
+    test('tightens finite width, leaves infinite height unconstrained', () => {
+      const c = BoxConstraints.tightForFinite({ width: 80, height: Infinity });
+      expect(c.minWidth).toBe(80);
+      expect(c.maxWidth).toBe(80);
+      expect(c.minHeight).toBe(0);
+      expect(c.maxHeight).toBe(Infinity);
+    });
+
+    test('tightens finite height, leaves infinite width unconstrained', () => {
+      const c = BoxConstraints.tightForFinite({ width: Infinity, height: 24 });
+      expect(c.minWidth).toBe(0);
+      expect(c.maxWidth).toBe(Infinity);
+      expect(c.minHeight).toBe(24);
+      expect(c.maxHeight).toBe(24);
+    });
+
+    test('tightens both when both are finite', () => {
+      const c = BoxConstraints.tightForFinite({ width: 80, height: 24 });
+      expect(c.minWidth).toBe(80);
+      expect(c.maxWidth).toBe(80);
+      expect(c.minHeight).toBe(24);
+      expect(c.maxHeight).toBe(24);
+      expect(c.isTight).toBe(true);
+    });
+
+    test('both Infinity leaves fully unconstrained', () => {
+      const c = BoxConstraints.tightForFinite({ width: Infinity, height: Infinity });
+      expect(c.minWidth).toBe(0);
+      expect(c.maxWidth).toBe(Infinity);
+      expect(c.minHeight).toBe(0);
+      expect(c.maxHeight).toBe(Infinity);
+    });
+
+    test('no args creates unconstrained', () => {
+      const c = BoxConstraints.tightForFinite();
+      expect(c.minWidth).toBe(0);
+      expect(c.maxWidth).toBe(Infinity);
+      expect(c.minHeight).toBe(0);
+      expect(c.maxHeight).toBe(Infinity);
+    });
+
+    test('undefined values leave axis unconstrained', () => {
+      const c = BoxConstraints.tightForFinite({ width: 50 });
+      expect(c.minWidth).toBe(50);
+      expect(c.maxWidth).toBe(50);
+      expect(c.minHeight).toBe(0);
+      expect(c.maxHeight).toBe(Infinity);
+    });
+  });
+
+  describe('flipped', () => {
+    test('swaps width and height constraints', () => {
+      const c = new BoxConstraints({ minWidth: 10, maxWidth: 100, minHeight: 5, maxHeight: 50 });
+      const f = c.flipped;
+      expect(f.minWidth).toBe(5);
+      expect(f.maxWidth).toBe(50);
+      expect(f.minHeight).toBe(10);
+      expect(f.maxHeight).toBe(100);
+    });
+
+    test('flipping twice returns equivalent constraints', () => {
+      const c = new BoxConstraints({ minWidth: 10, maxWidth: 100, minHeight: 5, maxHeight: 50 });
+      const ff = c.flipped.flipped;
+      expect(ff.equals(c)).toBe(true);
+    });
+
+    test('flipping tight constraints remains tight', () => {
+      const c = BoxConstraints.tight(new Size(80, 24));
+      const f = c.flipped;
+      expect(f.isTight).toBe(true);
+      expect(f.minWidth).toBe(24);
+      expect(f.maxWidth).toBe(24);
+      expect(f.minHeight).toBe(80);
+      expect(f.maxHeight).toBe(80);
+    });
+
+    test('flipping preserves Infinity', () => {
+      const c = new BoxConstraints({ maxWidth: 100 });
+      const f = c.flipped;
+      expect(f.minWidth).toBe(0);
+      expect(f.maxWidth).toBe(Infinity);
+      expect(f.minHeight).toBe(0);
+      expect(f.maxHeight).toBe(100);
+    });
+  });
+
+  describe('widthConstraints()', () => {
+    test('preserves width, height becomes unconstrained', () => {
+      const c = new BoxConstraints({ minWidth: 10, maxWidth: 100, minHeight: 5, maxHeight: 50 });
+      const wc = c.widthConstraints();
+      expect(wc.minWidth).toBe(10);
+      expect(wc.maxWidth).toBe(100);
+      expect(wc.minHeight).toBe(0);
+      expect(wc.maxHeight).toBe(Infinity);
+    });
+
+    test('already unconstrained height stays unconstrained', () => {
+      const c = new BoxConstraints({ minWidth: 20, maxWidth: 80 });
+      const wc = c.widthConstraints();
+      expect(wc.minWidth).toBe(20);
+      expect(wc.maxWidth).toBe(80);
+      expect(wc.minHeight).toBe(0);
+      expect(wc.maxHeight).toBe(Infinity);
+    });
+  });
+
+  describe('heightConstraints()', () => {
+    test('preserves height, width becomes unconstrained', () => {
+      const c = new BoxConstraints({ minWidth: 10, maxWidth: 100, minHeight: 5, maxHeight: 50 });
+      const hc = c.heightConstraints();
+      expect(hc.minWidth).toBe(0);
+      expect(hc.maxWidth).toBe(Infinity);
+      expect(hc.minHeight).toBe(5);
+      expect(hc.maxHeight).toBe(50);
+    });
+
+    test('already unconstrained width stays unconstrained', () => {
+      const c = new BoxConstraints({ minHeight: 10, maxHeight: 40 });
+      const hc = c.heightConstraints();
+      expect(hc.minWidth).toBe(0);
+      expect(hc.maxWidth).toBe(Infinity);
+      expect(hc.minHeight).toBe(10);
+      expect(hc.maxHeight).toBe(40);
+    });
+  });
 });

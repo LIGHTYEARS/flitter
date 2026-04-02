@@ -50,6 +50,24 @@ export class BoxConstraints {
     });
   }
 
+  /**
+   * Like tightFor(), but only tightens axes where the value is finite.
+   * Infinite values leave that axis unconstrained (min=0, max=Infinity).
+   * GAP-SUM-048.
+   */
+  static tightForFinite(opts?: { width?: number; height?: number }): BoxConstraints {
+    const w = opts?.width;
+    const h = opts?.height;
+    const finiteW = w !== undefined && Number.isFinite(w) ? w : undefined;
+    const finiteH = h !== undefined && Number.isFinite(h) ? h : undefined;
+    return new BoxConstraints({
+      minWidth: finiteW ?? 0,
+      maxWidth: finiteW ?? Infinity,
+      minHeight: finiteH ?? 0,
+      maxHeight: finiteH ?? Infinity,
+    });
+  }
+
   /** Create loose constraints: min=0, max=size. */
   static loose(size: Size): BoxConstraints {
     return new BoxConstraints({
@@ -145,6 +163,30 @@ export class BoxConstraints {
     });
   }
 
+  /**
+   * Return constraints with only the width axis, height unconstrained.
+   * Equivalent to BoxConstraints(minWidth, 0, maxWidth, Infinity).
+   * GAP-SUM-048.
+   */
+  widthConstraints(): BoxConstraints {
+    return new BoxConstraints({
+      minWidth: this.minWidth,
+      maxWidth: this.maxWidth,
+    });
+  }
+
+  /**
+   * Return constraints with only the height axis, width unconstrained.
+   * Equivalent to BoxConstraints(0, minHeight, Infinity, maxHeight).
+   * GAP-SUM-048.
+   */
+  heightConstraints(): BoxConstraints {
+    return new BoxConstraints({
+      minHeight: this.minHeight,
+      maxHeight: this.maxHeight,
+    });
+  }
+
   // --- Queries ---
 
   /** True if min equals max on both axes (only one size is allowed). */
@@ -180,6 +222,19 @@ export class BoxConstraints {
   /** The smallest size that satisfies the constraints. */
   get smallest(): Size {
     return new Size(this.minWidth, this.minHeight);
+  }
+
+  /**
+   * Return constraints with width and height axes swapped.
+   * GAP-SUM-048.
+   */
+  get flipped(): BoxConstraints {
+    return new BoxConstraints({
+      minWidth: this.minHeight,
+      maxWidth: this.maxHeight,
+      minHeight: this.minWidth,
+      maxHeight: this.maxWidth,
+    });
   }
 
   // --- Equality ---

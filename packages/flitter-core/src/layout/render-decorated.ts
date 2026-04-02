@@ -3,7 +3,6 @@
 // Source: .reference/widgets-catalog.md
 
 import { Offset, Size } from '../core/types';
-import { BoxConstraints } from '../core/box-constraints';
 import { Color } from '../core/color';
 import { RenderBox } from '../framework/render-object';
 import { PaintContext } from '../scheduler/paint-context';
@@ -187,18 +186,25 @@ export class RenderDecoratedBox extends RenderBox {
     return this._decoration.border?.top.width ?? 0;
   }
 
+  get borderRight(): number {
+    return this._decoration.border?.right.width ?? 0;
+  }
+
+  get borderBottom(): number {
+    return this._decoration.border?.bottom.width ?? 0;
+  }
+
   performLayout(): void {
     const constraints = this.constraints!;
     const h = this._borderHorizontal;
     const v = this._borderVertical;
 
     if (this._child) {
-      // Deflate constraints by border widths
-      const childConstraints = new BoxConstraints({
-        minWidth: Math.max(0, constraints.minWidth - h),
-        maxWidth: Math.max(0, constraints.maxWidth - h),
-        minHeight: Math.max(0, constraints.minHeight - v),
-        maxHeight: Math.max(0, constraints.maxHeight - v),
+      const childConstraints = constraints.deflate({
+        left: this._borderLeft,
+        top: this._borderTop,
+        right: this._decoration.border?.right.width ?? 0,
+        bottom: this._decoration.border?.bottom.width ?? 0,
       });
 
       this._child.layout(childConstraints);

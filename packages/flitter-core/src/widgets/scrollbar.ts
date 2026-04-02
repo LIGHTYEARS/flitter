@@ -159,6 +159,7 @@ class ScrollbarState extends State<Scrollbar> {
   private _isDragging: boolean = false;
   private _dragStartScrollOffset: number = 0;
   private _dragStartAxisPosition: number = 0;
+  private _isHovered: boolean = false;
 
   private _onScrollChanged = (): void => {
     if (this.mounted) {
@@ -273,6 +274,24 @@ class ScrollbarState extends State<Scrollbar> {
     this._isDragging = false;
   };
 
+  private _handleEnter = (_event: MouseRegionEvent): void => {
+    if (!this._isHovered) {
+      this._isHovered = true;
+      if (this.mounted) {
+        this.setState();
+      }
+    }
+  };
+
+  private _handleExit = (_event: MouseRegionEvent): void => {
+    if (this._isHovered) {
+      this._isHovered = false;
+      if (this.mounted) {
+        this.setState();
+      }
+    }
+  };
+
   build(_context: BuildContext): Widget {
     // Compute scroll info from controller or getScrollInfo callback
     let scrollInfo: ScrollInfo | undefined;
@@ -309,16 +328,16 @@ class ScrollbarState extends State<Scrollbar> {
       thumbColor: this.widget.thumbColor,
       trackColor: this.widget.trackColor,
       subCharacterPrecision: this.widget.subCharacterPrecision,
+      isHovered: this._isHovered,
     });
 
-    // Wrap in MouseRegion for interactive behavior when:
-    // 1. interactive is true
-    // 2. A controller is available (getScrollInfo-only scrollbars cannot be interactive)
     if (this.widget.interactive && this.widget.controller) {
       child = new MouseRegion({
         onClick: this._handleClick,
         onDrag: this._handleDrag,
         onRelease: this._handleRelease,
+        onEnter: this._handleEnter,
+        onExit: this._handleExit,
         cursor: 'pointer',
         child,
       });
@@ -342,6 +361,7 @@ class _ScrollbarRender extends LeafRenderObjectWidget {
   readonly thumbColor?: Color;
   readonly trackColor?: Color;
   readonly subCharacterPrecision: boolean;
+  readonly isHovered: boolean;
 
   constructor(opts: {
     scrollInfo?: ScrollInfo;
@@ -353,6 +373,7 @@ class _ScrollbarRender extends LeafRenderObjectWidget {
     thumbColor?: Color;
     trackColor?: Color;
     subCharacterPrecision: boolean;
+    isHovered?: boolean;
   }) {
     super();
     this.scrollInfo = opts.scrollInfo;
@@ -364,6 +385,7 @@ class _ScrollbarRender extends LeafRenderObjectWidget {
     this.thumbColor = opts.thumbColor;
     this.trackColor = opts.trackColor;
     this.subCharacterPrecision = opts.subCharacterPrecision;
+    this.isHovered = opts.isHovered ?? false;
   }
 
   createRenderObject(): RenderScrollbar {
@@ -377,6 +399,7 @@ class _ScrollbarRender extends LeafRenderObjectWidget {
       this.thumbColor,
       this.trackColor,
       this.subCharacterPrecision,
+      this.isHovered,
     );
   }
 
@@ -390,6 +413,7 @@ class _ScrollbarRender extends LeafRenderObjectWidget {
     renderObject.thumbColor = this.thumbColor;
     renderObject.trackColor = this.trackColor;
     renderObject.subCharacterPrecision = this.subCharacterPrecision;
+    renderObject.isHovered = this.isHovered;
     renderObject.markNeedsPaint();
   }
 }
@@ -421,6 +445,7 @@ export class RenderScrollbar extends RenderBox {
   thumbColor?: Color;
   trackColor?: Color;
   subCharacterPrecision: boolean;
+  isHovered: boolean;
 
   constructor(
     scrollInfo?: ScrollInfo,
@@ -432,6 +457,7 @@ export class RenderScrollbar extends RenderBox {
     thumbColor?: Color,
     trackColor?: Color,
     subCharacterPrecision: boolean = true,
+    isHovered: boolean = false,
   ) {
     super();
     this.scrollInfo = scrollInfo;
@@ -443,6 +469,19 @@ export class RenderScrollbar extends RenderBox {
     this.thumbColor = thumbColor;
     this.trackColor = trackColor;
     this.subCharacterPrecision = subCharacterPrecision;
+    this.isHovered = isHovered;
+  }
+
+  private _effectiveThumbColor(): Color | undefined {
+    if (!this.isHovered) return this.thumbColor;
+    if (this.thumbColor) {
+      if (this.thumbColor.mode === 'rgb') {
+        const brighten = (v: number) => Math.min(255, Math.round(v + (255 - v) * 0.3));
+        return Color.rgb(brighten(this.thumbColor.r), brighten(this.thumbColor.g), brighten(this.thumbColor.b));
+      }
+      return this.thumbColor.withAlpha(Math.min(1.0, this.thumbColor.alpha + 0.2));
+    }
+    return Color.brightWhite;
   }
 
   // ---- Helpers to read axis-generic ScrollInfo with backward compat ----
@@ -557,12 +596,12 @@ export class RenderScrollbar extends RenderBox {
   private _paintVertical(context: PaintContext, offset: Offset): void {
     const height = this.size.height;
     const width = this.size.width;
+    const effectiveThumbColor = this._effectiveThumbColor();
 
-    // Build track and thumb styles
     const trackStyle: ScrollbarCellStyle = {};
     const thumbStyle: ScrollbarCellStyle = {};
     if (this.trackColor) trackStyle.fg = this.trackColor;
-    if (this.thumbColor) thumbStyle.fg = this.thumbColor;
+    if (effectiveThumbColor) thumbStyle.fg = effectiveThumbColor;
 
     // Draw track
     if (this.showTrack) {
@@ -592,7 +631,7 @@ export class RenderScrollbar extends RenderBox {
               offset.col + col,
               offset.row + row,
               this.thumbChar,
-              this.thumbColor ? thumbStyle as Record<string, unknown> : undefined,
+              effectiveThumbColor ? thumbStyle as Record<string, unknown> : undefined,
               1,
             );
           }
@@ -602,8 +641,8 @@ export class RenderScrollbar extends RenderBox {
   }
 
   private _paintVerticalSubChar(context: PaintContext, offset: Offset, height: number, width: number): void {
-    // Sub-character precision rendering using BLOCK_ELEMENTS (lower blocks)
     if (!this.scrollInfo || height <= 0) return;
+    const effectiveThumbColor = this._effectiveThumbColor();
 
     const totalContentExtent = this._getContentExtent();
     const vpExtent = this._getViewportExtent() > 0
@@ -639,22 +678,20 @@ export class RenderScrollbar extends RenderBox {
 
       for (let col = 0; col < width; col++) {
         if (coveredEighths >= 8) {
-          // Fully covered by thumb
           const style: ScrollbarCellStyle = {};
-          if (this.thumbColor) { style.fg = this.thumbColor; style.bg = this.thumbColor; }
+          if (effectiveThumbColor) { style.fg = effectiveThumbColor; style.bg = effectiveThumbColor; }
           context.drawChar(
             offset.col + col,
             offset.row + row,
             BLOCK_ELEMENTS[8],
-            (this.thumbColor) ? style as Record<string, unknown> : undefined,
+            (effectiveThumbColor) ? style as Record<string, unknown> : undefined,
             1,
           );
         } else if (overlapStart > rowTopEighths) {
-          // Top edge of thumb
           const style: ScrollbarCellStyle = {};
-          if (this.thumbColor) style.fg = this.thumbColor;
+          if (effectiveThumbColor) style.fg = effectiveThumbColor;
           if (this.trackColor) style.bg = this.trackColor;
-          if (!this.thumbColor && !this.trackColor) style.inverse = true;
+          if (!effectiveThumbColor && !this.trackColor) style.inverse = true;
           context.drawChar(
             offset.col + col,
             offset.row + row,
@@ -663,12 +700,11 @@ export class RenderScrollbar extends RenderBox {
             1,
           );
         } else {
-          // Bottom edge of thumb
           const gapEighths = 8 - coveredEighths;
           const style: ScrollbarCellStyle = {};
           if (this.trackColor) style.fg = this.trackColor;
-          if (this.thumbColor) style.bg = this.thumbColor;
-          if (!this.trackColor && !this.thumbColor) style.inverse = true;
+          if (effectiveThumbColor) style.bg = effectiveThumbColor;
+          if (!this.trackColor && !effectiveThumbColor) style.inverse = true;
           context.drawChar(
             offset.col + col,
             offset.row + row,
@@ -686,12 +722,12 @@ export class RenderScrollbar extends RenderBox {
   private _paintHorizontal(context: PaintContext, offset: Offset): void {
     const height = this.size.height;
     const width = this.size.width;
+    const effectiveThumbColor = this._effectiveThumbColor();
 
-    // Build track and thumb styles
     const trackStyle: ScrollbarCellStyle = {};
     const thumbStyle: ScrollbarCellStyle = {};
     if (this.trackColor) trackStyle.fg = this.trackColor;
-    if (this.thumbColor) thumbStyle.fg = this.thumbColor;
+    if (effectiveThumbColor) thumbStyle.fg = effectiveThumbColor;
 
     // Draw track across full width
     if (this.showTrack) {
@@ -711,7 +747,6 @@ export class RenderScrollbar extends RenderBox {
     if (this.subCharacterPrecision) {
       this._paintHorizontalSubChar(context, offset, height, width);
     } else {
-      // Standard whole-character rendering (horizontal)
       const metrics = this.computeThumbMetrics(width);
       if (metrics) {
         const { thumbStart, thumbExtent } = metrics;
@@ -721,7 +756,7 @@ export class RenderScrollbar extends RenderBox {
               offset.col + col,
               offset.row + row,
               this.thumbChar,
-              this.thumbColor ? thumbStyle as Record<string, unknown> : undefined,
+              effectiveThumbColor ? thumbStyle as Record<string, unknown> : undefined,
               1,
             );
           }
@@ -731,17 +766,8 @@ export class RenderScrollbar extends RenderBox {
   }
 
   private _paintHorizontalSubChar(context: PaintContext, offset: Offset, height: number, width: number): void {
-    // Sub-character precision rendering using LEFT_BLOCK_ELEMENTS
-    // Left block elements fill from the LEFT edge rightward.
-    //
-    // For each character column we determine the overlap with the thumb region:
-    //   - Fully covered → full block (█) in thumb color
-    //   - Left edge (thumb starts mid-column, covers right portion):
-    //     Left block of the uncovered left gap with fg=trackColor, bg=thumbColor
-    //   - Right edge (thumb covers left portion, stops mid-column):
-    //     Left block of the covered left portion with fg=thumbColor, bg=trackColor
-
     if (!this.scrollInfo || width <= 0) return;
+    const effectiveThumbColor = this._effectiveThumbColor();
 
     const totalContentExtent = this._getContentExtent();
     const vpExtent = this._getViewportExtent() > 0
@@ -777,25 +803,21 @@ export class RenderScrollbar extends RenderBox {
 
       for (let row = 0; row < height; row++) {
         if (coveredEighths >= 8) {
-          // Fully covered by thumb
           const style: ScrollbarCellStyle = {};
-          if (this.thumbColor) { style.fg = this.thumbColor; style.bg = this.thumbColor; }
+          if (effectiveThumbColor) { style.fg = effectiveThumbColor; style.bg = effectiveThumbColor; }
           context.drawChar(
             offset.col + col,
             offset.row + row,
             LEFT_BLOCK_ELEMENTS[8],
-            (this.thumbColor) ? style as Record<string, unknown> : undefined,
+            (effectiveThumbColor) ? style as Record<string, unknown> : undefined,
             1,
           );
         } else if (overlapStart > colLeftEighths) {
-          // Left edge of thumb: thumb starts mid-column, covers right portion.
-          // The uncovered gap is on the left. A left block element fills from the left,
-          // so we draw the gap as a left block with fg=trackColor (gap) and bg=thumbColor (covered right).
           const gapEighths = 8 - coveredEighths;
           const style: ScrollbarCellStyle = {};
           if (this.trackColor) style.fg = this.trackColor;
-          if (this.thumbColor) style.bg = this.thumbColor;
-          if (!this.trackColor && !this.thumbColor) style.inverse = true;
+          if (effectiveThumbColor) style.bg = effectiveThumbColor;
+          if (!this.trackColor && !effectiveThumbColor) style.inverse = true;
           context.drawChar(
             offset.col + col,
             offset.row + row,
@@ -804,12 +826,10 @@ export class RenderScrollbar extends RenderBox {
             1,
           );
         } else {
-          // Right edge of thumb: thumb covers left portion, stops mid-column.
-          // Draw the covered left portion as a left block with fg=thumbColor, bg=trackColor.
           const style: ScrollbarCellStyle = {};
-          if (this.thumbColor) style.fg = this.thumbColor;
+          if (effectiveThumbColor) style.fg = effectiveThumbColor;
           if (this.trackColor) style.bg = this.trackColor;
-          if (!this.thumbColor && !this.trackColor) style.inverse = true;
+          if (!effectiveThumbColor && !this.trackColor) style.inverse = true;
           context.drawChar(
             offset.col + col,
             offset.row + row,

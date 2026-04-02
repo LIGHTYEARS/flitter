@@ -7,6 +7,7 @@ import { Color } from 'flitter-core/src/core/color';
 import { Key } from 'flitter-core/src/core/key';
 import { Widget, InheritedWidget, BuildContext } from 'flitter-core/src/framework/widget';
 import type { AmpBaseTheme, AmpAppColors, AmpTheme, AmpSyntaxHighlight } from './amp-theme-data';
+import { PerlinNoise } from '../utils/perlin-noise';
 import { darkTheme } from './dark';
 import { lightTheme } from './light';
 import { catppuccinMochaTheme } from './catppuccin-mocha';
@@ -158,6 +159,73 @@ export function agentModeColor(mode: string, theme: AmpTheme): Color {
   return theme.base.foreground;
 }
 
+/**
+ * Base hue angles (0-360) for each known agent mode.
+ * Used by perlinAgentModeColor to seed the Perlin noise offset.
+ *   - smart: green  (140°)
+ *   - code:  blue   (220°)
+ *   - ask:   purple (280°)
+ *   - rush:  gold   (45°)
+ */
+const MODE_HUE_MAP: Record<string, number> = {
+  smart: 140,
+  code: 220,
+  ask: 280,
+  rush: 45,
+};
+
+/**
+ * Converts an HSL triplet (h: 0-360, s: 0-1, l: 0-1) to an RGB Color.
+ */
+function hslToColor(h: number, s: number, l: number): Color {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60)       { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else              { r = c; b = x; }
+  return Color.rgb(
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  );
+}
+
+/**
+ * Returns a Perlin-noise-modulated Color for the given agent mode.
+ *
+ * Each mode has a base hue. The Perlin noise field creates smooth, subtle
+ * variation in hue (±12°) and lightness (±0.06) over time, producing an
+ * organic color pulse suitable for status indicators and the DensityOrb.
+ *
+ * @param mode  Agent mode name (e.g. 'smart', 'code', 'ask', 'rush').
+ * @param t     Continuous time value (e.g. elapsed seconds or frame counter).
+ * @param isLight  Whether the current theme is light mode. Controls base
+ *                 saturation and lightness so the pulse looks good on both
+ *                 light and dark backgrounds.
+ */
+export function perlinAgentModeColor(
+  mode: string,
+  t: number,
+  isLight = false,
+): Color {
+  const baseHue = MODE_HUE_MAP[mode] ?? 140;
+  const noise = PerlinNoise.shared;
+
+  const hueShift = noise.value1d(t * 0.4 + baseHue * 0.01) * 12;
+  const lumShift = noise.value1d(t * 0.3 + 100 + baseHue * 0.01) * 0.06;
+
+  const h = ((baseHue + hueShift) % 360 + 360) % 360;
+  const s = isLight ? 0.65 : 0.80;
+  const l = (isLight ? 0.40 : 0.60) + lumShift;
+
+  return hslToColor(h, s, l);
+}
+
 // ---------------------------------------------------------------------------
 // AmpThemeProvider — InheritedWidget that propagates AmpTheme down the tree
 // ---------------------------------------------------------------------------
@@ -204,9 +272,8 @@ export class AmpThemeProvider extends InheritedWidget {
    * or undefined if none is found.
    */
   static maybeOf(context: BuildContext): AmpTheme | undefined {
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(AmpThemeProvider);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(AmpThemeProvider);
       if (element) {
         const widget = element.widget as AmpThemeProvider;
         return widget.theme;

@@ -18,6 +18,7 @@ function mockHooks(overrides?: Partial<ShortcutHooks>): ShortcutHooks {
     historyPrevious: () => {},
     historyNext: () => {},
     toggleThinking: () => {},
+    copyLastResponse: () => {},
     ...overrides,
   };
 }

@@ -80,7 +80,7 @@ export function extractOutputText(
   if (result.rawOutput !== undefined) {
     const raw = result.rawOutput;
     if (typeof raw === 'string') {
-      text = raw as unknown as string;
+      text = raw;
     } else {
       text = JSON.stringify(raw, null, 2);
     }
@@ -121,7 +121,7 @@ export function extractShellOutput(
   if (result.rawOutput !== undefined) {
     const raw = result.rawOutput;
     if (typeof raw === 'string') {
-      text = raw as unknown as string;
+      text = raw;
     } else {
       const stdout = asString(raw['stdout']);
       const stderr = asString(raw['stderr']);
@@ -168,7 +168,7 @@ export function extractDiff(result: ToolCallResult | undefined): string | null {
   // Check rawOutput
   if (result.rawOutput !== undefined) {
     const raw = result.rawOutput;
-    const rawStr = typeof raw === 'string' ? (raw as unknown as string) : JSON.stringify(raw, null, 2);
+    const rawStr = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
     if (looksLikeDiff(rawStr)) return rawStr;
   }
 

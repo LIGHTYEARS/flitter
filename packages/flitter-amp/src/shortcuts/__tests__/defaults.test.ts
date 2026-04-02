@@ -20,6 +20,7 @@ function mockHooks(overrides?: Partial<ShortcutHooks>): ShortcutHooks {
     historyPrevious: () => {},
     historyNext: () => {},
     toggleThinking: () => {},
+    copyLastResponse: () => {},
     ...overrides,
   };
 }
@@ -58,14 +59,15 @@ describe('registerDefaultShortcuts', () => {
     expect(registry.get('toggle-tool-calls')).toBeDefined();
     expect(registry.get('open-editor')).toBeDefined();
     expect(registry.get('history-previous')).toBeDefined();
-    expect(registry.get('history-next')).toBeDefined();
+    expect(registry.get('cycle-mode')).toBeDefined();
+    expect(registry.get('toggle-deep-reasoning')).toBeDefined();
     expect(registry.get('toggle-shortcut-help')).toBeDefined();
   });
 
   test('registers 9 shortcuts total', () => {
     const registry = new ShortcutRegistry();
     registerDefaultShortcuts(registry);
-    expect(registry.size).toBe(9);
+    expect(registry.size).toBe(11);
   });
 
   test('every entry has a non-empty description and displayKey', () => {
@@ -210,20 +212,28 @@ describe('registerDefaultShortcuts', () => {
     expect(histPrev).toBe(true);
   });
 
-  test('Ctrl+S calls historyNext hook', () => {
+  test('Ctrl+S cycles agent mode', () => {
     const registry = new ShortcutRegistry();
     registerDefaultShortcuts(registry);
 
-    let histNext = false;
+    let modeCycled = false;
     const ctx = mockContext({
-      hooks: mockHooks({ historyNext: () => { histNext = true; } }),
+      appState: {
+        isProcessing: false,
+        hasPendingPermission: false,
+        conversation: { clear: () => {}, toggleToolCalls: () => {}, items: [] },
+        resolvePermission: () => {},
+        cycleMode: () => { modeCycled = true; },
+        modes: [],
+        currentMode: null,
+      } as any,
     });
 
     const event = createKeyEvent('s', { ctrlKey: true });
     const result = registry.dispatch(event, ctx);
 
     expect(result).toBe('handled');
-    expect(histNext).toBe(true);
+    expect(modeCycled).toBe(true);
   });
 
   test('? shortcut is guarded by isProcessing', () => {
@@ -354,7 +364,8 @@ describe('registerDefaultShortcuts', () => {
     expect(registry.get('toggle-tool-calls')!.category).toBe('display');
     expect(registry.get('open-editor')!.category).toBe('navigation');
     expect(registry.get('history-previous')!.category).toBe('navigation');
-    expect(registry.get('history-next')!.category).toBe('navigation');
+    expect(registry.get('cycle-mode')!.category).toBe('general');
+    expect(registry.get('toggle-deep-reasoning')!.category).toBe('display');
     expect(registry.get('toggle-shortcut-help')!.category).toBe('general');
   });
 });

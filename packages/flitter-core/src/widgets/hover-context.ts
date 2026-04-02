@@ -44,9 +44,8 @@ export class HoverContext extends InheritedWidget {
    * or undefined if none is found.
    */
   static maybeOf(context: BuildContext): boolean | undefined {
-    const ctx = context as any;
-    if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
-      const element = ctx.dependOnInheritedWidgetOfExactType(HoverContext);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(HoverContext);
       if (element) {
         const widget = element.widget as HoverContext;
         return widget.isHovered;

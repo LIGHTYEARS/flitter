@@ -41,8 +41,8 @@ export class ForceDim extends InheritedWidget {
    * Look up the nearest ForceDim ancestor and return its widget, or null.
    */
   static maybeOf(context: BuildContext): ForceDim | null {
-    if (typeof (context as any).dependOnInheritedWidgetOfExactType === 'function') {
-      const element = (context as any).dependOnInheritedWidgetOfExactType(ForceDim);
+    if (typeof context.dependOnInheritedWidgetOfExactType === 'function') {
+      const element = context.dependOnInheritedWidgetOfExactType(ForceDim);
       if (element) {
         const widget = element.widget as ForceDim;
         return widget;

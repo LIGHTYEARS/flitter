@@ -9,7 +9,7 @@ import { Color } from 'flitter-core/src/core/color';
 import { SizedBox } from 'flitter-core/src/widgets/sized-box';
 import { MouseRegion } from 'flitter-core/src/widgets/mouse-region';
 import type { MouseRegionEvent } from 'flitter-core/src/widgets/mouse-region';
-import { AmpThemeProvider } from '../themes/index';
+import { AmpThemeProvider, perlinAgentModeColor } from '../themes/index';
 import { PerlinNoise } from '../utils/perlin-noise';
 
 const CELL_COLS = 40;
@@ -17,6 +17,7 @@ const CELL_ROWS = 20;
 const NOISE_SCALE = 0.08;
 
 const DENSITY_CHARS = ' .:-=+*#';
+const WELCOME_DENSITY_CHARS = ' .:-=+*';
 
 const noise = PerlinNoise.shared;
 
@@ -40,7 +41,25 @@ interface Particle {
   color: Color;
 }
 
+type DensityOrbVariant = 'default' | 'welcome';
+
+/**
+ * Animated density-field orb rendered as an ASCII art ellipse.
+ *
+ * When `agentMode` is provided, the orb's colour palette is derived from
+ * perlinAgentModeColor — producing a smooth, Perlin-noise-driven hue pulse
+ * that reflects the current agent mode (smart/code/ask/rush).
+ */
 export class DensityOrbWidget extends StatefulWidget {
+  readonly agentMode: string | undefined;
+  readonly variant: DensityOrbVariant;
+
+  constructor(opts?: { agentMode?: string; variant?: DensityOrbVariant }) {
+    super();
+    this.agentMode = opts?.agentMode;
+    this.variant = opts?.variant ?? 'default';
+  }
+
   createState(): DensityOrbWidgetState {
     return new DensityOrbWidgetState();
   }
@@ -55,17 +74,44 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
   private explodeTime = -1;
   private particles: Particle[] = [];
 
+  /** Returns rendering and animation parameters for the current orb variant. */
+  private getVariantConfig(): {
+    tickMs: number;
+    timeStep: number;
+    noiseScale: number;
+    densityChars: string;
+    interactive: boolean;
+  } {
+    if (this.widget.variant === 'welcome') {
+      return {
+        tickMs: 120,
+        timeStep: 0.03,
+        noiseScale: 0.06,
+        densityChars: WELCOME_DENSITY_CHARS,
+        interactive: false,
+      };
+    }
+    return {
+      tickMs: 100,
+      timeStep: 0.06,
+      noiseScale: NOISE_SCALE,
+      densityChars: DENSITY_CHARS,
+      interactive: true,
+    };
+  }
+
   override initState(): void {
     super.initState();
+    const config = this.getVariantConfig();
     this.timer = setInterval(() => {
       this.setState(() => {
-        this.timeOffset += 0.06;
+        this.timeOffset += config.timeStep;
         this.updateShockwaves();
         if (this.exploded && this.explodeTime >= 0) {
           this.updateParticles();
         }
       });
-    }, 100);
+    }, config.tickMs);
   }
 
   override dispose(): void {
@@ -109,7 +155,7 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
   }
 
   private handleClick(event: MouseRegionEvent): void {
-    if (this.exploded) return;
+    if (!this.getVariantConfig().interactive || this.exploded) return;
     this.setState(() => {
       this.clickCount++;
       this.shockwaves.push({
@@ -199,16 +245,47 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
     });
   }
 
+  /**
+   * Resolves the dark/bright RGB endpoints for the orb gradient.
+   *
+   * When an agentMode is set, extracts RGB channels from the Perlin-noise
+   * modulated mode color and scales them to produce dim and bright variants.
+   * Falls back to the original hardcoded green palette when no mode is set.
+   */
+  private resolveOrbPalette(isLight: boolean): {
+    darkR: number; darkG: number; darkB: number;
+    brightR: number; brightG: number; brightB: number;
+  } {
+    const mode = this.widget.agentMode;
+    if (mode) {
+      const modeColor = perlinAgentModeColor(mode, this.timeOffset, isLight);
+      const rgb = modeColor.toRgb();
+      return {
+        darkR: Math.round(rgb.r * 0.22),
+        darkG: Math.round(rgb.g * 0.22),
+        darkB: Math.round(rgb.b * 0.22),
+        brightR: rgb.r,
+        brightG: rgb.g,
+        brightB: rgb.b,
+      };
+    }
+    return {
+      darkR: 0,
+      darkG: isLight ? 30 : 55,
+      darkB: isLight ? 10 : 20,
+      brightR: 0,
+      brightG: isLight ? 200 : 255,
+      brightB: isLight ? 100 : 136,
+    };
+  }
+
   private buildOrb(context: BuildContext): Widget {
     const theme = AmpThemeProvider.maybeOf(context);
     const isLight = theme?.base.isLight ?? false;
+    const config = this.getVariantConfig();
 
-    const darkR = 0;
-    const darkG = isLight ? 30 : 55;
-    const darkB = isLight ? 10 : 20;
-    const brightR = 0;
-    const brightG = isLight ? 200 : 255;
-    const brightB = isLight ? 100 : 136;
+    const { darkR, darkG, darkB, brightR, brightG, brightB } =
+      this.resolveOrbPalette(isLight);
 
     const rx = CELL_COLS / 2;
     const ry = CELL_ROWS / 2;
@@ -229,8 +306,8 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
         }
 
         const n = noise.fbm(
-          cellCol * NOISE_SCALE + this.timeOffset,
-          cellRow * NOISE_SCALE + this.timeOffset * 0.7,
+          cellCol * config.noiseScale + this.timeOffset,
+          cellRow * config.noiseScale + this.timeOffset * 0.7,
         );
 
         const edgeFade = 1 - dist;
@@ -239,19 +316,19 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
         const boost = this.getShockwaveBoost(cellCol, cellRow);
         adjusted = Math.min(1, adjusted + boost * 0.15);
 
-        let level = Math.floor(adjusted * (DENSITY_CHARS.length - 1));
-        level = Math.max(0, Math.min(DENSITY_CHARS.length - 1, level));
+        let level = Math.floor(adjusted * (config.densityChars.length - 1));
+        level = Math.max(0, Math.min(config.densityChars.length - 1, level));
 
         if (boost > 0) {
-          level = Math.min(DENSITY_CHARS.length - 1, level + Math.ceil(boost));
+          level = Math.min(config.densityChars.length - 1, level + Math.ceil(boost));
         }
 
-        const ch = DENSITY_CHARS[level]!;
+        const ch = config.densityChars[level]!;
 
         if (level === 0) {
           spans.push(new TextSpan({ text: ' ' }));
         } else {
-          const t = level / (DENSITY_CHARS.length - 1);
+          const t = level / (config.densityChars.length - 1);
           const r = Math.round(darkR + (brightR - darkR) * t);
           const g = Math.round(darkG + (brightG - darkG) * t);
           const b = Math.round(darkB + (brightB - darkB) * t);
@@ -273,6 +350,10 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
       crossAxisAlignment: 'center',
       children: rows,
     });
+
+    if (!config.interactive) {
+      return orbColumn;
+    }
 
     return new MouseRegion({
       onClick: (event: MouseRegionEvent) => this.handleClick(event),

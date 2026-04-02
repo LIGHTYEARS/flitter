@@ -1,9 +1,18 @@
 // ScrollController - manages scroll state for scroll views
 // Amp ref: Lg class, amp-strings.txt
+//
+// W4-5: Migrated animateTo() from setInterval to AnimationController + Ticker
+// for frame-synchronized animation with easeOutCubic easing.
+
+import { AnimationController } from '../animation/animation-controller';
+import { Curves, type Curve } from '../animation/curves';
 
 /**
  * Controls scroll position and manages follow mode for auto-scrolling.
  * Listeners are notified whenever the scroll offset changes.
+ *
+ * animateTo() uses AnimationController + Ticker for frame-synchronized
+ * scroll animations with easeOutCubic easing by default.
  *
  * Amp ref: class Lg
  */
@@ -14,8 +23,18 @@ export class ScrollController {
   private _followMode: boolean = true;
   private _disposed: boolean = false;
 
-  /** Timer handle for the current animateTo animation, or null if idle. */
-  private _animationTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Internal AnimationController that drives animateTo().
+   * Animates a normalized value from 0 to 1; the tick listener maps it
+   * to the actual scroll offset range [startOffset, targetOffset].
+   */
+  private _animController: AnimationController | null = null;
+
+  /** Start offset for the current animation segment. */
+  private _animStartOffset: number = 0;
+
+  /** Target offset for the current animation segment. */
+  private _animTargetOffset: number = 0;
 
   /** Current scroll offset in the main axis. */
   get offset(): number {
@@ -39,7 +58,7 @@ export class ScrollController {
 
   /** Whether a smooth scroll animation is currently in progress. */
   get isAnimating(): boolean {
-    return this._animationTimer !== null;
+    return this._animController?.isAnimating ?? false;
   }
 
   private _viewportSize: number = 0;
@@ -55,57 +74,65 @@ export class ScrollController {
   }
 
   /**
-   * Smoothly animate from current offset to targetOffset using linear interpolation.
+   * Smoothly animate from current offset to targetOffset using
+   * AnimationController with easeOutCubic easing.
    * Cancels any existing animation. Clamps target to [0, maxScrollExtent].
    * Notifies listeners on each frame.
    *
    * @param targetOffset - The desired scroll offset
    * @param duration - Animation duration in ms (default 200)
+   * @param curve - Easing curve (default Curves.easeOutCubic)
    */
-  animateTo(targetOffset: number, duration: number = 200): void {
+  animateTo(
+    targetOffset: number,
+    duration: number = 200,
+    curve: Curve = Curves.easeOutCubic,
+  ): void {
     if (this._disposed) return;
 
-    // Cancel any running animation
     this._cancelAnimation();
 
-    // Clamp target to valid range
     const clampedTarget = Math.max(0, Math.min(targetOffset, this._maxScrollExtent));
 
-    // If already at target, nothing to do
     if (clampedTarget === this._offset) {
       return;
     }
 
-    // For zero or negative duration, jump immediately
     if (duration <= 0) {
       this.jumpTo(clampedTarget);
       return;
     }
 
-    const startOffset = this._offset;
-    const delta = clampedTarget - startOffset;
-    const frameInterval = 16; // ~60fps
-    const startTime = Date.now();
+    this._animStartOffset = this._offset;
+    this._animTargetOffset = clampedTarget;
 
-    this._animationTimer = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+    const controller = new AnimationController({
+      duration,
+      curve,
+    });
 
-      // Linear interpolation
-      const newOffset = startOffset + delta * progress;
+    controller.addListener(() => {
+      const t = controller.value;
+      const newOffset = this._animStartOffset
+        + (this._animTargetOffset - this._animStartOffset) * t;
 
-      // Update offset (bypass jumpTo to avoid followMode re-enable during animation)
       const clamped = Math.max(0, Math.min(newOffset, this._maxScrollExtent));
       if (clamped !== this._offset) {
         this._offset = clamped;
         this._notifyListeners();
       }
+    });
 
-      // Animation complete
-      if (progress >= 1) {
-        this._cancelAnimation();
+    controller.addStatusListener((status) => {
+      if (status === 'completed') {
+        this._offset = this._animTargetOffset;
+        this._notifyListeners();
+        this._disposeAnimController();
       }
-    }, frameInterval);
+    });
+
+    this._animController = controller;
+    controller.forward();
   }
 
   /**
@@ -215,9 +242,14 @@ export class ScrollController {
 
   /** Cancel the current animation if one is running. */
   private _cancelAnimation(): void {
-    if (this._animationTimer !== null) {
-      clearInterval(this._animationTimer);
-      this._animationTimer = null;
+    this._disposeAnimController();
+  }
+
+  /** Dispose and null-out the internal AnimationController. */
+  private _disposeAnimController(): void {
+    if (this._animController !== null) {
+      this._animController.dispose();
+      this._animController = null;
     }
   }
 

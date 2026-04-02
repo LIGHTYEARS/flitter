@@ -55,6 +55,8 @@ export interface ShortcutHooks {
   historyNext(): void;
   /** Toggle thinking block expansion */
   toggleThinking(): void;
+  /** Copy the last assistant response to the system clipboard */
+  copyLastResponse(): void;
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   type PipelineOwner as PipelineOwnerInterface,
 } from '../render-object';
 import { RenderRepaintBoundary } from '../../rendering/render-repaint-boundary';
-import { BoxHitTestResult, BoxHitTestEntry, hitTest } from '../../input/hit-test';
+import { BoxHitTestResult, BoxHitTestEntry } from '../../input/hit-test';
 import { BoxConstraints } from '../../core/box-constraints';
 import { Size, Offset } from '../../core/types';
 
@@ -492,15 +492,15 @@ describe('Rendering Pipeline Guards', () => {
       expect(targets).toContain(root);
     });
 
-    it('legacy hitTest() function works end-to-end', () => {
+    it('RenderBox.hitTest() method works end-to-end', () => {
       const leaf = new TrackingLeaf();
       leaf.layout(BoxConstraints.tight(new Size(10, 5)));
       leaf.offset = Offset.zero;
 
-      // Use the free function hitTest()
-      const result = hitTest(leaf, 3, 2);
+      const result = new BoxHitTestResult();
+      leaf.hitTest(result, new Offset(3, 2));
       expect(result.path.length).toBeGreaterThanOrEqual(1);
-      expect(result.path[0]!.renderObject).toBe(leaf);
+      expect(result.path[0]!.target).toBe(leaf);
     });
 
     it('BoxHitTestResult.addWithPaintOffset computes local position', () => {

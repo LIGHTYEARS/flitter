@@ -81,7 +81,7 @@ describe('StatusBar + BottomGrid — WaveSpinner Integration', () => {
 
       const screenText = readScreenText(harness.readGrid());
       const allText = screenText.join('\n');
-      expect(allText).toContain('Streaming...');
+      expect(allText).toContain('Streaming');
 
       harness.cleanup();
     });
@@ -107,7 +107,7 @@ describe('StatusBar + BottomGrid — WaveSpinner Integration', () => {
 
       const screenText = readScreenText(harness.readGrid());
       const allText = screenText.join('\n');
-      expect(allText).toContain('Response interrupted');
+      expect(allText).toContain('interrupted');
 
       harness.cleanup();
     });

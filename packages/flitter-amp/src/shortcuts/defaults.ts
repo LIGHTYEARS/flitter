@@ -120,13 +120,41 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
   });
 
   registry.register({
-    id: 'history-next',
+    id: 'cycle-mode',
     binding: { key: 's', ctrl: true },
     displayKey: 'Ctrl+S',
-    description: 'Search prompt history (forward)',
-    category: 'navigation',
+    description: 'Cycle agent mode (smart/code/ask)',
+    category: 'general',
     action: (ctx): KeyEventResult => {
-      ctx.hooks.historyNext();
+      ctx.appState.cycleMode();
+      ctx.setState(() => {});
+      return 'handled';
+    },
+  });
+
+  registry.register({
+    id: 'toggle-deep-reasoning',
+    binding: { key: 'd', alt: true },
+    displayKey: 'Alt+D',
+    description: 'Toggle deep reasoning',
+    category: 'display',
+    action: (ctx): KeyEventResult => {
+      ctx.appState.toggleDeepReasoning();
+      ctx.setState(() => {});
+      return 'handled';
+    },
+  });
+
+  // --- Clipboard ---
+
+  registry.register({
+    id: 'copy-last-response',
+    binding: { key: 'c', ctrl: true, shift: true },
+    displayKey: 'Ctrl+Shift+C',
+    description: 'Copy last response to clipboard',
+    category: 'general',
+    action: (ctx): KeyEventResult => {
+      ctx.hooks.copyLastResponse();
       return 'handled';
     },
   });

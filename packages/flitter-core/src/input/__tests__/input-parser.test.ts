@@ -943,4 +943,148 @@ describe('InputParser', () => {
       parser.dispose();
     });
   });
+
+  describe('Kitty CSI u keyboard protocol', () => {
+    test('basic letter: CSI 97 u = a', () => {
+      const event = parseKeyEvent('\x1b[97u');
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(false);
+      expect(event.altKey).toBe(false);
+      expect(event.shiftKey).toBe(false);
+      expect(event.metaKey).toBe(false);
+    });
+
+    test('basic uppercase letter: CSI 65 u = A', () => {
+      const event = parseKeyEvent('\x1b[65u');
+      expect(event.key).toBe('A');
+      expect(event.shiftKey).toBe(false);
+    });
+
+    test('with ctrl modifier: CSI 97;5 u = Ctrl+a', () => {
+      const event = parseKeyEvent('\x1b[97;5u');
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(true);
+      expect(event.shiftKey).toBe(false);
+      expect(event.altKey).toBe(false);
+    });
+
+    test('with shift modifier: CSI 97;2 u = Shift+a', () => {
+      const event = parseKeyEvent('\x1b[97;2u');
+      expect(event.key).toBe('a');
+      expect(event.shiftKey).toBe(true);
+      expect(event.ctrlKey).toBe(false);
+    });
+
+    test('with alt modifier: CSI 97;3 u = Alt+a', () => {
+      const event = parseKeyEvent('\x1b[97;3u');
+      expect(event.key).toBe('a');
+      expect(event.altKey).toBe(true);
+    });
+
+    test('with ctrl+shift modifier: CSI 97;6 u = Ctrl+Shift+a', () => {
+      const event = parseKeyEvent('\x1b[97;6u');
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(true);
+      expect(event.shiftKey).toBe(true);
+    });
+
+    test('with meta modifier: CSI 97;9 u = Meta+a', () => {
+      const event = parseKeyEvent('\x1b[97;9u');
+      expect(event.key).toBe('a');
+      expect(event.metaKey).toBe(true);
+    });
+
+    test('with event type press: CSI 97;1:1 u = a press', () => {
+      const event = parseKeyEvent('\x1b[97;1:1u');
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(false);
+      expect(event.shiftKey).toBe(false);
+    });
+
+    test('with event type repeat: CSI 97;1:2 u = a repeat', () => {
+      const event = parseKeyEvent('\x1b[97;1:2u');
+      expect(event.key).toBe('a');
+    });
+
+    test('release events are suppressed: CSI 97;1:3 u', () => {
+      const events = parseEvents('\x1b[97;1:3u');
+      expect(events.length).toBe(0);
+    });
+
+    test('with shifted key: CSI 65:97;2 u = Shift+A (shifted=a)', () => {
+      const event = parseKeyEvent('\x1b[65:97;2u');
+      expect(event.key).toBe('A');
+      expect(event.shiftKey).toBe(true);
+    });
+
+    test('with modifier and event type: CSI 97;5:1 u = Ctrl+a press', () => {
+      const event = parseKeyEvent('\x1b[97;5:1u');
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(true);
+    });
+
+    test('special key Enter: CSI 13 u', () => {
+      const event = parseKeyEvent('\x1b[13u');
+      expect(event.key).toBe('Enter');
+    });
+
+    test('special key Tab: CSI 9 u', () => {
+      const event = parseKeyEvent('\x1b[9u');
+      expect(event.key).toBe('Tab');
+    });
+
+    test('special key Escape: CSI 27 u', () => {
+      const event = parseKeyEvent('\x1b[27u');
+      expect(event.key).toBe('Escape');
+    });
+
+    test('special key Backspace: CSI 127 u', () => {
+      const event = parseKeyEvent('\x1b[127u');
+      expect(event.key).toBe('Backspace');
+    });
+
+    test('Ctrl+Enter: CSI 13;5 u', () => {
+      const event = parseKeyEvent('\x1b[13;5u');
+      expect(event.key).toBe('Enter');
+      expect(event.ctrlKey).toBe(true);
+    });
+
+    test('Shift+Tab: CSI 9;2 u', () => {
+      const event = parseKeyEvent('\x1b[9;2u');
+      expect(event.key).toBe('Tab');
+      expect(event.shiftKey).toBe(true);
+    });
+
+    test('unicode character: CSI 228 u = ä', () => {
+      const event = parseKeyEvent('\x1b[228u');
+      expect(event.key).toBe('ä');
+    });
+
+    test('no modifier param defaults to no modifiers: CSI 98 u', () => {
+      const event = parseKeyEvent('\x1b[98u');
+      expect(event.key).toBe('b');
+      expect(event.ctrlKey).toBe(false);
+      expect(event.altKey).toBe(false);
+      expect(event.shiftKey).toBe(false);
+      expect(event.metaKey).toBe(false);
+    });
+
+    test('sequence field contains raw bytes', () => {
+      const event = parseKeyEvent('\x1b[97;5u');
+      expect(event.sequence).toBe('\x1b[97;5u');
+    });
+
+    test('fed character by character', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+      for (const char of '\x1b[97;5u') {
+        parser.feed(char);
+      }
+      expect(events.length).toBe(1);
+      const event = events[0] as KeyEvent;
+      expect(event.key).toBe('a');
+      expect(event.ctrlKey).toBe(true);
+      parser.dispose();
+    });
+  });
 });

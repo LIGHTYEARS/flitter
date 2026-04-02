@@ -30,6 +30,7 @@ export class SingleChildScrollView extends StatelessWidget {
   readonly position: 'top' | 'bottom';
   readonly enableKeyboardScroll: boolean;
   readonly enableMouseScroll: boolean;
+  readonly mouseScrollStep: number;
 
   constructor(opts: {
     key?: Key;
@@ -39,6 +40,7 @@ export class SingleChildScrollView extends StatelessWidget {
     position?: 'top' | 'bottom';
     enableKeyboardScroll?: boolean;
     enableMouseScroll?: boolean;
+    mouseScrollStep?: number;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.child = opts.child;
@@ -47,6 +49,7 @@ export class SingleChildScrollView extends StatelessWidget {
     this.position = opts.position ?? 'top';
     this.enableKeyboardScroll = opts.enableKeyboardScroll ?? false;
     this.enableMouseScroll = opts.enableMouseScroll ?? true;
+    this.mouseScrollStep = opts.mouseScrollStep ?? 3;
   }
 
   build(_context: BuildContext): Widget {
@@ -57,6 +60,7 @@ export class SingleChildScrollView extends StatelessWidget {
       position: this.position,
       enableKeyboardScroll: this.enableKeyboardScroll,
       enableMouseScroll: this.enableMouseScroll,
+      mouseScrollStep: this.mouseScrollStep,
     });
   }
 }
@@ -78,6 +82,7 @@ export class Scrollable extends StatefulWidget {
   readonly position: 'top' | 'bottom';
   readonly enableKeyboardScroll: boolean;
   readonly enableMouseScroll: boolean;
+  readonly mouseScrollStep: number;
 
   constructor(opts: {
     key?: Key;
@@ -87,6 +92,7 @@ export class Scrollable extends StatefulWidget {
     position?: 'top' | 'bottom';
     enableKeyboardScroll?: boolean;
     enableMouseScroll?: boolean;
+    mouseScrollStep?: number;
   }) {
     super(opts.key !== undefined ? { key: opts.key } : undefined);
     this.child = opts.child;
@@ -95,6 +101,7 @@ export class Scrollable extends StatefulWidget {
     this.position = opts.position ?? 'top';
     this.enableKeyboardScroll = opts.enableKeyboardScroll ?? false;
     this.enableMouseScroll = opts.enableMouseScroll ?? true;
+    this.mouseScrollStep = opts.mouseScrollStep ?? 3;
   }
 
   createState(): State<Scrollable> {
@@ -159,11 +166,12 @@ class ScrollableState extends State<Scrollable> {
   };
 
   private _handleScroll = (event: { button?: number }): void => {
+    const step = this.widget.mouseScrollStep;
     if (event.button === 64) {
       this.effectiveController.disableFollowMode();
-      this.effectiveController.scrollBy(-3);
+      this.effectiveController.scrollBy(-step);
     } else if (event.button === 65) {
-      this.effectiveController.scrollBy(3);
+      this.effectiveController.scrollBy(step);
     }
   };
 
@@ -405,9 +413,7 @@ export class RenderScrollViewport extends RenderBox {
     this._scrollOffset = this.scrollController.offset;
 
     // Use withClip to restrict painting to viewport bounds
-    const clipContext = (context as any).withClip
-      ? (context as any).withClip(offset.col, offset.row, this.size.width, this.size.height)
-      : context;
+    const clipContext = context.withClip?.(offset.col, offset.row, this.size.width, this.size.height) ?? context;
 
     // Calculate child paint offset adjusted by scroll
     let childOffset: Offset;

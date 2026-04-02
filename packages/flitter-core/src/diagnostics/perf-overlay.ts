@@ -93,7 +93,7 @@ export class PerformanceOverlay {
   readonly showPerPhase: boolean;
 
   constructor(opts?: {
-    key?: any;
+    key?: unknown;
     frameStats?: FrameStats;
     showPerPhase?: boolean;
   }) {

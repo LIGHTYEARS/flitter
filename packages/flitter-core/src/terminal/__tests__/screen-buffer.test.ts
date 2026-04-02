@@ -56,14 +56,13 @@ describe('Buffer', () => {
     expect(buf.getCell(1, 1)).toBe(EMPTY_CELL);
   });
 
-  it('resize preserves existing content', () => {
+  it('resize expanding clears buffer (GAP-SUM-042 optimization)', () => {
     const buf = new Buffer(4, 4);
     buf.setCell(0, 0, createCell('A'));
     buf.setCell(3, 3, createCell('D'));
     buf.resize(6, 6);
-    expect(buf.getCell(0, 0).char).toBe('A');
-    expect(buf.getCell(3, 3).char).toBe('D');
-    // New cells are EMPTY_CELL
+    expect(buf.getCell(0, 0)).toBe(EMPTY_CELL);
+    expect(buf.getCell(3, 3)).toBe(EMPTY_CELL);
     expect(buf.getCell(5, 5)).toBe(EMPTY_CELL);
   });
 
@@ -259,9 +258,9 @@ describe('ScreenBuffer', () => {
       sb.present();
       sb.setChar(0, 0, 'B');
       sb.present();
-      // Now front has 'B', back is cleared
+      // Now front has 'B', back (old front from first present) retains 'A'
       expect(sb.getFrontBuffer().getCell(0, 0).char).toBe('B');
-      expect(sb.getCell(0, 0)).toBe(EMPTY_CELL);
+      expect(sb.getBackBuffer().getCell(0, 0).char).toBe('A');
     });
   });
 
@@ -282,11 +281,12 @@ describe('ScreenBuffer', () => {
       expect(sb.needsFullRefresh).toBe(true);
     });
 
-    it('preserves content within new bounds', () => {
+    it('expanding clears buffer and marks full refresh (GAP-SUM-042)', () => {
       const sb = new ScreenBuffer(5, 5);
       sb.setChar(1, 1, 'K');
       sb.resize(10, 10);
-      expect(sb.getCell(1, 1).char).toBe('K');
+      expect(sb.getCell(1, 1)).toBe(EMPTY_CELL);
+      expect(sb.needsFullRefresh).toBe(true);
     });
 
     it('no-ops when dimensions unchanged', () => {

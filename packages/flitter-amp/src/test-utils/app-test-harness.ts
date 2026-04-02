@@ -16,6 +16,7 @@
 import { WidgetsBinding } from 'flitter-core/src/framework/binding';
 import { FrameScheduler } from 'flitter-core/src/scheduler/frame-scheduler';
 import { TextEditingController } from 'flitter-core/src/widgets/text-field';
+import type { CellStyle } from 'flitter-core/src/terminal/cell';
 import type * as acp from '@agentclientprotocol/sdk';
 import { AppState } from '../state/app-state';
 import { App } from '../app';
@@ -33,7 +34,7 @@ export interface AppTestHarness {
 
   /** Return a grid object with getCell(x,y) for cell-level assertions. */
   readGrid: () => {
-    getCell: (x: number, y: number) => { char: string; style: any };
+    getCell: (x: number, y: number) => { char: string; style: CellStyle };
     width: number;
     height: number;
   };

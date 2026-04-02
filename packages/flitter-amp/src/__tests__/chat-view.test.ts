@@ -79,7 +79,17 @@ describe('ChatView: Widget Tree Structure', () => {
       const widget = view.build({} as any) as any;
       const children = widget.children ?? widget._children;
       expect(children).toBeDefined();
-      expect(children.length).toBeGreaterThan(0);
+      expect(children.length).toBe(1);
+
+      const row = children[0];
+      expect(row.constructor.name).toBe('Row');
+
+      const rowChildren = row.children ?? row._children;
+      expect(rowChildren.length).toBe(3);
+      expect(rowChildren[0].constructor.name).toBe('DensityOrbWidget');
+      expect(rowChildren[1].constructor.name).toBe('SizedBox');
+      expect(rowChildren[2].constructor.name).toBe('Column');
+      expect(rowChildren[2].constructor.name).not.toBe('Expanded');
     });
   });
 

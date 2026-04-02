@@ -39,9 +39,35 @@ function padEndDisplayWidth(str: string, targetWidth: number): string {
   return str + ' '.repeat(targetWidth - currentWidth);
 }
 
+/**
+ * Pad a string with leading spaces until its terminal display width
+ * reaches the target column count. Display-width-aware version of padStart().
+ */
+function padStartDisplayWidth(str: string, targetWidth: number): string {
+  const currentWidth = stringWidth(str);
+  if (currentWidth >= targetWidth) return str;
+  return ' '.repeat(targetWidth - currentWidth) + str;
+}
+
+/**
+ * Center a string within the target display width by distributing
+ * spaces on both sides. Extra space (when odd) goes to the right.
+ */
+function centerPadDisplayWidth(str: string, targetWidth: number): string {
+  const currentWidth = stringWidth(str);
+  if (currentWidth >= targetWidth) return str;
+  const total = targetWidth - currentWidth;
+  const left = Math.floor(total / 2);
+  const right = total - left;
+  return ' '.repeat(left) + str + ' '.repeat(right);
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+/** GFM table column alignment derived from the separator row. */
+export type TableColumnAlignment = 'left' | 'center' | 'right';
 
 /** Classification of a markdown block for rendering. */
 export type MarkdownBlockType =
@@ -93,6 +119,8 @@ export interface MarkdownBlock {
   readonly tableHeaders?: string[];
   /** For GFM tables, the data rows (array of arrays). */
   readonly tableRows?: string[][];
+  /** For GFM tables, per-column alignment parsed from the separator row. */
+  readonly tableAlignments?: TableColumnAlignment[];
 }
 
 // ---------------------------------------------------------------------------
@@ -375,6 +403,8 @@ export class Markdown extends StatelessWidget {
           // Parse table header from current line
           const headers = Markdown._parseTableRow(line);
           if (headers.length > 0) {
+            // Parse column alignments from the separator row
+            const alignments = Markdown._parseTableAlignments(nextLine);
             // Skip header and separator
             i += 2;
             // Collect data rows
@@ -392,6 +422,7 @@ export class Markdown extends StatelessWidget {
               content: '',
               tableHeaders: headers,
               tableRows: dataRows,
+              tableAlignments: alignments,
             });
             continue;
           }
@@ -471,6 +502,39 @@ export class Markdown extends StatelessWidget {
     if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
     if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
     return trimmed.split('|').map((cell) => cell.trim());
+  }
+
+  /**
+   * Parse GFM alignment markers from a separator row.
+   * `:---` -> left, `:---:` -> center, `---:` -> right, `---` -> left (default).
+   */
+  static _parseTableAlignments(separatorLine: string): TableColumnAlignment[] {
+    let trimmed = separatorLine.trim();
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+    return trimmed.split('|').map((cell) => {
+      const c = cell.trim();
+      const startsColon = c.startsWith(':');
+      const endsColon = c.endsWith(':');
+      if (startsColon && endsColon) return 'center';
+      if (endsColon) return 'right';
+      return 'left';
+    });
+  }
+
+  /**
+   * Align a cell string to the target display width using the given alignment.
+   */
+  private static _alignCell(text: string, targetWidth: number, alignment: TableColumnAlignment): string {
+    switch (alignment) {
+      case 'right':
+        return padStartDisplayWidth(text, targetWidth);
+      case 'center':
+        return centerPadDisplayWidth(text, targetWidth);
+      case 'left':
+      default:
+        return padEndDisplayWidth(text, targetWidth);
+    }
   }
 
   /**
@@ -671,7 +735,7 @@ export class Markdown extends StatelessWidget {
       seg.linkText = ctx.linkText;
     }
 
-    return seg as InlineSegment;
+    return seg as unknown as InlineSegment;
   }
 
   /**
@@ -957,10 +1021,13 @@ export class Markdown extends StatelessWidget {
       }
     }
 
+    // Per-column alignment (defaults to left if not specified)
+    const alignments = block.tableAlignments ?? [];
+
     const tableLines: Widget[] = [];
 
     // Header row
-    const headerCells = headers.map((h, c) => padEndDisplayWidth(h, colWidths[c]!));
+    const headerCells = headers.map((h, c) => Markdown._alignCell(h, colWidths[c]!, alignments[c] ?? 'left'));
     const headerText = '  ' + headerCells.join(' \u2502 ');
     tableLines.push(
       new Text({
@@ -987,7 +1054,7 @@ export class Markdown extends StatelessWidget {
 
     // Data rows
     for (const row of rows) {
-      const cells = headers.map((_, c) => padEndDisplayWidth(row[c] ?? '', colWidths[c]!));
+      const cells = headers.map((_, c) => Markdown._alignCell(row[c] ?? '', colWidths[c]!, alignments[c] ?? 'left'));
       const rowText = '  ' + cells.join(' \u2502 ');
       tableLines.push(
         new Text({
@@ -1047,7 +1114,7 @@ export class Markdown extends StatelessWidget {
    * with the override fields merged in. `fontStyle: 'italic'` maps to `italic: true`.
    */
   private _applyStyleOverride(base: TextStyle, override: MarkdownBlockStyleOverride): TextStyle {
-    const overrides: Record<string, unknown> = {};
+    const overrides: Parameters<TextStyle['copyWith']>[0] = {};
     if (override.fontStyle === 'italic') overrides.italic = true;
     if (override.dim !== undefined) overrides.dim = override.dim;
     if (override.bold !== undefined) overrides.bold = override.bold;
@@ -1055,6 +1122,6 @@ export class Markdown extends StatelessWidget {
     if (override.strikethrough !== undefined) overrides.strikethrough = override.strikethrough;
     if (override.foreground !== undefined) overrides.foreground = override.foreground;
     if (override.background !== undefined) overrides.background = override.background;
-    return base.copyWith(overrides as any);
+    return base.copyWith(overrides);
   }
 }

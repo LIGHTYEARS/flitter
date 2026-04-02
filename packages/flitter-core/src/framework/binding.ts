@@ -20,7 +20,7 @@ import { BuildOwner } from './build-owner';
 import { PipelineOwner } from './pipeline-owner';
 import { Widget, StatelessWidget, type BuildContext } from './widget';
 import { Element, StatelessElement } from './element';
-import { RenderObject } from './render-object';
+import { RenderObject, RenderBox } from './render-object';
 import { BoxConstraints } from '../core/box-constraints';
 import { Size } from '../core/types';
 import { ScreenBuffer } from '../terminal/screen-buffer';
@@ -282,7 +282,7 @@ export class WidgetsBinding {
         requestLayout: () => this.pipelineOwner.requestLayout(),
         requestPaint: (node?: RenderObject) => this.pipelineOwner.requestPaint(node),
         removeFromQueues: (node?: RenderObject) =>
-          this.pipelineOwner.removeFromQueues(node),
+          node ? this.pipelineOwner.removeFromQueues(node) : undefined,
       },
     );
 
@@ -553,7 +553,7 @@ export class WidgetsBinding {
 
     const renderObject = this._findRootRenderObject(this._rootElement);
     if (renderObject) {
-      this.pipelineOwner.setRootRenderObject(renderObject);
+      this.pipelineOwner.setRootRenderObject(renderObject as RenderBox);
     }
   }
 
@@ -880,7 +880,7 @@ export class WidgetsBinding {
     this.pipelineOwner.dispose();
 
     if (this.focusManager) {
-      this.focusManager.dispose();
+      FocusManager.reset();
     }
     if (this.mouseManager) {
       this.mouseManager.dispose();

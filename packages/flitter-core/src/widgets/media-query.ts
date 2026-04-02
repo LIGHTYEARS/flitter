@@ -1,9 +1,9 @@
-// MediaQuery + MediaQueryData — InheritedWidget providing terminal screen info
+// MediaQuery + MediaQueryData — InheritedModel providing terminal screen info
 // Amp ref: nA (MediaQueryData), Q3 (MediaQuery)
 // Source: .reference/widgets-catalog.md
 
 import { Key } from '../core/key';
-import { Widget, InheritedWidget, BuildContext } from '../framework/widget';
+import { Widget, InheritedModel, InheritedWidget, BuildContext } from '../framework/widget';
 import type { TerminalCapabilities as PlatformCapabilities } from '../terminal/platform';
 
 // ---------------------------------------------------------------------------
@@ -150,26 +150,12 @@ export class MediaQueryData {
 }
 
 // ---------------------------------------------------------------------------
-// MediaQuery InheritedWidget (Amp: Q3)
+// MediaQuery InheritedModel (Amp: Q3)
 // ---------------------------------------------------------------------------
 
-/**
- * An InheritedWidget that provides MediaQueryData to descendant widgets.
- *
- * Usage:
- *   new MediaQuery({
- *     data: MediaQueryData.fromTerminal(80, 24),
- *     child: app,
- *   })
- *
- * Descendant widgets look up the data via:
- *   MediaQuery.of(context)       // throws if not found
- *   MediaQuery.sizeOf(context)   // convenience for .size
- *   MediaQuery.capabilitiesOf(context) // convenience for .capabilities
- *
- * Amp ref: class Q3 extends Bt
- */
-export class MediaQuery extends InheritedWidget {
+export type MediaQueryAspect = 'size' | 'capabilities';
+
+export class MediaQuery extends InheritedModel<MediaQueryAspect> {
   readonly data: MediaQueryData;
 
   constructor(opts: { data: MediaQueryData; child: Widget; key?: Key }) {
@@ -180,23 +166,6 @@ export class MediaQuery extends InheritedWidget {
     this.data = opts.data;
   }
 
-  /**
-   * Whether dependents should be notified when this widget is updated.
-   * Returns true if the MediaQueryData has changed.
-   */
-  updateShouldNotify(oldWidget: InheritedWidget): boolean {
-    const old = oldWidget as MediaQuery;
-    return !this.data.equals(old.data);
-  }
-
-  // --- Static accessors ---
-
-  /**
-   * Returns the MediaQueryData from the nearest ancestor MediaQuery.
-   * Throws if no MediaQuery is found in the ancestor chain.
-   *
-   * Registers a dependency so the calling widget rebuilds when MediaQueryData changes.
-   */
   static of(context: BuildContext): MediaQueryData {
     const data = MediaQuery.maybeOf(context);
     if (data === undefined) {
@@ -209,12 +178,8 @@ export class MediaQuery extends InheritedWidget {
     return data;
   }
 
-  /**
-   * Returns the MediaQueryData from the nearest ancestor MediaQuery,
-   * or undefined if none is found.
-   */
   static maybeOf(context: BuildContext): MediaQueryData | undefined {
-    const ctx = context as unknown as { dependOnInheritedWidgetOfExactType?: (widgetType: Function) => { widget: Widget } | null };
+    const ctx = context as any;
     if (typeof ctx.dependOnInheritedWidgetOfExactType === 'function') {
       const element = ctx.dependOnInheritedWidgetOfExactType(MediaQuery);
       if (element) {
@@ -225,19 +190,66 @@ export class MediaQuery extends InheritedWidget {
     return undefined;
   }
 
-  /**
-   * Convenience: returns just the size from the nearest MediaQuery.
-   * Throws if no MediaQuery is found.
-   */
   static sizeOf(context: BuildContext): { readonly width: number; readonly height: number } {
-    return MediaQuery.of(context).size;
+    const mq = InheritedModel.inheritFrom<MediaQuery, MediaQueryAspect>(context, {
+      widgetType: MediaQuery,
+      aspect: 'size',
+    });
+    if (mq === null) {
+      throw new Error(
+        'MediaQuery.sizeOf() called with a context that does not contain a MediaQuery. ' +
+          'Ensure a MediaQuery widget is above this widget in the tree.',
+      );
+    }
+    return mq.data.size;
   }
 
-  /**
-   * Convenience: returns just the capabilities from the nearest MediaQuery.
-   * Throws if no MediaQuery is found.
-   */
   static capabilitiesOf(context: BuildContext): TerminalCapabilities {
-    return MediaQuery.of(context).capabilities;
+    const mq = InheritedModel.inheritFrom<MediaQuery, MediaQueryAspect>(context, {
+      widgetType: MediaQuery,
+      aspect: 'capabilities',
+    });
+    if (mq === null) {
+      throw new Error(
+        'MediaQuery.capabilitiesOf() called with a context that does not contain a MediaQuery. ' +
+          'Ensure a MediaQuery widget is above this widget in the tree.',
+      );
+    }
+    return mq.data.capabilities;
+  }
+
+  updateShouldNotify(oldWidget: InheritedWidget): boolean {
+    const old = oldWidget as MediaQuery;
+    return !this.data.equals(old.data);
+  }
+
+  updateShouldNotifyDependent(
+    oldWidget: InheritedModel<MediaQueryAspect>,
+    dependencies: Set<MediaQueryAspect>,
+  ): boolean {
+    const old = oldWidget as MediaQuery;
+    for (const aspect of dependencies) {
+      switch (aspect) {
+        case 'size':
+          if (
+            this.data.size.width !== old.data.size.width ||
+            this.data.size.height !== old.data.size.height
+          ) {
+            return true;
+          }
+          break;
+        case 'capabilities':
+          if (
+            this.data.capabilities.colorDepth !== old.data.capabilities.colorDepth ||
+            this.data.capabilities.mouseSupport !== old.data.capabilities.mouseSupport ||
+            this.data.capabilities.emojiWidth !== old.data.capabilities.emojiWidth ||
+            this.data.capabilities.kittyGraphics !== old.data.capabilities.kittyGraphics
+          ) {
+            return true;
+          }
+          break;
+      }
+    }
+    return false;
   }
 }

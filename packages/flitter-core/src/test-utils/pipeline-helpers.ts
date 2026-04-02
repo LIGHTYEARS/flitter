@@ -5,8 +5,9 @@
  */
 
 import { WidgetsBinding } from '../framework/binding';
-import { RenderObject, isContainerRenderObject, isSingleChildRenderObject } from '../framework/render-object';
+import { RenderObject, RenderBox, isContainerRenderObject, isSingleChildRenderObject } from '../framework/render-object';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
+import type { CellStyle } from '../terminal/cell';
 
 /**
  * Read a row of characters from the committed front buffer.
@@ -28,7 +29,7 @@ export function readScreenRow(binding: WidgetsBinding, row: number, maxCols?: nu
 /**
  * Read a single cell from the front buffer (committed frame).
  */
-export function readFrontCell(binding: WidgetsBinding, x: number, y: number): { char: string; style: any } {
+export function readFrontCell(binding: WidgetsBinding, x: number, y: number): { char: string; style: CellStyle } {
   return binding.getScreen().getFrontBuffer().getCell(x, y);
 }
 
@@ -45,17 +46,17 @@ export function collectRenderTree(
     const children: RenderObject[] = [];
 
     if (isContainerRenderObject(ro)) {
-      for (const child of (ro as any).children) {
+      for (const child of ro.children ?? []) {
         children.push(child);
       }
-    } else if (isSingleChildRenderObject(ro) && (ro as any).child) {
-      children.push((ro as any).child);
+    } else if (isSingleChildRenderObject(ro) && ro.child) {
+      children.push(ro.child);
     }
 
     result.push({
       className: ro.constructor.name,
-      width: ro.hasSize ? ro.size.width : 0,
-      height: ro.hasSize ? ro.size.height : 0,
+      width: ro instanceof RenderBox && ro.hasSize ? ro.size.width : 0,
+      height: ro instanceof RenderBox && ro.hasSize ? ro.size.height : 0,
       childCount: children.length,
     });
 
@@ -80,11 +81,11 @@ export function findRenderObject(rootRO: RenderObject, className: string): Rende
   const children: RenderObject[] = [];
 
   if (isContainerRenderObject(rootRO)) {
-    for (const child of (rootRO as any).children) {
+    for (const child of rootRO.children ?? []) {
       children.push(child);
     }
-  } else if (isSingleChildRenderObject(rootRO) && (rootRO as any).child) {
-    children.push((rootRO as any).child);
+  } else if (isSingleChildRenderObject(rootRO) && rootRO.child) {
+    children.push(rootRO.child);
   }
 
   for (const child of children) {

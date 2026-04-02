@@ -125,33 +125,33 @@ describe('Gap #59 — supportsCloseSession / hasSessionCapability', () => {
   });
 
   test('returns false for empty capabilities', () => {
-    expect(supportsCloseSession({} as any)).toBe(false);
+    expect(supportsCloseSession({})).toBe(false);
   });
 
-  test('returns false when session object is missing', () => {
-    expect(supportsCloseSession({ terminal: true } as any)).toBe(false);
+  test('returns false when sessionCapabilities is missing', () => {
+    expect(supportsCloseSession({ loadSession: true })).toBe(false);
   });
 
   test('returns false when close is not set', () => {
-    const caps = { session: {} } as any;
+    const caps = { sessionCapabilities: {} };
     expect(supportsCloseSession(caps)).toBe(false);
   });
 
-  test('returns true when session.close is true', () => {
-    const caps = { session: { close: true } } as any;
+  test('returns true when sessionCapabilities.close is present', () => {
+    const caps = { sessionCapabilities: { close: {} } };
     expect(supportsCloseSession(caps)).toBe(true);
   });
 
-  test('returns false when session.close is false', () => {
-    const caps = { session: { close: false } } as any;
+  test('returns false when sessionCapabilities.close is null', () => {
+    const caps = { sessionCapabilities: { close: null } };
     expect(supportsCloseSession(caps)).toBe(false);
   });
 
   test('hasSessionCapability returns correct for arbitrary capabilities', () => {
-    const caps = { session: { resume: true, fork: false } } as any;
+    const caps = { sessionCapabilities: { resume: {}, fork: null } };
     expect(hasSessionCapability(caps, 'resume')).toBe(true);
     expect(hasSessionCapability(caps, 'fork')).toBe(false);
-    expect(hasSessionCapability(caps, 'nonexistent')).toBe(false);
+    expect(hasSessionCapability(caps, 'list')).toBe(false);
   });
 });
 

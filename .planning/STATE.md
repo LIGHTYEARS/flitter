@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.3.0
 milestone_name: — flitter-cli Full Parity
 status: executing
-last_updated: "2026-04-03T18:39:00Z"
-last_activity: 2026-04-03 -- Phase 13 Plan 02 complete
+last_updated: "2026-04-03T18:45:00Z"
+last_activity: 2026-04-03 -- Phase 13 complete (all 3 plans done)
 progress:
   total_phases: 11
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
-  percent: 27
+  completed_plans: 4
+  percent: 36
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 13 — session-lifecycle-and-app-state
+**Current focus:** Phase 13 — session-lifecycle-and-app-state (COMPLETE)
 
 ## Current Milestone
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 13 (session-lifecycle-and-app-state) — EXECUTING
-Plan: 3 of 3
-Status: Plan 02 complete, ready for Plan 03
-Last activity: 2026-04-03 -- Phase 13 Plan 02 complete (PromptController, AppState, CLI wiring)
+Phase: 13 (session-lifecycle-and-app-state) — COMPLETE
+Plan: 3 of 3 (all complete)
+Status: Phase 13 complete, all 3 plans done
+Last activity: 2026-04-03 -- Phase 13 Plan 03 complete (lifecycle integration tests)
 
 ## Phase Status
 
@@ -44,9 +44,9 @@ Last activity: 2026-04-03 -- Phase 13 Plan 02 complete (PromptController, AppSta
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
-| 13 | Session Lifecycle and App State | In Progress | 13-01/02 done, 13-03 pending |
+| 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
 
-Progress: ██▓░░░░░░░ 27% (3/11 plans)
+Progress: ███▓░░░░░░ 36% (4/11 plans)
 
 ## Recent Activity
 
@@ -56,6 +56,8 @@ Progress: ██▓░░░░░░░ 27% (3/11 plans)
 - 2026-04-03: Phase 12 complete — `packages/flitter-cli` scaffold, config namespace, logger, and bootstrap shell
 - 2026-04-03: Phase 13 Plan 01 complete — native type system, session state machine, provider interface, Anthropic SSE
 - 2026-04-03: Phase 13 Plan 02 complete — PromptController, AppState composition, CLI entry wiring with provider init
+- 2026-04-03: Phase 13 Plan 03 complete — 64 tests locking lifecycle contract (36 AppState unit + 28 integration)
+- 2026-04-03: Phase 13 complete — 115 total tests across flitter-cli test suite
 
 ## Decisions Log
 
@@ -83,7 +85,8 @@ Progress: ██▓░░░░░░░ 27% (3/11 plans)
 - Phase 12 established the new workspace package, config namespace, logging namespace, and a minimal native runtime shell without ACP/coco in the boot path
 - Phase 13 Plan 01 established the type system (types.ts), session state machine (session.ts with 37 tests), and provider contract (provider.ts + anthropic.ts)
 - Phase 13 Plan 02 wired the prompt lifecycle pipeline: PromptController dispatches stream events to SessionState, AppState composes both for TUI, CLI entry initializes provider with API key resolution
-- 51 tests pass across the flitter-cli test suite (37 session + 13 prompt-controller + 1 config)
+- Phase 13 Plan 03 locked the lifecycle behavioral contract with 64 tests: AppState unit tests (36) and lifecycle integration tests (28) covering happy path, cancellation, errors, recovery, metadata, listeners
+- 115 tests pass across the flitter-cli test suite (37 session + 13 prompt-controller + 36 app-state + 28 lifecycle-integration + 1 config)
 
 ---
-*Last updated: 2026-04-03 after Phase 13 Plan 02 completion*
+*Last updated: 2026-04-03 after Phase 13 Plan 03 completion (phase complete)*

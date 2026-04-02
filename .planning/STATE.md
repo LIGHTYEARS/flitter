@@ -4,19 +4,19 @@
 
 See: .planning/PROJECT.md (updated 2026-04-03)
 
-**Core value:** Ship a native `flitter-cli` that reproduces Amp's end-to-end CLI behavior and TUI experience without depending on coco or ACP bridging.
-**Current focus:** Milestone v0.3.0 initialized, ready to start Phase 12
+**Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
+**Current focus:** Full-parity milestone initialized, ready to start Phase 12
 
 ## Current Milestone
 
-**v0.3.0** — flitter-cli
+**v0.3.0** — flitter-cli Full Parity
 
 ## Current Position
 
 Phase: Not started (ready for Phase 12)
 Plan: —
-Status: Roadmap approved, ready to begin implementation
-Last activity: 2026-04-03 — Milestone v0.3.0 roadmap created
+Status: Full-parity roadmap approved, ready to begin implementation
+Last activity: 2026-04-03 — Milestone v0.3.0 parity roadmap created
 
 ## Phase Status
 
@@ -29,7 +29,7 @@ Last activity: 2026-04-03 — Milestone v0.3.0 roadmap created
 | 10 | Tool Compatibility | Complete | 10-PLAN-01 |
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 
-Progress: ░░░░░░░░░░ 0% (0/5 phases)
+Progress: ░░░░░░░░░░ 0% (0/11 phases)
 
 ## Recent Activity
 
@@ -37,7 +37,7 @@ Progress: ░░░░░░░░░░ 0% (0/5 phases)
 - 2026-03-28: v0.2.0 milestone complete
 - 2026-04-03: Product direction reset from `flitter-amp` ACP client to native `flitter-cli`
 - 2026-04-03: New milestone initialized for `flitter-cli` package, runtime, and parity roadmap
-- 2026-04-03: Requirements and roadmap approved for phases 12-16
+- 2026-04-03: Requirements and roadmap expanded to full Amp parity scope across phases 12-22
 
 ## Decisions Log
 
@@ -46,6 +46,7 @@ Progress: ░░░░░░░░░░ 0% (0/5 phases)
 | 2026-04-03 | `flitter-amp` no longer defines the target product | ACP bridge and coco dependency are not acceptable long-term architecture |
 | 2026-04-03 | Build `flitter-cli` as a new subpackage | Native CLI boundary is cleaner than mutating the legacy package in place |
 | 2026-04-03 | Use reverse-engineered Amp behavior as the milestone spec | This milestone is about full feature recreation, not partial resemblance |
+| 2026-04-03 | All identified Amp capabilities are mandatory | Product decision: 100% parity, no scope cuts |
 
 ## Known Issues
 
@@ -57,6 +58,7 @@ Progress: ░░░░░░░░░░ 0% (0/5 phases)
 - `flitter-core` already supports the rendering primitives needed for chat, tool cards, markdown, scroll, overlays, and status surfaces
 - `flitter-amp` contains reusable implementation ideas but encodes the wrong top-level architecture
 - Reverse-engineering artifacts in `amp-src-analysis-*.md` are now milestone inputs, not archival notes
+- The Amp capability matrix is fully in-scope; no identified product-facing module is allowed to fall back to approximation
 
 ---
-*Last updated: 2026-04-03 after v0.3.0 milestone initialization*
+*Last updated: 2026-04-03 after v0.3.0 parity scope expansion*

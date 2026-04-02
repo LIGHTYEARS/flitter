@@ -39,6 +39,8 @@
 - [ ] **INPT-02**: Input border overlays display mode, hints, badges, and contextual metadata in the same interaction model as Amp
 - [ ] **INPT-03**: Focus routing, keyboard bubbling, and overlay focus transfer match Amp interaction semantics
 - [ ] **INPT-04**: Autocomplete trigger handling and `@file`-style picker invocation work as native `flitter-cli` input flows
+- [ ] **INPT-05**: Global shortcut behavior matches Amp exactly for `Ctrl+O`, `Ctrl+C`, `Ctrl+L`, `Alt+T`, `Ctrl+G`, `Ctrl+R`, `Esc`, and `?`
+- [ ] **INPT-06**: External editor workflow triggered from `Ctrl+G` preserves prompt content and terminal lifecycle semantics at Amp parity
 
 ### Overlays and Commands
 
@@ -46,6 +48,7 @@
 - [ ] **OVLY-02**: Command palette opens from global shortcut, renders searchable commands, and dispatches actions correctly
 - [ ] **OVLY-03**: File picker and inline autocomplete overlays integrate with input and dismissal semantics correctly
 - [ ] **OVLY-04**: Shortcut help/discovery surface exists for the hints exposed in the status and input regions
+- [ ] **OVLY-05**: Command palette command inventory and descriptions match the Amp shortcut-discovery and action surface
 
 ### Tool Rendering and Workflow
 
@@ -55,6 +58,8 @@
 - [ ] **TOOL-04**: Generic fallback rendering handles unknown tools without losing key output, payload, or status information
 - [ ] **TOOL-05**: Tool payload extraction tolerates the variant input/output shapes seen in the reverse-engineered Amp tool surface
 - [ ] **TOOL-06**: Permission, progress, completion, interruption, and failure states remain visible and actionable for every tool flow
+- [ ] **TOOL-07**: Handoff flows preserve thread-link visibility, waiting-state semantics, and handoff result display at Amp parity
+- [ ] **TOOL-08**: Task and sub-agent flows preserve nested delegation visibility and recursive tool-tree fidelity at Amp parity
 
 ### Content Rendering
 
@@ -69,6 +74,8 @@
 - [ ] **STAT-02**: Header/status widgets expose session and runtime state needed during active work
 - [ ] **STAT-03**: Theme token system covers the visual roles used by chat, tools, warnings, keybinds, links, handoff, and overlays
 - [ ] **STAT-04**: Animation surfaces including spinners, streaming cursor, handoff blink, and welcome-screen motion behave at Amp parity
+- [ ] **STAT-05**: Status-area behavior explicitly covers command hints, processing/cancel hints, mode badges, cwd/git/session context, and command-discovery cues at Amp parity
+- [ ] **STAT-06**: Built-in theme registry and selectable theme surface reach Amp parity, not just underlying token completeness
 
 ### History, Sessions, and Persistence
 
@@ -125,16 +132,21 @@
 | INPT-02 | Phase 16 | Pending |
 | INPT-03 | Phase 16 | Pending |
 | INPT-04 | Phase 16 | Pending |
+| INPT-05 | Phase 16 | Pending |
+| INPT-06 | Phase 16 | Pending |
 | OVLY-01 | Phase 17 | Pending |
 | OVLY-02 | Phase 17 | Pending |
 | OVLY-03 | Phase 17 | Pending |
 | OVLY-04 | Phase 17 | Pending |
+| OVLY-05 | Phase 17 | Pending |
 | TOOL-01 | Phase 18 | Pending |
 | TOOL-02 | Phase 18 | Pending |
 | TOOL-03 | Phase 18 | Pending |
 | TOOL-04 | Phase 18 | Pending |
 | TOOL-05 | Phase 18 | Pending |
 | TOOL-06 | Phase 18 | Pending |
+| TOOL-07 | Phase 18 | Pending |
+| TOOL-08 | Phase 18 | Pending |
 | REND-01 | Phase 19 | Pending |
 | REND-02 | Phase 19 | Pending |
 | REND-03 | Phase 19 | Pending |
@@ -143,6 +155,8 @@
 | STAT-02 | Phase 20 | Pending |
 | STAT-03 | Phase 20 | Pending |
 | STAT-04 | Phase 20 | Pending |
+| STAT-05 | Phase 20 | Pending |
+| STAT-06 | Phase 20 | Pending |
 | HIST-01 | Phase 21 | Pending |
 | HIST-02 | Phase 21 | Pending |
 | HIST-03 | Phase 21 | Pending |
@@ -154,10 +168,10 @@
 | MIG-03 | Phase 22 | Pending |
 
 **Coverage:**
-- v0.3.0 requirements: 47 total
-- Mapped to phases: 47
+- v0.3.0 requirements: 55 total
+- Mapped to phases: 55
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-03*
-*Last updated: 2026-04-03 after parity scope expansion*
+*Last updated: 2026-04-03 after parity guardrail hardening*

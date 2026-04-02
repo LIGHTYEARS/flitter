@@ -4,7 +4,7 @@
 
 `flitter-cli` is a terminal-first coding assistant client built inside the `flitter` monorepo. It replaces the current `flitter-amp` ACP bridge approach with a native CLI product that recreates Amp's complete interaction model, tool surface, and screen behavior using `flitter-core` as the rendering and input framework.
 
-The product direction is no longer "an ACP client that looks like Amp." It is "a full Amp-style CLI implemented locally on top of flitter-core," using reverse-engineered Amp source behavior as a strict product contract. This milestone targets full parity across startup, session lifecycle, turn model, tool surfaces, overlays, history, persistence, status widgets, and interaction semantics, not a partial or approximate clone.
+The product direction is no longer "an ACP client that looks like Amp." It is "a full Amp-style CLI implemented locally on top of flitter-core," using reverse-engineered Amp source behavior as a strict product contract. This milestone targets full parity across startup, session lifecycle, turn model, tool surfaces, overlays, history, persistence, status widgets, interaction semantics, and shortcut/editor ergonomics, not a partial or approximate clone.
 
 ## Core Value
 
@@ -26,7 +26,7 @@ Replace `flitter-amp` as the product direction with a new `flitter-cli` subpacka
 - Stop relying on coco and ACP bridging for core product behavior
 - Reconstruct Amp-equivalent CLI runtime, command dispatch, and tool orchestration
 - Reuse and extend `flitter-core` as the rendering, input, layout, and diagnostics foundation
-- Preserve and port useful UI work from `flitter-amp` only where it serves the native CLI design
+- Preserve and port `flitter-amp` work only when it helps reproduce Amp behavior exactly; local design preference is not a valid reason to diverge
 - Treat every capability identified in the reverse-engineered Amp matrix as in-scope for 100% implementation
 
 ## Requirements
@@ -42,9 +42,9 @@ Replace `flitter-amp` as the product direction with a new `flitter-cli` subpacka
 
 - [ ] `flitter-cli` exists as a first-class subpackage with its own entrypoint, runtime wiring, package scripts, config namespace, and clean shutdown path
 - [ ] Startup, session lifecycle, message submission, cancellation, and status transitions match Amp behavior exactly
-- [ ] Chat view, sticky grouping, scrolling, streaming, overlays, command palette, prompt history, and permission flows all reach full parity
-- [ ] Tool rendering and workflow semantics cover the complete Amp capability matrix, including handoff, task delegation, search, file operations, diff, todo, and generic fallback behavior
-- [ ] Session persistence, thread/session listing, resume, export, and history ergonomics all reach full parity
+- [ ] Chat view, sticky grouping, scrolling, streaming, overlays, command palette, prompt history, permission flows, welcome screen, and status-area semantics all reach full parity
+- [ ] Tool rendering and workflow semantics cover the complete Amp capability matrix, including handoff, nested task delegation, recursive tool-tree visibility, search, file operations, diff, todo, and generic fallback behavior
+- [ ] Session persistence, thread/session listing, resume, export, history ergonomics, and shortcut/editor workflows all reach full parity
 - [ ] Existing `flitter-amp` code is either migrated intentionally or removed from the active product path
 
 ### Out of Scope
@@ -69,6 +69,8 @@ The current codebase has significant in-flight changes outside `.planning/`; mil
 - **Product Direction**: `flitter-amp` is legacy; new work centers on `flitter-cli`
 - **Spec Source**: Reverse-engineered Amp behavior is the contract when implementation choices are ambiguous
 - **Parity Bar**: All identified Amp capabilities are in scope and must be implemented without feature cuts
+- **Guardrail**: Parity failures are scope failures, not polish debt, and cannot be silently deferred inside an in-scope phase
+- **Execution Order**: Guardrails first, execution next; scaffold first, details next
 - **Migration Safety**: Planning and implementation work must not overwrite unrelated in-progress source edits in the dirty worktree
 - **Terminal Scope**: Desktop terminal experience first; no web/mobile fallback in this milestone
 
@@ -81,6 +83,7 @@ The current codebase has significant in-flight changes outside `.planning/`; mil
 | Keep `flitter-core` as the rendering substrate | Existing framework already matches the desired TUI architecture | ✓ Good |
 | Treat `flitter-amp` as a migration source, not the destination | Some code is reusable, but the package framing is not | — Pending |
 | Accept no scope cuts on the Amp capability matrix | Product decision: 100% parity is required across all identified modules | ✓ Good |
+| Sequence work as guardrails first, scaffold first | Lock invariants and package/runtime boundaries before detail parity work | ✓ Good |
 
 ## Evolution
 
@@ -100,4 +103,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 after v0.3.0 parity scope expansion*
+*Last updated: 2026-04-03 after v0.3.0 parity guardrail hardening*

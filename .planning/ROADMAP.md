@@ -35,6 +35,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 2. Runtime config and logs live under the new namespace
 3. Fatal errors and exits restore terminal state
 4. No core boot path depends on coco bridge commands
+5. Scaffold decisions lock the runtime boundary before detailed parity work begins
 
 **Status:** Pending
 
@@ -57,6 +58,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 2. Submit/cancel/complete flows match Amp behavior
 3. Failure states surface visibly without corrupting the TUI
 4. Session metadata is complete enough for later phases
+5. Session guardrails are defined so later UI phases cannot reinterpret lifecycle semantics
 
 **Status:** Pending
 
@@ -110,19 +112,21 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 **Goal:** Recreate Amp's input ergonomics, multi-line editing, shell mode, focus routing, and trigger-based input behavior.
 
-**Requirements:** INPT-01, INPT-02, INPT-03, INPT-04
+**Requirements:** INPT-01, INPT-02, INPT-03, INPT-04, INPT-05, INPT-06
 
 **Key Changes:**
 1. Port input area composition and multi-line editing behavior
 2. Restore border overlays, mode badges, and contextual labels
 3. Recreate focus routing and key bubbling rules
 4. Implement autocomplete and file-trigger integration in the native flow
+5. Lock the exact global shortcut matrix and external editor workflow before detailed UI polish
 
 **Success Criteria:**
 1. Multi-line editing and submit behavior match Amp
 2. Focus transitions feel correct with overlays and input
 3. Overlay text and mode hints render correctly
 4. Trigger-based completions invoke the right UI surfaces
+5. `Ctrl+O`, `Ctrl+C`, `Ctrl+L`, `Alt+T`, `Ctrl+G`, `Ctrl+R`, `Esc`, and `?` all match Amp semantics exactly
 
 **Status:** Pending
 
@@ -132,7 +136,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 **Goal:** Complete parity for permission, command palette, file-picker, autocomplete, and shortcut-discovery overlays.
 
-**Requirements:** OVLY-01, OVLY-02, OVLY-03, OVLY-04
+**Requirements:** OVLY-01, OVLY-02, OVLY-03, OVLY-04, OVLY-05
 
 **Key Changes:**
 1. Implement modal permission flow with dimming and focus capture
@@ -141,10 +145,10 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 4. Add shortcut help/discovery surface promised by the Amp-style UI
 
 **Success Criteria:**
-1. Permission dialog is a true modal with correct dismissal rules
-2. Command palette is functional and searchable
-3. File/autocomplete overlays integrate cleanly with input
-4. Shortcut hints have a real discovery surface behind them
+1. Permission dialog matches Amp modal, focus, and dismissal semantics exactly
+2. Command palette command inventory, labels, and dispatch behavior match Amp exactly
+3. File/autocomplete overlays match Amp invocation and dismissal semantics exactly
+4. Shortcut hints have a real discovery surface behind them and do not drift from the bound shortcuts
 
 **Status:** Pending
 
@@ -154,19 +158,21 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 **Goal:** Recreate the complete Amp tool-call rendering and workflow system, including specialized tools and fallback behavior.
 
-**Requirements:** TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05, TOOL-06
+**Requirements:** TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05, TOOL-06, TOOL-07, TOOL-08
 
 **Key Changes:**
 1. Implement full tool dispatch and normalization layer
 2. Restore ToolHeader statuses, spinners, and expand/collapse model
 3. Support specialized renderers for shell, grep, read, edit, create-file, web-search, todo, handoff, and task flows
 4. Implement robust payload/result extraction and generic fallback rendering
+5. Preserve nested delegation, thread-linking, and recursive tool-tree semantics for task and handoff workflows
 
 **Success Criteria:**
 1. All identified tool surfaces render correctly
 2. Tool state transitions are visible and correct
-3. Handoff/task/sub-agent flows behave at parity
-4. Unknown tools still render losslessly through fallback behavior
+3. Handoff flows preserve thread-link visibility and waiting semantics at parity
+4. Task/sub-agent flows preserve nested delegation visibility and recursive tool-tree fidelity at parity
+5. Unknown tools still render losslessly through fallback behavior
 
 **Status:** Pending
 
@@ -198,19 +204,22 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 
 **Goal:** Recreate the status widgets, theme semantics, and visual motion cues that make the product feel like Amp.
 
-**Requirements:** STAT-01, STAT-02, STAT-03, STAT-04
+**Requirements:** STAT-01, STAT-02, STAT-03, STAT-04, STAT-05, STAT-06
 
 **Key Changes:**
 1. Implement bottom and header status surfaces from native app/session state
 2. Restore theme token coverage used by all product surfaces
 3. Recreate spinner, cursor, handoff blink, and welcome motion cues
-4. Verify visual semantics across the entire UI
+4. Restore built-in theme registry and selectable theme behavior
+5. Verify status-area semantics across command hints, processing hints, mode badges, cwd/git/session context, and discovery cues
 
 **Success Criteria:**
 1. Status widgets show the right runtime context
 2. Theme roles are complete and consistent
 3. Motion cues behave at parity without glitches
-4. The product looks and feels like Amp, not just structurally similar
+4. Built-in theme registry and selection behavior match Amp
+5. Status-area command, mode, and context semantics match Amp exactly
+6. The product looks and feels like Amp, not just structurally similar
 
 **Status:** Pending
 
@@ -284,16 +293,21 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 | INPT-02 | 16 | Pending |
 | INPT-03 | 16 | Pending |
 | INPT-04 | 16 | Pending |
+| INPT-05 | 16 | Pending |
+| INPT-06 | 16 | Pending |
 | OVLY-01 | 17 | Pending |
 | OVLY-02 | 17 | Pending |
 | OVLY-03 | 17 | Pending |
 | OVLY-04 | 17 | Pending |
+| OVLY-05 | 17 | Pending |
 | TOOL-01 | 18 | Pending |
 | TOOL-02 | 18 | Pending |
 | TOOL-03 | 18 | Pending |
 | TOOL-04 | 18 | Pending |
 | TOOL-05 | 18 | Pending |
 | TOOL-06 | 18 | Pending |
+| TOOL-07 | 18 | Pending |
+| TOOL-08 | 18 | Pending |
 | REND-01 | 19 | Pending |
 | REND-02 | 19 | Pending |
 | REND-03 | 19 | Pending |
@@ -302,6 +316,8 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 | STAT-02 | 20 | Pending |
 | STAT-03 | 20 | Pending |
 | STAT-04 | 20 | Pending |
+| STAT-05 | 20 | Pending |
+| STAT-06 | 20 | Pending |
 | HIST-01 | 21 | Pending |
 | HIST-02 | 21 | Pending |
 | HIST-03 | 21 | Pending |
@@ -312,10 +328,10 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 | MIG-02 | 22 | Pending |
 | MIG-03 | 22 | Pending |
 
-**v0.3.0 requirements:** 47 total
-**Mapped:** 47 (100%)
+**v0.3.0 requirements:** 55 total
+**Mapped:** 55 (100%)
 **Complete:** 0
 
 ---
 *Roadmap created: 2026-04-03*
-*Last updated: 2026-04-03 after parity scope expansion*
+*Last updated: 2026-04-03 after parity guardrail hardening*

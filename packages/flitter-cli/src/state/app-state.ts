@@ -14,7 +14,10 @@ import type {
   ConversationItem,
   SessionMetadata,
 } from './types';
+import type { Turn } from './turn-types';
 import { SessionState, type StateListener } from './session';
+import { ConversationState } from './conversation';
+import { type ScreenState, deriveScreenState } from './screen-state';
 import { PromptController } from './prompt-controller';
 import { log } from '../utils/logger';
 
@@ -31,6 +34,9 @@ import { log } from '../utils/logger';
 export class AppState {
   /** The session state machine managing lifecycle and conversation. */
   readonly session: SessionState;
+
+  /** Turn-level grouped view over SessionState.items. */
+  readonly conversation: ConversationState;
 
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
@@ -51,6 +57,7 @@ export class AppState {
 
   constructor(session: SessionState) {
     this.session = session;
+    this.conversation = new ConversationState(session);
 
     // Relay session state changes to AppState listeners
     this.session.addListener(() => {
@@ -146,6 +153,35 @@ export class AppState {
   /** Session metadata (sessionId, turnCount, cwd, model, etc.). */
   get metadata(): SessionMetadata {
     return this.session.metadata;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Turn-level and screen state accessors (Phase 14 Plan 02)
+  // ---------------------------------------------------------------------------
+
+  /** Grouped turns array — delegates to ConversationState. */
+  get turns(): ReadonlyArray<Turn> {
+    return this.conversation.turns;
+  }
+
+  /** The most recent turn (or null if no conversation). */
+  get currentTurn(): Turn | null {
+    return this.conversation.currentTurn;
+  }
+
+  /**
+   * Derived screen state — determines which screen/placeholder the TUI should render.
+   *
+   * Always reflects the current session lifecycle and conversation state.
+   * Pure derivation on every access — not stored.
+   */
+  get screenState(): ScreenState {
+    return deriveScreenState(
+      this.session.lifecycle,
+      this.conversation.isEmpty,
+      this.session.metadata.turnCount,
+      this.session.error,
+    );
   }
 
   // ---------------------------------------------------------------------------

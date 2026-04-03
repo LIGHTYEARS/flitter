@@ -53,6 +53,7 @@ import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
 import { CommandPalette } from './command-palette';
+import { ShortcutHelpOverlay } from './shortcut-help-overlay';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';
@@ -199,8 +200,7 @@ class AppShellState extends State<AppShell> {
         this._showCommandPalette();
       },
       showShortcutHelp: () => {
-        // Phase 17-05 will implement the shortcut help overlay builder
-        log.info('AppShell: showShortcutHelp hook — stub (Phase 17-05)');
+        this._showShortcutHelp();
       },
       openInEditor: () => {
         // INPT-06 will implement external editor integration
@@ -277,6 +277,38 @@ class AppShellState extends State<AppShell> {
     });
 
     log.info('AppShell: command palette shown');
+  }
+
+  // --- Shortcut Help Overlay (Plan 17-05) ---
+
+  /**
+   * Show or dismiss the shortcut help overlay via OverlayManager.
+   *
+   * Toggle behavior: if the overlay is already open, dismiss it.
+   * Otherwise, show a modal fullscreen overlay at SHORTCUT_HELP priority
+   * with the ShortcutHelpOverlay widget reading from the ShortcutRegistry.
+   */
+  private _showShortcutHelp(): void {
+    const overlayManager = this.widget.appState.overlayManager;
+
+    // Toggle: if already open, dismiss
+    if (overlayManager.has(OVERLAY_IDS.SHORTCUT_HELP)) {
+      overlayManager.dismiss(OVERLAY_IDS.SHORTCUT_HELP);
+      return;
+    }
+
+    overlayManager.show({
+      id: OVERLAY_IDS.SHORTCUT_HELP,
+      priority: OVERLAY_PRIORITIES.SHORTCUT_HELP,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss) => new ShortcutHelpOverlay({
+        onDismiss,
+        registry: this.shortcutRegistry,
+      }),
+    });
+
+    log.info('AppShell: shortcut help overlay shown');
   }
 
   // --- Content Builders ---

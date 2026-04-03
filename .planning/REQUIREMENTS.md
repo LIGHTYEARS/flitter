@@ -44,7 +44,7 @@
 
 ### Overlays and Commands
 
-- [ ] **OVLY-01**: Permission dialog behaves as a true modal with dimmed background, focus capture, approval options, and escape dismissal
+- [x] **OVLY-01**: Permission dialog behaves as a true modal with dimmed background, focus capture, approval options, and escape dismissal
 - [ ] **OVLY-02**: Command palette opens from global shortcut, renders searchable commands, and dispatches actions correctly
 - [ ] **OVLY-03**: File picker and inline autocomplete overlays integrate with input and dismissal semantics correctly
 - [ ] **OVLY-04**: Shortcut help/discovery surface exists for the hints exposed in the status and input regions
@@ -134,7 +134,7 @@
 | INPT-04 | Phase 16 | Pending |
 | INPT-05 | Phase 16 | Pending |
 | INPT-06 | Phase 16 | Pending |
-| OVLY-01 | Phase 17 | Pending |
+| OVLY-01 | Phase 17 | Complete |
 | OVLY-02 | Phase 17 | Pending |
 | OVLY-03 | Phase 17 | Pending |
 | OVLY-04 | Phase 17 | Pending |

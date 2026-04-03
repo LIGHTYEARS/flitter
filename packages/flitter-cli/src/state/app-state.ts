@@ -15,11 +15,14 @@ import type {
   SessionMetadata,
 } from './types';
 import type { Turn } from './turn-types';
+import type { PermissionRequest, PermissionResult } from './permission-types';
 import { SessionState, type StateListener } from './session';
 import { ConversationState } from './conversation';
 import { type ScreenState, deriveScreenState } from './screen-state';
 import { PromptController } from './prompt-controller';
 import { OverlayManager } from './overlay-manager';
+import { OVERLAY_IDS, OVERLAY_PRIORITIES } from './overlay-ids';
+import { PermissionDialog } from '../widgets/permission-dialog';
 import { log } from '../utils/logger';
 
 /**
@@ -207,6 +210,57 @@ export class AppState {
    */
   cancelPrompt(): void {
     this.promptController.cancel();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Permission Dialog Flow (Plan 17-02)
+  // ---------------------------------------------------------------------------
+
+  /** Pending permission request resolver — non-null while a dialog is active. */
+  private _permissionResolve: ((result: PermissionResult) => void) | null = null;
+
+  /**
+   * Request permission from the user. Shows the permission dialog overlay
+   * and returns a Promise that resolves when the user selects an option
+   * or dismisses the dialog.
+   *
+   * The dialog renders at OVERLAY_PRIORITIES.PERMISSION_DIALOG (100),
+   * ensuring it always appears on top of other overlays.
+   */
+  async requestPermission(request: PermissionRequest): Promise<PermissionResult> {
+    return new Promise<PermissionResult>((resolve) => {
+      this._permissionResolve = resolve;
+      this.overlayManager.show({
+        id: OVERLAY_IDS.PERMISSION_DIALOG,
+        priority: OVERLAY_PRIORITIES.PERMISSION_DIALOG,
+        modal: true,
+        placement: { type: 'fullscreen' },
+        builder: (onDismiss) => new PermissionDialog({
+          request,
+          onSelect: (optionId: string) => {
+            onDismiss();
+            this.resolvePermission(optionId);
+          },
+          onCancel: () => {
+            onDismiss();
+            this.resolvePermission(null);
+          },
+        }),
+      });
+    });
+  }
+
+  /**
+   * Resolve a pending permission request with the given result.
+   * Called by the dialog's onSelect/onCancel or by Escape dismissal.
+   * No-op if no permission request is pending.
+   */
+  resolvePermission(result: PermissionResult): void {
+    if (this._permissionResolve) {
+      const resolve = this._permissionResolve;
+      this._permissionResolve = null;
+      resolve(result);
+    }
   }
 
   // ---------------------------------------------------------------------------

@@ -11,8 +11,8 @@
 // - Phase 21 shortcuts (Ctrl+R) remain as stubs
 
 import type { ShortcutRegistry, ShortcutContext } from './registry';
-import type { KeyEventResult } from '../../../../flitter-core/src/input/events';
-import { WidgetsBinding } from '../../../../flitter-core/src/framework/binding';
+import type { KeyEventResult } from '../../../flitter-core/src/input/events';
+import { WidgetsBinding } from '../../../flitter-core/src/framework/binding';
 import { OVERLAY_IDS } from '../state/overlay-ids';
 import { log } from '../utils/logger';
 

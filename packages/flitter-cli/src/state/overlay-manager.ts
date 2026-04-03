@@ -12,11 +12,11 @@
 // - buildOverlays() produces a Stack widget layering all active entries
 //   on top of the base content
 
-import type { Widget } from '../../../../flitter-core/src/framework/widget';
-import { Stack, Positioned } from '../../../../flitter-core/src/widgets/stack';
-import { Container } from '../../../../flitter-core/src/widgets/container';
-import { BoxDecoration } from '../../../../flitter-core/src/layout/render-decorated';
-import { Color } from '../../../../flitter-core/src/core/color';
+import type { Widget } from '../../../flitter-core/src/framework/widget';
+import { Stack, Positioned } from '../../../flitter-core/src/widgets/stack';
+import { Container } from '../../../flitter-core/src/widgets/container';
+import { BoxDecoration } from '../../../flitter-core/src/layout/render-decorated';
+import { Color } from '../../../flitter-core/src/core/color';
 import type { StateListener } from './session';
 
 // ---------------------------------------------------------------------------

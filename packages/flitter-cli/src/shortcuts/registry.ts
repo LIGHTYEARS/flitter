@@ -9,8 +9,8 @@
 // - OverlayManager import points to flitter-cli/src/state/overlay-manager
 // - PromptHistory removed (Phase 21 scope — left as optional placeholder)
 
-import type { KeyEvent, KeyEventResult } from '../../../../flitter-core/src/input/events';
-import { matchesShortcut, type ShortcutBinding } from '../../../../flitter-core/src/input/shortcuts';
+import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/events';
+import { matchesShortcut, type ShortcutBinding } from '../../../flitter-core/src/input/shortcuts';
 import type { AppState } from '../state/app-state';
 import type { OverlayManager } from '../state/overlay-manager';
 

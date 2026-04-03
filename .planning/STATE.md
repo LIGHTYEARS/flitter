@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 14 — conversation-and-turn-model (COMPLETE)
+**Current focus:** Phase 15 — chat-view-scroll-and-resize-semantics (PLANNING)
 
 ## Current Milestone
 
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 14
-Plan: 02 complete (phase complete)
-Status: ScreenState derivation and AppState turn integration — Phase 14 complete with 178 tests
+Phase: 15
+Plan: Planning complete (3 plans defined: 15-01/02/03)
+Status: Phase 15 planned — ChatView widget tree, scroll/follow/scrollbar, and tests
 Last activity: 2026-04-03
 
 ## Phase Status
@@ -46,6 +46,7 @@ Last activity: 2026-04-03
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
 | 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
 | 14 | Conversation and Turn Model | Complete | 14-01/02 done |
+| 15 | Chat View, Scroll, and Resize | Planning | 15-01/02/03 planned |
 
 Progress: █████░░░░░ 55% (6/11 plans)
 
@@ -61,6 +62,7 @@ Progress: █████░░░░░ 55% (6/11 plans)
 - 2026-04-03: Phase 13 complete — 115 total tests across flitter-cli test suite
 - 2026-04-03: Phase 14 Plan 01 complete — turn model types (UserTurn, AssistantTurn, TurnStatus) and ConversationState with cached turn grouping (28 tests)
 - 2026-04-03: Phase 14 Plan 02 complete — ScreenState derivation (6 variants) and AppState integration of ConversationState + screenState (35 new tests, 178 total)
+- 2026-04-03: Phase 15 planning complete — 3 plans: ChatView widget tree + screen dispatch, scroll/follow/scrollbar/resize, tests (~58 new)
 
 ## Decisions Log
 
@@ -81,6 +83,10 @@ Progress: █████░░░░░ 55% (6/11 plans)
 | 2026-04-03 | deriveScreenState is a pure function taking primitives | Testable without state machine or class instances |
 | 2026-04-03 | AppState.screenState derived (not cached) | Always reflects current session + conversation state |
 | 2026-04-03 | turnCount from metadata drives welcome vs empty | Persists across newThread while items are cleared |
+| 2026-04-03 | Reuse flitter-core ScrollView/Scrollbar/StickyHeader — no core gaps | All CHAT-01-04 requirements met by existing primitives; no phase 15.1 needed |
+| 2026-04-03 | ChatView owns AppState listener (not parent) | Widget self-manages reactivity; dispose() cleans up |
+| 2026-04-03 | Welcome/empty/loading/error bypass ScrollView, use Center | ScrollView unbounded height breaks vertical centering (Amp BUG-1 pattern) |
+| 2026-04-03 | Placeholder renderers for tools/markdown/thinking/plans in Phase 15 | Layout correctness now; specialized renderers drop in at Phases 18-19 |
 
 ## Known Issues
 
@@ -100,6 +106,8 @@ Progress: █████░░░░░ 55% (6/11 plans)
 - Phase 14 Plan 01 established turn model types (turn-types.ts) and ConversationState (conversation.ts) with version-cached turn grouping over SessionState.items — 28 additional tests (143 total across flitter-cli)
 - Phase 14 Plan 02 established ScreenState derivation (screen-state.ts) with 6 first-class screen variants, and integrated ConversationState + screenState into AppState — 35 new tests (178 total across flitter-cli)
 - Phase 14 is complete — the full conversation and turn data model is locked for downstream rendering phases
+- Phase 15 planning identified zero flitter-core gaps — SingleChildScrollView (position:'bottom'), ScrollController (followMode), Scrollbar, StickyHeader, and resize via constraint propagation all exist and are sufficient
+- Phase 15 uses the Amp BUG-1 pattern: welcome/empty/loading/error screens bypass ScrollView and use Center for vertical centering
 
 ---
-*Last updated: 2026-04-03 after Phase 14 Plan 02 completion*
+*Last updated: 2026-04-03 after Phase 15 planning completion*

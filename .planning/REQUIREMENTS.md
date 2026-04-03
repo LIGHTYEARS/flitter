@@ -45,10 +45,10 @@
 ### Overlays and Commands
 
 - [x] **OVLY-01**: Permission dialog behaves as a true modal with dimmed background, focus capture, approval options, and escape dismissal
-- [ ] **OVLY-02**: Command palette opens from global shortcut, renders searchable commands, and dispatches actions correctly
+- [x] **OVLY-02**: Command palette opens from global shortcut, renders searchable commands, and dispatches actions correctly
 - [ ] **OVLY-03**: File picker and inline autocomplete overlays integrate with input and dismissal semantics correctly
 - [ ] **OVLY-04**: Shortcut help/discovery surface exists for the hints exposed in the status and input regions
-- [ ] **OVLY-05**: Command palette command inventory and descriptions match the Amp shortcut-discovery and action surface
+- [x] **OVLY-05**: Command palette command inventory and descriptions match the Amp shortcut-discovery and action surface
 
 ### Tool Rendering and Workflow
 
@@ -135,10 +135,10 @@
 | INPT-05 | Phase 16 | Pending |
 | INPT-06 | Phase 16 | Pending |
 | OVLY-01 | Phase 17 | Complete |
-| OVLY-02 | Phase 17 | Pending |
+| OVLY-02 | Phase 17 | Complete |
 | OVLY-03 | Phase 17 | Pending |
 | OVLY-04 | Phase 17 | Pending |
-| OVLY-05 | Phase 17 | Pending |
+| OVLY-05 | Phase 17 | Complete |
 | TOOL-01 | Phase 18 | Pending |
 | TOOL-02 | Phase 18 | Pending |
 | TOOL-03 | Phase 18 | Pending |

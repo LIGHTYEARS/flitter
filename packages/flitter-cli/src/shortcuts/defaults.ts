@@ -33,6 +33,10 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     action: (ctx): KeyEventResult => {
       if (ctx.overlayManager.hasOverlays) {
         const dismissedId = ctx.overlayManager.dismissTop();
+        // If the dismissed overlay was the permission dialog, resolve as denied (null)
+        if (dismissedId === OVERLAY_IDS.PERMISSION_DIALOG) {
+          ctx.appState.resolvePermission(null);
+        }
         log.info(`ShortcutRegistry: Escape dismissed overlay '${dismissedId}'`);
         return 'handled';
       }

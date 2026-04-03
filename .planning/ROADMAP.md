@@ -150,7 +150,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. File/autocomplete overlays match Amp invocation and dismissal semantics exactly
 4. Shortcut hints have a real discovery surface behind them and do not drift from the bound shortcuts
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

@@ -104,7 +104,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. Scrollbar and keyboard/mouse interactions are correct
 4. Resize preserves usability and layout integrity
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

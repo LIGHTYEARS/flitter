@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 15 — chat-view-scroll-and-resize-semantics (PLANNING)
+**Current focus:** Phase 15 — chat-view-scroll-and-resize-semantics (Plan 02 complete, Plan 03 next)
 
 ## Current Milestone
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 15
-Plan: Planning complete (3 plans defined: 15-01/02/03)
-Status: Phase 15 planned — ChatView widget tree, scroll/follow/scrollbar, and tests
+Plan: 15-02 complete — scroll/follow/scrollbar/resize wired into AppShell
+Status: Ready for Plan 03 (tests)
 Last activity: 2026-04-03
 
 ## Phase Status
@@ -46,9 +46,9 @@ Last activity: 2026-04-03
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
 | 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
 | 14 | Conversation and Turn Model | Complete | 14-01/02 done |
-| 15 | Chat View, Scroll, and Resize | Planning | 15-01/02/03 planned |
+| 15 | Chat View, Scroll, and Resize | In Progress | 15-01/02 done, 15-03 next |
 
-Progress: █████░░░░░ 55% (6/11 plans)
+Progress: ██████░░░░ 64% (7/11 plans)
 
 ## Recent Activity
 
@@ -63,6 +63,7 @@ Progress: █████░░░░░ 55% (6/11 plans)
 - 2026-04-03: Phase 14 Plan 01 complete — turn model types (UserTurn, AssistantTurn, TurnStatus) and ConversationState with cached turn grouping (28 tests)
 - 2026-04-03: Phase 14 Plan 02 complete — ScreenState derivation (6 variants) and AppState integration of ConversationState + screenState (35 new tests, 178 total)
 - 2026-04-03: Phase 15 planning complete — 3 plans: ChatView widget tree + screen dispatch, scroll/follow/scrollbar/resize, tests (~58 new)
+- 2026-04-03: Phase 15 Plan 02 complete — ScrollController + SingleChildScrollView + Scrollbar wired into AppShell, conditional Center bypass for non-conversation screens (178 tests still pass)
 
 ## Decisions Log
 
@@ -87,6 +88,7 @@ Progress: █████░░░░░ 55% (6/11 plans)
 | 2026-04-03 | ChatView owns AppState listener (not parent) | Widget self-manages reactivity; dispose() cleans up |
 | 2026-04-03 | Welcome/empty/loading/error bypass ScrollView, use Center | ScrollView unbounded height breaks vertical centering (Amp BUG-1 pattern) |
 | 2026-04-03 | Placeholder renderers for tools/markdown/thinking/plans in Phase 15 | Layout correctness now; specialized renderers drop in at Phases 18-19 |
+| 2026-04-03 | ScrollController owned by AppShellState, shared between ScrollView and Scrollbar | Single instance ensures scroll position sync; AppShellState owns lifecycle |
 
 ## Known Issues
 
@@ -108,6 +110,7 @@ Progress: █████░░░░░ 55% (6/11 plans)
 - Phase 14 is complete — the full conversation and turn data model is locked for downstream rendering phases
 - Phase 15 planning identified zero flitter-core gaps — SingleChildScrollView (position:'bottom'), ScrollController (followMode), Scrollbar, StickyHeader, and resize via constraint propagation all exist and are sufficient
 - Phase 15 uses the Amp BUG-1 pattern: welcome/empty/loading/error screens bypass ScrollView and use Center for vertical centering
+- Phase 15 Plan 02 wired the full scroll stack: ScrollController in AppShellState, SingleChildScrollView (position='bottom', keyboard+mouse), Scrollbar (brightBlack thumb, interactive), conditional Center bypass — follow mode, streaming growth, resize all handled by flitter-core primitives with zero additional code
 
 ---
-*Last updated: 2026-04-03 after Phase 15 planning completion*
+*Last updated: 2026-04-03 after Phase 15 Plan 02 completion*

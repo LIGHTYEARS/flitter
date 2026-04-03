@@ -52,10 +52,10 @@ export interface BorderOverlayText {
 // Step 2: Shell mode detection
 // ---------------------------------------------------------------------------
 
-type ShellMode = 'shell' | 'background' | null;
+export type ShellMode = 'shell' | 'background' | null;
 
 /** Detect shell mode from input text prefix. */
-function detectShellMode(text: string): ShellMode {
+export function detectShellMode(text: string): ShellMode {
   if (text.startsWith('$$')) return 'background';
   if (text.startsWith('$'))  return 'shell';
   return null;
@@ -66,7 +66,7 @@ function detectShellMode(text: string): ShellMode {
 // ---------------------------------------------------------------------------
 
 /** Minimum container height: 1 content line + 2 border rows. */
-const MIN_HEIGHT = 3;
+export const MIN_HEIGHT = 3;
 
 // ---------------------------------------------------------------------------
 // Step 1: InputArea props and StatefulWidget

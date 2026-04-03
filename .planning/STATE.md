@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 14 — conversation-and-turn-model (Plan 01 COMPLETE)
+**Current focus:** Phase 14 — conversation-and-turn-model (COMPLETE)
 
 ## Current Milestone
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 14
-Plan: 01 complete
-Status: Turn model types and ConversationState implemented with 28 tests
+Plan: 02 complete (phase complete)
+Status: ScreenState derivation and AppState turn integration — Phase 14 complete with 178 tests
 Last activity: 2026-04-03
 
 ## Phase Status
@@ -45,9 +45,9 @@ Last activity: 2026-04-03
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
 | 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
-| 14 | Conversation and Turn Model | In Progress | 14-01 done |
+| 14 | Conversation and Turn Model | Complete | 14-01/02 done |
 
-Progress: ████░░░░░░ 45% (5/11 plans)
+Progress: █████░░░░░ 55% (6/11 plans)
 
 ## Recent Activity
 
@@ -60,6 +60,7 @@ Progress: ████░░░░░░ 45% (5/11 plans)
 - 2026-04-03: Phase 13 Plan 03 complete — 64 tests locking lifecycle contract (36 AppState unit + 28 integration)
 - 2026-04-03: Phase 13 complete — 115 total tests across flitter-cli test suite
 - 2026-04-03: Phase 14 Plan 01 complete — turn model types (UserTurn, AssistantTurn, TurnStatus) and ConversationState with cached turn grouping (28 tests)
+- 2026-04-03: Phase 14 Plan 02 complete — ScreenState derivation (6 variants) and AppState integration of ConversationState + screenState (35 new tests, 178 total)
 
 ## Decisions Log
 
@@ -76,6 +77,10 @@ Progress: ████░░░░░░ 45% (5/11 plans)
 | 2026-04-03 | Turn types use 'kind' discriminant separate from ConversationItem 'type' | Avoids collision between turn-level and item-level discriminants |
 | 2026-04-03 | ConversationState wraps SessionState (composition) | Same pattern as AppState from Phase 13 |
 | 2026-04-03 | groupItemsIntoTurns exported standalone | Direct unit testability without SessionState wiring |
+| 2026-04-03 | ScreenState uses 'kind' discriminant matching Turn model | Consistent pattern across Phase 14 data layer |
+| 2026-04-03 | deriveScreenState is a pure function taking primitives | Testable without state machine or class instances |
+| 2026-04-03 | AppState.screenState derived (not cached) | Always reflects current session + conversation state |
+| 2026-04-03 | turnCount from metadata drives welcome vs empty | Persists across newThread while items are cleared |
 
 ## Known Issues
 
@@ -93,6 +98,8 @@ Progress: ████░░░░░░ 45% (5/11 plans)
 - Phase 13 Plan 03 locked the lifecycle behavioral contract with 64 tests: AppState unit tests (36) and lifecycle integration tests (28) covering happy path, cancellation, errors, recovery, metadata, listeners
 - 115 tests pass across the flitter-cli test suite (37 session + 13 prompt-controller + 36 app-state + 28 lifecycle-integration + 1 config)
 - Phase 14 Plan 01 established turn model types (turn-types.ts) and ConversationState (conversation.ts) with version-cached turn grouping over SessionState.items — 28 additional tests (143 total across flitter-cli)
+- Phase 14 Plan 02 established ScreenState derivation (screen-state.ts) with 6 first-class screen variants, and integrated ConversationState + screenState into AppState — 35 new tests (178 total across flitter-cli)
+- Phase 14 is complete — the full conversation and turn data model is locked for downstream rendering phases
 
 ---
-*Last updated: 2026-04-03 after Phase 14 Plan 01 completion*
+*Last updated: 2026-04-03 after Phase 14 Plan 02 completion*

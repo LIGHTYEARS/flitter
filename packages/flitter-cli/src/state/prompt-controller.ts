@@ -8,12 +8,24 @@
 import type { Provider } from '../provider/provider';
 import type { SessionState } from './session';
 import type { ConversationItem, StreamEvent } from './types';
+import type { PermissionRequest, PermissionResult } from './permission-types';
 import { log } from '../utils/logger';
 
 /** Constructor options for PromptController. */
 export interface PromptControllerOptions {
   session: SessionState;
   provider: Provider;
+  /**
+   * Optional callback invoked when a tool call requires user permission.
+   * The callback should show a permission dialog and return the user's
+   * selection (optionId) or null if dismissed.
+   *
+   * Forward-looking integration point — the actual tool permission flow
+   * in the provider layer will be wired when tool execution is implemented
+   * (Phase 18). For now, the plumbing exists so the permission dialog can
+   * be triggered via appState.requestPermission() from a test harness.
+   */
+  onPermissionRequest?: (request: PermissionRequest) => Promise<PermissionResult>;
 }
 
 /**
@@ -35,12 +47,19 @@ export class PromptController {
   private _elapsedTimer: ReturnType<typeof setInterval> | null = null;
   private _promptStartedAt: number | null = null;
 
+  /**
+   * Optional permission request callback for tool call approval.
+   * Set via constructor options. Phase 18 wires the actual invocation.
+   */
+  readonly onPermissionRequest: ((request: PermissionRequest) => Promise<PermissionResult>) | null;
+
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
   constructor(options: PromptControllerOptions) {
     this._session = options.session;
     this._provider = options.provider;
+    this.onPermissionRequest = options.onPermissionRequest ?? null;
   }
 
   /**

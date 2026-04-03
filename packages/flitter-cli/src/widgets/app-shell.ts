@@ -49,9 +49,13 @@ import { ScrollController } from '../../../flitter-core/src/widgets/scroll-contr
 import { Scrollbar } from '../../../flitter-core/src/widgets/scrollbar';
 import { Color } from '../../../flitter-core/src/core/color';
 import { TextEditingController } from '../../../flitter-core/src/widgets/text-field';
+import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-list';
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
+import { CommandPalette } from './command-palette';
 import type { AppState } from '../state/app-state';
+import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
+import { buildCommandList, type CommandItem } from '../commands/command-registry';
 import { ShortcutRegistry, registerDefaultShortcuts } from '../shortcuts';
 import type { ShortcutContext, ShortcutHooks } from '../shortcuts';
 import { log } from '../utils/logger';
@@ -192,8 +196,7 @@ class AppShellState extends State<AppShell> {
   private _buildShortcutContext(): ShortcutContext {
     const hooks: ShortcutHooks = {
       showCommandPalette: () => {
-        // Phase 17-03 will implement the command palette overlay builder
-        log.info('AppShell: showCommandPalette hook — stub (Phase 17-03)');
+        this._showCommandPalette();
       },
       showShortcutHelp: () => {
         // Phase 17-05 will implement the shortcut help overlay builder
@@ -222,6 +225,58 @@ class AppShellState extends State<AppShell> {
       },
       hooks,
     };
+  }
+
+  // --- Command Palette (Plan 17-03) ---
+
+  /**
+   * Show the command palette overlay via OverlayManager.
+   *
+   * Builds the command list from ShortcutRegistry + extra commands,
+   * maps them to SelectionItems, and shows a CommandPalette widget
+   * as a fullscreen, non-modal overlay at COMMAND_PALETTE priority.
+   *
+   * If the palette is already open, dismisses it (toggle behavior
+   * is handled by the shortcut in defaults.ts which checks has() first).
+   */
+  private _showCommandPalette(): void {
+    const overlayManager = this.widget.appState.overlayManager;
+
+    // Toggle: if already open, dismiss
+    if (overlayManager.has(OVERLAY_IDS.COMMAND_PALETTE)) {
+      overlayManager.dismiss(OVERLAY_IDS.COMMAND_PALETTE);
+      return;
+    }
+
+    // Build command list with current context
+    const ctx = this._buildShortcutContext();
+    const commands = buildCommandList(this.shortcutRegistry, this.widget.appState, ctx);
+
+    // Map CommandItems to SelectionItems for the palette widget
+    const items: SelectionItem[] = commands.map((cmd: CommandItem) => ({
+      label: cmd.label,
+      value: cmd.id,
+      description: cmd.shortcutHint ? `${cmd.description} (${cmd.shortcutHint})` : cmd.description,
+    }));
+
+    overlayManager.show({
+      id: OVERLAY_IDS.COMMAND_PALETTE,
+      priority: OVERLAY_PRIORITIES.COMMAND_PALETTE,
+      modal: false,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss) => new CommandPalette({
+        commands: items,
+        onExecute: (cmdId: string) => {
+          // Dismiss palette first, then execute the command
+          onDismiss();
+          const cmd = commands.find((c: CommandItem) => c.id === cmdId);
+          if (cmd) cmd.execute(onDismiss);
+        },
+        onDismiss,
+      }),
+    });
+
+    log.info('AppShell: command palette shown');
   }
 
   // --- Content Builders ---

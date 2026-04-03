@@ -3,7 +3,7 @@
 // Provides Amp-parity editing experience:
 //   Stack (fit: 'passthrough')
 //     Container (bordered, padded, auto-expanding height)
-//       Autocomplete (empty triggers — Phase 17 extension point)
+//       Autocomplete (@-trigger for file mentions, extensible)
 //         TextField (submitOnEnter, block cursor, multi-line)
 //     Positioned (top:0, right:1) — mode badge overlay
 //     Positioned (top:0, left:0, right:0) — drag resize MouseRegion (height:1)
@@ -16,6 +16,7 @@
 //   - Processing spinner / dim when isProcessing
 //   - Submit guards (empty text, whitespace-only, double-submit)
 //   - BorderOverlayText extension point for downstream consumers
+//   - @ autocomplete trigger for file mentions (Plan 17-04)
 //
 // Phase 16, Plan 01. Colors are hardcoded defaults — Phase 20 adds theme.
 
@@ -29,8 +30,9 @@ import { TextField, TextEditingController } from '../../../flitter-core/src/widg
 import { Container } from '../../../flitter-core/src/widgets/container';
 import { Border, BorderSide, BoxDecoration } from '../../../flitter-core/src/layout/render-decorated';
 import { Stack, Positioned } from '../../../flitter-core/src/widgets/stack';
-import { Autocomplete } from '../../../flitter-core/src/widgets/autocomplete';
+import { Autocomplete, type AutocompleteTrigger, type AutocompleteOption } from '../../../flitter-core/src/widgets/autocomplete';
 import { MouseRegion } from '../../../flitter-core/src/widgets/mouse-region';
+import { basename } from 'node:path';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
 import { Text } from '../../../flitter-core/src/widgets/text';
 import { TextSpan } from '../../../flitter-core/src/core/text-span';
@@ -80,6 +82,8 @@ interface InputAreaProps {
   controller?: TextEditingController;
   maxExpandLines?: number;
   overlayTexts?: BorderOverlayText[];
+  /** File list provider for @ autocomplete trigger (Plan 17-04). */
+  getFiles?: () => Promise<string[]>;
 }
 
 /**
@@ -97,6 +101,8 @@ export class InputArea extends StatefulWidget {
   readonly externalController?: TextEditingController;
   readonly maxExpandLines: number;
   readonly overlayTexts: BorderOverlayText[];
+  /** File list provider for @ autocomplete. Null means no file trigger. */
+  readonly getFiles?: () => Promise<string[]>;
 
   constructor(props: InputAreaProps) {
     super();
@@ -106,6 +112,7 @@ export class InputArea extends StatefulWidget {
     this.externalController = props.controller;
     this.maxExpandLines = props.maxExpandLines ?? 10;
     this.overlayTexts = props.overlayTexts ?? [];
+    this.getFiles = props.getFiles;
   }
 
   createState(): InputAreaState {
@@ -126,6 +133,17 @@ class InputAreaState extends State<InputArea> {
   private dragHeight: number | null = null;
   private dragStartY: number | null = null;
   private dragStartHeight: number | null = null;
+
+  // --- File list cache for @ autocomplete (Plan 17-04) ---
+
+  /** Cached file list from the getFiles provider. */
+  private _cachedFiles: string[] = [];
+  /** Timestamp of the last cache refresh. */
+  private _cacheTimestamp = 0;
+  /** Whether a cache refresh is in flight. */
+  private _cacheLoading = false;
+  /** Cache TTL in milliseconds. */
+  private static CACHE_TTL_MS = 5000;
 
   // --- Lifecycle ---
 
@@ -265,11 +283,50 @@ class InputAreaState extends State<InputArea> {
 
   // --- Step 4 / Step 7 / Step 8 / Step 9: Build method ---
 
+  // --- File autocomplete helpers (Plan 17-04) ---
+
+  /**
+   * Get file options for autocomplete, using a cached file list.
+   * Refreshes the cache if it is older than CACHE_TTL_MS.
+   * Returns the currently cached files (may be stale for one cycle while
+   * the async refresh is in flight).
+   */
+  private _getFileOptions = (_query: string): AutocompleteOption[] => {
+    const now = Date.now();
+    if (now - this._cacheTimestamp > InputAreaState.CACHE_TTL_MS && !this._cacheLoading) {
+      this._refreshFileCache();
+    }
+    return this._cachedFiles.map((f) => ({
+      label: basename(f),
+      value: f,
+      description: f,
+    }));
+  };
+
+  /**
+   * Asynchronously refresh the file list cache.
+   * Calls the widget's getFiles provider and updates cache state.
+   */
+  private _refreshFileCache(): void {
+    const getFiles = this.widget.getFiles;
+    if (!getFiles) return;
+    this._cacheLoading = true;
+    getFiles()
+      .then((files) => {
+        this._cachedFiles = files;
+        this._cacheTimestamp = Date.now();
+        this._cacheLoading = false;
+      })
+      .catch(() => {
+        this._cacheLoading = false;
+      });
+  }
+
   /**
    * Build the InputArea widget tree:
    *   Stack (fit: 'passthrough')
    *     Container (bordered, padded, height computed)
-   *       Autocomplete (empty triggers — Phase 17 extension point)
+   *       Autocomplete (@ file trigger when getFiles is provided)
    *         TextField (autofocus, submitOnEnter, block cursor)
    *     Positioned (top:0, right:1) — mode badge (optional)
    *     Positioned (top:0, left:0, right:0) — drag resize MouseRegion
@@ -295,11 +352,20 @@ class InputAreaState extends State<InputArea> {
       onSubmit: this._handleSubmit,
     });
 
-    // Step 9: Autocomplete stub with empty triggers (Phase 17 extension point)
+    // Step 9: Autocomplete with @ file trigger (Plan 17-04)
+    const triggers: AutocompleteTrigger[] = [];
+    if (this.widget.getFiles) {
+      triggers.push({
+        triggerCharacter: '@',
+        optionsBuilder: this._getFileOptions,
+      });
+    }
+
     const autocompleteWrapped = new Autocomplete({
       child: textField,
       controller: this.controller,
-      triggers: [],
+      triggers,
+      maxOptionsVisible: 10,
     });
 
     // Bordered container with auto-expanding height

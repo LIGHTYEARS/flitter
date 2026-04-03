@@ -21,3 +21,12 @@ export { ToolHeader } from './tool-header';
 export { GenericToolCard } from './generic-tool-card';
 export { ToolCallWidget } from './tool-call-widget';
 export { toolStatusIcon, todoStatusIcon, arrowIcon } from './tool-icons';
+
+// Specialized renderer exports (Plan 18-03)
+export { BashTool } from './bash-tool';
+export { ReadTool } from './read-tool';
+export { GrepTool } from './grep-tool';
+export { EditFileTool } from './edit-file-tool';
+export { CreateFileTool } from './create-file-tool';
+export { WebSearchTool } from './web-search-tool';
+export { TodoListTool } from './todo-list-tool';

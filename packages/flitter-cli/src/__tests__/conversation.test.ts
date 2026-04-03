@@ -281,7 +281,8 @@ describe('groupItemsIntoTurns', () => {
     ];
     const turns = groupItemsIntoTurns(items);
 
-    expect(turns).toHaveLength(4);
+    // items=[sys, assistantMsg, user, reply] -> leading AssistantTurn(sys+msg) + UserTurn(user) + AssistantTurn(reply) = 3 turns
+    expect(turns).toHaveLength(3);
 
     // First turn is assistant (leading items)
     const firstAt = turns[0] as AssistantTurn;
@@ -293,16 +294,9 @@ describe('groupItemsIntoTurns', () => {
 
     // Then user + assistant
     expect(turns[1].kind).toBe('user');
-    expect(turns[2].kind).toBe('assistant');
-    // Trailing empty assistant turn after last user (if no more items follow user, there's still an assistant turn)
-    // Actually: user at index 2, assistant at index 3 with message
-    expect(turns[3]).toBeUndefined();
-    // Reconsider: 4 items -> leading assistant (sys+msg), user, assistant(reply) = 3 turns
-    // Wait, turns count = 4 means: [AssistantTurn, UserTurn, AssistantTurn, ???]
-    // Let me re-check: the algo always creates an assistant turn after a user turn
-    // So: leading AssistantTurn, UserTurn, AssistantTurn = 3 turns
-    // Actually the plan says "A UserMessage starts a new UserTurn; all non-UserMessage items after it ... form the AssistantTurn"
-    // So items=[sys, msg, user, reply] -> leading AssistantTurn(sys+msg) + UserTurn(user) + AssistantTurn(reply) = 3 turns
+    const lastAt = turns[2] as AssistantTurn;
+    expect(lastAt.kind).toBe('assistant');
+    expect(lastAt.message!.text).toBe('reply');
   });
 
   test('leading system/assistant items produce opening AssistantTurn', () => {

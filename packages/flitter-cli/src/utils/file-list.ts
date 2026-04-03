@@ -11,7 +11,7 @@
 // Results are capped to maxFiles (default: 500) to prevent huge directories
 // from blocking the UI.
 
-import { readdir, stat } from 'node:fs/promises';
+import { readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
 /** Default directories to exclude when using readdir fallback. */

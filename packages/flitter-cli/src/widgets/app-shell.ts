@@ -54,6 +54,7 @@ import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
 import { CommandPalette } from './command-palette';
 import { FilePicker } from './file-picker';
+import { ShortcutHelpOverlay } from './shortcut-help-overlay';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';

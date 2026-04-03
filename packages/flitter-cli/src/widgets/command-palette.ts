@@ -178,7 +178,7 @@ class CommandPaletteState extends State<CommandPalette> {
     const title = new Text({
       text: new TextSpan({
         text: 'Command Palette',
-        style: new TextStyle({ color: Color.cyan, bold: true }),
+        style: new TextStyle({ foreground: Color.cyan, bold: true }),
       }),
     });
 
@@ -202,7 +202,7 @@ class CommandPaletteState extends State<CommandPalette> {
     const countText = new Text({
       text: new TextSpan({
         text: `${shownCount}/${totalCount} commands`,
-        style: new TextStyle({ color: Color.brightBlack, dim: true }),
+        style: new TextStyle({ foreground: Color.brightBlack, dim: true }),
       }),
     });
 
@@ -214,13 +214,12 @@ class CommandPaletteState extends State<CommandPalette> {
         onSelect: (value: string) => this.widget.onExecute(value),
         onCancel: () => this.widget.onDismiss(),
         showDescription: true,
-        showScrollbar: false,
       });
     } else {
       listContent = new Text({
         text: new TextSpan({
           text: 'No matching commands',
-          style: new TextStyle({ color: Color.brightBlack, italic: true }),
+          style: new TextStyle({ foreground: Color.brightBlack, italic: true }),
         }),
       });
     }

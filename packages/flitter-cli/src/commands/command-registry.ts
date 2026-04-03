@@ -66,6 +66,7 @@ export function buildCommandList(
         // Synthesize a minimal KeyEvent to dispatch through the shortcut action.
         // The palette is already dismissed by the caller before execute() runs.
         shortcutEntry.action(ctx, {
+          type: 'key',
           key: shortcutEntry.binding.key,
           ctrlKey: shortcutEntry.binding.ctrl ?? false,
           altKey: shortcutEntry.binding.alt ?? false,

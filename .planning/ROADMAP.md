@@ -82,7 +82,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. Streaming and interruption behavior is preserved
 4. Non-happy-path states are first-class
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

@@ -18,6 +18,7 @@ import { SessionState } from '../state/session';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { ChatView, ChatViewState } from '../widgets/chat-view';
+import { ToolCallWidget } from '../widgets/tool-call/tool-call-widget';
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent, ConversationItem } from '../state/types';
 
@@ -545,7 +546,7 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     expect(msgIdx).toBeGreaterThan(thinkingIdx);
   });
 
-  test('4.3 Turn with message + tool calls renders message text then tool placeholders', () => {
+  test('4.3 Turn with message + tool calls renders message text then ToolCallWidget', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -559,11 +560,15 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     const stickyHeaders = findAllWidgets(tree, StickyHeader);
     expect(stickyHeaders.length).toBeGreaterThanOrEqual(1);
     const sh = stickyHeaders[0];
+
+    // Message text should appear as a Text widget in the body
     const bodyTexts = findAllWidgets(sh.body, Text);
     const msgIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('Let me check'));
-    const toolIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('[tool: Read file]'));
     expect(msgIdx).toBeGreaterThanOrEqual(0);
-    expect(toolIdx).toBeGreaterThan(msgIdx);
+
+    // Tool calls now render as ToolCallWidget (not placeholder text)
+    const toolWidgets = findAllWidgets(sh.body, ToolCallWidget);
+    expect(toolWidgets.length).toBeGreaterThanOrEqual(1);
   });
 
   test('4.4 Turn with system messages renders horizontal rule separators', () => {

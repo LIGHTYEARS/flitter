@@ -2,36 +2,33 @@
 //
 // Provides the full app layout structure:
 //   FocusScope (autofocus, global key handler)
-//     Column (full height)
-//       Expanded
-//         screenState needs scroll? (ready/processing)
-//           YES → Row (crossAxisAlignment: 'stretch')
-//             ├── Expanded
-//             │   └── SingleChildScrollView (controller, position:'bottom', keyboard+mouse)
-//             │         └── Padding (left:2, right:2, bottom:1)
-//             │             └── ChatView (appState)
-//             └── Scrollbar (controller, brightBlack thumb)
-//           NO → Center
-//             └── ChatView (appState)
-//       InputArea (controller shared from AppShellState)
-//       [StatusBar placeholder — Phase 20]
+//     OverlayManager.buildOverlays(
+//       Column (full height)
+//         Expanded
+//           screenState needs scroll? (ready/processing)
+//             YES → Row (crossAxisAlignment: 'stretch')
+//               ├── Expanded
+//               │   └── SingleChildScrollView (controller, position:'bottom', keyboard+mouse)
+//               │         └── Padding (left:2, right:2, bottom:1)
+//               │             └── ChatView (appState)
+//               └── Scrollbar (controller, brightBlack thumb)
+//             NO → Center
+//               └── ChatView (appState)
+//         InputArea (controller shared from AppShellState)
+//         [StatusBar placeholder — Phase 20]
+//     )
 //
 // Plan 02 wires SingleChildScrollView + Scrollbar for conversation screens.
 // Non-conversation screens (welcome/empty/loading/error) bypass ScrollView
 // and use Center for vertical centering (Amp BUG-1 fix pattern).
 //
-// Plan 16-02 expands key handling to the full shortcut matrix:
-//   Ctrl+C: cancel prompt or exit
-//   Ctrl+L: clear conversation (newThread)
-//   Ctrl+O: command palette stub (Phase 17)
-//   Ctrl+G: external editor stub (INPT-06)
-//   Ctrl+R: history search stub (Phase 21)
-//   Alt+T:  toggle dense view
-//   Esc:    exit application (Phase 17 adds overlay-close)
-//   ?:      shortcut help stub (fires only in non-TextField focus states)
+// Plan 17-01 replaces inline key handlers with ShortcutRegistry dispatch.
+// All shortcuts are registered in shortcuts/defaults.ts and dispatched
+// through the registry. OverlayManager.buildOverlays() wraps the layout
+// column to layer overlays on top of base content.
 //
 // AppShellState owns TextEditingController (shared with InputArea) and
-// registers an AppState listener for reactivity.
+// registers AppState + OverlayManager listeners for reactivity.
 
 import {
   StatefulWidget,
@@ -55,6 +52,8 @@ import { TextEditingController } from '../../../flitter-core/src/widgets/text-fi
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
 import type { AppState } from '../state/app-state';
+import { ShortcutRegistry, registerDefaultShortcuts } from '../shortcuts';
+import type { ShortcutContext, ShortcutHooks } from '../shortcuts';
 import { log } from '../utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -69,19 +68,14 @@ export interface AppShellProps {
 /**
  * AppShell is the root StatefulWidget for the flitter-cli TUI.
  *
- * Provides global key handling and the top-level layout structure.
- * ChatView handles its own AppState listener, so AppShell only needs
- * to manage the global key handler and layout.
+ * Provides global key handling via ShortcutRegistry dispatch and the
+ * top-level layout structure. ChatView handles its own AppState listener,
+ * so AppShell only needs to manage the global key handler, layout, and
+ * overlay integration.
  *
- * Key handler (Plan 16-02 full shortcut matrix):
- *   Ctrl+C: cancel prompt if processing, else exit
- *   Ctrl+L: clear conversation (newThread)
- *   Ctrl+O: command palette stub (Phase 17)
- *   Ctrl+G: external editor stub (INPT-06)
- *   Ctrl+R: history search stub (Phase 21)
- *   Alt+T:  toggle dense view
- *   Esc:    exit
- *   ?:      shortcut help stub
+ * All keyboard shortcuts are defined in shortcuts/defaults.ts and dispatched
+ * through the ShortcutRegistry. The OverlayManager wraps the layout to
+ * layer overlays on top of base content.
  */
 export class AppShell extends StatefulWidget {
   readonly appState: AppState;
@@ -106,8 +100,9 @@ export class AppShell extends StatefulWidget {
  *
  * Owns a ScrollController shared between SingleChildScrollView and Scrollbar.
  * Owns a TextEditingController shared with InputArea (Step 4, Plan 16-02).
- * Registers an AppState listener so InputArea receives fresh props when
- * isProcessing, currentMode, or screenState change (Step 5, Plan 16-02).
+ * Owns a ShortcutRegistry for centralized shortcut dispatch (Plan 17-01).
+ * Registers AppState and OverlayManager listeners so the UI rebuilds when
+ * session state or overlay state changes.
  *
  * Conversation screens (ready/processing) use the scroll stack; non-conversation
  * screens (welcome/empty/loading/error) bypass ScrollView and use Center.
@@ -119,28 +114,51 @@ class AppShellState extends State<AppShell> {
   /** TextEditingController shared with InputArea for shortcut access (Ctrl+G, etc.). */
   private textController = new TextEditingController();
 
+  /** Centralized shortcut registry for all keyboard shortcut dispatch. */
+  private shortcutRegistry = new ShortcutRegistry();
+
   /** AppState listener reference for cleanup in dispose(). */
   private _onStateChange: (() => void) | null = null;
+
+  /** OverlayManager listener reference for cleanup in dispose(). */
+  private _onOverlayChange: (() => void) | null = null;
 
   // --- Lifecycle ---
 
   /**
-   * Register AppState listener to trigger rebuilds when session state changes.
+   * Register AppState and OverlayManager listeners to trigger rebuilds.
+   * Initialize the ShortcutRegistry with default shortcuts.
+   *
    * InputArea reads isProcessing and currentMode from props, which are sourced
    * from AppState in build(). Without this listener, InputArea would render
    * stale values after state transitions.
+   *
+   * OverlayManager listener triggers rebuilds when overlays are shown/dismissed
+   * so buildOverlays() produces the correct widget tree.
    */
   initState(): void {
     super.initState();
+
+    // Register default shortcuts
+    registerDefaultShortcuts(this.shortcutRegistry);
+
+    // AppState listener for session state changes
     this._onStateChange = () => this.setState();
     this.widget.appState.addListener(this._onStateChange);
+
+    // OverlayManager listener for overlay state changes
+    this._onOverlayChange = () => this.setState();
+    this.widget.appState.overlayManager.addListener(this._onOverlayChange);
   }
 
   /**
-   * Dispose ScrollController, TextEditingController, and remove AppState listener.
-   * All three resources are owned by AppShellState.
+   * Dispose ScrollController, TextEditingController, and remove all listeners.
+   * All resources are owned by AppShellState.
    */
   dispose(): void {
+    if (this._onOverlayChange) {
+      this.widget.appState.overlayManager.removeListener(this._onOverlayChange);
+    }
     if (this._onStateChange) {
       this.widget.appState.removeListener(this._onStateChange);
     }
@@ -149,143 +167,64 @@ class AppShellState extends State<AppShell> {
     super.dispose();
   }
 
-  // --- Global Key Handler (Plan 16-02 full shortcut matrix) ---
+  // --- Global Key Handler (Plan 17-01: ShortcutRegistry dispatch) ---
 
   /**
-   * Handle global key events at the AppShell level.
+   * Handle global key events at the AppShell level via ShortcutRegistry.
    *
    * Key events bubble up from the primaryFocus (TextField inside InputArea).
    * TextField handles printable chars, arrows, Backspace, Enter, etc.
    * Non-text keys (Ctrl+C, Ctrl+L, etc.) that TextField returns 'ignored'
-   * for are caught here.
+   * for are dispatched through the ShortcutRegistry.
    *
-   * Modifier combinations are checked explicitly to avoid false matches
-   * (e.g., Ctrl+Shift+C should not fire the Ctrl+C handler).
+   * If the registry does not handle the event, 'ignored' is returned
+   * to allow further propagation.
    */
   private _handleKey(event: KeyEvent): KeyEventResult {
-    // --- Ctrl+key shortcuts (no Shift, no Alt) ---
-    if (event.ctrlKey && !event.shiftKey && !event.altKey) {
-      switch (event.key.toLowerCase()) {
-        case 'c':
-          return this._handleCtrlC();
-        case 'l':
-          return this._handleCtrlL();
-        case 'o':
-          return this._handleCtrlO();
-        case 'g':
-          return this._handleCtrlG();
-        case 'r':
-          return this._handleCtrlR();
-      }
-    }
-
-    // --- Alt+key shortcuts (no Ctrl, no Shift) ---
-    if (event.altKey && !event.ctrlKey && !event.shiftKey) {
-      switch (event.key.toLowerCase()) {
-        case 't':
-          return this._handleAltT();
-      }
-    }
-
-    // --- Escape ---
-    if (event.key === 'Escape') {
-      return this._handleEscape();
-    }
-
-    // --- '?' when input is empty (shortcut help) ---
-    // Note: TextField consumes all printable characters when focused, so
-    // '?' only reaches here in non-TextField focus states (e.g., overlay mode).
-    // The full implementation is deferred to Phase 17 (command palette).
-    if (event.key === '?' && !event.ctrlKey && !event.altKey && !event.shiftKey) {
-      return this._handleQuestionMark();
-    }
-
-    return 'ignored';
-  }
-
-  // --- Individual Shortcut Handlers ---
-
-  /** Ctrl+C: Cancel in-flight prompt or exit the application. */
-  private _handleCtrlC(): KeyEventResult {
-    if (this.widget.appState.isProcessing) {
-      log.info('AppShell: Ctrl+C cancelling prompt');
-      this.widget.appState.cancelPrompt();
-      return 'handled';
-    }
-    log.info('AppShell: Ctrl+C exiting');
-    WidgetsBinding.instance.stop();
-    return 'handled';
-  }
-
-  /** Ctrl+L: Clear conversation display by starting a new thread. */
-  private _handleCtrlL(): KeyEventResult {
-    log.info('AppShell: Ctrl+L clearing conversation');
-    this.widget.appState.newThread();
-    return 'handled';
-  }
-
-  /** Ctrl+O: Command palette stub — Phase 17 wires the actual overlay. */
-  private _handleCtrlO(): KeyEventResult {
-    log.info('AppShell: Ctrl+O — command palette stub (Phase 17)');
-    // Phase 17 will open the command palette overlay here
-    return 'handled';
+    const ctx = this._buildShortcutContext();
+    return this.shortcutRegistry.dispatch(event, ctx);
   }
 
   /**
-   * Ctrl+G: External editor stub (INPT-06).
-   *
-   * Full implementation requires:
-   *   1. Read current input text from textController
-   *   2. Write to temp file
-   *   3. Spawn editor (EDITOR env var)
-   *   4. On editor exit, read file back into controller
-   *   5. Clean up temp file
-   *
-   * Wired as stub because external editor requires terminal
-   * suspend/restore lifecycle coordination not yet available.
+   * Build the ShortcutContext for registry dispatch.
+   * Provides actions access to AppState, OverlayManager, setState, and hooks.
    */
-  private _handleCtrlG(): KeyEventResult {
-    log.info('AppShell: Ctrl+G — external editor stub (INPT-06)');
-    return 'handled';
+  private _buildShortcutContext(): ShortcutContext {
+    const hooks: ShortcutHooks = {
+      showCommandPalette: () => {
+        // Phase 17-03 will implement the command palette overlay builder
+        log.info('AppShell: showCommandPalette hook — stub (Phase 17-03)');
+      },
+      showShortcutHelp: () => {
+        // Phase 17-05 will implement the shortcut help overlay builder
+        log.info('AppShell: showShortcutHelp hook — stub (Phase 17-05)');
+      },
+      openInEditor: () => {
+        // INPT-06 will implement external editor integration
+        log.info('AppShell: openInEditor hook — stub (INPT-06)');
+      },
+      historyPrevious: () => {
+        // Phase 21 will implement prompt history navigation
+        log.info('AppShell: historyPrevious hook — stub (Phase 21)');
+      },
+      historyNext: () => {
+        // Phase 21 will implement prompt history navigation
+        log.info('AppShell: historyNext hook — stub (Phase 21)');
+      },
+    };
+
+    return {
+      appState: this.widget.appState,
+      overlayManager: this.widget.appState.overlayManager,
+      setState: (fn?) => {
+        if (fn) fn();
+        this.setState();
+      },
+      hooks,
+    };
   }
 
-  /** Ctrl+R: History search stub — Phase 21 implements prompt history with search UI. */
-  private _handleCtrlR(): KeyEventResult {
-    log.info('AppShell: Ctrl+R — history search stub (Phase 21)');
-    return 'handled';
-  }
-
-  /** Alt+T: Toggle dense (compact) view mode. */
-  private _handleAltT(): KeyEventResult {
-    log.info('AppShell: Alt+T toggling dense view');
-    this.widget.appState.toggleDenseView();
-    return 'handled';
-  }
-
-  /**
-   * Escape: Exit the application.
-   * Phase 17 will add overlay-close logic before the exit fallback.
-   */
-  private _handleEscape(): KeyEventResult {
-    // Phase 17: if overlay is active, close it and return focus to input
-    // For now: exit application
-    log.info('AppShell: Esc exiting');
-    WidgetsBinding.instance.stop();
-    return 'handled';
-  }
-
-  /**
-   * '?' shortcut help stub.
-   *
-   * TextField consumes all printable characters when focused, so this
-   * handler only fires in non-TextField focus states (e.g., when an
-   * overlay has focus). Phase 17 (command palette) or Phase 20
-   * (shortcut help overlay) will implement the actual discovery surface.
-   */
-  private _handleQuestionMark(): KeyEventResult {
-    log.info('AppShell: ? shortcut help stub');
-    return 'handled';
-  }
+  // --- Content Builders ---
 
   /**
    * Determine whether the current screen state needs scroll infrastructure.
@@ -355,34 +294,41 @@ class AppShellState extends State<AppShell> {
    * Build the root widget tree.
    *
    * Layout:
-   *   FocusScope (autofocus, onKey)
-   *     Column (max height, stretch width)
-   *       Expanded
-   *         [scroll stack or centered content based on screenState]
-   *       InputArea (controller shared from AppShellState)
+   *   FocusScope (autofocus, onKey → ShortcutRegistry.dispatch)
+   *     OverlayManager.buildOverlays(
+   *       Column (max height, stretch width)
+   *         Expanded
+   *           [scroll stack or centered content based on screenState]
+   *         InputArea (controller shared from AppShellState)
+   *     )
    */
   build(_context: BuildContext): Widget {
     const content = this._needsScroll()
       ? this._buildScrollableContent()
       : this._buildCenteredContent();
 
+    const layoutColumn = new Column({
+      mainAxisSize: 'max',
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Expanded({ child: content }),
+        new InputArea({
+          onSubmit: (text) => this.widget.appState.submitPrompt(text),
+          isProcessing: this.widget.appState.isProcessing,
+          mode: this.widget.appState.currentMode,
+          controller: this.textController,
+        }),
+        // StatusBar placeholder — Phase 20
+      ],
+    });
+
+    // Wrap content with overlay stack — renders overlays on top of base content
+    const withOverlays = this.widget.appState.overlayManager.buildOverlays(layoutColumn);
+
     return new FocusScope({
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => this._handleKey(event),
-      child: new Column({
-        mainAxisSize: 'max',
-        crossAxisAlignment: 'stretch',
-        children: [
-          new Expanded({ child: content }),
-          new InputArea({
-            onSubmit: (text) => this.widget.appState.submitPrompt(text),
-            isProcessing: this.widget.appState.isProcessing,
-            mode: this.widget.appState.currentMode,
-            controller: this.textController,
-          }),
-          // StatusBar placeholder — Phase 20
-        ],
-      }),
+      child: withOverlays,
     });
   }
 }

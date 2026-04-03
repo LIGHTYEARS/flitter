@@ -52,6 +52,7 @@ export class ToolCallWidget extends StatelessWidget {
   private readonly isExpanded: boolean;
   private readonly onToggle?: () => void;
   /** Accepted for future TaskTool nesting (Plan 18-04); currently unused. */
+  // @ts-expect-error TS6133 — stored for Plan 18-04 TaskTool nesting
   private readonly childWidgets?: Widget[];
 
   constructor(props: ToolCallWidgetProps) {

@@ -53,12 +53,13 @@ import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
 import { CommandPalette } from './command-palette';
-import { ShortcutHelpOverlay } from './shortcut-help-overlay';
+import { FilePicker } from './file-picker';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';
 import { ShortcutRegistry, registerDefaultShortcuts } from '../shortcuts';
 import type { ShortcutContext, ShortcutHooks } from '../shortcuts';
+import { listProjectFiles } from '../utils/file-list';
 import { log } from '../utils/logger';
 
 // ---------------------------------------------------------------------------
@@ -214,6 +215,9 @@ class AppShellState extends State<AppShell> {
         // Phase 21 will implement prompt history navigation
         log.info('AppShell: historyNext hook — stub (Phase 21)');
       },
+      showFilePicker: () => {
+        this._showFilePicker();
+      },
     };
 
     return {
@@ -311,6 +315,50 @@ class AppShellState extends State<AppShell> {
     log.info('AppShell: shortcut help overlay shown');
   }
 
+  // --- File Picker (Plan 17-04) ---
+
+  /**
+   * Show the standalone file picker overlay via OverlayManager.
+   *
+   * Reads the project file list, then shows a FilePicker widget
+   * as an anchored, non-modal overlay at FILE_PICKER priority.
+   * On file selection, inserts @filePath into the text controller.
+   */
+  private _showFilePicker(): void {
+    const overlayManager = this.widget.appState.overlayManager;
+
+    // Toggle: if already open, dismiss
+    if (overlayManager.has(OVERLAY_IDS.FILE_PICKER)) {
+      overlayManager.dismiss(OVERLAY_IDS.FILE_PICKER);
+      return;
+    }
+
+    const cwd = this.widget.appState.metadata.cwd;
+    listProjectFiles(cwd).then((files) => {
+      overlayManager.show({
+        id: OVERLAY_IDS.FILE_PICKER,
+        priority: OVERLAY_PRIORITIES.FILE_PICKER,
+        modal: false,
+        placement: { type: 'anchored', left: 2, bottom: 3 },
+        builder: (onDismiss) => new FilePicker({
+          files,
+          onSelect: (filePath: string) => {
+            onDismiss();
+            // Inject @filePath at the current cursor position in the input controller
+            const insertion = '@' + filePath + ' ';
+            const pos = this.textController.cursorPosition;
+            const before = this.textController.text.slice(0, pos);
+            const after = this.textController.text.slice(pos);
+            this.textController.text = before + insertion + after;
+            this.textController.cursorPosition = pos + insertion.length;
+          },
+          onDismiss,
+        }),
+      });
+      log.info('AppShell: file picker shown');
+    });
+  }
+
   // --- Content Builders ---
 
   /**
@@ -404,6 +452,7 @@ class AppShellState extends State<AppShell> {
           isProcessing: this.widget.appState.isProcessing,
           mode: this.widget.appState.currentMode,
           controller: this.textController,
+          getFiles: () => listProjectFiles(this.widget.appState.metadata.cwd),
         }),
         // StatusBar placeholder — Phase 20
       ],

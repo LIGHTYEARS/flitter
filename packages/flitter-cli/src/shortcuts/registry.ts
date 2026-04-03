@@ -52,6 +52,8 @@ export interface ShortcutHooks {
   historyPrevious(): void;
   /** Navigate prompt history forward */
   historyNext(): void;
+  /** Show the standalone file picker overlay (Plan 17-04). */
+  showFilePicker(): void;
 }
 
 /**

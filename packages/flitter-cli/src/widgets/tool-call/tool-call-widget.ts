@@ -1,13 +1,14 @@
 // ToolCallWidget — top-level dispatch widget for tool call rendering
 //
 // Routes a ToolCallItem to the appropriate specialized renderer based on
-// the resolved tool name. In this initial version (Plan 18-02), ALL routes
-// map to GenericToolCard as the fallback. The full dispatch switch structure
-// is included with commented placeholders for specialized renderers.
+// the resolved tool name. Specialized renderers added incrementally:
+//   Plan 18-02: GenericToolCard fallback for all routes
+//   Plan 18-03: BashTool, ReadTool, GrepTool, EditFileTool, CreateFileTool,
+//               WebSearchTool, TodoListTool
+//   Plan 18-04: HandoffTool, TaskTool
 //
 // Ported from flitter-amp/src/widgets/tool-call/tool-call-widget.ts
-// — specialized renderer imports deferred to Plans 18-03 and 18-04
-// — sa__/tb__ prefix detection retained for sub-agent tools
+// — sa__/tb__ prefix detection routes to TaskTool for sub-agent tools
 
 import {
   StatelessWidget,
@@ -16,6 +17,15 @@ import {
 } from '../../../../flitter-core/src/framework/widget';
 import type { ToolCallItem } from '../../state/types';
 import { GenericToolCard } from './generic-tool-card';
+import { BashTool } from './bash-tool';
+import { ReadTool } from './read-tool';
+import { GrepTool } from './grep-tool';
+import { EditFileTool } from './edit-file-tool';
+import { CreateFileTool } from './create-file-tool';
+import { WebSearchTool } from './web-search-tool';
+import { TodoListTool } from './todo-list-tool';
+import { HandoffTool } from './handoff-tool';
+import { TaskTool } from './task-tool';
 import { TOOL_NAME_MAP, resolveToolName } from './resolve-tool-name';
 
 /** Props for the ToolCallWidget dispatch widget. */
@@ -41,18 +51,12 @@ interface ToolCallWidgetProps {
  *   - Utility: format_file, skill, get_diagnostics, EnterPlanMode, ExitPlanMode
  *   - Prefixed: sa__* (sub-agent), tb__* (toolbox)
  *   - Default: GenericToolCard fallback
- *
- * Currently all routes map to GenericToolCard. Specialized renderers are
- * added incrementally:
- *   Plan 18-03: ReadTool, EditFileTool, CreateFileTool, BashTool, GrepTool, WebSearchTool, TodoListTool
- *   Plan 18-04: HandoffTool, TaskTool
  */
 export class ToolCallWidget extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
   private readonly isExpanded: boolean;
   private readonly onToggle?: () => void;
-  /** Accepted for future TaskTool nesting (Plan 18-04); currently unused. */
-  // @ts-expect-error TS6133 — stored for Plan 18-04 TaskTool nesting
+  /** Child tool call widgets passed from ChatView nested tool-tree rendering. */
   private readonly childWidgets?: Widget[];
 
   constructor(props: ToolCallWidgetProps) {
@@ -71,68 +75,65 @@ export class ToolCallWidget extends StatelessWidget {
 
     // --- Prefix-based routing for sub-agent / toolbox tools ---
     if (name.startsWith('sa__') || name.startsWith('tb__')) {
-      // Plan 18-04 adds TaskTool; GenericToolCard fallback for now
-      return new GenericToolCard({
+      return new TaskTool({
         toolCall: this.toolCall,
         isExpanded: expanded,
         onToggle: toggle,
+        childWidgets: this.childWidgets,
       });
     }
 
     // --- Name-based dispatch switch ---
-    // Plan 18-03 adds: ReadTool, EditFileTool, CreateFileTool, BashTool,
-    //   GrepTool, WebSearchTool, TodoListTool
-    // Plan 18-04 adds: HandoffTool, TaskTool
     switch (name) {
       case 'Read':
-        // Plan 18-03: return new ReadTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new ReadTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'edit_file':
       case 'apply_patch':
       case 'undo_edit':
-        // Plan 18-03: return new EditFileTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new EditFileTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'create_file':
-        // Plan 18-03: return new CreateFileTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new CreateFileTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Bash':
       case 'shell_command':
       case 'REPL':
-        // Plan 18-03: return new BashTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new BashTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Grep':
       case 'glob':
       case 'Glob':
       case 'Search':
       case 'LS':
-        // Plan 18-03: return new GrepTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new GrepTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'WebSearch':
       case 'read_web_page':
-        // Plan 18-03: return new WebSearchTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new WebSearchTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Task':
       case 'oracle':
       case 'code_review':
       case 'librarian':
-        // Plan 18-04: return new TaskTool({ ..., childWidgets })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new TaskTool({
+          toolCall: this.toolCall,
+          isExpanded: expanded,
+          onToggle: toggle,
+          childWidgets: this.childWidgets,
+        });
 
       case 'handoff':
-        // Plan 18-04: return new HandoffTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new HandoffTool({
+          toolCall: this.toolCall,
+          isExpanded: expanded,
+          onToggle: toggle,
+        });
 
       case 'todo_list':
       case 'todo_write':
       case 'todo_read':
-        // Plan 18-03: return new TodoListTool({ ... })
-        return new GenericToolCard({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
+        return new TodoListTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'painter':
       case 'mermaid':

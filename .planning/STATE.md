@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 13 — session-lifecycle-and-app-state (COMPLETE)
+**Current focus:** Phase 14 — conversation-and-turn-model (Plan 01 COMPLETE)
 
 ## Current Milestone
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 ## Current Position
 
 Phase: 14
-Plan: Not started
-Status: Phase 13 complete, all 3 plans done
-Last activity: 2026-04-02
+Plan: 01 complete
+Status: Turn model types and ConversationState implemented with 28 tests
+Last activity: 2026-04-03
 
 ## Phase Status
 
@@ -45,8 +45,9 @@ Last activity: 2026-04-02
 | 11 | UX Polish | Complete | 11-PLAN-01 |
 | 12 | Native Bootstrap and Runtime Shell | Complete | 12-PLAN-01 |
 | 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
+| 14 | Conversation and Turn Model | In Progress | 14-01 done |
 
-Progress: ███▓░░░░░░ 36% (4/11 plans)
+Progress: ████░░░░░░ 45% (5/11 plans)
 
 ## Recent Activity
 
@@ -58,6 +59,7 @@ Progress: ███▓░░░░░░ 36% (4/11 plans)
 - 2026-04-03: Phase 13 Plan 02 complete — PromptController, AppState composition, CLI entry wiring with provider init
 - 2026-04-03: Phase 13 Plan 03 complete — 64 tests locking lifecycle contract (36 AppState unit + 28 integration)
 - 2026-04-03: Phase 13 complete — 115 total tests across flitter-cli test suite
+- 2026-04-03: Phase 14 Plan 01 complete — turn model types (UserTurn, AssistantTurn, TurnStatus) and ConversationState with cached turn grouping (28 tests)
 
 ## Decisions Log
 
@@ -71,6 +73,9 @@ Progress: ███▓░░░░░░ 36% (4/11 plans)
 | 2026-04-03 | PromptController uses _isSubmitting flag for double-submit prevention | More reliable than lifecycle checks alone since lifecycle changes are async |
 | 2026-04-03 | AppState composes SessionState (not extends) | Clean separation of session concerns vs UI concerns |
 | 2026-04-03 | AppState.create() factory breaks circular init | PromptController needs session, AppState needs controller — factory wires both |
+| 2026-04-03 | Turn types use 'kind' discriminant separate from ConversationItem 'type' | Avoids collision between turn-level and item-level discriminants |
+| 2026-04-03 | ConversationState wraps SessionState (composition) | Same pattern as AppState from Phase 13 |
+| 2026-04-03 | groupItemsIntoTurns exported standalone | Direct unit testability without SessionState wiring |
 
 ## Known Issues
 
@@ -87,6 +92,7 @@ Progress: ███▓░░░░░░ 36% (4/11 plans)
 - Phase 13 Plan 02 wired the prompt lifecycle pipeline: PromptController dispatches stream events to SessionState, AppState composes both for TUI, CLI entry initializes provider with API key resolution
 - Phase 13 Plan 03 locked the lifecycle behavioral contract with 64 tests: AppState unit tests (36) and lifecycle integration tests (28) covering happy path, cancellation, errors, recovery, metadata, listeners
 - 115 tests pass across the flitter-cli test suite (37 session + 13 prompt-controller + 36 app-state + 28 lifecycle-integration + 1 config)
+- Phase 14 Plan 01 established turn model types (turn-types.ts) and ConversationState (conversation.ts) with version-cached turn grouping over SessionState.items — 28 additional tests (143 total across flitter-cli)
 
 ---
-*Last updated: 2026-04-03 after Phase 13 Plan 03 completion (phase complete)*
+*Last updated: 2026-04-03 after Phase 14 Plan 01 completion*

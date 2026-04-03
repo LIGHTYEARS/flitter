@@ -174,15 +174,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 4. Task/sub-agent flows preserve nested delegation visibility and recursive tool-tree fidelity at parity
 5. Unknown tools still render losslessly through fallback behavior
 
-**Plans:** 3/4 plans executed
-
-Plans:
-- [x] 18-01-PLAN.md — Tool infrastructure: dispatch, name resolution, output utils, truncation
-- [x] 18-02-PLAN.md — ToolHeader, GenericToolCard, ToolCallWidget dispatch, ChatView integration
-- [x] 18-03-PLAN.md — Specialized renderers: Bash, Read, Grep, Edit, Create, WebSearch, Todo
-- [ ] 18-04-PLAN.md — Handoff, Task/sub-agent, nested delegation, permission verification
-
-**Status:** Pending
+**Status:** Complete
 
 ---
 

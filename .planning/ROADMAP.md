@@ -128,7 +128,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 4. Trigger-based completions invoke the right UI surfaces
 5. `Ctrl+O`, `Ctrl+C`, `Ctrl+L`, `Alt+T`, `Ctrl+G`, `Ctrl+R`, `Esc`, and `?` all match Amp semantics exactly
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 

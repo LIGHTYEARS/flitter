@@ -19,6 +19,7 @@ import { SessionState, type StateListener } from './session';
 import { ConversationState } from './conversation';
 import { type ScreenState, deriveScreenState } from './screen-state';
 import { PromptController } from './prompt-controller';
+import { OverlayManager } from './overlay-manager';
 import { log } from '../utils/logger';
 
 /**
@@ -37,6 +38,9 @@ export class AppState {
 
   /** Turn-level grouped view over SessionState.items. */
   readonly conversation: ConversationState;
+
+  /** Centralized overlay lifecycle manager for the overlay stack. */
+  readonly overlayManager: OverlayManager;
 
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
@@ -58,6 +62,7 @@ export class AppState {
   constructor(session: SessionState) {
     this.session = session;
     this.conversation = new ConversationState(session);
+    this.overlayManager = new OverlayManager();
 
     // Relay session state changes to AppState listeners
     this.session.addListener(() => {

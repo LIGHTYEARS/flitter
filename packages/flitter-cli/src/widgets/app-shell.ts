@@ -4,15 +4,21 @@
 //   FocusScope (autofocus, global key handler)
 //     Column (full height)
 //       Expanded
-//         Padding (horizontal: 2, bottom: 1)
-//           ChatView (appState)
+//         screenState needs scroll? (ready/processing)
+//           YES → Row (crossAxisAlignment: 'stretch')
+//             ├── Expanded
+//             │   └── SingleChildScrollView (controller, position:'bottom', keyboard+mouse)
+//             │         └── Padding (left:2, right:2, bottom:1)
+//             │             └── ChatView (appState)
+//             └── Scrollbar (controller, brightBlack thumb)
+//           NO → Center
+//             └── ChatView (appState)
 //       [InputArea placeholder — Phase 16]
 //       [StatusBar placeholder — Phase 20]
 //
-// For Plan 01, scroll infrastructure is not yet wired (Plan 02 wraps
-// ChatView in SingleChildScrollView + Scrollbar). The Expanded area
-// directly contains Padding > ChatView so the widget tree is renderable
-// and testable.
+// Plan 02 wires SingleChildScrollView + Scrollbar for conversation screens.
+// Non-conversation screens (welcome/empty/loading/error) bypass ScrollView
+// and use Center for vertical centering (Amp BUG-1 fix pattern).
 
 import {
   StatefulWidget,
@@ -22,11 +28,16 @@ import {
 } from '../../../flitter-core/src/framework/widget';
 import { runApp, WidgetsBinding } from '../../../flitter-core/src/framework/binding';
 import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/events';
-import { Column } from '../../../flitter-core/src/widgets/flex';
+import { Column, Row } from '../../../flitter-core/src/widgets/flex';
 import { Expanded } from '../../../flitter-core/src/widgets/flexible';
 import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { FocusScope } from '../../../flitter-core/src/widgets/focus-scope';
+import { Center } from '../../../flitter-core/src/widgets/center';
+import { SingleChildScrollView } from '../../../flitter-core/src/widgets/scroll-view';
+import { ScrollController } from '../../../flitter-core/src/widgets/scroll-controller';
+import { Scrollbar } from '../../../flitter-core/src/widgets/scrollbar';
+import { Color } from '../../../flitter-core/src/core/color';
 import { ChatView } from './chat-view';
 import type { AppState } from '../state/app-state';
 import { log } from '../utils/logger';
@@ -71,9 +82,22 @@ export class AppShell extends StatefulWidget {
 
 /**
  * State for AppShell. Builds the root widget tree with FocusScope for
- * global key handling, Column layout, and ChatView.
+ * global key handling, Column layout, and conditional scroll/center wrapping.
+ *
+ * Owns a ScrollController shared between SingleChildScrollView and Scrollbar.
+ * Conversation screens (ready/processing) use the scroll stack; non-conversation
+ * screens (welcome/empty/loading/error) bypass ScrollView and use Center.
  */
 class AppShellState extends State<AppShell> {
+  /** ScrollController shared between SingleChildScrollView and Scrollbar. */
+  private scrollController = new ScrollController();
+
+  /** Dispose ScrollController to clean up listeners and animations. */
+  dispose(): void {
+    this.scrollController.dispose();
+    super.dispose();
+  }
+
   /**
    * Handle global key events.
    *
@@ -104,16 +128,83 @@ class AppShellState extends State<AppShell> {
   }
 
   /**
+   * Determine whether the current screen state needs scroll infrastructure.
+   *
+   * Only 'ready' and 'processing' screens have conversation content that
+   * can overflow. All other screens (welcome/empty/loading/error) are
+   * placeholders that should be vertically centered — wrapping them in
+   * ScrollView would break Center alignment (Amp BUG-1 pattern).
+   */
+  private _needsScroll(): boolean {
+    const kind = this.widget.appState.screenState.kind;
+    return kind === 'ready' || kind === 'processing';
+  }
+
+  /**
+   * Build the scrollable content area for conversation screens.
+   *
+   * Layout:
+   *   Row (crossAxisAlignment: 'stretch')
+   *     ├── Expanded
+   *     │   └── SingleChildScrollView
+   *     │         controller, position:'bottom', keyboard+mouse scroll
+   *     │         └── Padding (left:2, right:2, bottom:1)
+   *     │             └── ChatView (appState)
+   *     └── Scrollbar
+   *           controller, brightBlack thumb, default track
+   */
+  private _buildScrollableContent(): Widget {
+    return new Row({
+      crossAxisAlignment: 'stretch',
+      children: [
+        new Expanded({
+          child: new SingleChildScrollView({
+            controller: this.scrollController,
+            position: 'bottom',
+            enableKeyboardScroll: true,
+            enableMouseScroll: true,
+            child: new Padding({
+              padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
+              child: new ChatView({ appState: this.widget.appState }),
+            }),
+          }),
+        }),
+        new Scrollbar({
+          controller: this.scrollController,
+          thumbColor: Color.brightBlack,
+          trackColor: Color.defaultColor,
+        }),
+      ],
+    });
+  }
+
+  /**
+   * Build the centered content area for non-conversation screens.
+   *
+   * Welcome/empty/loading/error screens use Center wrapping so their
+   * mainAxisAlignment:'center' works properly. ScrollView would give
+   * unbounded height, which breaks vertical centering.
+   */
+  private _buildCenteredContent(): Widget {
+    return new Center({
+      child: new ChatView({ appState: this.widget.appState }),
+    });
+  }
+
+  /**
    * Build the root widget tree.
    *
    * Layout:
    *   FocusScope (autofocus, onKey)
    *     Column (max height, stretch width)
    *       Expanded
-   *         Padding (left: 2, right: 2, bottom: 1)
-   *           ChatView (appState)
+   *         [scroll stack or centered content based on screenState]
    */
   build(_context: BuildContext): Widget {
+    const content = this._needsScroll()
+      ? this._buildScrollableContent()
+      : this._buildCenteredContent();
+
     return new FocusScope({
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => this._handleKey(event),
@@ -121,12 +212,7 @@ class AppShellState extends State<AppShell> {
         mainAxisSize: 'max',
         crossAxisAlignment: 'stretch',
         children: [
-          new Expanded({
-            child: new Padding({
-              padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
-              child: new ChatView({ appState: this.widget.appState }),
-            }),
-          }),
+          new Expanded({ child: content }),
           // InputArea placeholder — Phase 16
           // StatusBar placeholder — Phase 20
         ],

@@ -97,5 +97,14 @@ export function buildCommandList(
     },
   });
 
+  commands.push({
+    id: 'insert-file-mention',
+    label: 'Insert file mention',
+    description: 'Open file picker to insert @file reference',
+    execute: (_onDismiss: () => void) => {
+      ctx.hooks.showFilePicker();
+    },
+  });
+
   return commands;
 }

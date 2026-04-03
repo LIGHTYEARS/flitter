@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.1.0
 milestone_name: — Visual Prototype
-status: Ready for Plan 03 (tests)
-last_updated: "2026-04-03T12:11:29.521Z"
+status: Phase 17 Plan 05 complete
+last_updated: "2026-04-03T12:25:06Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 17
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 16 — input-focus-and-editing-experience (Plan 02 complete, Plan 03 next)
+**Current focus:** Phase 17 — overlay-and-command-surfaces (Plan 05 complete)
 
 ## Current Milestone
 
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 16
-Plan: 16-02 complete — full shortcut matrix, controller sharing, AppState listener lifecycle
-Status: Ready for Plan 03 (tests)
+Phase: 17
+Plan: 17-05 complete — ShortcutHelpOverlay widget with registry-derived groups
+Status: Phase 17 Plan 05 complete
 Last activity: 2026-04-03
 
 ## Phase Status
@@ -48,6 +48,7 @@ Last activity: 2026-04-03
 | 14 | Conversation and Turn Model | Complete | 14-01/02 done |
 | 15 | Chat View, Scroll, and Resize | In Progress | 15-01/02 done, 15-03 next |
 | 16 | Input, Focus, and Editing Experience | In Progress | 16-01/02 done, 16-03 next |
+| 17 | Overlay and Command Surfaces | In Progress | 17-01/02/03/05 done, 17-04 in progress |
 
 Progress: ██████░░░░ 64% (7/11 plans)
 
@@ -67,6 +68,7 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - 2026-04-03: Phase 15 Plan 02 complete — ScrollController + SingleChildScrollView + Scrollbar wired into AppShell, conditional Center bypass for non-conversation screens (178 tests still pass)
 - 2026-04-03: Phase 16 Plan 01 complete — InputArea StatefulWidget with multi-line editing, shell mode detection, auto-expand, drag-resize, mode badge, Autocomplete stub
 - 2026-04-03: Phase 16 Plan 02 complete — full global shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), TextEditingController sharing, AppState listener lifecycle, InputArea wired into AppShell layout (238 tests pass)
+- 2026-04-03: Phase 17 Plan 05 complete — ShortcutHelpOverlay widget reading from ShortcutRegistry, modal overlay with key absorption, toggle via ? key, wired into AppShell (305 tests pass)
 
 ## Decisions Log
 
@@ -96,6 +98,9 @@ Progress: ██████░░░░ 64% (7/11 plans)
 | 2026-04-03 | Ctrl+G external editor is a stub (INPT-06) | Full implementation requires terminal suspend/restore lifecycle not yet available |
 | 2026-04-03 | AppShellState owns TextEditingController shared with InputArea | Enables shortcut handlers (Ctrl+G) to read/write input text via controller |
 | 2026-04-03 | AppShellState registers AppState listener for InputArea reactivity | build() reads isProcessing, currentMode, screenState — without listener, InputArea renders stale props |
+| 2026-04-03 | ShortcutHelpOverlay uses registry as sole source of truth (no fallback list) | Eliminates drift between actual bindings and help display |
+| 2026-04-03 | No internal Stack/mask in ShortcutHelpOverlay — OverlayManager handles it | modal:true delegates background mask to OverlayManager |
+| 2026-04-03 | Static Input section for widget-level behaviors (Enter, @, $, $$) | Cannot be registered as global shortcuts; maintained as constant |
 
 ## Known Issues
 
@@ -120,6 +125,7 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - Phase 15 Plan 02 wired the full scroll stack: ScrollController in AppShellState, SingleChildScrollView (position='bottom', keyboard+mouse), Scrollbar (brightBlack thumb, interactive), conditional Center bypass — follow mode, streaming growth, resize all handled by flitter-core primitives with zero additional code
 - Phase 16 Plan 01 created InputArea StatefulWidget with multi-line editing, shell mode detection ($->shell, $$->background), auto-expanding height, drag-resize, mode badge, Autocomplete stub, and BorderOverlayText export
 - Phase 16 Plan 02 expanded AppShell's key handler to 8-shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), added TextEditingController shared with InputArea, AppState listener lifecycle (initState/dispose), and wired InputArea into the Column layout — 238 tests pass
+- Phase 17 Plan 05 created ShortcutHelpOverlay widget reading from ShortcutRegistry (single source of truth, no fallback list), modal overlay with FocusScope key absorption, toggle via ? key, static Input section for widget-level behaviors — 305 tests pass
 
 ---
-*Last updated: 2026-04-03 after Phase 16 Plan 02 completion*
+*Last updated: 2026-04-03 after Phase 17 Plan 05 completion*

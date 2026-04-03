@@ -6,9 +6,9 @@
 // in dispose(). Calls setState() on AppState change to trigger rebuild.
 //
 // Turn rendering uses the Phase 14 turn model (UserTurn, AssistantTurn).
-// Placeholder renderers are used for tool calls, markdown, thinking, and
-// plans — specialized renderers drop in at Phases 18-19 without changing
-// the layout contract.
+// Tool calls use ToolCallWidget dispatch (Phase 18). Placeholder renderers
+// are used for markdown, thinking, and plans — specialized renderers drop
+// in at Phase 19 without changing the layout contract.
 
 import {
   StatefulWidget,
@@ -31,6 +31,7 @@ import { Center } from '../../../flitter-core/src/widgets/center';
 import type { AppState } from '../state/app-state';
 import type { UserTurn, AssistantTurn } from '../state/turn-types';
 import type { ScreenState, ErrorScreen } from '../state/screen-state';
+import { ToolCallWidget } from './tool-call/tool-call-widget';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -246,7 +247,7 @@ function buildUserTurnWidget(turn: UserTurn, appState: AppState): Widget {
  * Body is a Column of child widgets rendered from AssistantTurn fields:
  *   - ThinkingItem placeholders (dim "[thinking...]")
  *   - AssistantMessage text (plain text — markdown rendering deferred to Phase 19)
- *   - ToolCall placeholders (dim "[tool: {title}]" — full rendering deferred to Phase 18)
+ *   - ToolCallWidget dispatch (real tool rendering — Phase 18)
  *   - PlanItem placeholders (deferred to Phase 19)
  *   - SystemMessage separators (horizontal rule + dim italic text)
  */
@@ -286,17 +287,12 @@ function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
     );
   }
 
-  // Tool call placeholders
+  // Tool call widgets (ToolCallWidget dispatches to GenericToolCard or specialized renderers)
   for (const toolCall of turn.toolCalls) {
     bodyChildren.push(
-      new Text({
-        text: new TextSpan({
-          text: `[tool: ${toolCall.title}]`,
-          style: new TextStyle({
-            foreground: Color.brightBlack,
-            dim: true,
-          }),
-        }),
+      new ToolCallWidget({
+        toolCall,
+        isExpanded: !toolCall.collapsed,
       }),
     );
   }

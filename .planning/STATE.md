@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-03)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 15 — chat-view-scroll-and-resize-semantics (Plan 02 complete, Plan 03 next)
+**Current focus:** Phase 16 — input-focus-and-editing-experience (Plan 02 complete, Plan 03 next)
 
 ## Current Milestone
 
@@ -28,8 +28,8 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 15
-Plan: 15-02 complete — scroll/follow/scrollbar/resize wired into AppShell
+Phase: 16
+Plan: 16-02 complete — full shortcut matrix, controller sharing, AppState listener lifecycle
 Status: Ready for Plan 03 (tests)
 Last activity: 2026-04-03
 
@@ -47,6 +47,7 @@ Last activity: 2026-04-03
 | 13 | Session Lifecycle and App State | Complete | 13-01/02/03 done |
 | 14 | Conversation and Turn Model | Complete | 14-01/02 done |
 | 15 | Chat View, Scroll, and Resize | In Progress | 15-01/02 done, 15-03 next |
+| 16 | Input, Focus, and Editing Experience | In Progress | 16-01/02 done, 16-03 next |
 
 Progress: ██████░░░░ 64% (7/11 plans)
 
@@ -64,6 +65,8 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - 2026-04-03: Phase 14 Plan 02 complete — ScreenState derivation (6 variants) and AppState integration of ConversationState + screenState (35 new tests, 178 total)
 - 2026-04-03: Phase 15 planning complete — 3 plans: ChatView widget tree + screen dispatch, scroll/follow/scrollbar/resize, tests (~58 new)
 - 2026-04-03: Phase 15 Plan 02 complete — ScrollController + SingleChildScrollView + Scrollbar wired into AppShell, conditional Center bypass for non-conversation screens (178 tests still pass)
+- 2026-04-03: Phase 16 Plan 01 complete — InputArea StatefulWidget with multi-line editing, shell mode detection, auto-expand, drag-resize, mode badge, Autocomplete stub
+- 2026-04-03: Phase 16 Plan 02 complete — full global shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), TextEditingController sharing, AppState listener lifecycle, InputArea wired into AppShell layout (238 tests pass)
 
 ## Decisions Log
 
@@ -89,6 +92,10 @@ Progress: ██████░░░░ 64% (7/11 plans)
 | 2026-04-03 | Welcome/empty/loading/error bypass ScrollView, use Center | ScrollView unbounded height breaks vertical centering (Amp BUG-1 pattern) |
 | 2026-04-03 | Placeholder renderers for tools/markdown/thinking/plans in Phase 15 | Layout correctness now; specialized renderers drop in at Phases 18-19 |
 | 2026-04-03 | ScrollController owned by AppShellState, shared between ScrollView and Scrollbar | Single instance ensures scroll position sync; AppShellState owns lifecycle |
+| 2026-04-03 | ? empty-input shortcut deferred to Phase 17 | TextField consumes all printable chars; requires modifying TextField key handling or adding pre-dispatch interceptor |
+| 2026-04-03 | Ctrl+G external editor is a stub (INPT-06) | Full implementation requires terminal suspend/restore lifecycle not yet available |
+| 2026-04-03 | AppShellState owns TextEditingController shared with InputArea | Enables shortcut handlers (Ctrl+G) to read/write input text via controller |
+| 2026-04-03 | AppShellState registers AppState listener for InputArea reactivity | build() reads isProcessing, currentMode, screenState — without listener, InputArea renders stale props |
 
 ## Known Issues
 
@@ -111,6 +118,8 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - Phase 15 planning identified zero flitter-core gaps — SingleChildScrollView (position:'bottom'), ScrollController (followMode), Scrollbar, StickyHeader, and resize via constraint propagation all exist and are sufficient
 - Phase 15 uses the Amp BUG-1 pattern: welcome/empty/loading/error screens bypass ScrollView and use Center for vertical centering
 - Phase 15 Plan 02 wired the full scroll stack: ScrollController in AppShellState, SingleChildScrollView (position='bottom', keyboard+mouse), Scrollbar (brightBlack thumb, interactive), conditional Center bypass — follow mode, streaming growth, resize all handled by flitter-core primitives with zero additional code
+- Phase 16 Plan 01 created InputArea StatefulWidget with multi-line editing, shell mode detection ($->shell, $$->background), auto-expanding height, drag-resize, mode badge, Autocomplete stub, and BorderOverlayText export
+- Phase 16 Plan 02 expanded AppShell's key handler to 8-shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), added TextEditingController shared with InputArea, AppState listener lifecycle (initState/dispose), and wired InputArea into the Column layout — 238 tests pass
 
 ---
-*Last updated: 2026-04-03 after Phase 15 Plan 02 completion*
+*Last updated: 2026-04-03 after Phase 16 Plan 02 completion*

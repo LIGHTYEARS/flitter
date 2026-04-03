@@ -29,7 +29,7 @@ import { Border, BorderSide, BoxDecoration } from '../../../flitter-core/src/lay
 import { StickyHeader } from '../../../flitter-core/src/widgets/sticky-header';
 import { Center } from '../../../flitter-core/src/widgets/center';
 import type { AppState } from '../state/app-state';
-import type { Turn, UserTurn, AssistantTurn } from '../state/turn-types';
+import type { UserTurn, AssistantTurn } from '../state/turn-types';
 import type { ScreenState, ErrorScreen } from '../state/screen-state';
 
 // ---------------------------------------------------------------------------

@@ -21,6 +21,9 @@ interface BootstrapShellProps {
 }
 
 /**
+ * @deprecated Replaced by AppShell (packages/flitter-cli/src/widgets/app-shell.ts)
+ * in Phase 15 Plan 01. Use startAppShell() instead.
+ *
  * BootstrapShell — the initial TUI shell for flitter-cli.
  *
  * Displays session lifecycle state, model, and cwd. Handles Ctrl+C to
@@ -120,7 +123,10 @@ class BootstrapShell extends FocusScope {
   }
 }
 
-/** Start the bootstrap shell TUI with session-aware AppState. */
+/**
+ * @deprecated Replaced by startAppShell() in Phase 15 Plan 01.
+ * Start the bootstrap shell TUI with session-aware AppState.
+ */
 export async function startBootstrapShell(props: BootstrapShellProps): Promise<WidgetsBinding> {
   return runApp(new BootstrapShell(props), {
     output: process.stdout,

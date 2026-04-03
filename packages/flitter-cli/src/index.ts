@@ -2,9 +2,9 @@
 
 import { chdir } from 'node:process';
 
-import { getUserConfigPath, parseArgs } from './state/config';
-import { closeLogFile, getCurrentLogPath, initLogFile, log, setLogLevel } from './utils/logger';
-import { startBootstrapShell } from './bootstrap-shell';
+import { parseArgs } from './state/config';
+import { closeLogFile, initLogFile, log, setLogLevel } from './utils/logger';
+import { startAppShell } from './widgets/app-shell';
 import { AnthropicProvider } from './provider/anthropic';
 import { AppState } from './state/app-state';
 
@@ -47,12 +47,7 @@ async function main(): Promise<void> {
   // Create top-level application state
   const appState = AppState.create({ cwd: config.cwd, provider });
 
-  const binding = await startBootstrapShell({
-    cwd: config.cwd,
-    configPath: getUserConfigPath(),
-    logPath: getCurrentLogPath(),
-    appState,
-  });
+  const binding = await startAppShell({ appState });
 
   await binding.waitForExit();
   closeLogFile();

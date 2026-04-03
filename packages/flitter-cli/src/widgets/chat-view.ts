@@ -31,6 +31,7 @@ import { Center } from '../../../flitter-core/src/widgets/center';
 import type { AppState } from '../state/app-state';
 import type { UserTurn, AssistantTurn } from '../state/turn-types';
 import type { ScreenState, ErrorScreen } from '../state/screen-state';
+import type { ToolCallItem } from '../state/types';
 import { ToolCallWidget } from './tool-call/tool-call-widget';
 
 // ---------------------------------------------------------------------------
@@ -287,12 +288,42 @@ function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
     );
   }
 
-  // Tool call widgets (ToolCallWidget dispatches to GenericToolCard or specialized renderers)
-  for (const toolCall of turn.toolCalls) {
+  // Tool call widgets — nested tool-tree rendering (Plan 18-04)
+  // Partition tool calls into root-level (no parentToolCallId) and children
+  // (has parentToolCallId). Build a parent->children map, then render
+  // root tool calls with their children passed as childWidgets.
+  const childMap = new Map<string, ToolCallItem[]>();
+  const rootToolCalls: ToolCallItem[] = [];
+  for (const tc of turn.toolCalls) {
+    if (tc.parentToolCallId) {
+      const siblings = childMap.get(tc.parentToolCallId) ?? [];
+      siblings.push(tc);
+      childMap.set(tc.parentToolCallId, siblings);
+    } else {
+      rootToolCalls.push(tc);
+    }
+  }
+
+  // Orphan check: child tool calls whose parent is not in this turn
+  // render as root-level entries (defensive fallback, prevents invisible tools)
+  for (const [parentId, children] of childMap) {
+    const parentExists = rootToolCalls.some(tc => tc.toolCallId === parentId);
+    if (!parentExists) {
+      rootToolCalls.push(...children);
+      childMap.delete(parentId);
+    }
+  }
+
+  for (const toolCall of rootToolCalls) {
+    const children = childMap.get(toolCall.toolCallId);
+    const childWidgets = children?.map(child =>
+      new ToolCallWidget({ toolCall: child, isExpanded: !child.collapsed }),
+    );
     bodyChildren.push(
       new ToolCallWidget({
         toolCall,
         isExpanded: !toolCall.collapsed,
+        childWidgets,
       }),
     );
   }

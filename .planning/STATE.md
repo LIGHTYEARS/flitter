@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-04-03)
 
 ## Current Position
 
-Phase: 17
-Plan: 17-05 complete — ShortcutHelpOverlay widget with registry-derived groups
-Status: Phase 17 Plan 05 complete
+Phase: 18
+Plan: 18-02 complete — ToolHeader, GenericToolCard, ToolCallWidget dispatch, ChatView integration
+Status: Phase 18 Plan 02 complete
 Last activity: 2026-04-03
 
 ## Phase Status
@@ -49,6 +49,7 @@ Last activity: 2026-04-03
 | 15 | Chat View, Scroll, and Resize | In Progress | 15-01/02 done, 15-03 next |
 | 16 | Input, Focus, and Editing Experience | In Progress | 16-01/02 done, 16-03 next |
 | 17 | Overlay and Command Surfaces | In Progress | 17-01/02/03/05 done, 17-04 in progress |
+| 18 | Full Tool Workflow Parity | In Progress | 18-01/02 done, 18-03 next |
 
 Progress: ██████░░░░ 64% (7/11 plans)
 
@@ -69,6 +70,8 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - 2026-04-03: Phase 16 Plan 01 complete — InputArea StatefulWidget with multi-line editing, shell mode detection, auto-expand, drag-resize, mode badge, Autocomplete stub
 - 2026-04-03: Phase 16 Plan 02 complete — full global shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), TextEditingController sharing, AppState listener lifecycle, InputArea wired into AppShell layout (238 tests pass)
 - 2026-04-03: Phase 17 Plan 05 complete — ShortcutHelpOverlay widget reading from ShortcutRegistry, modal overlay with key absorption, toggle via ? key, wired into AppShell (305 tests pass)
+- 2026-04-03: Phase 18 Plan 01 complete — tool infrastructure utilities (raw-input, truncation-limits, tool-output-utils, resolve-tool-name, BaseToolProps, barrel export)
+- 2026-04-03: Phase 18 Plan 02 complete — ToolHeader, GenericToolCard, ToolCallWidget dispatch, ChatView integration replacing placeholder text (305 tests pass)
 
 ## Decisions Log
 
@@ -126,6 +129,8 @@ Progress: ██████░░░░ 64% (7/11 plans)
 - Phase 16 Plan 01 created InputArea StatefulWidget with multi-line editing, shell mode detection ($->shell, $$->background), auto-expanding height, drag-resize, mode badge, Autocomplete stub, and BorderOverlayText export
 - Phase 16 Plan 02 expanded AppShell's key handler to 8-shortcut matrix (Ctrl+C/L/O/G/R, Alt+T, Esc, ?), added TextEditingController shared with InputArea, AppState listener lifecycle (initState/dispose), and wired InputArea into the Column layout — 238 tests pass
 - Phase 17 Plan 05 created ShortcutHelpOverlay widget reading from ShortcutRegistry (single source of truth, no fallback list), modal overlay with FocusScope key absorption, toggle via ? key, static Input section for widget-level behaviors — 305 tests pass
+- Phase 18 Plan 01 ported tool infrastructure from flitter-amp: raw-input utilities, truncation constants, tool-output-utils, resolve-tool-name dispatch, BaseToolProps interface — all adapted from acp/types to state/types
+- Phase 18 Plan 02 ported ToolHeader (BrailleSpinner + MouseRegion + status colors), GenericToolCard (StickyHeader fallback), ToolCallWidget (35+ tool dispatch), and wired into ChatView replacing placeholder text — 305 tests pass
 
 ---
 *Last updated: 2026-04-03 after Phase 17 Plan 05 completion*

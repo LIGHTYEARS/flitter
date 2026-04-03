@@ -99,7 +99,6 @@ interface AssistantTurnBuilder {
   planItems: AssistantTurn['planItems'][number][];
   systemMessages: AssistantTurn['systemMessages'][number][];
   startIndex: number;
-  endIndex: number;
 }
 
 /** Create a fresh assistant turn builder starting at the given items index. */
@@ -111,7 +110,6 @@ function createAssistantBuilder(startIndex: number): AssistantTurnBuilder {
     planItems: [],
     systemMessages: [],
     startIndex,
-    endIndex: startIndex,
   };
 }
 
@@ -135,9 +133,6 @@ function routeItem(builder: AssistantTurnBuilder, item: ConversationItem): void 
       builder.systemMessages.push(item);
       break;
   }
-  builder.endIndex = builder.startIndex;
-  // Recount: endIndex is the exclusive end, so it should be the index after the last routed item.
-  // We'll fix this in finalize by scanning.
 }
 
 /**

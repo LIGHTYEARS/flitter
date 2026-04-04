@@ -14,8 +14,9 @@
 //               └── Scrollbar (controller, brightBlack thumb)
 //             NO → Center
 //               └── ChatView (appState)
+//         HeaderBar (streaming status, token usage, WaveSpinner)
 //         InputArea (controller shared from AppShellState)
-//         [StatusBar placeholder — Phase 20]
+//         StatusBar (cwd, gitBranch, isProcessing, isStreaming)
 //     )
 //
 // Plan 02 wires SingleChildScrollView + Scrollbar for conversation screens.
@@ -52,6 +53,8 @@ import { TextEditingController } from '../../../flitter-core/src/widgets/text-fi
 import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-list';
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
+import { StatusBar } from './status-bar';
+import { HeaderBar } from './header-bar';
 import { CommandPalette } from './command-palette';
 import { FilePicker } from './file-picker';
 import { ShortcutHelpOverlay } from './shortcut-help-overlay';
@@ -62,6 +65,7 @@ import { ShortcutRegistry, registerDefaultShortcuts } from '../shortcuts';
 import type { ShortcutContext, ShortcutHooks } from '../shortcuts';
 import { listProjectFiles } from '../utils/file-list';
 import { log } from '../utils/logger';
+import { CliThemeProvider, createCliTheme, cliThemes } from '../themes';
 
 // ---------------------------------------------------------------------------
 // AppShell — root widget
@@ -70,6 +74,8 @@ import { log } from '../utils/logger';
 /** Props for creating and running the AppShell. */
 export interface AppShellProps {
   appState: AppState;
+  /** Theme name (key in cliThemes). Defaults to 'dark'. */
+  themeName?: string;
 }
 
 /**
@@ -86,10 +92,12 @@ export interface AppShellProps {
  */
 export class AppShell extends StatefulWidget {
   readonly appState: AppState;
+  readonly themeName: string;
 
   constructor(opts: AppShellProps) {
     super();
     this.appState = opts.appState;
+    this.themeName = opts.themeName ?? 'dark';
   }
 
   createState(): AppShellState {
@@ -448,6 +456,13 @@ class AppShellState extends State<AppShell> {
       crossAxisAlignment: 'stretch',
       children: [
         new Expanded({ child: content }),
+        new HeaderBar({
+          isProcessing: this.widget.appState.isProcessing,
+          isInterrupted: this.widget.appState.isInterrupted,
+          tokenUsage: this.widget.appState.usage,
+          costUsd: this.widget.appState.usage?.cost?.amount ?? 0,
+          elapsedMs: 0,
+        }),
         new InputArea({
           onSubmit: (text) => this.widget.appState.submitPrompt(text),
           isProcessing: this.widget.appState.isProcessing,
@@ -455,17 +470,28 @@ class AppShellState extends State<AppShell> {
           controller: this.textController,
           getFiles: () => listProjectFiles(this.widget.appState.metadata.cwd),
         }),
-        // StatusBar placeholder — Phase 20
+        new StatusBar({
+          cwd: this.widget.appState.metadata.cwd,
+          gitBranch: this.widget.appState.metadata.gitBranch ?? undefined,
+          isProcessing: this.widget.appState.isProcessing,
+          isStreaming: this.widget.appState.lifecycle === 'streaming',
+        }),
       ],
     });
 
     // Wrap content with overlay stack — renders overlays on top of base content
     const withOverlays = this.widget.appState.overlayManager.buildOverlays(layoutColumn);
 
-    return new FocusScope({
-      autofocus: true,
-      onKey: (event: KeyEvent): KeyEventResult => this._handleKey(event),
-      child: withOverlays,
+    const baseTheme = cliThemes[this.widget.themeName] ?? cliThemes['dark']!;
+    const theme = createCliTheme(baseTheme);
+
+    return new CliThemeProvider({
+      theme,
+      child: new FocusScope({
+        autofocus: true,
+        onKey: (event: KeyEvent): KeyEventResult => this._handleKey(event),
+        child: withOverlays,
+      }),
     });
   }
 }

@@ -38,7 +38,7 @@
 <text x="45.6" y="566.04" style="fill:#2ba12b;opacity:0.5" xml:space="preserve">Thinking</text>
 <text x="112.80000000000001" y="566.04" style="fill:#9c9c9c" xml:space="preserve"> ▼</text>
 <text x="1011.6" y="566.04" style="fill:#969896" xml:space="preserve">░</text>
-<text x="45.6" y="584.04" style="fill:#f6fff5;opacity:0.5;font-style:italic" xml:space="preserve">Let me analyze this code for potential security vulnerabilities. I need to look for common issues like SQL inje</text>
+<text x="45.6" y="584.04" style="fill:#f6fff5;opacity:0.5" xml:space="preserve">Let me analyze this code for potential security vulnerabilities. I need to look for common issues like SQL inje</text>
 <text x="1011.6" y="584.04" style="fill:#969896" xml:space="preserve">░</text>
 <text x="28.8" y="602.04" style="fill:#dcdcdc" xml:space="preserve">I found </text>
 <text x="96" y="602.04" style="fill:#dcdcdc;font-weight:bold" xml:space="preserve">3 security issues</text>

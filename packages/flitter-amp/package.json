@@ -1,7 +1,8 @@
 {
   "name": "flitter-amp",
   "version": "0.1.0",
-  "description": "ACP client TUI — a reverse-engineered Amp CLI built on flitter-core",
+  "deprecated": true,
+  "description": "[DEPRECATED] ACP client TUI — a reverse-engineered Amp CLI built on flitter-core. Use flitter-cli instead.",
   "type": "module",
   "main": "src/index.ts",
   "bin": {

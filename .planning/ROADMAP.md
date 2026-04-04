@@ -196,7 +196,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. Thinking and plan states are visually correct
 4. Content rendering supports all tool and chat surfaces
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -221,7 +221,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 5. Status-area command, mode, and context semantics match Amp exactly
 6. The product looks and feels like Amp, not just structurally similar
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -243,7 +243,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. Persistence stores enough metadata for all surfaced workflows
 4. Session ergonomics reach full parity
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -265,7 +265,7 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 3. `flitter-cli` is the only active product path
 4. Migration leaves no stale references behind
 
-**Status:** Pending
+**Status:** Complete
 
 ---
 
@@ -277,60 +277,60 @@ Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` pack
 | BOOT-02 | 12 | Complete |
 | BOOT-03 | 12 | Complete |
 | BOOT-04 | 12 | Complete |
-| SESS-01 | 13 | Pending |
-| SESS-02 | 13 | Pending |
-| SESS-03 | 13 | Pending |
-| SESS-04 | 13 | Pending |
-| TURN-01 | 14 | Pending |
-| TURN-02 | 14 | Pending |
-| TURN-03 | 14 | Pending |
-| TURN-04 | 14 | Pending |
-| CHAT-01 | 15 | Pending |
-| CHAT-02 | 15 | Pending |
-| CHAT-03 | 15 | Pending |
-| CHAT-04 | 15 | Pending |
-| INPT-01 | 16 | Pending |
-| INPT-02 | 16 | Pending |
-| INPT-03 | 16 | Pending |
-| INPT-04 | 16 | Pending |
-| INPT-05 | 16 | Pending |
-| INPT-06 | 16 | Pending |
-| OVLY-01 | 17 | Pending |
-| OVLY-02 | 17 | Pending |
-| OVLY-03 | 17 | Pending |
-| OVLY-04 | 17 | Pending |
-| OVLY-05 | 17 | Pending |
-| TOOL-01 | 18 | Pending |
-| TOOL-02 | 18 | Pending |
-| TOOL-03 | 18 | Pending |
-| TOOL-04 | 18 | Pending |
-| TOOL-05 | 18 | Pending |
-| TOOL-06 | 18 | Pending |
-| TOOL-07 | 18 | Pending |
-| TOOL-08 | 18 | Pending |
-| REND-01 | 19 | Pending |
-| REND-02 | 19 | Pending |
-| REND-03 | 19 | Pending |
-| REND-04 | 19 | Pending |
-| STAT-01 | 20 | Pending |
-| STAT-02 | 20 | Pending |
-| STAT-03 | 20 | Pending |
-| STAT-04 | 20 | Pending |
-| STAT-05 | 20 | Pending |
-| STAT-06 | 20 | Pending |
-| HIST-01 | 21 | Pending |
-| HIST-02 | 21 | Pending |
-| HIST-03 | 21 | Pending |
-| HIST-04 | 21 | Pending |
-| TEST-01 | 22 | Pending |
-| TEST-02 | 22 | Pending |
-| MIG-01 | 22 | Pending |
-| MIG-02 | 22 | Pending |
-| MIG-03 | 22 | Pending |
+| SESS-01 | 13 | Complete |
+| SESS-02 | 13 | Complete |
+| SESS-03 | 13 | Complete |
+| SESS-04 | 13 | Complete |
+| TURN-01 | 14 | Complete |
+| TURN-02 | 14 | Complete |
+| TURN-03 | 14 | Complete |
+| TURN-04 | 14 | Complete |
+| CHAT-01 | 15 | Complete |
+| CHAT-02 | 15 | Complete |
+| CHAT-03 | 15 | Complete |
+| CHAT-04 | 15 | Complete |
+| INPT-01 | 16 | Complete |
+| INPT-02 | 16 | Complete |
+| INPT-03 | 16 | Complete |
+| INPT-04 | 16 | Complete |
+| INPT-05 | 16 | Complete |
+| INPT-06 | 16 | Complete |
+| OVLY-01 | 17 | Complete |
+| OVLY-02 | 17 | Complete |
+| OVLY-03 | 17 | Complete |
+| OVLY-04 | 17 | Complete |
+| OVLY-05 | 17 | Complete |
+| TOOL-01 | 18 | Complete |
+| TOOL-02 | 18 | Complete |
+| TOOL-03 | 18 | Complete |
+| TOOL-04 | 18 | Complete |
+| TOOL-05 | 18 | Complete |
+| TOOL-06 | 18 | Complete |
+| TOOL-07 | 18 | Complete |
+| TOOL-08 | 18 | Complete |
+| REND-01 | 19 | Complete |
+| REND-02 | 19 | Complete |
+| REND-03 | 19 | Complete |
+| REND-04 | 19 | Complete |
+| STAT-01 | 20 | Complete |
+| STAT-02 | 20 | Complete |
+| STAT-03 | 20 | Complete |
+| STAT-04 | 20 | Complete |
+| STAT-05 | 20 | Complete |
+| STAT-06 | 20 | Complete |
+| HIST-01 | 21 | Complete |
+| HIST-02 | 21 | Complete |
+| HIST-03 | 21 | Complete |
+| HIST-04 | 21 | Complete |
+| TEST-01 | 22 | Complete |
+| TEST-02 | 22 | Complete |
+| MIG-01 | 22 | Complete |
+| MIG-02 | 22 | Complete |
+| MIG-03 | 22 | Complete |
 
 **v0.3.0 requirements:** 55 total
 **Mapped:** 55 (100%)
-**Complete:** 4
+**Complete:** 55
 
 ---
 *Roadmap created: 2026-04-03*

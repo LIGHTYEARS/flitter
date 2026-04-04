@@ -1,6 +1,9 @@
 #!/usr/bin/env bun
 // flitter-amp — ACP Client TUI
 // A reverse-engineered Amp CLI built on flitter-core
+// @deprecated Use flitter-cli instead.
+
+console.error('[DEPRECATED] flitter-amp is deprecated. Use flitter-cli instead.');
 
 import { parseArgs } from './state/config';
 import { setLogLevel, log, initLogFile, closeLogFile } from './utils/logger';

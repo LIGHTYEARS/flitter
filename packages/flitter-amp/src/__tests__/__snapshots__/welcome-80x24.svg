@@ -4,41 +4,49 @@
 </defs>
 <rect width="696" height="492" fill="#1a1b26" rx="8" ry="8"/>
 <rect x="0" y="0" width="696" height="36" fill="#2a2a3a" rx="8" ry="8"/><rect x="0" y="18" width="696" height="18" fill="#2a2a3a"/><circle cx="20" cy="18" r="6" fill="#ff5f57"/><circle cx="40" cy="18" r="6" fill="#febc2e"/><circle cx="60" cy="18" r="6" fill="#28c840"/><text x="348" y="23" text-anchor="middle" font-family="JetBrains Mono, Menlo, Consolas, monospace" font-size="12" fill="#888">flitter-amp — Welcome (80×24)</text>
-<text x="163.20000000000002" y="134.04" style="fill:#005827" xml:space="preserve">........</text>
-<text x="121.2" y="152.04" style="fill:#005827" xml:space="preserve">...............</text>
+<text x="129.60000000000002" y="134.04" style="fill:#005827" xml:space="preserve">..............</text>
+<text x="112.80000000000001" y="152.04" style="fill:#005827" xml:space="preserve">....................</text>
 <text x="558" y="152.04" style="fill:#2ba12b;font-weight:bold" xml:space="preserve">Welcome to Amp</text>
-<text x="112.80000000000001" y="170.04" style="fill:#005827" xml:space="preserve">.................</text>
-<text x="96" y="188.04" style="fill:#005827" xml:space="preserve">...................</text>
+<text x="104.4" y="170.04" style="fill:#005827" xml:space="preserve">.......................</text>
+<text x="96" y="188.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="129.60000000000002" y="188.04" style="fill:#007a3b" xml:space="preserve">:::::::::::::::</text>
+<text x="255.60000000000002" y="188.04" style="fill:#005827" xml:space="preserve">......</text>
 <text x="558" y="188.04" style="fill:#81a2be" xml:space="preserve">Ctrl+O</text>
 <text x="608.4" y="188.04" style="fill:#ffb71b" xml:space="preserve"> for help</text>
-<text x="96" y="206.04" style="fill:#005827" xml:space="preserve">.......</text>
-<text x="154.8" y="206.04" style="fill:#007a3b" xml:space="preserve">:::::::::</text>
-<text x="230.4" y="206.04" style="fill:#005827" xml:space="preserve">....</text>
-<text x="87.60000000000001" y="224.04" style="fill:#005827" xml:space="preserve">.......</text>
-<text x="146.4" y="224.04" style="fill:#007a3b" xml:space="preserve">::::::::::</text>
-<text x="230.4" y="224.04" style="fill:#005827" xml:space="preserve">......</text>
+<text x="96" y="206.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="129.60000000000002" y="206.04" style="fill:#007a3b" xml:space="preserve">:::::::::::::::::</text>
+<text x="272.40000000000003" y="206.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="87.60000000000001" y="224.04" style="fill:#005827" xml:space="preserve">.....</text>
+<text x="129.60000000000002" y="224.04" style="fill:#007a3b" xml:space="preserve">:::::::::::::::::</text>
+<text x="272.40000000000003" y="224.04" style="fill:#005827" xml:space="preserve">....</text>
 <text x="381.6" y="224.04" style="fill:#9c9c9c" xml:space="preserve">Use the </text>
 <text x="448.8" y="224.04" style="fill:#f6fff5" xml:space="preserve">settings: open in editor</text>
 <text x="650.4" y="224.04" style="fill:#9c9c9c" xml:space="preserve"> com</text>
-<text x="87.60000000000001" y="242.04" style="fill:#005827" xml:space="preserve">.......</text>
-<text x="146.4" y="242.04" style="fill:#007a3b" xml:space="preserve">::::::::::</text>
-<text x="230.4" y="242.04" style="fill:#005827" xml:space="preserve">......</text>
-<text x="96" y="260.04" style="fill:#005827" xml:space="preserve">......</text>
-<text x="146.4" y="260.04" style="fill:#007a3b" xml:space="preserve">::::::::::</text>
-<text x="230.4" y="260.04" style="fill:#005827" xml:space="preserve">......</text>
-<text x="440.40000000000003" y="260.04" style="fill:#ffb71b" xml:space="preserve">💡 Tab/Shift+Tab navigates th</text>
+<text x="87.60000000000001" y="242.04" style="fill:#005827" xml:space="preserve">.....</text>
+<text x="129.60000000000002" y="242.04" style="fill:#007a3b" xml:space="preserve">::::::::</text>
+<text x="196.8" y="242.04" style="fill:#009b4e" xml:space="preserve">----</text>
+<text x="230.4" y="242.04" style="fill:#007a3b" xml:space="preserve">:::::</text>
+<text x="272.40000000000003" y="242.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="87.60000000000001" y="260.04" style="fill:#005827" xml:space="preserve">.....</text>
+<text x="129.60000000000002" y="260.04" style="fill:#007a3b" xml:space="preserve">:::::::::::</text>
+<text x="222" y="260.04" style="fill:#009b4e" xml:space="preserve">-</text>
+<text x="230.4" y="260.04" style="fill:#007a3b" xml:space="preserve">:::::</text>
+<text x="272.40000000000003" y="260.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="448.8" y="260.04" style="fill:#2ba12b" xml:space="preserve">▸ Write tests for the untest</text>
 <text x="96" y="278.04" style="fill:#005827" xml:space="preserve">......</text>
-<text x="146.4" y="278.04" style="fill:#007a3b" xml:space="preserve">:::::::::</text>
-<text x="222" y="278.04" style="fill:#005827" xml:space="preserve">.......</text>
-<text x="440.40000000000003" y="278.04" style="fill:#2ba12b" xml:space="preserve">▸ Explain this codebase archi</text>
-<text x="96" y="296.04" style="fill:#005827" xml:space="preserve">......</text>
-<text x="146.4" y="296.04" style="fill:#007a3b" xml:space="preserve">::::</text>
-<text x="180" y="296.04" style="fill:#005827" xml:space="preserve">............</text>
-<text x="440.40000000000003" y="296.04" style="fill:#2ba12b" xml:space="preserve">▸ Refactor this module to red</text>
-<text x="112.80000000000001" y="314.04" style="fill:#005827" xml:space="preserve">....................</text>
-<text x="440.40000000000003" y="314.04" style="fill:#ffb71b" xml:space="preserve">💡 Use @ to mention files in </text>
-<text x="121.2" y="332.04" style="fill:#005827" xml:space="preserve">............</text>
-<text x="138" y="350.04" style="fill:#005827" xml:space="preserve">.......</text>
+<text x="146.4" y="278.04" style="fill:#007a3b" xml:space="preserve">:::::::::::::::</text>
+<text x="272.40000000000003" y="278.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="448.8" y="278.04" style="fill:#81a2be" xml:space="preserve">⌘ Ctrl+C — Cancel current op</text>
+<text x="104.4" y="296.04" style="fill:#005827" xml:space="preserve">.........</text>
+<text x="180" y="296.04" style="fill:#007a3b" xml:space="preserve">::::::::::</text>
+<text x="264" y="296.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="448.8" y="296.04" style="fill:#ffb71b" xml:space="preserve">💡 Use $$ prefix for backgro</text>
+<text x="129.60000000000002" y="314.04" style="fill:#005827" xml:space="preserve">.........</text>
+<text x="205.20000000000002" y="314.04" style="fill:#007a3b" xml:space="preserve">::::::</text>
+<text x="255.60000000000002" y="314.04" style="fill:#005827" xml:space="preserve">....</text>
+<text x="448.8" y="314.04" style="fill:#ffb71b" xml:space="preserve">💡 Use $ prefix for shell co</text>
+<text x="146.4" y="332.04" style="fill:#005827" xml:space="preserve">................</text>
+<text x="154.8" y="350.04" style="fill:#005827" xml:space="preserve">..............</text>
 <text x="12" y="386.04" style="fill:#878b86" xml:space="preserve">╭───────────────────────────────────────────────────────────────────────</text>
 <text x="616.8000000000001" y="386.04" style="fill:#00ff88" xml:space="preserve"> smart </text>
 <text x="675.6" y="386.04" style="fill:#878b86" xml:space="preserve">╮</text>

@@ -10,6 +10,8 @@ import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent, AssistantMessage, ThinkingItem, ToolCallItem } from '../state/types';
 import { AppState } from '../state/app-state';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { PromptController } from '../state/prompt-controller';
 
 // ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ function createIntegrationHarness() {
     cwd: '/integration/test',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider, controller };

@@ -21,6 +21,7 @@ import { TextStyle } from '../../../flitter-core/src/core/text-style';
 import { TextSpan } from '../../../flitter-core/src/core/text-span';
 import { Color } from '../../../flitter-core/src/core/color';
 import { Markdown } from '../../../flitter-core/src/widgets/markdown';
+import { CliThemeProvider } from '../themes';
 
 /**
  * Blink interval in milliseconds.
@@ -165,15 +166,14 @@ export class StreamingCursorState extends State<StreamingCursor> {
    * Build the widget tree for the streaming cursor.
    *
    * Delegates to Markdown for content rendering. Appends a blinking cursor
-   * character when streaming. Uses direct Color constants (no theme provider)
-   * consistent with flitter-cli convention.
+   * character when streaming. Uses theme colors with fallbacks to direct
+   * Color constants for safety.
    */
-  build(_context: BuildContext): Widget {
+  build(context: BuildContext): Widget {
     const { text, isStreaming } = this.widget;
 
-    // Muted color for empty-state and cursor — uses Color.brightBlack directly
-    // (flitter-cli convention; Phase 20 adds theme provider)
-    const mutedColor = Color.brightBlack;
+    const theme = CliThemeProvider.maybeOf(context);
+    const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
 
     if (!isStreaming) {
       // Not streaming: render final content, no cursor

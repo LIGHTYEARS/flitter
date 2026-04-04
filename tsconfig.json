@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/flitter-core" },
+    { "path": "packages/flitter-cli" },
     { "path": "packages/flitter-amp" }
   ]
 }

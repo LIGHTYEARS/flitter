@@ -4,8 +4,7 @@
 // Centralizes overlay configuration to prevent magic strings/numbers
 // and provides single-glance documentation of the overlay layering order.
 //
-// Removed from amp version: THREAD_LIST, PROMPT_HISTORY (Phase 21 scope),
-// MYSTERY_MODAL (not needed in flitter-cli).
+// Removed from amp version: MYSTERY_MODAL (not needed in flitter-cli).
 
 /**
  * Well-known overlay identifiers.
@@ -16,6 +15,8 @@ export const OVERLAY_IDS = {
   COMMAND_PALETTE: 'commandPalette',
   SHORTCUT_HELP: 'shortcutHelp',
   FILE_PICKER: 'filePicker',
+  PROMPT_HISTORY: 'prompt-history',
+  THREAD_LIST: 'thread-list',
   TOAST: 'toast',
 } as const;
 
@@ -33,6 +34,8 @@ export const OVERLAY_PRIORITIES = {
   PERMISSION_DIALOG: 100,
   COMMAND_PALETTE: 50,
   SHORTCUT_HELP: 50,
+  PROMPT_HISTORY: 50,
+  THREAD_LIST: 50,
   FILE_PICKER: 25,
   TOAST: 10,
 } as const;

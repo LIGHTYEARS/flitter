@@ -13,6 +13,8 @@ import { Column } from '../../../flitter-core/src/widgets/flex';
 import { Expanded } from '../../../flitter-core/src/widgets/flexible';
 import { WidgetsBinding } from '../../../flitter-core/src/framework/binding';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { AppShell } from '../widgets/app-shell';
@@ -62,7 +64,7 @@ function createTestAppState(): {
     cwd: '/test/cwd',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider };
@@ -401,17 +403,18 @@ describe('AppShell — Focus Routing', () => {
     WidgetsBinding.reset();
     const { appState } = createTestAppState();
     const { tree } = buildAppShellState(appState);
-    expect(tree).toBeInstanceOf(FocusScope);
-    expect((tree as FocusScope).autofocus).toBe(true);
+    const focusScope = findFirst(tree, FocusScope);
+    expect(focusScope).not.toBeNull();
+    expect(focusScope!.autofocus).toBe(true);
   });
 
   test('FocusScope has onKey handler wired', () => {
     WidgetsBinding.reset();
     const { appState } = createTestAppState();
     const { tree } = buildAppShellState(appState);
-    expect(tree).toBeInstanceOf(FocusScope);
-    const focusScope = tree as FocusScope;
-    expect(typeof focusScope.onKey).toBe('function');
+    const focusScope = findFirst(tree, FocusScope);
+    expect(focusScope).not.toBeNull();
+    expect(typeof focusScope!.onKey).toBe('function');
   });
 
   test('Ctrl+C reaches AppShell handler (returns "handled")', () => {
@@ -501,13 +504,12 @@ describe('AppShell — Layout with InputArea', () => {
     WidgetsBinding.reset();
     const { appState } = createTestAppState();
     const { tree } = buildAppShellState(appState);
-    const focusScope = tree as FocusScope;
-    const col = (focusScope as any).child as Column;
-    expect(col).toBeInstanceOf(Column);
-    // Column children: [Expanded(content), InputArea]
-    expect(col.children.length).toBeGreaterThanOrEqual(2);
-    expect(col.children[0]).toBeInstanceOf(Expanded);
-    expect(col.children[1]).toBeInstanceOf(InputArea);
+    const col = findFirst(tree, Column);
+    expect(col).not.toBeNull();
+    expect(col!.children.length).toBeGreaterThanOrEqual(3);
+    expect(col!.children[0]).toBeInstanceOf(Expanded);
+    const inputArea = findFirst(tree, InputArea);
+    expect(inputArea).not.toBeNull();
   });
 
   test('InputArea receives isProcessing from appState', () => {

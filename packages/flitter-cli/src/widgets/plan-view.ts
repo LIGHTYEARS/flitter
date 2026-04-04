@@ -26,6 +26,7 @@ import { Color } from '../../../flitter-core/src/core/color';
 import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import type { PlanEntry } from '../state/types';
+import { CliThemeProvider, type CliTheme } from '../themes';
 
 // ---------------------------------------------------------------------------
 // Unicode status icons (mirrors tool-icons.ts todoStatusIcon mapping)
@@ -66,25 +67,25 @@ export class PlanView extends StatelessWidget {
     this.entries = props.entries;
   }
 
-  build(_context: BuildContext): Widget {
+  build(context: BuildContext): Widget {
+    const theme = CliThemeProvider.maybeOf(context);
+
     const children: Widget[] = [
-      // Plan title header — bold cyan, 2-space indent
       new Text({
         text: new TextSpan({
           text: '  Plan',
           style: new TextStyle({
-            foreground: Color.cyan,
+            foreground: theme?.base.info ?? Color.cyan,
             bold: true,
           }),
         }),
       }),
     ];
 
-    // Build one Text row per entry with: statusIcon + priorityTag + content
     for (const entry of this.entries) {
       const iconChar = PlanView.getStatusIcon(entry.status);
-      const statusColor = PlanView.getStatusColor(entry.status);
-      const { tag, tagColor } = PlanView.getPriorityDisplay(entry.priority);
+      const statusColor = PlanView.getStatusColor(entry.status, theme);
+      const { tag, tagColor } = PlanView.getPriorityDisplay(entry.priority, theme);
 
       children.push(
         new Text({
@@ -147,16 +148,16 @@ export class PlanView extends StatelessWidget {
    *   'in_progress' -> yellow  (warning / active)
    *   'pending'     -> brightBlack (muted / dim)
    */
-  private static getStatusColor(status: PlanEntry['status']): Color {
+  private static getStatusColor(status: PlanEntry['status'], theme: CliTheme | undefined): Color {
     switch (status) {
       case 'completed':
-        return Color.green;
+        return theme?.base.success ?? Color.green;
       case 'in_progress':
-        return Color.yellow;
+        return theme?.base.warning ?? Color.yellow;
       case 'pending':
-        return Color.brightBlack;
+        return theme?.base.mutedForeground ?? Color.brightBlack;
       default:
-        return Color.brightBlack;
+        return theme?.base.mutedForeground ?? Color.brightBlack;
     }
   }
 
@@ -170,16 +171,17 @@ export class PlanView extends StatelessWidget {
    */
   private static getPriorityDisplay(
     priority: PlanEntry['priority'],
+    theme: CliTheme | undefined,
   ): { tag: string; tagColor: Color } {
     switch (priority) {
       case 'high':
-        return { tag: '[H]', tagColor: Color.red };
+        return { tag: '[H]', tagColor: theme?.base.destructive ?? Color.red };
       case 'medium':
-        return { tag: '[M]', tagColor: Color.yellow };
+        return { tag: '[M]', tagColor: theme?.base.warning ?? Color.yellow };
       case 'low':
-        return { tag: '[L]', tagColor: Color.brightBlack };
+        return { tag: '[L]', tagColor: theme?.base.mutedForeground ?? Color.brightBlack };
       default:
-        return { tag: '[M]', tagColor: Color.yellow };
+        return { tag: '[M]', tagColor: theme?.base.warning ?? Color.yellow };
     }
   }
 }

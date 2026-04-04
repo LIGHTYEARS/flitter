@@ -10,6 +10,8 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent } from '../state/types';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 
@@ -62,7 +64,7 @@ function createTestAppState() {
     cwd: '/test/cwd',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider, controller };

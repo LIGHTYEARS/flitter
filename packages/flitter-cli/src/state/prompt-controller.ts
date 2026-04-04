@@ -26,6 +26,11 @@ export interface PromptControllerOptions {
    * be triggered via appState.requestPermission() from a test harness.
    */
   onPermissionRequest?: (request: PermissionRequest) => Promise<PermissionResult>;
+  /**
+   * Optional callback invoked after the stream completes successfully.
+   * Used by AppState to trigger session persistence after each turn.
+   */
+  onStreamComplete?: () => void;
 }
 
 /**
@@ -53,6 +58,12 @@ export class PromptController {
    */
   readonly onPermissionRequest: ((request: PermissionRequest) => Promise<PermissionResult>) | null;
 
+  /**
+   * Optional callback invoked after stream completes successfully.
+   * Used by AppState to trigger session persistence.
+   */
+  private readonly _onStreamComplete: (() => void) | null;
+
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
@@ -60,6 +71,7 @@ export class PromptController {
     this._session = options.session;
     this._provider = options.provider;
     this.onPermissionRequest = options.onPermissionRequest ?? null;
+    this._onStreamComplete = options.onStreamComplete ?? null;
   }
 
   /**
@@ -136,6 +148,11 @@ export class PromptController {
     } finally {
       this._stopElapsedTimer();
       this._isSubmitting = false;
+
+      const finalLifecycle: string = this._session.lifecycle;
+      if (finalLifecycle === 'complete' && this._onStreamComplete) {
+        this._onStreamComplete();
+      }
     }
   }
 

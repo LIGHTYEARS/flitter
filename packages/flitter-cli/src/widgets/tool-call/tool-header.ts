@@ -23,6 +23,7 @@ import { BrailleSpinner } from '../../../../flitter-core/src/utilities/braille-s
 import { MouseRegion } from '../../../../flitter-core/src/widgets/mouse-region';
 import type { ToolCallItem } from '../../state/types';
 import { toolStatusIcon } from './tool-icons';
+import { CliThemeProvider, type CliTheme } from '../../themes';
 
 /** Maximum character length for header detail strings before truncation. */
 const MAX_DETAIL_LENGTH = 80;
@@ -129,10 +130,12 @@ class ToolHeaderState extends State<ToolHeader> {
     }
   }
 
-  build(_context: BuildContext): Widget {
-    const statusColor = this.getStatusColor();
+  build(context: BuildContext): Widget {
+    const theme = CliThemeProvider.maybeOf(context);
+    const statusColor = this.getStatusColor(theme);
     const statusIcon = toolStatusIcon(this.widget.status);
     const statusDim = (this.widget.status as string) === 'queued';
+    const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
 
     const spans: TextSpan[] = [
       new TextSpan({
@@ -141,21 +144,21 @@ class ToolHeaderState extends State<ToolHeader> {
       }),
       new TextSpan({
         text: this.widget.name,
-        style: new TextStyle({ foreground: Color.cyan, bold: true, dim: statusDim }),
+        style: new TextStyle({ foreground: theme?.app.toolName ?? Color.cyan, bold: true, dim: statusDim }),
       }),
     ];
 
     for (const detail of this.widget.details) {
       spans.push(new TextSpan({
         text: ` ${detail}`,
-        style: new TextStyle({ foreground: Color.brightBlack, dim: true }),
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
       }));
     }
 
     if (this.widget.status === 'in_progress') {
       spans.push(new TextSpan({
         text: ` ${this.spinner.toBraille()}`,
-        style: new TextStyle({ foreground: Color.brightBlack }),
+        style: new TextStyle({ foreground: mutedColor }),
       }));
     }
 
@@ -187,26 +190,26 @@ class ToolHeaderState extends State<ToolHeader> {
    * Maps tool status to the appropriate Color constant.
    * Extended: cancelled=yellow, queued=dim/brightBlack, blocked=red.
    */
-  private getStatusColor(): Color {
+  private getStatusColor(theme: CliTheme | undefined): Color {
     const status = this.widget.status as string;
     switch (status) {
       case 'completed':
-        return Color.green;
+        return theme?.app.toolSuccess ?? Color.green;
       case 'failed':
       case 'blocked':
       case 'blocked-on-user':
-        return Color.red;
+        return theme?.app.toolError ?? Color.red;
       case 'cancelled':
       case 'cancellation-requested':
       case 'rejected-by-user':
-        return Color.yellow;
+        return theme?.app.toolCancelled ?? Color.yellow;
       case 'in_progress':
-        return Color.blue;
+        return theme?.app.toolRunning ?? Color.blue;
       case 'queued':
-        return Color.brightBlack;
+        return theme?.base.mutedForeground ?? Color.brightBlack;
       case 'pending':
       default:
-        return Color.yellow;
+        return theme?.base.warning ?? Color.yellow;
     }
   }
 }

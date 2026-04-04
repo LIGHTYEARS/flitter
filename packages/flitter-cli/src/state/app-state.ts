@@ -23,6 +23,8 @@ import { PromptController } from './prompt-controller';
 import { OverlayManager } from './overlay-manager';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from './overlay-ids';
 import { PermissionDialog } from '../widgets/permission-dialog';
+import { SessionStore, type SessionFile } from './session-store';
+import { PromptHistory } from './history';
 import { log } from '../utils/logger';
 
 /**
@@ -45,6 +47,12 @@ export class AppState {
   /** Centralized overlay lifecycle manager for the overlay stack. */
   readonly overlayManager: OverlayManager;
 
+  /** Persistent prompt history for up/down navigation. */
+  readonly promptHistory: PromptHistory;
+
+  /** Session persistence store for save/load/list. */
+  readonly sessionStore: SessionStore;
+
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
 
@@ -62,10 +70,16 @@ export class AppState {
   // --- Listener management ---
   private _listeners: Set<StateListener> = new Set();
 
-  constructor(session: SessionState) {
+  constructor(
+    session: SessionState,
+    promptHistory: PromptHistory,
+    sessionStore: SessionStore,
+  ) {
     this.session = session;
     this.conversation = new ConversationState(session);
     this.overlayManager = new OverlayManager();
+    this.promptHistory = promptHistory;
+    this.sessionStore = sessionStore;
 
     // Relay session state changes to AppState listeners
     this.session.addListener(() => {
@@ -390,6 +404,57 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
+  // Session Persistence
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Serialize the current session state into a SessionFile snapshot.
+   * Returns null if the session has no conversation items (nothing to persist).
+   */
+  toSessionFile(): SessionFile | null {
+    const items = this.session.items;
+    if (items.length === 0) return null;
+
+    const meta = this.session.metadata;
+    return {
+      version: 1,
+      sessionId: meta.sessionId,
+      cwd: meta.cwd,
+      gitBranch: meta.gitBranch,
+      model: meta.model,
+      createdAt: meta.startTime,
+      updatedAt: Date.now(),
+      items: [...items],
+      plan: [...this.session.plan],
+      usage: this.session.usage ? { ...this.session.usage } : null,
+      currentMode: this.currentMode,
+    };
+  }
+
+  /**
+   * Restore session state from a persisted SessionFile snapshot.
+   * Delegates to SessionState.restoreItems() for items/plan/usage restoration,
+   * then restores UI-specific state (currentMode).
+   */
+  restoreFromSession(session: SessionFile): void {
+    this.session.restoreItems(session.items, session.plan, session.usage);
+    this.currentMode = session.currentMode;
+    this.selectedMessageIndex = null;
+    this._notifyListeners();
+  }
+
+  /**
+   * Save the current session to disk via SessionStore.
+   * No-op if the session has no items to persist.
+   */
+  saveSession(): void {
+    const file = this.toSessionFile();
+    if (file) {
+      this.sessionStore.save(file);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Static factory
   // ---------------------------------------------------------------------------
 
@@ -401,9 +466,16 @@ export class AppState {
    *
    * @param config.cwd - Working directory for the session
    * @param config.provider - The LLM backend provider
+   * @param config.promptHistory - Persistent prompt history instance
+   * @param config.sessionStore - Session persistence store instance
    * @returns A fully initialized AppState ready for use
    */
-  static create(config: { cwd: string; provider: Provider }): AppState {
+  static create(config: {
+    cwd: string;
+    provider: Provider;
+    promptHistory: PromptHistory;
+    sessionStore: SessionStore;
+  }): AppState {
     const sessionId = crypto.randomUUID();
     const session = new SessionState({
       sessionId,
@@ -411,10 +483,11 @@ export class AppState {
       model: config.provider.model,
     });
 
-    const appState = new AppState(session);
+    const appState = new AppState(session, config.promptHistory, config.sessionStore);
     const controller = new PromptController({
       session,
       provider: config.provider,
+      onStreamComplete: () => appState.saveSession(),
     });
     appState.setPromptController(controller);
 

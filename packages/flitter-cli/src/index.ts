@@ -7,12 +7,75 @@ import { closeLogFile, initLogFile, log, setLogLevel } from './utils/logger';
 import { startAppShell } from './widgets/app-shell';
 import { AnthropicProvider } from './provider/anthropic';
 import { AppState } from './state/app-state';
+import { PromptHistory } from './state/history';
+import { SessionStore } from './state/session-store';
+import { exportToMarkdown, exportToText } from './state/session-export';
 
 /** Main entry point — parses config, creates provider and app state, starts TUI. */
 async function main(): Promise<void> {
   const config = parseArgs(process.argv);
   setLogLevel(config.logLevel);
   initLogFile(config.logRetentionDays);
+
+  const promptHistory = new PromptHistory({
+    filePath: config.historyFile,
+    maxSize: config.historySize,
+  });
+
+  const sessionStore = new SessionStore({
+    baseDir: config.sessionDir,
+    retentionDays: config.sessionRetentionDays,
+  });
+
+  if (config.listSessions) {
+    const sessions = sessionStore.list();
+    if (sessions.length === 0) {
+      process.stdout.write('No saved sessions.\n');
+    } else {
+      for (const entry of sessions) {
+        const date = new Date(entry.updatedAt).toLocaleString();
+        process.stdout.write(
+          `${entry.sessionId}  ${date}  ${entry.messageCount} msgs  ${entry.summary}\n`,
+        );
+      }
+    }
+    closeLogFile();
+    process.exit(0);
+  }
+
+  if (config.exportSession) {
+    let sessionId = config.exportSession.sessionId;
+    if (sessionId === '__most_recent__') {
+      const recent = sessionStore.mostRecent();
+      if (!recent) {
+        process.stderr.write('Error: no sessions found to export\n');
+        closeLogFile();
+        process.exit(1);
+      }
+      sessionId = recent.sessionId;
+    }
+    const session = sessionStore.load(sessionId);
+    if (!session) {
+      process.stderr.write(`Error: session not found: ${sessionId}\n`);
+      closeLogFile();
+      process.exit(1);
+    }
+    let output: string;
+    switch (config.exportSession.format) {
+      case 'json':
+        output = JSON.stringify(session, null, 2);
+        break;
+      case 'md':
+        output = exportToMarkdown(session);
+        break;
+      case 'txt':
+        output = exportToText(session);
+        break;
+    }
+    process.stdout.write(output + '\n');
+    closeLogFile();
+    process.exit(0);
+  }
 
   try {
     chdir(config.cwd);
@@ -24,7 +87,6 @@ async function main(): Promise<void> {
 
   log.info(`flitter-cli starting in ${config.cwd}`);
 
-  // Create provider — requires API key
   let provider: AnthropicProvider;
   try {
     provider = new AnthropicProvider({
@@ -44,12 +106,53 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Create top-level application state
-  const appState = AppState.create({ cwd: config.cwd, provider });
+  const appState = AppState.create({
+    cwd: config.cwd,
+    provider,
+    promptHistory,
+    sessionStore,
+  });
 
-  const binding = await startAppShell({ appState });
+  if (config.resumeSessionId) {
+    let sessionId = config.resumeSessionId;
+    if (sessionId === '__most_recent__') {
+      const recent = sessionStore.mostRecent();
+      if (recent) {
+        sessionId = recent.sessionId;
+      } else {
+        log.info('No recent session to resume — starting fresh');
+        sessionId = '';
+      }
+    }
+    if (sessionId) {
+      const session = sessionStore.load(sessionId);
+      if (session) {
+        appState.restoreFromSession(session);
+        log.info(`Resumed session: ${sessionId}`);
+      } else {
+        log.warn(`Session not found: ${sessionId} — starting fresh`);
+      }
+    }
+  }
+
+  sessionStore.prune();
+
+  const binding = await startAppShell({ appState, themeName: config.theme });
+
+  const gracefulShutdown = () => {
+    appState.saveSession();
+    promptHistory.save();
+  };
+
+  process.on('SIGINT', () => {
+    gracefulShutdown();
+  });
+  process.on('SIGTERM', () => {
+    gracefulShutdown();
+  });
 
   await binding.waitForExit();
+  gracefulShutdown();
   closeLogFile();
 }
 

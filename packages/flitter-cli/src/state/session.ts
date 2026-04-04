@@ -553,4 +553,57 @@ export class SessionState {
     this.bumpVersion();
     this.notifyListeners();
   }
+
+  // ---------------------------------------------------------------------------
+  // Session Restoration
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Restore items, plan, and usage from a persisted session snapshot.
+   *
+   * Clears existing state, sanitizes isStreaming flags to false,
+   * resets lifecycle to 'idle', and notifies listeners.
+   * Rebuilds the tool call index from restored items.
+   */
+  restoreItems(
+    items: ConversationItem[],
+    plan: PlanEntry[],
+    usage: UsageInfo | null,
+  ): void {
+    this._items = items.map(item => {
+      switch (item.type) {
+        case 'assistant_message':
+          return { ...item, isStreaming: false };
+        case 'thinking':
+          return { ...item, isStreaming: false };
+        case 'tool_call':
+          return item.isStreaming ? { ...item, isStreaming: false } : item;
+        default:
+          return item;
+      }
+    });
+
+    this._plan = [...plan];
+    this._usage = usage ? { ...usage } : null;
+
+    this._streamingMsgIndex = -1;
+    this._streamingThinkingIndex = -1;
+    this._streamingTextBuffer = '';
+    this._streamingThinkingBuffer = '';
+
+    this._toolCallIndex.clear();
+    for (let i = 0; i < this._items.length; i++) {
+      const item = this._items[i];
+      if (item.type === 'tool_call') {
+        this._toolCallIndex.set(item.toolCallId, i);
+      }
+    }
+
+    this._lifecycle = 'idle';
+    this._error = null;
+    this._lastStopReason = null;
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
 }

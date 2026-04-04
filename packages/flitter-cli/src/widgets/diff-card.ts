@@ -26,6 +26,7 @@ import { DiffView } from '../../../flitter-core/src/widgets/diff-view';
 import { Container } from '../../../flitter-core/src/widgets/container';
 import { BoxDecoration, Border, BorderSide } from '../../../flitter-core/src/layout/render-decorated';
 import { Theme } from '../../../flitter-core/src/widgets/theme';
+import { CliThemeProvider } from '../themes';
 
 interface DiffCardProps {
   filePath: string;
@@ -56,8 +57,10 @@ export class DiffCard extends StatelessWidget {
     this.diff = props.diff;
   }
 
-  build(_context: BuildContext): Widget {
-    const borderSide = new BorderSide({ color: Color.brightBlack, width: 1, style: 'rounded' });
+  build(context: BuildContext): Widget {
+    const theme = CliThemeProvider.maybeOf(context);
+    const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
+    const borderSide = new BorderSide({ color: mutedColor, width: 1, style: 'rounded' });
 
     const diffContent = new Column({
       mainAxisSize: 'min',
@@ -67,7 +70,7 @@ export class DiffCard extends StatelessWidget {
           text: new TextSpan({
             text: ` ${this.filePath}`,
             style: new TextStyle({
-              foreground: Color.brightBlack,
+              foreground: mutedColor,
               bold: true,
             }),
           }),
@@ -81,8 +84,8 @@ export class DiffCard extends StatelessWidget {
 
     const coreThemeData = {
       ...Theme.defaultTheme(),
-      diffAdded: Color.green,
-      diffRemoved: Color.red,
+      diffAdded: theme?.app.diffAdded ?? Color.green,
+      diffRemoved: theme?.app.diffRemoved ?? Color.red,
     };
 
     return new Padding({

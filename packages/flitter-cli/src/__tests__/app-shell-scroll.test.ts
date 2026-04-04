@@ -15,6 +15,8 @@ import { Scrollbar } from '../../../flitter-core/src/widgets/scrollbar';
 import { Color } from '../../../flitter-core/src/core/color';
 import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { AppShell } from '../widgets/app-shell';
@@ -61,7 +63,7 @@ function createTestAppState(): {
     cwd: '/test/cwd',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider };
@@ -113,11 +115,12 @@ function findAll<T extends Widget>(root: Widget, type: new (...args: any[]) => T
 // ===========================================================================
 
 describe('AppShell — Layout Structure', () => {
-  test('6.1 Root widget is FocusScope with autofocus', () => {
+  test('6.1 Root widget tree contains FocusScope with autofocus', () => {
     const { appState } = createTestAppState();
     const tree = buildAppShell(appState);
-    expect(tree).toBeInstanceOf(FocusScope);
-    expect((tree as FocusScope).autofocus).toBe(true);
+    const focusScope = findFirst(tree, FocusScope);
+    expect(focusScope).not.toBeNull();
+    expect(focusScope!.autofocus).toBe(true);
   });
 
   test('6.2 FocusScope contains Column with mainAxisSize:max', () => {

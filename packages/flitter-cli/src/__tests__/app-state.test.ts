@@ -8,6 +8,8 @@ import { describe, test, expect, beforeEach } from 'bun:test';
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent } from '../state/types';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 
@@ -52,7 +54,7 @@ function createTestAppState(opts?: { cwd?: string }) {
     cwd: opts?.cwd ?? '/test/cwd',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider, controller };
@@ -338,7 +340,7 @@ describe('AppState', () => {
   describe('promptController access', () => {
     test('throws if promptController not set', () => {
       const session = new SessionState({ sessionId: 'x', cwd: '/x', model: 'm' });
-      const bareAppState = new AppState(session);
+      const bareAppState = new AppState(session, new PromptHistory(), new SessionStore());
       expect(() => bareAppState.promptController).toThrow();
     });
 

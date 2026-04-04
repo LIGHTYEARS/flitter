@@ -15,11 +15,14 @@ import { StickyHeader } from '../../../flitter-core/src/widgets/sticky-header';
 import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { Color } from '../../../flitter-core/src/core/color';
 import { SessionState } from '../state/session';
+import { PromptHistory } from '../state/history';
+import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { ChatView, ChatViewState } from '../widgets/chat-view';
 import { ToolCallWidget } from '../widgets/tool-call/tool-call-widget';
 import { StreamingCursor } from '../widgets/streaming-cursor';
+import { ThinkingBlock } from '../widgets/thinking-block';
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent, ConversationItem } from '../state/types';
 
@@ -67,7 +70,7 @@ function createTestAppState(opts?: { cwd?: string }): {
     cwd: opts?.cwd ?? '/test/cwd',
     model: provider.model,
   });
-  const appState = new AppState(session);
+  const appState = new AppState(session, new PromptHistory(), new SessionStore());
   const controller = new PromptController({ session, provider });
   appState.setPromptController(controller);
   return { appState, session, provider };
@@ -523,7 +526,7 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     expect(cursors[0].isStreaming).toBe(false);
   });
 
-  test('4.2 Turn with thinking + message renders thinking placeholder before StreamingCursor', () => {
+  test('4.2 Turn with thinking + message renders ThinkingBlock before StreamingCursor', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -537,10 +540,9 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     const stickyHeaders = findAllWidgets(tree, StickyHeader);
     expect(stickyHeaders.length).toBeGreaterThanOrEqual(1);
     const sh = stickyHeaders[0];
-    // Body should be a Column with thinking placeholder then StreamingCursor
-    const bodyTexts = findAllWidgets(sh.body, Text);
-    const thinkingIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('[thinking]'));
-    expect(thinkingIdx).toBeGreaterThanOrEqual(0);
+    // Body should contain a ThinkingBlock widget
+    const thinkingBlocks = findAllWidgets(sh.body, ThinkingBlock);
+    expect(thinkingBlocks.length).toBeGreaterThanOrEqual(1);
     // StreamingCursor should carry the message text
     const cursors = findAllWidgets(sh.body, StreamingCursor);
     expect(cursors.length).toBeGreaterThanOrEqual(1);

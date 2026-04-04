@@ -85,6 +85,8 @@ export interface UsageInfo {
   size: number;
   used: number;
   cost?: { amount: number; currency: string } | null;
+  inputTokens?: number;
+  outputTokens?: number;
 }
 
 /** A system-generated informational message. */

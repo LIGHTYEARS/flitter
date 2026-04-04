@@ -35,6 +35,7 @@ import type { ToolCallItem } from '../state/types';
 import { ToolCallWidget } from './tool-call/tool-call-widget';
 import { PlanView } from './plan-view';
 import { StreamingCursor } from './streaming-cursor';
+import { ThinkingBlock } from './thinking-block';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -258,19 +259,10 @@ function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
   const header = SizedBox.shrink();
   const bodyChildren: Widget[] = [];
 
-  // Thinking items — placeholder
+  // Thinking items — ThinkingBlock with collapsible content and BrailleSpinner
   for (const thinking of turn.thinkingItems) {
-    const label = thinking.isStreaming ? '[thinking...]' : '[thinking]';
     bodyChildren.push(
-      new Text({
-        text: new TextSpan({
-          text: label,
-          style: new TextStyle({
-            foreground: Color.brightBlack,
-            dim: true,
-          }),
-        }),
-      }),
+      new ThinkingBlock({ item: thinking }),
     );
   }
 

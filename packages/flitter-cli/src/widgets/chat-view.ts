@@ -6,9 +6,9 @@
 // in dispose(). Calls setState() on AppState change to trigger rebuild.
 //
 // Turn rendering uses the Phase 14 turn model (UserTurn, AssistantTurn).
-// Tool calls use ToolCallWidget dispatch (Phase 18). Placeholder renderers
-// are used for markdown, thinking, and plans — specialized renderers drop
-// in at Phase 19 without changing the layout contract.
+// Tool calls use ToolCallWidget dispatch (Phase 18). Phase 19 specialized
+// renderers are wired: StreamingCursor, ThinkingBlock, PlanView, Markdown,
+// and DiffCard replace the original placeholder renderers.
 
 import {
   StatefulWidget,
@@ -33,6 +33,8 @@ import type { UserTurn, AssistantTurn } from '../state/turn-types';
 import type { ScreenState, ErrorScreen } from '../state/screen-state';
 import type { ToolCallItem } from '../state/types';
 import { ToolCallWidget } from './tool-call/tool-call-widget';
+import { PlanView } from './plan-view';
+import { StreamingCursor } from './streaming-cursor';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -249,7 +251,7 @@ function buildUserTurnWidget(turn: UserTurn, appState: AppState): Widget {
  *   - ThinkingItem placeholders (dim "[thinking...]")
  *   - AssistantMessage text (plain text — markdown rendering deferred to Phase 19)
  *   - ToolCallWidget dispatch (real tool rendering — Phase 18)
- *   - PlanItem placeholders (deferred to Phase 19)
+ *   - PlanView checklist with status icons and priority tags (Phase 19)
  *   - SystemMessage separators (horizontal rule + dim italic text)
  */
 function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
@@ -272,18 +274,12 @@ function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
     );
   }
 
-  // Assistant message text (plain text for now)
+  // Assistant message text — rendered via StreamingCursor (Markdown + blinking cursor)
   if (turn.message) {
-    const text = turn.message.text || '';
-    const suffix = turn.message.isStreaming ? '\u2588' : ''; // block cursor for streaming
     bodyChildren.push(
-      new Text({
-        text: new TextSpan({
-          text: text + suffix,
-          style: new TextStyle({
-            foreground: Color.defaultColor,
-          }),
-        }),
+      new StreamingCursor({
+        text: turn.message.text || '',
+        isStreaming: turn.message.isStreaming,
       }),
     );
   }
@@ -328,18 +324,10 @@ function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
     );
   }
 
-  // Plan item placeholders
-  for (const _plan of turn.planItems) {
+  // Plan items — PlanView checklist with status icons and priority tags
+  for (const plan of turn.planItems) {
     bodyChildren.push(
-      new Text({
-        text: new TextSpan({
-          text: '[plan]',
-          style: new TextStyle({
-            foreground: Color.brightBlack,
-            dim: true,
-          }),
-        }),
-      }),
+      new PlanView({ entries: plan.entries }),
     );
   }
 

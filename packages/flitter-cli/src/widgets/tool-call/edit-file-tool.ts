@@ -1,16 +1,14 @@
-// EditFileTool — file edit display with diff stats and inline diff coloring
+// EditFileTool — file edit display with diff stats and DiffCard
 //
 // Renders an edit_file / apply_patch / undo_edit tool call:
 //   Header: [status icon] edit_file [filepath]
-//   Body (expanded): diff stats (+N green / -M red) + diff content
-//     - Lines starting with '+' (not '+++') colored green
-//     - Lines starting with '-' (not '---') colored red
-//     - Context lines rendered dim
+//   Body (expanded): diff stats (+N green / -M red) + DiffCard
+//     - DiffCard wraps flitter-core's DiffView for unified diff rendering
+//       with line numbers, hunk headers, word-level diff, and color semantics
 //     - Fallback: extractOutputText as dim text when no diff found
 //
 // Ported from flitter-amp/src/widgets/tool-call/edit-file-tool.ts
-// — DiffView widget replaced with inline diff coloring using TextSpan
-//   children (temporary until Phase 19 provides proper DiffView)
+// — Diff rendering delegated to DiffCard (Phase 19 Plan 02)
 // — AmpThemeProvider color lookups replaced with direct Color.* constants
 
 import {
@@ -27,6 +25,7 @@ import { Padding } from '../../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../../flitter-core/src/layout/edge-insets';
 import { ToolHeader } from './tool-header';
 import type { BaseToolProps, ToolCallItem } from './base-tool-props';
+import { DiffCard } from '../diff-card';
 import { pickString, asOptionalString } from '../../utils/raw-input';
 import { extractDiff as extractDiffUtil, extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
@@ -36,8 +35,7 @@ interface EditFileToolProps extends BaseToolProps {}
 
 /**
  * Renders an edit_file / apply_patch / undo_edit tool call.
- * Shows the file path in the header and inline-colored diff when expanded.
- * Phase 19 will replace the inline diff with a proper DiffView widget.
+ * Shows the file path in the header and DiffCard with unified diff when expanded.
  */
 export class EditFileTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
@@ -106,16 +104,9 @@ export class EditFileTool extends StatelessWidget {
         );
       }
 
-      // Inline diff coloring: +lines green, -lines red, context dim
-      // Temporary approach until Phase 19 provides proper DiffView widget
-      const diffSpans = this.buildDiffSpans(diff);
+      // Unified diff rendering via DiffCard (DiffView + bordered container)
       bodyChildren.push(
-        new Padding({
-          padding: EdgeInsets.only({ left: 2, right: 2 }),
-          child: new Text({
-            text: new TextSpan({ children: diffSpans }),
-          }),
-        }),
+        new DiffCard({ filePath: filePath ?? '', diff }),
       );
     } else {
       // Fallback: show extractOutputText as dim text
@@ -182,42 +173,5 @@ export class EditFileTool extends StatelessWidget {
       else if (line.startsWith('-') && !line.startsWith('---')) removed++;
     }
     return { added, removed };
-  }
-
-  /**
-   * Builds an array of TextSpan children for inline diff coloring.
-   * Each line gets its own span with color based on the +/- prefix:
-   *   '+' (not '+++') -> green
-   *   '-' (not '---') -> red
-   *   everything else -> dim brightBlack
-   */
-  private buildDiffSpans(diff: string): TextSpan[] {
-    const lines = diff.split('\n');
-    const spans: TextSpan[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const isLast = i === lines.length - 1;
-      const text = isLast ? line : line + '\n';
-
-      if (line.startsWith('+') && !line.startsWith('+++')) {
-        spans.push(new TextSpan({
-          text,
-          style: new TextStyle({ foreground: Color.green }),
-        }));
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
-        spans.push(new TextSpan({
-          text,
-          style: new TextStyle({ foreground: Color.red }),
-        }));
-      } else {
-        spans.push(new TextSpan({
-          text,
-          style: new TextStyle({ foreground: Color.brightBlack, dim: true }),
-        }));
-      }
-    }
-
-    return spans;
   }
 }

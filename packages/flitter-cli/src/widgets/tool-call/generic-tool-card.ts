@@ -5,8 +5,8 @@
 //
 // Ported from flitter-amp/src/widgets/tool-call/generic-tool-card.ts
 // — AmpThemeProvider colors replaced with direct Color constants
-// — Markdown widget replaced with plain Text (Phase 19 provides Markdown)
-// — DiffView replaced with plain Text (Phase 19 provides DiffView)
+// — Output section renders through Markdown widget (Phase 19)
+// — DiffView replaced with plain Text (Phase 19-02 provides DiffView)
 // — StickyHeader layout, extractDetails/Input/Output/Locations methods retained
 
 import {
@@ -23,9 +23,11 @@ import { Padding } from '../../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../../flitter-core/src/layout/edge-insets';
 import { StickyHeader } from '../../../../flitter-core/src/widgets/sticky-header';
 import { SizedBox } from '../../../../flitter-core/src/widgets/sized-box';
+import { Markdown } from '../../../../flitter-core/src/widgets/markdown';
 import { ToolHeader } from './tool-header';
 import type { BaseToolProps } from './base-tool-props';
 import type { ToolCallItem } from '../../state/types';
+import { DiffCard } from '../diff-card';
 import { extractOutputText, extractDiff } from './tool-output-utils';
 import {
   INPUT_TRUNCATION_LIMIT,
@@ -137,22 +139,12 @@ export class GenericToolCard extends StatelessWidget {
     }
 
     // --- Diff or output section ---
-    // Phase 19 will swap Text -> DiffView / Markdown
+    // Diff output rendered via DiffCard (Phase 19 Plan 02)
     const diff = extractDiff(this.toolCall.result);
     if (diff) {
+      const filePath = this.extractPrimaryFilePath();
       bodyChildren.push(
-        new Padding({
-          padding: EdgeInsets.only({ left: 2, right: 2 }),
-          child: new Text({
-            text: new TextSpan({
-              text: diff,
-              style: new TextStyle({
-                foreground: Color.brightBlack,
-                dim: true,
-              }),
-            }),
-          }),
-        }),
+        new DiffCard({ filePath: filePath ?? 'diff', diff }),
       );
     } else {
       const outputText = this.extractOutputText();
@@ -160,15 +152,7 @@ export class GenericToolCard extends StatelessWidget {
         bodyChildren.push(
           new Padding({
             padding: EdgeInsets.only({ left: 2, right: 2 }),
-            child: new Text({
-              text: new TextSpan({
-                text: outputText,
-                style: new TextStyle({
-                  foreground: Color.brightBlack,
-                  dim: true,
-                }),
-              }),
-            }),
+            child: new Markdown({ markdown: outputText }),
           }),
         );
       }
@@ -277,5 +261,15 @@ export class GenericToolCard extends StatelessWidget {
     }
 
     return extractOutputText(this.toolCall.result, { maxLength: OUTPUT_TRUNCATION_LIMIT });
+  }
+
+  /**
+   * Extracts the primary file path for the DiffCard header.
+   * Returns the first location path, or falls back to extractTitleDetail.
+   */
+  private extractPrimaryFilePath(): string | null {
+    const locs = this.toolCall.locations;
+    if (locs && locs.length > 0) return locs[0]!.path;
+    return extractTitleDetail(this.toolCall);
   }
 }

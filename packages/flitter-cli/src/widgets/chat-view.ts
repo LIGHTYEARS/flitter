@@ -249,7 +249,7 @@ function buildUserTurnWidget(turn: UserTurn, appState: AppState): Widget {
  *
  * Body is a Column of child widgets rendered from AssistantTurn fields:
  *   - ThinkingItem placeholders (dim "[thinking...]")
- *   - AssistantMessage text (plain text — markdown rendering deferred to Phase 19)
+ *   - AssistantMessage rendered via StreamingCursor (Markdown + blinking cursor)
  *   - ToolCallWidget dispatch (real tool rendering — Phase 18)
  *   - PlanView checklist with status icons and priority tags (Phase 19)
  *   - SystemMessage separators (horizontal rule + dim italic text)

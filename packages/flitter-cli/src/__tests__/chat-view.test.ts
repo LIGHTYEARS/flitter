@@ -19,6 +19,7 @@ import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { ChatView, ChatViewState } from '../widgets/chat-view';
 import { ToolCallWidget } from '../widgets/tool-call/tool-call-widget';
+import { StreamingCursor } from '../widgets/streaming-cursor';
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent, ConversationItem } from '../state/types';
 
@@ -503,7 +504,7 @@ describe('ChatView — UserTurnWidget Rendering', () => {
 
 describe('ChatView — AssistantTurnWidget Content', () => {
 
-  test('4.1 Turn with only message renders text widget in StickyHeader body', () => {
+  test('4.1 Turn with only message renders StreamingCursor in StickyHeader body', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -515,16 +516,14 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     const stickyHeaders = findAllWidgets(tree, StickyHeader);
     expect(stickyHeaders.length).toBeGreaterThanOrEqual(1);
     const sh = stickyHeaders[0];
-    // Body should contain a Text widget with the message
-    const bodyTexts = findAllWidgets(sh.body, Text);
-    const hasMsg = bodyTexts.some(t => {
-      const span = (t as any).text;
-      return span?.text?.includes?.('Hello back');
-    });
-    expect(hasMsg).toBe(true);
+    // Body should contain a StreamingCursor widget with the message text
+    const cursors = findAllWidgets(sh.body, StreamingCursor);
+    expect(cursors.length).toBeGreaterThanOrEqual(1);
+    expect(cursors[0].text).toContain('Hello back');
+    expect(cursors[0].isStreaming).toBe(false);
   });
 
-  test('4.2 Turn with thinking + message renders thinking placeholder before message text', () => {
+  test('4.2 Turn with thinking + message renders thinking placeholder before StreamingCursor', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -538,15 +537,17 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     const stickyHeaders = findAllWidgets(tree, StickyHeader);
     expect(stickyHeaders.length).toBeGreaterThanOrEqual(1);
     const sh = stickyHeaders[0];
-    // Body should be a Column with thinking placeholder then message text
+    // Body should be a Column with thinking placeholder then StreamingCursor
     const bodyTexts = findAllWidgets(sh.body, Text);
     const thinkingIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('[thinking]'));
-    const msgIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('42'));
     expect(thinkingIdx).toBeGreaterThanOrEqual(0);
-    expect(msgIdx).toBeGreaterThan(thinkingIdx);
+    // StreamingCursor should carry the message text
+    const cursors = findAllWidgets(sh.body, StreamingCursor);
+    expect(cursors.length).toBeGreaterThanOrEqual(1);
+    expect(cursors[0].text).toContain('42');
   });
 
-  test('4.3 Turn with message + tool calls renders message text then ToolCallWidget', () => {
+  test('4.3 Turn with message + tool calls renders StreamingCursor then ToolCallWidget', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -561,10 +562,10 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     expect(stickyHeaders.length).toBeGreaterThanOrEqual(1);
     const sh = stickyHeaders[0];
 
-    // Message text should appear as a Text widget in the body
-    const bodyTexts = findAllWidgets(sh.body, Text);
-    const msgIdx = bodyTexts.findIndex(t => (t as any).text?.text?.includes?.('Let me check'));
-    expect(msgIdx).toBeGreaterThanOrEqual(0);
+    // StreamingCursor should carry the message text
+    const cursors = findAllWidgets(sh.body, StreamingCursor);
+    expect(cursors.length).toBeGreaterThanOrEqual(1);
+    expect(cursors[0].text).toContain('Let me check');
 
     // Tool calls now render as ToolCallWidget (not placeholder text)
     const toolWidgets = findAllWidgets(sh.body, ToolCallWidget);
@@ -596,7 +597,7 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     expect(hasSysMsg).toBe(true);
   });
 
-  test('4.5 Streaming turn message text includes streaming indicator (block cursor)', () => {
+  test('4.5 Streaming turn renders StreamingCursor with isStreaming=true', () => {
     const { appState, session } = createTestAppState();
     session.startProcessing('hello');
     session.beginStreaming();
@@ -604,13 +605,11 @@ describe('ChatView — AssistantTurnWidget Content', () => {
     // Still streaming — do NOT complete
 
     const tree = buildChatView(appState);
-    const texts = findAllWidgets(tree, Text);
-    // Should have block cursor (█ = \u2588) appended
-    const hasCursor = texts.some(t => {
-      const span = (t as any).text;
-      return span?.text?.includes?.('\u2588');
-    });
-    expect(hasCursor).toBe(true);
+    // StreamingCursor should be present with isStreaming=true and the text
+    const cursors = findAllWidgets(tree, StreamingCursor);
+    expect(cursors.length).toBeGreaterThanOrEqual(1);
+    expect(cursors[0].text).toContain('Streaming...');
+    expect(cursors[0].isStreaming).toBe(true);
   });
 
   test('4.6 Empty assistant turn (no content) renders StickyHeader with placeholder body', () => {

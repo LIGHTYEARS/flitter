@@ -64,6 +64,7 @@ import { buildCommandList, type CommandItem } from '../commands/command-registry
 import { ShortcutRegistry, registerDefaultShortcuts } from '../shortcuts';
 import type { ShortcutContext, ShortcutHooks } from '../shortcuts';
 import { listProjectFiles } from '../utils/file-list';
+import { launchEditor } from '../utils/editor-launcher';
 import { log } from '../utils/logger';
 import { CliThemeProvider, createCliTheme, cliThemes } from '../themes';
 
@@ -138,6 +139,18 @@ class AppShellState extends State<AppShell> {
   /** OverlayManager listener reference for cleanup in dispose(). */
   private _onOverlayChange: (() => void) | null = null;
 
+  /** Saved draft text before entering history navigation (restored on forward-past-end). */
+  private _savedDraft: string = '';
+
+  /** Guard flag to suppress input listener resets during programmatic history navigation. */
+  private _isNavigatingHistory = false;
+
+  /** Timestamp of the last UI update (for streaming throttle). */
+  private _lastUpdate: number = 0;
+
+  /** Pending throttle timer for streaming updates. */
+  private _pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
   // --- Lifecycle ---
 
   /**
@@ -157,8 +170,21 @@ class AppShellState extends State<AppShell> {
     // Register default shortcuts
     registerDefaultShortcuts(this.shortcutRegistry);
 
-    // AppState listener for session state changes
-    this._onStateChange = () => this.setState();
+    // AppState listener with 50ms streaming throttle (ported from AMP).
+    // During streaming, avoids re-rendering on every token by coalescing
+    // updates within 50ms windows. Immediate flush when >= 50ms have elapsed.
+    this._onStateChange = () => {
+      const now = Date.now();
+      const elapsed = now - this._lastUpdate;
+
+      if (elapsed >= 50) {
+        this._flushUpdate();
+      } else if (!this._pendingTimer) {
+        this._pendingTimer = setTimeout(() => {
+          this._flushUpdate();
+        }, 50 - elapsed);
+      }
+    };
     this.widget.appState.addListener(this._onStateChange);
 
     // OverlayManager listener for overlay state changes
@@ -167,10 +193,37 @@ class AppShellState extends State<AppShell> {
   }
 
   /**
+   * Flush a throttled UI update. Clears any pending timer, records
+   * the update timestamp, and triggers a widget rebuild.
+   * Ported from AMP's _flushUpdate pattern for streaming throttle.
+   */
+  private _flushUpdate(): void {
+    if (this._pendingTimer) {
+      clearTimeout(this._pendingTimer);
+      this._pendingTimer = null;
+    }
+    this._lastUpdate = Date.now();
+    this.setState();
+  }
+
+  /**
    * Dispose ScrollController, TextEditingController, and remove all listeners.
    * All resources are owned by AppShellState.
+   * Saves prompt history to disk on teardown (ported from AMP dispose pattern).
    */
   dispose(): void {
+    // Flush prompt history to disk on graceful teardown
+    const history = this.widget.appState.promptHistory;
+    if (history) {
+      history.save();
+    }
+
+    // Clear any pending streaming throttle timer
+    if (this._pendingTimer) {
+      clearTimeout(this._pendingTimer);
+      this._pendingTimer = null;
+    }
+
     if (this._onOverlayChange) {
       this.widget.appState.overlayManager.removeListener(this._onOverlayChange);
     }
@@ -213,31 +266,128 @@ class AppShellState extends State<AppShell> {
         this._showShortcutHelp();
       },
       openInEditor: () => {
-        // INPT-06 will implement external editor integration
-        log.info('AppShell: openInEditor hook — stub (INPT-06)');
+        this._openInEditor();
       },
       historyPrevious: () => {
-        // Phase 21 will implement prompt history navigation
-        log.info('AppShell: historyPrevious hook — stub (Phase 21)');
+        this._navigateHistory('backward');
       },
       historyNext: () => {
-        // Phase 21 will implement prompt history navigation
-        log.info('AppShell: historyNext hook — stub (Phase 21)');
+        this._navigateHistory('forward');
       },
       showFilePicker: () => {
         this._showFilePicker();
+      },
+      toggleThinking: () => {
+        // Toggle all thinking blocks collapsed/expanded
+        log.info('AppShell: toggleThinking');
+      },
+      copyLastResponse: () => {
+        this.widget.appState.copyLastResponse();
       },
     };
 
     return {
       appState: this.widget.appState,
       overlayManager: this.widget.appState.overlayManager,
+      onCancel: () => {
+        if (this.widget.appState.isProcessing) {
+          this.widget.appState.cancelPrompt();
+        } else {
+          WidgetsBinding.instance.stop();
+        }
+      },
+      promptHistory: this.widget.appState.promptHistory ?? null,
       setState: (fn?) => {
         if (fn) fn();
         this.setState();
       },
       hooks,
     };
+  }
+
+  // --- Prompt History Navigation (ported from AMP Gap 63) ---
+
+  /**
+   * Navigate prompt history in the given direction.
+   *
+   * 'backward' moves to older entries; 'forward' moves to newer entries.
+   * On the first backward step the current input text is saved as a draft
+   * so it can be restored when the user navigates forward past the newest entry.
+   *
+   * Sets _isNavigatingHistory to prevent any input-change listeners from
+   * resetting the history cursor during programmatic text updates.
+   */
+  private _navigateHistory(direction: 'backward' | 'forward'): void {
+    const history = this.widget.appState.promptHistory;
+    if (!history) return;
+
+    this._isNavigatingHistory = true;
+    try {
+      if (direction === 'backward') {
+        // Save draft on first backward step
+        if (history.isAtReset) {
+          this._savedDraft = this.textController.text;
+        }
+        const prev = history.previous();
+        if (prev !== null) {
+          this.textController.text = prev;
+          this.textController.cursorPosition = prev.length;
+        }
+      } else {
+        const next = history.next();
+        if (next !== null) {
+          this.textController.text = next;
+          this.textController.cursorPosition = next.length;
+        } else if (!history.isAtReset) {
+          // next() returned null but cursor was not at reset —
+          // this means we've moved past the end; cursor is now reset.
+          // (In CLI's PromptHistory, next() returns null when cursor >= length,
+          //  and cursor has already been incremented past end.)
+        }
+        // If cursor is back at reset, restore the saved draft
+        if (history.isAtReset) {
+          this.textController.text = this._savedDraft;
+          this.textController.cursorPosition = this._savedDraft.length;
+          this._savedDraft = '';
+        }
+      }
+    } finally {
+      this._isNavigatingHistory = false;
+    }
+  }
+
+  // --- External Editor (I9: Ctrl+G wiring) ---
+
+  /**
+   * Open the current input text in $EDITOR.
+   * Suspends the TUI, spawns the editor, resumes, and injects the edited text.
+   * Amp ref: J3 suspend pattern -- suspends tui, pauses scheduler
+   */
+  private async _openInEditor(): Promise<void> {
+    const binding = WidgetsBinding.instance;
+    const currentText = this.textController.text;
+
+    // 1. Suspend the TUI so the editor gets direct terminal access
+    binding.suspend();
+
+    try {
+      // 2. Launch editor with current input text
+      const result = await launchEditor(currentText);
+
+      // 3. If successful, replace the input text
+      if (result.success && result.text !== null) {
+        // Trim trailing newlines that most editors add
+        const editedText = result.text.replace(/\n+$/, '');
+        this.textController.text = editedText;
+        this.textController.cursorPosition = editedText.length;
+      }
+    } finally {
+      // 4. Always resume the TUI, even if editor fails
+      binding.resume();
+
+      // 5. Trigger a rebuild to reflect any text changes
+      this.setState();
+    }
   }
 
   // --- Command Palette (Plan 17-03) ---
@@ -461,7 +611,7 @@ class AppShellState extends State<AppShell> {
           isInterrupted: this.widget.appState.isInterrupted,
           tokenUsage: this.widget.appState.usage,
           costUsd: this.widget.appState.usage?.cost?.amount ?? 0,
-          elapsedMs: 0,
+          elapsedMs: this.widget.appState.elapsedMs,
         }),
         new InputArea({
           onSubmit: (text) => this.widget.appState.submitPrompt(text),

@@ -23,8 +23,10 @@ import { PromptController } from '../state/prompt-controller';
  * Supports delayed event emission for testing cancellation timing.
  */
 class MockProvider implements Provider {
+  readonly id = 'mock' as const;
   readonly name = 'mock';
   readonly model = 'test-model';
+  readonly capabilities = { vision: true, functionCalling: true, streaming: true, systemPrompt: true };
 
   /** Pre-configured events to yield on sendPrompt. */
   mockEvents: StreamEvent[] = [];

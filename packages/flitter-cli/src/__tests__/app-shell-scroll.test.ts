@@ -29,8 +29,10 @@ import type { StreamEvent } from '../state/types';
 // ---------------------------------------------------------------------------
 
 class MockProvider implements Provider {
+  readonly id = 'mock' as const;
   readonly name = 'mock';
   readonly model = 'test-model';
+  readonly capabilities = { vision: true, functionCalling: true, streaming: true, systemPrompt: true };
   mockEvents: StreamEvent[] = [];
   cancelCalled = false;
 

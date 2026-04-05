@@ -5,6 +5,86 @@
 // re-exports and coco/ACP coupling.
 
 // ---------------------------------------------------------------------------
+// Session Error & Metadata
+// ---------------------------------------------------------------------------
+
+/** An error captured during session processing. */
+export interface SessionError {
+  message: string;
+  code: string | null;
+  retryable: boolean;
+}
+
+/** Metadata associated with a session instance. */
+export interface SessionMetadata {
+  sessionId: string;
+  startTime: number;
+  cwd: string;
+  model: string;
+  tokenUsage: { input: number; output: number };
+  turnCount: number;
+  title: string | null;
+  gitBranch: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Provider Message Content Blocks (API-level representation)
+// ---------------------------------------------------------------------------
+
+/** A text content block in a provider message. */
+export interface TextBlock {
+  type: 'text';
+  text: string;
+}
+
+/** A tool_use content block — the model is requesting a tool call. */
+export interface ToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/** A tool_result content block — the result of executing a tool. */
+export interface ToolResultBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+
+/** Union of all content block types in a provider message. */
+export type ContentBlock = TextBlock | ToolUseBlock | ToolResultBlock;
+
+/** Message content: either a plain string or structured content blocks. */
+export type MessageContent = string | ContentBlock[];
+
+/** A message in the provider message array (multi-turn conversation). */
+export interface ProviderMessage {
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: MessageContent;
+}
+
+// ---------------------------------------------------------------------------
+// Tool Definition Types
+// ---------------------------------------------------------------------------
+
+/** JSON Schema for tool input parameters. */
+export interface ToolInputSchema {
+  type: 'object';
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
+/** A tool definition sent to the provider to enable tool use. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  input_schema: ToolInputSchema;
+}
+
+// ---------------------------------------------------------------------------
 // Conversation Item Types
 // ---------------------------------------------------------------------------
 
@@ -17,6 +97,8 @@ export interface UserMessage {
   interrupted?: boolean;
   /** Optional image attachments. */
   images?: Array<{ filename: string }>;
+  /** Tool results attached to this user message (for agentic loop re-submission). */
+  toolResults?: ToolResultBlock[];
 }
 
 /** A message produced by the assistant (may be streaming). */
@@ -26,34 +108,36 @@ export interface AssistantMessage {
   timestamp: number;
   /** True while the assistant is still emitting text chunks. */
   isStreaming: boolean;
+  /** Content blocks from the API response (text + tool_use interleaved). */
+  contentBlocks?: ReadonlyArray<ContentBlock>;
 }
 
 /** The result payload of a completed or failed tool call. */
 export interface ToolCallResult {
-  status: 'completed' | 'failed' | 'streaming';
-  content?: Array<{ type: string; content?: { type: string; text: string } }>;
-  rawOutput?: Record<string, unknown> | string;
+  readonly status: 'completed' | 'failed' | 'streaming';
+  readonly content?: ReadonlyArray<Readonly<{ type: string; content?: Readonly<{ type: string; text: string }> }>>;
+  readonly rawOutput?: Readonly<Record<string, unknown>> | string;
 }
 
 /** A tool invocation tracked in the conversation. */
 export interface ToolCallItem {
-  type: 'tool_call';
-  toolCallId: string;
-  title: string;
-  kind: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  locations?: Array<{ path: string }>;
-  rawInput?: Record<string, unknown>;
-  result?: ToolCallResult;
-  collapsed: boolean;
+  readonly type: 'tool_call';
+  readonly toolCallId: string;
+  readonly title: string;
+  readonly kind: string;
+  readonly status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  readonly locations?: ReadonlyArray<Readonly<{ path: string }>>;
+  readonly rawInput?: Readonly<Record<string, unknown>>;
+  readonly result?: ToolCallResult;
+  readonly collapsed: boolean;
   /** If set, this tool call is a child of a Task (subagent) tool call. */
-  parentToolCallId?: string;
+  readonly parentToolCallId?: string;
   /** Accumulated streaming output received while tool is in_progress. */
-  streamingOutput?: string;
+  readonly streamingOutput?: string;
   /** Whether streaming output is actively being received. */
-  isStreaming?: boolean;
+  readonly isStreaming?: boolean;
   /** Associated terminal ID for client-side polling (Bash tools). */
-  terminalId?: string;
+  readonly terminalId?: string;
 }
 
 /** An extended-thinking block produced by the model. */
@@ -69,24 +153,24 @@ export interface ThinkingItem {
 
 /** A single entry in the assistant's plan. */
 export interface PlanEntry {
-  content: string;
-  priority: 'high' | 'medium' | 'low';
-  status: 'pending' | 'in_progress' | 'completed';
+  readonly content: string;
+  readonly priority: 'high' | 'medium' | 'low';
+  readonly status: 'pending' | 'in_progress' | 'completed';
 }
 
 /** A plan item containing an ordered list of plan entries. */
 export interface PlanItem {
-  type: 'plan';
-  entries: Array<PlanEntry>;
+  readonly type: 'plan';
+  readonly entries: ReadonlyArray<Readonly<PlanEntry>>;
 }
 
 /** Context-window and cost usage information. */
 export interface UsageInfo {
-  size: number;
-  used: number;
-  cost?: { amount: number; currency: string } | null;
-  inputTokens?: number;
-  outputTokens?: number;
+  readonly size: number;
+  readonly used: number;
+  readonly cost?: Readonly<{ amount: number; currency: string }> | null;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
 }
 
 /** A system-generated informational message. */
@@ -105,71 +189,6 @@ export type ConversationItem =
   | ThinkingItem
   | SystemMessage;
 
-// ---------------------------------------------------------------------------
-// Session Lifecycle Types
-// ---------------------------------------------------------------------------
-
-/**
- * Deterministic session lifecycle states.
- *
- * Transitions:
- *   idle -> processing -> streaming -> complete
- *                                   -> error
- *                                   -> cancelled
- *   processing -> error
- *              -> cancelled
- *   complete/error/cancelled -> idle (via reset)
- */
-export type SessionLifecycle =
-  | 'idle'
-  | 'processing'
-  | 'streaming'
-  | 'complete'
-  | 'error'
-  | 'cancelled';
-
-/**
- * Metadata about the current session, tracked across turns.
- * Updated by the session state machine on lifecycle transitions.
- */
-export interface SessionMetadata {
-  sessionId: string;
-  startTime: number;
-  cwd: string;
-  model: string;
-  tokenUsage: { input: number; output: number };
-  turnCount: number;
-  title: string | null;
-  gitBranch: string | null;
-}
-
-/**
- * Error information captured when the session enters the 'error' state.
- * Provides enough context for the UI to show actionable recovery options.
- */
-export interface SessionError {
-  message: string;
-  code: string | null;
-  retryable: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Stream Event Types (Provider Interface)
-// ---------------------------------------------------------------------------
-
-/**
- * Discriminated union of events emitted by a Provider's sendPrompt stream.
- * Consumers switch on the `type` field to process each variant.
- */
-export type StreamEvent =
-  | StreamTextDelta
-  | StreamThinkingDelta
-  | StreamToolCallStart
-  | StreamToolCallEnd
-  | StreamUsageUpdate
-  | StreamMessageComplete
-  | StreamError;
-
 /** A chunk of assistant text content. */
 export interface StreamTextDelta {
   type: 'text_delta';
@@ -186,8 +205,29 @@ export interface StreamThinkingDelta {
 export interface StreamToolCallStart {
   type: 'tool_call_start';
   toolCallId: string;
+  /** Tool name as reported by the model. */
+  name: string;
+  /** Display title (may be the same as name). */
   title: string;
   kind: string;
+}
+
+/** Incremental JSON delta for tool input arguments (streaming assembly). */
+export interface StreamToolCallInputDelta {
+  type: 'tool_call_input_delta';
+  toolCallId: string;
+  partialJson: string;
+}
+
+/**
+ * Signals that a tool call's input has been fully assembled and is ready
+ * for execution. Emitted after all input_json_delta chunks are received.
+ */
+export interface StreamToolCallReady {
+  type: 'tool_call_ready';
+  toolCallId: string;
+  name: string;
+  input: Record<string, unknown>;
 }
 
 /** Signals the completion of a tool call. */
@@ -204,14 +244,81 @@ export interface StreamUsageUpdate {
   usage: UsageInfo;
 }
 
-/** The message stream has completed normally. */
+/**
+ * The message stream has completed normally.
+ * stopReason discriminates whether the model wants to call tools or end the turn:
+ * - 'end_turn': conversation is complete, model is done speaking
+ * - 'tool_use': model requested tool call(s), expects tool results to continue
+ * - 'max_tokens': hit the token budget
+ * - 'stop_sequence': hit a stop sequence
+ */
 export interface StreamMessageComplete {
   type: 'message_complete';
-  stopReason: string;
+  stopReason: 'end_turn' | 'tool_use' | 'max_tokens' | 'stop_sequence' | string;
 }
 
 /** An error occurred during streaming. */
 export interface StreamError {
   type: 'error';
   error: SessionError;
+}
+
+/** Discriminated union of all stream event types emitted by providers. */
+export type StreamEvent =
+  | StreamTextDelta
+  | StreamThinkingDelta
+  | StreamToolCallStart
+  | StreamToolCallInputDelta
+  | StreamToolCallReady
+  | StreamToolCallEnd
+  | StreamUsageUpdate
+  | StreamMessageComplete
+  | StreamError;
+
+// ---------------------------------------------------------------------------
+// Session Lifecycle Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic session lifecycle states.
+ *
+ * Transitions:
+ *   idle -> processing -> streaming -> complete
+ *                                   -> tool_execution (agentic loop)
+ *                                   -> error
+ *                                   -> cancelled
+ *   processing -> error
+ *              -> cancelled
+ *   tool_execution -> processing (re-submit with tool results)
+ *   complete/error/cancelled -> idle (via reset)
+ */
+export type SessionLifecycle =
+  | 'idle'
+  | 'processing'
+  | 'streaming'
+  | 'tool_execution'
+  | 'complete'
+  | 'error'
+  | 'cancelled';
+
+// ---------------------------------------------------------------------------
+// Conversation Snapshot (N2)
+// ---------------------------------------------------------------------------
+
+/** Named type for the frozen snapshot returned by SessionState.snapshot. */
+export type ConversationSnapshot = Readonly<{
+  items: ReadonlyArray<Readonly<ConversationItem>>;
+  version: number;
+  lifecycle: SessionLifecycle;
+}>;
+
+// ---------------------------------------------------------------------------
+// Token Usage Tracking (N14)
+// ---------------------------------------------------------------------------
+
+/** Structured token usage counters for tracking API consumption. */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
 }

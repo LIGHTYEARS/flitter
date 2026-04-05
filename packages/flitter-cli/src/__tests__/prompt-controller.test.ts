@@ -14,8 +14,10 @@ import { PromptController } from '../state/prompt-controller';
 // ---------------------------------------------------------------------------
 
 class MockProvider implements Provider {
+  readonly id = 'mock' as const;
   readonly name = 'MockProvider';
   readonly model = 'mock-model';
+  readonly capabilities = { vision: true, functionCalling: true, streaming: true, systemPrompt: true };
 
   /** Pre-configured events to yield on sendPrompt. */
   events: StreamEvent[] = [];

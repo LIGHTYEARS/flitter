@@ -65,7 +65,7 @@ export class PermissionDialog extends StatelessWidget {
     const items: SelectionItem[] = options.map((opt) => ({
       label: opt.name,
       value: opt.optionId,
-      description: opt.description,
+      description: opt.kind.replace(/_/g, ' '),
     }));
 
     // Warning color — hardcoded until Phase 20 theme integration

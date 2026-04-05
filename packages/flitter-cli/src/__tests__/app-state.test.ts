@@ -19,8 +19,10 @@ import { PromptController } from '../state/prompt-controller';
 
 /** Mock LLM provider yielding a configurable sequence of StreamEvents. */
 class MockProvider implements Provider {
+  readonly id = 'mock' as const;
   readonly name = 'mock';
   readonly model = 'test-model';
+  readonly capabilities = { vision: true, functionCalling: true, streaming: true, systemPrompt: true };
 
   /** Pre-configured events to yield on sendPrompt. */
   mockEvents: StreamEvent[] = [];
@@ -105,6 +107,27 @@ describe('AppState', () => {
     test('turnCount starts at 0', () => {
       const created = AppState.create({ cwd: '/test', provider: new MockProvider() });
       expect(created.metadata.turnCount).toBe(0);
+    });
+
+    test('defaultToolExpanded propagates to session.toolCallsExpanded (N10)', () => {
+      const expanded = AppState.create({
+        cwd: '/test',
+        provider: new MockProvider(),
+        defaultToolExpanded: true,
+      });
+      expect(expanded.session.toolCallsExpanded).toBe(true);
+
+      const collapsed = AppState.create({
+        cwd: '/test',
+        provider: new MockProvider(),
+        defaultToolExpanded: false,
+      });
+      expect(collapsed.session.toolCallsExpanded).toBe(false);
+    });
+
+    test('defaultToolExpanded defaults to true when not specified (N10)', () => {
+      const created = AppState.create({ cwd: '/test', provider: new MockProvider() });
+      expect(created.session.toolCallsExpanded).toBe(true);
     });
   });
 

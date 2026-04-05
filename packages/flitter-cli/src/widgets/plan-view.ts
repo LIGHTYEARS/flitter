@@ -27,19 +27,7 @@ import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import type { PlanEntry } from '../state/types';
 import { CliThemeProvider, type CliTheme } from '../themes';
-
-// ---------------------------------------------------------------------------
-// Unicode status icons (mirrors tool-icons.ts todoStatusIcon mapping)
-// ---------------------------------------------------------------------------
-
-/** Checkmark for completed entries. */
-const ICON_COMPLETED = '\u2713';
-
-/** Half circle for in-progress entries. */
-const ICON_IN_PROGRESS = '\u25D4';
-
-/** Empty circle for pending entries. */
-const ICON_PENDING = '\u25CB';
+import { icon } from '../utils/icon-registry';
 
 // ---------------------------------------------------------------------------
 // PlanView — StatelessWidget
@@ -130,13 +118,13 @@ export class PlanView extends StatelessWidget {
   private static getStatusIcon(status: PlanEntry['status']): string {
     switch (status) {
       case 'completed':
-        return ICON_COMPLETED;
+        return icon('plan.status.completed');
       case 'in_progress':
-        return ICON_IN_PROGRESS;
+        return icon('plan.status.in_progress');
       case 'pending':
-        return ICON_PENDING;
+        return icon('plan.status.pending');
       default:
-        return ICON_PENDING;
+        return icon('plan.status.pending');
     }
   }
 

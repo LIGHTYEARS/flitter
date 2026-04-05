@@ -2,9 +2,16 @@
 //
 // Uses native fetch() (provided by Bun) to stream SSE responses from the
 // Anthropic Messages API. No external HTTP dependencies.
+//
+// Normalizes Anthropic-specific SSE events into the unified StreamEvent
+// vocabulary. Supports tool_use content blocks, structured messages, and
+// tool input JSON streaming.
 
-import type { Provider, PromptOptions } from './provider';
-import type { StreamEvent, SessionError, UsageInfo } from '../state/types';
+import type { Provider, PromptOptions, ProviderId, ProviderCapabilities } from './provider';
+import type {
+  StreamEvent, SessionError, UsageInfo, ProviderMessage,
+  ToolDefinition, ContentBlock, ToolUseBlock,
+} from '../state/types';
 import { log } from '../utils/logger';
 
 /** Configuration for the Anthropic provider. */
@@ -23,12 +30,22 @@ export interface AnthropicProviderOptions {
  * Implements the Provider interface with:
  * - Native fetch() for HTTP (no external deps)
  * - SSE parsing for streaming responses
+ * - Tool use support (sends tool definitions, emits tool_call_ready with parsed input)
  * - Cooperative cancellation via AbortController
  * - Proper HTTP error handling with retryable flag for 429/5xx
  */
 export class AnthropicProvider implements Provider {
+  readonly id: ProviderId = 'anthropic';
   readonly name = 'Anthropic';
   readonly model: string;
+
+  /** Anthropic supports all major capabilities. */
+  readonly capabilities: ProviderCapabilities = {
+    vision: true,
+    functionCalling: true,
+    streaming: true,
+    systemPrompt: true,
+  };
 
   private _apiKey: string;
   private _baseUrl: string;
@@ -47,6 +64,15 @@ export class AnthropicProvider implements Provider {
     this._baseUrl = (options.baseUrl ?? 'https://api.anthropic.com').replace(/\/$/, '');
   }
 
+  /**
+   * Lightweight health check (N5).
+   * Returns true — a full API ping would consume tokens, so we optimistically
+   * report healthy. Subclasses or future versions can do a HEAD request.
+   */
+  async ping(): Promise<boolean> {
+    return true;
+  }
+
   /** Cancel the current in-flight request by aborting the fetch. */
   cancelRequest(): void {
     if (this._currentAbort) {
@@ -62,7 +88,7 @@ export class AnthropicProvider implements Provider {
    * maps Anthropic event types to our StreamEvent discriminated union.
    */
   async *sendPrompt(
-    messages: Array<{ role: string; content: string }>,
+    messages: ProviderMessage[],
     options: PromptOptions,
   ): AsyncGenerator<StreamEvent> {
     // Set up cancellation
@@ -74,18 +100,33 @@ export class AnthropicProvider implements Provider {
     const model = options.model ?? this.model;
     const maxTokens = options.maxTokens ?? 8192;
 
+    // Build the request body
     const body: Record<string, unknown> = {
       model,
       max_tokens: maxTokens,
-      messages,
+      messages: serializeMessagesForAnthropic(messages),
       stream: true,
     };
     if (options.systemPrompt) {
       body.system = options.systemPrompt;
     }
+    if (options.tools && options.tools.length > 0) {
+      body.tools = options.tools.map(t => ({
+        name: t.name,
+        description: t.description,
+        input_schema: t.input_schema,
+      }));
+    }
+    if (options.toolChoice) {
+      if (typeof options.toolChoice === 'string') {
+        body.tool_choice = { type: options.toolChoice };
+      } else {
+        body.tool_choice = options.toolChoice;
+      }
+    }
 
     const url = `${this._baseUrl}/v1/messages`;
-    log.debug(`AnthropicProvider: POST ${url} model=${model} maxTokens=${maxTokens}`);
+    log.debug(`AnthropicProvider: POST ${url} model=${model} maxTokens=${maxTokens} tools=${options.tools?.length ?? 0}`);
 
     let response: Response;
     try {
@@ -256,6 +297,7 @@ export class AnthropicProvider implements Provider {
             events.push({
               type: 'tool_call_start',
               toolCallId: block.id,
+              name: block.name,
               title: block.name,
               kind: 'tool',
             });
@@ -272,22 +314,37 @@ export class AnthropicProvider implements Provider {
           } else if (delta?.type === 'thinking_delta' && delta.thinking) {
             events.push({ type: 'thinking_delta', text: delta.thinking });
           } else if (delta?.type === 'input_json_delta' && delta.partial_json !== undefined) {
-            // Accumulate tool input JSON
+            // Accumulate tool input JSON and emit delta
             const buf = toolInputBuffers.get(parsed.index);
             if (buf) {
               buf.json += delta.partial_json;
+              events.push({
+                type: 'tool_call_input_delta',
+                toolCallId: buf.id,
+                partialJson: delta.partial_json,
+              });
             }
           }
           break;
         }
 
         case 'content_block_stop': {
-          // If this was a tool_use block, the tool call input is now complete
+          // If this was a tool_use block, emit the fully assembled input
           const buf = toolInputBuffers.get(parsed.index);
           if (buf) {
             toolInputBuffers.delete(parsed.index);
-            // Tool call end will be signaled separately when the tool result arrives
-            // For now, the tool_call_start has already been emitted
+            let parsedInput: Record<string, unknown> = {};
+            try {
+              parsedInput = buf.json ? JSON.parse(buf.json) : {};
+            } catch (e) {
+              log.warn(`AnthropicProvider: failed to parse tool input JSON for ${buf.name}: ${buf.json.slice(0, 100)}`);
+            }
+            events.push({
+              type: 'tool_call_ready',
+              toolCallId: buf.id,
+              name: buf.name,
+              input: parsedInput,
+            });
           }
           break;
         }
@@ -342,6 +399,61 @@ export class AnthropicProvider implements Provider {
       return [];
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialize ProviderMessage[] into the format expected by the Anthropic API.
+ *
+ * Anthropic expects:
+ * - role: 'user' | 'assistant' (no 'system' or 'tool' role — system is a separate field)
+ * - content: string | ContentBlock[]
+ *
+ * Tool results are sent as user messages with tool_result content blocks.
+ * Tool use blocks are sent as part of assistant messages.
+ */
+function serializeMessagesForAnthropic(
+  messages: ProviderMessage[],
+): Array<{ role: string; content: unknown }> {
+  const result: Array<{ role: string; content: unknown }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === 'system') {
+      // System messages are handled via the 'system' field, skip in messages array
+      continue;
+    }
+
+    if (typeof msg.content === 'string') {
+      result.push({ role: msg.role === 'tool' ? 'user' : msg.role, content: msg.content });
+    } else {
+      // Structured content blocks — map to Anthropic format
+      const blocks = msg.content.map(block => {
+        switch (block.type) {
+          case 'text':
+            return { type: 'text', text: block.text };
+          case 'tool_use':
+            return { type: 'tool_use', id: block.id, name: block.name, input: block.input };
+          case 'tool_result':
+            return {
+              type: 'tool_result',
+              tool_use_id: block.tool_use_id,
+              content: block.content,
+              ...(block.is_error ? { is_error: true } : {}),
+            };
+          default:
+            return block;
+        }
+      });
+      // Tool results come from the user role in Anthropic's API
+      const role = msg.role === 'tool' ? 'user' : msg.role;
+      result.push({ role, content: blocks });
+    }
+  }
+
+  return result;
 }
 
 /**

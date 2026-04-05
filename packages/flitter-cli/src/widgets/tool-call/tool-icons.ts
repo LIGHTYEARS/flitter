@@ -1,16 +1,15 @@
 /**
  * Status icon and arrow icon helpers for tool-call renderers.
  *
- * Pure string lookup functions with zero external dependencies.
- * Maps tool and todo statuses to Unicode symbols for compact display
- * in ToolHeader and TodoListTool (Plan 18-03).
+ * Pure string lookup functions with zero external dependencies beyond the
+ * centralized icon registry.  Maps tool and todo statuses to Unicode symbols
+ * for compact display in ToolHeader and TodoListTool (Plan 18-03).
  *
- * Ported from flitter-amp icon-registry — replaced theme-aware icon
- * objects with simple string returns since flitter-cli uses direct
- * Color constants (no theme indirection until Phase 20).
+ * All glyphs are sourced from the central `icon-registry.ts` (N13) so that
+ * every symbol in the TUI has a single point of definition.
  */
 
-import type { ToolCallItem } from '../../state/types';
+import { icon } from '../../utils/icon-registry';
 
 // ---------------------------------------------------------------------------
 // Tool status icons
@@ -21,22 +20,28 @@ import type { ToolCallItem } from '../../state/types';
  *
  * - completed   -> checkmark
  * - failed      -> cross
- * - in_progress -> circle (BrailleSpinner replaces this visually in ToolHeader)
- * - pending     -> circle
- * - default     -> circle
+ * - in_progress -> empty circle (BrailleSpinner replaces this visually in ToolHeader)
+ * - pending     -> empty circle
+ * - default     -> empty circle
  */
-export function toolStatusIcon(status: ToolCallItem['status']): string {
+export function toolStatusIcon(status: string): string {
   switch (status) {
+    case 'done':
     case 'completed':
-      return '\u2713'; // checkmark
+      return icon('tool.status.done');
+    case 'error':
     case 'failed':
-      return '\u2717'; // cross
+    case 'cancelled':
+    case 'rejected-by-user':
+    case 'cancellation-requested':
+      return icon('tool.status.error');
+    case 'in-progress':
     case 'in_progress':
-      return '\u25CB'; // circle (spinner replaces visually)
+    case 'queued':
     case 'pending':
-      return '\u25CB'; // circle
+    case 'blocked-on-user':
     default:
-      return '\u25CB'; // circle
+      return icon('tool.status.pending');
   }
 }
 
@@ -56,15 +61,15 @@ export function toolStatusIcon(status: ToolCallItem['status']): string {
 export function todoStatusIcon(status: string): string {
   switch (status) {
     case 'pending':
-      return '\u25CB'; // empty circle
+      return icon('todo.status.pending');
     case 'in_progress':
-      return '\u25D4'; // half circle
+      return icon('todo.status.in_progress');
     case 'completed':
-      return '\u2713'; // checkmark
+      return icon('todo.status.completed');
     case 'cancelled':
-      return '\u2717'; // cross
+      return icon('todo.status.cancelled');
     default:
-      return '\u25CB'; // empty circle
+      return icon('todo.status.pending');
   }
 }
 
@@ -73,4 +78,4 @@ export function todoStatusIcon(status: string): string {
 // ---------------------------------------------------------------------------
 
 /** Right arrow for web search result links. */
-export const arrowIcon = '\u2192';
+export const arrowIcon = icon('arrow.right');

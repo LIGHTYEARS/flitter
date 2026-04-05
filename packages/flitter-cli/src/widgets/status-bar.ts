@@ -2,9 +2,11 @@
 //
 // Left section: contextual text based on current state:
 //   - copyHighlight → "Copied!" in green
+//   - searchState → "(reverse-i-search)'query':" or "(failing reverse-i-search)'query':"
+//   - hintText → dim muted text (placeholder hint from AMP BottomGrid)
 //   - isStreaming → "Esc to cancel" in yellow dim
-//   - idle (no overlay) → "? for shortcuts" in brightBlack dim
 //   - statusMessage → custom message
+//   - idle (no overlay) → "? for shortcuts" in brightBlack dim
 //
 // Right section: shortened cwd + optional git branch in brightBlack dim.
 //
@@ -29,8 +31,49 @@ export interface StatusBarProps {
   isProcessing: boolean;
   isStreaming?: boolean;
   isInterrupted?: boolean;
+  isExecutingCommand?: boolean;
+  isRunningShell?: boolean;
+  isAutoCompacting?: boolean;
+  isHandingOff?: boolean;
   statusMessage?: string;
   copyHighlight?: boolean;
+  /** Reverse-i-search state: shows search indicator in the status bar. */
+  searchState?: { query: string; isFailing: boolean } | null;
+  /** Hint text displayed below the input when idle (matches AMP BottomGrid.hintText). */
+  hintText?: string;
+}
+
+// ---------------------------------------------------------------------------
+// getFooterText — contextual status text based on app sub-states
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the contextual footer/status text based on current app sub-states.
+ *
+ * Matches AMP's getFooterText from bottom-grid.ts with the following priority:
+ *   1. isInterrupted   → 'Stream interrupted'
+ *   2. isExecutingCommand → 'Executing command...'
+ *   3. isRunningShell  → 'Running shell...'
+ *   4. isAutoCompacting → 'Auto-compacting context...'
+ *   5. isHandingOff    → 'Handing off to subagent...'
+ *   6. isProcessing    → 'Streaming response...'
+ *   7. default         → ''
+ */
+export function getFooterText(props: {
+  isProcessing: boolean;
+  isInterrupted: boolean;
+  isExecutingCommand: boolean;
+  isRunningShell: boolean;
+  isAutoCompacting: boolean;
+  isHandingOff: boolean;
+}): string {
+  if (props.isInterrupted) return 'Stream interrupted';
+  if (props.isExecutingCommand) return 'Executing command...';
+  if (props.isRunningShell) return 'Running shell...';
+  if (props.isAutoCompacting) return 'Auto-compacting context...';
+  if (props.isHandingOff) return 'Handing off to subagent...';
+  if (props.isProcessing) return 'Streaming response...';
+  return '';
 }
 
 /**
@@ -38,9 +81,11 @@ export interface StatusBarProps {
  *
  * States (left section, evaluated in priority order):
  *   1. copyHighlight  → "Copied!" (green, bold)
- *   2. isStreaming     → "Esc to cancel" (yellow dim)
- *   3. statusMessage   → custom text (brightBlack dim)
- *   4. idle            → "? for shortcuts" (brightBlack dim)
+ *   2. searchState    → "(reverse-i-search)'query':" or "(failing reverse-i-search)'query':"
+ *   3. hintText       → dim muted hint text (from AMP BottomGrid)
+ *   4. isStreaming     → "Esc to cancel" (yellow dim)
+ *   5. statusMessage   → custom text (brightBlack dim)
+ *   6. idle            → "? for shortcuts" (brightBlack dim)
  *
  * Right section always shows shortened cwd + optional git branch.
  *
@@ -49,17 +94,33 @@ export interface StatusBarProps {
 export class StatusBar extends StatelessWidget {
   private readonly cwd: string;
   private readonly gitBranch: string | undefined;
+  private readonly isProcessing: boolean;
   private readonly isStreaming: boolean;
+  private readonly isInterrupted: boolean;
+  private readonly isExecutingCommand: boolean;
+  private readonly isRunningShell: boolean;
+  private readonly isAutoCompacting: boolean;
+  private readonly isHandingOff: boolean;
   private readonly statusMessage: string | undefined;
   private readonly copyHighlight: boolean;
+  private readonly searchState: { query: string; isFailing: boolean } | null;
+  private readonly hintText: string | undefined;
 
   constructor(props: StatusBarProps) {
     super({});
     this.cwd = props.cwd;
     this.gitBranch = props.gitBranch;
+    this.isProcessing = props.isProcessing;
     this.isStreaming = props.isStreaming ?? false;
+    this.isInterrupted = props.isInterrupted ?? false;
+    this.isExecutingCommand = props.isExecutingCommand ?? false;
+    this.isRunningShell = props.isRunningShell ?? false;
+    this.isAutoCompacting = props.isAutoCompacting ?? false;
+    this.isHandingOff = props.isHandingOff ?? false;
     this.statusMessage = props.statusMessage;
     this.copyHighlight = props.copyHighlight ?? false;
+    this.searchState = props.searchState ?? null;
+    this.hintText = props.hintText;
   }
 
   /** Builds the status bar row: left status region + right cwd/branch region. */
@@ -100,10 +161,12 @@ export class StatusBar extends StatelessWidget {
 
   /**
    * Builds the left-side contextual text based on current state.
-   * Priority: copyHighlight > isStreaming > statusMessage > idle hint.
+   * Priority: copyHighlight > searchState > hintText > isInterrupted >
+   *           isStreaming/processing sub-states > statusMessage > idle hint.
    */
   private buildLeft(theme: CliTheme | undefined): Widget {
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
+    const keybindColor = theme?.app?.keybind ?? Color.blue;
 
     if (this.copyHighlight) {
       return new Text({
@@ -114,7 +177,79 @@ export class StatusBar extends StatelessWidget {
       });
     }
 
-    if (this.isStreaming) {
+    if (this.searchState) {
+      const prefix = this.searchState.isFailing
+        ? '(failing reverse-i-search)'
+        : '(reverse-i-search)';
+      const errorColor = Color.red;
+      const infoColor = theme?.base.info ?? Color.cyan;
+
+      return new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: prefix,
+              style: new TextStyle({
+                foreground: this.searchState.isFailing ? errorColor : infoColor,
+              }),
+            }),
+            new TextSpan({
+              text: `'${this.searchState.query}'`,
+              style: new TextStyle({
+                foreground: keybindColor,
+                bold: true,
+              }),
+            }),
+            new TextSpan({
+              text: ': ',
+              style: new TextStyle({ foreground: mutedColor }),
+            }),
+          ],
+        }),
+      });
+    }
+
+    if (this.hintText) {
+      return new Text({
+        text: new TextSpan({
+          text: this.hintText,
+          style: new TextStyle({ foreground: mutedColor, dim: true }),
+        }),
+      });
+    }
+
+    // Interrupted state: warning-colored message
+    if (this.isInterrupted) {
+      const warningColor = theme?.base.warning ?? Color.yellow;
+      return new Text({
+        text: new TextSpan({
+          text: 'Stream interrupted',
+          style: new TextStyle({ foreground: warningColor }),
+        }),
+      });
+    }
+
+    // Processing sub-states: use getFooterText for contextual status
+    if (this.isProcessing || this.isStreaming) {
+      const footerText = getFooterText({
+        isProcessing: this.isProcessing,
+        isInterrupted: this.isInterrupted,
+        isExecutingCommand: this.isExecutingCommand,
+        isRunningShell: this.isRunningShell,
+        isAutoCompacting: this.isAutoCompacting,
+        isHandingOff: this.isHandingOff,
+      });
+
+      if (footerText) {
+        return new Text({
+          text: new TextSpan({
+            text: footerText,
+            style: new TextStyle({ foreground: mutedColor, dim: true }),
+          }),
+        });
+      }
+
+      // Fallback to "Esc to cancel" for streaming
       const warningColor = theme?.base.warning ?? Color.yellow;
       return new Text({
         text: new TextSpan({

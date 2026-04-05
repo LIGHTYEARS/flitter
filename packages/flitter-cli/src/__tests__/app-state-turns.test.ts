@@ -21,8 +21,10 @@ import { PromptController } from '../state/prompt-controller';
 
 /** Mock LLM provider for turn integration tests. */
 class MockProvider implements Provider {
+  readonly id = 'mock' as const;
   readonly name = 'mock';
   readonly model = 'test-model';
+  readonly capabilities = { vision: true, functionCalling: true, streaming: true, systemPrompt: true };
   mockEvents: StreamEvent[] = [];
   cancelCalled = false;
   eventDelay = 0;

@@ -348,29 +348,29 @@ describe('toolStatusIcon', () => {
   });
 
   it('returns cross for failed', () => {
-    expect(toolStatusIcon('failed')).toBe('\u2717');
+    expect(toolStatusIcon('failed')).toBe('\u2715');
   });
 
-  it('returns circle for in_progress', () => {
-    expect(toolStatusIcon('in_progress')).toBe('\u25CB');
+  it('returns ellipsis for in_progress', () => {
+    expect(toolStatusIcon('in_progress')).toBe('\u22EF');
   });
 
-  it('returns circle for pending', () => {
-    expect(toolStatusIcon('pending')).toBe('\u25CB');
+  it('returns ellipsis for pending', () => {
+    expect(toolStatusIcon('pending')).toBe('\u22EF');
   });
 });
 
 describe('todoStatusIcon', () => {
   it('returns half circle for in_progress', () => {
-    expect(todoStatusIcon('in_progress')).toBe('\u25D4');
+    expect(todoStatusIcon('in_progress')).toBe('\u25D0');
   });
 
-  it('returns checkmark for completed', () => {
-    expect(todoStatusIcon('completed')).toBe('\u2713');
+  it('returns filled circle for completed', () => {
+    expect(todoStatusIcon('completed')).toBe('\u25CF');
   });
 
-  it('returns cross for cancelled', () => {
-    expect(todoStatusIcon('cancelled')).toBe('\u2717');
+  it('returns empty set for cancelled', () => {
+    expect(todoStatusIcon('cancelled')).toBe('\u2205');
   });
 
   it('returns empty circle for pending', () => {

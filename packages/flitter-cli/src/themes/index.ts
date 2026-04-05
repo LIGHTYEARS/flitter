@@ -151,6 +151,16 @@ export function createCliTheme(base: CliBaseTheme): CliTheme {
   };
 }
 
+/**
+ * Return the appropriate color for the given agent mode string.
+ * Falls back to the base foreground color for unknown modes.
+ */
+export function agentModeColor(mode: string, theme: CliTheme): Color {
+  if (mode === 'smart') return theme.app.smartModeColor;
+  if (mode === 'rush') return theme.app.rushModeColor;
+  return theme.base.foreground;
+}
+
 // ---------------------------------------------------------------------------
 // CliThemeProvider — InheritedWidget that propagates CliTheme down the tree
 // ---------------------------------------------------------------------------

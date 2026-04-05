@@ -29,6 +29,7 @@ import { Color } from '../../../flitter-core/src/core/color';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { BoxDecoration, Border, BorderSide } from '../../../flitter-core/src/layout/render-decorated';
 import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
+import { CliThemeProvider } from '../themes';
 
 // ---------------------------------------------------------------------------
 // Hardcoded colors (matches command-palette.ts convention)
@@ -169,7 +170,8 @@ class PromptHistoryPickerState extends State<PromptHistoryPicker> {
     return 'ignored';
   };
 
-  build(_context: BuildContext): Widget {
+  build(context: BuildContext): Widget {
+    const theme = CliThemeProvider.maybeOf(context);
     const totalCount = this.widget.entries.length;
     const shownCount = this.filteredItems.length;
     const side = new BorderSide({ color: INFO_COLOR, width: 1, style: 'rounded' });
@@ -192,7 +194,7 @@ class PromptHistoryPickerState extends State<PromptHistoryPicker> {
         placeholder: 'Search history...',
         maxLines: 1,
         autofocus: true,
-        style: new TextStyle(),
+        style: new TextStyle({ foreground: theme?.base.foreground }),
       }),
     });
 

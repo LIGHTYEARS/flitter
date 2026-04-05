@@ -30,3 +30,5 @@ export { EditFileTool } from './edit-file-tool';
 export { CreateFileTool } from './create-file-tool';
 export { WebSearchTool } from './web-search-tool';
 export { TodoListTool } from './todo-list-tool';
+export { TaskTool } from './task-tool';
+export { HandoffTool } from './handoff-tool';

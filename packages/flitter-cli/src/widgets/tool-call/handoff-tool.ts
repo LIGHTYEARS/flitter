@@ -8,7 +8,7 @@
 //
 // Ported from flitter-amp/src/widgets/tool-call/handoff-tool.ts
 // -- AmpThemeProvider replaced with direct Color constants
-// -- icon('plan.status.in_progress') replaced with '\u25CF' (filled circle)
+// -- icon('plan.status.in_progress') replaced with icon('status.active') via centralized icon-registry
 
 import {
   StatefulWidget,
@@ -29,6 +29,7 @@ import { pickString } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName } from './resolve-tool-name';
+import { icon } from '../../utils/icon-registry';
 
 /** Props for HandoffTool -- extends BaseToolProps with no additional fields. */
 interface HandoffToolProps extends BaseToolProps {}
@@ -157,7 +158,7 @@ class HandoffToolState extends State<HandoffTool> {
                   }),
                 }),
                 new TextSpan({
-                  text: '\u25CF', // filled circle (replaces icon('plan.status.in_progress'))
+                  text: icon('status.active'), // filled circle (via centralized icon-registry)
                   style: new TextStyle({
                     foreground: blinkColor,
                   }),

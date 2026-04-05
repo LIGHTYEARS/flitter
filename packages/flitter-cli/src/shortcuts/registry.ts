@@ -13,6 +13,7 @@ import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/e
 import { matchesShortcut, type ShortcutBinding } from '../../../flitter-core/src/input/shortcuts';
 import type { AppState } from '../state/app-state';
 import type { OverlayManager } from '../state/overlay-manager';
+import type { PromptHistory } from '../state/history';
 
 /**
  * Context provided to shortcut action callbacks.
@@ -25,6 +26,12 @@ export interface ShortcutContext {
 
   /** The overlay manager for managing overlays */
   readonly overlayManager: OverlayManager;
+
+  /** Callback for Ctrl+C cancel/exit behavior, wired by AppShell. */
+  readonly onCancel: () => void;
+
+  /** Persistent prompt history instance (null if not available). */
+  readonly promptHistory: PromptHistory | null;
 
   /** Trigger a widget rebuild */
   setState(fn?: () => void): void;
@@ -54,6 +61,10 @@ export interface ShortcutHooks {
   historyNext(): void;
   /** Show the standalone file picker overlay (Plan 17-04). */
   showFilePicker(): void;
+  /** Toggle all thinking blocks collapsed/expanded. */
+  toggleThinking(): void;
+  /** Copy the last assistant response to the clipboard. */
+  copyLastResponse(): void;
 }
 
 /**

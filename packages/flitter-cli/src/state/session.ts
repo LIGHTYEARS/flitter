@@ -15,6 +15,8 @@ import type {
   ToolCallItem,
   PlanEntry,
   UsageInfo,
+  SystemMessage,
+  ConversationSnapshot,
 } from './types';
 
 import { log } from '../utils/logger';
@@ -47,6 +49,8 @@ export interface SessionStateOptions {
   model: string;
   title?: string | null;
   gitBranch?: string | null;
+  /** Whether tool calls are expanded by default (N10). Defaults to true. */
+  defaultToolExpanded?: boolean;
 }
 
 /**
@@ -85,6 +89,9 @@ export class SessionState {
   // --- O(1) tool call lookup ---
   private _toolCallIndex: Map<string, number> = new Map();
 
+  // --- Parent-child task hierarchy (I1) ---
+  private _openTaskStack: string[] = [];
+
   // --- Listeners ---
   private _listeners: Set<StateListener> = new Set();
 
@@ -99,6 +106,9 @@ export class SessionState {
       title: options.title ?? null,
       gitBranch: options.gitBranch ?? null,
     };
+
+    // Wire defaultToolExpanded from config (N10). Defaults to true for backwards compatibility.
+    this._toolCallsExpanded = options.defaultToolExpanded ?? true;
   }
 
   // ---------------------------------------------------------------------------
@@ -144,6 +154,21 @@ export class SessionState {
   /** Monotonic version counter for change detection. */
   get version(): number {
     return this._version;
+  }
+
+  /**
+   * Return a frozen snapshot of the current conversation state.
+   * The snapshot and its items array are shallow-frozen to prevent
+   * accidental mutation by consumers (N1).
+   */
+  get snapshot(): ConversationSnapshot {
+    this.flushStreamingText();
+    const frozenItems = Object.freeze([...this._items]);
+    return Object.freeze({
+      items: frozenItems,
+      version: this._version,
+      lifecycle: this._lifecycle,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -241,12 +266,67 @@ export class SessionState {
   }
 
   /**
+   * Transition to tool_execution state (agentic loop).
+   * Transition: streaming -> tool_execution.
+   * The model requested tool calls; the agentic loop will execute them
+   * and re-submit with tool results.
+   */
+  beginToolExecution(stopReason: string): void {
+    if (this._lifecycle !== 'streaming') {
+      log.warn(`SessionState: invalid transition beginToolExecution from '${this._lifecycle}'`);
+      return;
+    }
+    this.finalizeAssistantMessage();
+    this.finalizeThinking();
+
+    this._lifecycle = 'tool_execution';
+    this._lastStopReason = stopReason;
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /**
+   * Re-enter processing state after tool execution completes.
+   * Transition: tool_execution -> processing.
+   * Adds a synthetic user message carrying tool results for the next API call.
+   */
+  resumeAfterToolExecution(toolResults: import('./types').ToolResultBlock[]): void {
+    if (this._lifecycle !== 'tool_execution') {
+      log.warn(`SessionState: invalid transition resumeAfterToolExecution from '${this._lifecycle}'`);
+      return;
+    }
+
+    // Add a user message carrying tool results (for conversation history)
+    const userMsg: ConversationItem = {
+      type: 'user_message',
+      text: '',
+      timestamp: Date.now(),
+      toolResults,
+    };
+    this._items = append(this._items, userMsg);
+
+    this._lifecycle = 'processing';
+    this._metadata = {
+      ...this._metadata,
+      turnCount: this._metadata.turnCount + 1,
+    };
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /**
    * Cancel the current request.
-   * Transition: processing|streaming -> cancelled.
+   * Transition: processing|streaming|tool_execution -> cancelled.
    * Finalizes any in-flight messages.
    */
   cancelStream(): void {
-    if (this._lifecycle !== 'processing' && this._lifecycle !== 'streaming') {
+    if (
+      this._lifecycle !== 'processing' &&
+      this._lifecycle !== 'streaming' &&
+      this._lifecycle !== 'tool_execution'
+    ) {
       log.warn(`SessionState: invalid transition cancelStream from '${this._lifecycle}'`);
       return;
     }
@@ -259,12 +339,16 @@ export class SessionState {
   }
 
   /**
-   * Handle a fatal error during processing/streaming.
-   * Transition: processing|streaming -> error.
+   * Handle a fatal error during processing/streaming/tool_execution.
+   * Transition: processing|streaming|tool_execution -> error.
    * Preserves the error info for UI display and recovery.
    */
   handleError(error: SessionError): void {
-    if (this._lifecycle !== 'processing' && this._lifecycle !== 'streaming') {
+    if (
+      this._lifecycle !== 'processing' &&
+      this._lifecycle !== 'streaming' &&
+      this._lifecycle !== 'tool_execution'
+    ) {
       log.warn(`SessionState: invalid transition handleError from '${this._lifecycle}'`);
       return;
     }
@@ -312,6 +396,7 @@ export class SessionState {
     this._streamingTextBuffer = '';
     this._streamingThinkingBuffer = '';
     this._toolCallIndex.clear();
+    this._openTaskStack = [];
     this._lifecycle = 'idle';
     this._error = null;
     this._lastStopReason = null;
@@ -443,6 +528,12 @@ export class SessionState {
     rawInput?: Record<string, unknown>,
   ): void {
     this.finalizeAssistantMessage();
+
+    // Determine parent from task stack (I1)
+    const parentToolCallId = this._openTaskStack.length > 0
+      ? this._openTaskStack[this._openTaskStack.length - 1]
+      : undefined;
+
     const item: ToolCallItem = {
       type: 'tool_call',
       toolCallId,
@@ -451,10 +542,17 @@ export class SessionState {
       status,
       locations,
       rawInput,
-      collapsed: false,
+      collapsed: !this._toolCallsExpanded,
+      parentToolCallId,
     };
     this._items = append(this._items, item);
     this._toolCallIndex.set(toolCallId, this._items.length - 1);
+
+    // If this is a Task tool, push onto stack (I1)
+    if (title === 'Task' || kind === 'task') {
+      this._openTaskStack.push(toolCallId);
+    }
+
     this.bumpVersion();
     this.notifyListeners();
   }
@@ -474,6 +572,14 @@ export class SessionState {
 
     const prev = this._items[index] as ToolCallItem;
     if (!prev || prev.type !== 'tool_call') return;
+
+    // Pop from task stack if this was a task (I1)
+    if (status === 'completed' || status === 'failed') {
+      const stackIdx = this._openTaskStack.indexOf(toolCallId);
+      if (stackIdx !== -1) {
+        this._openTaskStack.splice(stackIdx, 1);
+      }
+    }
 
     const updated: ToolCallItem = {
       ...prev,
@@ -502,6 +608,9 @@ export class SessionState {
     if (!prev || prev.type !== 'tool_call') return;
     if (prev.status === 'completed' || prev.status === 'failed') return;
 
+    // Detect first chunk for auto-expand (I4)
+    const isFirstChunk = !prev.streamingOutput;
+
     let newStreamingOutput = (prev.streamingOutput ?? '') + chunk;
 
     // Buffer limit enforcement
@@ -516,8 +625,95 @@ export class SessionState {
       ...prev,
       streamingOutput: newStreamingOutput,
       isStreaming: true,
+      collapsed: isFirstChunk ? false : prev.collapsed,  // Auto-expand on first chunk (I4)
+      result: { status: 'streaming', rawOutput: { stdout: newStreamingOutput } },  // Streaming result (I4)
     };
     this._items = replaceAt(this._items, index, updated);
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /**
+   * Get all child tool calls of a given parent tool call (I1).
+   */
+  getChildToolCalls(parentToolCallId: string): ToolCallItem[] {
+    return this._items.filter(
+      (item): item is ToolCallItem =>
+        item.type === 'tool_call' && item.parentToolCallId === parentToolCallId,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tool Call Expand/Collapse (I2)
+  // ---------------------------------------------------------------------------
+
+  /** Whether tool calls are globally expanded. */
+  private _toolCallsExpanded: boolean;
+
+  get toolCallsExpanded(): boolean {
+    return this._toolCallsExpanded;
+  }
+
+  /** Toggle all tool calls between expanded and collapsed. */
+  toggleToolCalls(): void {
+    this._toolCallsExpanded = !this._toolCallsExpanded;
+    const newCollapsed = !this._toolCallsExpanded;
+
+    const newItems = this._items.map(item => {
+      if (item.type === 'tool_call') {
+        return { ...item, collapsed: newCollapsed };
+      }
+      return item;
+    });
+    this._items = newItems;
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /** Toggle a single tool call's collapsed state. */
+  toggleSingleToolCall(toolCallId: string): void {
+    const index = this._toolCallIndex.get(toolCallId);
+    if (index === undefined) return;
+
+    const prev = this._items[index] as ToolCallItem;
+    if (!prev || prev.type !== 'tool_call') return;
+
+    const updated: ToolCallItem = { ...prev, collapsed: !prev.collapsed };
+    this._items = replaceAt(this._items, index, updated);
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Thinking Block Toggle (I3)
+  // ---------------------------------------------------------------------------
+
+  /** Toggle all thinking blocks between expanded and collapsed. */
+  toggleThinking(): void {
+    const newItems = this._items.map(item => {
+      if (item.type === 'thinking') {
+        return { ...item, collapsed: !item.collapsed };
+      }
+      return item;
+    });
+    this._items = newItems;
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /** Set collapsed state for a specific item by index. Works for thinking and tool_call. */
+  setItemCollapsed(index: number, collapsed: boolean): void {
+    const item = this._items[index];
+    if (!item) return;
+    if (item.type !== 'thinking' && item.type !== 'tool_call') return;
+    if (item.collapsed === collapsed) return;
+
+    const updated = { ...item, collapsed };
+    this._items = replaceAt(this._items, index, updated);
+
     this.bumpVersion();
     this.notifyListeners();
   }
@@ -550,6 +746,77 @@ export class SessionState {
   /** Set the current usage information. */
   setUsage(usage: UsageInfo): void {
     this._usage = { ...usage };
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // System Messages (I5)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add a system message to the conversation (e.g., "Session reconnected",
+   * "New thread started", error recovery markers).
+   */
+  addSystemMessage(text: string): void {
+    const item: ConversationItem = {
+      type: 'system_message',
+      text,
+      timestamp: Date.now(),
+    };
+    this._items = append(this._items, item);
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Message Edit / Truncate (I6)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the text of a user message at the given items-array index.
+   * Returns null if the index is out of bounds or not a user message.
+   */
+  getMessageAt(index: number): string | null {
+    const item = this._items[index];
+    if (!item || item.type !== 'user_message') return null;
+    return item.text;
+  }
+
+  /**
+   * Truncate the conversation after the given items-array index.
+   * Removes all items after `index` (exclusive), rebuilds the tool call index,
+   * and resets streaming state. Used for message editing/replay workflows.
+   *
+   * No-op if the index is out of bounds. Only allowed when lifecycle is idle.
+   */
+  truncateAfter(index: number): void {
+    if (this._lifecycle !== 'idle') {
+      log.warn(`SessionState: truncateAfter ignored — lifecycle is '${this._lifecycle}'`);
+      return;
+    }
+    if (index < 0 || index >= this._items.length) return;
+
+    this._items = this._items.slice(0, index + 1);
+
+    // Reset streaming state
+    this._streamingMsgIndex = -1;
+    this._streamingThinkingIndex = -1;
+    this._streamingTextBuffer = '';
+    this._streamingThinkingBuffer = '';
+
+    // Rebuild tool call index
+    this._toolCallIndex.clear();
+    for (let i = 0; i < this._items.length; i++) {
+      const item = this._items[i];
+      if (item.type === 'tool_call') {
+        this._toolCallIndex.set(item.toolCallId, i);
+      }
+    }
+
+    // Reset task stack to avoid stale parent-child relationships (I6)
+    this._openTaskStack = [];
+
     this.bumpVersion();
     this.notifyListeners();
   }
@@ -599,6 +866,7 @@ export class SessionState {
       }
     }
 
+    this._openTaskStack = [];
     this._lifecycle = 'idle';
     this._error = null;
     this._lastStopReason = null;

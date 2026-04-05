@@ -3,13 +3,55 @@
 import { chdir } from 'node:process';
 
 import { parseArgs } from './state/config';
+import type { ConnectTarget } from './state/config';
 import { closeLogFile, initLogFile, log, setLogLevel } from './utils/logger';
 import { startAppShell } from './widgets/app-shell';
-import { AnthropicProvider } from './provider/anthropic';
+import { createProvider } from './provider/factory';
+import type { Provider } from './provider/provider';
 import { AppState } from './state/app-state';
 import { PromptHistory } from './state/history';
 import { SessionStore } from './state/session-store';
 import { exportToMarkdown, exportToText } from './state/session-export';
+import { createDefaultRegistry } from './tools/defaults';
+import { TaskExecutor } from './tools/task-executor';
+import { buildSystemPrompt, loadProjectInstructions, getGitContext } from './provider/system-prompt';
+
+/**
+ * Run OAuth authentication for the given target.
+ * Authenticates, stores the token, and prints a success message.
+ */
+async function runConnect(target: ConnectTarget): Promise<void> {
+  const write = (msg: string) => process.stdout.write(msg);
+
+  switch (target) {
+    case 'chatgpt': {
+      write('Authenticating with ChatGPT/Codex...\n');
+      write('A browser window will open. Sign in with your OpenAI account.\n\n');
+      const { authenticateChatGPT } = await import('./auth/chatgpt-oauth');
+      await authenticateChatGPT();
+      write('\nChatGPT/Codex authentication successful!\n');
+      write('You can now use: flitter-cli --provider chatgpt-codex\n');
+      break;
+    }
+    case 'copilot': {
+      write('Authenticating with GitHub Copilot...\n');
+      const { authenticateCopilot } = await import('./auth/copilot-oauth');
+      await authenticateCopilot();
+      write('\nGitHub Copilot authentication successful!\n');
+      write('You can now use: flitter-cli --provider copilot\n');
+      break;
+    }
+    case 'antigravity': {
+      write('Authenticating with Google Gemini (Antigravity)...\n');
+      write('A browser window will open. Sign in with your Google account.\n\n');
+      const { authenticateAntigravity } = await import('./auth/antigravity-oauth');
+      await authenticateAntigravity();
+      write('\nAntigravity (Google Gemini) authentication successful!\n');
+      write('You can now use: flitter-cli --provider antigravity\n');
+      break;
+    }
+  }
+}
 
 /** Main entry point — parses config, creates provider and app state, starts TUI. */
 async function main(): Promise<void> {
@@ -77,6 +119,13 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
+  // Handle --connect: run OAuth authentication and exit
+  if (config.connectTarget) {
+    await runConnect(config.connectTarget);
+    closeLogFile();
+    process.exit(0);
+  }
+
   try {
     chdir(config.cwd);
   } catch (error) {
@@ -87,30 +136,56 @@ async function main(): Promise<void> {
 
   log.info(`flitter-cli starting in ${config.cwd}`);
 
-  let provider: AnthropicProvider;
+  let provider: Provider;
   try {
-    provider = new AnthropicProvider({
-      apiKey: config.apiKey ?? undefined,
-      model: config.model,
-    });
+    provider = createProvider(config.providerConfig);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(
       `\nError: ${message}\n\n` +
-      `To use flitter-cli, set your API key:\n` +
-      `  export ANTHROPIC_API_KEY=sk-ant-...\n\n` +
+      `To use flitter-cli, set an API key for your preferred provider:\n` +
+      `  export ANTHROPIC_API_KEY=sk-ant-...     # Anthropic (default)\n` +
+      `  export OPENAI_API_KEY=sk-...            # OpenAI\n` +
+      `  export GEMINI_API_KEY=...               # Google Gemini\n\n` +
+      `Or specify a provider explicitly:\n` +
+      `  flitter-cli --provider openai --model gpt-4o\n\n` +
       `Or add it to ~/.flitter-cli/config.json:\n` +
-      `  { "apiKey": "sk-ant-..." }\n\n`,
+      `  { "provider": "anthropic", "apiKey": "sk-ant-..." }\n\n`,
     );
     closeLogFile();
     process.exit(1);
   }
+
+  // --- Build tool registry and system prompt ---
+  const toolRegistry = createDefaultRegistry();
+
+  const projectInstructions = loadProjectInstructions(config.cwd);
+  const gitContext = await getGitContext(config.cwd);
+
+  const systemPrompt = buildSystemPrompt({
+    cwd: config.cwd,
+    model: config.model,
+    providerName: provider.id,
+    tools: toolRegistry.getDefinitions(),
+    gitBranch: gitContext.branch,
+    gitLog: gitContext.log,
+    projectInstructions,
+  });
+
+  log.info(`System prompt built: ${systemPrompt.length} chars, tools: ${toolRegistry.size}, git: ${gitContext.branch ?? 'none'}`);
+
+  // Replace Task stub executor with the real TaskExecutor now that provider + system prompt exist
+  const taskExecutor = new TaskExecutor(provider, systemPrompt);
+  toolRegistry.replaceExecutor('Task', taskExecutor);
 
   const appState = AppState.create({
     cwd: config.cwd,
     provider,
     promptHistory,
     sessionStore,
+    toolRegistry,
+    systemPrompt,
+    defaultToolExpanded: config.defaultToolExpanded,
   });
 
   if (config.resumeSessionId) {
@@ -139,20 +214,34 @@ async function main(): Promise<void> {
 
   const binding = await startAppShell({ appState, themeName: config.theme });
 
-  const gracefulShutdown = () => {
-    appState.saveSession();
-    promptHistory.save();
-  };
+  let shutdownInProgress = false;
+
+  async function gracefulShutdown(): Promise<void> {
+    if (shutdownInProgress) return;
+    shutdownInProgress = true;
+
+    const deadline = new Promise<void>((resolve) => setTimeout(resolve, 8000));
+    const work = async () => {
+      try {
+        appState.shutdown();
+        promptHistory.save();
+      } catch { /* ignore */ }
+    };
+
+    await Promise.race([work(), deadline]);
+  }
 
   process.on('SIGINT', () => {
-    gracefulShutdown();
+    log.info('Received SIGINT, shutting down...');
+    gracefulShutdown().then(() => process.exit(0));
   });
   process.on('SIGTERM', () => {
-    gracefulShutdown();
+    log.info('Received SIGTERM, shutting down...');
+    gracefulShutdown().then(() => process.exit(0));
   });
 
   await binding.waitForExit();
-  gracefulShutdown();
+  await gracefulShutdown();
   closeLogFile();
 }
 

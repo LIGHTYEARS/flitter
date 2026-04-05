@@ -18,6 +18,7 @@ import { BrailleSpinner } from '../../../flitter-core/src/utilities/braille-spin
 import { Markdown } from '../../../flitter-core/src/widgets/markdown';
 import type { ThinkingItem } from '../state/types';
 import { CliThemeProvider } from '../themes';
+import { icon } from '../utils/icon-registry';
 
 interface ThinkingBlockProps {
   item: ThinkingItem;
@@ -116,7 +117,7 @@ export class ThinkingBlockState extends State<ThinkingBlock> {
       statusGlyph = `${this.spinner.toBraille()} `;
       color = theme?.base.accent ?? Color.magenta;
     } else if (item.text.length > 0) {
-      statusGlyph = '\u2713 ';
+      statusGlyph = `${icon('success')} `;
       color = theme?.base.success ?? Color.green;
     } else {
       statusGlyph = '';
@@ -143,7 +144,7 @@ export class ThinkingBlockState extends State<ThinkingBlock> {
     }
 
     if (!item.isStreaming && item.text.trim().length > 0) {
-      const chevron = item.collapsed ? '\u25B6' : '\u25BC';
+      const chevron = item.collapsed ? icon('disclosure.collapsed') : icon('disclosure.expanded');
       labelSpans.push(new TextSpan({
         text: ` ${chevron}`,
         style: new TextStyle({ foreground: mutedColor }),
@@ -167,7 +168,7 @@ export class ThinkingBlockState extends State<ThinkingBlock> {
           child: new Markdown({
             markdown: displayText,
             styleOverrides: {
-              paragraph: { dim: true, fontStyle: 'italic', foreground: Color.defaultColor },
+              paragraph: { dim: true, italic: true, foreground: theme?.base.foreground ?? Color.defaultColor },
               'code-block': { dim: true },
             },
           }),

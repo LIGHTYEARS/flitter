@@ -5,14 +5,12 @@
 // read from this same registry.
 //
 // Adapted from flitter-amp/src/shortcuts/defaults.ts for flitter-cli:
-// - Uses flitter-cli AppState methods (newThread, toggleDenseView, etc.)
-// - Removes ACP-specific actions (resolvePermission, cycleMode, deepReasoning, etc.)
-// - Escape fallback exits the app when no overlays are active
+// - Uses flitter-cli AppState methods (newThread, toggleDenseView, toggleDeepReasoning, etc.)
+// - Escape fallback returns 'ignored' when no overlays are active (matches AMP)
 // - Phase 21 shortcuts (Ctrl+R) remain as stubs
 
 import type { ShortcutRegistry, ShortcutContext } from './registry';
 import type { KeyEventResult } from '../../../flitter-core/src/input/events';
-import { WidgetsBinding } from '../../../flitter-core/src/framework/binding';
 import { OVERLAY_IDS } from '../state/overlay-ids';
 import { log } from '../utils/logger';
 
@@ -28,7 +26,7 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     id: 'dismiss-overlay',
     binding: { key: 'Escape' },
     displayKey: 'Escape',
-    description: 'Dismiss overlay / exit app',
+    description: 'Dismiss overlay',
     category: 'general',
     action: (ctx): KeyEventResult => {
       if (ctx.overlayManager.hasOverlays) {
@@ -40,10 +38,9 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
         log.info(`ShortcutRegistry: Escape dismissed overlay '${dismissedId}'`);
         return 'handled';
       }
-      // Fallback: no overlays active — exit the application
-      log.info('ShortcutRegistry: Escape exiting (no overlays)');
-      WidgetsBinding.instance.stop();
-      return 'handled';
+      // Fallback: no overlays active — ignore (matches AMP behavior)
+      log.info('ShortcutRegistry: Escape ignored (no overlays)');
+      return 'ignored';
     },
   });
 
@@ -70,13 +67,7 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     description: 'Cancel current operation / exit',
     category: 'general',
     action: (ctx): KeyEventResult => {
-      if (ctx.appState.isProcessing) {
-        log.info('ShortcutRegistry: Ctrl+C cancelling prompt');
-        ctx.appState.cancelPrompt();
-        return 'handled';
-      }
-      log.info('ShortcutRegistry: Ctrl+C exiting');
-      WidgetsBinding.instance.stop();
+      ctx.onCancel();
       return 'handled';
     },
   });
@@ -94,17 +85,55 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     },
   });
 
+  registry.register({
+    id: 'copy-last-response',
+    binding: { key: 'c', ctrl: true, shift: true },
+    displayKey: 'Ctrl+Shift+C',
+    description: 'Copy last response to clipboard',
+    category: 'general',
+    action: (ctx): KeyEventResult => {
+      ctx.hooks.copyLastResponse();
+      return 'handled';
+    },
+  });
+
+  registry.register({
+    id: 'cycle-mode',
+    binding: { key: 's', ctrl: true },
+    displayKey: 'Ctrl+S',
+    description: 'Cycle agent mode',
+    category: 'general',
+    action: (ctx): KeyEventResult => {
+      ctx.appState.cycleMode();
+      ctx.setState(() => {});
+      return 'handled';
+    },
+  });
+
   // --- Display ---
 
   registry.register({
-    id: 'toggle-dense-view',
+    id: 'toggle-tool-calls',
     binding: { key: 't', alt: true },
     displayKey: 'Alt+T',
-    description: 'Toggle dense (compact) view',
+    description: 'Toggle tool call expansion',
+    category: 'view',
+    action: (ctx): KeyEventResult => {
+      ctx.appState.session?.toggleToolCalls?.();
+      ctx.setState(() => {});
+      return 'handled';
+    },
+  });
+
+  registry.register({
+    id: 'toggle-deep-reasoning',
+    binding: { key: 'd', alt: true },
+    displayKey: 'Alt+D',
+    description: 'Toggle deep reasoning',
     category: 'display',
     action: (ctx): KeyEventResult => {
-      log.info('ShortcutRegistry: Alt+T toggling dense view');
-      ctx.appState.toggleDenseView();
+      ctx.appState.toggleDeepReasoning();
+      ctx.setState(() => {});
       return 'handled';
     },
   });
@@ -118,7 +147,7 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     description: 'Open prompt in $EDITOR',
     category: 'navigation',
     action: (ctx): KeyEventResult => {
-      log.info('ShortcutRegistry: Ctrl+G — external editor stub (INPT-06)');
+      log.info('ShortcutRegistry: Ctrl+G — opening external editor');
       ctx.hooks.openInEditor();
       return 'handled';
     },
@@ -131,6 +160,7 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     description: 'Search prompt history',
     category: 'navigation',
     action: (ctx): KeyEventResult => {
+      if (ctx.appState.isProcessing) return 'handled';
       // Phase 21 stub: history search not yet implemented
       log.info('ShortcutRegistry: Ctrl+R — history search stub (Phase 21)');
       ctx.hooks.historyPrevious();

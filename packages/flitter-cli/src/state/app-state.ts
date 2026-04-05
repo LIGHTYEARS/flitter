@@ -26,6 +26,7 @@ import { PermissionDialog } from '../widgets/permission-dialog';
 import { SessionStore, type SessionFile } from './session-store';
 import { PromptHistory } from './history';
 import { log } from '../utils/logger';
+import { launchEditor, type EditorResult } from '../utils/editor-launcher';
 
 /**
  * AppState is the top-level application state for the flitter-cli TUI.
@@ -64,8 +65,14 @@ export class AppState {
   /** Current agent mode (e.g., 'smart', 'code', 'ask'). */
   currentMode: string | null = null;
 
+  /** Available agent modes for cycling. */
+  modes: string[] = [];
+
   /** Index of the selected user message for Tab/Shift+Tab navigation. */
   selectedMessageIndex: number | null = null;
+
+  /** Whether deep/extended reasoning mode is active. */
+  private _deepReasoningActive: boolean = false;
 
   // --- Listener management ---
   private _listeners: Set<StateListener> = new Set();
@@ -138,6 +145,11 @@ export class AppState {
     return this.session.lifecycle === 'streaming';
   }
 
+  /** Whether deep/extended reasoning mode is active. */
+  get deepReasoningActive(): boolean {
+    return this._deepReasoningActive;
+  }
+
   /**
    * True when the last prompt was interrupted (cancelled/stopped, not end_turn).
    * Checks that the session is in a terminal state and the stop reason indicates interruption.
@@ -150,6 +162,25 @@ export class AppState {
       reason !== 'end_turn' &&
       (lc === 'idle' || lc === 'complete')
     );
+  }
+
+  /** Elapsed milliseconds since the current prompt started (delegates to PromptController). */
+  get elapsedMs(): number {
+    return this._promptController?.elapsedMs ?? 0;
+  }
+
+  /** Context window usage as a percentage (0-100). */
+  get contextWindowUsagePercent(): number {
+    const usage = this.session?.usage;
+    const size = usage?.size ?? 200000;
+    if (size <= 0) return 0;
+    const used = usage?.used ?? 0;
+    return Math.round((used / size) * 100);
+  }
+
+  /** True when context window usage exceeds 80%. */
+  get isContextWindowHigh(): boolean {
+    return this.contextWindowUsagePercent > 80;
   }
 
   /** Current session lifecycle state. */
@@ -278,6 +309,44 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
+  // Graceful Shutdown (I7 — in-flight cancellation)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Gracefully shut down the application.
+   *
+   * 1. Cancels any in-flight prompt (aborts HTTP stream, transitions session to cancelled)
+   * 2. Saves the current session to disk
+   * 3. Saves prompt history
+   *
+   * Safe to call multiple times — subsequent calls are no-ops.
+   */
+  private _isShutdown = false;
+
+  shutdown(): void {
+    if (this._isShutdown) return;
+    this._isShutdown = true;
+
+    // Cancel any active prompt stream before saving
+    if (this._promptController) {
+      const lc = this.session.lifecycle;
+      if (lc === 'processing' || lc === 'streaming' || lc === 'tool_execution') {
+        log.info('AppState.shutdown: cancelling in-flight prompt');
+        this._promptController.cancel();
+      }
+    }
+
+    // Persist session state
+    this.saveSession();
+    log.info('AppState.shutdown: complete');
+  }
+
+  /** Whether shutdown() has been called. */
+  get isShutdown(): boolean {
+    return this._isShutdown;
+  }
+
+  // ---------------------------------------------------------------------------
   // Convenience methods (ported from flitter-amp AppState)
   // ---------------------------------------------------------------------------
 
@@ -296,6 +365,27 @@ export class AppState {
   /** Toggle dense (compact) view mode. */
   toggleDenseView(): void {
     this.denseView = !this.denseView;
+    this._notifyListeners();
+  }
+
+  /** Toggle deep reasoning (extended thinking) mode. */
+  toggleDeepReasoning(): void {
+    this._deepReasoningActive = !this._deepReasoningActive;
+    log.info(`Deep reasoning toggled: ${this._deepReasoningActive ? 'on' : 'off'}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Cycle through available agent modes.
+   * Uses the `modes` array if non-empty, otherwise defaults to ['smart', 'code', 'ask'].
+   */
+  cycleMode(): void {
+    const available = this.modes.length > 0
+      ? this.modes
+      : ['smart', 'code', 'ask'];
+    const current = this.currentMode ?? available[0];
+    const idx = available.indexOf(current);
+    this.currentMode = available[(idx + 1) % available.length];
     this._notifyListeners();
   }
 
@@ -326,6 +416,51 @@ export class AppState {
   }
 
   /**
+   * Get the text of a user message at the given items-array index.
+   * Delegates to session.getMessageAt().
+   */
+  getMessageAt(index: number): string | null {
+    return this.session.getMessageAt(index);
+  }
+
+  /**
+   * Truncate the conversation after the given items-array index.
+   * Delegates to session.truncateAfter() and notifies listeners.
+   */
+  truncateAfter(index: number): void {
+    this.session.truncateAfter(index);
+    this._notifyListeners();
+  }
+
+  /**
+   * Copy the last assistant response text to the system clipboard.
+   * Uses platform-appropriate commands (pbcopy on macOS, xclip on Linux, clip on Windows).
+   * Returns true if successful, false otherwise.
+   */
+  async copyLastResponse(): Promise<boolean> {
+    const text = this.getLastAssistantMessage();
+    if (!text) return false;
+    try {
+      const platform = process.platform;
+      let cmd: string[];
+      if (platform === 'darwin') {
+        cmd = ['pbcopy'];
+      } else if (platform === 'win32') {
+        cmd = ['clip'];
+      } else {
+        cmd = ['xclip', '-selection', 'clipboard'];
+      }
+      const proc = Bun.spawn(cmd, { stdin: 'pipe' });
+      proc.stdin.write(text);
+      proc.stdin.end();
+      await proc.exited;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Build a human-readable usage summary string.
    * Returns null if no usage data is available.
    */
@@ -341,6 +476,14 @@ export class AppState {
       summary += ` | Cost: ${usage.cost.currency}${usage.cost.amount.toFixed(4)}`;
     }
     return summary;
+  }
+
+  /**
+   * Open $EDITOR for composing a multi-line prompt.
+   * Returns an EditorResult with success status and the edited text.
+   */
+  async openEditor(initialContent: string = ''): Promise<EditorResult> {
+    return launchEditor(initialContent);
   }
 
   // ---------------------------------------------------------------------------
@@ -475,18 +618,25 @@ export class AppState {
     provider: Provider;
     promptHistory: PromptHistory;
     sessionStore: SessionStore;
+    toolRegistry?: import('../tools/registry').ToolRegistry | null;
+    systemPrompt?: string | null;
+    /** Whether tool calls are expanded by default (N10). */
+    defaultToolExpanded?: boolean;
   }): AppState {
     const sessionId = crypto.randomUUID();
     const session = new SessionState({
       sessionId,
       cwd: config.cwd,
       model: config.provider.model,
+      defaultToolExpanded: config.defaultToolExpanded,
     });
 
     const appState = new AppState(session, config.promptHistory, config.sessionStore);
     const controller = new PromptController({
       session,
       provider: config.provider,
+      toolRegistry: config.toolRegistry ?? null,
+      systemPrompt: config.systemPrompt ?? null,
       onStreamComplete: () => appState.saveSession(),
     });
     appState.setPromptController(controller);

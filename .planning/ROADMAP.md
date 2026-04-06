@@ -1,337 +1,301 @@
-# Roadmap: flitter-cli
-
-**Created:** 2026-04-03
-**Granularity:** Coarse
-**Core Value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging
-
-## Milestone 1: v0.1.0 — Visual Prototype (COMPLETED)
-
-Phases 1-6 built the initial Amp-like TUI shell on `flitter-core`.
-
----
-
-## Milestone 2: v0.2.0 — Make It Actually Work (COMPLETED)
-
-Phases 7-11 fixed the ACP-client implementation so the legacy `flitter-amp` package became functionally usable.
-
----
-
-## Milestone 3: v0.3.0 — flitter-cli Full Parity
-
-### Phase 12: Native Bootstrap and Runtime Shell
-
-**Goal:** Establish `flitter-cli` as a first-class package with native bootstrap, config, logging, and terminal lifecycle behavior.
-
-**Requirements:** BOOT-01, BOOT-02, BOOT-03, BOOT-04
-
-**Key Changes:**
-1. Create `packages/flitter-cli` package metadata, bin target, scripts, and entrypoint
-2. Implement native CLI argument parsing, config loading, editor/cwd resolution, and logging bootstrap
-3. Define top-level error handling and clean shutdown behavior
-4. Remove coco/ACP bridge assumptions from the runtime boundary
-
-**Success Criteria:**
-1. `flitter-cli` starts from its own package entrypoint
-2. Runtime config and logs live under the new namespace
-3. Fatal errors and exits restore terminal state
-4. No core boot path depends on coco bridge commands
-5. Scaffold decisions lock the runtime boundary before detailed parity work begins
-
-**Status:** Complete
-
----
-
-### Phase 13: Session Lifecycle and App State
-
-**Goal:** Rebuild native session startup, prompt processing, cancellation, error propagation, and app-state transitions to match Amp.
-
-**Requirements:** SESS-01, SESS-02, SESS-03, SESS-04
-
-**Key Changes:**
-1. Define native session startup and processing lifecycle
-2. Implement prompt submit, cancel, completion, and failure transitions
-3. Wire runtime failures into visible app state
-4. Capture session metadata required for later persistence and status UI
-
-**Success Criteria:**
-1. New session startup follows deterministic lifecycle ordering
-2. Submit/cancel/complete flows match Amp behavior
-3. Failure states surface visibly without corrupting the TUI
-4. Session metadata is complete enough for later phases
-5. Session guardrails are defined so later UI phases cannot reinterpret lifecycle semantics
-
-**Status:** Complete
-
----
-
-### Phase 14: Conversation and Turn Model
-
-**Goal:** Define the native `flitter-cli` turn model and assistant grouping semantics used by the chat surface.
-
-**Requirements:** TURN-01, TURN-02, TURN-03, TURN-04
-
-**Key Changes:**
-1. Implement native conversation item types for user, assistant, thinking, tool, and plan
-2. Recreate assistant-turn grouping semantics from the reverse-engineered Amp behavior
-3. Support streaming, completion, and interruption state on turn items
-4. Define welcome, empty, loading, and error screen/turn states
-
-**Success Criteria:**
-1. Turn items are explicit native domain objects
-2. Assistant grouping matches Amp thread semantics
-3. Streaming and interruption behavior is preserved
-4. Non-happy-path states are first-class
-
-**Status:** Complete
-
----
-
-### Phase 15: Chat View, Scroll, and Resize Semantics
-
-**Goal:** Achieve parity in chat rendering, sticky sections, scroll behavior, follow mode, scrollbar, and resize handling.
-
-**Requirements:** CHAT-01, CHAT-02, CHAT-03, CHAT-04
-
-**Key Changes:**
-1. Port chat view layout and sticky grouping to the native turn model
-2. Recreate bottom anchoring, follow mode, keyboard/mouse scroll, and scrollbar semantics
-3. Preserve stable streaming growth behavior during manual review
-4. Handle terminal resize and responsive layout correctly
-
-**Success Criteria:**
-1. Chat view feels identical in scroll and grouping behavior
-2. Follow mode behaves correctly under streaming and manual override
-3. Scrollbar and keyboard/mouse interactions are correct
-4. Resize preserves usability and layout integrity
-
-**Status:** Complete
-
----
-
-### Phase 16: Input, Focus, and Editing Experience
-
-**Goal:** Recreate Amp's input ergonomics, multi-line editing, shell mode, focus routing, and trigger-based input behavior.
-
-**Requirements:** INPT-01, INPT-02, INPT-03, INPT-04, INPT-05, INPT-06
-
-**Key Changes:**
-1. Port input area composition and multi-line editing behavior
-2. Restore border overlays, mode badges, and contextual labels
-3. Recreate focus routing and key bubbling rules
-4. Implement autocomplete and file-trigger integration in the native flow
-5. Lock the exact global shortcut matrix and external editor workflow before detailed UI polish
-
-**Success Criteria:**
-1. Multi-line editing and submit behavior match Amp
-2. Focus transitions feel correct with overlays and input
-3. Overlay text and mode hints render correctly
-4. Trigger-based completions invoke the right UI surfaces
-5. `Ctrl+O`, `Ctrl+C`, `Ctrl+L`, `Alt+T`, `Ctrl+G`, `Ctrl+R`, `Esc`, and `?` all match Amp semantics exactly
-
-**Status:** Complete
-
----
-
-### Phase 17: Overlay and Command Surfaces
-
-**Goal:** Complete parity for permission, command palette, file-picker, autocomplete, and shortcut-discovery overlays.
-
-**Requirements:** OVLY-01, OVLY-02, OVLY-03, OVLY-04, OVLY-05
-
-**Key Changes:**
-1. Implement modal permission flow with dimming and focus capture
-2. Restore command palette actions and global invocation
-3. Complete file-picker and inline autocomplete overlay behavior
-4. Add shortcut help/discovery surface promised by the Amp-style UI
-
-**Success Criteria:**
-1. Permission dialog matches Amp modal, focus, and dismissal semantics exactly
-2. Command palette command inventory, labels, and dispatch behavior match Amp exactly
-3. File/autocomplete overlays match Amp invocation and dismissal semantics exactly
-4. Shortcut hints have a real discovery surface behind them and do not drift from the bound shortcuts
-
-**Status:** Complete
-
----
-
-### Phase 18: Full Tool Workflow Parity
-
-**Goal:** Recreate the complete Amp tool-call rendering and workflow system, including specialized tools and fallback behavior.
-
-**Requirements:** TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05, TOOL-06, TOOL-07, TOOL-08
-
-**Key Changes:**
-1. Implement full tool dispatch and normalization layer
-2. Restore ToolHeader statuses, spinners, and expand/collapse model
-3. Support specialized renderers for shell, grep, read, edit, create-file, web-search, todo, handoff, and task flows
-4. Implement robust payload/result extraction and generic fallback rendering
-5. Preserve nested delegation, thread-linking, and recursive tool-tree semantics for task and handoff workflows
-
-**Success Criteria:**
-1. All identified tool surfaces render correctly
-2. Tool state transitions are visible and correct
-3. Handoff flows preserve thread-link visibility and waiting semantics at parity
-4. Task/sub-agent flows preserve nested delegation visibility and recursive tool-tree fidelity at parity
-5. Unknown tools still render losslessly through fallback behavior
-
-**Status:** Complete
-
----
-
-### Phase 19: Markdown, Diff, Thinking, and Plan Rendering
-
-**Goal:** Reach parity for content rendering primitives used throughout the Amp experience.
-
-**Requirements:** REND-01, REND-02, REND-03, REND-04
-
-**Key Changes:**
-1. Complete Markdown block and inline parity
-2. Ensure syntax highlighting behaves correctly for code and tool output
-3. Restore unified diff and token diff rendering
-4. Recreate thinking and plan block rendering semantics
-
-**Success Criteria:**
-1. Markdown output matches Amp expectations
-2. Code and diff views preserve visual hierarchy and clarity
-3. Thinking and plan states are visually correct
-4. Content rendering supports all tool and chat surfaces
-
-**Status:** Complete
-
----
-
-### Phase 20: Status Surfaces, Themes, and Motion
-
-**Goal:** Recreate the status widgets, theme semantics, and visual motion cues that make the product feel like Amp.
-
-**Requirements:** STAT-01, STAT-02, STAT-03, STAT-04, STAT-05, STAT-06
-
-**Key Changes:**
-1. Implement bottom and header status surfaces from native app/session state
-2. Restore theme token coverage used by all product surfaces
-3. Recreate spinner, cursor, handoff blink, and welcome motion cues
-4. Restore built-in theme registry and selectable theme behavior
-5. Verify status-area semantics across command hints, processing hints, mode badges, cwd/git/session context, and discovery cues
-
-**Success Criteria:**
-1. Status widgets show the right runtime context
-2. Theme roles are complete and consistent
-3. Motion cues behave at parity without glitches
-4. Built-in theme registry and selection behavior match Amp
-5. Status-area command, mode, and context semantics match Amp exactly
-6. The product looks and feels like Amp, not just structurally similar
-
-**Status:** Complete
-
----
-
-### Phase 21: History, Resume, Export, and Persistence
-
-**Goal:** Complete parity for prompt history, persisted sessions, thread/session lists, resume flows, and export behavior.
-
-**Requirements:** HIST-01, HIST-02, HIST-03, HIST-04
-
-**Key Changes:**
-1. Implement prompt history storage, dedupe, cursoring, and input reinjection
-2. Persist sessions under the `flitter-cli` namespace
-3. Restore session/thread listing, resume, and export workflows
-4. Define retention and cleanup behavior over persisted data
-
-**Success Criteria:**
-1. Prompt history behaves like Amp, not a placeholder
-2. Sessions can be listed, resumed, exported, and cleaned up
-3. Persistence stores enough metadata for all surfaced workflows
-4. Session ergonomics reach full parity
-
-**Status:** Complete
-
----
-
-### Phase 22: Test Matrix, Migration Closure, and flitter-amp Retirement
-
-**Goal:** Lock parity with robust verification and complete the product migration so `flitter-cli` is the sole active path.
-
-**Requirements:** TEST-01, TEST-02, MIG-01, MIG-02, MIG-03
-
-**Key Changes:**
-1. Expand automated verification across startup, chat, tools, overlays, history, persistence, and shutdown
-2. Use render-tree and terminal/screen assertions, not just state checks
-3. Produce migration inventory and retire `flitter-amp` from active product flow
-4. Remove stale docs, scripts, configs, and defaults safely
-
-**Success Criteria:**
-1. Parity-critical behavior is covered by tests
-2. Visual and terminal output is validated directly
-3. `flitter-cli` is the only active product path
-4. Migration leaves no stale references behind
-
-**Status:** Complete
-
----
-
-## Coverage
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| BOOT-01 | 12 | Complete |
-| BOOT-02 | 12 | Complete |
-| BOOT-03 | 12 | Complete |
-| BOOT-04 | 12 | Complete |
-| SESS-01 | 13 | Complete |
-| SESS-02 | 13 | Complete |
-| SESS-03 | 13 | Complete |
-| SESS-04 | 13 | Complete |
-| TURN-01 | 14 | Complete |
-| TURN-02 | 14 | Complete |
-| TURN-03 | 14 | Complete |
-| TURN-04 | 14 | Complete |
-| CHAT-01 | 15 | Complete |
-| CHAT-02 | 15 | Complete |
-| CHAT-03 | 15 | Complete |
-| CHAT-04 | 15 | Complete |
-| INPT-01 | 16 | Complete |
-| INPT-02 | 16 | Complete |
-| INPT-03 | 16 | Complete |
-| INPT-04 | 16 | Complete |
-| INPT-05 | 16 | Complete |
-| INPT-06 | 16 | Complete |
-| OVLY-01 | 17 | Complete |
-| OVLY-02 | 17 | Complete |
-| OVLY-03 | 17 | Complete |
-| OVLY-04 | 17 | Complete |
-| OVLY-05 | 17 | Complete |
-| TOOL-01 | 18 | Complete |
-| TOOL-02 | 18 | Complete |
-| TOOL-03 | 18 | Complete |
-| TOOL-04 | 18 | Complete |
-| TOOL-05 | 18 | Complete |
-| TOOL-06 | 18 | Complete |
-| TOOL-07 | 18 | Complete |
-| TOOL-08 | 18 | Complete |
-| REND-01 | 19 | Complete |
-| REND-02 | 19 | Complete |
-| REND-03 | 19 | Complete |
-| REND-04 | 19 | Complete |
-| STAT-01 | 20 | Complete |
-| STAT-02 | 20 | Complete |
-| STAT-03 | 20 | Complete |
-| STAT-04 | 20 | Complete |
-| STAT-05 | 20 | Complete |
-| STAT-06 | 20 | Complete |
-| HIST-01 | 21 | Complete |
-| HIST-02 | 21 | Complete |
-| HIST-03 | 21 | Complete |
-| HIST-04 | 21 | Complete |
-| TEST-01 | 22 | Complete |
-| TEST-02 | 22 | Complete |
-| MIG-01 | 22 | Complete |
-| MIG-02 | 22 | Complete |
-| MIG-03 | 22 | Complete |
-
-**v0.3.0 requirements:** 55 total
-**Mapped:** 55 (100%)
-**Complete:** 55
-
----
-*Roadmap created: 2026-04-03*
-*Last updated: 2026-04-03 after parity guardrail hardening*
+# Roadmap: flitter-cli v0.4.0 — Close All Gaps
+
+## Milestones
+
+- ✅ **v0.1.0 MVP** - Phases 1-5 (shipped 2026-03-26)
+- ✅ **v0.2.0 Rendering Overhaul** - Phases 6-11 (shipped 2026-03-28)
+- ✅ **v0.3.0 flitter-cli Full Parity** - Phases 12-22 (shipped 2026-04-03)
+- 🚧 **v0.4.0 Close All Gaps: Full AMP Fidelity** - Phases 23-36 (in progress)
+
+## Phases
+
+<details>
+<summary>v0.1.0 MVP (Phases 1-5) - SHIPPED 2026-03-26</summary>
+
+Phases 1-5 completed: foundation, widget system, layout engine, input system, TUI rendering.
+
+</details>
+
+<details>
+<summary>v0.2.0 Rendering Overhaul (Phases 6-11) - SHIPPED 2026-03-28</summary>
+
+Phases 6-11 completed: rendering pipeline, scrolling, flex layout, text rendering, overlay system, diagnostics.
+
+</details>
+
+<details>
+<summary>v0.3.0 flitter-cli Full Parity (Phases 12-22) - SHIPPED 2026-04-03</summary>
+
+Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence, migration closure. 55 requirements, 305+ tests.
+
+</details>
+
+### 🚧 v0.4.0 Close All Gaps (In Progress)
+
+**Milestone Goal:** Close all 69 audit-identified gaps to achieve pixel-level AMP fidelity.
+
+- [ ] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides
+- [ ] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text
+- [ ] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service
+- [ ] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings
+- [ ] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate
+- [ ] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction
+- [ ] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking
+- [ ] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation
+- [ ] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout
+- [ ] **Phase 32: Shortcut Help and Missing Shortcuts** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab
+- [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
+- [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
+- [ ] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays
+- [ ] **Phase 36: Visual Polish** - Block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol
+
+## Phase Details
+
+### Phase 23: InputArea Rich Border
+**Goal**: Replace the standalone HeaderBar and StatusBar with AMP's borderOverlayText mechanism -- all metadata (context %, skill count, model/mode, cwd/branch, streaming stats) embedded directly into InputArea's four border lines.
+**Depends on**: Phase 22 (v0.3.0 complete)
+**Requirements**: BORDER-01, BORDER-02, BORDER-03, BORDER-04, BORDER-05, BORDER-06, BORDER-07
+**Success Criteria** (what must be TRUE):
+  1. InputArea top-left border shows context window percentage
+  2. InputArea top-right border shows skill count that opens Skills modal
+  3. InputArea bottom-left border shows model name and agent mode
+  4. InputArea bottom-right border shows cwd and git branch
+  5. HeaderBar and StatusBar components are removed from app-shell layout
+  6. Border color pulses on agent mode change
+  7. Streaming state shows token/cost/time and "Esc to cancel" on border
+**Plans**: 3 plans
+
+Plans:
+- [ ] 23-01: Implement borderOverlayText rendering primitive in flitter-core (text embedded in border segments)
+- [ ] 23-02: Build four border builder functions (top-left, top-right, bottom-left, bottom-right) with dynamic content
+- [ ] 23-03: Remove HeaderBar/StatusBar, wire border builders to InputArea, add agentModePulse animation
+
+### Phase 24: Welcome Screen
+**Goal**: Display the AMP ASCII Art Logo with per-character Perlin noise gradient animation and navigation hints.
+**Depends on**: Phase 23 (border context for layout)
+**Requirements**: WELC-01, WELC-02
+**Success Criteria** (what must be TRUE):
+  1. Welcome screen renders multi-line ASCII Art "amp" logo with animated gradient colors
+  2. Welcome screen shows Tab/Shift+Tab navigation hint
+  3. Logo animation uses Perlin noise for smooth color transitions
+**Plans**: 1 plan
+
+Plans:
+- [ ] 24-01: Build ASCII Art Logo widget with Perlin gradient animation and welcome hint text
+
+### Phase 25: Provider and Model System
+**Goal**: Expand the provider system with 8 missing providers and build a complete model catalog with metadata per model.
+**Depends on**: Phase 22 (existing provider infrastructure)
+**Requirements**: PROV-01, PROV-02, PROV-03
+**Success Criteria** (what must be TRUE):
+  1. All 8 missing providers (xai, cerebras, fireworks, groq, moonshot, openrouter, vertex, baseten) are registered
+  2. Each model has contextWindow, maxOutputTokens, pricing, capabilities metadata
+  3. Provider config uses hierarchical configuration with Zod schema validation
+**Plans**: 2 plans
+
+Plans:
+- [ ] 25-01: Implement provider registry with 8 new providers and Zod-validated config
+- [ ] 25-02: Build model catalog with per-model metadata (context window, output tokens, pricing, capabilities)
+
+### Phase 26: Agent Modes and Deep Reasoning
+**Goal**: Replace boolean deep reasoning toggle with tri-state enum and implement real agent mode switching with per-mode configuration.
+**Depends on**: Phase 25 (model catalog for mode definitions)
+**Requirements**: MODE-01, MODE-02, MODE-03
+**Success Criteria** (what must be TRUE):
+  1. Deep reasoning supports medium/high/xhigh tri-state cycling
+  2. cycleMode() rotates through modes with real behavior (primaryModel, includeTools, reasoningEffort, uiHints)
+  3. Provider-specific speed settings display "+fast(6x$)" suffix
+**Plans**: 1 plan
+
+Plans:
+- [ ] 26-01: Implement tri-state deep reasoning, real agent mode definitions, and speed settings
+
+### Phase 27: ThreadPool Architecture
+**Goal**: Replace single-thread model with AMP's ThreadPool architecture supporting create, switch, delete, and back/forward navigation across multiple concurrent threads.
+**Depends on**: Phase 22 (existing session/conversation model)
+**Requirements**: THRD-01, THRD-02, THRD-03, THRD-04, THRD-05, THRD-06, THRD-07, THRD-08
+**Success Criteria** (what must be TRUE):
+  1. ThreadPool manages threadHandleMap with multiple ThreadHandle instances
+  2. User can create new thread without losing existing thread state
+  3. User can switch between threads via activeThreadContextID
+  4. User can delete threads
+  5. Back/forward navigation works across thread history
+  6. Thread titles auto-generate from conversation content
+  7. ThreadList widget renders and allows thread selection
+**Plans**: 3 plans
+
+Plans:
+- [ ] 27-01: Implement ThreadPool state management (threadHandleMap, activeThreadContextID, back/forward stacks)
+- [ ] 27-02: Build thread lifecycle operations (create, switch, delete, title generation, visibility)
+- [ ] 27-03: Wire ThreadList widget and thread-related command palette commands
+
+### Phase 28: Queue Mode and Compaction
+**Goal**: Implement message queue system for batching follow-up prompts and context compaction for automatic context window management.
+**Depends on**: Phase 27 (thread architecture for queue per thread)
+**Requirements**: QUEUE-01, QUEUE-02, COMP-01
+**Success Criteria** (what must be TRUE):
+  1. User can enter queue mode and batch multiple messages
+  2. Messages auto-dequeue on turn completion
+  3. Context compaction triggers at 80% threshold and prunes old messages
+**Plans**: 2 plans
+
+Plans:
+- [ ] 28-01: Implement queue mode state machine (enqueue, dequeue, submitQueue, interruptQueue, clearQueue)
+- [ ] 28-02: Implement compaction system (threshold detection, compaction state, cutMessageId, events)
+
+### Phase 29: Handoff State Machine
+**Goal**: Implement complete handoff mode with enter/exit/submit/abort lifecycle, countdown timer UI, and cross-thread handoff support.
+**Depends on**: Phase 27 (thread architecture for cross-thread handoff)
+**Requirements**: HAND-01, HAND-02, HAND-03
+**Success Criteria** (what must be TRUE):
+  1. enterHandoffMode/exitHandoffMode/submitHandoff/abortHandoffConfirmation lifecycle works
+  2. "Auto-submitting in N..." countdown displays and can be cancelled
+  3. Cross-thread handoff tracks sourceThreadID/targetThreadID
+**Plans**: 1 plan
+
+Plans:
+- [ ] 29-01: Implement handoff state machine with countdown timer and cross-thread tracking
+
+### Phase 30: Skills Modal
+**Goal**: Build complete Skills browsing modal with Local/Global grouping, dual-pane detail view, keyboard navigation, error handling, and prompt suggestions.
+**Depends on**: Phase 23 (border skill count badge triggers modal)
+**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08
+**Success Criteria** (what must be TRUE):
+  1. Skills modal displays with title "Skills (N)" and (o)/(a) operation buttons
+  2. Skills grouped by Local/Global paths
+  3. Selecting a skill shows detail panel (2/5 + 3/5 split)
+  4. Keyboard navigation works (Escape/i/a/o)
+  5. Error and warning sections display when skills fail to load
+  6. "Create your own:" section shows example prompts
+  7. Both list and detail have independent scroll controllers
+  8. OVERLAY_IDS has SKILLS_MODAL; InputArea badge triggers it
+**Plans**: 3 plans
+
+Plans:
+- [ ] 30-01: Build SkillsModal widget with list view, Local/Global grouping, and scrollbar
+- [ ] 30-02: Add detail panel (2/5 + 3/5 split), frontmatter display, file list, invoke action
+- [ ] 30-03: Wire SKILLS_MODAL overlay, keyboard navigation, error/warning sections, "Create your own" area
+
+### Phase 31: Command Palette Overhaul
+**Goal**: Redesign Command Palette to match AMP's category+label dual-column format with 15+ commands, centered layout, and ">" search prefix.
+**Depends on**: Phase 26 (mode commands), Phase 27 (thread commands)
+**Requirements**: CPAL-01, CPAL-02, CPAL-03, CPAL-04
+**Success Criteria** (what must be TRUE):
+  1. Command Palette uses single-line box border, vertically centered
+  2. Search box has ">" prefix
+  3. Commands display in category+label format with right-aligned shortcut hints
+  4. 15+ commands registered covering amp/mode/thread/prompt/context/news categories
+**Plans**: 2 plans
+
+Plans:
+- [ ] 31-01: Redesign Command Palette layout (centered, box border, ">" prefix, category+label columns)
+- [ ] 31-02: Register all missing commands (help, mode set/use, thread switch/map/visibility, context analyze, news, paste image)
+
+### Phase 32: Shortcut Help and Missing Shortcuts
+**Goal**: Rebuild shortcut help as InputArea-embedded dual-column layout matching AMP, register all missing keyboard shortcuts.
+**Depends on**: Phase 23 (InputArea embedding), Phase 27 (Tab/Shift+Tab needs message navigation)
+**Requirements**: SHELP-01, SHELP-02, SHELP-03, KEYS-01, KEYS-02, KEYS-03, KEYS-04, KEYS-05
+**Success Criteria** (what must be TRUE):
+  1. Shortcut help renders inside InputArea with dual-column layout (2 per row, 6 rows)
+  2. Exactly 12 shortcuts displayed matching AMP data
+  3. tmux environment detection shows extended-keys hint
+  4. Ctrl+V paste images works
+  5. Shift+Enter/Alt+Enter inserts newline
+  6. Tab/Shift+Tab navigates messages
+  7. Up arrow edits previous message
+  8. @@ opens thread picker
+**Plans**: 2 plans
+
+Plans:
+- [ ] 32-01: Rebuild shortcut help as InputArea-embedded dual-column widget with tmux detection
+- [ ] 32-02: Register and implement Ctrl+V, Shift+Enter, Tab/Shift+Tab, Up arrow, @@ shortcuts
+
+### Phase 33: HITL Confirmation Overhaul
+**Goal**: Redesign HITL confirmation dialog to match AMP's layout with command content preview, inverted-color option buttons, keyboard shortcut labels, and feedback input mode.
+**Depends on**: Phase 23 (border alignment for dialog width)
+**Requirements**: HITL-01, HITL-02, HITL-03, HITL-04, HITL-05
+**Success Criteria** (what must be TRUE):
+  1. HITL dialog shows command content preview (tool parameters) above options
+  2. Dialog width matches InputArea width
+  3. Options use inverted-color block style with [y]/[n]/[a] labels
+  4. Title format is "Allow [tool_name]?" bold
+  5. "Provide feedback" mode allows inline text input
+**Plans**: 2 plans
+
+Plans:
+- [ ] 33-01: Redesign HITL dialog layout (content preview, full-width, "Allow [tool]?" title)
+- [ ] 33-02: Implement inverted-color option buttons with [y]/[n]/[a] labels and feedback input mode
+
+### Phase 34: Activity Group and Subagent Tree
+**Goal**: Implement collapsible Activity Group component with tree-line characters, summary aggregation, and proper subagent nesting display.
+**Depends on**: Phase 22 (existing tool-call widgets)
+**Requirements**: ACTV-01, ACTV-02, ACTV-03, ACTV-04, ACTV-05
+**Success Criteria** (what must be TRUE):
+  1. Activity Group uses collapsible component with expand/collapse
+  2. Collapsed groups show summary (checkmark/x count)
+  3. Tree-line characters (branch/leaf/vertical) show nesting hierarchy
+  4. Streaming shows inline subagent messages with name and progress
+  5. Subagent card uses "Task" label prefix
+**Plans**: 2 plans
+
+Plans:
+- [ ] 34-01: Build collapsible ActivityGroup widget with tree-line characters and summary aggregation
+- [ ] 34-02: Wire inline subagent messages, "Task" label prefix, and nesting display
+
+### Phase 35: Image Support and Overlays
+**Goal**: Implement image paste/preview support and missing UI overlays (toast, confirmation, context detail, file changes).
+**Depends on**: Phase 23 (context % on border triggers context detail overlay)
+**Requirements**: IMG-01, IMG-02, IMG-03, IMG-04, OVLY-01, OVLY-02, OVLY-03, OVLY-04, OVLY-05
+**Success Criteria** (what must be TRUE):
+  1. Ctrl+V pastes images with upload spinner
+  2. Backspace removes last attached image
+  3. Kitty graphics protocol renders images in terminal
+  4. Full-screen image preview with save dialog
+  5. Toast notifications auto-dismiss
+  6. Generic confirmation overlay works
+  7. Context detail shows token breakdown
+  8. Context analyze shows dependency analysis
+  9. File changes overlay lists modified files
+**Plans**: 3 plans
+
+Plans:
+- [ ] 35-01: Implement image paste handler, popImage, and Kitty graphics protocol renderer
+- [ ] 35-02: Build toast notification system and generic confirmation overlay
+- [ ] 35-03: Build context detail, context analyze, and file changes overlays
+
+### Phase 36: Visual Polish
+**Goal**: Final visual polish to achieve exact AMP appearance: block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol.
+**Depends on**: Phase 23 (border rendering stable)
+**Requirements**: VPOL-01, VPOL-02, VPOL-03, VPOL-04, VPOL-05
+**Success Criteria** (what must be TRUE):
+  1. Streaming cursor uses block character with blink animation
+  2. File paths in tool output use OSC8 terminal hyperlinks
+  3. Edit file tool card shows inline diff preview
+  4. Idle prompt symbol shows only ">"
+  5. Spinner color follows current agent mode color
+**Plans**: 1 plan
+
+Plans:
+- [ ] 36-01: Implement block cursor, OSC8 hyperlinks, diff preview, prompt symbol fix, spinner colors
+
+## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 23. InputArea Rich Border | v0.4.0 | 0/3 | Not started | - |
+| 24. Welcome Screen | v0.4.0 | 0/1 | Not started | - |
+| 25. Provider and Model System | v0.4.0 | 0/2 | Not started | - |
+| 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |
+| 27. ThreadPool Architecture | v0.4.0 | 0/3 | Not started | - |
+| 28. Queue Mode and Compaction | v0.4.0 | 0/2 | Not started | - |
+| 29. Handoff State Machine | v0.4.0 | 0/1 | Not started | - |
+| 30. Skills Modal | v0.4.0 | 0/3 | Not started | - |
+| 31. Command Palette Overhaul | v0.4.0 | 0/2 | Not started | - |
+| 32. Shortcut Help and Missing Shortcuts | v0.4.0 | 0/2 | Not started | - |
+| 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |
+| 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |
+| 35. Image Support and Overlays | v0.4.0 | 0/3 | Not started | - |
+| 36. Visual Polish | v0.4.0 | 0/1 | Not started | - |

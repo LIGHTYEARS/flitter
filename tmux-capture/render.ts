@@ -1,6 +1,4 @@
-import { Terminal } from "@xterm/headless";
-import { SerializeAddon } from "@xterm/addon-serialize";
-import { readFileSync, writeFileSync, readdirSync } from "fs";
+import { readdirSync, statSync } from "fs";
 import { join, basename, dirname, resolve } from "path";
 
 function parseSize(filename: string): { rows: number; cols: number } | null {
@@ -9,81 +7,95 @@ function parseSize(filename: string): { rows: number; cols: number } | null {
   return { rows: parseInt(match[1], 10), cols: parseInt(match[2], 10) };
 }
 
-async function renderGoldenToHTML(goldenPath: string): Promise<string> {
-  const filename = basename(goldenPath);
-  const size = parseSize(filename);
-  if (!size) {
-    throw new Error(`Cannot parse size from filename: ${filename}`);
+function findGoldenFiles(baseDir: string): string[] {
+  const results: string[] = [];
+  const screensDir = join(baseDir, "screens");
+  try {
+    for (const screen of readdirSync(screensDir)) {
+      const screenDir = join(screensDir, screen);
+      if (!statSync(screenDir).isDirectory()) continue;
+      for (const file of readdirSync(screenDir)) {
+        if (file.startsWith("ansi-") && file.endsWith(".golden")) {
+          results.push(join(screenDir, file));
+        }
+      }
+    }
+  } catch { }
+  return results;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function exec(args: string[], retries = 3): Promise<string> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const code = await proc.exited;
+    if (code === 0) return stdout.trim();
+    if (attempt < retries - 1) {
+      await sleep(1000);
+      continue;
+    }
+    throw new Error(`Command failed (${code}): ${args.join(" ")}\n${stderr}`);
   }
-
-  const raw = readFileSync(goldenPath, "utf-8");
-
-  const terminal = new Terminal({
-    cols: size.cols,
-    rows: size.rows,
-    allowProposedApi: true,
-    convertEol: true,
-    theme: {
-      background: "#0d1117",
-      foreground: "#e6edf3",
-      cursor: "#e6edf3",
-      black: "#484f58",
-      red: "#ff7b72",
-      green: "#3fb950",
-      yellow: "#d29922",
-      blue: "#58a6ff",
-      magenta: "#bc8cff",
-      cyan: "#39c5cf",
-      white: "#b1bac4",
-      brightBlack: "#6e7681",
-      brightRed: "#ffa198",
-      brightGreen: "#56d364",
-      brightYellow: "#e3b341",
-      brightBlue: "#79c0ff",
-      brightMagenta: "#d2a8ff",
-      brightCyan: "#56d4dd",
-      brightWhite: "#f0f6fc",
-    },
-  });
-  const serializeAddon = new SerializeAddon();
-  terminal.loadAddon(serializeAddon);
-
-  await new Promise<void>((resolve) => {
-    terminal.write(raw, resolve);
-  });
-
-  const html = serializeAddon.serializeAsHTML({
-    onlySelection: false,
-    includeGlobalBackground: true,
-  });
-
-  return html.replace(
-    "<pre>",
-    "<pre style='display:inline-block;min-width:100%'>"
-  );
+  return "";
 }
 
 const dir = import.meta.dir;
 const targets = process.argv.slice(2);
-
 const goldenFiles =
-  targets.length > 0
-    ? targets
-    : readdirSync(dir)
-      .filter((f) => f.endsWith(".golden"))
-      .map((f) => join(dir, f));
+  targets.length > 0 ? targets.map((t) => resolve(t)) : findGoldenFiles(dir);
 
-for (const goldenPath of goldenFiles) {
-  const absPath = resolve(goldenPath);
-  const filename = basename(absPath);
-  const name = filename.replace(/\.golden$/, "");
-  const outPath = join(dirname(absPath), `${name}.html`);
+if (goldenFiles.length === 0) {
+  console.error("No golden files found.");
+  process.exit(1);
+}
 
-  try {
-    const html = await renderGoldenToHTML(goldenPath);
-    writeFileSync(outPath, html);
-    console.log(`Rendered: ${filename} -> ${name}.html`);
-  } catch (e) {
-    console.error(`Failed: ${filename} - ${(e as Error).message}`);
+const PORT = 18765;
+
+const vite = Bun.spawn(["npx", "vite", "--port", String(PORT)], {
+  cwd: dir,
+  stdout: "pipe",
+  stderr: "pipe",
+});
+
+await sleep(5000);
+console.log(`Vite dev server started on http://localhost:${PORT}`);
+
+try {
+  for (const goldenPath of goldenFiles) {
+    const absPath = resolve(goldenPath);
+    const filename = basename(absPath);
+    const size = parseSize(filename);
+    if (!size) {
+      console.error(`Cannot parse size from filename: ${filename}`);
+      continue;
+    }
+
+    const relativePath = absPath.replace(dir, "").replace(/^\//, "");
+    const screenshotName = `screenshot-${size.rows}x${size.cols}.png`;
+    const screenshotPath = join(dirname(absPath), screenshotName);
+
+    const viewerUrl = `http://localhost:${PORT}/viewer.html?file=${encodeURIComponent("/" + relativePath)}&cols=${size.cols}&rows=${size.rows}`;
+
+    console.log(`Rendering: ${relativePath}`);
+
+    await exec(["agent-browser", "open", viewerUrl]);
+    await exec([
+      "agent-browser",
+      "wait",
+      "--fn",
+      "window.__XTERM_READY === true",
+    ]);
+    await exec(["agent-browser", "screenshot", "--full", screenshotPath]);
+
+    console.log(`  -> ${screenshotName}`);
   }
+} finally {
+  try {
+    await exec(["agent-browser", "close"]);
+  } catch { }
+  vite.kill();
+  console.log("Done.");
 }

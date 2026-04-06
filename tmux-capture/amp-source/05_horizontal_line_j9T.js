@@ -1,0 +1,1 @@
+j9T=class j9T extends q9{color;constructor(R){super();this.color=R}performLayout(){let R=this._lastConstraints;if(R)this.setSize(R.maxWidth,1)}paint(R,T,a){let e=Math.floor(this.size.width);for(let r=0;r<e;r++)R.setChar(T+r,a,"\u2500",{fg:this.color},1)}}

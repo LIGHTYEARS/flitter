@@ -1,0 +1,1 @@
+function YB0(R,T,a,e,r,h){let t=a*2,i=e*4,c=r>0?h/r:0,o=T>1?Math.round(R/(T-1)*(t-1)):Math.floor(t/2),C=Math.round((1-c)*(i-1)),g=T>1?Math.round(R/(T-1)*(a-1)):Math.floor(a/2);return{dotX:o,dotY:C,cellX:g,cellY:Math.floor(C/4)}}

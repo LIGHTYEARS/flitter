@@ -9,14 +9,14 @@
 ### InputArea Rich Border (BORDER)
 
 - [x] **BORDER-01**: InputArea top-left border embeds context window percentage text using borderOverlayText mechanism
-- [ ] **BORDER-02**: InputArea top-right border embeds skill count badge (e.g. "77 skills") that triggers Skills modal on click
-- [ ] **BORDER-03**: InputArea bottom-left border embeds current model name and agent mode label
-- [ ] **BORDER-04**: InputArea bottom-right border embeds current working directory and git branch name
+- [x] **BORDER-02**: InputArea top-right border embeds skill count badge (e.g. "77 skills") that triggers Skills modal on click
+- [x] **BORDER-03**: InputArea bottom-left border embeds current model name and agent mode label
+- [x] **BORDER-04**: InputArea bottom-right border embeds current working directory and git branch name
 - [x] **BORDER-05**: InputArea border supports agentModePulse animation (lerpColor between mode color and default border color on mode change)
-- [ ] **BORDER-06**: Standalone HeaderBar and StatusBar rows are removed; all metadata lives on InputArea border lines
-- [ ] **BORDER-07**: Streaming state displays token count, cost, elapsed time, and "Esc to cancel" on InputArea border
+- [x] **BORDER-06**: Standalone HeaderBar and StatusBar rows are removed; all metadata lives on InputArea border lines
+- [x] **BORDER-07**: Streaming state displays token count, cost, elapsed time, and "Esc to cancel" on InputArea border
 - [ ] **BORDER-08**: Resizable bottom grid with bottomGridUserHeight global state and drag-resize handle for split-view between chat area and InputArea
-- [ ] **BORDER-09**: InputArea initial height respects minLines: 3 configuration, matching AMP's default 3-line editing area
+- [x] **BORDER-09**: InputArea initial height respects minLines: 3 configuration, matching AMP's default 3-line editing area
 
 ### Welcome Screen (WELC)
 
@@ -168,14 +168,14 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BORDER-01 | 23 | Complete |
-| BORDER-02 | 23 | Pending |
-| BORDER-03 | 23 | Pending |
-| BORDER-04 | 23 | Pending |
+| BORDER-02 | 23 | Complete |
+| BORDER-03 | 23 | Complete |
+| BORDER-04 | 23 | Complete |
 | BORDER-05 | 23 | Complete |
-| BORDER-06 | 23 | Pending |
-| BORDER-07 | 23 | Pending |
-| BORDER-08 | 23 | Pending |
-| BORDER-09 | 23 | Pending |
+| BORDER-06 | 23 | Complete |
+| BORDER-07 | 23 | Complete |
+| BORDER-08 | 23 | Partial |
+| BORDER-09 | 23 | Complete |
 | WELC-01 | 24 | Pending |
 | WELC-02 | 24 | Pending |
 | THRD-01 | 27 | Pending |

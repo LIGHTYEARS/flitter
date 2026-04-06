@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
-last_updated: "2026-04-06T15:54:30.499Z"
+last_updated: "2026-04-06T16:05:01.187Z"
 last_activity: 2026-04-06
 progress:
   total_phases: 14
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -29,15 +29,15 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 23 (inputarea-rich-border) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-04-06 -- Plan 23-01 complete (BorderGap types, lerpColor, gap-aware border rendering)
+Last activity: 2026-04-06 -- Plan 23-02 complete (border-builders.ts with 4 overlay builders, border-helpers.ts with 5 helpers)
 
 ## Phase Status
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
-| 23 | InputArea Rich Border | In Progress | 1/3 |
+| 23 | InputArea Rich Border | In Progress | 2/3 |
 | 24 | Welcome Screen | Not started | 0/1 |
 | 25 | Provider and Model System | Not started | 0/2 |
 | 26 | Agent Modes and Deep Reasoning | Not started | 0/1 |
@@ -67,6 +67,8 @@ Progress: ░░░░░░░░░░ 0%
 |------|----------|---------|
 | 2026-04-06 | InputArea Rich Border is the #1 architectural change | AMP embeds all metadata in border lines; flitter-cli uses separate rows |
 | 2026-04-06 | Skip research phase — MISSING-FEATURES.md serves as the audit | 38 features + 42 VF issues already documented with AMP source evidence |
+| 2026-04-06 | Null return from buildTopLeftOverlay/buildBottomLeftOverlay for idle states | Cleanest API for border overlay composition — caller omits overlay rather than rendering empty widget |
+| 2026-04-06 | MouseRegion wraps only skill count section in top-right overlay | Matches BORDER-02 spec for clickable zone; mode label and warning indicator are not clickable |
 
 ## Known Issues
 
@@ -82,6 +84,8 @@ Progress: ░░░░░░░░░░ 0%
 - The most critical architectural UI difference: AMP uses `borderOverlayText` to embed metadata into InputArea's four border lines
 - AMP逆向源码: `tmux-capture/amp-source/` (34 files)
 - AMP golden 截屏: `tmux-capture/screens/` (9 界面, 每界面 plain/ansi/png)
+- Plan 23-01: BorderGap/BorderGaps types, gap-aware drawBorder/drawBorderSides, lerpColor added to flitter-core
+- Plan 23-02: border-helpers.ts (5 helpers), border-builders.ts (4 builders: buildTopLeftOverlay/buildTopRightOverlay/buildBottomLeftOverlay/buildBottomRightOverlay + BorderOverlayResult)
 
 ---
 *Last updated: 2026-04-06 after v0.4.0 milestone start*

@@ -8,7 +8,7 @@ last_activity: 2026-04-06
 progress:
   total_phases: 14
   completed_phases: 0
-  total_plans: 28
+  total_plans: 29
   completed_plans: 0
   percent: 0
 ---
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 Phase: 23 (next to plan)
 Plan: —
 Status: Ready to plan
-Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 28 plans, 73 requirements
+Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 29 plans, 81 requirements
 
 ## Phase Status
 
@@ -46,7 +46,7 @@ Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 28 plans, 73 r
 | 29 | Handoff State Machine | Not started | 0/1 |
 | 30 | Skills Modal | Not started | 0/3 |
 | 31 | Command Palette Overhaul | Not started | 0/2 |
-| 32 | Shortcut Help and Missing Shortcuts | Not started | 0/2 |
+| 32 | Shortcut Help, Shortcuts, Shell Mode | Not started | 0/3 |
 | 33 | HITL Confirmation Overhaul | Not started | 0/2 |
 | 34 | Activity Group and Subagent Tree | Not started | 0/2 |
 | 35 | Image Support and Overlays | Not started | 0/3 |

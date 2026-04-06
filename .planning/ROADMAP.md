@@ -32,7 +32,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 ### 🚧 v0.4.0 Close All Gaps (In Progress)
 
-**Milestone Goal:** Close all 73 audit-identified gaps to achieve pixel-level AMP fidelity.
+**Milestone Goal:** Close all 81 audit-identified gaps to achieve pixel-level AMP fidelity.
 
 - [ ] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides
 - [ ] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text
@@ -43,7 +43,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [ ] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking
 - [ ] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation
 - [ ] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout
-- [ ] **Phase 32: Shortcut Help and Missing Shortcuts** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab
+- [ ] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations
 - [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
 - [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
 - [ ] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays
@@ -54,7 +54,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 ### Phase 23: InputArea Rich Border
 **Goal**: Replace the standalone HeaderBar and StatusBar with AMP's borderOverlayText mechanism -- all metadata (context %, skill count, model/mode, cwd/branch, streaming stats) embedded directly into InputArea's four border lines.
 **Depends on**: Phase 22 (v0.3.0 complete)
-**Requirements**: BORDER-01, BORDER-02, BORDER-03, BORDER-04, BORDER-05, BORDER-06, BORDER-07
+**Requirements**: BORDER-01, BORDER-02, BORDER-03, BORDER-04, BORDER-05, BORDER-06, BORDER-07, BORDER-08, BORDER-09
 **Success Criteria** (what must be TRUE):
   1. InputArea top-left border shows context window percentage
   2. InputArea top-right border shows skill count that opens Skills modal
@@ -63,6 +63,8 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
   5. HeaderBar and StatusBar components are removed from app-shell layout
   6. Border color pulses on agent mode change
   7. Streaming state shows token/cost/time and "Esc to cancel" on border
+  8. Resizable bottom grid with bottomGridUserHeight global state and drag-resize handle
+  9. InputArea defaults to minLines: 3 editing area
 **Plans**: 3 plans
 
 Plans:
@@ -113,7 +115,7 @@ Plans:
 ### Phase 27: ThreadPool Architecture
 **Goal**: Replace single-thread model with AMP's ThreadPool architecture supporting create, switch, delete, and back/forward navigation across multiple concurrent threads.
 **Depends on**: Phase 22 (existing session/conversation model)
-**Requirements**: THRD-01, THRD-02, THRD-03, THRD-04, THRD-05, THRD-06, THRD-07, THRD-08
+**Requirements**: THRD-01, THRD-02, THRD-03, THRD-04, THRD-05, THRD-06, THRD-07, THRD-08, THRD-09, THRD-10
 **Success Criteria** (what must be TRUE):
   1. ThreadPool manages threadHandleMap with multiple ThreadHandle instances
   2. User can create new thread without losing existing thread state
@@ -122,6 +124,8 @@ Plans:
   5. Back/forward navigation works across thread history
   6. Thread titles auto-generate from conversation content
   7. ThreadList widget renders and allows thread selection
+  8. Thread preview split-view shows content before switching
+  9. Thread worker pool manages per-thread independent workers
 **Plans**: 3 plans
 
 Plans:
@@ -159,7 +163,7 @@ Plans:
 ### Phase 30: Skills Modal
 **Goal**: Build complete Skills browsing modal with Local/Global grouping, dual-pane detail view, keyboard navigation, error handling, and prompt suggestions.
 **Depends on**: Phase 23 (border skill count badge triggers modal)
-**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08
+**Requirements**: SKILL-01, SKILL-02, SKILL-03, SKILL-04, SKILL-05, SKILL-06, SKILL-07, SKILL-08, SKILL-09, SKILL-10
 **Success Criteria** (what must be TRUE):
   1. Skills modal displays with title "Skills (N)" and (o)/(a) operation buttons
   2. Skills grouped by Local/Global paths
@@ -169,6 +173,8 @@ Plans:
   6. "Create your own:" section shows example prompts
   7. Both list and detail have independent scroll controllers
   8. OVERLAY_IDS has SKILLS_MODAL; InputArea badge triggers it
+  9. Centralized skill service handles loading, caching, and querying
+  10. Pending skills injection auto-inserts skills as info messages into thread context
 **Plans**: 3 plans
 
 Plans:
@@ -191,10 +197,10 @@ Plans:
 - [ ] 31-01: Redesign Command Palette layout (centered, box border, ">" prefix, category+label columns)
 - [ ] 31-02: Register all missing commands (help, mode set/use, thread switch/map/visibility, context analyze, news, paste image)
 
-### Phase 32: Shortcut Help and Missing Shortcuts
-**Goal**: Rebuild shortcut help as InputArea-embedded dual-column layout matching AMP, register all missing keyboard shortcuts.
+### Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode
+**Goal**: Rebuild shortcut help as InputArea-embedded dual-column layout matching AMP, register all missing keyboard shortcuts, and implement shell mode with bash invocation display.
 **Depends on**: Phase 23 (InputArea embedding), Phase 27 (Tab/Shift+Tab needs message navigation)
-**Requirements**: SHELP-01, SHELP-02, SHELP-03, KEYS-01, KEYS-02, KEYS-03, KEYS-04, KEYS-05
+**Requirements**: SHELP-01, SHELP-02, SHELP-03, KEYS-01, KEYS-02, KEYS-03, KEYS-04, KEYS-05, SHELL-01, SHELL-02
 **Success Criteria** (what must be TRUE):
   1. Shortcut help renders inside InputArea with dual-column layout (2 per row, 6 rows)
   2. Exactly 12 shortcuts displayed matching AMP data
@@ -204,11 +210,14 @@ Plans:
   6. Tab/Shift+Tab navigates messages
   7. Up arrow edits previous message
   8. @@ opens thread picker
-**Plans**: 2 plans
+  9. Shell mode detects $ and $$ prefixes with bash invocation tracking
+  10. Bash invocation widget displays running commands with show/hide timer
+**Plans**: 3 plans
 
 Plans:
 - [ ] 32-01: Rebuild shortcut help as InputArea-embedded dual-column widget with tmux detection
 - [ ] 32-02: Register and implement Ctrl+V, Shift+Enter, Tab/Shift+Tab, Up arrow, @@ shortcuts
+- [ ] 32-03: Implement shell mode state, bashInvocations tracking, and BashInvocationsWidget
 
 ### Phase 33: HITL Confirmation Overhaul
 **Goal**: Redesign HITL confirmation dialog to match AMP's layout with command content preview, inverted-color option buttons, keyboard shortcut labels, and feedback input mode.
@@ -294,7 +303,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 29. Handoff State Machine | v0.4.0 | 0/1 | Not started | - |
 | 30. Skills Modal | v0.4.0 | 0/3 | Not started | - |
 | 31. Command Palette Overhaul | v0.4.0 | 0/2 | Not started | - |
-| 32. Shortcut Help and Missing Shortcuts | v0.4.0 | 0/2 | Not started | - |
+| 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 0/3 | Not started | - |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |
 | 35. Image Support and Overlays | v0.4.0 | 0/3 | Not started | - |

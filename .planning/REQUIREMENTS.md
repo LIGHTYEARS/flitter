@@ -15,6 +15,8 @@
 - [ ] **BORDER-05**: InputArea border supports agentModePulse animation (lerpColor between mode color and default border color on mode change)
 - [ ] **BORDER-06**: Standalone HeaderBar and StatusBar rows are removed; all metadata lives on InputArea border lines
 - [ ] **BORDER-07**: Streaming state displays token count, cost, elapsed time, and "Esc to cancel" on InputArea border
+- [ ] **BORDER-08**: Resizable bottom grid with bottomGridUserHeight global state and drag-resize handle for split-view between chat area and InputArea
+- [ ] **BORDER-09**: InputArea initial height respects minLines: 3 configuration, matching AMP's default 3-line editing area
 
 ### Welcome Screen (WELC)
 
@@ -31,6 +33,8 @@
 - [ ] **THRD-06**: Thread title auto-generation from conversation content
 - [ ] **THRD-07**: Thread visibility modes (switchThreadVisibility)
 - [ ] **THRD-08**: ThreadList widget (currently dead code) is wired and rendered
+- [ ] **THRD-09**: Thread preview split-view with independent scroll controller for previewing thread content before switching
+- [ ] **THRD-10**: Thread worker pool (threadWorkerMap, workersByThreadID) with per-thread independent worker state machines for concurrent thread execution
 
 ### Handoff Mode (HAND)
 
@@ -71,6 +75,8 @@
 - [ ] **SKILL-06**: Skills modal shows "Create your own:" section with example prompt suggestions
 - [ ] **SKILL-07**: Skills modal has scrollbar with independent listScrollController and detailScrollController
 - [ ] **SKILL-08**: OVERLAY_IDS includes SKILLS_MODAL entry; InputArea skill count badge triggers it
+- [ ] **SKILL-09**: Skill service (centralized skill management with loading, caching, querying via skillService)
+- [ ] **SKILL-10**: Pending skills injection (addPendingSkill/removePendingSkill) that auto-injects skills as info messages into thread context
 
 ### Command Palette (CPAL)
 
@@ -130,6 +136,11 @@
 - [ ] **IMG-03**: Kitty graphics protocol support for native terminal image rendering
 - [ ] **IMG-04**: Full-screen image preview overlay with save dialog
 
+### Shell Mode (SHELL)
+
+- [ ] **SHELL-01**: Shell mode with $ (foreground) and $$ (background) prefix detection, bashInvocations array, and shell mode status bar indicator
+- [ ] **SHELL-02**: Bash invocation display widget (BashInvocationsWidget) showing running commands with show/hide timer and pendingBashInvocations map
+
 ## v0.5.0+ Requirements
 
 ### Post-Fidelity
@@ -163,6 +174,8 @@
 | BORDER-05 | 23 | Pending |
 | BORDER-06 | 23 | Pending |
 | BORDER-07 | 23 | Pending |
+| BORDER-08 | 23 | Pending |
+| BORDER-09 | 23 | Pending |
 | WELC-01 | 24 | Pending |
 | WELC-02 | 24 | Pending |
 | THRD-01 | 27 | Pending |
@@ -173,6 +186,8 @@
 | THRD-06 | 27 | Pending |
 | THRD-07 | 27 | Pending |
 | THRD-08 | 27 | Pending |
+| THRD-09 | 27 | Pending |
+| THRD-10 | 27 | Pending |
 | HAND-01 | 29 | Pending |
 | HAND-02 | 29 | Pending |
 | HAND-03 | 29 | Pending |
@@ -195,6 +210,8 @@
 | SKILL-06 | 30 | Pending |
 | SKILL-07 | 30 | Pending |
 | SKILL-08 | 30 | Pending |
+| SKILL-09 | 30 | Pending |
+| SKILL-10 | 30 | Pending |
 | CPAL-01 | 31 | Pending |
 | CPAL-02 | 31 | Pending |
 | CPAL-03 | 31 | Pending |
@@ -229,10 +246,12 @@
 | IMG-02 | 35 | Pending |
 | IMG-03 | 35 | Pending |
 | IMG-04 | 35 | Pending |
+| SHELL-01 | 32 | Pending |
+| SHELL-02 | 32 | Pending |
 
 **Coverage:**
-- v0.4.0 requirements: 73 total
-- Mapped to phases: 73/73 (100%)
+- v0.4.0 requirements: 81 total
+- Mapped to phases: 81/81 (100%)
 - Unmapped: 0
 
 ---

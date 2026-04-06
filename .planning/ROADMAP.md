@@ -34,7 +34,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 **Milestone Goal:** Close all 81 audit-identified gaps to achieve pixel-level AMP fidelity.
 
-- [ ] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides
+- [x] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides (completed 2026-04-06)
 - [ ] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text
 - [ ] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service
 - [ ] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings
@@ -69,8 +69,8 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 Plans:
 - [x] 23-01: Implement borderOverlayText rendering primitive in flitter-core (text embedded in border segments)
-- [ ] 23-02: Build four border builder functions (top-left, top-right, bottom-left, bottom-right) with dynamic content
-- [ ] 23-03: Remove HeaderBar/StatusBar, wire border builders to InputArea, add agentModePulse animation
+- [x] 23-02: Build four border builder functions (top-left, top-right, bottom-left, bottom-right) with dynamic content
+- [x] 23-03: Remove HeaderBar/StatusBar, wire border builders to InputArea, add agentModePulse animation
 
 ### Phase 24: Welcome Screen
 **Goal**: Display the AMP ASCII Art Logo with per-character Perlin noise gradient animation and navigation hints.
@@ -294,7 +294,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 23. InputArea Rich Border | v0.4.0 | 1/3 | In Progress|  |
+| 23. InputArea Rich Border | v0.4.0 | 3/3 | Complete    | 2026-04-06 |
 | 24. Welcome Screen | v0.4.0 | 0/1 | Not started | - |
 | 25. Provider and Model System | v0.4.0 | 0/2 | Not started | - |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |

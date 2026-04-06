@@ -45,6 +45,31 @@ type WritablePaintContext = {
 };
 
 // ---------------------------------------------------------------------------
+// BorderGap types — gap-aware border rendering
+// ---------------------------------------------------------------------------
+
+/**
+ * Specifies a column range to skip when drawing a horizontal border edge.
+ * `start` is the column offset from the box's left edge (inclusive, 0-based,
+ * where 0 is the left corner column). `end` is exclusive.
+ * Only columns 1 through w-2 (interior edge columns) are affected;
+ * corner columns are never skipped.
+ */
+export interface BorderGap {
+  start: number;
+  end: number;
+}
+
+/**
+ * Gap specifications for the top and bottom edges of a border box.
+ * Used to skip drawing border characters where overlay text will be placed.
+ */
+export interface BorderGaps {
+  top?: BorderGap[];
+  bottom?: BorderGap[];
+}
+
+// ---------------------------------------------------------------------------
 // PaintContext
 // ---------------------------------------------------------------------------
 
@@ -259,6 +284,8 @@ export class PaintContext {
   /**
    * Draw a Unicode box-drawing border.
    * Requires w >= 2 and h >= 2 for a valid border.
+   * When gaps is provided, horizontal edge columns within gap ranges are skipped
+   * (corners are never skipped; only interior edge columns 1..w-2 are affected).
    */
   drawBorder(
     x: number,
@@ -267,6 +294,7 @@ export class PaintContext {
     h: number,
     borderStyle: BoxDrawingStyle,
     color?: Color,
+    gaps?: BorderGaps,
   ): void {
     if (w < 2 || h < 2) return;
 
@@ -282,9 +310,19 @@ export class PaintContext {
     // Bottom-right corner
     this.drawChar(x + w - 1, y + h - 1, chars.br, style, 1);
 
-    // Top and bottom edges (horizontal)
+    // Top edge (horizontal) — separate loop to support per-side gap skipping
+    const topGaps = gaps?.top ?? [];
     for (let col = x + 1; col < x + w - 1; col++) {
+      const relCol = col - x;
+      if (topGaps.some(g => relCol >= g.start && relCol < g.end)) continue;
       this.drawChar(col, y, chars.h, style, 1);
+    }
+
+    // Bottom edge (horizontal) — separate loop to support per-side gap skipping
+    const bottomGaps = gaps?.bottom ?? [];
+    for (let col = x + 1; col < x + w - 1; col++) {
+      const relCol = col - x;
+      if (bottomGaps.some(g => relCol >= g.start && relCol < g.end)) continue;
       this.drawChar(col, y + h - 1, chars.h, style, 1);
     }
 
@@ -298,6 +336,7 @@ export class PaintContext {
   /**
    * Per-side border description for drawBorderSides.
    * A side with width <= 0 is not drawn.
+   * When gaps is provided, horizontal edge columns within gap ranges are skipped.
    */
   drawBorderSides(
     x: number,
@@ -310,6 +349,7 @@ export class PaintContext {
       bottom?: { width: number; style: BoxDrawingStyle; color?: Color };
       left?: { width: number; style: BoxDrawingStyle; color?: Color };
     },
+    gaps?: BorderGaps,
   ): void {
     if (w <= 0 || h <= 0) return;
 
@@ -332,7 +372,8 @@ export class PaintContext {
         sides.bottom!.color === topColor &&
         sides.left!.color === topColor;
       if (sameStyle && sameColor) {
-        this.drawBorder(x, y, w, h, topStyle, topColor);
+        // Fast path: delegate to drawBorder, passing gaps through
+        this.drawBorder(x, y, w, h, topStyle, topColor, gaps);
         return;
       }
     }
@@ -341,7 +382,11 @@ export class PaintContext {
       const { style, color } = sides.top!;
       const chars = BOX_DRAWING[style];
       const cs: CellStyle = color ? { fg: color } : {};
+      const topGaps = gaps?.top ?? [];
       for (let col = x; col < x + w; col++) {
+        // Skip gap columns on interior (corners at x and x+w-1 are handled by corner logic below)
+        const relCol = col - x;
+        if (relCol > 0 && relCol < w - 1 && topGaps.some(g => relCol >= g.start && relCol < g.end)) continue;
         this.drawChar(col, y, chars.h, cs, 1);
       }
     }
@@ -350,7 +395,10 @@ export class PaintContext {
       const { style, color } = sides.bottom!;
       const chars = BOX_DRAWING[style];
       const cs: CellStyle = color ? { fg: color } : {};
+      const bottomGaps = gaps?.bottom ?? [];
       for (let col = x; col < x + w; col++) {
+        const relCol = col - x;
+        if (relCol > 0 && relCol < w - 1 && bottomGaps.some(g => relCol >= g.start && relCol < g.end)) continue;
         this.drawChar(col, y + h - 1, chars.h, cs, 1);
       }
     }

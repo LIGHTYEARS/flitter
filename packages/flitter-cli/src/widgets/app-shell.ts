@@ -53,8 +53,6 @@ import { TextEditingController } from '../../../flitter-core/src/widgets/text-fi
 import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-list';
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
-import { StatusBar } from './status-bar';
-import { HeaderBar } from './header-bar';
 import { CommandPalette } from './command-palette';
 import { FilePicker } from './file-picker';
 import { ShortcutHelpOverlay } from './shortcut-help-overlay';
@@ -161,6 +159,14 @@ class AppShellState extends State<AppShell> {
 
   // --- E4: Copy highlight visual feedback ---
   private _copyHighlight = false;
+
+  // --- AgentMode pulse sequence (D-14/D-15 shimmer trigger) ---
+  /** Monotonically-incrementing counter that bumps every time the agent mode changes.
+   * Passed to InputArea.agentModePulseSeq to trigger the shimmer animation. */
+  private _agentModePulseSeq: number = 0;
+
+  /** Last known agent mode — used to detect mode transitions in build(). */
+  private _lastMode: string | null = null;
 
   // --- Lifecycle ---
 
@@ -695,6 +701,17 @@ class AppShellState extends State<AppShell> {
     });
   }
 
+  // --- Skills Modal (TODO: Phase 30 will implement full skills modal) ---
+
+  /**
+   * Open the skills modal overlay.
+   * @deprecated Stub — Phase 30 will implement full skills modal UI.
+   */
+  private _openSkillsModal(): void {
+    // TODO: Phase 30 — implement SkillsModal overlay
+    log.info('AppShell: _openSkillsModal triggered (stub)');
+  }
+
   // --- Content Builders ---
 
   /**
@@ -762,6 +779,14 @@ class AppShellState extends State<AppShell> {
   }
 
   /**
+   * Current terminal screen height in rows. Falls back to 50 when
+   * process.stdout.rows is not yet available (headless tests, pipes).
+   */
+  private get _screenHeight(): number {
+    return process.stdout.rows || 50;
+  }
+
+  /**
    * Build the root widget tree.
    *
    * Layout:
@@ -770,10 +795,20 @@ class AppShellState extends State<AppShell> {
    *       Column (max height, stretch width)
    *         Expanded
    *           [scroll stack or centered content based on screenState]
-   *         InputArea (controller shared from AppShellState)
+   *         InputArea (controller shared from AppShellState, with all border props)
    *     )
    */
   build(_context: BuildContext): Widget {
+    // D-14/D-15: detect mode transitions and bump pulse sequence.
+    const currentMode = this.widget.appState.currentMode;
+    if (currentMode !== this._lastMode) {
+      if (this._lastMode !== null) {
+        // Mode changed (not first render) — bump shimmer trigger counter.
+        this._agentModePulseSeq++;
+      }
+      this._lastMode = currentMode;
+    }
+
     const content = this._needsScroll()
       ? this._buildScrollableContent()
       : this._buildCenteredContent();
@@ -783,25 +818,37 @@ class AppShellState extends State<AppShell> {
       crossAxisAlignment: 'stretch',
       children: [
         new Expanded({ child: content }),
-        new HeaderBar({
-          isProcessing: this.widget.appState.isProcessing,
-          isInterrupted: this.widget.appState.isInterrupted,
-          tokenUsage: this.widget.appState.usage,
-          costUsd: this.widget.appState.usage?.cost?.amount ?? 0,
-          elapsedMs: this.widget.appState.elapsedMs,
-        }),
         new InputArea({
+          // Core input props
           onSubmit: (text) => this.widget.appState.submitPrompt(text),
           isProcessing: this.widget.appState.isProcessing,
           mode: this.widget.appState.currentMode,
           controller: this.textController,
           getFiles: () => listProjectFiles(this.widget.appState.metadata.cwd),
-        }),
-        new StatusBar({
-          cwd: this.widget.appState.metadata.cwd,
-          gitBranch: this.widget.appState.metadata.gitBranch ?? undefined,
-          isProcessing: this.widget.appState.isProcessing,
+          // Props migrated from HeaderBar
+          tokenUsage: this.widget.appState.usage,
+          costUsd: this.widget.appState.usage?.cost?.amount ?? 0,
+          elapsedMs: this.widget.appState.elapsedMs ?? 0,
+          contextWindowPercent: this.widget.appState.contextWindowUsagePercent ?? 0,
+          isInterrupted: this.widget.appState.isInterrupted ?? false,
+          hasConversation: this.widget.appState.items.length > 0,
+          // Props migrated from StatusBar
+          cwd: this.widget.appState.metadata?.cwd ?? process.cwd(),
+          gitBranch: this.widget.appState.metadata?.gitBranch ?? undefined,
           isStreaming: this.widget.appState.lifecycle === 'streaming',
+          // TODO: wire these to real AppState fields when available in future phases
+          isExecutingCommand: false,
+          isRunningShell: false,
+          isAutoCompacting: false,
+          isHandingOff: false,
+          statusMessage: undefined,
+          // New border feature props
+          agentModePulseSeq: this._agentModePulseSeq,
+          skillCount: this.widget.appState.skillCount ?? 0,
+          // TODO: wire skillWarningCount to real AppState field when available
+          skillWarningCount: 0,
+          onSkillCountClick: () => this._openSkillsModal(),
+          screenHeight: this._screenHeight,
         }),
       ],
     });

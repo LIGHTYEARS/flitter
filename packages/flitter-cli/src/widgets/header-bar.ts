@@ -1,14 +1,10 @@
 // HeaderBar — streaming status display above InputArea.
 //
-// Shows contextual streaming information:
-//   - Processing/Streaming: WaveSpinner + token usage % + cost + elapsed
-//   - Streaming (no usage data): WaveSpinner + "Streaming..." (dim)
-//   - Interrupted: "⚠ Response interrupted" (yellow)
-//   - Idle: SizedBox height:1 (empty row preserving layout)
+// @deprecated HeaderBar is removed from the app-shell layout as of Phase 23.
+// All metadata is now rendered in InputArea's rich border lines via
+// border-builders.ts. This file is kept for backward compatibility only.
+// Use border-helpers.ts for formatTokenCount, formatElapsed, thresholdColor.
 //
-// Ported from flitter-amp's BottomGrid.buildTopLeft() + formatUsageDisplay().
-// Phase 20-03 will wire theme colors via CliThemeProvider.
-
 import { StatelessWidget, Widget } from '../../../flitter-core/src/framework/widget';
 import { Row } from '../../../flitter-core/src/widgets/flex';
 import { Text } from '../../../flitter-core/src/widgets/text';

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
-import { shortenPath } from '../widgets/status-bar';
+import { shortenPath } from '../widgets/border-helpers';
 import {
   formatTokenCount,
   formatElapsed,
   thresholdColor,
-} from '../widgets/header-bar';
+} from '../widgets/border-helpers';
 import { Color } from '../../../flitter-core/src/core/color';
 
 // ---------------------------------------------------------------------------

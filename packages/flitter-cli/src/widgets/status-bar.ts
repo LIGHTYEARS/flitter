@@ -1,18 +1,10 @@
 // StatusBar — bottom status bar for flitter-cli, fixed height 1 row.
 //
-// Left section: contextual text based on current state:
-//   - copyHighlight → "Copied!" in green
-//   - searchState → "(reverse-i-search)'query':" or "(failing reverse-i-search)'query':"
-//   - hintText → dim muted text (placeholder hint from AMP BottomGrid)
-//   - isStreaming → "Esc to cancel" in yellow dim
-//   - statusMessage → custom message
-//   - idle (no overlay) → "? for shortcuts" in brightBlack dim
+// @deprecated StatusBar is removed from the app-shell layout as of Phase 23.
+// All status information is now rendered in InputArea's rich border lines via
+// border-builders.ts. This file is kept for backward compatibility only.
+// Use border-helpers.ts for shortenPath, getFooterText.
 //
-// Right section: shortened cwd + optional git branch in brightBlack dim.
-//
-// Layout: Row with Expanded left + right Text.
-// Modeled after flitter-amp's BottomGrid bottom-left/bottom-right sections,
-// simplified for flitter-cli. Phase 20-03 will wire theme colors.
 
 import { StatelessWidget, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
 import { Row } from '../../../flitter-core/src/widgets/flex';

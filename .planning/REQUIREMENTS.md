@@ -8,11 +8,11 @@
 
 ### InputArea Rich Border (BORDER)
 
-- [ ] **BORDER-01**: InputArea top-left border embeds context window percentage text using borderOverlayText mechanism
+- [x] **BORDER-01**: InputArea top-left border embeds context window percentage text using borderOverlayText mechanism
 - [ ] **BORDER-02**: InputArea top-right border embeds skill count badge (e.g. "77 skills") that triggers Skills modal on click
 - [ ] **BORDER-03**: InputArea bottom-left border embeds current model name and agent mode label
 - [ ] **BORDER-04**: InputArea bottom-right border embeds current working directory and git branch name
-- [ ] **BORDER-05**: InputArea border supports agentModePulse animation (lerpColor between mode color and default border color on mode change)
+- [x] **BORDER-05**: InputArea border supports agentModePulse animation (lerpColor between mode color and default border color on mode change)
 - [ ] **BORDER-06**: Standalone HeaderBar and StatusBar rows are removed; all metadata lives on InputArea border lines
 - [ ] **BORDER-07**: Streaming state displays token count, cost, elapsed time, and "Esc to cancel" on InputArea border
 - [ ] **BORDER-08**: Resizable bottom grid with bottomGridUserHeight global state and drag-resize handle for split-view between chat area and InputArea
@@ -167,11 +167,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BORDER-01 | 23 | Pending |
+| BORDER-01 | 23 | Complete |
 | BORDER-02 | 23 | Pending |
 | BORDER-03 | 23 | Pending |
 | BORDER-04 | 23 | Pending |
-| BORDER-05 | 23 | Pending |
+| BORDER-05 | 23 | Complete |
 | BORDER-06 | 23 | Pending |
 | BORDER-07 | 23 | Pending |
 | BORDER-08 | 23 | Pending |

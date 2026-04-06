@@ -68,7 +68,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 **Plans**: 3 plans
 
 Plans:
-- [ ] 23-01: Implement borderOverlayText rendering primitive in flitter-core (text embedded in border segments)
+- [x] 23-01: Implement borderOverlayText rendering primitive in flitter-core (text embedded in border segments)
 - [ ] 23-02: Build four border builder functions (top-left, top-right, bottom-left, bottom-right) with dynamic content
 - [ ] 23-03: Remove HeaderBar/StatusBar, wire border builders to InputArea, add agentModePulse animation
 
@@ -294,7 +294,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 23. InputArea Rich Border | v0.4.0 | 0/3 | Not started | - |
+| 23. InputArea Rich Border | v0.4.0 | 1/3 | In Progress|  |
 | 24. Welcome Screen | v0.4.0 | 0/1 | Not started | - |
 | 25. Provider and Model System | v0.4.0 | 0/2 | Not started | - |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |

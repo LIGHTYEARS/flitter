@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.4.0
-milestone_name: Close All Gaps — Full AMP Fidelity
-status: ready_to_plan
-last_updated: "2026-04-06"
+milestone_name: "Close All Gaps: Full AMP Fidelity"
+status: executing
+last_updated: "2026-04-06T15:54:30.499Z"
 last_activity: 2026-04-06
 progress:
   total_phases: 14
   completed_phases: 0
-  total_plans: 29
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
   percent: 0
 ---
 
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Ready to plan Phase 23 (InputArea Rich Border)
+**Current focus:** Phase 23 — inputarea-rich-border
 
 ## Current Milestone
 
@@ -28,16 +28,16 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 23 (next to plan)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 29 plans, 81 requirements
+Phase: 23 (inputarea-rich-border) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
+Last activity: 2026-04-06 -- Plan 23-01 complete (BorderGap types, lerpColor, gap-aware border rendering)
 
 ## Phase Status
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
-| 23 | InputArea Rich Border | Not started | 0/3 |
+| 23 | InputArea Rich Border | In Progress | 1/3 |
 | 24 | Welcome Screen | Not started | 0/1 |
 | 25 | Provider and Model System | Not started | 0/2 |
 | 26 | Agent Modes and Deep Reasoning | Not started | 0/1 |

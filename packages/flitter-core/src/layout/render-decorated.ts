@@ -7,6 +7,7 @@ import { Color } from '../core/color';
 import { RenderBox } from '../framework/render-object';
 import { PaintContext } from '../scheduler/paint-context';
 import { type BoxDrawingStyle } from '../painting/border-painter';
+import { type BorderGaps } from '../scheduler/paint-context';
 
 // ---------------------------------------------------------------------------
 // Decoration types
@@ -94,10 +95,13 @@ export class Border {
 export class BoxDecoration {
   readonly color?: Color;
   readonly border?: Border;
+  /** Optional gap specifications for top/bottom horizontal border edges. */
+  readonly borderGaps?: BorderGaps;
 
-  constructor(opts?: { color?: Color; border?: Border }) {
+  constructor(opts?: { color?: Color; border?: Border; borderGaps?: BorderGaps }) {
     this.color = opts?.color;
     this.border = opts?.border;
+    this.borderGaps = opts?.borderGaps;
   }
 
   equals(other: BoxDecoration): boolean {
@@ -107,7 +111,9 @@ export class BoxDecoration {
     const borderEq =
       this.border === other.border ||
       (this.border !== undefined && other.border !== undefined && this.border.equals(other.border));
-    return colorEq && borderEq;
+    // borderGaps: reference equality is sufficient (they change every rebuild)
+    const gapsEq = this.borderGaps === other.borderGaps;
+    return colorEq && borderEq && gapsEq;
   }
 }
 
@@ -262,7 +268,7 @@ export class RenderDecoratedBox extends RenderBox {
         right: toSide(border.right),
         bottom: toSide(border.bottom),
         left: toSide(border.left),
-      });
+      }, this._decoration.borderGaps);
     }
   }
 

@@ -3,7 +3,7 @@
 
 // Phase 1: Core Primitives
 export { Offset, Size, Rect } from './core/types';
-export { Color } from './core/color';
+export { Color, blendColor, lerpColor } from './core/color';
 export type { ColorMode } from './core/color';
 export { TextStyle } from './core/text-style';
 export { TextSpan } from './core/text-span';
@@ -80,6 +80,8 @@ export {
 export type { BoxDrawingChars, BoxDrawingStyle, BorderPaintStyle } from './painting/border-painter';
 // Backward-compatible alias: BorderStyle -> BoxDrawingStyle (Gap 31 consolidation)
 export type { BoxDrawingStyle as BorderStyle } from './painting/border-painter';
+// Phase 23: Gap-aware border rendering types
+export type { BorderGap, BorderGaps } from './scheduler/paint-context';
 export {
   paintTreeConnectors,
   treeConnectorWidth,

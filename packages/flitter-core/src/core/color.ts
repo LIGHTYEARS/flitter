@@ -300,3 +300,23 @@ export function blendColor(front: Color, back: Color): Color {
 
   return Color.rgb(r, g, bl);
 }
+
+/**
+ * Linearly interpolate between two colors at parameter t.
+ * t is clamped to [0, 1]. Both colors are converted to RGB for interpolation.
+ * Non-RGB colors that cannot be converted snap to nearest (a if t < 0.5, b otherwise).
+ *
+ * Example: lerpColor(Color.rgb(0,0,0), Color.rgb(255,255,255), 0.5) → Color.rgb(128,128,128)
+ */
+export function lerpColor(a: Color, b: Color, t: number): Color {
+  const clamped = Math.max(0, Math.min(1, t));
+  const rgbA = a.toRgb();
+  const rgbB = b.toRgb();
+  if (rgbA.mode !== 'rgb' || rgbB.mode !== 'rgb') {
+    return clamped < 0.5 ? a : b;
+  }
+  const r = Math.round(rgbA.r + (rgbB.r - rgbA.r) * clamped);
+  const g = Math.round(rgbA.g + (rgbB.g - rgbA.g) * clamped);
+  const bl = Math.round(rgbA.b + (rgbB.b - rgbA.b) * clamped);
+  return Color.rgb(r, g, bl);
+}

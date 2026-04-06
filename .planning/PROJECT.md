@@ -18,16 +18,28 @@ Built the UI shell: widget tree matching Amp's layout, themes, tool renderers, w
 ### v0.2.0 — Make It Actually Work (COMPLETED 2026-03-28)
 Fixed ACP protocol correctness, scroll behavior, streaming, tool compatibility, and UX polish so `flitter-amp` became a functional ACP TUI client.
 
-### v0.3.0 — flitter-cli Full Parity (CURRENT)
-Replace `flitter-amp` as the product direction with a new `flitter-cli` subpackage. Rebuild the application as a native CLI around `flitter-core`, using reverse-engineered Amp source behavior as the implementation contract and treating every confirmed capability in the Amp matrix as mandatory scope.
+### v0.3.0 — flitter-cli Full Parity (COMPLETED 2026-04-06)
+Replaced `flitter-amp` with native `flitter-cli` subpackage. Built 11 phases (12-22) covering bootstrap, session lifecycle, conversation model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence, and migration closure. 55 requirements, 305+ tests.
+
+### v0.4.0 — Close All Gaps: Full AMP Fidelity (CURRENT)
+Close all gaps identified by reverse-engineering audit (`MISSING-FEATURES.md`): 38 missing/partial features + 42 Visual Fidelity differences. Move from "structurally similar" to "pixel-level identical."
 
 **Target features:**
-- Create `packages/flitter-cli` as the new primary application package
-- Stop relying on coco and ACP bridging for core product behavior
-- Reconstruct Amp-equivalent CLI runtime, command dispatch, and tool orchestration
-- Reuse and extend `flitter-core` as the rendering, input, layout, and diagnostics foundation
-- Preserve and port `flitter-amp` work only when it helps reproduce Amp behavior exactly; local design preference is not a valid reason to diverge
-- Treat every capability identified in the reverse-engineered Amp matrix as in-scope for 100% implementation
+- InputArea Rich Border: embed context %, skill count, model/mode, cwd/branch into border lines; eliminate standalone HeaderBar/StatusBar
+- ThreadPool architecture: real multi-thread with switchThread/createThread/deleteThread + ThreadHandle
+- Skills modal: complete implementation with Local/Global grouping, detail panel, keyboard navigation
+- Command Palette: category+label dual-column format, 15+ commands, `>` prefix, centered layout
+- Shortcut help: InputArea-embedded dual-column layout (not modal card)
+- HITL confirmation: command content preview, inverted-color option buttons, `[y]/[n]/[a]` labels, feedback input mode
+- Activity Group: collapsible groups with tree-line characters, summary aggregation
+- Welcome ASCII Art Logo with Perlin gradient animation
+- Missing shortcuts: Ctrl+V paste images, Shift+Enter/Alt+Enter newline, Tab/Shift+Tab message navigation
+- Deep reasoning tri-state (medium/high/xhigh), agent mode switching logic
+- Queue mode, Handoff state machine, Compaction system
+- OSC8 terminal hyperlinks, streaming block cursor, agentModePulse border animation
+- Provider expansion (8 missing) + model catalog with metadata
+- Toast notifications, confirmation overlay, context detail/analyze overlays
+- Edit previous message (Up arrow), auto-copy on selection
 
 ## Requirements
 
@@ -37,31 +49,43 @@ Replace `flitter-amp` as the product direction with a new `flitter-cli` subpacka
 - `flitter-amp` proved the monorepo can render rich chat, tool cards, sticky sections, dialogs, overlays, markdown, and scrolling on top of `flitter-core`
 - Amp reverse-engineering artifacts exist in this repo and can be used as implementation reference
 - The Amp capability matrix has been reviewed and all identified product-facing capabilities are confirmed in-scope for exact parity
+- `flitter-cli` exists as a first-class subpackage with bootstrap, session lifecycle, turn model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence (v0.3.0)
+- 305+ tests cover session, conversation, screen state, shortcuts, tool dispatch, and integration flows (v0.3.0)
 
-### Active (v0.3.0)
+### Active (v0.4.0)
 
-- [ ] `flitter-cli` exists as a first-class subpackage with its own entrypoint, runtime wiring, package scripts, config namespace, and clean shutdown path
-- [ ] Startup, session lifecycle, message submission, cancellation, and status transitions match Amp behavior exactly
-- [ ] Chat view, sticky grouping, scrolling, streaming, overlays, command palette, prompt history, permission flows, welcome screen, and status-area semantics all reach full parity
-- [ ] Tool rendering and workflow semantics cover the complete Amp capability matrix, including handoff, nested task delegation, recursive tool-tree visibility, search, file operations, diff, todo, and generic fallback behavior
-- [ ] Session persistence, thread/session listing, resume, export, history ergonomics, and shortcut/editor workflows all reach full parity
-- [ ] Existing `flitter-amp` code is either migrated intentionally or removed from the active product path
+- [ ] InputArea Rich Border replaces HeaderBar/StatusBar with borderOverlayText on all four border sides
+- [ ] ThreadPool architecture provides real multi-thread management (create, switch, delete, back/forward)
+- [ ] Skills modal provides complete skill browsing with Local/Global grouping, detail panel, and keyboard navigation
+- [ ] Command Palette matches AMP format (category+label, centered, `>` prefix, 15+ commands)
+- [ ] Shortcut help renders as InputArea-embedded dual-column layout matching AMP
+- [ ] HITL confirmation dialog matches AMP layout (content preview, `[y]/[n]/[a]` labels, feedback mode)
+- [ ] Activity Group uses collapsible tree with tree-line characters and summary aggregation
+- [ ] Welcome screen displays ASCII Art Logo with Perlin gradient animation
+- [ ] All missing shortcuts registered (Ctrl+V, Shift+Enter, Tab/Shift+Tab, Up arrow edit)
+- [ ] Deep reasoning supports tri-state (medium/high/xhigh), agent mode switching has real logic
+- [ ] Queue mode, Handoff state machine, and Compaction system implemented
+- [ ] Streaming uses block cursor; border supports agentModePulse animation; OSC8 hyperlinks in tool output
+- [ ] Provider system expanded with 8 missing providers + full model catalog with metadata
+- [ ] Toast notifications, confirmation overlay, context detail/analyze overlays implemented
 
 ### Out of Scope
 
-- Rebuilding around ACP as the long-term architecture — this milestone replaces that direction
-- Non-TUI GUI clients — `flitter-core` terminal UI remains the product surface
-- Plugin architecture before core Amp parity — direct implementation first
+- Non-TUI GUI clients -- `flitter-core` terminal UI remains the product surface
+- Plugin architecture before fidelity gaps are closed
 - Reinventing a second rendering framework outside `flitter-core`
-- Shipping an "almost Amp" product — milestone success requires exact parity, not selective approximation
+- WebSocket event stream migration (use polling/HTTP with state machine patterns instead)
+- IDE integrations (JetBrains installer, IDE picker) -- post-fidelity scope
 
 ## Context
 
-This is a brownfield pivot inside the `flitter` pnpm monorepo. `packages/flitter-core` already provides the terminal rendering stack, while `packages/flitter-amp` contains a large amount of reusable UI and state logic built under the older ACP-client framing.
+`flitter-cli` (v0.3.0) is a functional native CLI with 305+ tests covering the full development stack. The v0.3.0 milestone completed 11 phases (12-22) establishing bootstrap, session lifecycle, conversation model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence, and migration closure.
 
-The repo also contains reverse-engineering notes (`amp-src-analysis-*.md`) that describe Amp's widget composition, state flow, CLI behavior, and architectural patterns. Those notes now become the primary product spec for the milestone, and the reviewed capability matrix turns those findings into mandatory scope.
+However, a systematic reverse-engineering audit comparing AMP source code and `tmux-capture/screens/` golden files against `flitter-cli` implementation revealed significant fidelity gaps: 38 missing/partial features documented in `MISSING-FEATURES.md` sections I-VII, and 42 Visual Fidelity differences documented in sections VIII-XI (12 Critical, 17 Major, 13 Minor).
 
-The current codebase has significant in-flight changes outside `.planning/`; milestone execution must avoid disturbing that work and only redefine planning artifacts or implementation areas it explicitly owns.
+The most fundamental architectural UI difference is that AMP embeds all metadata (context %, skill count, model/mode, cwd/branch) into InputArea's four border lines using `borderOverlayText`, while `flitter-cli` uses standalone `HeaderBar` and `StatusBar` rows -- consuming 2 extra lines and placing information in different positions.
+
+Reference artifacts: `MISSING-FEATURES.md`, `FIDELITY-REPORT.md`, `tmux-capture/amp-source/` (逆向源码), `tmux-capture/screens/` (golden TUI 截屏).
 
 ## Constraints
 
@@ -103,4 +127,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-03 after v0.3.0 parity guardrail hardening*
+*Last updated: 2026-04-06 after v0.4.0 milestone start*

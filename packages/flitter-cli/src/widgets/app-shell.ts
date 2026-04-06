@@ -168,6 +168,10 @@ class AppShellState extends State<AppShell> {
   /** Last known agent mode — used to detect mode transitions in build(). */
   private _lastMode: string | null = null;
 
+  /** BORDER-08: persisted drag height for InputArea (bottomGridUserHeight global state).
+   * Null means auto-expand is active. Persists across widget rebuilds. */
+  private _bottomGridUserHeight: number | null = null;
+
   // --- Lifecycle ---
 
   /**
@@ -849,6 +853,11 @@ class AppShellState extends State<AppShell> {
           skillWarningCount: 0,
           onSkillCountClick: () => this._openSkillsModal(),
           screenHeight: this._screenHeight,
+          // BORDER-08: bottomGridUserHeight global state — persists drag height across rebuilds
+          userHeight: this._bottomGridUserHeight,
+          onHeightChange: (h) => {
+            this._bottomGridUserHeight = h;
+          },
         }),
       ],
     });

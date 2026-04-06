@@ -146,6 +146,12 @@ interface InputAreaProps {
   onSkillCountClick?: () => void;
   /** Terminal screen height in rows for dynamic drag-resize max height. */
   screenHeight?: number;
+  /** Externally-persisted drag height (bottomGridUserHeight global state).
+   * When provided, overrides the component-local dragHeight on mount. */
+  userHeight?: number | null;
+  /** Callback fired when the user finishes dragging to a new height.
+   * Parent uses this to persist bottomGridUserHeight across rebuilds. */
+  onHeightChange?: (height: number | null) => void;
 }
 
 /**
@@ -192,6 +198,10 @@ export class InputArea extends StatefulWidget {
   readonly skillWarningCount: number;
   readonly onSkillCountClick?: () => void;
   readonly screenHeight?: number;
+  /** Externally-persisted drag height (bottomGridUserHeight global state). */
+  readonly userHeight?: number | null;
+  /** Callback to persist drag height in parent global state. */
+  readonly onHeightChange?: (height: number | null) => void;
 
   constructor(props: InputAreaProps) {
     super();
@@ -224,6 +234,8 @@ export class InputArea extends StatefulWidget {
     this.skillWarningCount = props.skillWarningCount ?? 0;
     this.onSkillCountClick = props.onSkillCountClick;
     this.screenHeight = props.screenHeight;
+    this.userHeight = props.userHeight;
+    this.onHeightChange = props.onHeightChange;
   }
 
   createState(): InputAreaState {
@@ -268,6 +280,10 @@ class InputAreaState extends State<InputArea> {
       this.ownsController = true;
     }
     this.controller.addListener(this._onTextChanged);
+    // BORDER-08: restore persisted bottomGridUserHeight on mount
+    if (this.widget.userHeight != null) {
+      this.dragHeight = this.widget.userHeight;
+    }
   }
 
   /** Handle external controller swap across rebuilds. */
@@ -398,6 +414,8 @@ class InputAreaState extends State<InputArea> {
   private _handleDragRelease = (_e: { x: number; y: number }): void => {
     this.dragStartY = null;
     this.dragStartHeight = null;
+    // BORDER-08: persist final drag height to parent's bottomGridUserHeight global state
+    this.widget.onHeightChange?.(this.dragHeight);
   };
 
   // --- Step 4 / Step 7 / Step 8 / Step 9: Build method ---

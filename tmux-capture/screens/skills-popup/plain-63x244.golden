@@ -1,0 +1,63 @@
+
+
+                                                                             ╭────────────────────────────────────────────────────────────────────────────────────────╮
+                                                                             │                                                                                        │
+                                                                             │   Skills (82)                                                (o)wner's manual  (a)dd   │
+                                                                             │                                                                                        │
+                                                                             │    Local .agents/skills/                                                            █  │
+                                                                             │        design-taste-frontend    Senior UI/UX Engineer. Architect digital …          █  │
+                                                                             │        lark-base                当需要用 lark-cli …                                 █  │
+                                                                             │        lark-calendar            飞书日历（calendar）：提供日历与日程（会议）…       █  │
+                                                                             │        lark-contact             飞书通讯录：查询组织架构、人员信息和搜索员工…       █  │
+                                                                             │        lark-doc                 飞书云文档：创建和编辑飞书文档。从 Markdown …       █  │
+                                                                             │        lark-drive               飞书云空间：管理云空间中的文件和文件夹。上传…       █  │
+                                                                             │        lark-event               飞书事件订阅：通过 WebSocket …                      █  │
+                                                                             │        lark-im                  飞书即时通讯：收发消息和管理群聊。发送和回复…       █  │
+                                                                             │        lark-mail                飞书邮箱 — draft, compose, send, reply, …           █  │
+                                                                             │        lark-minutes             飞书妙记：获取妙记基础信息（标题、封面、时长…       ▇  │
+                                                                             │        lark-openapi-explorer    飞书/Lark 原生 OpenAPI …                            █  │
+                                                                             │        lark-shared              飞书/Lark CLI …                                     █  │
+  ┃ explore the repo and tell me what it is built for                        │        lark-sheets              飞书电子表格：创建和操作电子表格。创建表格并…       █  │
+                                                                             │        lark-skill-maker         创建 lark-cli 的自定义 …                            █  │
+  ✓ Thinking ▼                                                               │        lark-task                飞书任务：管理任务和清单。创建待办任务、查看…       █  │
+    The user wants me to explore the repository and understand what it's buil│        lark-vc                  飞书视频会议：查询会议记录、获取会议纪要产物…       █  │
+                                                                             │        lark-whiteboard          当用户要求在飞书云文档中绘制图表，或使用飞书…       █  │
+  ✓ Read README.md                                                           │        lark-wiki                飞书知识库：管理知识空间和文档节点。创建和查…       █  │
+                                                                             │        lark-workflow-meeting-…  会议纪要整理工作流：汇总指定时间范围内的会议…       █  │
+  ✓ Read package.json                                                        │        lark-workflow-standup-…  日程待办摘要：编排 calendar +agenda 和 task …       █  │
+                                                                             │        logging-best-practices   Implement structured logging with JSON …            █  │
+  ✓ Read packages                                                            │        pretty-mermaid           Render beautiful Mermaid diagrams as SVG or …       █  │
+                                                                             │                                                                                     █  │
+  尧舜，Flitter 是一个用 TypeScript + Bun 构建的 Flutter 风格 TUI（终端 UI） │    Global ~/.agents/skills/                                                         █  │
+                                                                             │        agent-browser            Browser automation CLI for AI agents. Use …         █  │
+  1. flitter-core — 核心 TUI 框架：widget 树、布局引擎、输入系统、渲染管线（ │        agent-friendly-review    Comprehensive code review for agent-friendly …      █  │
+  2. flitter-cli — AI 驱动的终端客户端，支持多 LLM 提供商（Anthropic/OpenAI/G│        api-discovery            Discover API endpoints from web pages by …          █  │
+  3. flitter-amp — ACP（Agent Client Protocol）参考客户端                    │        bash-scripting           Bash scripting workflow for creating …              █  │
+                                                                             │        bytedance-aeolus         Query and explore Aeolus BI/data analytics …        █  │
+  简而言之：它把 Flutter 的 widget 组合理念搬到终端，并在此之上构建了一个多模│        bytedance-agw            Operate AGW (API Gateway) via bytedcli: …           █  │
+                                                                             │        bytedance-api-test       Query service API list and make HTTP API …          █  │
+  ┃ 调用 bash sleep 60 秒然后委托 subagent explore flitter-cli 这个folder    │        bytedance-apm            Operate APM via bytedcli: service preview, …        █  │
+                                                                             │        bytedance-auth           Operate bytedcli SSO authentication. Use when…      █  │
+  ✓ Thinking ▶                                                               │        bytedance-bam            Operate BAM via bytedcli: list/search PSMs, …       █  │
+                                                                             │        bytedance-bits           Operate BITS DevOps platform via bytedcli: …        █  │
+  $ sleep 60                                                                 │        bytedance-bits-client-…  Operate client component upgrade workflows …        █  │
+                                                                             │        bytedance-bits-client-…  Operate client-side BITS merge request …            █  │
+  ✓ Subagent Explore flitter-cli package structure ▶                         │        bytedance-bitsai         Use bytedcli BitsAI to answer ByteDance …           █  │
+                                                                             │        bytedance-bmq            Operate BMQ (ByteCloud Message Queue / Kafka)…      █  │
+  尧舜，两个任务都完成了。以下是 flitter-cli 的架构概览：                    │        bytedance-cache          Operate Cache platform via bytedcli: …              █  │
+                                                                             │        bytedance-cloud-docs     Search and fetch Cloud Docs via bytedcli: …         █  │
+  核心定位：一个基于 flitter-core widget 树的 AI 终端客户端，支持 7 种 LLM 提│        bytedance-cloud-ticket   Operate Cloud Ticket workflow tickets: …            █  │lob/Todo/Task）。
+                                                                             │        bytedance-codebase       Operate Codebase: repositories, merge …             █  │
+  关键架构亮点：                                                             │        bytedance-codecov        Operate ByteDance codecov via bytedcli: …           █  │
+  • 零外部 HTTP 依赖，全部用 Bun 原生 fetch() + 手写 SSE 解析                │        bytedance-cronjob        Operate ByteDance cronjob via bytedcli: …           █  │
+  • Flutter 风格 widget 树：StatefulWidget/State 生命周期、InheritedWidget 主│        bytedance-dataq          Operate DataQ platform via bytedcli: run RDS …      █  │
+  • Agentic 循环：PromptController 驱动 streaming → tool 执行 → 重提交，最多 │        bytedance-dkms           Operate DKMS (Data Key Management Service) …        █  │
+  • 三级权限模型：只读工具自动执行，写操作需确认                             │        bytedance-dolphin        Query Dolphin (dynamic decision platform) via…      █  │
+  • 会话持久化：~/.flitter-cli/sessions/ 下原子写入，支持 resume/export      │        bytedance-dorado         Operate Dorado (DataLeap) batch tasks via …         █  │
+                                                                             │        bytedance-env            Operate ENV platform via bytedcli: …                █  │
+╭─12% of 300k · $0.41────────────────────────────────────────────────────────│                                                                                        │─────────────────────────────────────────────────────────smart──!─77─skills─╮
+│                                                                            │                                     Escape to close                                    │                                                                            │
+│                                                                            │                                                                                        │                                                                            │
+│                                                                            ╰────────────────────────────────────────────────────────────────────────────────────────╯                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────~/.oh-my-coco/studio/flitter (master)─╯
+

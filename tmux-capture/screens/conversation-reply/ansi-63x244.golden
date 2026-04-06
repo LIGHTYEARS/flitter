@@ -1,0 +1,63 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  [38;5;2m┃[39m [3m[38;5;2mexplore the repo and tell me what it is built for[0m
+
+  [2m✓ Thinking[0m [2m▶[0m
+
+  [38;5;2m✓ [1m[39mRead[0m [2;4m[38;5;6m]8;id=amp-109;file:///Users/bytedance/.oh-my-coco/studio/flitter/README.md\README.md[0m]8;;\
+
+  [38;5;2m✓ [1m[39mRead[0m [2;4m[38;5;6m]8;id=amp-110;file:///Users/bytedance/.oh-my-coco/studio/flitter/package.json\package.json[0m]8;;\
+
+  [38;5;2m✓ [1m[39mRead[0m [2;4m[38;5;6m]8;id=amp-111;file:///Users/bytedance/.oh-my-coco/studio/flitter/packages\packages[0m]8;;\
+
+  尧舜，[1mFlitter[0m 是一个用 TypeScript + Bun 构建的 [1mFlutter 风格 TUI（终端 UI）框架 + AI CLI 客户端[0m，包含三个包：
+
+  1. [1mflitter-core[0m — 核心 TUI 框架：widget 树、布局引擎、输入系统、渲染管线（对标 Flutter 的架构）
+  2. [1mflitter-cli[0m — AI 驱动的终端客户端，支持多 LLM 提供商（Anthropic/OpenAI/Gemini/Copilot 等），带本地工具执行能力
+  3. [1mflitter-amp[0m — ACP（Agent Client Protocol）参考客户端
+
+  简而言之：它把 Flutter 的 widget 组合理念搬到终端，并在此之上构建了一个多模型 AI 编程助手的交互界面。
+
+╭─[2m11% of 300k[0m───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[38;2;0;255;136msmart[39m──[38;5;3m![39m─[38;5;3m77[39m─[38;5;3mskills[39m─╮
+│ [7m [0m                                                                                                                                                                                                                                                │
+│                                                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[2m~/.oh-my-coco/studio/flitter (master)[0m─╯
+

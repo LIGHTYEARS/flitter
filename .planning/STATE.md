@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 Phase: 23 (next to plan)
 Plan: —
 Status: Ready to plan
-Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 28 plans, 69 requirements
+Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 28 plans, 73 requirements
 
 ## Phase Status
 

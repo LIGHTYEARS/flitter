@@ -68,6 +68,7 @@ Close all gaps identified by reverse-engineering audit (`MISSING-FEATURES.md`): 
 - [ ] Streaming uses block cursor; border supports agentModePulse animation; OSC8 hyperlinks in tool output
 - [ ] Provider system expanded with 8 missing providers + full model catalog with metadata
 - [ ] Toast notifications, confirmation overlay, context detail/analyze overlays implemented
+- [ ] Image paste (Ctrl+V), image preview, Kitty graphics protocol support implemented
 
 ### Out of Scope
 

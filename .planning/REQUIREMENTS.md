@@ -231,8 +231,8 @@
 | IMG-04 | 35 | Pending |
 
 **Coverage:**
-- v0.4.0 requirements: 69 total
-- Mapped to phases: 69/69 (100%)
+- v0.4.0 requirements: 73 total
+- Mapped to phases: 73/73 (100%)
 - Unmapped: 0
 
 ---

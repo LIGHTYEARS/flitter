@@ -32,7 +32,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 ### 🚧 v0.4.0 Close All Gaps (In Progress)
 
-**Milestone Goal:** Close all 69 audit-identified gaps to achieve pixel-level AMP fidelity.
+**Milestone Goal:** Close all 73 audit-identified gaps to achieve pixel-level AMP fidelity.
 
 - [ ] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides
 - [ ] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text

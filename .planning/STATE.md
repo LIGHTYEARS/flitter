@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: Close All Gaps — Full AMP Fidelity
-status: defining_requirements
+status: ready_to_plan
 last_updated: "2026-04-06"
 last_activity: 2026-04-06
 progress:
-  total_phases: 0
+  total_phases: 14
   completed_phases: 0
-  total_plans: 0
+  total_plans: 28
   completed_plans: 0
   percent: 0
 ---
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Defining requirements for v0.4.0
+**Current focus:** Ready to plan Phase 23 (InputArea Rich Border)
 
 ## Current Milestone
 
@@ -28,16 +28,29 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 23 (next to plan)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-04-06 — Milestone v0.4.0 started
+Status: Ready to plan
+Last activity: 2026-04-06 — Roadmap defined, 14 phases (23-36), 28 plans, 69 requirements
 
 ## Phase Status
 
 | Phase | Name | Status | Plans |
 |-------|------|--------|-------|
-| — | — | — | — |
+| 23 | InputArea Rich Border | Not started | 0/3 |
+| 24 | Welcome Screen | Not started | 0/1 |
+| 25 | Provider and Model System | Not started | 0/2 |
+| 26 | Agent Modes and Deep Reasoning | Not started | 0/1 |
+| 27 | ThreadPool Architecture | Not started | 0/3 |
+| 28 | Queue Mode and Compaction | Not started | 0/2 |
+| 29 | Handoff State Machine | Not started | 0/1 |
+| 30 | Skills Modal | Not started | 0/3 |
+| 31 | Command Palette Overhaul | Not started | 0/2 |
+| 32 | Shortcut Help and Missing Shortcuts | Not started | 0/2 |
+| 33 | HITL Confirmation Overhaul | Not started | 0/2 |
+| 34 | Activity Group and Subagent Tree | Not started | 0/2 |
+| 35 | Image Support and Overlays | Not started | 0/3 |
+| 36 | Visual Polish | Not started | 0/1 |
 
 Progress: ░░░░░░░░░░ 0%
 

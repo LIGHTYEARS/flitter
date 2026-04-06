@@ -151,6 +151,17 @@ class AppShellState extends State<AppShell> {
   /** Pending throttle timer for streaming updates. */
   private _pendingTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // --- E1: Reverse search state ---
+  private _reverseSearchActive = false;
+  private _reverseSearchQuery = '';
+  private _reverseSearchResult: string | null = null;
+  private _reverseSearchFailed = false;
+  /** Index from which to continue searching backward on repeated Ctrl+R. */
+  private _reverseSearchIndex: number | undefined = undefined;
+
+  // --- E4: Copy highlight visual feedback ---
+  private _copyHighlight = false;
+
   // --- Lifecycle ---
 
   /**
@@ -196,6 +207,9 @@ class AppShellState extends State<AppShell> {
    * Flush a throttled UI update. Clears any pending timer, records
    * the update timestamp, and triggers a widget rebuild.
    * Ported from AMP's _flushUpdate pattern for streaming throttle.
+   *
+   * E7: Auto-scroll follow mode — if the scroll position was near the
+   * bottom before the update, jump to the new bottom after layout.
    */
   private _flushUpdate(): void {
     if (this._pendingTimer) {
@@ -203,7 +217,23 @@ class AppShellState extends State<AppShell> {
       this._pendingTimer = null;
     }
     this._lastUpdate = Date.now();
+
+    // E7: Auto-scroll — check if we were at/near bottom before update
+    const scrollCtrl = this.scrollController;
+    const wasAtBottom = scrollCtrl
+      ? (scrollCtrl.offset >= scrollCtrl.maxScrollExtent - 2)
+      : true;
+
     this.setState();
+
+    // E7: Re-scroll to bottom after layout if user was following
+    if (wasAtBottom && scrollCtrl) {
+      queueMicrotask(() => {
+        if (scrollCtrl.maxScrollExtent > 0) {
+          scrollCtrl.jumpTo(scrollCtrl.maxScrollExtent);
+        }
+      });
+    }
   }
 
   /**
@@ -238,17 +268,139 @@ class AppShellState extends State<AppShell> {
   // --- Global Key Handler (Plan 17-01: ShortcutRegistry dispatch) ---
 
   /**
-   * Handle global key events at the AppShell level via ShortcutRegistry.
+   * Handle global key events at the AppShell level.
    *
    * Key events bubble up from the primaryFocus (TextField inside InputArea).
    * TextField handles printable chars, arrows, Backspace, Enter, etc.
    * Non-text keys (Ctrl+C, Ctrl+L, etc.) that TextField returns 'ignored'
    * for are dispatched through the ShortcutRegistry.
    *
-   * If the registry does not handle the event, 'ignored' is returned
-   * to allow further propagation.
+   * Handler priority order:
+   *   1. Reverse search handlers (if reverse search is active)
+   *   2. Message selection handlers (if a message is selected)
+   *   3. Arrow key history navigation (if no overlay active)
+   *   4. Tab/Shift+Tab message selection
+   *   5. ShortcutRegistry dispatch
    */
   private _handleKey(event: KeyEvent): KeyEventResult {
+    const key = event.key;
+    const ctrl = event.ctrlKey;
+    const alt = event.altKey;
+    const shift = event.shiftKey;
+
+    // --- 1. Reverse search handlers (E1) ---
+    if (this._reverseSearchActive) {
+      if (key === 'Escape') {
+        this._reverseSearchActive = false;
+        this._reverseSearchQuery = '';
+        this._reverseSearchIndex = undefined;
+        this.setState();
+        return 'handled';
+      }
+      if (key === 'Enter' || key === 'Return') {
+        // Accept the search result
+        if (this._reverseSearchResult) {
+          this.textController.text = this._reverseSearchResult;
+          this.textController.cursorPosition = this._reverseSearchResult.length;
+        }
+        this._reverseSearchActive = false;
+        this._reverseSearchQuery = '';
+        this._reverseSearchIndex = undefined;
+        this.setState();
+        return 'handled';
+      }
+      if (key === 'Backspace' && !ctrl && !alt) {
+        this._reverseSearchQuery = this._reverseSearchQuery.slice(0, -1);
+        const history = this.widget.appState.promptHistory;
+        if (history && this._reverseSearchQuery.length > 0) {
+          this._reverseSearchIndex = undefined;
+          const result = history.searchBackward(this._reverseSearchQuery);
+          if (result !== null) {
+            this._reverseSearchResult = result.entry;
+            this._reverseSearchIndex = result.index;
+            this._reverseSearchFailed = false;
+          } else {
+            this._reverseSearchResult = null;
+            this._reverseSearchFailed = true;
+          }
+        } else {
+          this._reverseSearchResult = null;
+          this._reverseSearchFailed = false;
+          this._reverseSearchIndex = undefined;
+        }
+        this.setState();
+        return 'handled';
+      }
+      // Printable character: append to search query
+      if (key.length === 1 && !ctrl && !alt) {
+        this._reverseSearchQuery += key;
+        const history = this.widget.appState.promptHistory;
+        if (history) {
+          const result = history.searchBackward(this._reverseSearchQuery);
+          if (result !== null) {
+            this._reverseSearchResult = result.entry;
+            this._reverseSearchIndex = result.index;
+            this._reverseSearchFailed = false;
+          } else {
+            this._reverseSearchResult = null;
+            this._reverseSearchFailed = true;
+          }
+        }
+        this.setState();
+        return 'handled';
+      }
+    }
+
+    // --- 2. Message selection handlers (E3 — 'e', 'r', Escape when selected) ---
+    if (this.widget.appState.selectedMessageIndex !== null && this.widget.appState.selectedMessageIndex >= 0) {
+      if (key === 'e' && !ctrl && !alt && !shift) {
+        const msg = this.widget.appState.getMessageAt(this.widget.appState.selectedMessageIndex);
+        if (msg) {
+          this.textController.text = msg;
+          this.textController.cursorPosition = msg.length;
+          this.widget.appState.selectedMessageIndex = null;
+          this.setState();
+        }
+        return 'handled';
+      }
+      if (key === 'r' && !ctrl && !alt && !shift) {
+        this.widget.appState.truncateAfter(this.widget.appState.selectedMessageIndex);
+        this.widget.appState.selectedMessageIndex = null;
+        this.setState();
+        return 'handled';
+      }
+      if (key === 'Escape') {
+        this.widget.appState.selectedMessageIndex = null;
+        this.setState();
+        return 'handled';
+      }
+    }
+
+    // --- 3. Arrow key history navigation (E6) ---
+    if (!this.widget.appState.overlayManager.hasOverlays) {
+      if (key === 'ArrowUp' && !shift && !ctrl && !alt) {
+        this._navigateHistory('backward');
+        return 'handled';
+      }
+      if (key === 'ArrowDown' && !shift && !ctrl && !alt) {
+        this._navigateHistory('forward');
+        return 'handled';
+      }
+    }
+
+    // --- 4. Tab/Shift+Tab message selection (E3) ---
+    if (key === 'Tab' && !ctrl && !alt) {
+      const appState = this.widget.appState;
+      if (shift) {
+        appState.selectNextMessage();
+      } else {
+        appState.selectPrevMessage();
+      }
+      this.setState();
+      return 'handled';
+    }
+
+    // --- 5. ShortcutRegistry dispatch ---
     const ctx = this._buildShortcutContext();
     return this.shortcutRegistry.dispatch(event, ctx);
   }
@@ -269,7 +421,32 @@ class AppShellState extends State<AppShell> {
         this._openInEditor();
       },
       historyPrevious: () => {
-        this._navigateHistory('backward');
+        if (this._reverseSearchActive) {
+          // Already in search mode — search backward for next match
+          const history = this.widget.appState.promptHistory;
+          if (history && this._reverseSearchQuery.length > 0) {
+            const fromIndex = this._reverseSearchIndex !== undefined
+              ? this._reverseSearchIndex - 1
+              : undefined;
+            const result = history.searchBackward(this._reverseSearchQuery, fromIndex);
+            if (result !== null) {
+              this._reverseSearchResult = result.entry;
+              this._reverseSearchIndex = result.index;
+              this._reverseSearchFailed = false;
+            } else {
+              this._reverseSearchFailed = true;
+            }
+            this.setState();
+          }
+        } else {
+          // Enter reverse search mode
+          this._reverseSearchActive = true;
+          this._reverseSearchQuery = '';
+          this._reverseSearchResult = null;
+          this._reverseSearchFailed = false;
+          this._reverseSearchIndex = undefined;
+          this.setState();
+        }
       },
       historyNext: () => {
         this._navigateHistory('forward');

@@ -5,6 +5,18 @@
 // re-exports and coco/ACP coupling.
 
 // ---------------------------------------------------------------------------
+// Session Mode
+// ---------------------------------------------------------------------------
+
+/** Describes an available agent mode (e.g., 'smart', 'code', 'ask'). */
+export interface SessionMode {
+  id: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Session Error & Metadata
 // ---------------------------------------------------------------------------
 
@@ -310,6 +322,8 @@ export type ConversationSnapshot = Readonly<{
   items: ReadonlyArray<Readonly<ConversationItem>>;
   version: number;
   lifecycle: SessionLifecycle;
+  plan?: PlanItem | null;
+  usage?: UsageInfo | null;
 }>;
 
 // ---------------------------------------------------------------------------

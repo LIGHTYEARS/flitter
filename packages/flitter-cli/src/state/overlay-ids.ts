@@ -15,8 +15,8 @@ export const OVERLAY_IDS = {
   COMMAND_PALETTE: 'commandPalette',
   SHORTCUT_HELP: 'shortcutHelp',
   FILE_PICKER: 'filePicker',
-  PROMPT_HISTORY: 'prompt-history',
-  THREAD_LIST: 'thread-list',
+  PROMPT_HISTORY: 'promptHistory',
+  THREAD_LIST: 'threadList',
   TOAST: 'toast',
 } as const;
 

@@ -122,7 +122,11 @@ describe('AppState gap closures', () => {
     });
 
     test('cycles through custom modes array', () => {
-      appState.modes = ['alpha', 'beta', 'gamma'];
+      appState.modes = [
+        { id: 'alpha', name: 'alpha' },
+        { id: 'beta', name: 'beta' },
+        { id: 'gamma', name: 'gamma' },
+      ];
       appState.currentMode = 'alpha';
 
       appState.cycleMode();

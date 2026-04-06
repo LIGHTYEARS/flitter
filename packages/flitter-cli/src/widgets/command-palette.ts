@@ -115,6 +115,13 @@ class CommandPaletteState extends State<CommandPalette> {
     this.searchController.addListener(this._onSearchChanged);
   }
 
+  /** Re-filter when the commands prop changes across rebuilds. */
+  didUpdateWidget(oldWidget: CommandPalette): void {
+    if (oldWidget.commands !== this.widget.commands) {
+      this._refilter();
+    }
+  }
+
   dispose(): void {
     this.searchController.removeListener(this._onSearchChanged);
     this.searchController.dispose();

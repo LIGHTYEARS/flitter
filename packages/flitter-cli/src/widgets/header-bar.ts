@@ -74,6 +74,7 @@ export interface HeaderBarProps {
   tokenUsage: UsageInfo | null;
   costUsd: number;
   elapsedMs: number;
+  contextWindowUsagePercent?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +95,7 @@ export class HeaderBar extends StatelessWidget {
   private readonly tokenUsage: UsageInfo | null;
   private readonly costUsd: number;
   private readonly elapsedMs: number;
+  private readonly contextWindowUsagePercent: number | undefined;
 
   constructor(props: HeaderBarProps) {
     super({});
@@ -102,6 +104,7 @@ export class HeaderBar extends StatelessWidget {
     this.tokenUsage = props.tokenUsage;
     this.costUsd = props.costUsd;
     this.elapsedMs = props.elapsedMs;
+    this.contextWindowUsagePercent = props.contextWindowUsagePercent;
   }
 
   build(): Widget {
@@ -128,11 +131,15 @@ export class HeaderBar extends StatelessWidget {
     }
 
     if (this.isProcessing) {
+      const streamingLabel = this.contextWindowUsagePercent && this.contextWindowUsagePercent > 80
+        ? `Streaming... (context: ${this.contextWindowUsagePercent}%)`
+        : 'Streaming...';
+
       const statusText = this.tokenUsage
         ? this.formatUsageDisplay(mutedColor)
         : new Text({
             text: new TextSpan({
-              text: 'Streaming...',
+              text: streamingLabel,
               style: new TextStyle({ foreground: mutedColor, dim: true }),
             }),
           });

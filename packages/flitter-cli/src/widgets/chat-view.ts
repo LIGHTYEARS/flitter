@@ -36,6 +36,8 @@ import { ToolCallWidget } from './tool-call/tool-call-widget';
 import { PlanView } from './plan-view';
 import { StreamingCursor } from './streaming-cursor';
 import { ThinkingBlock } from './thinking-block';
+import { toolStatusIcon } from './tool-call/tool-icons';
+import { resolveToolDisplayName } from './tool-call/resolve-tool-name';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -81,6 +83,11 @@ export class ChatViewState extends State<ChatView> {
   /** Bound listener function for add/removeListener symmetry. */
   private _onChange: (() => void) | null = null;
 
+  /** When true, tool calls render as single-line compact status items. */
+  private _denseView = false;
+  get denseView(): boolean { return this._denseView; }
+  set denseView(v: boolean) { this._denseView = v; }
+
   /** Register AppState listener on mount. */
   initState(): void {
     this._onChange = () => {
@@ -116,11 +123,11 @@ export class ChatViewState extends State<ChatView> {
       case 'loading':
         return buildLoadingScreen();
       case 'processing':
-        return buildConversationView(this.widget.appState);
+        return buildConversationView(this.widget.appState, this._denseView);
       case 'error':
         return buildErrorScreen(screenState);
       case 'ready':
-        return buildConversationView(this.widget.appState);
+        return buildConversationView(this.widget.appState, this._denseView);
     }
   }
 }
@@ -134,7 +141,7 @@ export class ChatViewState extends State<ChatView> {
  * spacers. Uses mainAxisSize:'min' (content-sized, critical for scroll)
  * and crossAxisAlignment:'stretch' (fills width).
  */
-function buildConversationView(appState: AppState): Widget {
+function buildConversationView(appState: AppState, denseView: boolean = false): Widget {
   const turns = appState.turns;
   const children: Widget[] = [];
 
@@ -149,7 +156,7 @@ function buildConversationView(appState: AppState): Widget {
     if (turn.kind === 'user') {
       children.push(buildUserTurnWidget(turn, appState));
     } else {
-      children.push(buildAssistantTurnWidget(turn));
+      children.push(buildAssistantTurnWidget(turn, denseView));
     }
   }
 
@@ -255,7 +262,7 @@ function buildUserTurnWidget(turn: UserTurn, appState: AppState): Widget {
  *   - PlanView checklist with status icons and priority tags (Phase 19)
  *   - SystemMessage separators (horizontal rule + dim italic text)
  */
-function buildAssistantTurnWidget(turn: AssistantTurn): Widget {
+function buildAssistantTurnWidget(turn: AssistantTurn, denseView: boolean = false): Widget {
   const header = SizedBox.shrink();
   const bodyChildren: Widget[] = [];
 

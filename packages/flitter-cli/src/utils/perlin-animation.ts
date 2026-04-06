@@ -84,7 +84,7 @@ const GRAD_2D: ReadonlyArray<readonly [number, number]> = [
 // ---------------------------------------------------------------------------
 
 /** Perlin improved fade curve: 6t^5 - 15t^4 + 10t^3. */
-function _fade(t: number): number {
+export function fade(t: number): number {
   return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
@@ -133,7 +133,7 @@ export function noise1D(x: number): number {
   const xf = x - Math.floor(x);
 
   // Fade curve: 6t^5 - 15t^4 + 10t^3  (Perlin improved)
-  const u = _fade(xf);
+  const u = fade(xf);
 
   // Gradient values at the two lattice points.
   const g0 = _grad1D(PERM[xi]!, xf);
@@ -164,8 +164,8 @@ export function noise2d(
   const xf = x - Math.floor(x);
   const yf = y - Math.floor(y);
 
-  const u = _fade(xf);
-  const v = _fade(yf);
+  const u = fade(xf);
+  const v = fade(yf);
 
   const aa = perm[perm[xi]! + yi]!;
   const ab = perm[perm[xi]! + yi + 1]!;
@@ -182,39 +182,44 @@ export function noise2d(
 // Fractal Brownian motion
 // ---------------------------------------------------------------------------
 
+export interface FbmOptions {
+  octaves?: number;
+  persistence?: number;
+  lacunarity?: number;
+}
+
 /**
  * Fractal Brownian motion (fbm) using 2D Perlin noise.
  *
- * Sums multiple octaves of noise2d at increasing frequencies and
- * decreasing amplitudes. Returns a value normalized to [0, 1].
+ * Sums multiple octaves of noise at increasing frequencies and
+ * decreasing amplitudes. Returns a value normalized to approximately [0, 1].
  *
+ * @param noise - PerlinNoise instance.
  * @param x - X coordinate.
  * @param y - Y coordinate.
- * @param perm - Permutation table.
- * @param octaves - Number of noise octaves to sum. Default: 3.
+ * @param options - FbmOptions or a number (octaves) for backward compat.
  */
 export function fbm(
+  noise: PerlinNoise,
   x: number,
   y: number,
-  perm: Uint8Array,
-  octaves: number = 3,
+  options?: FbmOptions | number,
 ): number {
-  const persistence = 0.5;
-  const lacunarity = 2;
-
-  let value = 0;
-  let amplitude = 1;
+  const opts: FbmOptions = typeof options === 'number' ? { octaves: options } : (options ?? {});
+  const octaves = opts.octaves ?? 4;
+  const persistence = opts.persistence ?? 0.5;
+  const lacunarity = opts.lacunarity ?? 2;
+  let total = 0;
   let frequency = 1;
-  let maxAmplitude = 0;
-
+  let amplitude = 1;
+  let maxValue = 0;
   for (let i = 0; i < octaves; i++) {
-    value += noise2d(x * frequency, y * frequency, perm) * amplitude;
-    maxAmplitude += amplitude;
+    total += noise.value(x * frequency, y * frequency) * amplitude;
+    maxValue += amplitude;
     amplitude *= persistence;
     frequency *= lacunarity;
   }
-
-  return (value / maxAmplitude + 1) * 0.5;
+  return total / maxValue;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +237,7 @@ export function fbm(
  *   noise.noise2d(x, y);
  *   noise.fbm(x, y);
  *   noise.fbm(x, y, 4);  // 4 octaves
+ *   noise.fbm(x, y, { octaves: 4, persistence: 0.5 });
  */
 export class PerlinNoise {
   /** Lazy-initialized shared singleton for cross-module noise coherence. */
@@ -257,14 +263,29 @@ export class PerlinNoise {
     this.perm = createPermutationTable(random);
   }
 
+  /** 1D value noise in [0, 1] using the instance permutation table. */
+  value1d(x: number): number {
+    const xi = Math.floor(x) & 255;
+    const xf = x - Math.floor(x);
+    const u = fade(xf);
+    const a = this.perm[xi]! / 255;
+    const b = this.perm[(xi + 1) & 255]! / 255;
+    return a + u * (b - a);
+  }
+
+  /** 2D gradient noise in approximately [-1, 1]. */
+  value(x: number, y: number): number {
+    return noise2d(x, y, this.perm);
+  }
+
   /** 2D gradient noise in approximately [-1, 1]. */
   noise2d(x: number, y: number): number {
     return noise2d(x, y, this.perm);
   }
 
   /** 2D fractal Brownian motion in [0, 1]. */
-  fbm(x: number, y: number, octaves?: number): number {
-    return fbm(x, y, this.perm, octaves);
+  fbm(x: number, y: number, options?: FbmOptions | number): number {
+    return fbm(this, x, y, options);
   }
 }
 

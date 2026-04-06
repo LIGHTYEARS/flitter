@@ -769,6 +769,35 @@ export class SessionState {
     this.notifyListeners();
   }
 
+  /**
+   * Add a stub thinking block for interrupted streams.
+   * Only allowed when lifecycle is 'processing'.
+   */
+  addInterruptedThinking(): void {
+    if (this._lifecycle !== 'processing') return;
+    this._items = append(this._items, {
+      type: 'thinking',
+      content: '',
+      isStreaming: false,
+    } as unknown as ConversationItem);
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
+  /**
+   * Add a user message to the conversation WITHOUT changing lifecycle state.
+   * Useful for injecting user messages outside the normal processing flow.
+   */
+  addUserMessage(text: string): void {
+    this._items = append(this._items, {
+      type: 'user_message',
+      content: text,
+      images: [],
+    } as unknown as ConversationItem);
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
   // Message Edit / Truncate (I6)
   // ---------------------------------------------------------------------------

@@ -117,7 +117,7 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     binding: { key: 't', alt: true },
     displayKey: 'Alt+T',
     description: 'Toggle tool call expansion',
-    category: 'view',
+    category: 'display',
     action: (ctx): KeyEventResult => {
       ctx.appState.session?.toggleToolCalls?.();
       ctx.setState(() => {});

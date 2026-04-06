@@ -6,6 +6,8 @@
 // Production widgets MUST use `icon(name)` or import ICONS for all glyphs.
 // Modeled after flitter-amp's icon-registry with semantic dotted names.
 
+import { stringWidth } from '../../../flitter-core/src/core/wcwidth';
+
 export const ICONS = {
   /** Braille spinner frames for animation. */
   spinner: ['\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834', '\u2826', '\u2827', '\u2807', '\u280F'] as const,
@@ -38,7 +40,7 @@ export const ICONS = {
 
   /** Tool call: completed (checkmark). */
   'tool.status.done': '\u2713',
-  /** Tool call: error / failed (cross). */
+  /** Tool call: error / failed (multiplication X). */
   'tool.status.error': '\u2715',
   /** Tool call: pending / in-progress placeholder (midline horizontal ellipsis). */
   'tool.status.pending': '\u22EF',
@@ -98,8 +100,34 @@ export type IconName = keyof typeof ICONS;
 export function icon(name: IconName): string {
   const value = ICONS[name];
   // Spinner is an array — callers wanting frames should use ICONS.spinner.
-  if (Array.isArray(value)) {
-    return value[0];
+  if (Array.isArray(value)) return value[0];
+  // Dev-mode width assertion (only in non-production)
+  if (process.env.NODE_ENV !== 'production') {
+    const w = stringWidth(value);
+    if (w !== 1) {
+      console.warn(`icon('${name}') has cell width ${w}, expected 1`);
+    }
   }
   return value;
+}
+
+/**
+ * Maps a tool call status string to a single Unicode status icon character.
+ *
+ * Convenience function exported from the icon registry for use in widgets
+ * that display tool status without importing tool-call-specific modules.
+ */
+export function toolStatusIcon(status: string): string {
+  switch (status) {
+    case 'done': return icon('tool.status.done');
+    case 'error': return icon('tool.status.error');
+    case 'in-progress':
+    case 'in_progress':
+    case 'running': return icon('tool.status.pending');
+    case 'cancelled':
+    case 'rejected-by-user': return icon('tool.status.error');
+    case 'blocked-on-user':
+    case 'pending': return icon('tool.status.pending');
+    default: return icon('tool.status.pending');
+  }
 }

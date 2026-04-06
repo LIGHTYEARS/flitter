@@ -28,6 +28,8 @@ import { CliThemeProvider, type CliTheme } from '../themes';
 export interface StatusBarProps {
   cwd: string;
   gitBranch?: string;
+  agentName?: string;
+  contextWindowUsagePercent?: number;
   isProcessing: boolean;
   isStreaming?: boolean;
   isInterrupted?: boolean;
@@ -41,6 +43,8 @@ export interface StatusBarProps {
   searchState?: { query: string; isFailing: boolean } | null;
   /** Hint text displayed below the input when idle (matches AMP BottomGrid.hintText). */
   hintText?: string;
+  /** Whether deep/extended reasoning mode is active. */
+  deepReasoningActive?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +98,8 @@ export function getFooterText(props: {
 export class StatusBar extends StatelessWidget {
   private readonly cwd: string;
   private readonly gitBranch: string | undefined;
+  private readonly agentName: string | undefined;
+  private readonly contextWindowUsagePercent: number | undefined;
   private readonly isProcessing: boolean;
   private readonly isStreaming: boolean;
   private readonly isInterrupted: boolean;
@@ -105,11 +111,14 @@ export class StatusBar extends StatelessWidget {
   private readonly copyHighlight: boolean;
   private readonly searchState: { query: string; isFailing: boolean } | null;
   private readonly hintText: string | undefined;
+  private readonly deepReasoningActive: boolean;
 
   constructor(props: StatusBarProps) {
     super({});
     this.cwd = props.cwd;
     this.gitBranch = props.gitBranch;
+    this.agentName = props.agentName;
+    this.contextWindowUsagePercent = props.contextWindowUsagePercent;
     this.isProcessing = props.isProcessing;
     this.isStreaming = props.isStreaming ?? false;
     this.isInterrupted = props.isInterrupted ?? false;
@@ -121,6 +130,7 @@ export class StatusBar extends StatelessWidget {
     this.copyHighlight = props.copyHighlight ?? false;
     this.searchState = props.searchState ?? null;
     this.hintText = props.hintText;
+    this.deepReasoningActive = props.deepReasoningActive ?? false;
   }
 
   /** Builds the status bar row: left status region + right cwd/branch region. */
@@ -129,20 +139,18 @@ export class StatusBar extends StatelessWidget {
     const left = this.buildLeft(theme);
 
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
-    const shortCwd = shortenPath(this.cwd);
+    const rightParts: string[] = [];
+    if (this.agentName) rightParts.push(this.agentName);
+    if (this.gitBranch) rightParts.push(this.gitBranch);
+    rightParts.push(shortenPath(this.cwd));
+    const rightText = rightParts.join(' \u00b7 ');
+
     const rightSpans: TextSpan[] = [
       new TextSpan({
-        text: shortCwd,
+        text: rightText,
         style: new TextStyle({ foreground: mutedColor, dim: true }),
       }),
     ];
-
-    if (this.gitBranch) {
-      rightSpans.push(new TextSpan({
-        text: ` (${this.gitBranch})`,
-        style: new TextStyle({ foreground: mutedColor, dim: true }),
-      }));
-    }
 
     return new Padding({
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
@@ -161,8 +169,8 @@ export class StatusBar extends StatelessWidget {
 
   /**
    * Builds the left-side contextual text based on current state.
-   * Priority: copyHighlight > searchState > hintText > isInterrupted >
-   *           isStreaming/processing sub-states > statusMessage > idle hint.
+   * Priority: copyHighlight > searchState > hintText > deepReasoning >
+   *           isInterrupted > isStreaming/processing sub-states > statusMessage > idle hint.
    */
   private buildLeft(theme: CliTheme | undefined): Widget {
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
@@ -213,6 +221,16 @@ export class StatusBar extends StatelessWidget {
       return new Text({
         text: new TextSpan({
           text: this.hintText,
+          style: new TextStyle({ foreground: mutedColor, dim: true }),
+        }),
+      });
+    }
+
+    // Deep reasoning indicator (shown in left section when active, dim style)
+    if (this.deepReasoningActive) {
+      return new Text({
+        text: new TextSpan({
+          text: '[Deep Reasoning]',
           style: new TextStyle({ foreground: mutedColor, dim: true }),
         }),
       });
@@ -272,6 +290,16 @@ export class StatusBar extends StatelessWidget {
         text: new TextSpan({
           text: this.statusMessage,
           style: new TextStyle({ foreground: mutedColor, dim: true }),
+        }),
+      });
+    }
+
+    if (this.contextWindowUsagePercent !== undefined && this.contextWindowUsagePercent > 80) {
+      const warningColor = theme?.base.warning ?? Color.yellow;
+      return new Text({
+        text: new TextSpan({
+          text: `Context window at ${this.contextWindowUsagePercent}% — consider compacting`,
+          style: new TextStyle({ foreground: warningColor }),
         }),
       });
     }

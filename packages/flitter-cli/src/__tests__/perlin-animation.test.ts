@@ -6,9 +6,11 @@ import {
   generateAnimationFrame,
   noise2d,
   fbm,
+  fade,
   createPermutationTable,
   PerlinNoise,
 } from '../utils/perlin-animation';
+import type { FbmOptions } from '../utils/perlin-animation';
 
 // ---------------------------------------------------------------------------
 // Deterministic seed helper
@@ -220,34 +222,46 @@ describe('noise2d', () => {
 // ---------------------------------------------------------------------------
 
 describe('fbm', () => {
-  const perm = createPermutationTable(mulberry32(300));
+  const noise = new PerlinNoise(300);
 
-  it('returns values in [0, 1]', () => {
+  it('returns values in a reasonable range', () => {
     for (let x = -5; x <= 5; x += 0.5) {
       for (let y = -5; y <= 5; y += 0.5) {
-        const v = fbm(x, y, perm);
-        expect(v).toBeGreaterThanOrEqual(0);
-        expect(v).toBeLessThanOrEqual(1);
+        const v = fbm(noise, x, y);
+        expect(v).toBeGreaterThanOrEqual(-1.5);
+        expect(v).toBeLessThanOrEqual(1.5);
       }
     }
   });
 
   it('returns consistent results for the same inputs', () => {
-    const a = fbm(1.5, 2.3, perm);
-    const b = fbm(1.5, 2.3, perm);
+    const a = fbm(noise, 1.5, 2.3);
+    const b = fbm(noise, 1.5, 2.3);
     expect(a).toBe(b);
   });
 
-  it('uses default 3 octaves when no octaves provided', () => {
-    const a = fbm(1.5, 2.3, perm);
-    const b = fbm(1.5, 2.3, perm, 3);
+  it('uses default 4 octaves when no options provided', () => {
+    const a = fbm(noise, 1.5, 2.3);
+    const b = fbm(noise, 1.5, 2.3, 4);
     expect(a).toBe(b);
   });
 
   it('produces different output with different octave counts', () => {
-    const a = fbm(1.5, 2.3, perm, 1);
-    const b = fbm(1.5, 2.3, perm, 5);
+    const a = fbm(noise, 1.5, 2.3, 1);
+    const b = fbm(noise, 1.5, 2.3, 5);
     expect(a).not.toBe(b);
+  });
+
+  it('accepts FbmOptions object', () => {
+    const opts: FbmOptions = { octaves: 3, persistence: 0.6, lacunarity: 2.5 };
+    const v = fbm(noise, 1.5, 2.3, opts);
+    expect(typeof v).toBe('number');
+  });
+
+  it('backward compat: number arg treated as octaves', () => {
+    const a = fbm(noise, 1.5, 2.3, 3);
+    const b = fbm(noise, 1.5, 2.3, { octaves: 3 });
+    expect(a).toBe(b);
   });
 });
 
@@ -313,7 +327,7 @@ describe('PerlinNoise', () => {
   it('fbm accepts optional octaves parameter', () => {
     const n = new PerlinNoise(42);
     const a = n.fbm(1.5, 2.3);
-    const b = n.fbm(1.5, 2.3, 3);
+    const b = n.fbm(1.5, 2.3, 4);
     expect(a).toBe(b);
 
     const c = n.fbm(1.5, 2.3, 5);

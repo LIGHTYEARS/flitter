@@ -84,6 +84,10 @@ interface InputAreaProps {
   overlayTexts?: BorderOverlayText[];
   /** File list provider for @ autocomplete trigger (Plan 17-04). */
   getFiles?: () => Promise<string[]>;
+  /** Callback fired when @@ (special command) trigger is typed. */
+  onSpecialCommandTrigger?: () => void;
+  /** Callback fired when @: (commit) trigger is typed. */
+  onCommitTrigger?: () => void;
 }
 
 /**
@@ -103,6 +107,10 @@ export class InputArea extends StatefulWidget {
   readonly overlayTexts: BorderOverlayText[];
   /** File list provider for @ autocomplete. Null means no file trigger. */
   readonly getFiles?: () => Promise<string[]>;
+  /** Callback fired when @@ (special command) trigger is typed. */
+  readonly onSpecialCommandTrigger?: () => void;
+  /** Callback fired when @: (commit) trigger is typed. */
+  readonly onCommitTrigger?: () => void;
 
   constructor(props: InputAreaProps) {
     super();
@@ -113,6 +121,8 @@ export class InputArea extends StatefulWidget {
     this.maxExpandLines = props.maxExpandLines ?? 10;
     this.overlayTexts = props.overlayTexts ?? [];
     this.getFiles = props.getFiles;
+    this.onSpecialCommandTrigger = props.onSpecialCommandTrigger;
+    this.onCommitTrigger = props.onCommitTrigger;
   }
 
   createState(): InputAreaState {
@@ -229,6 +239,14 @@ class InputAreaState extends State<InputArea> {
       const oldLineCount = this.currentText.split('\n').length;
       const newLineCount = newText.split('\n').length;
       this.currentText = newText;
+
+      // Priority trigger detection: @@ and @: before plain @
+      if (newText.endsWith('@@') && this.widget.onSpecialCommandTrigger) {
+        this.widget.onSpecialCommandTrigger();
+      } else if (newText.endsWith('@:') && this.widget.onCommitTrigger) {
+        this.widget.onCommitTrigger();
+      }
+
       if (oldShell !== newShell || oldLineCount !== newLineCount) {
         this.setState(() => {});
       }

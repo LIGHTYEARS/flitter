@@ -17,6 +17,7 @@ import { solarizedDarkTheme } from './solarized-dark';
 import { solarizedLightTheme } from './solarized-light';
 import { gruvboxDarkTheme } from './gruvbox-dark';
 import { nordTheme } from './nord';
+import { PerlinNoise } from '../utils/perlin-animation';
 
 // ---------------------------------------------------------------------------
 // Re-exports
@@ -159,6 +160,48 @@ export function agentModeColor(mode: string, theme: CliTheme): Color {
   if (mode === 'smart') return theme.app.smartModeColor;
   if (mode === 'rush') return theme.app.rushModeColor;
   return theme.base.foreground;
+}
+
+// ---------------------------------------------------------------------------
+// Perlin-driven agent mode color
+// ---------------------------------------------------------------------------
+
+const MODE_HUE_MAP: Record<string, number> = {
+  smart: 210,    // blue
+  code: 150,     // green-cyan
+  ask: 45,       // orange
+  rush: 0,       // red
+  default: 150,  // green
+};
+
+function hslToColor(h: number, s: number, l: number): Color {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0, g = 0, b = 0;
+  if (h < 60) { r = c; g = x; }
+  else if (h < 120) { r = x; g = c; }
+  else if (h < 180) { g = c; b = x; }
+  else if (h < 240) { g = x; b = c; }
+  else if (h < 300) { r = x; b = c; }
+  else { r = c; b = x; }
+  return Color.rgb(
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  );
+}
+
+export function perlinAgentModeColor(mode: string, t: number, isLight: boolean): Color {
+  const baseHue = MODE_HUE_MAP[mode] ?? MODE_HUE_MAP['default'];
+  const noise = PerlinNoise.shared;
+  const hueOffset = noise.value1d(t * 0.3) * 24 - 12;  // +/- 12 degrees
+  const lightnessOffset = noise.value1d(t * 0.3 + 100) * 0.12 - 0.06; // +/- 0.06
+  const h = (baseHue + hueOffset + 360) % 360;
+  const s = 0.7;
+  const baseLightness = isLight ? 0.45 : 0.6;
+  const l = Math.max(0, Math.min(1, baseLightness + lightnessOffset));
+  return hslToColor(h, s, l);
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import type {
   UsageInfo,
   ConversationItem,
   SessionMetadata,
+  SessionMode,
 } from './types';
 import type { Turn } from './turn-types';
 import type { PermissionRequest, PermissionResult } from './permission-types';
@@ -66,10 +67,25 @@ export class AppState {
   currentMode: string | null = null;
 
   /** Available agent modes for cycling. */
-  modes: string[] = [];
+  modes: SessionMode[] = [];
 
   /** Index of the selected user message for Tab/Shift+Tab navigation. */
   selectedMessageIndex: number | null = null;
+
+  /** Hint text displayed in the prompt area (e.g., context or status hints). */
+  hintText: string | null = null;
+
+  /** Currently registered tools/skills. */
+  tools: Array<{ name: string; description?: string }> = [];
+
+  /** Number of registered tools/skills. */
+  get skillCount(): number { return this.tools.length; }
+
+  /** Autocomplete trigger definitions for the input area. */
+  autocompleteTriggers: Array<{ trigger: string; description?: string }> = [];
+
+  /** Agent version string reported by the backend. */
+  agentVersion: string | null = null;
 
   /** Whether deep/extended reasoning mode is active. */
   private _deepReasoningActive: boolean = false;
@@ -380,12 +396,47 @@ export class AppState {
    * Uses the `modes` array if non-empty, otherwise defaults to ['smart', 'code', 'ask'].
    */
   cycleMode(): void {
+    const defaultModes: SessionMode[] = [
+      { id: 'smart', name: 'smart' },
+      { id: 'code', name: 'code' },
+      { id: 'ask', name: 'ask' },
+    ];
     const available = this.modes.length > 0
       ? this.modes
-      : ['smart', 'code', 'ask'];
-    const current = this.currentMode ?? available[0];
-    const idx = available.indexOf(current);
-    this.currentMode = available[(idx + 1) % available.length];
+      : defaultModes;
+    const current = this.currentMode ?? available[0].id;
+    const idx = available.findIndex(m => m.id === current);
+    this.currentMode = available[(idx + 1) % available.length].id;
+    this._notifyListeners();
+  }
+
+  /** Set the available agent modes. */
+  setModes(modes: SessionMode[]): void {
+    this.modes = modes;
+    this._notifyListeners();
+  }
+
+  /** Set the hint text shown in the prompt area. */
+  setHintText(text: string | null): void {
+    this.hintText = text;
+    this._notifyListeners();
+  }
+
+  /** Set the available tools/skills. */
+  setTools(tools: Array<{ name: string; description?: string }>): void {
+    this.tools = tools;
+    this._notifyListeners();
+  }
+
+  /** Set the autocomplete trigger definitions. */
+  setAutocompleteTriggers(triggers: Array<{ trigger: string; description?: string }>): void {
+    this.autocompleteTriggers = triggers;
+    this._notifyListeners();
+  }
+
+  /** Set the agent version string. */
+  setAgentVersion(version: string | null): void {
+    this.agentVersion = version;
     this._notifyListeners();
   }
 

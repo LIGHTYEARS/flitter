@@ -128,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-06 after v0.4.0 milestone start*
+*Last updated: 2026-04-06 after Phase 23 completion — InputArea Rich Border complete (gap-aware border rendering, four overlay positions, BorderShimmer animation, HeaderBar/StatusBar removed)*

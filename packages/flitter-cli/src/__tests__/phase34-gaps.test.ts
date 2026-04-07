@@ -4,13 +4,13 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import type { Provider, PromptOptions, ProviderCapabilities } from '../provider/provider';
 import type { StreamEvent } from '../state/types';
+import type { Model, Api } from '@mariozechner/pi-ai';
 import { SessionState } from '../state/session';
 import { PromptHistory } from '../state/history';
 import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
-import { AnthropicProvider } from '../provider/anthropic';
-import { OpenAIProvider } from '../provider/openai';
+
 import { ToolRegistry } from '../tools/registry';
 import { createDefaultRegistry } from '../tools/defaults';
 import type { RegisteredTool, ToolResult, ToolContext, PermissionLevel } from '../tools/executor';
@@ -29,6 +29,20 @@ class MockProvider implements Provider {
     streaming: true,
     systemPrompt: true,
   };
+
+  /** Mock pi-ai model object for testing. */
+  readonly piModel: Model<Api> = {
+    id: 'test-model',
+    name: 'Test Model',
+    api: 'anthropic-messages' as Api,
+    provider: 'anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    reasoning: true,
+    input: ['text', 'image'] as ("text" | "image")[],
+    cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    contextWindow: 200000,
+    maxTokens: 8192,
+  } as Model<Api>;
 
   mockEvents: StreamEvent[] = [];
   cancelCalled = false;
@@ -164,100 +178,8 @@ describe('I8 — Provider capabilities', () => {
     expect(caps.systemPrompt).toBe(true);
   });
 
-  describe('AnthropicProvider capabilities', () => {
-    test('Anthropic supports all capabilities', () => {
-      // We can't create a real AnthropicProvider without an API key,
-      // so we test the class's prototype or use env var.
-      const envKey = process.env.ANTHROPIC_API_KEY;
-      if (!envKey) {
-        // Set a dummy key for construction purposes
-        process.env.ANTHROPIC_API_KEY = 'sk-ant-test-dummy-key';
-      }
-      try {
-        const provider = new AnthropicProvider();
-        expect(provider.capabilities.vision).toBe(true);
-        expect(provider.capabilities.functionCalling).toBe(true);
-        expect(provider.capabilities.streaming).toBe(true);
-        expect(provider.capabilities.systemPrompt).toBe(true);
-      } finally {
-        if (!envKey) {
-          delete process.env.ANTHROPIC_API_KEY;
-        }
-      }
-    });
-  });
-
-  describe('OpenAIProvider capabilities', () => {
-    test('OpenAI provider supports all capabilities', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'sk-test-dummy',
-        providerId: 'openai',
-      });
-      expect(provider.capabilities.vision).toBe(true);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-      expect(provider.capabilities.systemPrompt).toBe(true);
-    });
-
-    test('Gemini provider supports all capabilities', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        providerId: 'gemini',
-        providerName: 'Google Gemini',
-      });
-      expect(provider.capabilities.vision).toBe(true);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-      expect(provider.capabilities.systemPrompt).toBe(true);
-    });
-
-    test('Copilot provider has vision disabled', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        providerId: 'copilot',
-        providerName: 'GitHub Copilot',
-      });
-      expect(provider.capabilities.vision).toBe(false);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-    });
-
-    test('Antigravity provider supports all capabilities', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        providerId: 'antigravity',
-        providerName: 'Antigravity',
-      });
-      expect(provider.capabilities.vision).toBe(true);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-      expect(provider.capabilities.systemPrompt).toBe(true);
-    });
-
-    test('OpenAI-compatible provider supports all capabilities by default', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        providerId: 'openai-compatible',
-        providerName: 'Custom',
-      });
-      expect(provider.capabilities.vision).toBe(true);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-      expect(provider.capabilities.systemPrompt).toBe(true);
-    });
-
-    test('ChatGPT-Codex provider supports all capabilities', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        providerId: 'chatgpt-codex',
-        providerName: 'ChatGPT',
-      });
-      expect(provider.capabilities.vision).toBe(true);
-      expect(provider.capabilities.functionCalling).toBe(true);
-      expect(provider.capabilities.streaming).toBe(true);
-      expect(provider.capabilities.systemPrompt).toBe(true);
-    });
-  });
+  // Provider capability tests are now handled by pi-ai library
+  // as part of the new unified provider system
 
   test('MockProvider has capabilities', () => {
     const provider = new MockProvider();

@@ -54,7 +54,8 @@ import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
 import { CommandPalette, type CommandPaletteItem } from './command-palette';
 import { FilePicker } from './file-picker';
-import { ShortcutHelpOverlay } from './shortcut-help-overlay';
+// @deprecated ShortcutHelpOverlay — replaced by ShortcutHelpInline (Phase 32)
+import { ShortcutHelpInline } from './shortcut-help-inline';
 import { SkillsModal } from './skills-modal';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
@@ -171,6 +172,11 @@ class AppShellState extends State<AppShell> {
   /** BORDER-08: persisted drag height for InputArea (bottomGridUserHeight global state).
    * Null means auto-expand is active. Persists across widget rebuilds. */
   private _bottomGridUserHeight: number | null = null;
+
+  /** Whether shortcut help is displayed inline inside InputArea.
+   * Matches AMP's isShowingShortcutsHelp state flag.
+   * When true, ShortcutHelpInline is passed as topWidget to InputArea. */
+  private _isShowingShortcutsHelp = false;
 
   // --- Lifecycle ---
 
@@ -410,6 +416,14 @@ class AppShellState extends State<AppShell> {
       return 'handled';
     }
 
+    // --- 4b. Inline shortcut help dismiss (Phase 32) ---
+    // Escape or ? when shortcut help is shown inline dismisses it
+    if (this._isShowingShortcutsHelp && (key === 'Escape' || key === '?')) {
+      this._isShowingShortcutsHelp = false;
+      this.setState();
+      return 'handled';
+    }
+
     // --- 5. ShortcutRegistry dispatch ---
     const ctx = this._buildShortcutContext();
     return this.shortcutRegistry.dispatch(event, ctx);
@@ -631,36 +645,18 @@ class AppShellState extends State<AppShell> {
     log.info('AppShell: command palette shown');
   }
 
-  // --- Shortcut Help Overlay (Plan 17-05) ---
+  // --- Shortcut Help Inline (Phase 32, Plan 32-01) ---
 
   /**
-   * Show or dismiss the shortcut help overlay via OverlayManager.
+   * Toggle inline shortcut help inside InputArea.
    *
-   * Toggle behavior: if the overlay is already open, dismiss it.
-   * Otherwise, show a modal fullscreen overlay at SHORTCUT_HELP priority
-   * with the ShortcutHelpOverlay widget reading from the ShortcutRegistry.
+   * AMP-matching behavior: shortcut help is embedded as a topWidget inside
+   * InputArea, NOT shown as a separate overlay. Toggle on/off with setState.
    */
   private _showShortcutHelp(): void {
-    const overlayManager = this.widget.appState.overlayManager;
-
-    // Toggle: if already open, dismiss
-    if (overlayManager.has(OVERLAY_IDS.SHORTCUT_HELP)) {
-      overlayManager.dismiss(OVERLAY_IDS.SHORTCUT_HELP);
-      return;
-    }
-
-    overlayManager.show({
-      id: OVERLAY_IDS.SHORTCUT_HELP,
-      priority: OVERLAY_PRIORITIES.SHORTCUT_HELP,
-      modal: true,
-      placement: { type: 'fullscreen' },
-      builder: (onDismiss) => new ShortcutHelpOverlay({
-        onDismiss,
-        registry: this.shortcutRegistry,
-      }),
-    });
-
-    log.info('AppShell: shortcut help overlay shown');
+    this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
+    this.setState();
+    log.info(`AppShell: shortcut help ${this._isShowingShortcutsHelp ? 'shown' : 'hidden'}`);
   }
 
   // --- File Picker (Plan 17-04) ---
@@ -907,6 +903,10 @@ class AppShellState extends State<AppShell> {
           onHeightChange: (h) => {
             this._bottomGridUserHeight = h;
           },
+          // Phase 32: Inline shortcut help (AMP v9T topWidget pattern)
+          topWidget: this._isShowingShortcutsHelp
+            ? new ShortcutHelpInline({ submitOnEnter: true })
+            : undefined,
         }),
       ],
     });

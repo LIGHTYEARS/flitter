@@ -34,6 +34,7 @@ import { TextField, TextEditingController } from '../../../flitter-core/src/widg
 import { Container } from '../../../flitter-core/src/widgets/container';
 import { Border, BorderSide, BoxDecoration } from '../../../flitter-core/src/layout/render-decorated';
 import { Stack, Positioned } from '../../../flitter-core/src/widgets/stack';
+import { Column } from '../../../flitter-core/src/widgets/flex';
 import { Autocomplete, type AutocompleteTrigger, type AutocompleteOption } from '../../../flitter-core/src/widgets/autocomplete';
 import { MouseRegion } from '../../../flitter-core/src/widgets/mouse-region';
 import { basename } from 'node:path';
@@ -152,6 +153,9 @@ interface InputAreaProps {
   /** Callback fired when the user finishes dragging to a new height.
    * Parent uses this to persist bottomGridUserHeight across rebuilds. */
   onHeightChange?: (height: number | null) => void;
+  /** Optional widget rendered above the text field inside the InputArea border.
+   * Used for shortcut help inline display (AMP v9T topWidget pattern). */
+  topWidget?: Widget;
 }
 
 /**
@@ -202,6 +206,9 @@ export class InputArea extends StatefulWidget {
   readonly userHeight?: number | null;
   /** Callback to persist drag height in parent global state. */
   readonly onHeightChange?: (height: number | null) => void;
+  /** Optional widget rendered above the text field inside the InputArea border.
+   * Used for shortcut help inline display (AMP v9T topWidget pattern). */
+  readonly topWidget?: Widget;
 
   constructor(props: InputAreaProps) {
     super();
@@ -236,6 +243,7 @@ export class InputArea extends StatefulWidget {
     this.screenHeight = props.screenHeight;
     this.userHeight = props.userHeight;
     this.onHeightChange = props.onHeightChange;
+    this.topWidget = props.topWidget;
   }
 
   createState(): InputAreaState {
@@ -593,6 +601,15 @@ class InputAreaState extends State<InputArea> {
      };
 
     // Bordered container with auto-expanding height and gap-aware decoration
+    // When topWidget is present (e.g. shortcut help), stack it above the text field
+    const containerChild = this.widget.topWidget
+      ? new Column({
+          crossAxisAlignment: 'stretch',
+          mainAxisSize: 'min',
+          children: [this.widget.topWidget, autocompleteWrapped],
+        })
+      : autocompleteWrapped;
+
     const borderedInput = new Container({
       decoration: new BoxDecoration({
         border,
@@ -600,7 +617,7 @@ class InputAreaState extends State<InputArea> {
       }),
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
       height: this._computeHeight(),
-      child: autocompleteWrapped,
+      child: containerChild,
     });
 
     // Build overlay widgets array — order matters for Z-order in Stack.

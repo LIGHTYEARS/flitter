@@ -143,6 +143,11 @@ interface ShortcutHelpOverlayProps {
 }
 
 /**
+ * @deprecated Replaced by ShortcutHelpInline (Phase 32, Plan 32-01).
+ * ShortcutHelpOverlay was a standalone modal overlay. AMP embeds shortcut
+ * help directly inside InputArea as a topWidget, not as a separate overlay.
+ * Retained for backward compatibility; do not use for new features.
+ *
  * ShortcutHelpOverlay — StatelessWidget displaying all keyboard shortcuts
  * grouped by category inside a bordered, centered overlay card.
  *

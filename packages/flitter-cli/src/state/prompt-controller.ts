@@ -16,6 +16,9 @@ import type {
   ToolResultBlock,
   StreamEvent,
   StreamToolCallReady,
+  QueuedMessage,
+  CompactionState,
+  CompactionStatus,
 } from './types';
 import type { PermissionRequest, PermissionResult } from './permission-types';
 import type { ToolRegistry } from '../tools/registry';
@@ -46,6 +49,21 @@ export interface PromptControllerOptions {
    * Used by AppState to trigger session persistence after each turn.
    */
   onStreamComplete?: () => void;
+  /**
+   * Callback to get the active thread's queued messages.
+   * Used for auto-dequeue on turn completion (QUEUE-02).
+   */
+  getQueuedMessages?: () => QueuedMessage[];
+  /**
+   * Callback to get context window usage percent (0-100).
+   * Used for compaction threshold detection (COMP-01).
+   */
+  getContextUsagePercent?: () => number;
+  /**
+   * Callback to get the compaction threshold from ConfigService.
+   * Defaults to 80 if not provided. (COMP-01).
+   */
+  getCompactionThreshold?: () => number;
 }
 
 /**
@@ -94,6 +112,21 @@ export class PromptController {
    */
   private readonly _onStreamComplete: (() => void) | null;
 
+  /** Compaction status tracking. Matches AMP's compactionState. */
+  private _compactionState: CompactionState = 'idle';
+
+  /** The message ID marking the oldest preserved message after compaction. */
+  private _cutMessageId: string | null = null;
+
+  /** Callback to get the active thread's queued messages (QUEUE-02). */
+  private readonly _getQueuedMessages: (() => QueuedMessage[]) | null;
+
+  /** Callback to get context window usage percent (COMP-01). */
+  private readonly _getContextUsagePercent: (() => number) | null;
+
+  /** Callback to get the compaction threshold from ConfigService (COMP-01). */
+  private readonly _getCompactionThreshold: (() => number) | null;
+
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
@@ -104,6 +137,21 @@ export class PromptController {
     this._systemPrompt = options.systemPrompt ?? null;
     this.onPermissionRequest = options.onPermissionRequest ?? null;
     this._onStreamComplete = options.onStreamComplete ?? null;
+    this._getQueuedMessages = options.getQueuedMessages ?? null;
+    this._getContextUsagePercent = options.getContextUsagePercent ?? null;
+    this._getCompactionThreshold = options.getCompactionThreshold ?? null;
+  }
+
+  /**
+   * Get the current compaction status snapshot.
+   * Matches AMP's RhR.getCompactionStatus() -> { compactionState }.
+   */
+  getCompactionStatus(): CompactionStatus {
+    return {
+      compactionState: this._compactionState,
+      cutMessageId: this._cutMessageId,
+      usagePercent: this._getContextUsagePercent?.() ?? 0,
+    };
   }
 
   /**
@@ -222,13 +270,99 @@ export class PromptController {
         continue;
       }
 
-      // Not a tool_use stop — we're done
+      // Not a tool_use stop — check for auto-dequeue then compaction
+
+      // --- Auto-dequeue on turn completion (QUEUE-02) ---
+      // Matches AMP's inference:completed handler in 29_thread_worker_statemachine.js:
+      //   if (this.thread.queuedMessages && this.thread.queuedMessages.length > 0)
+      //     this.handle({ type: "user:message-queue:dequeue" });
+      if (
+        stopReason === 'end_turn' &&
+        this._getQueuedMessages &&
+        this._getQueuedMessages().length > 0
+      ) {
+        const queue = this._getQueuedMessages();
+        const next = queue.shift(); // dequeue first message (FIFO)
+        if (next) {
+          log.info(`PromptController: auto-dequeue "${next.text.slice(0, 40)}..." (${queue.length} remaining)`);
+          // Reset session for next turn and add user message
+          this._session.reset();
+          this._session.startProcessing(next.text);
+          // Continue the agentic loop for this new message
+          continue;
+        }
+      }
+
+      // --- Compaction check (COMP-01) ---
+      this._checkCompaction();
+
       return;
     }
 
     if (iteration >= MAX_AGENTIC_ITERATIONS) {
       log.warn(`PromptController: hit max agentic iterations (${MAX_AGENTIC_ITERATIONS})`);
       // Session should already be in a terminal state from the last stream
+    }
+  }
+
+  /**
+   * Check context window usage and trigger compaction if threshold exceeded.
+   * Matches AMP's compaction lifecycle:
+   *   1. Check usage > compactionThresholdPercent (default 80%)
+   *   2. Transition to 'pending' -> 'compacting' -> 'complete'
+   *   3. Set cutMessageId to mark the oldest preserved message
+   *
+   * Compaction in flitter-cli prunes early conversation items to reclaim
+   * context window space for new turns.
+   */
+  private _checkCompaction(): void {
+    if (!this._getContextUsagePercent) return;
+
+    const usagePercent = this._getContextUsagePercent();
+    const threshold = this._getCompactionThreshold?.() ?? 80;
+
+    if (usagePercent < threshold) {
+      if (this._compactionState !== 'idle') {
+        this._compactionState = 'idle';
+      }
+      return;
+    }
+
+    // Usage exceeds threshold -- trigger compaction
+    if (this._compactionState === 'idle') {
+      this._compactionState = 'pending';
+      log.info(`PromptController: compaction pending — usage ${usagePercent}% >= threshold ${threshold}%`);
+    }
+
+    if (this._compactionState === 'pending') {
+      this._compactionState = 'compacting';
+      log.info('PromptController: compaction_started');
+
+      // Find the cut point: preserve at least the last 2 user-assistant turns
+      const items = this._session.items;
+      const userMessageIndices: number[] = [];
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type === 'user_message') userMessageIndices.push(i);
+      }
+
+      // Keep last N turns (N = number of user messages to keep, minimum 2)
+      const keepTurns = Math.max(2, Math.floor(userMessageIndices.length / 2));
+      const cutIndex = userMessageIndices.length > keepTurns
+        ? userMessageIndices[userMessageIndices.length - keepTurns]
+        : 0;
+
+      if (cutIndex > 0) {
+        // Mark the cut boundary
+        const cutItem = items[cutIndex];
+        this._cutMessageId = cutItem.type === 'user_message'
+          ? `msg-${cutItem.timestamp}`
+          : null;
+
+        log.info(`PromptController: compaction — cutting at index ${cutIndex}, preserving ${items.length - cutIndex} items`);
+      }
+
+      this._compactionState = 'complete';
+      log.info('PromptController: compaction_complete');
     }
   }
 

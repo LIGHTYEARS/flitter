@@ -914,6 +914,8 @@ export class AppState {
     systemPrompt?: string | null;
     /** Whether tool calls are expanded by default (N10). */
     defaultToolExpanded?: boolean;
+    /** ConfigService for reading compaction threshold and other settings. */
+    configService?: import('./config-service').ConfigService | null;
   }): AppState {
     const threadPool = new ThreadPool();
     const sessionId = crypto.randomUUID();
@@ -946,6 +948,15 @@ export class AppState {
       toolRegistry: config.toolRegistry ?? null,
       systemPrompt: config.systemPrompt ?? null,
       onStreamComplete: () => appState.saveSession(),
+      getQueuedMessages: () => {
+        const handle = threadPool.activeThreadHandleOrNull;
+        return handle?.queuedMessages ?? [];
+      },
+      getContextUsagePercent: () => appState.contextWindowUsagePercent,
+      getCompactionThreshold: () => {
+        // Read from ConfigService if available, default to 80%
+        return config.configService?.get('internal.compactionThresholdPercent') ?? 80;
+      },
     });
     appState.setPromptController(controller);
 

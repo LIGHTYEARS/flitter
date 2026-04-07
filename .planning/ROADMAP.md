@@ -41,7 +41,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate (completed 2026-04-07)
 - [x] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction (completed 2026-04-07)
 - [x] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking (completed 2026-04-07)
-- [ ] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation
+- [x] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation (completed 2026-04-07)
 - [ ] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout
 - [ ] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations
 - [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
@@ -179,9 +179,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 30-01: Build SkillsModal widget with list view, Local/Global grouping, and scrollbar
-- [ ] 30-02: Add detail panel (2/5 + 3/5 split), frontmatter display, file list, invoke action
-- [ ] 30-03: Wire SKILLS_MODAL overlay, keyboard navigation, error/warning sections, "Create your own" area
+- [x] 30-01: Build SkillsModal widget with list view, Local/Global grouping, and scrollbar
+- [x] 30-02: Add detail panel (2/5 + 3/5 split), frontmatter display, file list, invoke action
+- [x] 30-03: Wire SKILLS_MODAL overlay, keyboard navigation, error/warning sections, "Create your own" area
 
 ### Phase 31: Command Palette Overhaul
 **Goal**: Redesign Command Palette to match AMP's category+label dual-column format with 15+ commands, centered layout, and ">" search prefix.
@@ -302,7 +302,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 27. ThreadPool Architecture | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 28. Queue Mode and Compaction | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 29. Handoff State Machine | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
-| 30. Skills Modal | v0.4.0 | 0/3 | Not started | - |
+| 30. Skills Modal | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 31. Command Palette Overhaul | v0.4.0 | 0/2 | Not started | - |
 | 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 0/3 | Not started | - |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |

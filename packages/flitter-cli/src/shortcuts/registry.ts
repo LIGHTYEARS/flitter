@@ -67,6 +67,14 @@ export interface ShortcutHooks {
   copyLastResponse(): void;
   /** Paste image from clipboard into input (Plan 31). */
   pasteImage?(): void;
+  /** Insert a newline character at cursor position (KEYS-02). */
+  insertNewline?(): void;
+  /** Navigate between conversation messages (KEYS-03). */
+  navigateMessages?(direction: 'forward' | 'backward'): void;
+  /** Edit the previous user message in-place (KEYS-04). */
+  editPreviousMessage?(): void;
+  /** Check whether editing previous message is possible (KEYS-04). */
+  canEditPreviousMessage?(): boolean;
 }
 
 /**

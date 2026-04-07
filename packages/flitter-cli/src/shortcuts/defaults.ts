@@ -9,10 +9,18 @@
 // - Escape fallback returns 'ignored' when no overlays are active (matches AMP)
 // - Phase 21 shortcuts (Ctrl+R) remain as stubs
 
-import type { ShortcutRegistry, ShortcutContext } from './registry';
+import type { ShortcutRegistry } from './registry';
 import type { KeyEventResult } from '../../../flitter-core/src/input/events';
 import { OVERLAY_IDS } from '../state/overlay-ids';
 import { log } from '../utils/logger';
+
+/**
+ * Detect whether we are running inside tmux.
+ * Used for KEYS-02 to determine Shift+Enter vs Alt+Enter binding.
+ */
+function isTmux(): boolean {
+  return Boolean(process.env.TMUX);
+}
 
 /**
  * Register all default shortcuts into the given registry.
@@ -185,6 +193,89 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     action: (ctx): KeyEventResult => {
       log.info('ShortcutRegistry: ? toggling shortcut help');
       ctx.hooks.showShortcutHelp();
+      return 'handled';
+    },
+  });
+
+  // --- Input shortcuts (KEYS-01 through KEYS-04) ---
+
+  // KEYS-01: Ctrl+V paste images
+  registry.register({
+    id: 'paste-image',
+    binding: { key: 'v', ctrl: true },
+    displayKey: 'Ctrl+V',
+    description: 'Paste images from clipboard',
+    category: 'input',
+    action: (ctx): KeyEventResult => {
+      log.info('ShortcutRegistry: Ctrl+V — paste image');
+      ctx.hooks.pasteImage?.();
+      return 'handled';
+    },
+  });
+
+  // KEYS-02: Shift+Enter (non-tmux) / Alt+Enter (tmux) inserts newline
+  registry.register({
+    id: 'insert-newline',
+    binding: isTmux()
+      ? { key: 'Enter', alt: true }
+      : { key: 'Enter', shift: true },
+    displayKey: isTmux() ? 'Alt+Enter' : 'Shift+Enter',
+    description: 'Insert newline',
+    category: 'input',
+    action: (ctx): KeyEventResult => {
+      log.info('ShortcutRegistry: insert newline');
+      ctx.hooks.insertNewline?.();
+      return 'handled';
+    },
+  });
+
+  // KEYS-03: Tab navigates to next message
+  registry.register({
+    id: 'navigate-messages-forward',
+    binding: { key: 'Tab' },
+    displayKey: 'Tab',
+    description: 'Navigate to next message',
+    category: 'navigation',
+    enabled: (ctx): boolean => !ctx.appState.isProcessing,
+    action: (ctx): KeyEventResult => {
+      log.info('ShortcutRegistry: Tab — navigate messages forward');
+      ctx.hooks.navigateMessages?.('forward');
+      return 'handled';
+    },
+  });
+
+  // KEYS-03: Shift+Tab navigates to previous message
+  registry.register({
+    id: 'navigate-messages-backward',
+    binding: { key: 'Tab', shift: true },
+    displayKey: 'Shift+Tab',
+    description: 'Navigate to previous message',
+    category: 'navigation',
+    enabled: (ctx): boolean => !ctx.appState.isProcessing,
+    action: (ctx): KeyEventResult => {
+      log.info('ShortcutRegistry: Shift+Tab — navigate messages backward');
+      ctx.hooks.navigateMessages?.('backward');
+      return 'handled';
+    },
+  });
+
+  // KEYS-04: Up arrow edits previous user message (when input is empty and at cursor pos 0)
+  registry.register({
+    id: 'edit-previous-message',
+    binding: { key: 'ArrowUp' },
+    displayKey: 'Up',
+    description: 'Edit previous user message',
+    category: 'input',
+    enabled: (ctx): boolean => {
+      return (
+        !ctx.appState.isProcessing &&
+        !ctx.overlayManager.hasOverlays &&
+        (ctx.hooks.canEditPreviousMessage?.() === true)
+      );
+    },
+    action: (ctx): KeyEventResult => {
+      log.info('ShortcutRegistry: ArrowUp — edit previous message');
+      ctx.hooks.editPreviousMessage?.();
       return 'handled';
     },
   });

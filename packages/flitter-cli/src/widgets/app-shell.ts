@@ -56,6 +56,7 @@ import { InputArea } from './input-area';
 import { CommandPalette } from './command-palette';
 import { FilePicker } from './file-picker';
 import { ShortcutHelpOverlay } from './shortcut-help-overlay';
+import { SkillsModal } from './skills-modal';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';
@@ -705,15 +706,63 @@ class AppShellState extends State<AppShell> {
     });
   }
 
-  // --- Skills Modal (TODO: Phase 30 will implement full skills modal) ---
+  // --- Skills Modal (Phase 30-03) ---
 
   /**
-   * Open the skills modal overlay.
-   * @deprecated Stub — Phase 30 will implement full skills modal UI.
+   * Open the skills modal overlay via OverlayManager.
+   * Toggle behavior: if already open, dismiss it.
+   * Matches AMP's skill modal trigger from InputArea border badge click.
    */
   private _openSkillsModal(): void {
-    // TODO: Phase 30 — implement SkillsModal overlay
-    log.info('AppShell: _openSkillsModal triggered (stub)');
+    const overlayManager = this.widget.appState.overlayManager;
+
+    // Toggle: if already open, dismiss
+    if (overlayManager.has(OVERLAY_IDS.SKILLS_MODAL)) {
+      overlayManager.dismiss(OVERLAY_IDS.SKILLS_MODAL);
+      return;
+    }
+
+    const appState = this.widget.appState;
+    const skillService = appState.skillService;
+
+    overlayManager.show({
+      id: OVERLAY_IDS.SKILLS_MODAL,
+      priority: OVERLAY_PRIORITIES.SKILLS_MODAL,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss) => new SkillsModal({
+        skills: skillService.skills,
+        errors: skillService.errors,
+        warnings: skillService.warnings,
+        cwd: appState.metadata.cwd,
+        onDismiss,
+        onAddSkill: () => {
+          // Insert "/skill create" prompt into input
+          onDismiss();
+          log.info('AppShell: skills modal add skill');
+        },
+        onDocs: () => {
+          // Open owner's manual (skill docs URL)
+          onDismiss();
+          log.info('AppShell: skills modal docs');
+        },
+        onInsertPrompt: (prompt: string) => {
+          onDismiss();
+          this.textController.text = prompt;
+          this.textController.cursorPosition = prompt.length;
+        },
+        onInvokeSkill: (name: string) => {
+          // Add skill as pending for next prompt submission
+          const skill = skillService.getSkillByName(name);
+          if (skill) {
+            appState.addPendingSkill(skill);
+          }
+          log.info('AppShell: skill invoked', { name });
+        },
+      }),
+    });
+
+    log.info('AppShell: skills modal shown');
   }
 
   // --- Content Builders ---
@@ -849,8 +898,7 @@ class AppShellState extends State<AppShell> {
           // New border feature props
           agentModePulseSeq: this._agentModePulseSeq,
           skillCount: this.widget.appState.skillCount ?? 0,
-          // TODO: wire skillWarningCount to real AppState field when available
-          skillWarningCount: 0,
+          skillWarningCount: this.widget.appState.skillWarningCount ?? 0,
           onSkillCountClick: () => this._openSkillsModal(),
           screenHeight: this._screenHeight,
           // BORDER-08: bottomGridUserHeight global state — persists drag height across rebuilds

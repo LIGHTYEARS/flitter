@@ -305,7 +305,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 30. Skills Modal | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 31. Command Palette Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
-| 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |
+| 33. HITL Confirmation Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |
 | 35. Image Support and Overlays | v0.4.0 | 0/3 | Not started | - |
 | 36. Visual Polish | v0.4.0 | 0/1 | Not started | - |

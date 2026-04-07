@@ -468,3 +468,40 @@ export interface TokenUsage {
   outputTokens: number;
   totalTokens: number;
 }
+
+// ---------------------------------------------------------------------------
+// Thread Management Types (THRD-01)
+// ---------------------------------------------------------------------------
+
+/** Thread ID format: "T-{uuid}" matching AMP's Gf schema. */
+export type ThreadID = `T-${string}`;
+
+/** Generates a new ThreadID in "T-{uuid}" format. */
+export function generateThreadID(): ThreadID {
+  return `T-${crypto.randomUUID()}` as ThreadID;
+}
+
+/** Visibility mode for a thread. Matches AMP's switchThreadVisibility. */
+export type ThreadVisibility = 'visible' | 'hidden' | 'archived';
+
+/**
+ * ThreadHandle wraps a per-thread SessionState + ConversationState pair.
+ * Mirrors AMP's yZR class from 20_thread_management.js SECTION 8.
+ * Each thread gets its own independent state instances.
+ */
+export interface ThreadHandle {
+  /** The thread ID in "T-{uuid}" format. */
+  readonly threadID: ThreadID;
+  /** Per-thread session state machine. */
+  readonly session: import('./session').SessionState;
+  /** Per-thread conversation grouped view. */
+  readonly conversation: import('./conversation').ConversationState;
+  /** Thread title (auto-generated or user-set). */
+  title: string | null;
+  /** When the thread was created (epoch ms). */
+  readonly createdAt: number;
+  /** Thread visibility mode. */
+  visibility: ThreadVisibility;
+  /** The agent mode active when this thread was created. */
+  agentMode: string | null;
+}

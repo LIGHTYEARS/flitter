@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
-last_updated: "2026-04-07T15:49:47.871Z"
+last_updated: "2026-04-07T16:21:49.764Z"
 last_activity: 2026-04-07
 progress:
   total_phases: 14
   completed_phases: 11
-  total_plans: 26
-  completed_plans: 25
-  percent: 96
+  total_plans: 29
+  completed_plans: 26
+  percent: 90
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 33 — HITL Confirmation Overhaul
+**Current focus:** Phase 35 — Image Support and Overlays
 
 ## Current Milestone
 
@@ -28,9 +28,9 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 35
+Phase: 36
 Plan: Not started
-Status: Executing Phase 33
+Status: Executing Phase 35
 Last activity: 2026-04-07
 
 ## Phase Status

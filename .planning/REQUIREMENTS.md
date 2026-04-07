@@ -123,11 +123,11 @@
 
 ### Visual Polish (VPOL)
 
-- [ ] **VPOL-01**: Streaming cursor uses block character with 500ms blink animation (not scanning bar)
-- [ ] **VPOL-02**: Tool call file paths use OSC8 terminal hyperlink protocol for clickable editor links
-- [ ] **VPOL-03**: Edit file tool card displays inline diff preview with green/red line highlighting
-- [ ] **VPOL-04**: Prompt symbol in idle state shows only ">" (no extra text)
-- [ ] **VPOL-05**: Spinner color follows agent mode color (not static)
+- [x] **VPOL-01**: Streaming cursor uses block character with 500ms blink animation (not scanning bar)
+- [x] **VPOL-02**: Tool call file paths use OSC8 terminal hyperlink protocol for clickable editor links
+- [x] **VPOL-03**: Edit file tool card displays inline diff preview with green/red line highlighting
+- [x] **VPOL-04**: Prompt symbol in idle state shows only ">" (no extra text)
+- [x] **VPOL-05**: Spinner color follows agent mode color (not static)
 
 ### Image Support (IMG)
 
@@ -237,11 +237,11 @@
 | OVLY-03 | 35 | Pending |
 | OVLY-04 | 35 | Pending |
 | OVLY-05 | 35 | Pending |
-| VPOL-01 | 36 | Pending |
-| VPOL-02 | 36 | Pending |
-| VPOL-03 | 36 | Pending |
-| VPOL-04 | 36 | Pending |
-| VPOL-05 | 36 | Pending |
+| VPOL-01 | 36 | Complete |
+| VPOL-02 | 36 | Complete |
+| VPOL-03 | 36 | Complete |
+| VPOL-04 | 36 | Complete |
+| VPOL-05 | 36 | Complete |
 | IMG-01 | 35 | Pending |
 | IMG-02 | 35 | Pending |
 | IMG-03 | 35 | Pending |

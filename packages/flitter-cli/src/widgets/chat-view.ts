@@ -38,6 +38,7 @@ import { StreamingCursor } from './streaming-cursor';
 import { ThinkingBlock } from './thinking-block';
 import { toolStatusIcon } from './tool-call/tool-icons';
 import { resolveToolDisplayName } from './tool-call/resolve-tool-name';
+import { WelcomeScreen } from './welcome-screen';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -117,7 +118,7 @@ export class ChatViewState extends State<ChatView> {
 
     switch (screenState.kind) {
       case 'welcome':
-        return buildWelcomeScreen(this.widget.appState);
+        return new WelcomeScreen({ appState: this.widget.appState });
       case 'empty':
         return buildEmptyScreen();
       case 'loading':
@@ -393,57 +394,8 @@ function buildSystemMessage(text: string): Widget {
 }
 
 // ---------------------------------------------------------------------------
-// Screen Placeholders — welcome, empty, loading, error
+// Screen Placeholders — empty, loading, error
 // ---------------------------------------------------------------------------
-
-/**
- * Welcome screen — first launch, no history.
- * Center with "flitter-cli" title, "Ctrl+O for help" hint, and cwd display.
- */
-function buildWelcomeScreen(appState: AppState): Widget {
-  return new Center({
-    child: new Column({
-      mainAxisSize: 'min',
-      crossAxisAlignment: 'center',
-      children: [
-        new Text({
-          text: new TextSpan({
-            text: 'flitter-cli',
-            style: new TextStyle({
-              foreground: Color.cyan,
-              bold: true,
-            }),
-          }),
-        }),
-        new SizedBox({ height: 1 }),
-        new Text({
-          text: new TextSpan({
-            children: [
-              new TextSpan({
-                text: 'Ctrl+O',
-                style: new TextStyle({ foreground: Color.blue }),
-              }),
-              new TextSpan({
-                text: ' for help',
-                style: new TextStyle({ foreground: Color.yellow }),
-              }),
-            ],
-          }),
-        }),
-        new SizedBox({ height: 1 }),
-        new Text({
-          text: new TextSpan({
-            text: `cwd: ${appState.metadata.cwd}`,
-            style: new TextStyle({
-              foreground: Color.brightBlack,
-              dim: true,
-            }),
-          }),
-        }),
-      ],
-    }),
-  });
-}
 
 /**
  * Empty screen — new thread after previous conversation.

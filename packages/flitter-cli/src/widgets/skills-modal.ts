@@ -4,9 +4,12 @@
 //   - 03_skills_modal_m9T.js: widget props (skills, errors, warnings, callbacks)
 //   - 03_skills_modal_state_f9T.js: state with scroll controllers, grouping, build logic
 //
-// This plan (30-01) implements the LIST VIEW ONLY. Detail panel is deferred to 30-02.
+// Plan 30-01: List view (grouping, empty state, errors, warnings, footer, scroll)
+// Plan 30-02: Detail panel (2/5:3/5 split, frontmatter, file list, invoke button)
+//             Keyboard navigation (Escape/i/a/o), error+warning sections, "Create your own:"
+//
 // Width computation, title bar, grouping, empty state, errors, warnings,
-// footer, and scroll+scrollbar all match AMP values exactly.
+// footer, scroll+scrollbar, detail panel, and keyboard all match AMP values exactly.
 //
 // AMP variable mapping:
 //   R9.of(R).colorScheme -> theme.base
@@ -37,8 +40,10 @@ import { TextStyle } from '../../../flitter-core/src/core/text-style';
 import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { BoxDecoration, Border, BorderSide } from '../../../flitter-core/src/layout/render-decorated';
+import { ConstrainedBox } from '../../../flitter-core/src/widgets/constrained-box';
 import { MediaQuery } from '../../../flitter-core/src/widgets/media-query';
 import { CliThemeProvider } from '../themes';
+import type { CliBaseTheme, CliAppColors } from '../themes';
 import type { SkillDefinition, SkillError, SkillWarning } from '../state/skill-types';
 import { groupSkillsByPath, relativizePath } from '../state/skill-service';
 
@@ -113,10 +118,10 @@ export class SkillsModalState extends State<SkillsModal> {
   /** Scroll controller for the skill list area. followMode = false. */
   listScrollController = new ScrollController();
 
-  /** Scroll controller for the detail panel. followMode = false. Prepared for 30-02. */
+  /** Scroll controller for the detail panel. followMode = false. */
   detailScrollController = new ScrollController();
 
-  /** Currently selected skill, or null. Detail panel rendering deferred to 30-02. */
+  /** Currently selected skill, or null. Drives detail panel visibility. */
   selectedSkill: SkillDefinition | null = null;
 
   /** Default viewport height for scroll info calculation. */
@@ -143,11 +148,9 @@ export class SkillsModalState extends State<SkillsModal> {
    *
    * AMP f9T key bindings:
    *   Escape: clear selection if selected, else dismiss
-   *   i: invoke selected skill (30-02 adds invoke)
-   *   a: add skill (when no selection)
-   *   o: open docs (when no selection)
-   *
-   * This plan implements Escape only; i/a/o keys also handled to match AMP.
+   *   i: invoke selected skill (only with selection)
+   *   a: add skill (only without selection — list view)
+   *   o: open docs (only without selection — list view)
    */
   handleKeyEvent = (event: KeyEvent): KeyEventResult => {
     switch (event.key) {
@@ -276,12 +279,12 @@ export class SkillsModalState extends State<SkillsModal> {
 
     // --- Width computation matching AMP exactly ---
     const hasSelection = this.selectedSkill !== null;
-    // S=hasSelection, x=totalWidth, I=listWidth (detail panel width for 30-02)
+    // S=hasSelection, x=totalWidth, I=listWidth
     const totalWidth = hasSelection
       ? Math.max(100, Math.min(150, available))
       : Math.max(60, Math.min(90, available));
-    // listWidth only used for detail panel in 30-02, declared here for reference
-    // const listWidth = hasSelection ? Math.floor(totalWidth * 2 / 5) : 0;
+    // I = listWidth: detail panel gets (totalWidth - listWidth) via ConstrainedBox
+    const listWidth = hasSelection ? Math.floor(totalWidth * 2 / 5) : 0;
 
     // --- Split skills into builtin and nonBuiltin matching AMP ---
     const builtinSkills = this.widget.skills.filter(
@@ -584,6 +587,25 @@ export class SkillsModalState extends State<SkillsModal> {
       }),
     });
 
+    // --- Detail panel (Q) matching AMP f9T exactly ---
+    let detailPanel: Widget | null = null;
+    if (this.selectedSkill) {
+      detailPanel = this._buildDetailPanel(
+        this.selectedSkill,
+        listWidth,
+        primaryBold,
+        secondaryBold,
+        secondaryStyle,
+        secondaryDimStyle,
+        commandStyle,
+        foregroundStyle,
+        foregroundDim,
+        keybindStyle,
+        base,
+        app,
+      );
+    }
+
     // --- Assemble main column (aR) ---
     // Expanded(Column(stretch, [titleBar, SizedBox(1), listArea, SizedBox(1), footer]))
     const mainContent: Widget[] = [
@@ -600,7 +622,10 @@ export class SkillsModalState extends State<SkillsModal> {
         }),
       }),
     ];
-    // Detail panel (Q) would be pushed here in 30-02 when selectedSkill is set
+    // Append detail panel when a skill is selected
+    if (detailPanel) {
+      mainContent.push(detailPanel);
+    }
 
     const contentRow = new Row({
       crossAxisAlignment: 'stretch',
@@ -777,6 +802,248 @@ export class SkillsModalState extends State<SkillsModal> {
     }
     items.push(new SizedBox({ height: 1 }));
   }
+
+  // -----------------------------------------------------------------------
+  // Detail panel builder — matching AMP f9T's Q variable
+  // -----------------------------------------------------------------------
+
+  /**
+   * Build the detail panel shown when a skill is selected.
+   *
+   * Matches AMP f9T's Q variable exactly:
+   *   - ConstrainedBox(minWidth: I, maxWidth: I)
+   *   - BoxDecoration: left border only (Border(left: BorderSide(border, 1)))
+   *   - Padding(left: 2)
+   *   - Column [header, SizedBox(1), Expanded(scrollable detail)]
+   *
+   * Detail content:
+   *   - SKILL.md label (clickable for non-builtin, plain dim for builtin)
+   *   - SizedBox(h:1)
+   *   - frontmatter+content text
+   *   - horizontal rule, "Files:" list (non-builtin only)
+   *
+   * @param skill - The selected skill definition
+   * @param listWidth - Width of the detail panel (I = floor(totalWidth * 2/5))
+   */
+  private _buildDetailPanel(
+    skill: SkillDefinition,
+    listWidth: number,
+    _primaryBold: TextStyle,
+    _secondaryBold: TextStyle,
+    secondaryStyle: TextStyle,
+    secondaryDimStyle: TextStyle,
+    _commandStyle: TextStyle,
+    foregroundStyle: TextStyle,
+    foregroundDim: TextStyle,
+    keybindStyle: TextStyle,
+    base: CliBaseTheme | undefined,
+    app: CliAppColors | undefined,
+  ): Widget {
+    const isBuiltin = skill.baseDir.startsWith('builtin://');
+
+    // gR = yq0(RR.baseDir) — extract displayable path from baseDir
+    const displayPath = extractDisplayPath(skill.baseDir);
+
+    // --- (i)nvoke button (U) matching AMP exactly ---
+    // "(i)" in keybind color, "nvoke" in secondary color
+    const invokeButton: Widget | null = this.widget.onInvokeSkill
+      ? new MouseRegion({
+          cursor: 'pointer',
+          onClick: () => this.widget.onInvokeSkill!(skill.name),
+          child: new Text({
+            text: new TextSpan({
+              text: '',
+              style: secondaryStyle,
+              children: [
+                new TextSpan({ text: '(', style: secondaryDimStyle }),
+                new TextSpan({ text: 'i', style: keybindStyle }),
+                new TextSpan({ text: ')', style: secondaryDimStyle }),
+                new TextSpan({ text: 'nvoke', style: secondaryStyle }),
+              ],
+            }),
+          }),
+        })
+      : null;
+
+    // --- Detail header (K) matching AMP ---
+    // Row: [Expanded(path text, dim, maxLines:1, ellipsis), SizedBox(w:1) if button, button]
+    const pathText = new Text({
+      text: new TextSpan({ text: displayPath, style: foregroundDim }),
+      maxLines: 1,
+      overflow: 'ellipsis',
+    });
+    const headerRow = new Row({
+      children: [
+        new Expanded({ child: pathText }),
+        ...(invokeButton ? [new SizedBox({ width: 1 }), invokeButton] : []),
+      ],
+    });
+
+    // --- Frontmatter lines (P) matching AMP exactly ---
+    const frontmatterLines: string[] = [];
+    const D = skill.frontmatter;
+    if (D.name) frontmatterLines.push(`name: ${D.name}`);
+    if (D.description) frontmatterLines.push(`description: ${D.description}`);
+    if (D.license) frontmatterLines.push(`license: ${D.license}`);
+    if (D.compatibility) frontmatterLines.push(`compatibility: ${D.compatibility}`);
+    if (D['argument-hint']) frontmatterLines.push(`argument-hint: ${D['argument-hint']}`);
+    if (D.model) frontmatterLines.push(`model: ${D.model}`);
+    if (D['allowed-tools']?.length) frontmatterLines.push(`allowed-tools: [${D['allowed-tools'].join(', ')}]`);
+    if (D['builtin-tools']?.length) frontmatterLines.push(`builtin-tools: [${D['builtin-tools'].join(', ')}]`);
+    if (D['disable-model-invocation']) frontmatterLines.push('disable-model-invocation: true');
+    if (D.mode) frontmatterLines.push('mode: true');
+    if (D.isolatedContext) frontmatterLines.push('isolatedContext: true');
+    if (D.metadata && Object.keys(D.metadata).length > 0) {
+      frontmatterLines.push('metadata:');
+      for (const [key, value] of Object.entries(D.metadata)) {
+        frontmatterLines.push(`  ${key}: ${value}`);
+      }
+    }
+
+    // z = combined frontmatter + content string, matching AMP
+    const contentBody = frontmatterLines.length > 0
+      ? `---\n${frontmatterLines.join('\n')}\n---\n\n${skill.content || ''}`
+      : skill.content || '';
+
+    // --- File list (J) matching AMP — only for non-builtin skills ---
+    const fileListWidgets: Widget[] = [];
+    if (!isBuiltin) {
+      const basePath = skill.baseDir.startsWith('file://')
+        ? skill.baseDir.slice(7) : skill.baseDir;
+      const otherFiles = (skill.files || []).filter(
+        (f: string) => !f.toLowerCase().endsWith('skill.md'),
+      );
+
+      fileListWidgets.push(new SizedBox({ height: 1 }));
+      fileListWidgets.push(new Text({
+        text: new TextSpan({
+          text: '\u2500'.repeat(Math.max(0, listWidth - 4)),
+          style: foregroundDim,
+        }),
+      }));
+      fileListWidgets.push(new SizedBox({ height: 1 }));
+      fileListWidgets.push(new Text({
+        text: new TextSpan({ text: 'Files:', style: foregroundDim }),
+      }));
+
+      // "  SKILL.md" entry (clickable, primary color)
+      fileListWidgets.push(new MouseRegion({
+        cursor: 'pointer',
+        onClick: () => { /* je(R, `${skill.baseDir}/SKILL.md`) — open in editor */ },
+        child: new Text({
+          text: new TextSpan({
+            text: '  SKILL.md',
+            style: new TextStyle({ foreground: base?.primary }),
+          }),
+        }),
+      }));
+
+      // Each additional file (relative path, clickable, primary color)
+      for (const file of otherFiles) {
+        const relFile = computeRelativeFilePath(basePath, file);
+        fileListWidgets.push(new MouseRegion({
+          cursor: 'pointer',
+          onClick: () => { /* je(R, fileURI) — open in editor */ },
+          child: new Text({
+            text: new TextSpan({
+              text: `  ${relFile}`,
+              style: new TextStyle({ foreground: base?.primary }),
+            }),
+          }),
+        }));
+      }
+    }
+
+    // --- SKILL.md label (yR) matching AMP ---
+    // builtin: plain text dim; non-builtin: clickable primary
+    const skillMdLabel: Widget = isBuiltin
+      ? new Text({
+          text: new TextSpan({ text: 'SKILL.md', style: foregroundDim }),
+        })
+      : new MouseRegion({
+          cursor: 'pointer',
+          onClick: () => { /* je(R, `${skill.baseDir}/SKILL.md`) — open in editor */ },
+          child: new Text({
+            text: new TextSpan({
+              text: 'SKILL.md',
+              style: new TextStyle({ foreground: base?.primary }),
+            }),
+          }),
+        });
+
+    // --- Detail content column (uR) matching AMP ---
+    const detailColumnChildren: Widget[] = [
+      skillMdLabel,
+      new SizedBox({ height: 1 }),
+    ];
+    if (contentBody) {
+      detailColumnChildren.push(new Text({
+        text: new TextSpan({ text: contentBody, style: foregroundStyle }),
+      }));
+    }
+    detailColumnChildren.push(...fileListWidgets);
+
+    const detailColumn = new Column({
+      crossAxisAlignment: 'stretch',
+      mainAxisSize: 'min',
+      children: detailColumnChildren,
+    });
+
+    // --- Detail scroll area matching AMP ---
+    // Row [Expanded(SingleChildScrollView(detailScrollController, detailColumn)), Scrollbar]
+    const detailScrollArea = new Expanded({
+      child: new Row({
+        crossAxisAlignment: 'stretch',
+        children: [
+          new Expanded({
+            child: new SingleChildScrollView({
+              controller: this.detailScrollController,
+              child: detailColumn,
+            }),
+          }),
+          new Scrollbar({
+            controller: this.detailScrollController,
+            thumbColor: app?.scrollbarThumb,
+            trackColor: app?.scrollbarTrack,
+            getScrollInfo: () => {
+              const maxExtent = this.detailScrollController.maxScrollExtent;
+              const offset = this.detailScrollController.offset;
+              return {
+                totalContentHeight: Math.max(maxExtent + 20, 0),
+                viewportHeight: 20,
+                scrollOffset: Math.max(offset, 0),
+              };
+            },
+          }),
+        ],
+      }),
+    });
+
+    // --- Detail container (Q) matching AMP ---
+    // ConstrainedBox(minWidth: I, maxWidth: I)
+    // BoxDecoration: left border only (Border(left: BorderSide(border, 1)))
+    // Padding(left: 2)
+    // Column [header, SizedBox(1), Expanded(scrollableDetail)]
+    return new ConstrainedBox({
+      constraints: new BoxConstraints({ minWidth: listWidth, maxWidth: listWidth }),
+      child: new Container({
+        decoration: new BoxDecoration({
+          border: new Border({
+            left: new BorderSide({ color: base?.border, width: 1 }),
+          }),
+        }),
+        padding: EdgeInsets.only({ left: 2 }),
+        child: new Column({
+          crossAxisAlignment: 'stretch',
+          children: [
+            headerRow,
+            new SizedBox({ height: 1 }),
+            detailScrollArea,
+          ],
+        }),
+      }),
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -791,4 +1058,37 @@ export class SkillsModalState extends State<SkillsModal> {
  */
 function cleanDescription(desc: string): string {
   return desc.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extract a displayable path from a skill's baseDir.
+ *
+ * Matches AMP's yq0 function:
+ *   - "builtin://name" -> "builtin://name"
+ *   - "file:///path/to/skill" -> strips file:// prefix and returns path
+ *   - Other -> returns as-is
+ */
+function extractDisplayPath(baseDir: string): string {
+  if (baseDir.startsWith('file://')) {
+    return baseDir.slice(7);
+  }
+  return baseDir;
+}
+
+/**
+ * Compute a relative file path from a base directory to a file.
+ *
+ * Matches AMP's HhR function: if the file is an absolute path,
+ * compute relative from base; otherwise return as-is.
+ */
+function computeRelativeFilePath(basePath: string, filePath: string): string {
+  if (filePath.startsWith('/') && basePath) {
+    // Use node:path relative, but import is not available here — inline logic
+    // Strip common prefix to make relative
+    const base = basePath.endsWith('/') ? basePath : basePath + '/';
+    if (filePath.startsWith(base)) {
+      return filePath.slice(base.length);
+    }
+  }
+  return filePath;
 }

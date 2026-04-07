@@ -72,6 +72,9 @@ export class AppState {
   /** Compact view toggle. */
   denseView: boolean = false;
 
+  /** Whether the user is in queue mode (batching follow-up messages). Matches AMP's GhR.isInQueueMode. */
+  isInQueueMode: boolean = false;
+
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
 
@@ -420,6 +423,8 @@ export class AppState {
    * Matches AMP's startAndSwitchToNewThread (SECTION 2d).
    */
   newThread(): void {
+    // AMP's startAndSwitchToNewThread calls onThreadSwitch which exits queue mode
+    this.exitQueueMode();
     const model = this.session.metadata.model;
     const cwd = this.session.metadata.cwd;
     const handle = this.threadPool.createThread({
@@ -460,6 +465,8 @@ export class AppState {
    * Matches AMP's switchToExistingThread().
    */
   switchToThread(threadID: string): void {
+    // AMP's onThreadSwitch() calls exitQueueMode()
+    this.exitQueueMode();
     this.threadPool.switchThread(threadID);
     const handle = this.threadPool.activeThreadHandle;
     this._switchToHandle(handle);
@@ -683,6 +690,87 @@ export class AppState {
    */
   async openEditor(initialContent: string = ''): Promise<EditorResult> {
     return launchEditor(initialContent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Queue Mode (QUEUE-01)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Enter queue mode. Subsequent submits will enqueue messages rather than
+   * sending them immediately. Matches AMP's enterQueueMode() on TuiUIState.
+   */
+  enterQueueMode(): void {
+    if (this.isInQueueMode) return;
+    this.isInQueueMode = true;
+    log.info('AppState.enterQueueMode');
+    this._notifyListeners();
+  }
+
+  /**
+   * Exit queue mode without submitting queued messages.
+   * Discards any queued messages. Matches AMP's exitQueueMode() which
+   * clears isInQueueMode and is called on thread switch (onThreadSwitch).
+   */
+  exitQueueMode(): void {
+    if (!this.isInQueueMode) return;
+    this.isInQueueMode = false;
+    this.threadPool.discardQueuedMessages();
+    log.info('AppState.exitQueueMode');
+    this._notifyListeners();
+  }
+
+  /**
+   * Submit all queued messages. Exits queue mode and triggers sequential
+   * dequeue processing. Matches AMP's submitQueue() on TuiUIState.
+   *
+   * Each queued message is submitted as a normal prompt in order;
+   * auto-dequeue after each turn completion is handled by PromptController
+   * (Plan 28-02).
+   */
+  async submitQueue(): Promise<void> {
+    if (!this.isInQueueMode) return;
+
+    const handle = this.threadPool.activeThreadHandleOrNull;
+    if (!handle || handle.queuedMessages.length === 0) {
+      this.exitQueueMode();
+      return;
+    }
+
+    this.isInQueueMode = false;
+    log.info(`AppState.submitQueue: submitting ${handle.queuedMessages.length} queued messages`);
+
+    // Dequeue the first message and submit it; remaining messages stay in
+    // queuedMessages[] for auto-dequeue on turn completion (Plan 28-02).
+    const first = handle.queuedMessages.shift();
+    if (first) {
+      this._notifyListeners();
+      await this.submitPrompt(first.text);
+    }
+  }
+
+  /**
+   * Interrupt the next queued message (remove it from the queue).
+   * Matches AMP's interruptNextQueuedMessage() which finds the first
+   * non-interjected queued message and removes it.
+   */
+  interruptQueue(): void {
+    const handle = this.threadPool.activeThreadHandleOrNull;
+    if (!handle || handle.queuedMessages.length === 0) return;
+
+    const removed = handle.queuedMessages.shift();
+    log.info(`AppState.interruptQueue: removed "${removed?.text.slice(0, 40)}..."`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Clear all queued messages without exiting queue mode.
+   * Matches AMP's discardQueuedMessages pattern when clearing specific
+   * messages but staying in queue mode for new input.
+   */
+  clearQueue(): void {
+    this.threadPool.discardQueuedMessages();
+    this._notifyListeners();
   }
 
   // ---------------------------------------------------------------------------

@@ -15,8 +15,9 @@ import type {
   SessionMetadata,
   SessionMode,
   DeepReasoningEffort,
+  HandoffState,
 } from './types';
-import { AGENT_MODES, VISIBLE_MODE_KEYS } from './types';
+import { AGENT_MODES, VISIBLE_MODE_KEYS, DEFAULT_HANDOFF_STATE } from './types';
 import type { Turn } from './turn-types';
 import type { PermissionRequest, PermissionResult } from './permission-types';
 import { SessionState, type StateListener } from './session';
@@ -74,6 +75,19 @@ export class AppState {
 
   /** Whether the user is in queue mode (batching follow-up messages). Matches AMP's GhR.isInQueueMode. */
   isInQueueMode: boolean = false;
+
+  /**
+   * Handoff mode UI state matching AMP's GhR.handoffState object exactly.
+   * Tracks the enter/generate/abort/exit lifecycle for thread handoff.
+   * See 24_main_app_state.js and 30_main_tui_state.js in AMP source.
+   */
+  handoffState: HandoffState = { ...DEFAULT_HANDOFF_STATE };
+
+  /** Interval timer for handoff countdown auto-submit. Cleared on exit/abort/submit. */
+  private _countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Braille spinner animation frame index for handoff generating state. */
+  private _spinnerFrame: number = 0;
 
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
@@ -191,10 +205,10 @@ export class AppState {
   // Session-delegated computed properties for UI consumption
   // ---------------------------------------------------------------------------
 
-  /** True when the session is processing or streaming (prompt in-flight). */
+  /** True when the session is processing or streaming (prompt in-flight). Includes handoff generating. */
   get isProcessing(): boolean {
     const lc = this.session.lifecycle;
-    return lc === 'processing' || lc === 'streaming';
+    return lc === 'processing' || lc === 'streaming' || this.handoffState.isGeneratingHandoff;
   }
 
   /** True when the session is actively streaming response content. */
@@ -394,6 +408,9 @@ export class AppState {
     if (this._isShutdown) return;
     this._isShutdown = true;
 
+    // Clean up handoff countdown timer
+    this._clearCountdownTimer();
+
     // Cancel any active prompt stream before saving
     if (this._promptController) {
       const lc = this.session.lifecycle;
@@ -423,8 +440,9 @@ export class AppState {
    * Matches AMP's startAndSwitchToNewThread (SECTION 2d).
    */
   newThread(): void {
-    // AMP's startAndSwitchToNewThread calls onThreadSwitch which exits queue mode
+    // AMP's startAndSwitchToNewThread calls onThreadSwitch which exits queue/handoff mode
     this.exitQueueMode();
+    this.exitHandoffMode();
     const model = this.session.metadata.model;
     const cwd = this.session.metadata.cwd;
     const handle = this.threadPool.createThread({
@@ -465,8 +483,9 @@ export class AppState {
    * Matches AMP's switchToExistingThread().
    */
   switchToThread(threadID: string): void {
-    // AMP's onThreadSwitch() calls exitQueueMode()
+    // AMP's onThreadSwitch() calls exitQueueMode() and handoffController?.resetUIState()
     this.exitQueueMode();
+    this.exitHandoffMode();
     this.threadPool.switchThread(threadID);
     const handle = this.threadPool.activeThreadHandle;
     this._switchToHandle(handle);
@@ -771,6 +790,212 @@ export class AppState {
   clearQueue(): void {
     this.threadPool.discardQueuedMessages();
     this._notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Handoff Mode (HAND-01, HAND-02, HAND-03)
+  // ---------------------------------------------------------------------------
+
+  /** Braille spinner animation frames matching AMP's toBraille() output. */
+  private static readonly _BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+  /**
+   * Enter handoff mode. The InputArea switches to handoff prompt editing.
+   * Matches AMP's enterHandoffMode callback passed to InputArea.
+   *
+   * While in handoff mode (and not generating), the user can change the
+   * agent mode for the target thread (canChangeAgentModeInPromptEditor).
+   */
+  enterHandoffMode(): void {
+    if (this.handoffState.isInHandoffMode) return;
+    this.handoffState = {
+      ...DEFAULT_HANDOFF_STATE,
+      isInHandoffMode: true,
+    };
+    log.info('AppState.enterHandoffMode');
+    this._notifyListeners();
+  }
+
+  /**
+   * Exit handoff mode, resetting all handoff state to defaults.
+   * Clears any active countdown timer and spinner.
+   *
+   * Called on:
+   * - Thread switch (onThreadSwitch -> handoffController?.resetUIState())
+   * - Second Escape in abort confirmation
+   * - Handoff submission completion
+   * - New thread creation
+   *
+   * Matches AMP's exitHandoffMode / resetUIState pattern.
+   */
+  exitHandoffMode(): void {
+    if (!this.handoffState.isInHandoffMode &&
+        !this.handoffState.isGeneratingHandoff &&
+        this.handoffState.countdownSeconds === null) {
+      return; // Already in default state
+    }
+    this._clearCountdownTimer();
+    this.handoffState = { ...DEFAULT_HANDOFF_STATE };
+    this._spinnerFrame = 0;
+    log.info('AppState.exitHandoffMode');
+    this._notifyListeners();
+  }
+
+  /**
+   * Submit the handoff goal. Creates a new thread via ThreadPool.createHandoff()
+   * and transitions to generating state.
+   *
+   * Matches AMP's submit flow:
+   * 1. Sets isGeneratingHandoff = true, starts spinner
+   * 2. Calls threadPool.createHandoff(goal, options)
+   * 3. On completion: exits handoff mode, switches to new thread
+   *
+   * @param goal - The user's goal text for the new thread
+   */
+  async submitHandoff(goal: string): Promise<void> {
+    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) {
+      log.warn('AppState.submitHandoff: not in handoff mode');
+      return;
+    }
+
+    // Transition to generating state
+    this._clearCountdownTimer();
+    this._spinnerFrame = 0;
+    this.handoffState = {
+      ...this.handoffState,
+      isGeneratingHandoff: true,
+      isConfirmingAbortHandoff: false,
+      pendingHandoffPrompt: goal,
+      spinner: AppState._BRAILLE_FRAMES[0],
+      countdownSeconds: null,
+    };
+    log.info(`AppState.submitHandoff: goal="${goal.slice(0, 60)}..."`);
+    this._notifyListeners();
+
+    // Start spinner animation
+    const spinnerInterval = setInterval(() => {
+      this._spinnerFrame = (this._spinnerFrame + 1) % AppState._BRAILLE_FRAMES.length;
+      this.handoffState = {
+        ...this.handoffState,
+        spinner: AppState._BRAILLE_FRAMES[this._spinnerFrame],
+      };
+      this._notifyListeners();
+    }, 80);
+
+    try {
+      // Create handoff thread via ThreadPool
+      const handle = this.threadPool.createHandoff(goal, {
+        agentMode: this.currentMode,
+      });
+
+      // Switch to the new thread
+      clearInterval(spinnerInterval);
+      this.exitHandoffMode();
+      this._switchToHandle(handle);
+      this.selectedMessageIndex = null;
+
+      log.info(`AppState.submitHandoff: complete, switched to ${handle.threadID}`);
+      this._notifyListeners();
+    } catch (err) {
+      clearInterval(spinnerInterval);
+      this.exitHandoffMode();
+      log.error(`AppState.submitHandoff: failed`, err);
+      this._notifyListeners();
+    }
+  }
+
+  /**
+   * Handle Escape key during handoff mode. Two-stage abort:
+   * - First call: sets isConfirmingAbortHandoff = true
+   * - Second call: exits handoff mode entirely
+   *
+   * Matches AMP's two-stage abort pattern:
+   *   "Esc to abort handoff" -> "Esc again to abort handoff"
+   */
+  abortHandoffConfirmation(): void {
+    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) return;
+
+    if (this.handoffState.isConfirmingAbortHandoff) {
+      // Second Escape: actually exit
+      this.exitHandoffMode();
+      log.info('AppState.abortHandoffConfirmation: confirmed, exiting handoff mode');
+    } else {
+      // First Escape: enter confirmation state
+      this.handoffState = {
+        ...this.handoffState,
+        isConfirmingAbortHandoff: true,
+      };
+      log.info('AppState.abortHandoffConfirmation: awaiting confirmation');
+      this._notifyListeners();
+    }
+  }
+
+  /**
+   * Start the handoff countdown timer. Decrements countdownSeconds every
+   * second and auto-submits when it reaches 0.
+   *
+   * Matches AMP's countdown UI: "Auto-submitting in N..." with "type to edit"
+   * hint. Typing or editing cancels the countdown.
+   *
+   * @param seconds - Initial countdown value (typically 10-30)
+   * @param goal - The goal text to auto-submit when countdown reaches 0
+   */
+  startCountdown(seconds: number, goal: string): void {
+    this._clearCountdownTimer();
+    this.handoffState = {
+      ...this.handoffState,
+      countdownSeconds: seconds,
+      pendingHandoffPrompt: goal,
+    };
+    this._notifyListeners();
+
+    this._countdownTimer = setInterval(() => {
+      const current = this.handoffState.countdownSeconds;
+      if (current === null || current <= 1) {
+        // Countdown complete: auto-submit
+        this._clearCountdownTimer();
+        const pendingGoal = this.handoffState.pendingHandoffPrompt;
+        if (pendingGoal) {
+          this.submitHandoff(pendingGoal).catch(err => {
+            log.error('AppState.startCountdown: auto-submit failed', err);
+          });
+        }
+      } else {
+        this.handoffState = {
+          ...this.handoffState,
+          countdownSeconds: current - 1,
+        };
+        this._notifyListeners();
+      }
+    }, 1000);
+  }
+
+  /**
+   * Cancel the countdown timer without exiting handoff mode.
+   * Called when the user starts typing (editing the goal).
+   *
+   * Matches AMP's "type to edit" behavior that cancels the auto-submit.
+   */
+  cancelCountdown(): void {
+    if (this.handoffState.countdownSeconds === null) return;
+    this._clearCountdownTimer();
+    this.handoffState = {
+      ...this.handoffState,
+      countdownSeconds: null,
+    };
+    log.info('AppState.cancelCountdown');
+    this._notifyListeners();
+  }
+
+  /**
+   * Clear the internal countdown interval timer.
+   * Idempotent — safe to call when no timer is active.
+   */
+  private _clearCountdownTimer(): void {
+    if (this._countdownTimer !== null) {
+      clearInterval(this._countdownTimer);
+      this._countdownTimer = null;
+    }
   }
 
   // ---------------------------------------------------------------------------

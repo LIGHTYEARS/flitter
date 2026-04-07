@@ -297,7 +297,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 |-------|-----------|----------------|--------|-----------|
 | 23. InputArea Rich Border | v0.4.0 | 3/3 | Complete    | 2026-04-06 |
 | 24. Welcome Screen | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
-| 25. Provider and Model System | v0.4.0 | 2/3 | Complete    | 2026-04-07 |
+| 25. Provider and Model System | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 27. ThreadPool Architecture | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 28. Queue Mode and Compaction | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
@@ -307,5 +307,5 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
-| 35. Image Support and Overlays | v0.4.0 | 1/3 | Complete    | 2026-04-07 |
+| 35. Image Support and Overlays | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 36. Visual Polish | v0.4.0 | 1/1 | Complete    | 2026-04-07 |

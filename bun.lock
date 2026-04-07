@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "flitter",
+      "dependencies": {
+        "@mariozechner/pi-ai": "^0.65.2",
+      },
     },
     "packages/flitter-cli": {
       "name": "flitter-cli",
@@ -14,6 +17,7 @@
       "dependencies": {
         "@mariozechner/pi-ai": "^0.65.2",
         "flitter-core": "workspace:*",
+        "zod": "^4.3.6",
       },
       "devDependencies": {
         "@types/bun": "latest",

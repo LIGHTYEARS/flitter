@@ -17,6 +17,10 @@
 - Temporary debug probes are inline statements (`console.error`, `Bun.write(Bun.stderr, ...)`) with no imports. These are ephemeral.
 - **The structural signal**: if it is imported from a module, it is permanent. If it is an inline statement with no import, it is temporary. No exceptions.
 
+## Plan Splitting Invariants
+
+- A breaking change and the removal of everything it breaks must land in the same atomic unit of work; never create a transient inconsistency that forces a downstream agent to add throwaway patches.
+
 ## Pipeline Invariants (General)
 
 - Recursive operations (attach, detach, layout, paint) must propagate to the entire subtree. A parent-only operation that skips children is always a bug.

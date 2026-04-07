@@ -4,7 +4,7 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage, CompactionStatus } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
 import { log } from '../utils/logger';
@@ -573,6 +573,105 @@ export class ThreadPool {
   }
 
   // ---------------------------------------------------------------------------
+  // Handoff Mode (HAND-03: Cross-Thread Handoff)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Currently in-flight handoff request, or null.
+   * Tracks sourceThreadID/targetThreadID while the handoff is being created.
+   * Matches AMP's threadWorkerService.handoff() tracking pattern.
+   */
+  pendingHandoff: HandoffRequest | null = null;
+
+  /**
+   * Log of completed handoff requests for history/debugging.
+   * Each entry records the source->target thread relationship and goal.
+   */
+  readonly completedHandoffs: HandoffRequest[] = [];
+
+  /**
+   * Map from target threadID to its handoff source threadID.
+   * Used by getHandoffSourceThreadID() to resolve parent thread for
+   * handoff-created threads. Matches AMP's getEmptyHandoffParentThreadID().
+   */
+  private readonly _handoffSourceMap: Map<string, string> = new Map();
+
+  /**
+   * Create a handoff: new thread with cross-thread tracking.
+   *
+   * Matches AMP's threadPool.createHandoff(R, T) which:
+   * 1. Captures sourceThreadID from activeThreadContextID
+   * 2. Creates a new thread via createThread()
+   * 3. Records the source->target handoff relationship
+   * 4. Returns the new ThreadHandle
+   *
+   * @param goal - The user's goal text for the new thread
+   * @param options - Optional configuration (agentMode for target thread)
+   * @returns The newly created ThreadHandle for the handoff target
+   */
+  createHandoff(goal: string, options?: { agentMode?: string | null }): ThreadHandle {
+    const sourceThreadID = this.activeThreadContextID;
+    if (!sourceThreadID) {
+      throw new Error('ThreadPool.createHandoff: no active thread context');
+    }
+
+    // Create a new thread (this records navigation)
+    const handle = this.createThread({
+      cwd: this.activeThreadHandle.session.metadata.cwd,
+      model: this.activeThreadHandle.session.metadata.model,
+      agentMode: options?.agentMode ?? null,
+    });
+
+    const targetThreadID = handle.threadID;
+
+    // Record the handoff request
+    const request: HandoffRequest = {
+      sourceThreadID,
+      targetThreadID,
+      goal,
+      agentMode: options?.agentMode ?? null,
+      createdAt: Date.now(),
+    };
+
+    this.pendingHandoff = request;
+    this._handoffSourceMap.set(targetThreadID, sourceThreadID);
+
+    log.info(`[thread-pool] createHandoff: ${sourceThreadID} -> ${targetThreadID}, goal="${goal.slice(0, 60)}"`);
+    this._notifyListeners();
+
+    return handle;
+  }
+
+  /**
+   * Mark the pending handoff as complete and move to completed list.
+   * Called after the handoff thread has been activated and is running.
+   */
+  completeHandoff(): void {
+    if (this.pendingHandoff) {
+      this.completedHandoffs.push(this.pendingHandoff);
+      log.info(`[thread-pool] completeHandoff: ${this.pendingHandoff.sourceThreadID} -> ${this.pendingHandoff.targetThreadID}`);
+      this.pendingHandoff = null;
+      this._notifyListeners();
+    }
+  }
+
+  /**
+   * Get the source thread ID for a handoff-created thread.
+   * Returns the thread that initiated the handoff, or null if the
+   * thread was not created via handoff.
+   *
+   * Matches AMP's getEmptyHandoffParentThreadID() on active thread handle.
+   *
+   * @param threadID - The thread to check (defaults to active thread)
+   * @returns Source thread ID, or null if not a handoff thread
+   */
+  getHandoffSourceThreadID(threadID?: string): string | null {
+    const id = threadID ?? this.activeThreadContextID;
+    if (!id) return null;
+    return this._handoffSourceMap.get(id) ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
   // Thread Removal
   // ---------------------------------------------------------------------------
 
@@ -585,6 +684,7 @@ export class ThreadPool {
     this.threadHandleMap.delete(threadID);
     delete this.threadTitles[threadID];
     this.threadWorkerMap.delete(threadID);
+    this._handoffSourceMap.delete(threadID);
 
     // Remove from recent threads
     const recentIdx = this.recentThreadIDs.indexOf(threadID);

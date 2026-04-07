@@ -157,7 +157,7 @@ describe('Thread UI Wiring (Plan 27-03)', () => {
   // -------------------------------------------------------------------------
   // 6. buildCommandList includes thread commands
   // -------------------------------------------------------------------------
-  test('buildCommandList includes all 6 thread commands', () => {
+  test('buildCommandList includes all 5 thread commands', () => {
     const appState = makeAppState();
     const registry = new ShortcutRegistry();
     const ctx = makeContext(appState);
@@ -168,11 +168,9 @@ describe('Thread UI Wiring (Plan 27-03)', () => {
     expect(ids).toContain('thread-new');
     expect(ids).toContain('thread-switch');
     expect(ids).toContain('thread-map');
+    expect(ids).toContain('thread-switch-to-cluster');
     expect(ids).toContain('thread-set-visibility');
-    expect(ids).toContain('thread-navigate-back');
-    expect(ids).toContain('thread-navigate-forward');
 
-    // Old 'new-thread' should NOT be present
     expect(ids).not.toContain('new-thread');
   });
 

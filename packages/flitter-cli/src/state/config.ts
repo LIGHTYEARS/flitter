@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { cliThemes } from '../themes';
 import type { ProviderId, ProviderConfig } from '../provider/provider';
 import { autoDetectProvider, DEFAULT_MODELS } from '../provider/factory';
+import { ConfigService, type Settings } from './config-service';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
@@ -26,6 +27,8 @@ interface UserConfig {
   historySize?: number;
   /** Path to the prompt history file. */
   historyFile?: string;
+  /** Provider-specific settings (Zod-validated). See ConfigService for schema. */
+  settings?: Partial<Settings>;
 }
 
 /** Valid targets for the --connect flag (OAuth providers). */
@@ -60,6 +63,8 @@ export interface AppConfig {
   connectTarget: ConnectTarget | null;
   /** Whether tool calls are expanded by default in the UI (N10). */
   defaultToolExpanded: boolean;
+  /** Provider-specific settings service with Zod validation. */
+  configService: ConfigService;
 }
 
 export function getUserConfigPath(): string {
@@ -80,6 +85,9 @@ function loadUserConfig(): UserConfig {
 export function parseArgs(argv: string[]): AppConfig {
   const args = argv.slice(2);
   const userConfig = loadUserConfig();
+
+  // Initialize config service with user-provided settings
+  const configService = new ConfigService(userConfig.settings);
 
   let cwd = userConfig.cwd ? resolve(userConfig.cwd) : process.cwd();
   let editor = userConfig.editor || process.env.EDITOR || process.env.VISUAL || 'vi';
@@ -258,6 +266,27 @@ export function parseArgs(argv: string[]): AppConfig {
       case '--expand-tools':
         defaultToolExpanded = true;
         break;
+      case '--setting': {
+        const kv = args[++i];
+        if (!kv || !kv.includes('=')) {
+          process.stderr.write('Error: --setting requires key=value format\n');
+          process.exit(1);
+        }
+        const eqIdx = kv.indexOf('=');
+        const key = kv.slice(0, eqIdx);
+        const val = kv.slice(eqIdx + 1);
+        // Parse value: try JSON first, fallback to string
+        let parsed: unknown;
+        try { parsed = JSON.parse(val); } catch { parsed = val; }
+        try {
+          configService.set(key as any, parsed as any);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          process.stderr.write(`Error: ${msg}\n`);
+          process.exit(1);
+        }
+        break;
+      }
       default:
         process.stderr.write(`Unknown option: ${args[i]}\n`);
         printHelp();
@@ -321,6 +350,7 @@ export function parseArgs(argv: string[]): AppConfig {
     exportSession,
     connectTarget,
     defaultToolExpanded,
+    configService,
   };
 }
 
@@ -375,7 +405,19 @@ Options:
   --export <format> [id]   Export session to format (json, md, txt) and exit
   --expand-tools           Expand tool calls by default in the UI
   --debug                  Enable debug logging
+  --setting <key=value>    Set a provider setting (e.g., anthropic.speed=fast)
   --help, -h               Show help message
+
+Settings (--setting key=value):
+  anthropic.speed            standard | fast
+  anthropic.provider         anthropic | vertex
+  anthropic.temperature      number
+  anthropic.thinking.enabled boolean
+  anthropic.interleavedThinking.enabled  boolean
+  anthropic.effort           low | medium | high | max
+  openai.speed               standard | fast
+  internal.model             string or JSON object
+  gemini.thinkingLevel       minimal | low | medium | high
 
 Environment:
   ANTHROPIC_API_KEY   Anthropic provider API key

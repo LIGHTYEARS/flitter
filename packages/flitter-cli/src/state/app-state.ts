@@ -42,6 +42,7 @@ import { PromptHistory } from './history';
 import { log } from '../utils/logger';
 import { launchEditor, type EditorResult } from '../utils/editor-launcher';
 import { readImageFromClipboard } from '../utils/clipboard-image';
+import { ToastController } from '../widgets/toast-overlay';
 import { SkillService } from './skill-service';
 import type { SkillDefinition } from './skill-types';
 
@@ -76,6 +77,9 @@ export class AppState {
 
   /** Centralized skill management service. */
   readonly skillService: SkillService;
+
+  /** Toast notification controller. Matches AMP's GhR.toastController = new x1R. */
+  readonly toastController: ToastController;
 
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
@@ -192,6 +196,7 @@ export class AppState {
     this.sessionStore = sessionStore;
     this.threadPool = threadPool ?? new ThreadPool();
     this.skillService = new SkillService();
+    this.toastController = new ToastController();
 
     // Relay session state changes to AppState listeners
     this.session.addListener(this._sessionListener);
@@ -1321,6 +1326,62 @@ export class AppState {
     this.fileChanges = [];
     log.info('AppState.clearFileChanges');
     this._notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Toast Notification (OVLY-01)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show a toast notification. Delegates to toastController.
+   * Matches AMP's showToast: (t, i="success", c) => this.toastController.show(t, i, c).
+   */
+  showToast(message: string, type: import('./types').ToastType = 'success', durationMs?: number): void {
+    this.toastController.show(message, type, durationMs);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Confirmation Overlay (OVLY-02)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show a generic confirmation overlay via OverlayManager.
+   * Matches AMP's isShowingConfirmationOverlay pattern.
+   */
+  showConfirmation(opts: {
+    title: string;
+    message?: string;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }): void {
+    // Lazy import to avoid circular dependency
+    const { ConfirmationOverlay } = require('../widgets/confirmation-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.CONFIRMATION,
+      priority: OVERLAY_PRIORITIES.CONFIRMATION,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new ConfirmationOverlay({
+        title: opts.title,
+        message: opts.message,
+        onConfirm: () => {
+          onDismiss();
+          opts.onConfirm();
+        },
+        onCancel: () => {
+          onDismiss();
+          opts.onCancel?.();
+        },
+        onDismiss,
+      }),
+    });
+  }
+
+  /**
+   * Dismiss the confirmation overlay if active.
+   */
+  dismissConfirmation(): void {
+    this.overlayManager.dismiss(OVERLAY_IDS.CONFIRMATION);
   }
 
   // ---------------------------------------------------------------------------

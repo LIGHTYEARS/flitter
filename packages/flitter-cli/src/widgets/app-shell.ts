@@ -138,6 +138,7 @@ class AppShellState extends State<AppShell> {
 
   /** OverlayManager listener reference for cleanup in dispose(). */
   private _onOverlayChange: (() => void) | null = null;
+  private _onToastChange: (() => void) | null = null;
 
   /** Saved draft text before entering history navigation (restored on forward-past-end). */
   private _savedDraft: string = '';
@@ -218,6 +219,25 @@ class AppShellState extends State<AppShell> {
     // OverlayManager listener for overlay state changes
     this._onOverlayChange = () => this.setState();
     this.widget.appState.overlayManager.addListener(this._onOverlayChange);
+
+    // ToastController listener — wire toast show/dismiss to overlay manager
+    this._onToastChange = () => {
+      const toast = this.widget.appState.toastController.current;
+      if (toast) {
+        // Lazy import to avoid circular dependency
+        const { ToastOverlay } = require('./toast-overlay');
+        this.widget.appState.overlayManager.show({
+          id: OVERLAY_IDS.TOAST,
+          priority: OVERLAY_PRIORITIES.TOAST,
+          modal: false,
+          placement: { type: 'anchored' },
+          builder: () => new ToastOverlay({ message: toast.message, type: toast.type }),
+        });
+      } else {
+        this.widget.appState.overlayManager.dismiss(OVERLAY_IDS.TOAST);
+      }
+    };
+    this.widget.appState.toastController.addListener(this._onToastChange);
   }
 
   /**
@@ -273,6 +293,9 @@ class AppShellState extends State<AppShell> {
 
     if (this._onOverlayChange) {
       this.widget.appState.overlayManager.removeListener(this._onOverlayChange);
+    }
+    if (this._onToastChange) {
+      this.widget.appState.toastController.removeListener(this._onToastChange);
     }
     if (this._onStateChange) {
       this.widget.appState.removeListener(this._onStateChange);

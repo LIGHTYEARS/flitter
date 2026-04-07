@@ -959,6 +959,7 @@ export class AppState {
       },
     });
     appState.setPromptController(controller);
+    threadPool.setCompactionStatusProvider(() => controller.getCompactionStatus());
 
     log.info(`AppState.create: sessionId=${sessionId} threadID=${threadID} model=${config.provider.model} cwd=${config.cwd}`);
 

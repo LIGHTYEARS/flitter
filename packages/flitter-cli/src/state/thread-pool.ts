@@ -4,7 +4,7 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage, CompactionStatus } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
 import { log } from '../utils/logger';
@@ -545,6 +545,31 @@ export class ThreadPool {
       log.info(`[thread-pool] discardQueuedMessages: cleared ${count} messages on ${handle.threadID}`);
     }
     this._notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Compaction Status (COMP-01)
+  // ---------------------------------------------------------------------------
+
+  /** Callback to get compaction status from PromptController. */
+  private _getCompactionStatus: (() => CompactionStatus) | null = null;
+
+  /**
+   * Register a compaction status provider callback.
+   * Called during bootstrap to wire PromptController's getCompactionStatus.
+   */
+  setCompactionStatusProvider(provider: () => CompactionStatus): void {
+    this._getCompactionStatus = provider;
+  }
+
+  /**
+   * Get the current compaction status.
+   * Matches AMP's RhR.getCompactionStatus() which delegates to
+   * this.activeProvider.getCompactionState().
+   * Returns undefined if no provider is registered.
+   */
+  getCompactionStatus(): CompactionStatus | undefined {
+    return this._getCompactionStatus?.();
   }
 
   // ---------------------------------------------------------------------------

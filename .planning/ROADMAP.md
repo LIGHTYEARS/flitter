@@ -195,8 +195,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 31-01: Redesign Command Palette layout (centered, box border, ">" prefix, category+label columns)
-- [ ] 31-02: Register all missing commands (help, mode set/use, thread switch/map/visibility, context analyze, news, paste image)
+- [x] 31-01: Redesign Command Palette layout (centered, box border, ">" prefix, category+label columns)
+- [x] 31-02: Register all missing commands (help, mode set/use, thread switch/map/visibility, context analyze, news, paste image)
 
 ### Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode
 **Goal**: Rebuild shortcut help as InputArea-embedded dual-column layout matching AMP, register all missing keyboard shortcuts, and implement shell mode with bash invocation display.

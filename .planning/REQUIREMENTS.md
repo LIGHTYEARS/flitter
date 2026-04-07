@@ -80,10 +80,10 @@
 
 ### Command Palette (CPAL)
 
-- [ ] **CPAL-01**: Command Palette uses single-line box border, vertically centered, with ">" search prefix
-- [ ] **CPAL-02**: Command Palette displays commands in category+label dual-column format with right-aligned shortcut hints
-- [ ] **CPAL-03**: Command Palette includes 15+ commands covering amp/mode/thread/prompt/context/news categories
-- [ ] **CPAL-04**: Commands include: help, use rush, use large, use deep, mode set, mode toggle, thread switch, thread new, thread map, thread set visibility, prompt open in editor, paste image from clipboard, context analyze, news open in browser
+- [x] **CPAL-01**: Command Palette uses single-line box border, vertically centered, with ">" search prefix
+- [x] **CPAL-02**: Command Palette displays commands in category+label dual-column format with right-aligned shortcut hints
+- [x] **CPAL-03**: Command Palette includes 15+ commands covering amp/mode/thread/prompt/context/news categories
+- [x] **CPAL-04**: Commands include: help, use rush, use large, use deep, mode set, mode toggle, thread switch, thread new, thread map, thread set visibility, prompt open in editor, paste image from clipboard, context analyze, news open in browser
 
 ### HITL Confirmation (HITL)
 
@@ -212,10 +212,10 @@
 | SKILL-08 | 30 | Pending |
 | SKILL-09 | 30 | Pending |
 | SKILL-10 | 30 | Pending |
-| CPAL-01 | 31 | Pending |
-| CPAL-02 | 31 | Pending |
-| CPAL-03 | 31 | Pending |
-| CPAL-04 | 31 | Pending |
+| CPAL-01 | 31 | Done |
+| CPAL-02 | 31 | Done |
+| CPAL-03 | 31 | Done |
+| CPAL-04 | 31 | Done |
 | HITL-01 | 33 | Pending |
 | HITL-02 | 33 | Pending |
 | HITL-03 | 33 | Pending |

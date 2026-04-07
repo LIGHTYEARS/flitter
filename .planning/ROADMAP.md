@@ -86,18 +86,19 @@ Plans:
 - [x] 24-01: Build ASCII Art Logo widget with Perlin gradient animation and welcome hint text
 
 ### Phase 25: Provider and Model System
-**Goal**: Expand the provider system with 8 missing providers and build a complete model catalog with metadata per model.
+**Goal**: Replace hand-rolled AnthropicProvider/OpenAIProvider with @mariozechner/pi-ai unified LLM backend, build ConfigService with Zod validation, and wire all 10+ providers through pi-ai's model catalog.
 **Depends on**: Phase 22 (existing provider infrastructure)
 **Requirements**: PROV-01, PROV-02, PROV-03
 **Success Criteria** (what must be TRUE):
-  1. All 8 missing providers (xai, cerebras, fireworks, groq, moonshot, openrouter, vertex, baseten) are registered
-  2. Each model has contextWindow, maxOutputTokens, pricing, capabilities metadata
-  3. Provider config uses hierarchical configuration with Zod schema validation
-**Plans**: 2 plans
+  1. All 10+ providers (anthropic, openai, xai, cerebras, fireworks, groq, moonshot, openrouter, vertex, baseten, gemini) reachable via pi-ai
+  2. Each model has contextWindow, maxTokens, pricing, capabilities metadata via pi-ai Model<Api>
+  3. Provider config uses hierarchical configuration with Zod schema validation (ConfigService)
+**Plans**: 3 plans
 
 Plans:
-- [ ] 25-01: Implement provider registry with 8 new providers and Zod-validated config
-- [ ] 25-02: Build model catalog with per-model metadata (context window, output tokens, pricing, capabilities)
+- [ ] 25-01: Install pi-ai, create PiAiProvider adapter, rewrite factory.ts (Wave 1)
+- [ ] 25-02: Create ConfigService with Zod schema validation and --setting CLI flag (Wave 1)
+- [ ] 25-03: Wire bootstrap, update MockProvider/tests, delete old AnthropicProvider/OpenAIProvider (Wave 2)
 
 ### Phase 26: Agent Modes and Deep Reasoning
 **Goal**: Replace boolean deep reasoning toggle with tri-state enum and implement real agent mode switching with per-mode configuration.
@@ -296,7 +297,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 |-------|-----------|----------------|--------|-----------|
 | 23. InputArea Rich Border | v0.4.0 | 3/3 | Complete    | 2026-04-06 |
 | 24. Welcome Screen | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
-| 25. Provider and Model System | v0.4.0 | 0/2 | Not started | - |
+| 25. Provider and Model System | v0.4.0 | 0/3 | Planned | - |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |
 | 27. ThreadPool Architecture | v0.4.0 | 0/3 | Not started | - |
 | 28. Queue Mode and Compaction | v0.4.0 | 0/2 | Not started | - |

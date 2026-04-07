@@ -43,7 +43,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking (completed 2026-04-07)
 - [x] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation (completed 2026-04-07)
 - [x] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout (completed 2026-04-07)
-- [ ] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations
+- [x] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations (completed 2026-04-07)
 - [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
 - [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
 - [ ] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays
@@ -216,9 +216,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 32-01: Rebuild shortcut help as InputArea-embedded dual-column widget with tmux detection
-- [ ] 32-02: Register and implement Ctrl+V, Shift+Enter, Tab/Shift+Tab, Up arrow, @@ shortcuts
-- [ ] 32-03: Implement shell mode state, bashInvocations tracking, and BashInvocationsWidget
+- [x] 32-01: Rebuild shortcut help as InputArea-embedded dual-column widget with tmux detection
+- [x] 32-02: Register and implement Ctrl+V, Shift+Enter, Tab/Shift+Tab, Up arrow, @@ shortcuts
+- [x] 32-03: Implement shell mode state, bashInvocations tracking, and BashInvocationsWidget
 
 ### Phase 33: HITL Confirmation Overhaul
 **Goal**: Redesign HITL confirmation dialog to match AMP's layout with command content preview, inverted-color option buttons, keyboard shortcut labels, and feedback input mode.
@@ -304,7 +304,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 29. Handoff State Machine | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 30. Skills Modal | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 31. Command Palette Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
-| 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 0/3 | Not started | - |
+| 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |
 | 35. Image Support and Overlays | v0.4.0 | 0/3 | Not started | - |

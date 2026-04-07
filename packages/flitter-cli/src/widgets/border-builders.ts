@@ -154,6 +154,8 @@ export function buildTopRightOverlay(opts: {
   mode: string;
   skillCount: number;
   skillWarningCount: number;
+  anthropicSpeed?: 'standard' | 'fast';
+  openAISpeed?: 'standard' | 'fast';
   onSkillCountClick?: () => void;
   theme: CliTheme;
 }): BorderOverlayResult {
@@ -164,13 +166,27 @@ export function buildTopRightOverlay(opts: {
   const hasWarning = opts.skillWarningCount > 0;
   const skillColor = hasWarning ? warningColor : opts.theme.base.foreground;
 
-  // Mode label segment.
-  const modeSpan = new Text({
-    text: new TextSpan({
-      text: opts.mode,
-      style: new TextStyle({ foreground: modeColor }),
-    }),
-  });
+  // AMP speed suffix logic: smart+anthropic.fast → "+fast(6x$)", deep/internal+openai.fast → "+fast(2x$)"
+  const isAnthropicFast = opts.mode === 'smart' && opts.anthropicSpeed === 'fast';
+  const isOpenAIFast = (opts.mode === 'deep' || opts.mode === 'internal') && opts.openAISpeed === 'fast';
+  const speedSuffix = isAnthropicFast ? '+fast(6x$)' : isOpenAIFast ? '+fast(2x$)' : undefined;
+
+  // Mode label segment — with optional speed suffix in warning color.
+  const modeSpan = speedSuffix
+    ? new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({ text: opts.mode, style: new TextStyle({ foreground: modeColor }) }),
+            new TextSpan({ text: speedSuffix, style: new TextStyle({ foreground: warningColor }) }),
+          ],
+        }),
+      })
+    : new Text({
+        text: new TextSpan({
+          text: opts.mode,
+          style: new TextStyle({ foreground: modeColor }),
+        }),
+      });
 
   // "──" separator after mode.
   const sep1Span = new Text({
@@ -236,8 +252,8 @@ export function buildTopRightOverlay(opts: {
 
   const widget = new Row({ mainAxisSize: 'min', children });
 
-  // Compute textWidth: mode + "──" + optional "!" + "─" + count + "─" + "skills"
-  let textWidth = opts.mode.length + 2; // mode + "──"
+  // Compute textWidth: mode + optional speedSuffix + "──" + optional "!" + "─" + count + "─" + "skills"
+  let textWidth = opts.mode.length + (speedSuffix ? speedSuffix.length : 0) + 2; // mode + suffix + "──"
   if (hasWarning) textWidth += 1;        // "!"
   textWidth += 1;                        // "─"
   textWidth += countText.length;         // count digits

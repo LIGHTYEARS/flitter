@@ -129,10 +129,10 @@ export function registerDefaultShortcuts(registry: ShortcutRegistry): void {
     id: 'toggle-deep-reasoning',
     binding: { key: 'd', alt: true },
     displayKey: 'Alt+D',
-    description: 'Toggle deep reasoning',
+    description: 'Cycle deep reasoning (medium/high/xhigh/off)',
     category: 'display',
     action: (ctx): KeyEventResult => {
-      ctx.appState.toggleDeepReasoning();
+      ctx.appState.cycleDeepReasoning();
       ctx.setState(() => {});
       return 'handled';
     },

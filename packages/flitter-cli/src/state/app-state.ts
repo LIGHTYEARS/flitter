@@ -14,7 +14,9 @@ import type {
   ConversationItem,
   SessionMetadata,
   SessionMode,
+  DeepReasoningEffort,
 } from './types';
+import { AGENT_MODES, VISIBLE_MODE_KEYS } from './types';
 import type { Turn } from './turn-types';
 import type { PermissionRequest, PermissionResult } from './permission-types';
 import { SessionState, type StateListener } from './session';
@@ -63,11 +65,23 @@ export class AppState {
   /** Compact view toggle. */
   denseView: boolean = false;
 
-  /** Current agent mode (e.g., 'smart', 'code', 'ask'). */
-  currentMode: string | null = null;
+  /** Current agent mode — defaults to 'smart' matching AMP. */
+  currentMode: string | null = 'smart';
 
-  /** Available agent modes for cycling. */
-  modes: SessionMode[] = [];
+  /** Available agent modes for cycling — initialized from AGENT_MODES. */
+  modes: SessionMode[] = Object.values(AGENT_MODES).map(m => ({
+    id: m.key,
+    name: m.key,
+    displayName: m.displayName,
+    description: m.description,
+    primaryModel: m.primaryModel,
+    visible: m.visible,
+    reasoningEffort: m.reasoningEffort,
+    uiHints: m.uiHints,
+  }));
+
+  /** Sequence counter incremented on each mode cycle — drives agentModePulse animation. */
+  private _agentModePulseSeq: number = 0;
 
   /** Index of the selected user message for Tab/Shift+Tab navigation. */
   selectedMessageIndex: number | null = null;
@@ -87,8 +101,8 @@ export class AppState {
   /** Agent version string reported by the backend. */
   agentVersion: string | null = null;
 
-  /** Whether deep/extended reasoning mode is active. */
-  private _deepReasoningActive: boolean = false;
+  /** Current deep reasoning effort level, or null for disabled. Per MODE-01. */
+  private _deepReasoningEffort: DeepReasoningEffort | null = null;
 
   // --- Listener management ---
   private _listeners: Set<StateListener> = new Set();
@@ -161,9 +175,19 @@ export class AppState {
     return this.session.lifecycle === 'streaming';
   }
 
-  /** Whether deep/extended reasoning mode is active. */
+  /** Whether deep reasoning is active (any effort level set). */
   get deepReasoningActive(): boolean {
-    return this._deepReasoningActive;
+    return this._deepReasoningEffort !== null;
+  }
+
+  /** Current deep reasoning effort level, or null if disabled. */
+  get deepReasoningEffort(): DeepReasoningEffort | null {
+    return this._deepReasoningEffort;
+  }
+
+  /** Agent mode pulse sequence counter for border animation. */
+  get agentModePulseSeq(): number {
+    return this._agentModePulseSeq;
   }
 
   /**
@@ -374,7 +398,7 @@ export class AppState {
   newThread(): void {
     this.session.newThread();
     this.selectedMessageIndex = null;
-    this.currentMode = null;
+    this.currentMode = 'smart';
     this._notifyListeners();
   }
 
@@ -384,29 +408,28 @@ export class AppState {
     this._notifyListeners();
   }
 
-  /** Toggle deep reasoning (extended thinking) mode. */
-  toggleDeepReasoning(): void {
-    this._deepReasoningActive = !this._deepReasoningActive;
-    log.info(`Deep reasoning toggled: ${this._deepReasoningActive ? 'on' : 'off'}`);
+  /** Cycle deep reasoning effort: null → medium → high → xhigh → null. Per MODE-01. */
+  cycleDeepReasoning(): void {
+    const cycle: (DeepReasoningEffort | null)[] = [null, 'medium', 'high', 'xhigh'];
+    const idx = cycle.indexOf(this._deepReasoningEffort);
+    this._deepReasoningEffort = cycle[(idx + 1) % cycle.length];
+    log.info(`Deep reasoning effort: ${this._deepReasoningEffort ?? 'off'}`);
     this._notifyListeners();
   }
 
-  /**
-   * Cycle through available agent modes.
-   * Uses the `modes` array if non-empty, otherwise defaults to ['smart', 'code', 'ask'].
-   */
+  /** @Deprecated — Use cycleDeepReasoning() instead. Kept for backward compatibility. */
+  toggleDeepReasoning(): void {
+    this.cycleDeepReasoning();
+  }
+
+  /** Cycle through visible agent modes. Per MODE-02. */
   cycleMode(): void {
-    const defaultModes: SessionMode[] = [
-      { id: 'smart', name: 'smart' },
-      { id: 'code', name: 'code' },
-      { id: 'ask', name: 'ask' },
-    ];
-    const available = this.modes.length > 0
-      ? this.modes
-      : defaultModes;
-    const current = this.currentMode ?? available[0].id;
-    const idx = available.findIndex(m => m.id === current);
-    this.currentMode = available[(idx + 1) % available.length].id;
+    const current = this.currentMode ?? VISIBLE_MODE_KEYS[0];
+    const idx = VISIBLE_MODE_KEYS.indexOf(current);
+    const nextIdx = idx === -1 ? 0 : (idx + 1) % VISIBLE_MODE_KEYS.length;
+    this.currentMode = VISIBLE_MODE_KEYS[nextIdx];
+    this._agentModePulseSeq = (this._agentModePulseSeq ?? 0) + 1;
+    log.info(`Agent mode cycled to: ${this.currentMode}`);
     this._notifyListeners();
   }
 

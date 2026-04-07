@@ -154,12 +154,20 @@ export function createCliTheme(base: CliBaseTheme): CliTheme {
 
 /**
  * Return the appropriate color for the given agent mode string.
+ * Uses AMP's exact secondaryColor RGB for all 7 modes.
  * Falls back to the base foreground color for unknown modes.
  */
 export function agentModeColor(mode: string, theme: CliTheme): Color {
-  if (mode === 'smart') return theme.app.smartModeColor;
-  if (mode === 'rush') return theme.app.rushModeColor;
-  return theme.base.foreground;
+  switch (mode) {
+    case 'smart':    return Color.rgb(0, 255, 136);
+    case 'free':     return Color.rgb(0, 184, 255);
+    case 'rush':     return Color.rgb(255, 215, 0);
+    case 'agg-man':  return Color.rgb(102, 153, 255);
+    case 'large':    return Color.rgb(153, 102, 255);
+    case 'deep':     return Color.rgb(29, 233, 182);
+    case 'internal': return Color.rgb(255, 119, 42);
+    default:         return theme.base.foreground;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -167,11 +175,14 @@ export function agentModeColor(mode: string, theme: CliTheme): Color {
 // ---------------------------------------------------------------------------
 
 const MODE_HUE_MAP: Record<string, number> = {
-  smart: 210,    // blue
-  code: 150,     // green-cyan
-  ask: 45,       // orange
-  rush: 0,       // red
-  default: 150,  // green
+  smart:    150,   // green  (0,255,136 → ~152°)
+  free:     197,   // blue   (0,184,255 → ~197°)
+  rush:     50,    // gold   (255,215,0 → ~50°)
+  'agg-man': 227,  // blue-purple (102,153,255 → ~220°)
+  large:    270,   // purple (153,102,255 → ~260°)
+  deep:     165,   // teal   (29,233,182 → ~165°)
+  internal: 22,    // orange (255,119,42 → ~22°)
+  default:  150,
 };
 
 function hslToColor(h: number, s: number, l: number): Color {

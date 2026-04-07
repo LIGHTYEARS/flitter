@@ -35,6 +35,8 @@ import { SessionStore, type SessionFile } from './session-store';
 import { PromptHistory } from './history';
 import { log } from '../utils/logger';
 import { launchEditor, type EditorResult } from '../utils/editor-launcher';
+import { SkillService } from './skill-service';
+import type { SkillDefinition } from './skill-types';
 
 /**
  * AppState is the top-level application state for the flitter-cli TUI.
@@ -64,6 +66,9 @@ export class AppState {
 
   /** ThreadPool managing multiple concurrent threads. */
   readonly threadPool: ThreadPool;
+
+  /** Centralized skill management service. */
+  readonly skillService: SkillService;
 
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
@@ -116,8 +121,11 @@ export class AppState {
   /** Currently registered tools/skills. */
   tools: Array<{ name: string; description?: string }> = [];
 
-  /** Number of registered tools/skills. */
-  get skillCount(): number { return this.tools.length; }
+  /** Number of registered tools/skills — delegates to SkillService. */
+  get skillCount(): number { return this.skillService.skillCount || this.tools.length; }
+
+  /** Number of skill load warnings — delegates to SkillService. */
+  get skillWarningCount(): number { return this.skillService.warningCount; }
 
   /** Autocomplete trigger definitions for the input area. */
   autocompleteTriggers: Array<{ trigger: string; description?: string }> = [];
@@ -131,6 +139,9 @@ export class AppState {
   // --- Listener management ---
   private _listeners: Set<StateListener> = new Set();
 
+  /** Pending skills awaiting injection into next prompt. Matches AMP's _pendingSkills BehaviorSubject. */
+  private _pendingSkills: SkillDefinition[] = [];
+
   constructor(
     session: SessionState,
     promptHistory: PromptHistory,
@@ -143,12 +154,19 @@ export class AppState {
     this.promptHistory = promptHistory;
     this.sessionStore = sessionStore;
     this.threadPool = threadPool ?? new ThreadPool();
+    this.skillService = new SkillService();
 
     // Relay session state changes to AppState listeners
     this.session.addListener(this._sessionListener);
 
     // Relay thread pool changes to AppState listeners
     this.threadPool.addListener(() => {
+      this._notifyListeners();
+    });
+
+    // Relay SkillService changes to AppState listeners and sync tools array
+    this.skillService.addListener(() => {
+      this.tools = this.skillService.skills.map(s => ({ name: s.name, description: s.description }));
       this._notifyListeners();
     });
   }
@@ -709,6 +727,66 @@ export class AppState {
    */
   async openEditor(initialContent: string = ''): Promise<EditorResult> {
     return launchEditor(initialContent);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pending Skills (SKILL-08 — matching AMP's thread worker pattern)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add a skill to the pending injection list.
+   * Deduplicates by name — matching AMP's `if(!T.some((a)=>a.name===R.name))`.
+   */
+  addPendingSkill(skill: SkillDefinition): void {
+    if (!this._pendingSkills.some((s) => s.name === skill.name)) {
+      this._pendingSkills.push(skill);
+      log.info('AppState.addPendingSkill', { skillName: skill.name });
+      this._notifyListeners();
+    }
+  }
+
+  /**
+   * Remove a pending skill by name.
+   * Matching AMP's `T.filter((a)=>a.name!==R)`.
+   */
+  removePendingSkill(name: string): void {
+    this._pendingSkills = this._pendingSkills.filter((s) => s.name !== name);
+    log.info('AppState.removePendingSkill', { skillName: name });
+    this._notifyListeners();
+  }
+
+  /** Clear all pending skills. */
+  clearPendingSkills(): void {
+    this._pendingSkills = [];
+    log.info('AppState.clearPendingSkills');
+    this._notifyListeners();
+  }
+
+  /** Get the current pending skills array. */
+  getPendingSkills(): SkillDefinition[] {
+    return this._pendingSkills;
+  }
+
+  /**
+   * Consume pending skills into an injection message for the next prompt.
+   *
+   * If there are pending skills, builds a message matching AMP's injection
+   * format and clears the pending list. Returns null if no pending skills.
+   *
+   * Matching AMP: pending skills are injected as an info message with names
+   * joined by ', ' and the pending list is cleared after consumption.
+   */
+  consumePendingSkillsMessage(): string | null {
+    if (this._pendingSkills.length === 0) return null;
+
+    const skillNames = this._pendingSkills.map(s => s.name).join(', ');
+    const toolName = 'Skill';
+    const message = `You MUST call the ${toolName} tool to load: ${skillNames}. Do not proceed without loading these skills first.`;
+
+    log.info('AppState.consumePendingSkillsMessage', { skillNames });
+    this._pendingSkills = [];
+    this._notifyListeners();
+    return message;
   }
 
   // ---------------------------------------------------------------------------

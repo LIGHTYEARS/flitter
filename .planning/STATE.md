@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
-last_updated: "2026-04-07T06:00:50.040Z"
+last_updated: "2026-04-07T08:00:00.000Z"
 last_activity: 2026-04-07
 progress:
   total_phases: 14
   completed_phases: 2
-  total_plans: 4
+  total_plans: 6
   completed_plans: 4
   percent: 100
 ---
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 24 — welcome-screen
+**Current focus:** Phase 25 — Provider and Model System
 
 ## Current Milestone
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 25
-Plan: Not started
-Status: Executing Phase 24
+Plan: Planned (2 plans: 25-01, 25-02)
+Status: Planning complete, ready for execution
 Last activity: 2026-04-07
 
 ## Phase Status
@@ -39,7 +39,7 @@ Last activity: 2026-04-07
 |-------|------|--------|-------|
 | 23 | InputArea Rich Border | Complete | 3/3 |
 | 24 | Welcome Screen | Not started | 0/1 |
-| 25 | Provider and Model System | Not started | 0/2 |
+| 25 | Provider and Model System | Planned | 0/2 (25-01: W1, 25-02: W2) |
 | 26 | Agent Modes and Deep Reasoning | Not started | 0/1 |
 | 27 | ThreadPool Architecture | Not started | 0/3 |
 | 28 | Queue Mode and Compaction | Not started | 0/2 |
@@ -61,6 +61,7 @@ Progress: ░░░░░░░░░░ 0%
 - 2026-04-03: v0.3.0 — 11 phases (12-22), 55 requirements, 305+ tests
 - 2026-04-06: v0.4.0 milestone started — Close All Gaps
 - 2026-04-06: Phase 23 complete — InputArea Rich Border (app-shell wired, BorderShimmer, gap-aware borders)
+- 2026-04-07: Phase 25 planned — Provider and Model System (2 plans, 6 tasks, PROV-01/02/03)
 
 ## Decisions Log
 

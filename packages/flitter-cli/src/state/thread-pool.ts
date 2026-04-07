@@ -4,7 +4,7 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadID } from './types';
+import type { ThreadHandle } from './types';
 import type { StateListener } from './session';
 import { log } from '../utils/logger';
 

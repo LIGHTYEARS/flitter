@@ -1,8 +1,8 @@
 # flitter-cli Missing Features vs AMP
 
 > 基于 FEATURE-AUDIT.md (42 特性) 和 FIDELITY-REPORT.md (实体验证)
-> 生成日期: 2026-04-06
-> 状态: **34/42 特性缺失或部分实现**
+> Visual Fidelity 审计: 基于 `tmux-capture/screens/` golden 文件 + AMP 逆向源码 (2026-04-06)
+> 状态: **34/42 特性缺失或部分实现 + 42 个 Visual Fidelity 差异 (12 Critical / 17 Major / 13 Minor)**
 
 ---
 
@@ -1070,3 +1070,476 @@ P56-P62 只覆盖了 **UI 层缺口**:
 |------|------|
 | `FIDELITY-REPORT.md` | 完整 Fidelity 报告 |
 | `GSD-PLAN-P56-P62.md` | P56-P62 阶段计划 |
+
+---
+
+## 八、Visual Fidelity 审计 - Welcome / Input Area / Footer / Conversation
+
+> 基于 `tmux-capture/screens/` golden 文件 vs AMP 逆向源码 vs flitter-cli 源码的逐像素对比
+> 审计日期: 2026-04-06
+
+### VF-1: Welcome 界面缺少 ASCII Art Logo
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | welcome |
+| **AMP 行为** | 欢迎界面顶部渲染大型 ASCII Art Logo（多行渐变色文字 "amp"），使用 `perlinAgentModeColor()` 动画驱动颜色。Logo 下方才是功能提示文本 |
+| **flitter-cli 行为** | 无 ASCII Art Logo。只有纯文本欢迎信息 |
+| **证据** | golden `welcome/plain-63x244.golden` 顶部多行 ASCII art；AMP `30_main_tui_state.js` 中 logo 渲染逻辑 |
+| **严重程度** | **Critical** |
+
+### VF-2: Welcome Logo 渐变色动画缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | welcome |
+| **AMP 行为** | Logo 每个字符独立着色，使用 Perlin noise 驱动的渐变色动画（`perlinAgentModeColor()`），颜色随时间平滑变化 |
+| **flitter-cli 行为** | 有 `perlin-animation.ts` 但未应用于 logo（无 logo），且 `density-orb.ts` 的 Perlin 实现是独立的 orb widget |
+| **证据** | AMP `23_ui_features.js` 中 `perlinAgentModeColor` 函数；flitter-cli `perlin-animation.ts` |
+| **严重程度** | **Major** |
+
+### VF-3: InputArea Rich Border 嵌入文字未实现 — top-left context %
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 左上角边框线上直接嵌入 context window 百分比文本（如 `2%`），使用 `borderOverlayText` 机制覆盖边框字符 |
+| **flitter-cli 行为** | context % 显示在独立的 `StatusBar` 行中，不在边框上。`context-warning.ts` 只生成文本字符串 |
+| **证据** | golden 输入框 `╭──` 行上直接可见 `2%` 文字；AMP `input-area-top-left-builder.js` |
+| **严重程度** | **Critical** |
+
+### VF-4: InputArea Rich Border 嵌入文字未实现 — top-right skill count
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 右上角边框线上嵌入 skill 计数（如 `77 skills`），点击可打开 Skills 弹窗 |
+| **flitter-cli 行为** | 无 skill count 在边框上。`app-state.ts` 有 `skillCount` getter 但未用于边框渲染 |
+| **证据** | golden 输入框右上角 `skills──╮` 可见；AMP `input-area-top-right-builder.js` |
+| **严重程度** | **Critical** |
+
+### VF-5: InputArea Rich Border 嵌入文字未实现 — bottom-right cwd/branch
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 右下角边框线上嵌入当前工作目录和 git branch（如 `~/project main`） |
+| **flitter-cli 行为** | cwd/branch 信息在独立的 `StatusBar` 行中显示 |
+| **证据** | golden 输入框底部 `──╯` 行前可见路径和分支名；AMP `input-area-bottom-right-builder.js` |
+| **严重程度** | **Critical** |
+
+### VF-6: InputArea Rich Border 嵌入文字未实现 — bottom-left model/mode
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 左下角边框线上嵌入当前 model 名称和 agent mode（如 `claude-4-sonnet [smart]`） |
+| **flitter-cli 行为** | model/mode 信息在独立的 `HeaderBar` 行中显示 |
+| **证据** | golden 输入框底部 `╰──` 行后可见 model 名；AMP `input-area-bottom-left-builder.js` |
+| **严重程度** | **Critical** |
+
+### VF-7: StatusBar / HeaderBar 独立行不应存在
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | 全局布局 |
+| **AMP 行为** | AMP **没有**独立的 header bar 或 status bar 行。所有元信息（context %、model、mode、cwd、branch、skill count）都嵌入 InputArea 的四条边框线上。整个界面只有 chat area + InputArea |
+| **flitter-cli 行为** | 有独立的 `HeaderBar`（InputArea 上方 1 行）和 `StatusBar`（InputArea 下方 1 行），多占用 2 行空间 |
+| **证据** | golden 文件中 InputArea 上下无独立状态行；flitter-cli `app-shell.ts` 中 `HeaderBar` + `StatusBar` 组件 |
+| **严重程度** | **Critical** |
+
+### VF-8: Tab/Shift+Tab 消息导航提示缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | welcome |
+| **AMP 行为** | Welcome 界面显示 "Use Tab/Shift+Tab to navigate to previous messages" 提示文本 |
+| **flitter-cli 行为** | 无此提示，且 Tab/Shift+Tab 快捷键未注册 |
+| **证据** | golden `welcome/plain-63x244.golden` 中可见 Tab 提示行 |
+| **严重程度** | **Major** |
+
+### VF-9: agentModePulse 边框脉冲动画缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 边框颜色随 agent mode 变化时有脉冲动画（`agentModePulse`），使用 `lerpColor` 在 mode 色和默认边框色之间过渡 |
+| **flitter-cli 行为** | 边框使用静态颜色 `theme.inputBorder` |
+| **证据** | AMP `25_input_area_full.js` 中 `agentModePulse` 动画逻辑 |
+| **严重程度** | **Major** |
+
+### VF-10: InputArea 初始高度 — AMP 3 行 vs flitter-cli 固定高度
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | InputArea 默认展示 3 行编辑区域（`minLines: 3`），可拖拽 resize handle 调整 `bottomGridUserHeight` |
+| **flitter-cli 行为** | InputArea 有局部 drag-resize 但无 `bottomGridUserHeight` 全局状态，初始高度不可配置 |
+| **证据** | golden 中输入框内可见 3 行空白区域；AMP `25_input_area_full.js` 中 `minLines` |
+| **严重程度** | **Major** |
+
+### VF-11: "Esc to cancel" 位置和颜色不一致
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | conversation-reply |
+| **AMP 行为** | 流式输出时 InputArea 底部边框左侧显示 "Esc to cancel"，使用 dim 颜色嵌入边框 |
+| **flitter-cli 行为** | "Esc to cancel" 显示在独立的 StatusBar 行中，位置不在边框上 |
+| **证据** | golden `conversation-reply/plain-63x244.golden` 中底部边框行可见 "Esc" 文字 |
+| **严重程度** | **Major** |
+
+### VF-12: Tool call OSC8 Hyperlink 缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | conversation-reply |
+| **AMP 行为** | Tool call 结果中的文件路径使用 OSC8 终端超链接协议渲染（可点击在编辑器中打开） |
+| **flitter-cli 行为** | 文件路径渲染为纯文本，无 OSC8 链接 |
+| **证据** | AMP `23_ui_features.js` 中 OSC8 escape sequence 构建逻辑 |
+| **严重程度** | **Major** |
+
+### VF-13: Prompt symbol idle 状态多余提示
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | input-with-message |
+| **AMP 行为** | Prompt symbol 在空闲状态只显示 `>` 字符 |
+| **flitter-cli 行为** | `prompt-symbol.ts` 在某些状态下显示额外文本（如 "(idle)"） |
+| **证据** | golden 中 prompt symbol 仅为 `>` |
+| **严重程度** | **Minor** |
+
+### VF-14: Streaming cursor 实现差异
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | conversation-reply |
+| **AMP 行为** | 使用 `█` block cursor 字符作为 streaming indicator，带 500ms blink 动画 |
+| **flitter-cli 行为** | `streaming-cursor.ts` 使用 `ScanningBar` 组件，是水平扫描线而非 block cursor |
+| **证据** | golden `conversation-reply` 中末尾可见 `█` 字符；flitter-cli `streaming-cursor.ts` |
+| **严重程度** | **Minor** |
+
+---
+
+## 九、Visual Fidelity 审计 - Shortcuts / Slash Commands / Skills / Command Palette
+
+> 基于 `tmux-capture/screens/` golden 文件 vs AMP 逆向源码 vs flitter-cli 源码的逐像素对比
+
+### VF-15: 快捷键帮助布局架构完全不同 — AMP InputArea 内嵌 vs flitter-cli 模态卡片
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | 快捷键帮助**嵌在 InputArea 内部**显示（在 `╭──...╮` 边框内），使用**平铺双列**布局：左列 `Key Description`，右列 `Key Description`，每行两个快捷键并排。不遮挡 chat 区域 |
+| **flitter-cli 行为** | 使用独立的 `ShortcutHelpOverlay` 作为**居中模态卡片弹窗**，有 cyan 边框、标题 "Keyboard Shortcuts"、按 General/Display/Navigation/Input 分组。完全遮挡下方内容 |
+| **证据** | golden `shortcuts-popup/plain-63x244.golden` 第 50-61 行：帮助内容在 `╭──...╮` 输入框边框内部渲染；AMP `04_shortcut_help_v9T.js` 返回 `Column` 作为 InputArea 子组件嵌入 |
+| **严重程度** | **Critical** |
+
+### VF-16: 快捷键列表格式 — AMP 双列 vs flitter-cli 单列分组
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | 每行显示**两个快捷键**（左右各一），格式为 `Key Description    Key Description`。共 6 行 12 个快捷键 |
+| **flitter-cli 行为** | 每行只显示**一个快捷键**，按 General/Display/Navigation/Input 四个分组展示 |
+| **证据** | golden 第 51 行：`Ctrl+O command palette    Ctrl+R prompt history`（同行双列）；AMP `11_shortcuts_data_C_R.js` 数据结构每条含 `{left, right}` |
+| **严重程度** | **Major** |
+
+### VF-17: 快捷键 Ctrl+V paste images 未注册
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | `Ctrl+V` paste images 是显式快捷键，出现在帮助面板和 command palette |
+| **flitter-cli 行为** | ShortcutRegistry 中无 `Ctrl+V` 绑定 |
+| **证据** | golden 第 52 行 `Ctrl+V paste images`；`shortcuts/defaults.ts` 不含 Ctrl+V |
+| **严重程度** | **Major** |
+
+### VF-18: 快捷键 Shift+Enter / Alt+Enter 换行未注册
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | `Shift+Enter` (非 tmux) 或 `Alt+Enter` (tmux) 用于输入框换行 |
+| **flitter-cli 行为** | 只有 `Enter` submit prompt，无多行换行支持 |
+| **证据** | golden 第 53 行 `Alt+Enter newline`；AMP `11_shortcuts_data_C_R.js` 第 3 条 |
+| **严重程度** | **Major** |
+
+### VF-19: 快捷键 Tab/Shift+Tab 消息导航未注册
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | `Tab/Shift+Tab navigate messages` 用于在对话消息间跳转 |
+| **flitter-cli 行为** | ShortcutRegistry 中无 Tab/Shift+Tab 绑定 |
+| **证据** | golden 第 55 行 `Tab/Shift+Tab navigate messages` |
+| **严重程度** | **Major** |
+
+### VF-20: tmux extended-keys 提示行缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | 在 tmux 环境下自动追加提示："Enable extended-keys in tmux to use Shift+Enter. See https://ampcode.com/manual/appendix#amp-cli-tmux" |
+| **flitter-cli 行为** | 无 tmux 检测逻辑，无 extended-keys 提示 |
+| **证据** | golden 第 58 行；AMP `04_shortcut_help_v9T.js` 中 tmux 检测条件 |
+| **严重程度** | **Minor** |
+
+### VF-21: Command Palette 布局 — AMP 垂直居中单线框 vs flitter-cli 顶部对齐
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | slash-command-popup |
+| **AMP 行为** | 使用 `┌─┐│└─┘` 单线框边框，**垂直居中**于屏幕。标题 "Command Palette" 居中。搜索框有 `>` 前缀。宽度约 80 字符 |
+| **flitter-cli 行为** | 使用 `Border.all(brightBlack)` 边框，**顶部对齐** `mainAxisAlignment: 'start'`。标题左对齐。无 `>` 前缀。maxWidth: 60 |
+| **证据** | golden `slash-command-popup/plain-63x244.golden` 第 23-42 行；`command-palette.ts` L249-265 |
+| **严重程度** | **Major** |
+
+### VF-22: Command Palette 命令条目格式 — AMP category+label 双列 vs flitter-cli 纯 label
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | slash-command-popup |
+| **AMP 行为** | 每行命令格式为 `category  label`（如 `amp help`、`mode toggle`、`thread switch`），右侧可选显示快捷键提示右对齐 |
+| **flitter-cli 行为** | 使用 `SelectionList`，每行只显示 `label`，无 category 列。快捷键拼入 description 字符串 |
+| **证据** | golden 第 27-41 行 `amp  help`, `mode  toggle` 等 |
+| **严重程度** | **Major** |
+
+### VF-23: Command Palette 命令严重缺失 — AMP 15+ vs flitter-cli 约 12 个
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | slash-command-popup |
+| **AMP 行为** | 15+ 命令涵盖 amp/mode/thread/prompt/context/news 多个 category |
+| **flitter-cli 行为** | 约 12 个命令，缺失 `help`、`use rush`、`use large`、`use deep`、`mode set`、`thread switch`、`thread map`、`context analyze`、`news open in browser`、`paste image from clipboard` 等 |
+| **证据** | golden 第 27-41 行完整命令列表 vs `command-registry.ts` |
+| **严重程度** | **Critical** |
+
+### VF-24: Skills 弹窗完全未实现
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | skills-popup |
+| **AMP 行为** | 完整的 Skills 列表模态弹窗：标题 "Skills (82)" + `(o)wner's manual (a)dd` 操作按钮、Local/Global 分组、滚动列表、选中后双栏详情面板（列表 2/5 + 详情 3/5）、键盘导航（i/a/o/Escape）、错误/警告显示、"Create your own:" 区域 |
+| **flitter-cli 行为** | **完全不存在**。无 skill list/modal 组件。`OVERLAY_IDS` 无 skills entry。无任何触发 skill list 的代码路径 |
+| **证据** | golden `skills-popup/plain-63x244.golden` 第 3-61 行完整弹窗；AMP `03_skills_modal_m9T.js` + `03_skills_modal_state_f9T.js` |
+| **严重程度** | **Critical** |
+
+### VF-25: Skills 弹窗 Local/Global 分组逻辑缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | skills-popup |
+| **AMP 行为** | Skills 按 `baseDir` 分组：`Local .agents/skills/` 和 `Global ~/.agents/skills/`，显示相对路径。有 "Built-in" 分组 |
+| **flitter-cli 行为** | 无 skill 弹窗，无分组 |
+| **证据** | golden 第 7 行 "Local .agents/skills/"，第 31 行 "Global ~/.agents/skills/" |
+| **严重程度** | **Critical** |
+
+### VF-26: Skills 弹窗详情面板（双栏展开）缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | skills-popup |
+| **AMP 行为** | 选中 skill 后右侧展开详情面板：SKILL.md 文件名、frontmatter 元数据、完整内容、文件列表。列表缩为 2/5 宽度。独立 `detailScrollController` |
+| **flitter-cli 行为** | 缺失 |
+| **证据** | AMP `03_skills_modal_state_f9T.js` 中 `selectedSkill !== null` 分支 |
+| **严重程度** | **Major** |
+
+### VF-27: @@ thread mention 不完整
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | shortcuts-popup |
+| **AMP 行为** | `@ / @@ mention files/threads` — `@` 引用文件，`@@` 引用线程（打开 thread picker） |
+| **flitter-cli 行为** | 只有 `@` trigger file autocomplete，缺少 `@@` thread mentions |
+| **证据** | golden 第 56 行 `@ / @@ mention files/threads`；`shortcut-help-overlay.ts` 只有 `@` |
+| **严重程度** | **Minor** |
+
+---
+
+## 十、Visual Fidelity 审计 - HITL / Streaming / Subagent / Activity Group
+
+> 基于 `tmux-capture/screens/` golden 文件 vs AMP 逆向源码 vs flitter-cli 源码的逐像素对比
+
+### VF-28: HITL 对话框缺少命令内容预览区
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 确认对话框包含完整的命令内容预览区域（显示将要执行的 tool call 的具体参数），放在选项按钮上方 |
+| **flitter-cli 行为** | `permission-dialog.ts` 只显示 tool 名称和描述，无参数内容预览 |
+| **证据** | golden `hitl-confirmation/plain-63x244.golden` 中对话框内可见命令内容 |
+| **严重程度** | **Critical** |
+
+### VF-29: HITL 对话框宽度约束不匹配
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 确认对话框宽度与 InputArea 等宽，使用全宽边框 |
+| **flitter-cli 行为** | 对话框使用固定 maxWidth，可能比 InputArea 窄 |
+| **证据** | golden 中对话框与输入框边框对齐；`permission-dialog.ts` 中 width 约束 |
+| **严重程度** | **Critical** |
+
+### VF-30: HITL 选项样式 — AMP 反色块 vs flitter-cli 文本
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 选项按钮使用反色块样式（选中项全色块高亮，如 `[y] Yes` 用反色背景），按钮间有间距 |
+| **flitter-cli 行为** | 选项使用文本样式，选中项可能只用粗体/颜色区分 |
+| **证据** | golden 中可见反色块选项；AMP `02_confirmation_TTT.js` 渲染逻辑 |
+| **严重程度** | **Major** |
+
+### VF-31: HITL 快捷键标签缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 每个选项前有快捷键标签：`[y] Yes`、`[n] No`、`[a] Always allow`，可直接按 y/n/a 快速操作 |
+| **flitter-cli 行为** | 无快捷键标签前缀 |
+| **证据** | golden 中可见 `[y]`、`[n]`、`[a]` 前缀 |
+| **严重程度** | **Major** |
+
+### VF-32: HITL 标题文本差异
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 标题格式为 "Allow [tool_name]?" 带问号，使用 bold |
+| **flitter-cli 行为** | 标题文本格式可能不同（如 "Permission Required" 或 "Tool Call"） |
+| **证据** | golden 标题行 vs `permission-dialog.ts` 中标题渲染 |
+| **严重程度** | **Major** |
+
+### VF-33: HITL "Always allow" 选项文本差异
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 第三个选项为 "Always allow for this tool" 或 "Always allow"，带 tool 名称限定 |
+| **flitter-cli 行为** | 可能使用不同的文本表述 |
+| **证据** | golden 中第三选项文本；AMP `10_confirmation_dialog_eTT.js` |
+| **严重程度** | **Minor** |
+
+### VF-34: HITL feedback 输入模式缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | hitl-confirmation |
+| **AMP 行为** | 用户可以选择 "Provide feedback" 进入文本输入模式，在确认对话框内输入反馈文本后发送 |
+| **flitter-cli 行为** | 无 feedback 输入模式 |
+| **证据** | AMP `02_confirmation_state_aTT.js` 中 feedback 状态处理 |
+| **严重程度** | **Major** |
+
+### VF-35: Subagent 树线字符缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | subagent-in-progress |
+| **AMP 行为** | Subagent 嵌套使用 `├──`、`└──`、`│` 等树线字符显示层级关系，与 parent 任务形成视觉树 |
+| **flitter-cli 行为** | 使用缩进但无树线字符 |
+| **证据** | golden `subagent-in-progress/plain-63x244.golden` 中可见 `├──`/`└──` 树线 |
+| **严重程度** | **Critical** |
+
+### VF-36: Subagent 标签名差异 — AMP "Task" vs flitter-cli 可能不同
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | subagent-in-progress |
+| **AMP 行为** | Subagent 调用标签显示为 "Task" + 任务描述（如 `Task: Analyze the codebase`） |
+| **flitter-cli 行为** | `task-tool.ts` 中标签文本可能使用 "Subagent" 或其他文本 |
+| **证据** | golden 中可见 "Task" 标签；`task-tool.ts` 渲染逻辑 |
+| **严重程度** | **Major** |
+
+### VF-37: Streaming 内联 Subagent 消息缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | streaming-with-subagent |
+| **AMP 行为** | 流式输出中可以看到 subagent 的实时消息内联显示，包含 subagent 名称标签和进度 |
+| **flitter-cli 行为** | 缺少内联 subagent 消息显示 |
+| **证据** | golden `streaming-with-subagent/plain-63x244.golden` 中可见 subagent 消息 |
+| **严重程度** | **Major** |
+
+### VF-38: Activity Group 缺少可折叠 Group 组件
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | subagent-in-progress / streaming-with-subagent |
+| **AMP 行为** | Activity Group 使用 `G1R` 可折叠组件，点击可展开/折叠子任务列表。折叠时显示 summary（聚合 checkmark/x count） |
+| **flitter-cli 行为** | `expand-collapse.ts` 存在但 Activity Group 层级没有使用 Group 折叠 |
+| **证据** | AMP `01_activity_group_G1R.js` + `01_activity_group_state_z1R.js`；flitter-cli `activity-tracker.ts` 无 group 折叠 |
+| **严重程度** | **Critical** |
+
+### VF-39: Activity Group Summary 聚合缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | subagent-in-progress |
+| **AMP 行为** | 折叠的 Activity Group 显示聚合 summary：`✓N ✗M` 表示成功/失败数量 |
+| **flitter-cli 行为** | 无 summary 聚合显示 |
+| **证据** | AMP `01_activity_group_widget_G1R.js` 中 summary 渲染 |
+| **严重程度** | **Major** |
+
+### VF-40: InputArea 边框 — Streaming 状态元数据嵌入缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | streaming-with-subagent / conversation-reply |
+| **AMP 行为** | Streaming 期间 InputArea 边框上动态显示 token count、cost、elapsed time 等元数据 |
+| **flitter-cli 行为** | 这些信息在独立的 StatusBar 中显示，不在边框上 |
+| **证据** | golden `streaming-with-subagent` 中边框行可见数字信息 |
+| **严重程度** | **Major** |
+
+### VF-41: Spinner 颜色和样式差异
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | subagent-in-progress |
+| **AMP 行为** | 使用 braille spinner（`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`）配 agent mode 颜色 |
+| **flitter-cli 行为** | `thinking-indicator.ts` 使用 braille 字符但颜色可能不随 agent mode 变化 |
+| **证据** | AMP `29_thread_worker_statemachine.js` 中 spinner 配色 |
+| **严重程度** | **Minor** |
+
+### VF-42: Diff preview 在 Tool Card 中缺失
+
+| 维度 | 详情 |
+|------|------|
+| **界面** | conversation-reply |
+| **AMP 行为** | Edit file tool call 完成后显示 inline diff preview（绿色/红色行高亮） |
+| **flitter-cli 行为** | `diff-card.ts` 存在但可能未在 tool call card 中完整集成 |
+| **证据** | AMP `27_misc_features.js` 中 diff 渲染逻辑 |
+| **严重程度** | **Minor** |
+
+---
+
+## 十一、Visual Fidelity 审计汇总
+
+### 按严重程度
+
+| 严重程度 | 数量 | 关键问题 |
+|---------|------|---------|
+| **Critical** | 12 | Welcome logo 缺失、InputArea Rich Border 4 个方向的嵌入文字全未实现、StatusBar/HeaderBar 不应独立存在、Command Palette 命令严重缺失、Skills 弹窗完全未实现、HITL 命令预览缺失、Subagent 树线缺失、Activity Group 折叠缺失 |
+| **Major** | 17 | 快捷键帮助双列格式、3 个快捷键未注册（Ctrl+V/Shift+Enter/Tab）、Command Palette 布局和格式差异、HITL 选项样式和 feedback 模式、Subagent 标签名和内联消息、Activity Group summary、边框脉冲动画等 |
+| **Minor** | 13 | tmux 提示、cursor 差异、prompt symbol、spinner 颜色、diff preview、@@ mention 等 |
+| **总计** | **42** | — |
+
+### 最核心的架构性 UI 差异
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│          AMP: InputArea Rich Border = 信息中心              │
+├─────────────────────────────────────────────────────────────┤
+│  AMP 将所有元信息嵌入 InputArea 的四条边框线上:              │
+│  ├── top-left:     context window %                         │
+│  ├── top-right:    skill count badge                        │
+│  ├── bottom-left:  model name + agent mode                  │
+│  └── bottom-right: cwd + git branch                         │
+│                                                              │
+│  flitter-cli 使用独立的 HeaderBar + StatusBar:               │
+│  ├── HeaderBar (1 行): model, mode, context %                │
+│  ├── InputArea: 只有编辑区 + 普通边框                        │
+│  └── StatusBar (1 行): cwd, branch, token count              │
+│                                                              │
+│  结果: flitter-cli 多占 2 行，信息位置完全不同               │
+└─────────────────────────────────────────────────────────────┘
+```

@@ -10,16 +10,26 @@ function parseSize(filename: string): { rows: number; cols: number } | null {
 function findGoldenFiles(baseDir: string): string[] {
   const results: string[] = [];
   const screensDir = join(baseDir, "screens");
-  try {
-    for (const screen of readdirSync(screensDir)) {
-      const screenDir = join(screensDir, screen);
-      if (!statSync(screenDir).isDirectory()) continue;
-      for (const file of readdirSync(screenDir)) {
+
+  function scanDir(dir: string): void {
+    for (const entry of readdirSync(dir)) {
+      const entryPath = join(dir, entry);
+      if (!statSync(entryPath).isDirectory()) continue;
+      let hasGolden = false;
+      for (const file of readdirSync(entryPath)) {
         if (file.startsWith("ansi-") && file.endsWith(".golden")) {
-          results.push(join(screenDir, file));
+          results.push(join(entryPath, file));
+          hasGolden = true;
         }
       }
+      if (!hasGolden) {
+        scanDir(entryPath);
+      }
     }
+  }
+
+  try {
+    scanDir(screensDir);
   } catch { }
   return results;
 }

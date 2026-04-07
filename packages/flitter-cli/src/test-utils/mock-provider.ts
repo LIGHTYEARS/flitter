@@ -9,6 +9,7 @@
 
 import type { Provider, PromptOptions } from '../provider/provider';
 import type { StreamEvent, ProviderMessage } from '../state/types';
+import type { Model, Api } from '@mariozechner/pi-ai';
 
 /**
  * Mock LLM provider for unit and integration tests.
@@ -26,6 +27,20 @@ export class MockProvider implements Provider {
     streaming: true,
     systemPrompt: true,
   };
+
+  /** Mock pi-ai model object for testing. */
+  readonly piModel: Model<Api> = {
+    id: 'test-model',
+    name: 'Test Model',
+    api: 'anthropic-messages' as Api,
+    provider: 'anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    reasoning: true,
+    input: ['text', 'image'] as ("text" | "image")[],
+    cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+    contextWindow: 200000,
+    maxTokens: 8192,
+  } as Model<Api>;
 
   /** Pre-configured events to yield on sendPrompt (simple mode). */
   mockEvents: StreamEvent[] = [];

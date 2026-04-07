@@ -45,7 +45,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout (completed 2026-04-07)
 - [x] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations (completed 2026-04-07)
 - [x] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode (completed 2026-04-07)
-- [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
+- [x] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation (completed 2026-04-07)
 - [ ] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays
 - [ ] **Phase 36: Visual Polish** - Block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol
 
@@ -249,8 +249,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 34-01: Build collapsible ActivityGroup widget with tree-line characters and summary aggregation
-- [ ] 34-02: Wire inline subagent messages, "Task" label prefix, and nesting display
+- [x] 34-01: Build collapsible ActivityGroup widget with tree-line characters and summary aggregation
+- [x] 34-02: Wire inline subagent messages, "Task" label prefix, and nesting display
 
 ### Phase 35: Image Support and Overlays
 **Goal**: Implement image paste/preview support and missing UI overlays (toast, confirmation, context detail, file changes).
@@ -306,6 +306,6 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 31. Command Palette Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
-| 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |
+| 34. Activity Group and Subagent Tree | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 35. Image Support and Overlays | v0.4.0 | 0/3 | Not started | - |
 | 36. Visual Polish | v0.4.0 | 0/1 | Not started | - |

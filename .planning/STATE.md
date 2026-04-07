@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
-last_updated: "2026-04-07T07:04:49.430Z"
-last_activity: 2026-04-07 -- Phase 25 re-planned with pi-ai integration
+last_updated: "2026-04-07T09:51:02.091Z"
+last_activity: 2026-04-07
 progress:
   total_phases: 14
-  completed_phases: 2
-  total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 7
+  percent: 88
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 25 — Provider and Model System
+**Current focus:** Phase 26 — Agent Modes and Deep Reasoning
 
 ## Current Milestone
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 25
-Plan: Planned (3 plans: 25-01, 25-02, 25-03)
-Status: Ready to execute
-Last activity: 2026-04-07 -- Phase 25 re-planned with pi-ai integration
+Phase: 27
+Plan: Not started
+Status: Executing Phase 26
+Last activity: 2026-04-07
 
 ## Phase Status
 

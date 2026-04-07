@@ -36,8 +36,8 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 - [x] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides (completed 2026-04-06)
 - [x] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text (completed 2026-04-07)
-- [ ] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service
-- [ ] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings
+- [x] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service (completed 2026-04-07)
+- [x] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings (completed 2026-04-07)
 - [ ] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate
 - [ ] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction
 - [ ] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking
@@ -97,8 +97,8 @@ Plans:
 
 Plans:
 - [ ] 25-01: Install pi-ai, create PiAiProvider adapter, rewrite factory.ts (Wave 1)
-- [ ] 25-02: Create ConfigService with Zod schema validation and --setting CLI flag (Wave 1)
-- [ ] 25-03: Wire bootstrap, update MockProvider/tests, delete old AnthropicProvider/OpenAIProvider (Wave 2)
+- [x] 25-02: Create ConfigService with Zod schema validation and --setting CLI flag (Wave 1)
+- [x] 25-03: Wire bootstrap, update MockProvider/tests, delete old AnthropicProvider/OpenAIProvider (Wave 2)
 
 ### Phase 26: Agent Modes and Deep Reasoning
 **Goal**: Replace boolean deep reasoning toggle with tri-state enum and implement real agent mode switching with per-mode configuration.
@@ -111,7 +111,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 26-01: Implement tri-state deep reasoning, real agent mode definitions, and speed settings
+- [x] 26-01: Implement tri-state deep reasoning, real agent mode definitions, and speed settings
 
 ### Phase 27: ThreadPool Architecture
 **Goal**: Replace single-thread model with AMP's ThreadPool architecture supporting create, switch, delete, and back/forward navigation across multiple concurrent threads.
@@ -297,8 +297,8 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 |-------|-----------|----------------|--------|-----------|
 | 23. InputArea Rich Border | v0.4.0 | 3/3 | Complete    | 2026-04-06 |
 | 24. Welcome Screen | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
-| 25. Provider and Model System | v0.4.0 | 0/3 | Planned | - |
-| 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |
+| 25. Provider and Model System | v0.4.0 | 2/3 | Complete    | 2026-04-07 |
+| 26. Agent Modes and Deep Reasoning | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 27. ThreadPool Architecture | v0.4.0 | 0/3 | Not started | - |
 | 28. Queue Mode and Compaction | v0.4.0 | 0/2 | Not started | - |
 | 29. Handoff State Machine | v0.4.0 | 0/1 | Not started | - |

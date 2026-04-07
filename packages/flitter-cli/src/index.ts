@@ -139,6 +139,8 @@ async function main(): Promise<void> {
   let provider: Provider;
   try {
     provider = createProvider(config.providerConfig);
+    log.info(`Provider: ${provider.id} model=${provider.model} contextWindow=${provider.piModel.contextWindow} reasoning=${provider.piModel.reasoning}`);
+    log.info(`ConfigService initialized with ${Object.keys(config.configService.snapshot()).length} settings`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(
@@ -146,7 +148,9 @@ async function main(): Promise<void> {
       `To use flitter-cli, set an API key for your preferred provider:\n` +
       `  export ANTHROPIC_API_KEY=sk-ant-...     # Anthropic (default)\n` +
       `  export OPENAI_API_KEY=sk-...            # OpenAI\n` +
-      `  export GEMINI_API_KEY=...               # Google Gemini\n\n` +
+      `  export GEMINI_API_KEY=...               # Google Gemini\n` +
+      `  export XAI_API_KEY=...                  # xAI (Grok)\n` +
+      `  export GROQ_API_KEY=...                 # Groq\n\n` +
       `Or specify a provider explicitly:\n` +
       `  flitter-cli --provider openai --model gpt-4o\n\n` +
       `Or add it to ~/.flitter-cli/config.json:\n` +

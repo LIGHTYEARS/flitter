@@ -128,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-06 after Phase 23 completion — InputArea Rich Border complete (gap-aware border rendering, four overlay positions, BorderShimmer animation, HeaderBar/StatusBar removed)*
+*Last updated: 2026-04-07 after Phase 24 completion — WelcomeScreen StatefulWidget complete (WELC-01: DensityOrbWidget variant 'welcome' Perlin animation; WELC-02: Tab/Shift+Tab navigation hints with cyan/blue/yellow color mapping; buildWelcomeScreen() inline function removed from chat-view.ts)*

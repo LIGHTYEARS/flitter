@@ -39,7 +39,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service (completed 2026-04-07)
 - [x] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings (completed 2026-04-07)
 - [x] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate (completed 2026-04-07)
-- [ ] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction
+- [x] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction (completed 2026-04-07)
 - [ ] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking
 - [ ] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation
 - [ ] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout
@@ -145,8 +145,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 28-01: Implement queue mode state machine (enqueue, dequeue, submitQueue, interruptQueue, clearQueue)
-- [ ] 28-02: Implement compaction system (threshold detection, compaction state, cutMessageId, events)
+- [x] 28-01: Implement queue mode state machine (enqueue, dequeue, submitQueue, interruptQueue, clearQueue)
+- [x] 28-02: Implement compaction system (threshold detection, compaction state, cutMessageId, events)
 
 ### Phase 29: Handoff State Machine
 **Goal**: Implement complete handoff mode with enter/exit/submit/abort lifecycle, countdown timer UI, and cross-thread handoff support.
@@ -300,7 +300,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 25. Provider and Model System | v0.4.0 | 2/3 | Complete    | 2026-04-07 |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 27. ThreadPool Architecture | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
-| 28. Queue Mode and Compaction | v0.4.0 | 0/2 | Not started | - |
+| 28. Queue Mode and Compaction | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 29. Handoff State Machine | v0.4.0 | 0/1 | Not started | - |
 | 30. Skills Modal | v0.4.0 | 0/3 | Not started | - |
 | 31. Command Palette Overhaul | v0.4.0 | 0/2 | Not started | - |

@@ -25,6 +25,7 @@ import { pickString, pickNumber } from '../../utils/raw-input';
 import { extractOutputText } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
+import { fileLink } from '../../utils/osc8-link';
 
 interface ReadToolProps extends BaseToolProps {}
 
@@ -52,7 +53,8 @@ export class ReadTool extends StatelessWidget {
     const limit = pickNumber(input, 'limit');
 
     const details: string[] = [];
-    if (filePath) details.push(shortenPath(filePath));
+    // VPOL-02: Wrap file path in OSC8 terminal hyperlink for clickable editor links.
+    if (filePath) details.push(fileLink(filePath, shortenPath(filePath)));
     if (offset !== null && limit !== null) {
       details.push(`L${offset}-${offset + limit}`);
     } else if (offset !== null) {

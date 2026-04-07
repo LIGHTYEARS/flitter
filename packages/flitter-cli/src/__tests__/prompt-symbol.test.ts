@@ -5,8 +5,8 @@ import { getPromptSymbol } from '../utils/prompt-symbol';
 import type { SessionLifecycle } from '../state/types';
 
 describe('getPromptSymbol (I12)', () => {
-  it('returns "›" for idle', () => {
-    expect(getPromptSymbol('idle')).toBe('\u203A');
+  it('returns ">" for idle', () => {
+    expect(getPromptSymbol('idle')).toBe('>');
   });
 
   it('returns "…" for streaming', () => {

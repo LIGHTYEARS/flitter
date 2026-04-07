@@ -25,6 +25,7 @@ import { pickString } from '../../utils/raw-input';
 import { extractOutputText, extractRawNumber } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
+import { fileLink } from '../../utils/osc8-link';
 
 interface GrepToolProps extends BaseToolProps {}
 
@@ -53,7 +54,7 @@ export class GrepTool extends StatelessWidget {
 
     const details: string[] = [];
     if (pattern) details.push(`/${pattern}/`);
-    if (searchPath) details.push(shortenPath(searchPath));
+    if (searchPath) details.push(fileLink(searchPath, shortenPath(searchPath)));
 
     const matchCount = extractRawNumber(this.toolCall.result, ['count', 'matchCount', 'total']);
     if (matchCount !== null) {

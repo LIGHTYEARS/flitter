@@ -7,7 +7,7 @@ import type { SessionLifecycle } from '../state/types';
 
 /** Unicode prompt symbols for each lifecycle state. */
 const PROMPT_SYMBOLS: Record<SessionLifecycle, string> = {
-  idle: '\u203A',           // ›
+  idle: '>',                // > (AMP parity: plain ASCII greater-than)
   streaming: '\u2026',      // ...
   processing: '\u2699',     // gear
   tool_execution: '\u2699', // gear (same as processing — actively running tools)
@@ -20,13 +20,13 @@ const PROMPT_SYMBOLS: Record<SessionLifecycle, string> = {
  * Return a single-character prompt symbol for the given session lifecycle.
  *
  * Mapping:
- *   idle           → "›"
- *   streaming      → "…"
- *   processing     → "⚙"
- *   tool_execution → "⚙"
- *   complete       → "✓"
- *   error          → "✗"
- *   cancelled      → "✗"
+ *   idle           → ">"
+ *   streaming      → "..."
+ *   processing     → "gear"
+ *   tool_execution → "gear"
+ *   complete       → "checkmark"
+ *   error          → "cross"
+ *   cancelled      → "cross"
  */
 export function getPromptSymbol(lifecycle: SessionLifecycle): string {
   return PROMPT_SYMBOLS[lifecycle] ?? PROMPT_SYMBOLS.idle;

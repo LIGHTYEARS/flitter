@@ -26,18 +26,13 @@ import { CliThemeProvider } from '../themes';
 /**
  * Blink interval in milliseconds.
  *
- * Produces a ~1 Hz cycle (530ms visible, 530ms hidden).
- * This matches the standard VT100 cursor blink rate (~533ms per phase)
- * and is consistent with common terminal emulators:
- *   - xterm: 600ms
- *   - iTerm2: ~500ms
- *   - Windows Terminal: 530ms
- *   - Alacritty: configurable, default ~500ms
+ * Produces a ~1 Hz cycle (500ms visible, 500ms hidden).
+ * Matches AMP's streaming cursor blink rate (500ms per phase).
  */
-export const CURSOR_BLINK_INTERVAL_MS = 530;
+export const CURSOR_BLINK_INTERVAL_MS = 500;
 
-/** The cursor character used during streaming. Unicode LEFT HALF BLOCK. */
-const CURSOR_CHAR = '\u258C'; // ▌
+/** The cursor character used during streaming. Unicode FULL BLOCK (AMP parity). */
+const CURSOR_CHAR = '\u2588'; // █
 
 interface StreamingCursorProps {
   /** The assistant message text accumulated so far. */

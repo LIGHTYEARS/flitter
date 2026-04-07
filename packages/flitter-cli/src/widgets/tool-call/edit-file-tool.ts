@@ -30,12 +30,14 @@ import { pickString, asOptionalString } from '../../utils/raw-input';
 import { extractDiff as extractDiffUtil, extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
+import { fileLink } from '../../utils/osc8-link';
 
 interface EditFileToolProps extends BaseToolProps {}
 
 /**
  * Renders an edit_file / apply_patch / undo_edit tool call.
- * Shows the file path in the header and DiffCard with unified diff when expanded.
+ * Shows the file path (OSC8 linked) in the header and DiffCard with unified diff when expanded.
+ * Collapsed header includes "+N/-M" diff stats when a diff is available (VPOL-03).
  */
 export class EditFileTool extends StatelessWidget {
   private readonly toolCall: ToolCallItem;
@@ -53,10 +55,28 @@ export class EditFileTool extends StatelessWidget {
     const input = this.toolCall.rawInput ?? {};
     const filePath = pickString(input, ['file_path', 'path']);
 
+    // VPOL-02: Wrap file path in OSC8 terminal hyperlink for clickable editor links.
+    // VPOL-03: Extract diff stats unconditionally for collapsed header display.
+    const details: string[] = [];
+    if (filePath) {
+      details.push(fileLink(filePath, shortenPath(filePath)));
+    }
+
+    const diff = this.extractDiff();
+    if (diff) {
+      const { added, removed } = this.countDiffStats(diff);
+      if (added > 0 || removed > 0) {
+        const parts: string[] = [];
+        if (added > 0) parts.push(`+${added}`);
+        if (removed > 0) parts.push(`-${removed}`);
+        details.push(parts.join('/'));
+      }
+    }
+
     const header = new ToolHeader({
       name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
-      details: filePath ? [shortenPath(filePath)] : [],
+      details,
       onToggle: this.onToggle,
     });
 
@@ -64,7 +84,6 @@ export class EditFileTool extends StatelessWidget {
       return header;
     }
 
-    const diff = this.extractDiff();
     const bodyChildren: Widget[] = [];
 
     if (diff) {

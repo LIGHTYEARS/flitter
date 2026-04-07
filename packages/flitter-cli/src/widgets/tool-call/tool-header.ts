@@ -47,6 +47,12 @@ export interface ToolHeaderProps {
   details?: string[];
   children?: Widget[];
   onToggle?: () => void;
+  /**
+   * Optional override color for the in-progress spinner.
+   * When provided, the BrailleSpinner renders in this color.
+   * Defaults to theme.app.toolRunning (VPOL-05: mode-aware spinner color).
+   */
+  spinnerColor?: Color;
 }
 
 /**
@@ -71,6 +77,7 @@ export class ToolHeader extends StatefulWidget {
   readonly details: string[];
   readonly extraChildren: Widget[];
   readonly onToggle?: () => void;
+  readonly spinnerColor?: Color;
 
   constructor(props: ToolHeaderProps) {
     super({});
@@ -79,6 +86,7 @@ export class ToolHeader extends StatefulWidget {
     this.details = (props.details ?? []).map(normalizeInput);
     this.extraChildren = props.children ?? [];
     this.onToggle = props.onToggle;
+    this.spinnerColor = props.spinnerColor;
   }
 
   createState(): ToolHeaderState {
@@ -156,9 +164,12 @@ class ToolHeaderState extends State<ToolHeader> {
     }
 
     if (this.widget.status === 'in_progress') {
+      // VPOL-05: Spinner color follows agent mode color (not static mutedColor).
+      // Falls back to theme.app.toolRunning when no spinnerColor is provided.
+      const spinColor = this.widget.spinnerColor ?? theme?.app.toolRunning ?? Color.blue;
       spans.push(new TextSpan({
         text: ` ${this.spinner.toBraille()}`,
-        style: new TextStyle({ foreground: mutedColor }),
+        style: new TextStyle({ foreground: spinColor }),
       }));
     }
 

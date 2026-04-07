@@ -130,6 +130,8 @@ interface InputAreaProps {
   isExecutingCommand?: boolean;
   /** Whether a shell command is currently running. */
   isRunningShell?: boolean;
+  /** Shell mode status for top-left border indicator ('shell', 'hidden', or null). */
+  shellModeStatus?: 'shell' | 'hidden' | null;
   /** Whether the session is auto-compacting. */
   isAutoCompacting?: boolean;
   /** Whether a handoff is in progress. */
@@ -156,6 +158,9 @@ interface InputAreaProps {
   /** Optional widget rendered above the text field inside the InputArea border.
    * Used for shortcut help inline display (AMP v9T topWidget pattern). */
   topWidget?: Widget;
+  /** Callback fired when shell mode changes ($ prefix detection).
+   * Parent uses this to update AppState.currentShellModeStatus. */
+  onShellModeChange?: (mode: ShellMode) => void;
 }
 
 /**
@@ -194,6 +199,8 @@ export class InputArea extends StatefulWidget {
   readonly isStreaming: boolean;
   readonly isExecutingCommand: boolean;
   readonly isRunningShell: boolean;
+  /** Shell mode status for top-left border indicator. */
+  readonly shellModeStatus: 'shell' | 'hidden' | null;
   readonly isAutoCompacting: boolean;
   readonly isHandingOff: boolean;
   readonly statusMessage?: string;
@@ -209,6 +216,8 @@ export class InputArea extends StatefulWidget {
   /** Optional widget rendered above the text field inside the InputArea border.
    * Used for shortcut help inline display (AMP v9T topWidget pattern). */
   readonly topWidget?: Widget;
+  /** Callback fired when shell mode changes ($ prefix detection). */
+  readonly onShellModeChange?: (mode: ShellMode) => void;
 
   constructor(props: InputAreaProps) {
     super();
@@ -233,6 +242,7 @@ export class InputArea extends StatefulWidget {
     this.isStreaming = props.isStreaming ?? false;
     this.isExecutingCommand = props.isExecutingCommand ?? false;
     this.isRunningShell = props.isRunningShell ?? false;
+    this.shellModeStatus = props.shellModeStatus ?? null;
     this.isAutoCompacting = props.isAutoCompacting ?? false;
     this.isHandingOff = props.isHandingOff ?? false;
     this.statusMessage = props.statusMessage;
@@ -244,6 +254,7 @@ export class InputArea extends StatefulWidget {
     this.userHeight = props.userHeight;
     this.onHeightChange = props.onHeightChange;
     this.topWidget = props.topWidget;
+    this.onShellModeChange = props.onShellModeChange;
   }
 
   createState(): InputAreaState {
@@ -364,6 +375,11 @@ class InputAreaState extends State<InputArea> {
       const oldLineCount = this.currentText.split('\n').length;
       const newLineCount = newText.split('\n').length;
       this.currentText = newText;
+
+      // Fire shell mode change callback when shell mode transitions
+      if (oldShell !== newShell && this.widget.onShellModeChange) {
+        this.widget.onShellModeChange(newShell);
+      }
 
       // Priority trigger detection: @@ and @: before plain @
       if (newText.endsWith('@@') && this.widget.onSpecialCommandTrigger) {
@@ -535,6 +551,7 @@ class InputAreaState extends State<InputArea> {
         isProcessing,
         hasConversation: this.widget.hasConversation,
         theme,
+        shellModeStatus: this.widget.shellModeStatus,
       });
 
       // D-05: Build top-right overlay (mode + skills)

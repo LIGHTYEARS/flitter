@@ -907,6 +907,13 @@ class AppShellState extends State<AppShell> {
           topWidget: this._isShowingShortcutsHelp
             ? new ShortcutHelpInline({ submitOnEnter: true })
             : undefined,
+          // Phase 32: Shell mode change callback — updates AppState.currentShellModeStatus
+          onShellModeChange: (mode) => {
+            const status = mode === 'background' ? 'hidden' : mode ? 'shell' : null;
+            this.widget.appState.setShellModeStatus(status);
+          },
+          // Phase 32: Shell mode status for top-left border indicator
+          shellModeStatus: this.widget.appState.currentShellModeStatus,
         }),
       ],
     });

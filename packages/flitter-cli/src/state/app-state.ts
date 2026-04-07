@@ -16,6 +16,8 @@ import type {
   SessionMode,
   DeepReasoningEffort,
   HandoffState,
+  BashInvocation,
+  ShellModeStatus,
 } from './types';
 import { AGENT_MODES, VISIBLE_MODE_KEYS, DEFAULT_HANDOFF_STATE } from './types';
 import type { Turn } from './turn-types';
@@ -93,6 +95,23 @@ export class AppState {
 
   /** Braille spinner animation frame index for handoff generating state. */
   private _spinnerFrame: number = 0;
+
+  // --- Bash Invocation Tracking (SHELL-01, SHELL-02) ---
+
+  /** Active bash invocations tracked in the UI. Matches AMP's bashInvocations array. */
+  bashInvocations: BashInvocation[] = [];
+
+  /** Pending bash invocations by ID — awaiting acknowledgement. Matches AMP's pendingBashInvocations. */
+  pendingBashInvocations: Map<string, BashInvocation> = new Map();
+
+  /** Timestamps when each invocation was first shown (epoch ms). */
+  bashInvocationShownAt: Map<string, number> = new Map();
+
+  /** Removal timer handles keyed by invocation ID. */
+  bashInvocationRemoveTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+  /** Current shell mode status for UI display. Matches AMP's currentShellModeStatus. */
+  currentShellModeStatus: ShellModeStatus = null;
 
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
@@ -1074,6 +1093,48 @@ export class AppState {
       clearInterval(this._countdownTimer);
       this._countdownTimer = null;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Bash Invocation Management (SHELL-01, SHELL-02)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add a new bash invocation to the tracked set.
+   * Sets the shownAt timestamp and notifies listeners.
+   */
+  addBashInvocation(invocation: BashInvocation): void {
+    this.bashInvocations = [...this.bashInvocations, invocation];
+    this.bashInvocationShownAt.set(invocation.id, Date.now());
+    log.info(`AppState.addBashInvocation: id=${invocation.id} command=${invocation.command}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Remove a bash invocation by ID and clean up associated timers.
+   */
+  removeBashInvocation(id: string): void {
+    this.bashInvocations = this.bashInvocations.filter(inv => inv.id !== id);
+    this.bashInvocationShownAt.delete(id);
+    const timer = this.bashInvocationRemoveTimers.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      this.bashInvocationRemoveTimers.delete(id);
+    }
+    this.pendingBashInvocations.delete(id);
+    log.info(`AppState.removeBashInvocation: id=${id}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Update the shell mode status for UI display.
+   * Matches AMP's currentShellModeStatus setter.
+   */
+  setShellModeStatus(status: ShellModeStatus): void {
+    if (this.currentShellModeStatus === status) return;
+    this.currentShellModeStatus = status;
+    log.info(`AppState.setShellModeStatus: ${status}`);
+    this._notifyListeners();
   }
 
   // ---------------------------------------------------------------------------

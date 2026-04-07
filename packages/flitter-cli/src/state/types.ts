@@ -648,3 +648,25 @@ export interface HandoffRequest {
   /** Epoch ms when the handoff was initiated. */
   readonly createdAt: number;
 }
+
+// ---------------------------------------------------------------------------
+// Bash Invocation Types (SHELL-01, SHELL-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * Represents a single bash command invocation tracked in the UI.
+ * Matches AMP's bashInvocations array structure from 30_main_tui_state.js.
+ */
+export interface BashInvocation {
+  /** Unique invocation ID (usually the tool_call_id). */
+  readonly id: string;
+  /** The shell command being executed. */
+  readonly command: string;
+  /** Epoch ms when the invocation started. */
+  readonly startedAt: number;
+  /** Current execution status. */
+  status: 'running' | 'completed' | 'failed';
+}
+
+/** Shell mode status matching AMP's currentShellModeStatus. */
+export type ShellModeStatus = 'shell' | 'hidden' | null;

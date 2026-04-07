@@ -76,52 +76,85 @@ export function buildTopLeftOverlay(opts: {
   isProcessing: boolean;
   hasConversation: boolean;
   theme: CliTheme;
+  /** Shell mode status for border indicator ('shell', 'hidden', or null). */
+  shellModeStatus?: 'shell' | 'hidden' | null;
 }): BorderOverlayResult | null {
   // D-04: Return null when no conversation is active — idle state shows empty border.
-  if (!opts.hasConversation) return null;
+  if (!opts.hasConversation && !opts.shellModeStatus) return null;
 
   const mutedColor = opts.theme.base.mutedForeground;
-  const percent = opts.contextWindowPercent;
-  const formattedSize = formatTokenCount(opts.contextWindowSize);
-  const color = thresholdColor(percent);
 
   // Build text segments and accumulate character count.
   const spans: TextSpan[] = [];
   let textWidth = 0;
 
-  // "{percent}% of {size}" segment — percent colored by threshold.
-  const percentText = `${percent}%`;
-  const ofText = ` of ${formattedSize}`;
-  spans.push(new TextSpan({
-    text: percentText,
-    style: new TextStyle({ foreground: color, dim: percent < 50 }),
-  }));
-  spans.push(new TextSpan({
-    text: ofText,
-    style: new TextStyle({ foreground: mutedColor, dim: true }),
-  }));
-  textWidth += percentText.length + ofText.length;
-
-  // Optional cost segment — only shown when processing and cost is available.
-  if (opts.isProcessing && opts.costUsd > 0) {
-    const costText = ` \u00B7 $${opts.costUsd.toFixed(4)}`;
+  // Shell mode indicator prefix — AMP shows "shell mode" or "shell mode (incognito)"
+  // on the top-left border overlay when active.
+  if (opts.shellModeStatus) {
+    const shellText = opts.shellModeStatus === 'hidden'
+      ? 'shell mode (incognito)'
+      : 'shell mode';
+    const shellColor = opts.shellModeStatus === 'hidden'
+      ? (opts.theme.app.shellModeHidden ?? Color.rgb(100, 100, 100))
+      : (opts.theme.app.shellMode ?? Color.rgb(0, 200, 200));
     spans.push(new TextSpan({
-      text: costText,
-      style: new TextStyle({ foreground: mutedColor, dim: true }),
+      text: shellText,
+      style: new TextStyle({ foreground: shellColor }),
     }));
-    textWidth += costText.length;
+    textWidth += shellText.length;
+
+    // Separator before context usage if conversation is active
+    if (opts.hasConversation) {
+      const sep = ' \u00B7 ';
+      spans.push(new TextSpan({
+        text: sep,
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
+      }));
+      textWidth += sep.length;
+    }
   }
 
-  // Optional elapsed segment — only shown when processing and elapsed is available.
-  if (opts.isProcessing && opts.elapsedMs > 0) {
-    const elapsedText = ` \u00B7 ${formatElapsed(opts.elapsedMs)}`;
+  // Context usage portion — only when conversation is active
+  if (opts.hasConversation) {
+    const percent = opts.contextWindowPercent;
+    const formattedSize = formatTokenCount(opts.contextWindowSize);
+    const color = thresholdColor(percent);
+
+    // "{percent}% of {size}" segment — percent colored by threshold.
+    const percentText = `${percent}%`;
+    const ofText = ` of ${formattedSize}`;
     spans.push(new TextSpan({
-      text: elapsedText,
+      text: percentText,
+      style: new TextStyle({ foreground: color, dim: percent < 50 }),
+    }));
+    spans.push(new TextSpan({
+      text: ofText,
       style: new TextStyle({ foreground: mutedColor, dim: true }),
     }));
-    textWidth += elapsedText.length;
+    textWidth += percentText.length + ofText.length;
+
+    // Optional cost segment — only shown when processing and cost is available.
+    if (opts.isProcessing && opts.costUsd > 0) {
+      const costText = ` \u00B7 $${opts.costUsd.toFixed(4)}`;
+      spans.push(new TextSpan({
+        text: costText,
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
+      }));
+      textWidth += costText.length;
+    }
+
+    // Optional elapsed segment — only shown when processing and elapsed is available.
+    if (opts.isProcessing && opts.elapsedMs > 0) {
+      const elapsedText = ` \u00B7 ${formatElapsed(opts.elapsedMs)}`;
+      spans.push(new TextSpan({
+        text: elapsedText,
+        style: new TextStyle({ foreground: mutedColor, dim: true }),
+      }));
+      textWidth += elapsedText.length;
+    }
   }
 
+  if (spans.length === 0) return null;
   const widget = new Text({ text: new TextSpan({ children: spans }) });
   return { widget, textWidth };
 }

@@ -4,12 +4,16 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState } from './types';
 import type { StateListener } from './session';
+import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
 import { log } from '../utils/logger';
 
 /** Maximum number of recent thread IDs to retain. AMP caps at 50. */
 const MAX_RECENT_THREADS = 50;
+
+/** Maximum length for auto-generated thread titles. Matches AMP title truncation. */
+const MAX_TITLE_LENGTH = 80;
 
 /**
  * ThreadPool manages multiple concurrent ThreadHandle instances with
@@ -163,6 +167,77 @@ export class ThreadPool {
   }
 
   // ---------------------------------------------------------------------------
+  // Thread Lifecycle: Create / Switch / Delete
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a new thread and activate it with navigation recording.
+   * The existing active thread is preserved in threadHandleMap (not lost).
+   * Matches AMP's RhR.createThread(R) which calls
+   * activateThreadWithNavigation(R, {recordNavigation: true}).
+   *
+   * @param options - Thread creation options (cwd, model, agentMode, etc.)
+   * @returns The newly created ThreadHandle
+   */
+  createThread(options: Omit<CreateThreadHandleOptions, 'threadID'>): ThreadHandle {
+    const handle = createThreadHandle(options);
+    this.activateThreadWithNavigation(handle, true);
+    log.info(`[thread-pool] createThread: ${handle.threadID}`);
+    return handle;
+  }
+
+  /**
+   * Switch to an existing thread by ID.
+   * Matches AMP's RhR.switchThread(R) which calls
+   * activateThreadWithNavigation(R, {recordNavigation: true}).
+   *
+   * @param threadID - The ID of the thread to switch to
+   * @throws If threadID is not found in threadHandleMap
+   */
+  switchThread(threadID: string): void {
+    const handle = this.threadHandleMap.get(threadID);
+    if (!handle) {
+      throw new Error(`ThreadPool.switchThread: thread ${threadID} not found`);
+    }
+    this.activateThreadWithNavigation(handle, true);
+    log.info(`[thread-pool] switchThread: -> ${threadID}`);
+  }
+
+  /**
+   * Delete a thread from the pool.
+   * If deleting the active thread, switches to the most recent alternative.
+   * Removes from all internal data structures via removeThread().
+   *
+   * @param threadID - The ID of the thread to delete
+   * @returns true if the thread was found and deleted, false otherwise
+   */
+  deleteThread(threadID: string): boolean {
+    if (!this.threadHandleMap.has(threadID)) return false;
+
+    const wasActive = this.activeThreadContextID === threadID;
+    this.removeThread(threadID);
+
+    if (wasActive) {
+      // Switch to the most recent remaining thread, or set null
+      const remaining = this.recentThreadIDs[0];
+      if (remaining) {
+        const handle = this.threadHandleMap.get(remaining);
+        if (handle) {
+          this.activateThread(handle);
+        } else {
+          this.activeThreadContextID = null;
+        }
+      } else {
+        this.activeThreadContextID = null;
+      }
+    }
+
+    log.info(`[thread-pool] deleteThread: ${threadID}, wasActive=${wasActive}`);
+    this._notifyListeners();
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
   // Navigation (THRD-05)
   // ---------------------------------------------------------------------------
 
@@ -299,6 +374,131 @@ export class ThreadPool {
     }
   }
 
+  /**
+   * Generate a thread title from the first user message in the conversation.
+   * Matches AMP's triggerTitleGeneration() from SECTION 3:
+   * - Skip if thread already has a title
+   * - Find the first user message
+   * - Truncate content to MAX_TITLE_LENGTH characters
+   * - Set as the thread title
+   *
+   * @param threadID - The thread to generate a title for
+   */
+  generateTitle(threadID: string): void {
+    const handle = this.threadHandleMap.get(threadID);
+    if (!handle) return;
+
+    // Skip if already titled (matches AMP: this.thread.title check)
+    if (handle.title) return;
+
+    const items = handle.session.items;
+    // Find first user message (matches AMP: messages.find(h => h.role !== "user"))
+    const firstUserMsg = items.find(item => item.type === 'user_message');
+    if (!firstUserMsg || firstUserMsg.type !== 'user_message') return;
+
+    const text = firstUserMsg.text?.trim();
+    if (!text) return;
+
+    // Truncate to MAX_TITLE_LENGTH, add ellipsis if truncated
+    const title = text.length > MAX_TITLE_LENGTH
+      ? text.slice(0, MAX_TITLE_LENGTH - 1) + '\u2026'
+      : text;
+
+    this.setThreadTitle(threadID, title);
+    log.info(`[thread-pool] generateTitle: ${threadID} -> "${title}"`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Thread Visibility (THRD-07)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Set the visibility mode of a thread.
+   * Matches AMP's switchThreadVisibility / fC() pattern from
+   * 27_misc_features.js and 20_thread_management.js SECTION 4b.
+   *
+   * @param threadID - The thread to modify
+   * @param visibility - New visibility mode
+   */
+  setThreadVisibility(threadID: string, visibility: ThreadVisibility): void {
+    const handle = this.threadHandleMap.get(threadID);
+    if (!handle) return;
+
+    handle.visibility = visibility;
+    log.info(`[thread-pool] setThreadVisibility: ${threadID} -> ${visibility}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Get all visible threads (excluding hidden and archived).
+   * Returns handles sorted by most recent first using recentThreadIDs order.
+   */
+  getVisibleThreads(): ThreadHandle[] {
+    const handles: ThreadHandle[] = [];
+    for (const threadID of this.recentThreadIDs) {
+      const handle = this.threadHandleMap.get(threadID);
+      if (handle && handle.visibility === 'visible') {
+        handles.push(handle);
+      }
+    }
+    return handles;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Thread Worker Map (THRD-10)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Per-thread worker state machines.
+   * Matches AMP's threadWorkerService (tr) with getOrCreateForThread.
+   * Each thread gets an independent worker tracking inference state.
+   */
+  readonly threadWorkerMap: Map<string, ThreadWorkerEntry> = new Map();
+
+  /**
+   * Get or create a worker entry for a thread.
+   * Matches AMP's tr.getOrCreateForThread() from SECTION 4d.
+   */
+  getOrCreateWorker(threadID: string): ThreadWorkerEntry {
+    let worker = this.threadWorkerMap.get(threadID);
+    if (!worker) {
+      worker = {
+        threadID: threadID as import('./types').ThreadID,
+        state: 'initial',
+        inferenceState: 'idle',
+        turnStartTime: null,
+      };
+      this.threadWorkerMap.set(threadID, worker);
+    }
+    return worker;
+  }
+
+  /**
+   * Update a thread worker's inference state.
+   */
+  setWorkerInferenceState(threadID: string, state: ThreadInferenceState): void {
+    const worker = this.getOrCreateWorker(threadID);
+    worker.inferenceState = state;
+    if (state === 'running') {
+      worker.turnStartTime = Date.now();
+    } else {
+      worker.turnStartTime = null;
+    }
+    this._notifyListeners();
+  }
+
+  /**
+   * Get the count of active workers (state !== 'disposed').
+   * Matches AMP's thread_worker_count gauge.
+   */
+  get activeWorkerCount(): number {
+    let count = 0;
+    for (const worker of this.threadWorkerMap.values()) {
+      if (worker.state !== 'disposed') count++;
+    }
+    return count;
+  }
+
   // ---------------------------------------------------------------------------
   // Thread Removal
   // ---------------------------------------------------------------------------
@@ -311,6 +511,7 @@ export class ThreadPool {
   removeThread(threadID: string): void {
     this.threadHandleMap.delete(threadID);
     delete this.threadTitles[threadID];
+    this.threadWorkerMap.delete(threadID);
 
     // Remove from recent threads
     const recentIdx = this.recentThreadIDs.indexOf(threadID);
@@ -351,6 +552,7 @@ export class ThreadPool {
     this.recentThreadIDs.length = 0;
     this.activeThreadContextID = null;
     Object.keys(this.threadTitles).forEach(k => delete this.threadTitles[k]);
+    this.threadWorkerMap.clear();
     this._listeners.clear();
   }
 }

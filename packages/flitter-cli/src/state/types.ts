@@ -505,3 +505,34 @@ export interface ThreadHandle {
   /** The agent mode active when this thread was created. */
   agentMode: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Thread Worker State (THRD-10)
+// ---------------------------------------------------------------------------
+
+/**
+ * Worker state per thread. Matches AMP's ThreadWorker _state subject values.
+ * From 29_thread_worker_statemachine.js: _state = new j0("initial").
+ */
+export type ThreadWorkerState = 'initial' | 'active' | 'disposed';
+
+/**
+ * Inference state per thread worker.
+ * Matches AMP's _inferenceState from 29_thread_worker_statemachine.js.
+ */
+export type ThreadInferenceState = 'idle' | 'running' | 'cancelled';
+
+/**
+ * Per-thread worker state machine entry.
+ * Tracks the thread's execution state independently of other threads.
+ */
+export interface ThreadWorkerEntry {
+  /** The thread this worker belongs to. */
+  readonly threadID: ThreadID;
+  /** Worker lifecycle state. */
+  state: ThreadWorkerState;
+  /** Current inference state (idle/running/cancelled). */
+  inferenceState: ThreadInferenceState;
+  /** Epoch ms when the current turn started, or null if idle. */
+  turnStartTime: number | null;
+}

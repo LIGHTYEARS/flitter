@@ -29,10 +29,10 @@ of the logo. No other screens, no new routes, no navigation logic changes.
   midpoint.
 
 - **D-03:** Hint text lines (exact strings from golden file):
-  - Line 1: `"Welcome to Amp"` — no special styling beyond dim foreground
-  - Line 2: `"Ctrl+O for help"` — keybind color for `Ctrl+O`, dim for ` for help`
+  - Line 1: `"Welcome to Amp"` — dim + green foreground
+  - Line 2: `"Ctrl+O for help"` — `Ctrl+O` blue, ` for ` dim, `help` yellow
   - Line 3: `"Use Tab/Shift+Tab to navigate to previous"` + newline +
-    `"messages to edit or restore to a previous state"` — dim foreground
+    `"messages to edit or restore to a previous state"` — cyan foreground
 
   These are the verbatim strings from the golden file. No substitutions.
 
@@ -44,8 +44,9 @@ of the logo. No other screens, no new routes, no navigation logic changes.
 - **D-05:** The hint text is **static** — no color animation on hint lines. Matches AMP
   golden file observation (no evidence of animated hints).
 
-- **D-06:** `DensityOrbWidget` receives `agentMode` prop to drive its color palette.
-  Read `agentMode` from `AppState` passed to `buildWelcomeScreen()`.
+- **D-06:** `DensityOrbWidget` does not accept `agentMode`; use
+  `DensityOrbWidget({ variant: 'welcome' })` with its current fixed coloring behavior in
+  Phase 24. No mode prop is passed in this phase.
 
 ### Component Architecture
 
@@ -53,10 +54,10 @@ of the logo. No other screens, no new routes, no navigation logic changes.
   `packages/flitter-cli/src/widgets/welcome-screen.ts`. The `buildWelcomeScreen()`
   function in `chat-view.ts` is replaced with `new WelcomeScreen({ appState })`.
 
-- **D-08:** `WelcomeScreen` receives `appState: AppState` as its only prop. It reads
-  `appState.agentMode` (or equivalent) internally to pass to `DensityOrbWidget`.
-  It registers an `appState` listener in `initState` / `dispose` to re-render on
-  mode changes (same pattern as `AppShell`).
+- **D-08:** `WelcomeScreen` receives `appState: AppState` as its only prop. It
+  registers an `appState` listener in `initState` / `dispose` to re-render on state
+  changes using the same listener lifecycle pattern as existing stateful widgets, but it
+  does not pass any mode prop to `DensityOrbWidget` in Phase 24.
 
 - **D-09:** Animation dispose: `DensityOrbWidget` already manages its own `setInterval`.
   `WelcomeScreen` does not need a separate timer — just build `DensityOrbWidget` in its

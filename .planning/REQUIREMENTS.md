@@ -95,11 +95,11 @@
 
 ### Activity Group and Subagent (ACTV)
 
-- [ ] **ACTV-01**: Activity Group uses collapsible G1R component with expand/collapse animation
-- [ ] **ACTV-02**: Collapsed Activity Group displays summary aggregation (checkmark/x count)
-- [ ] **ACTV-03**: Subagent nesting uses tree-line characters (branch/leaf/vertical) for visual hierarchy
-- [ ] **ACTV-04**: Streaming shows inline subagent messages with name label and progress
-- [ ] **ACTV-05**: Subagent tool card uses "Task" label prefix matching AMP
+- [x] **ACTV-01**: Activity Group uses collapsible G1R component with expand/collapse animation
+- [x] **ACTV-02**: Collapsed Activity Group displays summary aggregation (checkmark/x count)
+- [x] **ACTV-03**: Subagent nesting uses tree-line characters (branch/leaf/vertical) for visual hierarchy
+- [x] **ACTV-04**: Streaming shows inline subagent messages with name label and progress
+- [x] **ACTV-05**: Subagent tool card uses "Subagent" label prefix matching AMP
 
 ### Deep Reasoning and Agent Modes (MODE)
 
@@ -221,11 +221,11 @@
 | HITL-03 | 33 | Complete |
 | HITL-04 | 33 | Complete |
 | HITL-05 | 33 | Complete |
-| ACTV-01 | 34 | Pending |
-| ACTV-02 | 34 | Pending |
-| ACTV-03 | 34 | Pending |
-| ACTV-04 | 34 | Pending |
-| ACTV-05 | 34 | Pending |
+| ACTV-01 | 34 | Complete |
+| ACTV-02 | 34 | Complete |
+| ACTV-03 | 34 | Complete |
+| ACTV-04 | 34 | Complete |
+| ACTV-05 | 34 | Complete |
 | MODE-01 | 26 | Pending |
 | MODE-02 | 26 | Pending |
 | MODE-03 | 26 | Pending |

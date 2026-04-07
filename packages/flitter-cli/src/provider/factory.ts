@@ -1,210 +1,280 @@
-// Provider factory — creates provider instances from configuration.
+// Provider factory — creates provider instances via @mariozechner/pi-ai.
 //
-// Routes provider creation based on the provider ID in config.
-// Supports:
-// - API-key-based: Anthropic, OpenAI, OpenAI-compatible
-// - OAuth-based: ChatGPT/Codex, Copilot, Antigravity/Gemini
+// Per D-00, D-02, D-04, D-14, D-16: replaces the hand-rolled AnthropicProvider/
+// OpenAIProvider dispatch with a unified pi-ai backend. All provider protocol
+// differences, model resolution, and streaming are handled by pi-ai.
+//
+// OAuth providers (chatgpt-codex, copilot, antigravity) still load tokens from
+// token-store and pass them as API keys to pi-ai's stream().
 
+import { getModel, getModels, getProviders, getEnvApiKey } from '@mariozechner/pi-ai';
+import type { Model, Api, KnownProvider } from '@mariozechner/pi-ai';
 import type { Provider, ProviderConfig, ProviderId } from './provider';
-import { AnthropicProvider } from './anthropic';
-import { OpenAIProvider } from './openai';
+import { PiAiProvider } from './pi-ai-provider';
 import { loadToken, hasValidToken } from '../auth/token-store';
-import { GEMINI_OPENAI_BASE_URL } from '../auth/antigravity-oauth';
 import { log } from '../utils/logger';
 
 /**
- * Create a Provider instance from the given configuration.
+ * Maps flitter-cli ProviderId to pi-ai KnownProvider string.
+ * Per D-02: unified provider mapping.
+ */
+const PROVIDER_MAP: Record<string, string> = {
+  'anthropic': 'anthropic',
+  'openai': 'openai',
+  'xai': 'xai',
+  'groq': 'groq',
+  'cerebras': 'cerebras',
+  'fireworks': 'openai', // fireworks uses openai-compatible API
+  'openrouter': 'openrouter',
+  'moonshot': 'kimi-coding',
+  'vertex': 'google-vertex',
+  'baseten': 'openai', // baseten uses openai-compatible API
+  'gemini': 'google',
+  'chatgpt-codex': 'openai-codex',
+  'copilot': 'github-copilot',
+  'antigravity': 'google-antigravity',
+  'openai-compatible': 'openai',
+};
+
+/**
+ * Reverse map: pi-ai KnownProvider → preferred flitter-cli ProviderId.
+ * Used by autoDetectProvider() to convert pi-ai provider names back to
+ * flitter-cli IDs.
+ */
+const REVERSE_PROVIDER_MAP: Record<string, string> = {
+  'anthropic': 'anthropic',
+  'openai': 'openai',
+  'xai': 'xai',
+  'groq': 'groq',
+  'cerebras': 'cerebras',
+  'openrouter': 'openrouter',
+  'kimi-coding': 'moonshot',
+  'google-vertex': 'vertex',
+  'google': 'gemini',
+  'openai-codex': 'chatgpt-codex',
+  'github-copilot': 'copilot',
+  'google-antigravity': 'antigravity',
+  'mistral': 'mistral',
+  'huggingface': 'huggingface',
+  'zai': 'zai',
+  'vercel-ai-gateway': 'vercel',
+  'minimax': 'minimax',
+  'minimax-cn': 'minimax-cn',
+  'opencode': 'opencode',
+  'opencode-go': 'opencode-go',
+  'amazon-bedrock': 'amazon-bedrock',
+  'azure-openai-responses': 'azure-openai',
+  'google-gemini-cli': 'google-gemini-cli',
+};
+
+/**
+ * Human-readable display names for each flitter-cli ProviderId.
+ */
+const PROVIDER_NAMES: Record<string, string> = {
+  'anthropic': 'Anthropic',
+  'openai': 'OpenAI',
+  'xai': 'xAI',
+  'groq': 'Groq',
+  'cerebras': 'Cerebras',
+  'fireworks': 'Fireworks',
+  'openrouter': 'OpenRouter',
+  'moonshot': 'Moonshot (Kimi)',
+  'vertex': 'Google Vertex',
+  'baseten': 'Baseten',
+  'gemini': 'Google Gemini',
+  'chatgpt-codex': 'ChatGPT / Codex',
+  'copilot': 'GitHub Copilot',
+  'antigravity': 'Antigravity (Gemini)',
+  'openai-compatible': 'OpenAI-Compatible',
+};
+
+/**
+ * Default model IDs per flitter-cli ProviderId.
+ * These are verified against the pi-ai model catalog.
+ * Per D-04: complete model defaults for all 15 provider IDs.
+ */
+export const DEFAULT_MODELS: Record<string, string> = {
+  'anthropic': 'claude-sonnet-4-20250514',
+  'openai': 'gpt-4o',
+  'xai': 'grok-3',
+  'groq': 'llama-3.3-70b-versatile',
+  'cerebras': 'llama3.1-8b',
+  'fireworks': 'gpt-4o',
+  'openrouter': 'anthropic/claude-sonnet-4-20250514',
+  'moonshot': 'k2p5',
+  'vertex': 'gemini-2.0-flash',
+  'baseten': 'gpt-4o',
+  'gemini': 'gemini-2.0-flash',
+  'chatgpt-codex': 'gpt-5.1-codex-mini',
+  'copilot': 'claude-sonnet-4',
+  'antigravity': 'claude-sonnet-4-5',
+  'openai-compatible': 'gpt-4o',
+};
+
+/**
+ * Resolve the best available model for a given pi-ai provider and desired model ID.
  *
- * Routes based on config.id to the correct backend implementation.
- * For OAuth providers, loads stored tokens or provides auth instructions.
- * Throws if credentials are missing and authentication is required.
+ * Strategy:
+ * 1. Try exact model ID via getModel().
+ * 2. If the model ID is not in the catalog, find the closest match by prefix.
+ * 3. Fall back to the first model from getModels().
+ */
+function resolveModel(piProviderKey: string, modelId: string): Model<Api> {
+  try {
+    return getModel(piProviderKey as KnownProvider, modelId as Parameters<typeof getModel>[1]);
+  } catch {
+    // Model not found by exact ID — try fallback strategies
+    log.warn(`resolveModel: exact model '${modelId}' not found for '${piProviderKey}', searching catalog`);
+
+    try {
+      const available = getModels(piProviderKey as KnownProvider);
+      if (available.length === 0) {
+        throw new Error(`No models available for provider '${piProviderKey}'`);
+      }
+
+      // Try prefix match (e.g., 'grok-3' might match 'grok-3-latest')
+      const prefixMatch = available.find(m =>
+        m.id.startsWith(modelId) || modelId.startsWith(m.id),
+      );
+      if (prefixMatch) {
+        log.info(`resolveModel: using prefix match '${prefixMatch.id}' for '${modelId}'`);
+        return prefixMatch;
+      }
+
+      // Fall back to first available model
+      log.info(`resolveModel: falling back to first model '${available[0].id}' for provider '${piProviderKey}'`);
+      return available[0];
+    } catch (fallbackErr) {
+      throw new Error(
+        `Cannot resolve model '${modelId}' for provider '${piProviderKey}': ${fallbackErr}`,
+      );
+    }
+  }
+}
+
+/**
+ * Create a Provider instance from the given configuration using pi-ai.
+ *
+ * Routes based on config.id through PROVIDER_MAP to the pi-ai provider key,
+ * resolves the model via pi-ai's model catalog, and returns a PiAiProvider adapter.
+ *
+ * OAuth providers (chatgpt-codex, copilot, antigravity) load tokens from disk
+ * and pass the access token as the API key. Throws if credentials are missing.
  */
 export function createProvider(config: ProviderConfig): Provider {
   log.info(`createProvider: creating provider '${config.id}' model=${config.model ?? 'default'}`);
 
-  switch (config.id) {
-    case 'anthropic':
-      return new AnthropicProvider({
-        apiKey: config.apiKey,
-        model: config.model,
-        baseUrl: config.baseUrl,
-      });
+  // Resolve the pi-ai provider key
+  const piProviderKey = PROVIDER_MAP[config.id] ?? config.id;
 
-    case 'openai':
-      return new OpenAIProvider({
-        apiKey: config.apiKey,
-        model: config.model,
-        baseUrl: config.baseUrl,
-        headers: config.headers,
-      });
+  // Resolve the model ID
+  const modelId = config.model ?? DEFAULT_MODELS[config.id] ?? 'claude-sonnet-4-20250514';
 
-    case 'openai-compatible':
-      return new OpenAIProvider({
-        apiKey: config.apiKey,
-        model: config.model,
-        baseUrl: config.baseUrl,
-        headers: config.headers,
-        providerId: 'openai-compatible',
-        providerName: 'OpenAI-Compatible',
-      });
+  // Resolve API key by priority
+  let apiKey: string | undefined = config.apiKey;
 
-    case 'chatgpt-codex': {
-      // ChatGPT/Codex uses OpenAI provider with OAuth token
-      const token = config.auth?.accessToken
-        ? { accessToken: config.auth.accessToken }
-        : loadToken('chatgpt-codex');
-
-      if (!token) {
-        throw new Error(
-          'ChatGPT/Codex requires authentication.\n' +
-          'Run: flitter-cli --connect chatgpt',
-        );
+  // OAuth providers: load from token-store if no explicit key
+  if (!apiKey) {
+    switch (config.id) {
+      case 'chatgpt-codex': {
+        const token = config.auth?.accessToken
+          ? { accessToken: config.auth.accessToken }
+          : loadToken('chatgpt-codex');
+        if (!token) {
+          throw new Error(
+            'ChatGPT/Codex requires authentication.\n' +
+            'Run: flitter-cli --connect chatgpt',
+          );
+        }
+        apiKey = token.accessToken;
+        break;
       }
 
-      return new OpenAIProvider({
-        apiKey: token.accessToken,
-        model: config.model ?? 'gpt-4o',
-        baseUrl: 'https://api.openai.com/v1',
-        providerId: 'chatgpt-codex',
-        providerName: 'ChatGPT',
-      });
-    }
-
-    case 'copilot': {
-      // GitHub Copilot uses OpenAI-compatible API with Copilot token
-      const token = config.auth?.accessToken
-        ? { accessToken: config.auth.accessToken, accountId: config.auth.accountId }
-        : loadToken('copilot');
-
-      if (!token) {
-        throw new Error(
-          'GitHub Copilot requires authentication.\n' +
-          'Run: flitter-cli --connect copilot',
-        );
+      case 'copilot': {
+        const token = config.auth?.accessToken
+          ? { accessToken: config.auth.accessToken, accountId: config.auth.accountId }
+          : loadToken('copilot');
+        if (!token) {
+          throw new Error(
+            'GitHub Copilot requires authentication.\n' +
+            'Run: flitter-cli --connect copilot',
+          );
+        }
+        apiKey = token.accessToken;
+        break;
       }
 
-      // Copilot proxy URL is stored in accountId
-      const baseUrl = token.accountId ?? 'https://copilot-proxy.githubusercontent.com';
-
-      return new OpenAIProvider({
-        apiKey: token.accessToken,
-        model: config.model ?? 'gpt-4o',
-        baseUrl: baseUrl + '/v1',
-        providerId: 'copilot',
-        providerName: 'GitHub Copilot',
-      });
-    }
-
-    case 'gemini': {
-      // Gemini with API key — uses OpenAI-compatible endpoint
-      if (config.apiKey) {
-        return new OpenAIProvider({
-          apiKey: config.apiKey,
-          model: config.model ?? 'gemini-2.0-flash',
-          baseUrl: GEMINI_OPENAI_BASE_URL,
-          providerId: 'gemini',
-          providerName: 'Google Gemini',
-        });
-      }
-      throw new Error(
-        'Gemini requires an API key.\n' +
-        'Set: export GEMINI_API_KEY=your-key\n' +
-        'Or use: flitter-cli --connect antigravity (for Google account auth)',
-      );
-    }
-
-    case 'antigravity': {
-      // Antigravity uses Google OAuth → Gemini OpenAI-compatible endpoint
-      const token = config.auth?.accessToken
-        ? { accessToken: config.auth.accessToken }
-        : loadToken('antigravity');
-
-      if (!token) {
-        throw new Error(
-          'Antigravity (Google Gemini) requires authentication.\n' +
-          'Run: flitter-cli --connect antigravity',
-        );
+      case 'antigravity': {
+        const token = config.auth?.accessToken
+          ? { accessToken: config.auth.accessToken }
+          : loadToken('antigravity');
+        if (!token) {
+          throw new Error(
+            'Antigravity (Google Gemini) requires authentication.\n' +
+            'Run: flitter-cli --connect antigravity',
+          );
+        }
+        apiKey = token.accessToken;
+        break;
       }
 
-      return new OpenAIProvider({
-        apiKey: token.accessToken,
-        model: config.model ?? 'gemini-2.0-flash',
-        baseUrl: GEMINI_OPENAI_BASE_URL,
-        providerId: 'antigravity',
-        providerName: 'Antigravity (Gemini)',
-        headers: {
-          // Antigravity User-Agent spoofing for model allowlist
-          'User-Agent': 'antigravity/1.15.8',
-        },
-      });
+      default:
+        // Try pi-ai env key detection
+        apiKey = getEnvApiKey(piProviderKey as KnownProvider);
+        break;
     }
-
-    default:
-      throw new Error(`Unknown provider: '${config.id}'`);
   }
+
+  if (!apiKey) {
+    throw new Error(
+      `No API key found for provider '${config.id}'.\n` +
+      `Set the corresponding environment variable or run: flitter-cli --connect ${config.id}`,
+    );
+  }
+
+  // Resolve the pi-ai Model object
+  const model = resolveModel(piProviderKey, modelId);
+
+  // Determine display name
+  const displayName = PROVIDER_NAMES[config.id] ?? config.id;
+
+  // Antigravity requires User-Agent header spoofing for Google model allowlist access.
+  // Merge with any config-level headers.
+  let headers: Record<string, string> | undefined = config.headers;
+  if (config.id === 'antigravity') {
+    headers = { 'User-Agent': 'antigravity/1.15.8', ...headers };
+  }
+
+  log.info(`createProvider: resolved pi-ai model '${model.id}' (${model.name}) via provider '${piProviderKey}'`);
+
+  return new PiAiProvider(model, config.id as ProviderId, displayName, apiKey, headers);
 }
 
 /**
- * Auto-detect the best available provider based on environment variables.
- * Also checks for stored OAuth tokens.
+ * Auto-detect the best available provider from environment variables and stored tokens.
  *
- * Priority order:
- * 1. Anthropic (ANTHROPIC_API_KEY)
- * 2. OpenAI (OPENAI_API_KEY)
- * 3. Gemini (GEMINI_API_KEY / GOOGLE_API_KEY)
- * 4. OpenAI-compatible (OPENAI_BASE_URL + OPENAI_API_KEY)
- * 5. ChatGPT/Codex (stored OAuth token)
- * 6. Copilot (stored OAuth token)
- * 7. Antigravity (stored OAuth token)
+ * Uses pi-ai's getEnvApiKey() to check all known providers in order, then falls
+ * back to checking stored OAuth tokens.
+ *
+ * Per D-16: this replaces the hand-coded env var checks with pi-ai delegation.
  */
 export function autoDetectProvider(): ProviderConfig | null {
-  // 1. Anthropic
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    return { id: 'anthropic', apiKey: anthropicKey };
-  }
-
-  // 2. OpenAI
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
-    const baseUrl = process.env.OPENAI_BASE_URL;
-    if (baseUrl && !baseUrl.includes('api.openai.com')) {
-      return { id: 'openai-compatible', apiKey: openaiKey, baseUrl };
+  // Check all pi-ai providers for environment API keys
+  const piProviders = getProviders();
+  for (const p of piProviders) {
+    const key = getEnvApiKey(p);
+    if (key) {
+      // Map pi-ai provider back to flitter-cli ProviderId
+      const flitterId = REVERSE_PROVIDER_MAP[p] ?? p;
+      log.info(`autoDetectProvider: found env key for pi-ai provider '${p}' → flitter-cli '${flitterId}'`);
+      return { id: flitterId as ProviderId, apiKey: key };
     }
-    return { id: 'openai', apiKey: openaiKey };
   }
 
-  // 3. Gemini
-  const geminiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
-  if (geminiKey) {
-    return { id: 'gemini', apiKey: geminiKey };
-  }
-
-  // 4. ChatGPT/Codex (stored token)
-  if (hasValidToken('chatgpt-codex')) {
-    return { id: 'chatgpt-codex' };
-  }
-
-  // 5. Copilot (stored token)
-  if (hasValidToken('copilot')) {
-    return { id: 'copilot' };
-  }
-
-  // 6. Antigravity (stored token)
-  if (hasValidToken('antigravity')) {
-    return { id: 'antigravity' };
-  }
+  // Check OAuth tokens (these cannot be detected via env key)
+  if (hasValidToken('chatgpt-codex')) return { id: 'chatgpt-codex' };
+  if (hasValidToken('copilot')) return { id: 'copilot' };
+  if (hasValidToken('antigravity')) return { id: 'antigravity' };
 
   return null;
 }
-
-/** Map of well-known provider IDs to their default models. */
-export const DEFAULT_MODELS: Record<string, string> = {
-  'anthropic': 'claude-sonnet-4-20250514',
-  'openai': 'gpt-4o',
-  'chatgpt-codex': 'gpt-4o',
-  'copilot': 'gpt-4o',
-  'gemini': 'gemini-2.0-flash',
-  'antigravity': 'gemini-2.0-flash',
-  'openai-compatible': 'gpt-4o',
-};

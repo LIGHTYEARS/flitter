@@ -82,6 +82,13 @@ export const ICONS = {
   'density.normal': '\u25C7',
   /** Density orb: comfortable (empty circle). */
   'density.comfortable': '\u25CB',
+
+  /** Tree-line: branch connector for non-last children (├── ). */
+  'tree.branch': '\u251C\u2500\u2500 ',
+  /** Tree-line: leaf connector for last child (╰── ). */
+  'tree.leaf': '\u2570\u2500\u2500 ',
+  /** Tree-line: vertical continuation (│   ). */
+  'tree.vertical': '\u2502   ',
 } as const;
 
 /** All valid icon names (keys of the ICONS registry). */
@@ -101,14 +108,15 @@ export function icon(name: IconName): string {
   const value = ICONS[name];
   // Spinner is an array — callers wanting frames should use ICONS.spinner.
   if (Array.isArray(value)) return value[0];
-  // Dev-mode width assertion (only in non-production)
-  if (process.env.NODE_ENV !== 'production') {
-    const w = stringWidth(value);
+  // Dev-mode width assertion (only in non-production).
+  // Skip for tree-line prefixes which are intentionally multi-character.
+  if (process.env.NODE_ENV !== 'production' && !name.startsWith('tree.')) {
+    const w = stringWidth(value as string);
     if (w !== 1) {
       console.warn(`icon('${name}') has cell width ${w}, expected 1`);
     }
   }
-  return value;
+  return value as string;
 }
 
 /**

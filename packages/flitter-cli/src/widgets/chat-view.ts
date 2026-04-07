@@ -36,9 +36,9 @@ import { ToolCallWidget } from './tool-call/tool-call-widget';
 import { PlanView } from './plan-view';
 import { StreamingCursor } from './streaming-cursor';
 import { ThinkingBlock } from './thinking-block';
-import { toolStatusIcon } from './tool-call/tool-icons';
-import { resolveToolDisplayName } from './tool-call/resolve-tool-name';
+import { resolveToolName, TOOL_NAME_MAP } from './tool-call/resolve-tool-name';
 import { WelcomeScreen } from './welcome-screen';
+import { ActivityGroup, type ActivityAction } from './activity-group';
 
 // ---------------------------------------------------------------------------
 // ChatView — StatefulWidget
@@ -312,16 +312,43 @@ function buildAssistantTurnWidget(turn: AssistantTurn, denseView: boolean = fals
 
   for (const toolCall of rootToolCalls) {
     const children = childMap.get(toolCall.toolCallId);
-    const childWidgets = children?.map(child =>
-      new ToolCallWidget({ toolCall: child, isExpanded: !child.collapsed }),
-    );
-    bodyChildren.push(
-      new ToolCallWidget({
-        toolCall,
-        isExpanded: !toolCall.collapsed,
-        childWidgets,
-      }),
-    );
+
+    // Detect subagent/Task tool calls — render as ActivityGroup (ACTV-01..05)
+    if (isSubagentToolCall(toolCall)) {
+      const actions = buildActivityActions(children ?? []);
+      const summary = computeActivitySummary(children ?? []);
+      const hasInProgress = (children ?? []).some(
+        c => c.status === 'in_progress' || c.status === 'pending',
+      ) || toolCall.status === 'in_progress';
+
+      // Extract description from rawInput matching AMP
+      const raw = toolCall.rawInput;
+      const description = raw
+        ? String(raw['Description'] || raw['description'] || raw['Prompt'] || raw['prompt'] || '')
+        : '';
+
+      bodyChildren.push(
+        new ActivityGroup({
+          actions,
+          summary,
+          hasInProgress,
+          displayName: 'Subagent',
+          description: description.slice(0, 80),
+        }),
+      );
+    } else {
+      // Non-subagent root tool call — render with ToolCallWidget as before
+      const childWidgets = children?.map(child =>
+        new ToolCallWidget({ toolCall: child, isExpanded: !child.collapsed }),
+      );
+      bodyChildren.push(
+        new ToolCallWidget({
+          toolCall,
+          isExpanded: !toolCall.collapsed,
+          childWidgets,
+        }),
+      );
+    }
   }
 
   // Plan items — PlanView checklist with status icons and priority tags
@@ -498,4 +525,59 @@ function buildErrorScreen(screen: ErrorScreen): Widget {
       ],
     }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// ActivityGroup Helpers — detect subagent tools, build actions, compute summary
+// ---------------------------------------------------------------------------
+
+/** Set of canonical tool names that represent subagent/Task tool calls. */
+const SUBAGENT_TOOL_NAMES = new Set([
+  'Task', 'Subagent', 'oracle', 'code_review', 'librarian',
+]);
+
+/**
+ * Returns true if a root tool call is a subagent/Task type that should be
+ * rendered as an ActivityGroup with tree-line children.
+ */
+function isSubagentToolCall(toolCall: ToolCallItem): boolean {
+  const rawName = resolveToolName(toolCall);
+  const name = TOOL_NAME_MAP[rawName] ?? rawName;
+  // Prefix-based detection (sa__*, tb__*)
+  if (name.startsWith('sa__') || name.startsWith('tb__')) return true;
+  // Name-based detection
+  return SUBAGENT_TOOL_NAMES.has(name);
+}
+
+/**
+ * Converts child ToolCallItems into ActivityAction entries for ActivityGroup.
+ * Also extracts streaming output as inline text messages interleaved with tool calls.
+ */
+function buildActivityActions(children: ToolCallItem[]): ActivityAction[] {
+  const actions: ActivityAction[] = [];
+  for (const child of children) {
+    // If the child has streaming output text, add it as a text action first
+    if (child.streamingOutput) {
+      actions.push({ kind: 'text', text: child.streamingOutput });
+    }
+    actions.push({ kind: 'tool_call', toolCall: child });
+  }
+  return actions;
+}
+
+/**
+ * Computes summary aggregation counts (success / error) from child tool calls.
+ * Matches AMP's z1R summary rendering: "N checkmark | M cross".
+ */
+function computeActivitySummary(children: ToolCallItem[]): { success: number; error: number } {
+  let success = 0;
+  let error = 0;
+  for (const child of children) {
+    if (child.status === 'completed') {
+      success++;
+    } else if (child.status === 'failed') {
+      error++;
+    }
+  }
+  return { success, error };
 }

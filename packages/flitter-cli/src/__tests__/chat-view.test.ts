@@ -20,6 +20,8 @@ import { SessionStore } from '../state/session-store';
 import { AppState } from '../state/app-state';
 import { PromptController } from '../state/prompt-controller';
 import { ChatView, ChatViewState } from '../widgets/chat-view';
+import { WelcomeScreen } from '../widgets/welcome-screen';
+import { DensityOrbWidget } from '../widgets/density-orb-widget';
 import { ToolCallWidget } from '../widgets/tool-call/tool-call-widget';
 import { StreamingCursor } from '../widgets/streaming-cursor';
 import { ThinkingBlock } from '../widgets/thinking-block';
@@ -156,18 +158,20 @@ function findAllWidgets<T extends Widget>(root: Widget, type: new (...args: any[
 
 describe('ChatView — Screen State Dispatch', () => {
 
-  test('1.1 welcome screenState returns Center-based welcome screen', () => {
+  test('1.1 welcome screenState returns WelcomeScreen widget', () => {
     const { appState } = createTestAppState();
     // idle + empty + turnCount=0 → welcome
     const tree = buildChatView(appState);
-    expect(tree).toBeInstanceOf(Center);
-    // Should contain "flitter-cli" text
-    const texts = findAllWidgets(tree, Text);
-    const hasFlitterCli = texts.some(t => {
-      const span = (t as any).text;
-      return span?.text === 'flitter-cli' || span?.children?.some?.((c: any) => c.text === 'flitter-cli');
-    });
-    expect(hasFlitterCli).toBe(true);
+    // Phase 24: ChatView now returns WelcomeScreen (not a bare Center with "flitter-cli")
+    expect(tree).toBeInstanceOf(WelcomeScreen);
+    // WelcomeScreen's appState prop must be wired correctly
+    expect((tree as WelcomeScreen).appState).toBe(appState);
+    // DensityOrbWidget is rendered by WelcomeScreen.build() — verify via state build
+    const welcomeState = (tree as WelcomeScreen).createState();
+    (welcomeState as any)._widget = tree;
+    const welcomeTree = welcomeState.build(stubContext);
+    const orbs = findAllWidgets(welcomeTree, DensityOrbWidget);
+    expect(orbs.length).toBeGreaterThanOrEqual(1);
   });
 
   test('1.2 empty screenState returns Center-based empty state with prompt hint', () => {

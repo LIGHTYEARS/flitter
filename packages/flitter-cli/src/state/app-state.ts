@@ -848,6 +848,7 @@ export class AppState {
       createdAt: Date.now(),
       visibility: 'visible',
       agentMode: 'smart',
+      queuedMessages: [],
     };
     threadPool.activateThread(initialHandle);
 

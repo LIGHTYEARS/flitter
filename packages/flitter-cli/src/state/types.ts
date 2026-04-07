@@ -504,6 +504,8 @@ export interface ThreadHandle {
   visibility: ThreadVisibility;
   /** The agent mode active when this thread was created. */
   agentMode: string | null;
+  /** Per-thread queued messages waiting for submission. Matches AMP's thread.queuedMessages. */
+  queuedMessages: QueuedMessage[];
 }
 
 // ---------------------------------------------------------------------------
@@ -535,4 +537,24 @@ export interface ThreadWorkerEntry {
   inferenceState: ThreadInferenceState;
   /** Epoch ms when the current turn started, or null if idle. */
   turnStartTime: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Queue Mode Types (QUEUE-01)
+// ---------------------------------------------------------------------------
+
+/**
+ * A message queued for later submission while the assistant is processing.
+ * Matches AMP's queuedMessages[] on thread state.
+ * Each queued message has an ID for interrupt/discard targeting.
+ */
+export interface QueuedMessage {
+  /** Unique ID for this queued message. */
+  readonly id: string;
+  /** The user's text content. */
+  readonly text: string;
+  /** Epoch ms when the message was queued. */
+  readonly queuedAt: number;
+  /** Optional image attachments queued with the message. */
+  readonly images?: ReadonlyArray<{ filename: string }>;
 }

@@ -10,15 +10,18 @@ import type { AppState } from '../state/app-state';
 
 /**
  * A single command available in the command palette.
+ * AMP displays commands in category+label dual-column format.
  */
 export interface CommandItem {
   /** Unique identifier (matches shortcut id when derived from registry). */
   readonly id: string;
-  /** Display label in the palette. */
+  /** Category shown left-aligned and dim (e.g., "amp", "mode", "thread"). */
+  readonly category: string;
+  /** Display label in the palette (shown bold after category). */
   readonly label: string;
-  /** Detailed description shown below the label. */
+  /** Detailed description (used for fuzzy search, not shown in AMP layout). */
   readonly description: string;
-  /** Optional shortcut hint shown at the right edge (e.g., "Ctrl+L"). */
+  /** Optional shortcut hint shown at the right edge (e.g., "Ctrl s"). */
   readonly shortcutHint?: string;
   /** The action to execute. Receives an onDismiss callback for self-dismissal. */
   readonly execute: (onDismiss: () => void) => void;
@@ -47,70 +50,183 @@ export function buildCommandList(
 ): CommandItem[] {
   const commands: CommandItem[] = [];
 
-  // --- From ShortcutRegistry ---
+  // --- Helper to create a shortcut executor from a registry entry ---
+  /** Creates an execute callback that synthesizes a KeyEvent for a shortcut entry. */
+  const makeShortcutExecutor = (entry: ShortcutEntry) => {
+    return (_onDismiss: () => void) => {
+      entry.action(ctx, {
+        type: 'key',
+        key: entry.binding.key,
+        ctrlKey: entry.binding.ctrl ?? false,
+        altKey: entry.binding.alt ?? false,
+        shiftKey: entry.binding.shift ?? false,
+        metaKey: entry.binding.meta ?? false,
+      });
+    };
+  };
+
+  // --- Collect shortcut entries for later reference by palette commands ---
+  const shortcutMap = new Map<string, ShortcutEntry>();
   const entries: ReadonlyArray<ShortcutEntry> = registry.getEntries();
   for (const entry of entries) {
-    // Skip the dismiss-overlay shortcut (Escape) -- it is structural, not a palette command
-    if (entry.id === 'dismiss-overlay') continue;
-    // Skip the command palette itself to avoid recursion
-    if (entry.id === 'open-command-palette') continue;
-
-    // Capture entry in closure for the execute callback
-    const shortcutEntry = entry;
-    commands.push({
-      id: shortcutEntry.id,
-      label: shortcutEntry.description,
-      description: `Shortcut: ${shortcutEntry.displayKey}`,
-      shortcutHint: shortcutEntry.displayKey,
-      execute: (_onDismiss: () => void) => {
-        // Synthesize a minimal KeyEvent to dispatch through the shortcut action.
-        // The palette is already dismissed by the caller before execute() runs.
-        shortcutEntry.action(ctx, {
-          type: 'key',
-          key: shortcutEntry.binding.key,
-          ctrlKey: shortcutEntry.binding.ctrl ?? false,
-          altKey: shortcutEntry.binding.alt ?? false,
-          shiftKey: shortcutEntry.binding.shift ?? false,
-          metaKey: shortcutEntry.binding.meta ?? false,
-        });
-      },
-    });
+    shortcutMap.set(entry.id, entry);
   }
 
-  // --- Additional non-shortcut commands ---
+  // --- AMP Palette Commands (exact order from golden screenshot) ---
+  // Category order: amp, mode, thread, prompt, context, news
 
-  // --- Thread commands ---
-
+  // 1. amp > help
   commands.push({
-    id: 'thread-new',
-    label: 'New thread',
-    description: 'Start a new conversation thread (preserves existing)',
+    id: 'help',
+    category: 'amp',
+    label: 'help',
+    description: 'Show shortcut help overlay',
     execute: (_onDismiss: () => void) => {
-      appState.newThread();
+      ctx.hooks.showShortcutHelp();
     },
   });
 
+  // 2. mode > use rush
+  commands.push({
+    id: 'use-rush',
+    category: 'mode',
+    label: 'use rush',
+    description: 'Switch agent mode to rush',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).setAgentMode?.('rush');
+    },
+  });
+
+  // 3. mode > use large
+  commands.push({
+    id: 'use-large',
+    category: 'mode',
+    label: 'use large',
+    description: 'Switch agent mode to large',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).setAgentMode?.('large');
+    },
+  });
+
+  // 4. mode > use deep
+  commands.push({
+    id: 'use-deep',
+    category: 'mode',
+    label: 'use deep',
+    description: 'Switch agent mode to deep',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).setAgentMode?.('deep');
+    },
+  });
+
+  // 5. mode > set
+  commands.push({
+    id: 'mode-set',
+    category: 'mode',
+    label: 'set',
+    description: 'Open mode selector',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).showModeSelector?.();
+    },
+  });
+
+  // 6. mode > toggle (Ctrl s)
+  const cycleModeEntry = shortcutMap.get('cycle-mode');
+  commands.push({
+    id: 'mode-toggle',
+    category: 'mode',
+    label: 'toggle',
+    description: 'Cycle through agent modes',
+    shortcutHint: cycleModeEntry?.displayKey,
+    execute: cycleModeEntry
+      ? makeShortcutExecutor(cycleModeEntry)
+      : (_onDismiss: () => void) => { (appState as any).cycleAgentMode?.(); },
+  });
+
+  // 7. thread > switch
   commands.push({
     id: 'thread-switch',
-    label: 'Switch thread',
+    category: 'thread',
+    label: 'switch',
     description: 'Open thread list to switch to another thread',
     execute: (_onDismiss: () => void) => {
       appState.showThreadList();
     },
   });
 
+  // 8. thread > new
+  commands.push({
+    id: 'thread-new',
+    category: 'thread',
+    label: 'new',
+    description: 'Start a new conversation thread',
+    execute: (_onDismiss: () => void) => {
+      appState.newThread();
+    },
+  });
+
+  // 9. prompt > open in editor (Ctrl g)
+  const editorEntry = shortcutMap.get('open-editor');
+  commands.push({
+    id: 'prompt-open-editor',
+    category: 'prompt',
+    label: 'open in editor',
+    description: 'Open prompt in $EDITOR',
+    shortcutHint: editorEntry?.displayKey,
+    execute: editorEntry
+      ? makeShortcutExecutor(editorEntry)
+      : (_onDismiss: () => void) => { ctx.hooks.openInEditor(); },
+  });
+
+  // 10. thread > map
   commands.push({
     id: 'thread-map',
-    label: 'Thread map',
+    category: 'thread',
+    label: 'map',
     description: 'Show all threads in the thread list',
     execute: (_onDismiss: () => void) => {
       appState.showThreadList();
     },
   });
 
+  // 11. thread > switch to cluster
+  commands.push({
+    id: 'thread-switch-to-cluster',
+    category: 'thread',
+    label: 'switch to cluster',
+    description: 'Show thread cluster picker',
+    execute: (_onDismiss: () => void) => {
+      appState.showThreadList();
+    },
+  });
+
+  // 12. context > analyze
+  commands.push({
+    id: 'context-analyze',
+    category: 'context',
+    label: 'analyze',
+    description: 'Show context analysis modal',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).showContextAnalyze?.();
+    },
+  });
+
+  // 13. news > open in browser
+  commands.push({
+    id: 'news-open',
+    category: 'news',
+    label: 'open in browser',
+    description: 'Open news feed in browser',
+    execute: (_onDismiss: () => void) => {
+      (appState as any).openNewsInBrowser?.();
+    },
+  });
+
+  // 14. thread > set visibility
   commands.push({
     id: 'thread-set-visibility',
-    label: 'Set thread visibility',
+    category: 'thread',
+    label: 'set visibility',
     description: 'Toggle current thread visibility (visible/hidden)',
     execute: (_onDismiss: () => void) => {
       const activeID = appState.threadPool.activeThreadContextID;
@@ -122,52 +238,15 @@ export function buildCommandList(
     },
   });
 
+  // 15. prompt > paste image from clipboard (Ctrl v)
   commands.push({
-    id: 'thread-navigate-back',
-    label: 'Navigate back',
-    description: 'Go to the previous thread in navigation history',
+    id: 'paste-image',
+    category: 'prompt',
+    label: 'paste image from clipboard',
+    description: 'Paste image from clipboard into input',
+    shortcutHint: 'Ctrl+V',
     execute: (_onDismiss: () => void) => {
-      if (appState.threadPool.canNavigateBack()) {
-        appState.threadPool.navigateBack();
-        const handle = appState.threadPool.activeThreadHandleOrNull;
-        if (handle) {
-          // Re-point AppState to the new active thread
-          (appState as any)._switchToHandle(handle);
-        }
-      }
-    },
-  });
-
-  commands.push({
-    id: 'thread-navigate-forward',
-    label: 'Navigate forward',
-    description: 'Go to the next thread in navigation history',
-    execute: (_onDismiss: () => void) => {
-      if (appState.threadPool.canNavigateForward()) {
-        appState.threadPool.navigateForward();
-        const handle = appState.threadPool.activeThreadHandleOrNull;
-        if (handle) {
-          (appState as any)._switchToHandle(handle);
-        }
-      }
-    },
-  });
-
-  commands.push({
-    id: 'toggle-tool-calls',
-    label: 'Toggle tool calls',
-    description: 'Show or hide tool call details in compact view',
-    execute: (_onDismiss: () => void) => {
-      appState.toggleDenseView();
-    },
-  });
-
-  commands.push({
-    id: 'insert-file-mention',
-    label: 'Insert file mention',
-    description: 'Open file picker to insert @file reference',
-    execute: (_onDismiss: () => void) => {
-      ctx.hooks.showFilePicker();
+      ctx.hooks.pasteImage?.();
     },
   });
 

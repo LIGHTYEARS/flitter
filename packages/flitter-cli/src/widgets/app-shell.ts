@@ -50,10 +50,9 @@ import { ScrollController } from '../../../flitter-core/src/widgets/scroll-contr
 import { Scrollbar } from '../../../flitter-core/src/widgets/scrollbar';
 import { Color } from '../../../flitter-core/src/core/color';
 import { TextEditingController } from '../../../flitter-core/src/widgets/text-field';
-import type { SelectionItem } from '../../../flitter-core/src/widgets/selection-list';
 import { ChatView } from './chat-view';
 import { InputArea } from './input-area';
-import { CommandPalette } from './command-palette';
+import { CommandPalette, type CommandPaletteItem } from './command-palette';
 import { FilePicker } from './file-picker';
 import { ShortcutHelpOverlay } from './shortcut-help-overlay';
 import { SkillsModal } from './skills-modal';
@@ -603,11 +602,13 @@ class AppShellState extends State<AppShell> {
     const ctx = this._buildShortcutContext();
     const commands = buildCommandList(this.shortcutRegistry, this.widget.appState, ctx);
 
-    // Map CommandItems to SelectionItems for the palette widget
-    const items: SelectionItem[] = commands.map((cmd: CommandItem) => ({
+    // Map CommandItems to CommandPaletteItems for the palette widget
+    const items: CommandPaletteItem[] = commands.map((cmd: CommandItem) => ({
+      id: cmd.id,
+      category: cmd.category,
       label: cmd.label,
-      value: cmd.id,
-      description: cmd.shortcutHint ? `${cmd.description} (${cmd.shortcutHint})` : cmd.description,
+      description: cmd.description,
+      shortcutHint: cmd.shortcutHint,
     }));
 
     overlayManager.show({

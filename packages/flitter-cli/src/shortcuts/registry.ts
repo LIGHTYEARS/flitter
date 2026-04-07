@@ -65,6 +65,8 @@ export interface ShortcutHooks {
   toggleThinking(): void;
   /** Copy the last assistant response to the clipboard. */
   copyLastResponse(): void;
+  /** Paste image from clipboard into input (Plan 31). */
+  pasteImage?(): void;
 }
 
 /**

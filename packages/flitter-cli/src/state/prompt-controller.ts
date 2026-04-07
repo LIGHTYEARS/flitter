@@ -575,6 +575,8 @@ export class PromptController {
   /**
    * Request permission for a tool execution.
    * Returns true if approved, false if denied.
+   * Matches AMP's confirmation option set (Approve, Allow All for Session,
+   * Allow All for Every Session, Deny with feedback).
    */
   private async _requestToolPermission(
     toolName: string,
@@ -586,24 +588,49 @@ export class PromptController {
     }
 
     try {
+      // Determine tool kind for content preview formatting
+      const kind = this._resolveToolKind(toolName);
+
       const request: PermissionRequest = {
         requestId: `perm-${toolName}-${Date.now()}`,
         toolCall: {
           toolCallId: `tc-${toolName}-${Date.now()}`,
           title: toolName,
-          kind: 'tool',
+          kind,
           rawInput: input,
         },
         options: [
-          { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
-          { optionId: 'always', name: 'Always Allow', kind: 'allow_always' },
-          { optionId: 'deny', name: 'Deny', kind: 'reject_once' },
+          { optionId: 'yes', name: 'Approve', kind: 'allow_once' },
+          { optionId: 'allow-all-session', name: 'Allow All for This Session', kind: 'allow_always' },
+          { optionId: 'allow-all-persistent', name: 'Allow All for Every Session', kind: 'allow_always' },
+          { optionId: 'no-with-feedback', name: 'Deny with feedback', kind: 'reject_with_feedback' },
         ],
       };
       const result = await this.onPermissionRequest(request);
-      return result !== null && (result === 'allow' || result === 'always');
+      // Accept any string result that is an approval
+      return typeof result === 'string' && (result === 'yes' || result === 'allow-all-session' || result === 'allow-all-persistent');
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Resolve the tool kind string for content preview formatting.
+   * Maps tool names to AMP kind categories (bash, edit, create, etc.).
+   */
+  private _resolveToolKind(toolName: string): string {
+    switch (toolName) {
+      case 'bash':
+      case 'execute_command':
+        return 'bash';
+      case 'edit_file':
+      case 'str_replace_editor':
+        return 'edit_file';
+      case 'create_file':
+      case 'write_file':
+        return 'create_file';
+      default:
+        return 'tool';
     }
   }
 

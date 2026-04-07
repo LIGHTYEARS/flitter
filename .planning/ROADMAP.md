@@ -44,7 +44,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation (completed 2026-04-07)
 - [x] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout (completed 2026-04-07)
 - [x] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations (completed 2026-04-07)
-- [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
+- [x] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode (completed 2026-04-07)
 - [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
 - [ ] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays
 - [ ] **Phase 36: Visual Polish** - Block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol
@@ -233,8 +233,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 33-01: Redesign HITL dialog layout (content preview, full-width, "Allow [tool]?" title)
-- [ ] 33-02: Implement inverted-color option buttons with [y]/[n]/[a] labels and feedback input mode
+- [x] 33-01: Redesign HITL dialog layout (content preview, full-width, "Allow [tool]?" title)
+- [x] 33-02: Implement inverted-color option buttons with [y]/[n]/[a] labels and feedback input mode
 
 ### Phase 34: Activity Group and Subagent Tree
 **Goal**: Implement collapsible Activity Group component with tree-line characters, summary aggregation, and proper subagent nesting display.

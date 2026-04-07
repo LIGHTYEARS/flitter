@@ -87,11 +87,11 @@
 
 ### HITL Confirmation (HITL)
 
-- [ ] **HITL-01**: HITL confirmation dialog displays command content preview (tool call parameters) above option buttons
-- [ ] **HITL-02**: HITL dialog width matches InputArea width (full-width border alignment)
-- [ ] **HITL-03**: HITL options use inverted-color block style with [y]/[n]/[a] keyboard shortcut labels
-- [ ] **HITL-04**: HITL title format is "Allow [tool_name]?" with bold styling
-- [ ] **HITL-05**: HITL supports "Provide feedback" mode for inline text input within the dialog
+- [x] **HITL-01**: HITL confirmation dialog displays command content preview (tool call parameters) above option buttons
+- [x] **HITL-02**: HITL dialog width matches InputArea width (full-width border alignment)
+- [x] **HITL-03**: HITL options use inverted-color block style with [y]/[n]/[a] keyboard shortcut labels
+- [x] **HITL-04**: HITL title format is "Allow [tool_name]?" with bold styling
+- [x] **HITL-05**: HITL supports "Provide feedback" mode for inline text input within the dialog
 
 ### Activity Group and Subagent (ACTV)
 
@@ -216,11 +216,11 @@
 | CPAL-02 | 31 | Done |
 | CPAL-03 | 31 | Done |
 | CPAL-04 | 31 | Done |
-| HITL-01 | 33 | Pending |
-| HITL-02 | 33 | Pending |
-| HITL-03 | 33 | Pending |
-| HITL-04 | 33 | Pending |
-| HITL-05 | 33 | Pending |
+| HITL-01 | 33 | Complete |
+| HITL-02 | 33 | Complete |
+| HITL-03 | 33 | Complete |
+| HITL-04 | 33 | Complete |
+| HITL-05 | 33 | Complete |
 | ACTV-01 | 34 | Pending |
 | ACTV-02 | 34 | Pending |
 | ACTV-03 | 34 | Pending |

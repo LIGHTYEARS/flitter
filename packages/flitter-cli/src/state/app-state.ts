@@ -1385,6 +1385,77 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
+  // Context Detail Overlay (OVLY-03)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show the context detail overlay with token usage breakdown.
+   * Matches AMP's isShowingContextDetailOverlay state field.
+   */
+  showContextDetail(): void {
+    // Lazy import to avoid circular dependency
+    const { ContextDetailOverlay } = require('../widgets/context-detail-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.CONTEXT_DETAIL,
+      priority: OVERLAY_PRIORITIES.CONTEXT_DETAIL,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new ContextDetailOverlay({
+        usage: this.session.usage,
+        contextWindowPercent: this.contextWindowUsagePercent,
+        onDismiss,
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Context Analyze Overlay (OVLY-04)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show the context analysis modal with conversation breakdown.
+   * Matches AMP's isShowingContextAnalyzeModal state field.
+   */
+  showContextAnalyze(): void {
+    // Lazy import to avoid circular dependency
+    const { ContextAnalyzeOverlay } = require('../widgets/context-analyze-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.CONTEXT_ANALYZE,
+      priority: OVERLAY_PRIORITIES.CONTEXT_ANALYZE,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new ContextAnalyzeOverlay({
+        items: this.session.items,
+        usage: this.session.usage,
+        onDismiss,
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // File Changes Overlay (OVLY-05)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show the file changes overlay listing all modifications.
+   * Matches AMP's isShowingFileChangesOverlay state field.
+   */
+  showFileChanges(): void {
+    // Lazy import to avoid circular dependency
+    const { FileChangesOverlay } = require('../widgets/file-changes-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.FILE_CHANGES,
+      priority: OVERLAY_PRIORITIES.FILE_CHANGES,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new FileChangesOverlay({
+        files: this.fileChanges,
+        onDismiss,
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Message Selection Navigation (Tab/Shift+Tab)
   // ---------------------------------------------------------------------------
 

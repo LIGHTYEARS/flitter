@@ -207,7 +207,29 @@ export function buildCommandList(
     label: 'analyze',
     description: 'Show context analysis modal',
     execute: (_onDismiss: () => void) => {
-      (appState as any).showContextAnalyze?.();
+      appState.showContextAnalyze();
+    },
+  });
+
+  // 12b. context > detail (OVLY-03)
+  commands.push({
+    id: 'context-detail',
+    category: 'context',
+    label: 'detail',
+    description: 'Show context window token breakdown',
+    execute: (_onDismiss: () => void) => {
+      appState.showContextDetail();
+    },
+  });
+
+  // 12c. context > file changes (OVLY-05)
+  commands.push({
+    id: 'context-file-changes',
+    category: 'context',
+    label: 'file changes',
+    description: 'Show files modified in this session',
+    execute: (_onDismiss: () => void) => {
+      appState.showFileChanges();
     },
   });
 

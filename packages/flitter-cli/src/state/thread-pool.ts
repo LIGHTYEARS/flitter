@@ -4,7 +4,7 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
 import { log } from '../utils/logger';
@@ -497,6 +497,54 @@ export class ThreadPool {
       if (worker.state !== 'disposed') count++;
     }
     return count;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Message Queue (QUEUE-01)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Enqueue a message on the active thread's queue.
+   * Matches AMP's gZR.queueMessage() which delegates to the active handle.
+   * The enqueued message is stored on the thread's queuedMessages array.
+   *
+   * @param text - The user message text to enqueue
+   * @param images - Optional image attachments
+   */
+  queueMessage(text: string, images?: Array<{ filename: string }>): void {
+    const handle = this.activeThreadHandleOrNull;
+    if (!handle) {
+      log.warn('[thread-pool] queueMessage: no active thread');
+      return;
+    }
+
+    const msg: QueuedMessage = {
+      id: `qm-${crypto.randomUUID()}`,
+      text,
+      queuedAt: Date.now(),
+      images: images?.length ? images : undefined,
+    };
+
+    handle.queuedMessages.push(msg);
+    log.info(`[thread-pool] queueMessage: queued "${text.slice(0, 40)}..." on ${handle.threadID}, queueLen=${handle.queuedMessages.length}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Discard all queued messages on the active thread.
+   * Matches AMP's gZR.discardQueuedMessages() which clears the queue.
+   * Used when user exits queue mode or switches threads.
+   */
+  discardQueuedMessages(): void {
+    const handle = this.activeThreadHandleOrNull;
+    if (!handle) return;
+
+    const count = handle.queuedMessages.length;
+    handle.queuedMessages.length = 0;
+    if (count > 0) {
+      log.info(`[thread-pool] discardQueuedMessages: cleared ${count} messages on ${handle.threadID}`);
+    }
+    this._notifyListeners();
   }
 
   // ---------------------------------------------------------------------------

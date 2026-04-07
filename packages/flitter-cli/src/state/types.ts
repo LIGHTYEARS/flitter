@@ -558,3 +558,35 @@ export interface QueuedMessage {
   /** Optional image attachments queued with the message. */
   readonly images?: ReadonlyArray<{ filename: string }>;
 }
+
+// ---------------------------------------------------------------------------
+// Compaction Types (COMP-01)
+// ---------------------------------------------------------------------------
+
+/**
+ * Compaction lifecycle state.
+ * Matches AMP's compactionState from getCompactionStatus().
+ *
+ * - 'idle': No compaction in progress or needed
+ * - 'pending': Context usage exceeded threshold, compaction will start
+ * - 'compacting': Compaction is in progress (pruning old messages)
+ * - 'complete': Compaction finished, cutMessageId marks the boundary
+ */
+export type CompactionState = 'idle' | 'pending' | 'compacting' | 'complete';
+
+/**
+ * Compaction status snapshot returned by getCompactionStatus().
+ * Matches AMP's RhR.getCompactionStatus() -> { compactionState }.
+ */
+export interface CompactionStatus {
+  /** Current compaction lifecycle state. */
+  readonly compactionState: CompactionState;
+  /**
+   * The message ID marking the oldest preserved message after compaction.
+   * Messages before this ID have been summarized/pruned.
+   * Null when no compaction has occurred.
+   */
+  readonly cutMessageId: string | null;
+  /** Context window usage percent at the time of last compaction check. */
+  readonly usagePercent: number;
+}

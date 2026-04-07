@@ -21,7 +21,7 @@ import type {
 } from './types';
 import { AGENT_MODES, VISIBLE_MODE_KEYS, DEFAULT_HANDOFF_STATE } from './types';
 import type { Turn } from './turn-types';
-import type { PermissionRequest, PermissionResult } from './permission-types';
+import type { PermissionRequest, PermissionResult, PermissionContentPreview } from './permission-types';
 import { SessionState, type StateListener } from './session';
 import { ConversationState } from './conversation';
 import { ThreadPool } from './thread-pool';
@@ -387,10 +387,19 @@ export class AppState {
    * and returns a Promise that resolves when the user selects an option
    * or dismisses the dialog.
    *
+   * Phase 33: Builds PermissionContentPreview from toolCall data and passes
+   * to the new AMP-style PermissionDialog (StatefulWidget with radio options,
+   * content preview, and feedback input mode).
+   *
    * The dialog renders at OVERLAY_PRIORITIES.PERMISSION_DIALOG (100),
    * ensuring it always appears on top of other overlays.
    */
   async requestPermission(request: PermissionRequest): Promise<PermissionResult> {
+    // Build content preview from toolCall if not already present
+    const enrichedRequest = request.contentPreview
+      ? request
+      : { ...request, contentPreview: this._buildContentPreview(request) };
+
     return new Promise<PermissionResult>((resolve) => {
       this._permissionResolve = resolve;
       this.overlayManager.show({
@@ -399,18 +408,59 @@ export class AppState {
         modal: true,
         placement: { type: 'fullscreen' },
         builder: (onDismiss) => new PermissionDialog({
-          request,
-          onSelect: (optionId: string) => {
+          request: enrichedRequest,
+          onResult: (result: PermissionResult) => {
             onDismiss();
-            this.resolvePermission(optionId);
-          },
-          onCancel: () => {
-            onDismiss();
-            this.resolvePermission(null);
+            this.resolvePermission(result);
           },
         }),
       });
     });
+  }
+
+  /**
+   * Build a PermissionContentPreview from a PermissionRequest's toolCall data.
+   * Matches AMP's formatToolConfirmation() patterns.
+   */
+  private _buildContentPreview(request: PermissionRequest): PermissionContentPreview {
+    const { toolCall } = request;
+    const rawInput = toolCall.rawInput ?? {};
+
+    switch (toolCall.kind) {
+      case 'bash':
+      case 'command': {
+        const command = (rawInput.cmd ?? rawInput.command ?? '') as string;
+        return {
+          header: 'Run this command?',
+          command,
+          cwd: rawInput.cwd as string | undefined,
+        };
+      }
+      case 'edit_file':
+      case 'edit': {
+        return {
+          header: 'Allow editing file:',
+          filePath: rawInput.path as string | undefined,
+        };
+      }
+      case 'create_file':
+      case 'write':
+      case 'create': {
+        return {
+          header: 'Allow creating file:',
+          filePath: rawInput.path as string | undefined,
+        };
+      }
+      default: {
+        const json = Object.keys(rawInput).length > 0
+          ? JSON.stringify(rawInput, null, 2)
+          : undefined;
+        return {
+          header: `Allow ${toolCall.title}?`,
+          json,
+        };
+      }
+    }
   }
 
   /**

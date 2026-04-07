@@ -13,7 +13,8 @@ export type PermissionOptionKind =
   | 'allow_once'
   | 'allow_always'
   | 'reject_once'
-  | 'reject_always';
+  | 'reject_always'
+  | 'reject_with_feedback';
 
 /**
  * A single option in a permission dialog.
@@ -59,11 +60,38 @@ export interface PermissionRequest {
   readonly toolCall: PermissionToolCall;
   /** The available response options. */
   readonly options: ReadonlyArray<PermissionOption>;
+  /** Structured content preview for AMP-style HITL dialog (Phase 33). */
+  readonly contentPreview?: PermissionContentPreview;
+}
+
+/**
+ * Structured content preview displayed above options in the HITL dialog.
+ * Matches AMP's formatConfirmationContent() output shape.
+ */
+export interface PermissionContentPreview {
+  /** Title line (e.g., "Run this command?", "Allow editing file:"). */
+  readonly header: string;
+  /** Command string for bash tool calls (e.g., "sleep 60"). */
+  readonly command?: string;
+  /** Working directory for bash tool calls. */
+  readonly cwd?: string;
+  /** File path for edit/create tool calls. */
+  readonly filePath?: string;
+  /** Reason/rule text (e.g., "Matches built-in permissions rule 25: ask Bash"). */
+  readonly reason?: string;
+  /** Hint text (e.g., "Press ? for full command"). */
+  readonly hint?: string;
+  /** JSON preview for generic tool calls. */
+  readonly json?: string;
 }
 
 /**
  * Result of a permission dialog interaction.
- * A string optionId when the user selects an option,
- * or null when the user dismisses without selecting (Escape).
+ * - String optionId for simple selection (backward-compatible)
+ * - Compound object with feedback text for deny-with-feedback
+ * - null when the user dismisses without selecting (Escape)
  */
-export type PermissionResult = string | null;
+export type PermissionResult =
+  | string
+  | { type: 'deny-with-feedback'; feedback: string }
+  | null;

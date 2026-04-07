@@ -29,6 +29,7 @@ import { PromptController } from './prompt-controller';
 import { OverlayManager } from './overlay-manager';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from './overlay-ids';
 import { PermissionDialog } from '../widgets/permission-dialog';
+import { ThreadList, mapThreadHandleToEntry } from '../widgets/thread-list';
 import { SessionStore, type SessionFile } from './session-store';
 import { PromptHistory } from './history';
 import { log } from '../utils/logger';
@@ -484,6 +485,46 @@ export class AppState {
       }
     }
     this._notifyListeners();
+  }
+
+  /**
+   * Show the thread list overlay for browsing and switching threads.
+   * Uses the existing OVERLAY_IDS.THREAD_LIST and OVERLAY_PRIORITIES.THREAD_LIST.
+   * Matches AMP's loadThreadsForPicker() and thread picker UI (SECTION 6).
+   */
+  showThreadList(): void {
+    const threads = this.threadPool.getVisibleThreads()
+      .map(handle => mapThreadHandleToEntry(handle));
+
+    this.overlayManager.show({
+      id: OVERLAY_IDS.THREAD_LIST,
+      priority: OVERLAY_PRIORITIES.THREAD_LIST,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss) => new ThreadList({
+        threads,
+        currentThreadID: this.threadPool.activeThreadContextID,
+        onSelect: (threadID: string) => {
+          onDismiss();
+          this.switchToThread(threadID);
+        },
+        onDismiss,
+        getThreadItems: (threadID: string) => {
+          const handle = this.threadPool.threadHandleMap.get(threadID);
+          return handle?.session.items ?? [];
+        },
+        getThreadTitle: (threadID: string) => {
+          return this.threadPool.threadTitles[threadID] ?? null;
+        },
+      }),
+    });
+  }
+
+  /**
+   * Dismiss the thread list overlay if it is currently shown.
+   */
+  dismissThreadList(): void {
+    this.overlayManager.dismiss(OVERLAY_IDS.THREAD_LIST);
   }
 
   /** Toggle dense (compact) view mode. */

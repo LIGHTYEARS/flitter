@@ -5,16 +5,148 @@
 // re-exports and coco/ACP coupling.
 
 // ---------------------------------------------------------------------------
+// Deep Reasoning Effort (MODE-01)
+// ---------------------------------------------------------------------------
+
+/** Tri-state deep reasoning effort level matching AMP's agent.deepReasoningEffort. */
+export type DeepReasoningEffort = 'medium' | 'high' | 'xhigh';
+
+// ---------------------------------------------------------------------------
+// Agent Mode Definitions (MODE-02)
+// ---------------------------------------------------------------------------
+
+/** UI rendering hints per agent mode, from AMP's nb uiHints. */
+export interface AgentModeUiHints {
+  labelAnimation?: 'glow' | 'jitter';
+  fasterAnimation?: boolean;
+  primaryColor: { r: number; g: number; b: number };
+  secondaryColor: { r: number; g: number; b: number };
+}
+
+/** Full agent mode definition matching AMP's nb object structure. */
+export interface AgentModeDefinition {
+  key: string;
+  displayName: string;
+  description: string;
+  primaryModel: string;
+  visible: boolean;
+  reasoningEffort?: DeepReasoningEffort;
+  uiHints: AgentModeUiHints;
+}
+
+// ---------------------------------------------------------------------------
 // Session Mode
 // ---------------------------------------------------------------------------
 
-/** Describes an available agent mode (e.g., 'smart', 'code', 'ask'). */
+/** Describes an available agent mode with optional AMP-aligned fields. */
 export interface SessionMode {
   id: string;
   name: string;
   displayName?: string;
   description?: string;
+  primaryModel?: string;
+  visible?: boolean;
+  reasoningEffort?: DeepReasoningEffort;
+  uiHints?: AgentModeUiHints;
 }
+
+// ---------------------------------------------------------------------------
+// AGENT_MODES constant — all 7 AMP agent modes with exact definitions
+// ---------------------------------------------------------------------------
+
+/** All 7 AMP agent modes with exact definitions from AMP nb object. */
+export const AGENT_MODES: Record<string, AgentModeDefinition> = {
+  smart: {
+    key: 'smart',
+    displayName: 'Smart',
+    description: 'The most capable model and set of tools',
+    primaryModel: 'claude-opus-4-6',
+    visible: true,
+    uiHints: {
+      labelAnimation: 'glow',
+      primaryColor: { r: 0, g: 55, b: 20 },
+      secondaryColor: { r: 0, g: 255, b: 136 },
+    },
+  },
+  free: {
+    key: 'free',
+    displayName: 'Free',
+    description: 'Amp Free',
+    primaryModel: 'claude-haiku-4-5-20251001',
+    visible: true,
+    uiHints: {
+      primaryColor: { r: 0, g: 26, b: 51 },
+      secondaryColor: { r: 0, g: 184, b: 255 },
+    },
+  },
+  rush: {
+    key: 'rush',
+    displayName: 'Rush',
+    description: 'Faster and cheaper for small, well-defined tasks',
+    primaryModel: 'claude-haiku-4-5-20251001',
+    visible: true,
+    uiHints: {
+      fasterAnimation: true,
+      labelAnimation: 'jitter',
+      primaryColor: { r: 128, g: 51, b: 0 },
+      secondaryColor: { r: 255, g: 215, b: 0 },
+    },
+  },
+  'agg-man': {
+    key: 'agg-man',
+    displayName: 'Agg',
+    description: 'Navigate work across Amp projects, threads, and context',
+    primaryModel: 'claude-opus-4-6',
+    visible: false,
+    uiHints: {
+      primaryColor: { r: 26, g: 0, b: 77 },
+      secondaryColor: { r: 102, g: 153, b: 255 },
+    },
+  },
+  large: {
+    key: 'large',
+    displayName: 'Large',
+    description: 'The biggest context window possible (Opus 4.6 1M tokens), for large tasks',
+    primaryModel: 'claude-opus-4-6',
+    visible: true,
+    uiHints: {
+      labelAnimation: 'glow',
+      primaryColor: { r: 42, g: 26, b: 77 },
+      secondaryColor: { r: 153, g: 102, b: 255 },
+    },
+  },
+  deep: {
+    key: 'deep',
+    displayName: 'Deep',
+    description: 'Deep reasoning with GPT-5.4',
+    primaryModel: 'gpt-5.4',
+    visible: true,
+    reasoningEffort: 'high',
+    uiHints: {
+      labelAnimation: 'glow',
+      primaryColor: { r: 0, g: 77, b: 64 },
+      secondaryColor: { r: 29, g: 233, b: 182 },
+    },
+  },
+  internal: {
+    key: 'internal',
+    displayName: 'Internal',
+    description: 'Internal-only mode for Amp development and debugging',
+    primaryModel: 'gpt-5.4',
+    visible: true,
+    reasoningEffort: 'xhigh',
+    uiHints: {
+      labelAnimation: 'glow',
+      primaryColor: { r: 77, g: 18, b: 0 },
+      secondaryColor: { r: 255, g: 119, b: 42 },
+    },
+  },
+};
+
+/** Ordered list of all visible mode keys for cycling (AGG excluded because visible: false). */
+export const VISIBLE_MODE_KEYS: string[] = Object.values(AGENT_MODES)
+  .filter(m => m.visible)
+  .map(m => m.key);
 
 // ---------------------------------------------------------------------------
 // Session Error & Metadata

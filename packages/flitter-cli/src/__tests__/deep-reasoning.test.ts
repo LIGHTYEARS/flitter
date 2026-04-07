@@ -1,9 +1,9 @@
-// Tests for deep reasoning toggle (Gap N12).
+// Tests for deep reasoning tri-state cycling (Gap N12, MODE-01).
 //
 // Covers:
-// 1. AppState.toggleDeepReasoning() flips the state and notifies listeners
-// 2. Alt+D shortcut is registered and wired to toggleDeepReasoning()
-// 3. formatReasoningToggle() utility outputs correct strings
+// 1. AppState.cycleDeepReasoning() cycles null → medium → high → xhigh → null
+// 2. Alt+D shortcut is registered and wired to cycleDeepReasoning()
+// 3. formatReasoningToggle() utility outputs correct strings for tri-state
 
 import { describe, test, expect, beforeEach } from 'bun:test';
 import { createKeyEvent } from '../../../flitter-core/src/input/events';
@@ -80,10 +80,10 @@ function handleKey(state: any, event: KeyEvent): KeyEventResult {
 }
 
 // ===========================================================================
-// Group 1: AppState.toggleDeepReasoning()
+// Group 1: AppState.cycleDeepReasoning() — tri-state (MODE-01)
 // ===========================================================================
 
-describe('AppState — deep reasoning toggle (N12)', () => {
+describe('AppState — deep reasoning tri-state (N12, MODE-01)', () => {
   let appState: AppState;
 
   beforeEach(() => {
@@ -91,36 +91,39 @@ describe('AppState — deep reasoning toggle (N12)', () => {
     appState = harness.appState;
   });
 
-  test('deepReasoningActive defaults to false', () => {
+  test('deepReasoningActive defaults to false, deepReasoningEffort defaults to null', () => {
     expect(appState.deepReasoningActive).toBe(false);
+    expect(appState.deepReasoningEffort).toBeNull();
   });
 
-  test('toggleDeepReasoning() flips state to true', () => {
-    appState.toggleDeepReasoning();
+  test('cycleDeepReasoning() cycles null → medium', () => {
+    appState.cycleDeepReasoning();
     expect(appState.deepReasoningActive).toBe(true);
+    expect(appState.deepReasoningEffort).toBe('medium');
   });
 
-  test('toggleDeepReasoning() flips state back to false on second call', () => {
-    appState.toggleDeepReasoning();
-    appState.toggleDeepReasoning();
+  test('cycleDeepReasoning() cycles medium → high → xhigh → null', () => {
+    appState.cycleDeepReasoning(); // null → medium
+    appState.cycleDeepReasoning(); // medium → high
+    expect(appState.deepReasoningEffort).toBe('high');
+    appState.cycleDeepReasoning(); // high → xhigh
+    expect(appState.deepReasoningEffort).toBe('xhigh');
+    appState.cycleDeepReasoning(); // xhigh → null
+    expect(appState.deepReasoningEffort).toBeNull();
     expect(appState.deepReasoningActive).toBe(false);
   });
 
-  test('toggleDeepReasoning() notifies listeners', () => {
+  test('cycleDeepReasoning() notifies listeners', () => {
     let callCount = 0;
     appState.addListener(() => { callCount++; });
-    appState.toggleDeepReasoning();
+    appState.cycleDeepReasoning();
     expect(callCount).toBeGreaterThan(0);
   });
 
-  test('multiple toggles cycle correctly', () => {
-    expect(appState.deepReasoningActive).toBe(false);
+  test('toggleDeepReasoning() backward compat alias calls cycleDeepReasoning()', () => {
     appState.toggleDeepReasoning();
     expect(appState.deepReasoningActive).toBe(true);
-    appState.toggleDeepReasoning();
-    expect(appState.deepReasoningActive).toBe(false);
-    appState.toggleDeepReasoning();
-    expect(appState.deepReasoningActive).toBe(true);
+    expect(appState.deepReasoningEffort).toBe('medium');
   });
 });
 
@@ -141,7 +144,7 @@ describe('Alt+D shortcut — toggle-deep-reasoning (N12)', () => {
     expect(entry!.category).toBe('display');
   });
 
-  test('Alt+D dispatches to toggle-deep-reasoning and returns handled', () => {
+  test('Alt+D dispatches to cycleDeepReasoning and returns handled', () => {
     WidgetsBinding.reset();
     const { appState } = createTestAppState();
     const { state } = buildAppShellState(appState);
@@ -150,16 +153,22 @@ describe('Alt+D shortcut — toggle-deep-reasoning (N12)', () => {
     const result = handleKey(state, createKeyEvent('d', { altKey: true }));
     expect(result).toBe('handled');
     expect(appState.deepReasoningActive).toBe(true);
+    expect(appState.deepReasoningEffort).toBe('medium');
   });
 
-  test('Alt+D toggles back to false on second press', () => {
+  test('Alt+D cycles through medium → high → xhigh → off', () => {
     WidgetsBinding.reset();
     const { appState } = createTestAppState();
     const { state } = buildAppShellState(appState);
 
-    handleKey(state, createKeyEvent('d', { altKey: true }));
-    expect(appState.deepReasoningActive).toBe(true);
-    handleKey(state, createKeyEvent('d', { altKey: true }));
+    handleKey(state, createKeyEvent('d', { altKey: true })); // null → medium
+    expect(appState.deepReasoningEffort).toBe('medium');
+    handleKey(state, createKeyEvent('d', { altKey: true })); // medium → high
+    expect(appState.deepReasoningEffort).toBe('high');
+    handleKey(state, createKeyEvent('d', { altKey: true })); // high → xhigh
+    expect(appState.deepReasoningEffort).toBe('xhigh');
+    handleKey(state, createKeyEvent('d', { altKey: true })); // xhigh → null
+    expect(appState.deepReasoningEffort).toBeNull();
     expect(appState.deepReasoningActive).toBe(false);
   });
 
@@ -178,13 +187,21 @@ describe('Alt+D shortcut — toggle-deep-reasoning (N12)', () => {
 // Group 3: formatReasoningToggle utility
 // ===========================================================================
 
-describe('formatReasoningToggle (N12)', () => {
+describe('formatReasoningToggle (N12, MODE-01)', () => {
 
-  test('returns "[extended]" when active is true', () => {
-    expect(formatReasoningToggle(true)).toBe('[extended]');
+  test('returns "[normal]" when effort is null', () => {
+    expect(formatReasoningToggle(null)).toBe('[normal]');
   });
 
-  test('returns "[normal]" when active is false', () => {
-    expect(formatReasoningToggle(false)).toBe('[normal]');
+  test('returns "[medium]" when effort is "medium"', () => {
+    expect(formatReasoningToggle('medium')).toBe('[medium]');
+  });
+
+  test('returns "[high]" when effort is "high"', () => {
+    expect(formatReasoningToggle('high')).toBe('[high]');
+  });
+
+  test('returns "[xhigh]" when effort is "xhigh"', () => {
+    expect(formatReasoningToggle('xhigh')).toBe('[xhigh]');
   });
 });

@@ -702,13 +702,21 @@ describe('N11 - Thinking indicator', () => {
 // N12 - Deep reasoning toggle stub
 // ---------------------------------------------------------------------------
 
-describe('N12 - Reasoning toggle', () => {
-  it('normal mode formats correctly', () => {
-    expect(formatReasoningToggle(false)).toBe('[normal]');
+describe('N12 - Reasoning toggle (tri-state)', () => {
+  it('null effort formats as [normal]', () => {
+    expect(formatReasoningToggle(null)).toBe('[normal]');
   });
 
-  it('extended mode formats correctly', () => {
-    expect(formatReasoningToggle(true)).toBe('[extended]');
+  it('medium effort formats as [medium]', () => {
+    expect(formatReasoningToggle('medium')).toBe('[medium]');
+  });
+
+  it('high effort formats as [high]', () => {
+    expect(formatReasoningToggle('high')).toBe('[high]');
+  });
+
+  it('xhigh effort formats as [xhigh]', () => {
+    expect(formatReasoningToggle('xhigh')).toBe('[xhigh]');
   });
 });
 

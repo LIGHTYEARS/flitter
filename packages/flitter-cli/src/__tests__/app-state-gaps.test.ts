@@ -108,48 +108,52 @@ describe('AppState gap closures', () => {
 
   // --- S2: cycleMode ---
 
-  describe('cycleMode()', () => {
-    test('cycles through default modes when modes array is empty', () => {
-      // Default modes: smart -> code -> ask -> smart
-      appState.cycleMode();
-      expect(appState.currentMode).toBe('code');
+  describe('cycleMode() — VISIBLE_MODE_KEYS (MODE-02)', () => {
+    test('cycles through visible AMP modes: smart → free → rush → large → deep → internal → smart', () => {
+      // Default currentMode is 'smart'
+      expect(appState.currentMode).toBe('smart');
 
       appState.cycleMode();
-      expect(appState.currentMode).toBe('ask');
+      expect(appState.currentMode).toBe('free');
+
+      appState.cycleMode();
+      expect(appState.currentMode).toBe('rush');
+
+      appState.cycleMode();
+      expect(appState.currentMode).toBe('large');
+
+      appState.cycleMode();
+      expect(appState.currentMode).toBe('deep');
+
+      appState.cycleMode();
+      expect(appState.currentMode).toBe('internal');
 
       appState.cycleMode();
       expect(appState.currentMode).toBe('smart');
     });
 
-    test('cycles through custom modes array', () => {
-      appState.modes = [
-        { id: 'alpha', name: 'alpha' },
-        { id: 'beta', name: 'beta' },
-        { id: 'gamma', name: 'gamma' },
-      ];
-      appState.currentMode = 'alpha';
-
-      appState.cycleMode();
-      expect(appState.currentMode).toBe('beta');
-
-      appState.cycleMode();
-      expect(appState.currentMode).toBe('gamma');
-
-      appState.cycleMode();
-      expect(appState.currentMode).toBe('alpha');
+    test('skips AGG (agg-man) because visible: false', () => {
+      // Cycle through all modes and verify agg-man never appears
+      const visited: string[] = [];
+      appState.currentMode = 'smart';
+      for (let i = 0; i < 7; i++) {
+        appState.cycleMode();
+        visited.push(appState.currentMode!);
+      }
+      expect(visited).not.toContain('agg-man');
     });
 
-    test('starts from first mode when currentMode is null', () => {
+    test('starts from first visible mode when currentMode is null', () => {
       appState.currentMode = null;
       appState.cycleMode();
-      // Default: currentMode ?? available[0] = 'smart', idx=0, next = (0+1)%3 = 'code'
-      expect(appState.currentMode).toBe('code');
+      // null ?? VISIBLE_MODE_KEYS[0] = 'smart', idx=0, next=(0+1)%6 = 'free'
+      expect(appState.currentMode).toBe('free');
     });
 
     test('handles unknown currentMode by wrapping to first', () => {
       appState.currentMode = 'unknown';
       appState.cycleMode();
-      // indexOf('unknown') = -1, (-1+1)%3 = 0 => 'smart'
+      // indexOf('unknown') = -1, nextIdx = 0 => 'smart'
       expect(appState.currentMode).toBe('smart');
     });
 
@@ -280,13 +284,15 @@ describe('AppState gap closures', () => {
   // --- modes field ---
 
   describe('modes field', () => {
-    test('defaults to empty array', () => {
-      expect(appState.modes).toEqual([]);
+    test('defaults to all 7 AMP agent modes', () => {
+      expect(appState.modes.length).toBe(7);
+      expect(appState.modes[0].id).toBe('smart');
+      expect(appState.modes.map(m => m.id)).toContain('agg-man');
     });
 
     test('can be set to custom array', () => {
-      appState.modes = ['fast', 'slow'];
-      expect(appState.modes).toEqual(['fast', 'slow']);
+      appState.modes = [{ id: 'fast', name: 'fast' }, { id: 'slow', name: 'slow' }];
+      expect(appState.modes.map(m => m.id)).toEqual(['fast', 'slow']);
     });
   });
 

@@ -261,12 +261,12 @@ describe('AppState', () => {
       expect(appState.lifecycle).toBe('idle');
     });
 
-    test('newThread() clears selectedMessageIndex and currentMode', () => {
+    test('newThread() clears selectedMessageIndex and resets currentMode to smart', () => {
       appState.selectedMessageIndex = 2;
-      appState.currentMode = 'code';
+      appState.currentMode = 'deep';
       appState.newThread();
       expect(appState.selectedMessageIndex).toBeNull();
-      expect(appState.currentMode).toBeNull();
+      expect(appState.currentMode).toBe('smart');
     });
   });
 

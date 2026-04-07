@@ -8,6 +8,7 @@
 // StreamEvent vocabulary defined in state/types.ts.
 
 import type { StreamEvent, ProviderMessage, ToolDefinition } from '../state/types';
+import type { Model, Api } from '@mariozechner/pi-ai';
 
 /**
  * Capabilities that a provider may or may not support.
@@ -48,8 +49,8 @@ export interface PromptOptions {
 
 /**
  * Provider identifier — a branded string type for type safety.
- * Well-known values: 'anthropic', 'openai', 'chatgpt-codex', 'copilot',
- * 'gemini', 'antigravity', 'openai-compatible'.
+ * Well-known values cover all AMP providers plus the extended pi-ai providers.
+ * Per D-01: expanded to include all 15 AMP provider IDs.
  */
 export type ProviderId =
   | 'anthropic'
@@ -59,6 +60,14 @@ export type ProviderId =
   | 'gemini'
   | 'antigravity'
   | 'openai-compatible'
+  | 'xai'
+  | 'groq'
+  | 'cerebras'
+  | 'openrouter'
+  | 'fireworks'
+  | 'baseten'
+  | 'moonshot'
+  | 'vertex'
   | (string & {});
 
 /**
@@ -110,6 +119,14 @@ export interface Provider {
    * when specific models have different feature sets.
    */
   readonly capabilities: ProviderCapabilities;
+
+  /**
+   * The underlying pi-ai Model object with full metadata.
+   *
+   * Exposes contextWindow, maxTokens, cost, reasoning flag, and input types
+   * for callers that need model-level metadata. Per D-18.
+   */
+  readonly piModel: Model<Api>;
 
   /**
    * Optional health check / heartbeat (N5).

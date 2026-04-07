@@ -42,7 +42,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction (completed 2026-04-07)
 - [x] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking (completed 2026-04-07)
 - [x] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation (completed 2026-04-07)
-- [ ] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout
+- [x] **Phase 31: Command Palette Overhaul** - Category+label format, 15+ commands, centered layout (completed 2026-04-07)
 - [ ] **Phase 32: Shortcut Help, Missing Shortcuts, and Shell Mode** - InputArea-embedded dual-column help, register Ctrl+V/Shift+Enter/Tab, shell mode with bash invocations
 - [ ] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode
 - [ ] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation
@@ -303,7 +303,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 28. Queue Mode and Compaction | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 29. Handoff State Machine | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 30. Skills Modal | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
-| 31. Command Palette Overhaul | v0.4.0 | 0/2 | Not started | - |
+| 31. Command Palette Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 32. Shortcut Help, Shortcuts, Shell Mode | v0.4.0 | 0/3 | Not started | - |
 | 33. HITL Confirmation Overhaul | v0.4.0 | 0/2 | Not started | - |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 0/2 | Not started | - |

@@ -670,3 +670,31 @@ export interface BashInvocation {
 
 /** Shell mode status matching AMP's currentShellModeStatus. */
 export type ShellModeStatus = 'shell' | 'hidden' | null;
+
+/**
+ * Image attachment data for Ctrl+V paste support.
+ * Matches AMP's imageAttachments array element contract.
+ * Each image has a unique ID for tracking and removal.
+ */
+export interface ImageAttachment {
+  /** Unique attachment ID for tracking (UUID). */
+  readonly id: string;
+  /** Raw image data buffer (PNG format from clipboard). */
+  readonly data: Buffer;
+  /** MIME type of the image (typically 'image/png'). */
+  readonly mimeType: string;
+}
+
+/**
+ * File change entry tracking modifications during a session.
+ * Matches AMP's ThreadWorker fileChanges BehaviorSubject data.
+ */
+export interface FileChangeEntry {
+  /** Relative file path from workspace root. */
+  readonly path: string;
+  /** Type of change applied to the file. */
+  readonly status: 'created' | 'modified' | 'deleted';
+}
+
+/** Toast notification type for styling. Matches AMP's toastController.show() type parameter. */
+export type ToastType = 'success' | 'error' | 'info';

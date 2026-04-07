@@ -18,7 +18,11 @@ import type {
   HandoffState,
   BashInvocation,
   ShellModeStatus,
+  ImageAttachment,
+  FileChangeEntry,
 } from './types';
+// ToastType re-exported for consumers that need it
+export type { ToastType } from './types';
 import { AGENT_MODES, VISIBLE_MODE_KEYS, DEFAULT_HANDOFF_STATE } from './types';
 import type { Turn } from './turn-types';
 import type { PermissionRequest, PermissionResult, PermissionContentPreview } from './permission-types';
@@ -37,6 +41,7 @@ import { SessionStore, type SessionFile } from './session-store';
 import { PromptHistory } from './history';
 import { log } from '../utils/logger';
 import { launchEditor, type EditorResult } from '../utils/editor-launcher';
+import { readImageFromClipboard } from '../utils/clipboard-image';
 import { SkillService } from './skill-service';
 import type { SkillDefinition } from './skill-types';
 
@@ -112,6 +117,19 @@ export class AppState {
 
   /** Current shell mode status for UI display. Matches AMP's currentShellModeStatus. */
   currentShellModeStatus: ShellModeStatus = null;
+
+  // --- Image Attachment State (IMG-01, IMG-02, IMG-03, IMG-04) ---
+
+  /** Active image attachments. Matches AMP's GhR.imageAttachments array. */
+  imageAttachments: ImageAttachment[] = [];
+
+  /** Whether an image paste operation is in progress. Matches AMP's isUploadingImageAttachments. */
+  isUploadingImageAttachments: boolean = false;
+
+  // --- File Change Tracking (OVLY-05) ---
+
+  /** Files modified during the current session. Matches AMP's ThreadWorker.fileChanges. */
+  fileChanges: FileChangeEntry[] = [];
 
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
@@ -1184,6 +1202,124 @@ export class AppState {
     if (this.currentShellModeStatus === status) return;
     this.currentShellModeStatus = status;
     log.info(`AppState.setShellModeStatus: ${status}`);
+    this._notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Image Attachment Management (IMG-01, IMG-02, IMG-03, IMG-04)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Paste image from system clipboard into the image attachments array.
+   * Matches AMP's handleInsertImage / pasteImageFromClipboard pattern.
+   *
+   * Sets isUploadingImageAttachments to true during the async clipboard read,
+   * then adds the image to the attachments array on success.
+   */
+  async pasteImage(): Promise<void> {
+    if (this.isUploadingImageAttachments) return;
+
+    this.isUploadingImageAttachments = true;
+    this._notifyListeners();
+
+    try {
+      const clipData = await readImageFromClipboard();
+      if (clipData) {
+        const attachment: ImageAttachment = {
+          id: crypto.randomUUID(),
+          data: clipData.data,
+          mimeType: clipData.mimeType,
+        };
+        this.imageAttachments = [...this.imageAttachments, attachment];
+        log.info('AppState.pasteImage: image attached', {
+          id: attachment.id,
+          byteLength: attachment.data.byteLength,
+        });
+      } else {
+        log.info('AppState.pasteImage: no image in clipboard');
+      }
+    } catch (err) {
+      log.info('AppState.pasteImage: failed', { error: String(err) });
+    } finally {
+      this.isUploadingImageAttachments = false;
+      this._notifyListeners();
+    }
+  }
+
+  /**
+   * Remove the last attached image. Matches AMP's popImage / handlePopImage.
+   * Called on Backspace when input is empty and images are attached.
+   */
+  popImage(): void {
+    if (this.imageAttachments.length === 0) return;
+    this.imageAttachments = this.imageAttachments.slice(0, -1);
+    log.info('AppState.popImage: removed last image');
+    this._notifyListeners();
+  }
+
+  /**
+   * Clear all image attachments. Used on prompt submit or thread switch.
+   */
+  clearImageAttachments(): void {
+    if (this.imageAttachments.length === 0) return;
+    this.imageAttachments = [];
+    log.info('AppState.clearImageAttachments');
+    this._notifyListeners();
+  }
+
+  /**
+   * Show full-screen image preview overlay for the given image.
+   * Matches AMP's onShowImagePreview / imagePreview state field.
+   */
+  showImagePreview(image: ImageAttachment): void {
+    // Lazy import to avoid circular dependency
+    const { ImagePreviewOverlay } = require('../widgets/image-preview-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.IMAGE_PREVIEW,
+      priority: OVERLAY_PRIORITIES.IMAGE_PREVIEW,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new ImagePreviewOverlay({
+        image,
+        onDismiss,
+        onSave: async (filename: string) => {
+          try {
+            const path = `${this.session.metadata.cwd}/${filename}`;
+            await Bun.write(path, image.data);
+            log.info('AppState.showImagePreview: saved image', { path });
+            onDismiss();
+          } catch (err) {
+            log.info('AppState.showImagePreview: save failed', { error: String(err) });
+          }
+        },
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // File Change Tracking (OVLY-05)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add a file change entry to the tracked changes list.
+   * Deduplicates by path — replaces existing entry for the same path.
+   */
+  addFileChange(entry: FileChangeEntry): void {
+    this.fileChanges = [
+      ...this.fileChanges.filter(f => f.path !== entry.path),
+      entry,
+    ];
+    log.info('AppState.addFileChange', { path: entry.path, status: entry.status });
+    this._notifyListeners();
+  }
+
+  /**
+   * Clear all tracked file changes. Used on thread switch or session reset.
+   */
+  clearFileChanges(): void {
+    if (this.fileChanges.length === 0) return;
+    this.fileChanges = [];
+    log.info('AppState.clearFileChanges');
     this._notifyListeners();
   }
 

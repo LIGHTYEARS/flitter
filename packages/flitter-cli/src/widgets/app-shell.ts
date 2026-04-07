@@ -486,6 +486,9 @@ class AppShellState extends State<AppShell> {
       copyLastResponse: () => {
         this.widget.appState.copyLastResponse();
       },
+      pasteImage: () => {
+        this.widget.appState.pasteImage();
+      },
     };
 
     return {

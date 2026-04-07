@@ -1,70 +1,74 @@
 # Phase 25: Provider and Model System - Context
 
 **Gathered:** 2026-04-07
-**Status:** Ready for planning
+**Revised:** 2026-04-07 (pi-ai integration)
+**Status:** Ready for re-planning
 
 <domain>
 ## Phase Boundary
 
-Expand the provider system to match AMP's 10-provider registry (`v9` enum), build a
-complete model catalog (`n8`) with per-model metadata (contextWindow, maxOutputTokens,
-pricing, capabilities), and introduce a Zod-validated hierarchical config service for
-provider-specific settings. This phase delivers the data layer that Phase 26 (Agent
-Modes) depends on — agent modes reference models by catalog key via `ba()` lookup.
+Replace the hand-rolled `AnthropicProvider` / `OpenAIProvider` LLM communication layer
+with `@mariozechner/pi-ai` (v0.65.2) — a unified LLM API that provides automatic model
+discovery, provider configuration, streaming, token & cost tracking out of the box.
+
+pi-ai already covers all AMP providers (anthropic, openai, xai, groq, cerebras,
+openrouter, google-vertex, kimi-coding/moonshot) plus 10+ additional providers. Its
+`MODELS` auto-generated catalog contains hundreds of models with contextWindow,
+maxTokens, cost, reasoning, and input modality metadata.
+
+This phase now focuses on:
+1. **Dependency swap**: `@mariozechner/pi-ai` replaces `@anthropic-ai/sdk` + `openai` SDK
+2. **Adapter layer**: bridge pi-ai's `stream()`/`AssistantMessageEventStream` to
+   flitter-cli's `StreamEvent` / `Provider` interface (minimal translation)
+3. **Provider resolution**: replace `createProvider()` switch/case + `autoDetectProvider()`
+   with pi-ai's `getModel()` + `getEnvApiKey()`
+4. **ConfigService**: Zod-validated settings (unchanged from original plan)
 
 </domain>
 
 <decisions>
 ## Implementation Decisions
 
-### Provider Registry Architecture
-- **D-01:** Replace current `switch/case` hardcoded routing in `factory.ts` with AMP's `v9` provider enum. AMP's provider identifiers are: `anthropic`, `baseten`, `openai`, `xai`, `cerebras`, `fireworks`, `groq`, `moonshotai`, `openrouter`, `vertexai`. The `ProviderId` type must be updated to include all 10.
-- **D-02:** AMP's 8 new providers (xai, cerebras, fireworks, groq, moonshot, openrouter, vertex, baseten) are all OpenAI-compatible API endpoints. They route through `OpenAIProvider` with provider-specific `baseUrl`, `providerId`, and `providerName` — the same pattern already used for `gemini`/`copilot`/`chatgpt-codex`. No new provider implementation classes needed.
-- **D-03:** Keep `chatgpt-codex`, `copilot`, `gemini`, `antigravity`, and `openai-compatible` as valid provider IDs in flitter-cli even though they are not in AMP's `v9` enum. These are flitter-cli extensions for direct user API key usage. The provider ID union is AMP's 10 + flitter-cli's existing extras.
-- **D-04:** Each provider entry defines: `id` (enum value), `displayName`, `defaultBaseUrl`, `defaultModel` (catalog key reference), `authType` ('apiKey' | 'oauth' | 'none'), `envVarKeys` (environment variable names for API key auto-detection). This maps directly to how `autoDetectProvider()` and `createProvider()` currently resolve configuration.
+### Core Architectural Decision
+- **D-00 (NEW):** Adopt `@mariozechner/pi-ai` as the unified LLM backend. This replaces
+  `AnthropicProvider` class, `OpenAIProvider` class, and the entire `createProvider()`
+  switch/case routing. pi-ai handles: provider protocol differences, streaming, retry,
+  token usage, cost calculation, model metadata. User constraint: minimize format
+  conversion layers — use pi-ai types directly where feasible; the adapter exists for
+  decoupling, not for introducing cognitive overhead.
 
-### Model Catalog Data Structure
-- **D-05:** Model catalog is a static `Record<ModelKey, ModelDefinition>` matching AMP's `n8` object exactly. `ModelKey` is a string enum (e.g., `CLAUDE_SONNET_4`, `GPT_5_4`, `GROK_CODE_FAST_1`). Every model entry from AMP's `n8` is transcribed verbatim — no additions, no omissions.
-- **D-06:** `ModelDefinition` interface matches AMP's schema exactly:
-  ```
-  {
-    provider: ProviderId
-    name: string              // API model name (e.g., "claude-sonnet-4-20250514")
-    displayName: string       // Human-readable (e.g., "Claude Sonnet 4")
-    contextWindow: number     // Token count
-    maxOutputTokens: number   // Token count
-    pricing?: {               // Optional — some models have no pricing
-      input: number           // Per 1M input tokens ($)
-      output: number          // Per 1M output tokens ($)
-      cached?: number         // Per 1M cached input tokens ($)
-      cacheWrite?: number     // Per 1M cache write tokens ($)
-      cacheTTL?: number       // Cache TTL in seconds
-    }
-    capabilities: {
-      reasoning?: boolean
-      vision?: boolean
-      tools?: boolean
-      imageGeneration?: boolean
-    }
-  }
-  ```
-- **D-07:** A `lookupModel(key: ModelKey): ModelDefinition` function (equivalent to AMP's `ba()`) provides type-safe model lookup by catalog key. This is what agent modes use in Phase 26 to reference their `primaryModel`.
-- **D-08:** Complete AMP model catalog (transcribed from `n8`):
-  - **Anthropic (8):** CLAUDE_SONNET_4, CLAUDE_SONNET_4_5, CLAUDE_SONNET_4_6, CLAUDE_OPUS_4, CLAUDE_OPUS_4_1, CLAUDE_OPUS_4_5, CLAUDE_OPUS_4_6, CLAUDE_HAIKU_4_5
-  - **OpenAI (12):** GPT_5, GPT_5_1, GPT_5_2, GPT_5_4, GPT_5_CODEX, GPT_5_1_CODEX, GPT_5_2_CODEX, GPT_5_3_CODEX, GPT_5_MINI, GPT_5_NANO, O3, O3_MINI, GPT_OSS_120B
-  - **XAI (1):** GROK_CODE_FAST_1
-  - **VertexAI (4):** GEMINI_3_PRO_PREVIEW, GEMINI_3_1_PRO_PREVIEW, GEMINI3_FLASH_PREVIEW, GEMINI_3_PRO_IMAGE
-  - **Cerebras (1):** Z_AI_GLM_4_7
-  - **Fireworks (6):** FIREWORKS_QWEN3_CODER_480B, FIREWORKS_KIMI_K2_INSTRUCT, FIREWORKS_QWEN3_235B, FIREWORKS_GLM_4P6, FIREWORKS_GLM_5, FIREWORKS_MINIMAX_M2P5
-  - **Baseten (1):** BASETEN_KIMI_K2P5
-  - **Moonshot (1):** KIMI_K2_INSTRUCT
-  - **OpenRouter (4):** SONOMA_SKY_ALPHA, OPENROUTER_GLM_4_6, OPENROUTER_KIMI_K2_0905, OPENROUTER_QWEN3_CODER_480B
-  - **Groq:** (no models explicitly listed in extracted `n8` — may have entries not captured in the truncated source)
+### Provider Registry (superseded by pi-ai)
+- **D-01 (REVISED):** pi-ai's `KnownProvider` type replaces AMP's `v9` enum. pi-ai
+  already includes all 10 AMP providers: `anthropic`, `openai`, `xai`, `groq`,
+  `cerebras`, `openrouter`, `google-vertex` (= AMP's vertexai), `kimi-coding`
+  (= AMP's moonshotai). `ProviderId` type becomes `import { KnownProvider } from
+  '@mariozechner/pi-ai'` + flitter-cli extensions.
+- **D-02 (SUPERSEDED):** No longer need to route 8 providers through `OpenAIProvider`.
+  pi-ai handles all provider protocol differences internally.
+- **D-03 (KEPT):** Keep `chatgpt-codex`, `copilot`, `antigravity` as flitter-cli
+  extensions that use pi-ai's `openai-codex`, `github-copilot`, `google-antigravity`
+  providers respectively.
+- **D-04 (SUPERSEDED):** Provider registry entries no longer needed — pi-ai's
+  `getProviders()` and `getModels(provider)` provide this data dynamically.
 
-### Provider Config Service with Zod
-- **D-09:** Introduce `zod` as a new dependency in `packages/flitter-cli/package.json`. AMP uses Zod (`X` = `z` from zod) for settings schema validation. This is the first Zod usage in flitter-cli.
-- **D-10:** Create a `ConfigService` class that wraps hierarchical config resolution. AMP's `configService.get("anthropic.effort")` pattern — dot-notation keys with provider namespace prefixes. The settings schema (`sKR` in AMP) uses `z.strictObject()` with all keys optional.
-- **D-11:** AMP's settings keys relevant to Phase 25 (provider/model scope only — reasoning/agent mode keys belong to Phase 26):
+### Model Catalog (superseded by pi-ai)
+- **D-05 (SUPERSEDED):** pi-ai's `models.generated.ts` (359KB) already contains the
+  full model catalog with typed `Model<Api>` objects. No hand-transcription needed.
+- **D-06 (SUPERSEDED):** pi-ai's `Model<Api>` interface provides: `id`, `name`, `api`,
+  `provider`, `baseUrl`, `reasoning: boolean`, `input: ("text"|"image")[]`,
+  `cost: { input, output, cacheRead, cacheWrite }` ($/M tokens), `contextWindow`,
+  `maxTokens`. This is a superset of AMP's `ModelDefinition`.
+- **D-07 (REVISED):** `lookupModel` becomes a thin wrapper around pi-ai's
+  `getModel(provider, modelId)`. For Phase 26 `ba()` compatibility, we create a
+  `resolveModel(key: string): Model<Api>` that maps AMP-style keys like
+  `"CLAUDE_OPUS_4_6"` to pi-ai's `getModel("anthropic", "claude-opus-4-6-20250514")`.
+- **D-08 (SUPERSEDED):** No need to manually list 39 models — pi-ai has them all plus
+  hundreds more.
+
+### Provider Config Service with Zod (unchanged)
+- **D-09 (KEPT):** Introduce `zod` dependency for settings schema validation.
+- **D-10 (KEPT):** Create `ConfigService` class with dot-notation keys.
+- **D-11 (KEPT):** Same 9 settings keys for Phase 25 scope.
   ```
   anthropic.speed: z.enum(["standard", "fast"]).optional()
   anthropic.provider: z.enum(["anthropic", "vertex"]).optional()
@@ -76,26 +80,40 @@ Modes) depends on — agent modes reference models by catalog key via `ba()` loo
   internal.model: z.union([z.string(), z.record(z.string(), z.string())]).optional()
   gemini.thinkingLevel: z.enum(["minimal", "low", "medium", "high"]).optional()
   ```
-  Phase 26 will add: `agent.deepReasoningEffort`, `internal.oracleReasoningEffort`, `internal.compactionThresholdPercent`.
-- **D-12:** Config resolution priority (matches current but now Zod-validated):
-  1. CLI arguments (`--provider`, `--model`, `--base-url`)
-  2. `~/.flitter-cli/config.json` (user config — Zod-validated on load)
-  3. Environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, etc.)
-  4. Provider-specific defaults from provider registry
-  Validation failure = warn + fall back to defaults (never crash on bad config).
-- **D-13:** The config service holds the merged settings as a Zod-validated object. `get(key)` returns the typed value. `set(key, value)` validates against the schema before accepting. This is the same `configService` pattern AMP exposes at `this.configService` in the main TUI context.
+- **D-12 (KEPT):** Config resolution priority unchanged.
+- **D-13 (KEPT):** Typed get/set with Zod validation.
 
-### Integration with Existing Code
-- **D-14:** `DEFAULT_MODELS` in `factory.ts` is replaced by the model catalog. `getDefaultModel(providerId)` looks up the first model in the catalog for that provider (or a designated default).
-- **D-15:** `ProviderCapabilities` interface updated to match AMP: `{ reasoning?: boolean, vision?: boolean, tools?: boolean, imageGeneration?: boolean }`. The old `{ vision, functionCalling, streaming, systemPrompt }` fields are migrated: `functionCalling` → `tools`, `streaming` and `systemPrompt` move to provider-level config (all providers support these).
-- **D-16:** `autoDetectProvider()` extended with new env var keys for new providers: `XAI_API_KEY`, `CEREBRAS_API_KEY`, `FIREWORKS_API_KEY`, `GROQ_API_KEY`, `MOONSHOT_API_KEY`, `OPENROUTER_API_KEY`, `VERTEX_API_KEY` (or `GOOGLE_APPLICATION_CREDENTIALS`), `BASETEN_API_KEY`.
-- **D-17:** The existing `UserConfig` interface in `config.ts` gains a `settings` field for provider-specific settings (the Zod-validated namespace). This is where `anthropic.speed`, `openai.speed`, etc. live in `config.json`.
+### Integration with pi-ai
+- **D-14 (REVISED):** `DEFAULT_MODELS` replaced by pi-ai's `getModels(provider)[0]` or
+  a curated default model map. pi-ai's model catalog is the source of truth.
+- **D-15 (REVISED):** `ProviderCapabilities` maps to pi-ai's `Model` properties:
+  `model.reasoning` -> capabilities.reasoning, `model.input.includes("image")` ->
+  capabilities.vision, tool calling is always true (pi-ai only includes tool-capable
+  models). No need for a separate capabilities interface.
+- **D-16 (REVISED):** `autoDetectProvider()` replaced by iterating
+  `getProviders().filter(p => getEnvApiKey(p))`. pi-ai's `getEnvApiKey()` already knows
+  every provider's env var name (ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY,
+  GROQ_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, KIMI_API_KEY, etc.).
+- **D-17 (KEPT):** `UserConfig.settings` field for Zod-validated settings namespace.
+- **D-18 (NEW):** The `Provider` interface in `provider.ts` remains as flitter-cli's
+  internal contract. It gains a `piModel: Model<Api>` field so consumers can access
+  pi-ai metadata (cost, contextWindow, etc.) without extra lookups. `sendPrompt()`
+  implementation delegates to `stream(piModel, context, options)` from pi-ai.
+- **D-19 (NEW):** `StreamEvent` translation: pi-ai emits `AssistantMessageEvent` with
+  types: `text_delta`, `thinking_delta`, `toolcall_start/delta/end`, `done`, `error`.
+  These map 1:1 to flitter-cli's existing `StreamEvent` variants. The adapter is a
+  simple `async function*` that yields flitter-cli events from pi-ai events.
+- **D-20 (NEW):** For OAuth providers (chatgpt-codex, copilot, antigravity), flitter-cli
+  continues to manage token storage via `token-store.ts`. The resolved OAuth token is
+  passed to pi-ai via `stream(model, context, { apiKey: token.accessToken })`.
+- **D-21 (NEW):** `@anthropic-ai/sdk` and `openai` direct dependencies are removed from
+  `package.json` since pi-ai bundles them internally.
 
 ### Claude's Discretion
-- File organization: whether model catalog, provider registry, and config service live in separate files or are consolidated
-- Base URLs for new providers (well-known public endpoints for xai, cerebras, fireworks, groq, moonshot, openrouter, vertex, baseten)
-- Exact env var names for auto-detection of new providers (follow community conventions)
-- Whether `GPT_OSS_120B` (no pricing in AMP) should be excluded or kept with empty pricing
+- Exact mapping from AMP model keys to pi-ai provider+modelId pairs
+- Whether to keep `Provider` interface as-is or simplify given pi-ai does the heavy lifting
+- File organization of the adapter layer
+- Whether `retry.ts` is still needed (pi-ai may handle retries internally)
 
 </decisions>
 
@@ -104,71 +122,113 @@ Modes) depends on — agent modes reference models by catalog key via `ba()` loo
 
 **Downstream agents MUST read these before planning or implementing.**
 
-### AMP reverse-engineered source (primary spec)
-- `tmux-capture/amp-source/34_providers_models_catalog.js` -- AMP's `v9` provider enum, `n8` model catalog with all model definitions, `nb` agent modes (Phase 26 scope but models referenced here), `ba()` model lookup function
-- `tmux-capture/amp-source/22_providers_reasoning_modes.js` -- AMP's `sKR` settings schema (Zod `X.strictObject()`), settings key list (`xPR`), thinking/reasoning config keys, provider-specific speed settings
-- `tmux-capture/amp-source/33_settings_schema.js` -- Additional settings schema context, feature flags (`jh`), config service patterns
+### pi-ai library (new primary dependency)
+- `@mariozechner/pi-ai` npm package (v0.65.2) — https://github.com/badlogic/pi-mono/tree/main/packages/ai
+- Key exports: `getModel`, `getModels`, `getProviders`, `getEnvApiKey`, `stream`, `complete`, `streamSimple`, `calculateCost`
+- Key types: `Model<Api>`, `KnownProvider`, `Api`, `Context`, `AssistantMessageEvent`, `AssistantMessage`, `Usage`, `StreamOptions`, `SimpleStreamOptions`, `ThinkingLevel`
+- `models.generated.ts` — auto-generated 359KB model catalog with all providers/models
+- `env-api-keys.ts` — provider-to-env-var mapping (ANTHROPIC_API_KEY, OPENAI_API_KEY, XAI_API_KEY, GROQ_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, etc.)
 
-### Fidelity audit
-- `MISSING-FEATURES.md` sections 17 (Additional providers), 18 (Model catalog), 19 (Provider config service) -- gap descriptions, scoring, AMP evidence
+### AMP reverse-engineered source (for settings schema only)
+- `tmux-capture/amp-source/22_providers_reasoning_modes.js` -- AMP's `sKR` settings schema (still needed for ConfigService)
+- `tmux-capture/amp-source/33_settings_schema.js` -- Additional settings schema context
 
-### Current implementation (to be modified)
-- `packages/flitter-cli/src/provider/provider.ts` -- `Provider` interface, `ProviderConfig`, `ProviderCapabilities`, `ProviderId` type, `PromptOptions`
-- `packages/flitter-cli/src/provider/factory.ts` -- `createProvider()` switch/case, `autoDetectProvider()`, `DEFAULT_MODELS`
-- `packages/flitter-cli/src/provider/anthropic.ts` -- `AnthropicProvider` implementation
-- `packages/flitter-cli/src/provider/openai.ts` -- `OpenAIProvider` implementation (reused for 7 provider variants)
-- `packages/flitter-cli/src/state/config.ts` -- `parseArgs()`, `AppConfig`, `UserConfig`, config.json loading
-- `packages/flitter-cli/src/state/types.ts` -- `StreamEvent`, `ProviderMessage`, domain types
-- `packages/flitter-cli/src/state/app-state.ts` -- `AppState` top-level state (consumes provider)
-- `packages/flitter-cli/src/auth/token-store.ts` -- OAuth token persistence
+### Current implementation (to be modified/replaced)
+- `packages/flitter-cli/src/provider/provider.ts` -- `Provider` interface (keep), `ProviderConfig` (simplify), `ProviderCapabilities` (derive from pi-ai)
+- `packages/flitter-cli/src/provider/factory.ts` -- `createProvider()` (rewrite to use pi-ai), `autoDetectProvider()` (rewrite), `DEFAULT_MODELS` (remove)
+- `packages/flitter-cli/src/provider/anthropic.ts` -- **DELETE** (pi-ai replaces)
+- `packages/flitter-cli/src/provider/openai.ts` -- **DELETE** (pi-ai replaces)
+- `packages/flitter-cli/src/state/config.ts` -- `parseArgs()`, `AppConfig`, `UserConfig`
+- `packages/flitter-cli/src/state/types.ts` -- `StreamEvent` (keep, adapt from pi-ai events)
+- `packages/flitter-cli/src/state/app-state.ts` -- `AppState` (update provider field)
+- `packages/flitter-cli/src/auth/token-store.ts` -- Keep for OAuth token persistence
 
 ### Test utilities
-- `packages/flitter-cli/src/test-utils/mock-provider.ts` -- Mock provider for tests (must be updated to match new interfaces)
+- `packages/flitter-cli/src/test-utils/mock-provider.ts` -- Update to match new interface
 
 </canonical_refs>
 
 <code_context>
 ## Existing Code Insights
 
-### Reusable Assets
-- `OpenAIProvider` class: already handles 7 provider variants via `providerId`/`providerName`/`baseUrl` parameters — the same pattern extends to all 8 new providers
-- `autoDetectProvider()`: priority-based env var detection — extend with new provider env vars
-- `AnthropicProvider`: handles Anthropic-native protocol, thinking/streaming — keep as-is
-- `RetryConfig` and `computeDelay`/`isRetryableError` in `retry.ts` — reusable across all providers
-- `buildSystemPrompt()` in `system-prompt.ts` — provider-agnostic system prompt construction
+### Assets to Remove
+- `AnthropicProvider` class in `anthropic.ts` — replaced by pi-ai's anthropic-messages provider
+- `OpenAIProvider` class in `openai.ts` — replaced by pi-ai's openai-completions provider
+- `@anthropic-ai/sdk` and `openai` direct dependencies — bundled inside pi-ai
+- `retry.ts` — evaluate if pi-ai handles retries (it has `maxRetryDelayMs` option)
 
-### Established Patterns
-- Provider instantiation: `createProvider(config: ProviderConfig) → Provider` factory pattern
-- Config resolution: CLI args > config.json > env vars > hardcoded defaults (in `parseArgs()`)
-- Provider capabilities: declared at instance creation, consumed by `PromptController`
-- OAuth flow: `chatgpt-oauth.ts`, `copilot-oauth.ts`, `antigravity-oauth.ts` — file-based token persistence in `~/.flitter-cli/auth/`
+### Assets to Keep
+- `Provider` interface contract — internal decoupling layer
+- `token-store.ts` — OAuth token management
+- `buildSystemPrompt()` in `system-prompt.ts` — provider-agnostic
+- OAuth flows: `chatgpt-oauth.ts`, `copilot-oauth.ts`, `antigravity-oauth.ts`
 
-### Integration Points
-- `factory.ts` `createProvider()` — central factory, main modification target for new providers
-- `config.ts` `parseArgs()` — config resolution, must integrate Zod validation and settings namespace
-- `provider.ts` `ProviderId` type — must expand to include all 10 AMP providers
-- `app-state.ts` — consumes provider, exposes model/provider info to UI (border builders read model name from here)
-- `index.ts` L141 — `createProvider(config.providerConfig)` entry point
+### pi-ai API Surface (key functions)
+```typescript
+// Model lookup — fully typed
+const model = getModel('anthropic', 'claude-sonnet-4-20250514');
+
+// All providers
+const providers: KnownProvider[] = getProviders();
+
+// Models for a provider
+const models: Model<Api>[] = getModels('anthropic');
+
+// Auto-detect API key from env
+const key: string | undefined = getEnvApiKey('anthropic');
+
+// Streaming with events
+const s = stream(model, context, { apiKey, signal });
+for await (const event of s) {
+  // event.type: 'text_delta' | 'thinking_delta' | 'toolcall_end' | 'done' | 'error' | ...
+}
+const result: AssistantMessage = await s.result();
+
+// Model metadata
+model.contextWindow  // number
+model.maxTokens      // number
+model.cost           // { input, output, cacheRead, cacheWrite } $/M tokens
+model.reasoning      // boolean
+model.input          // ("text" | "image")[]
+model.provider       // KnownProvider
+```
+
+### StreamEvent Mapping (pi-ai → flitter-cli)
+```
+pi-ai AssistantMessageEvent    →  flitter-cli StreamEvent
+─────────────────────────────────────────────────────────
+text_delta { delta }           →  { type: 'text_delta', text: delta }
+thinking_start                 →  (no direct mapping — thinking_delta handles it)
+thinking_delta { delta }       →  { type: 'thinking_delta', text: delta }
+thinking_end                   →  (no event needed)
+toolcall_start { toolCall }    →  { type: 'tool_call_start', toolCallId, name, title, kind }
+toolcall_delta { ... }         →  { type: 'tool_call_input_delta', toolCallId, partialJson }
+toolcall_end { toolCall }      →  { type: 'tool_call_ready', toolCallId, name, input }
+done { reason, message }       →  { type: 'usage_update', usage } THEN { type: 'message_complete', stopReason }
+error { reason, error }        →  { type: 'error', error: { message, code, retryable } }
+start { partial }              →  (skip — no flitter-cli equivalent)
+```
 
 </code_context>
 
 <specifics>
 ## Specific Ideas
 
-- **Exact AMP alignment**: transcribe `v9` provider enum and `n8` model catalog verbatim from `34_providers_models_catalog.js`. No invented models, no modified pricing, no added capabilities.
-- **`ba()` equivalent**: the `lookupModel(key)` function is critical infrastructure for Phase 26 where agent modes define `primaryModel: ba("CLAUDE_OPUS_4_6")`. Without this, agent modes cannot resolve their model references.
-- **Settings namespace**: AMP uses dot-notation keys like `anthropic.speed`, `openai.speed`. The Zod schema validates the entire settings object at once via `z.strictObject()` — unknown keys are rejected.
-- **`anthropic.provider` key**: AMP allows routing Anthropic requests through Vertex AI via `anthropic.provider: "vertex"` setting. This is an important cross-provider routing mechanism.
+- **Minimal adapter**: The `PiAiProvider` implements `Provider` interface by delegating to pi-ai's `stream()`. The adapter is a single `async function*` that converts pi-ai events to flitter-cli StreamEvents. No deep wrapping.
+- **Direct pi-ai types in AppConfig**: `AppConfig.model` becomes `Model<Api>` from pi-ai — consumers get contextWindow, cost, reasoning info without extra lookups.
+- **`resolveModel()` for Phase 26**: A thin function that maps AMP-style keys (e.g., `"CLAUDE_OPUS_4_6"`) to pi-ai `getModel()` calls. This preserves `ba()` compatibility for agent modes.
+- **OAuth passthrough**: For chatgpt-codex/copilot/antigravity, load token from `token-store.ts`, then pass as `{ apiKey: token.accessToken }` to pi-ai's stream options. pi-ai already supports these providers (openai-codex, github-copilot, google-antigravity).
 
 </specifics>
 
 <deferred>
 ## Deferred Ideas
 
-- Agent mode definitions (`nb` — SMART/FREE/RUSH/AGG/LARGE/DEEP/INTERNAL) with `primaryModel`, `includeTools`, `reasoningEffort`, `uiHints` — Phase 26 scope
-- `agent.deepReasoningEffort` tri-state enum setting — Phase 26 scope
-- `internal.compactionThresholdPercent` setting — Phase 28 scope
+- Agent mode definitions (`nb` — SMART/FREE/RUSH/AGG/LARGE/DEEP/INTERNAL) — Phase 26
+- `agent.deepReasoningEffort` tri-state enum setting — Phase 26
+- `internal.compactionThresholdPercent` setting — Phase 28
 - Feature flags system (`jh` enum in AMP) — not in v0.4.0 roadmap
+- pi-ai's OAuth flow integration (pi-ai has built-in OAuth for some providers) — evaluate in Phase 26+
 
 </deferred>
 
@@ -176,3 +236,4 @@ Modes) depends on — agent modes reference models by catalog key via `ba()` loo
 
 *Phase: 25-provider-and-model-system*
 *Context gathered: 2026-04-07*
+*Revised: 2026-04-07 (pi-ai integration)*

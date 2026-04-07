@@ -4,7 +4,7 @@ milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
 last_updated: "2026-04-07T07:04:49.430Z"
-last_activity: 2026-04-07 -- Phase 25 planning complete
+last_activity: 2026-04-07 -- Phase 25 re-planned with pi-ai integration
 progress:
   total_phases: 14
   completed_phases: 2
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 ## Current Position
 
 Phase: 25
-Plan: Planned (2 plans: 25-01, 25-02)
+Plan: Planned (3 plans: 25-01, 25-02, 25-03)
 Status: Ready to execute
-Last activity: 2026-04-07 -- Phase 25 planning complete
+Last activity: 2026-04-07 -- Phase 25 re-planned with pi-ai integration
 
 ## Phase Status
 
@@ -39,7 +39,7 @@ Last activity: 2026-04-07 -- Phase 25 planning complete
 |-------|------|--------|-------|
 | 23 | InputArea Rich Border | Complete | 3/3 |
 | 24 | Welcome Screen | Not started | 0/1 |
-| 25 | Provider and Model System | Planned | 0/2 (25-01: W1, 25-02: W2) |
+| 25 | Provider and Model System | Planned | 0/3 (25-01: W1, 25-02: W1, 25-03: W2) |
 | 26 | Agent Modes and Deep Reasoning | Not started | 0/1 |
 | 27 | ThreadPool Architecture | Not started | 0/3 |
 | 28 | Queue Mode and Compaction | Not started | 0/2 |
@@ -61,7 +61,7 @@ Progress: ░░░░░░░░░░ 0%
 - 2026-04-03: v0.3.0 — 11 phases (12-22), 55 requirements, 305+ tests
 - 2026-04-06: v0.4.0 milestone started — Close All Gaps
 - 2026-04-06: Phase 23 complete — InputArea Rich Border (app-shell wired, BorderShimmer, gap-aware borders)
-- 2026-04-07: Phase 25 planned — Provider and Model System (2 plans, 6 tasks, PROV-01/02/03)
+- 2026-04-07: Phase 25 re-planned — Provider and Model System with @mariozechner/pi-ai (3 plans, 6 tasks, PROV-01/02/03)
 
 ## Decisions Log
 

@@ -79,12 +79,77 @@ export function buildCommandList(
 
   // --- Additional non-shortcut commands ---
 
+  // --- Thread commands ---
+
   commands.push({
-    id: 'new-thread',
+    id: 'thread-new',
     label: 'New thread',
-    description: 'Start a new conversation thread',
+    description: 'Start a new conversation thread (preserves existing)',
     execute: (_onDismiss: () => void) => {
       appState.newThread();
+    },
+  });
+
+  commands.push({
+    id: 'thread-switch',
+    label: 'Switch thread',
+    description: 'Open thread list to switch to another thread',
+    execute: (_onDismiss: () => void) => {
+      appState.showThreadList();
+    },
+  });
+
+  commands.push({
+    id: 'thread-map',
+    label: 'Thread map',
+    description: 'Show all threads in the thread list',
+    execute: (_onDismiss: () => void) => {
+      appState.showThreadList();
+    },
+  });
+
+  commands.push({
+    id: 'thread-set-visibility',
+    label: 'Set thread visibility',
+    description: 'Toggle current thread visibility (visible/hidden)',
+    execute: (_onDismiss: () => void) => {
+      const activeID = appState.threadPool.activeThreadContextID;
+      if (!activeID) return;
+      const handle = appState.threadPool.threadHandleMap.get(activeID);
+      if (!handle) return;
+      const newVisibility = handle.visibility === 'visible' ? 'hidden' : 'visible';
+      appState.threadPool.setThreadVisibility(activeID, newVisibility);
+    },
+  });
+
+  commands.push({
+    id: 'thread-navigate-back',
+    label: 'Navigate back',
+    description: 'Go to the previous thread in navigation history',
+    execute: (_onDismiss: () => void) => {
+      if (appState.threadPool.canNavigateBack()) {
+        appState.threadPool.navigateBack();
+        const handle = appState.threadPool.activeThreadHandleOrNull;
+        if (handle) {
+          // Re-point AppState to the new active thread
+          (appState as any)._switchToHandle(handle);
+        }
+      }
+    },
+  });
+
+  commands.push({
+    id: 'thread-navigate-forward',
+    label: 'Navigate forward',
+    description: 'Go to the next thread in navigation history',
+    execute: (_onDismiss: () => void) => {
+      if (appState.threadPool.canNavigateForward()) {
+        appState.threadPool.navigateForward();
+        const handle = appState.threadPool.activeThreadHandleOrNull;
+        if (handle) {
+          (appState as any)._switchToHandle(handle);
+        }
+      }
     },
   });
 

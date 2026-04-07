@@ -35,7 +35,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 **Milestone Goal:** Close all 81 audit-identified gaps to achieve pixel-level AMP fidelity.
 
 - [x] **Phase 23: InputArea Rich Border** - Replace HeaderBar/StatusBar with borderOverlayText on all four border sides (completed 2026-04-06)
-- [ ] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text
+- [x] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text (completed 2026-04-07)
 - [ ] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service
 - [ ] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings
 - [ ] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate
@@ -83,7 +83,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 24-01: Build ASCII Art Logo widget with Perlin gradient animation and welcome hint text
+- [x] 24-01: Build ASCII Art Logo widget with Perlin gradient animation and welcome hint text
 
 ### Phase 25: Provider and Model System
 **Goal**: Expand the provider system with 8 missing providers and build a complete model catalog with metadata per model.
@@ -295,7 +295,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 23. InputArea Rich Border | v0.4.0 | 3/3 | Complete    | 2026-04-06 |
-| 24. Welcome Screen | v0.4.0 | 0/1 | Not started | - |
+| 24. Welcome Screen | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 25. Provider and Model System | v0.4.0 | 0/2 | Not started | - |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 0/1 | Not started | - |
 | 27. ThreadPool Architecture | v0.4.0 | 0/3 | Not started | - |

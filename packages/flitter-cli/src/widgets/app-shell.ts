@@ -57,6 +57,7 @@ import { FilePicker } from './file-picker';
 // @deprecated ShortcutHelpOverlay — replaced by ShortcutHelpInline (Phase 32)
 import { ShortcutHelpInline } from './shortcut-help-inline';
 import { SkillsModal } from './skills-modal';
+import { BashInvocationsWidget } from './bash-invocations';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';
@@ -868,6 +869,9 @@ class AppShellState extends State<AppShell> {
       crossAxisAlignment: 'stretch',
       children: [
         new Expanded({ child: content }),
+        ...(this.widget.appState.bashInvocations.length > 0
+          ? [new BashInvocationsWidget({ invocations: this.widget.appState.bashInvocations })]
+          : []),
         new InputArea({
           // Core input props
           onSubmit: (text) => this.widget.appState.submitPrompt(text),
@@ -914,6 +918,7 @@ class AppShellState extends State<AppShell> {
           },
           // Phase 32: Shell mode status for top-left border indicator
           shellModeStatus: this.widget.appState.currentShellModeStatus,
+          onSpecialCommandTrigger: () => this.widget.appState.showThreadList(),
         }),
       ],
     });

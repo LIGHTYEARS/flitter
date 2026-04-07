@@ -38,7 +38,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 24: Welcome Screen** - ASCII Art Logo with Perlin gradient + hint text (completed 2026-04-07)
 - [x] **Phase 25: Provider and Model System** - 8 missing providers, model catalog, config service (completed 2026-04-07)
 - [x] **Phase 26: Agent Modes and Deep Reasoning** - Tri-state reasoning, real mode switching, speed settings (completed 2026-04-07)
-- [ ] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate
+- [x] **Phase 27: ThreadPool Architecture** - Multi-thread state management with create/switch/delete/navigate (completed 2026-04-07)
 - [ ] **Phase 28: Queue Mode and Compaction** - Message queue system and context compaction
 - [ ] **Phase 29: Handoff State Machine** - Enter/exit/submit/abort handoff with cross-thread tracking
 - [ ] **Phase 30: Skills Modal** - Complete skill browsing UI with grouping, detail panel, keyboard navigation
@@ -130,9 +130,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 27-01: Implement ThreadPool state management (threadHandleMap, activeThreadContextID, back/forward stacks)
-- [ ] 27-02: Build thread lifecycle operations (create, switch, delete, title generation, visibility)
-- [ ] 27-03: Wire ThreadList widget and thread-related command palette commands
+- [x] 27-01: Implement ThreadPool state management (threadHandleMap, activeThreadContextID, back/forward stacks)
+- [x] 27-02: Build thread lifecycle operations (create, switch, delete, title generation, visibility)
+- [x] 27-03: Wire ThreadList widget and thread-related command palette commands
 
 ### Phase 28: Queue Mode and Compaction
 **Goal**: Implement message queue system for batching follow-up prompts and context compaction for automatic context window management.
@@ -299,7 +299,7 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 24. Welcome Screen | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
 | 25. Provider and Model System | v0.4.0 | 2/3 | Complete    | 2026-04-07 |
 | 26. Agent Modes and Deep Reasoning | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
-| 27. ThreadPool Architecture | v0.4.0 | 0/3 | Not started | - |
+| 27. ThreadPool Architecture | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 28. Queue Mode and Compaction | v0.4.0 | 0/2 | Not started | - |
 | 29. Handoff State Machine | v0.4.0 | 0/1 | Not started | - |
 | 30. Skills Modal | v0.4.0 | 0/3 | Not started | - |

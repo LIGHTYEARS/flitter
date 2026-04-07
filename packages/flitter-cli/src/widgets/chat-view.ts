@@ -315,17 +315,17 @@ function buildAssistantTurnWidget(turn: AssistantTurn, denseView: boolean = fals
 
     // Detect subagent/Task tool calls — render as ActivityGroup (ACTV-01..05)
     if (isSubagentToolCall(toolCall)) {
-      const actions = buildActivityActions(children ?? []);
-      const summary = computeActivitySummary(children ?? []);
-      const hasInProgress = (children ?? []).some(
-        c => c.status === 'in_progress' || c.status === 'pending',
-      ) || toolCall.status === 'in_progress';
-
       // Extract description from rawInput matching AMP
       const raw = toolCall.rawInput;
       const description = raw
         ? String(raw['Description'] || raw['description'] || raw['Prompt'] || raw['prompt'] || '')
         : '';
+
+      const actions = buildActivityActions(toolCall, children ?? [], description);
+      const summary = computeActivitySummary(children ?? []);
+      const hasInProgress = (children ?? []).some(
+        c => c.status === 'in_progress' || c.status === 'pending',
+      ) || toolCall.status === 'in_progress';
 
       bodyChildren.push(
         new ActivityGroup({
@@ -551,15 +551,37 @@ function isSubagentToolCall(toolCall: ToolCallItem): boolean {
 
 /**
  * Converts child ToolCallItems into ActivityAction entries for ActivityGroup.
- * Also extracts streaming output as inline text messages interleaved with tool calls.
+ *
+ * Matches AMP tree structure:
+ *   1. First entry: task description text (from rawInput)
+ *   2. Streaming assistant text messages (from parent tool's streamingOutput)
+ *   3. Child tool calls interleaved with any per-child streaming text
+ *
+ * ACTV-04: streaming shows inline subagent messages with name label and progress.
  */
-function buildActivityActions(children: ToolCallItem[]): ActivityAction[] {
+function buildActivityActions(
+  parent: ToolCallItem,
+  children: ToolCallItem[],
+  description: string,
+): ActivityAction[] {
   const actions: ActivityAction[] = [];
-  for (const child of children) {
-    // If the child has streaming output text, add it as a text action first
-    if (child.streamingOutput) {
-      actions.push({ kind: 'text', text: child.streamingOutput });
+
+  // First action: task description (matches AMP golden first tree entry)
+  if (description) {
+    actions.push({ kind: 'text', text: description });
+  }
+
+  // Streaming output from parent (inline subagent assistant text)
+  if (parent.streamingOutput) {
+    // Split into lines and add each non-empty line as a text action
+    const lines = parent.streamingOutput.split('\n').filter(l => l.trim());
+    for (const line of lines) {
+      actions.push({ kind: 'text', text: line });
     }
+  }
+
+  // Child tool calls
+  for (const child of children) {
     actions.push({ kind: 'tool_call', toolCall: child });
   }
   return actions;

@@ -56,8 +56,8 @@ export const TOOL_NAME_MAP: Record<string, string> = {
   Skill: 'skill',
   // Coco → todo_write
   TodoWrite: 'todo_write',
-  // Coco → Task
-  Task: 'Task',
+  // Coco → Task/Subagent (ACTV-05: display as "Subagent" matching AMP)
+  Task: 'Subagent',
 };
 
 /**

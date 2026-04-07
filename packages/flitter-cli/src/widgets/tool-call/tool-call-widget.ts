@@ -113,6 +113,7 @@ export class ToolCallWidget extends StatelessWidget {
         return new WebSearchTool({ toolCall: this.toolCall, isExpanded: expanded, onToggle: toggle });
 
       case 'Task':
+      case 'Subagent':
       case 'oracle':
       case 'code_review':
       case 'librarian':

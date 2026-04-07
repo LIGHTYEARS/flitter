@@ -15,6 +15,7 @@ export const settingsSchema = z.object({
   'anthropic.effort': z.enum(['low', 'medium', 'high', 'max']).optional(),
   'openai.speed': z.enum(['standard', 'fast']).optional(),
   'internal.model': z.union([z.string(), z.record(z.string(), z.string())]).optional(),
+  'internal.compactionThresholdPercent': z.number().min(0).max(100).optional(),
   'gemini.thinkingLevel': z.enum(['minimal', 'low', 'medium', 'high']).optional(),
 }).strict();
 

@@ -590,3 +590,61 @@ export interface CompactionStatus {
   /** Context window usage percent at the time of last compaction check. */
   readonly usagePercent: number;
 }
+
+// ---------------------------------------------------------------------------
+// Handoff Mode Types (HAND-01, HAND-02, HAND-03)
+// ---------------------------------------------------------------------------
+
+/**
+ * UI-facing handoff state matching AMP's GhR.handoffState object exactly.
+ *
+ * Tracks the complete handoff lifecycle: enter -> (generate | abort) -> exit.
+ * Used by AppState for rendering the handoff UI overlays on InputArea.
+ *
+ * AMP source: 24_main_app_state.js — handoffState field on GhR class.
+ */
+export interface HandoffState {
+  /** Whether the user is currently in handoff mode (editing a goal). */
+  isInHandoffMode: boolean;
+  /** Whether the handoff is being generated (API call in-flight). */
+  isGeneratingHandoff: boolean;
+  /** Whether the user has pressed Escape once to initiate abort confirmation. */
+  isConfirmingAbortHandoff: boolean;
+  /** The handoff goal text pending submission, or null if not set. */
+  pendingHandoffPrompt: string | null;
+  /** Braille spinner character for generating state animation, or null. */
+  spinner: string | null;
+  /** Countdown seconds for auto-submit timer, or null when not counting. */
+  countdownSeconds: number | null;
+}
+
+/**
+ * Default handoff state with all flags off and nullable fields null.
+ * Used to initialize and reset handoffState on AppState.
+ */
+export const DEFAULT_HANDOFF_STATE: HandoffState = {
+  isInHandoffMode: false,
+  isGeneratingHandoff: false,
+  isConfirmingAbortHandoff: false,
+  pendingHandoffPrompt: null,
+  spinner: null,
+  countdownSeconds: null,
+};
+
+/**
+ * Cross-thread handoff request tracking sourceThreadID -> targetThreadID.
+ * Created when a handoff is initiated, consumed when the target thread
+ * is activated. Matches AMP's threadWorkerService.handoff() parameters.
+ */
+export interface HandoffRequest {
+  /** The thread ID that initiated the handoff (source/parent). */
+  readonly sourceThreadID: string;
+  /** The newly created thread ID that receives the handoff (target/child). */
+  readonly targetThreadID: string;
+  /** The user-provided goal text for the new thread. */
+  readonly goal: string;
+  /** The agent mode to use in the target thread, or null for default. */
+  readonly agentMode: string | null;
+  /** Epoch ms when the handoff was initiated. */
+  readonly createdAt: number;
+}

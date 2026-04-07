@@ -29,6 +29,8 @@ import type {
 export interface SessionFile {
   version: 1;
   sessionId: string;
+  /** Thread ID for multi-thread sessions. Optional for backward compat. */
+  threadID?: string;
   cwd: string;
   gitBranch: string | null;
   model: string;
@@ -38,6 +40,10 @@ export interface SessionFile {
   plan: PlanEntry[];
   usage: UsageInfo | null;
   currentMode: string | null;
+  /** Thread title (null if auto-generated and not yet set). */
+  threadTitle?: string | null;
+  /** Thread visibility mode. */
+  threadVisibility?: string;
 }
 
 /**
@@ -46,6 +52,8 @@ export interface SessionFile {
  */
 export interface SessionIndexEntry {
   sessionId: string;
+  /** Thread ID for multi-thread sessions. */
+  threadID?: string;
   cwd: string;
   gitBranch: string | null;
   createdAt: number;
@@ -53,6 +61,8 @@ export interface SessionIndexEntry {
   messageCount: number;
   /** First 80 characters of the first user message. */
   summary: string;
+  /** Thread title if set. */
+  threadTitle?: string | null;
 }
 
 /**
@@ -299,12 +309,14 @@ export class SessionStore {
 
     const entry: SessionIndexEntry = {
       sessionId: session.sessionId,
+      threadID: session.threadID,
       cwd: session.cwd,
       gitBranch: session.gitBranch,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
       messageCount: userMessages.length,
       summary,
+      threadTitle: session.threadTitle,
     };
 
     // Upsert: replace existing entry or append new

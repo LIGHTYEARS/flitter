@@ -47,7 +47,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 - [x] **Phase 33: HITL Confirmation Overhaul** - Content preview, inverted-color options, feedback input mode (completed 2026-04-07)
 - [x] **Phase 34: Activity Group and Subagent Tree** - Collapsible groups, tree-line characters, summary aggregation (completed 2026-04-07)
 - [x] **Phase 35: Image Support and Overlays** - Image paste/preview, toast notifications, context/file overlays (completed 2026-04-07)
-- [ ] **Phase 36: Visual Polish** - Block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol
+- [x] **Phase 36: Visual Polish** - Block cursor, OSC8 hyperlinks, diff preview, spinner colors, prompt symbol (completed 2026-04-07)
 
 ## Phase Details
 
@@ -286,7 +286,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 36-01: Implement block cursor, OSC8 hyperlinks, diff preview, prompt symbol fix, spinner colors
+- [x] 36-01: Implement block cursor, OSC8 hyperlinks, diff preview, prompt symbol fix, spinner colors
 
 ## Progress
 
@@ -308,4 +308,4 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 33. HITL Confirmation Overhaul | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 34. Activity Group and Subagent Tree | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 35. Image Support and Overlays | v0.4.0 | 1/3 | Complete    | 2026-04-07 |
-| 36. Visual Polish | v0.4.0 | 0/1 | Not started | - |
+| 36. Visual Polish | v0.4.0 | 1/1 | Complete    | 2026-04-07 |

@@ -21,6 +21,9 @@ import type { Turn } from './turn-types';
 import type { PermissionRequest, PermissionResult } from './permission-types';
 import { SessionState, type StateListener } from './session';
 import { ConversationState } from './conversation';
+import { ThreadPool } from './thread-pool';
+import type { ThreadHandle } from './types';
+import { generateThreadID } from './types';
 import { type ScreenState, deriveScreenState } from './screen-state';
 import { PromptController } from './prompt-controller';
 import { OverlayManager } from './overlay-manager';
@@ -43,10 +46,10 @@ import { launchEditor, type EditorResult } from '../utils/editor-launcher';
  */
 export class AppState {
   /** The session state machine managing lifecycle and conversation. */
-  readonly session: SessionState;
+  session: SessionState;
 
   /** Turn-level grouped view over SessionState.items. */
-  readonly conversation: ConversationState;
+  conversation: ConversationState;
 
   /** Centralized overlay lifecycle manager for the overlay stack. */
   readonly overlayManager: OverlayManager;
@@ -56,6 +59,9 @@ export class AppState {
 
   /** Session persistence store for save/load/list. */
   readonly sessionStore: SessionStore;
+
+  /** ThreadPool managing multiple concurrent threads. */
+  readonly threadPool: ThreadPool;
 
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
@@ -111,18 +117,35 @@ export class AppState {
     session: SessionState,
     promptHistory: PromptHistory,
     sessionStore: SessionStore,
+    threadPool?: ThreadPool,
   ) {
     this.session = session;
     this.conversation = new ConversationState(session);
     this.overlayManager = new OverlayManager();
     this.promptHistory = promptHistory;
     this.sessionStore = sessionStore;
+    this.threadPool = threadPool ?? new ThreadPool();
 
     // Relay session state changes to AppState listeners
-    this.session.addListener(() => {
+    this.session.addListener(this._sessionListener);
+
+    // Relay thread pool changes to AppState listeners
+    this.threadPool.addListener(() => {
       this._notifyListeners();
     });
   }
+
+  /**
+   * Named session listener for re-wiring when switching threads.
+   * Auto-generates thread title on first conversation completion.
+   */
+  private _sessionListener = (): void => {
+    // Auto-generate thread title on first conversation completion
+    if (this.session.lifecycle === 'complete' && this.threadPool.activeThreadContextID) {
+      this.threadPool.generateTitle(this.threadPool.activeThreadContextID);
+    }
+    this._notifyListeners();
+  };
 
   // ---------------------------------------------------------------------------
   // PromptController wiring
@@ -391,14 +414,75 @@ export class AppState {
   // ---------------------------------------------------------------------------
 
   /**
-   * Start a new conversation thread.
-   * Clears conversation items, plan, and usage while preserving session identity.
-   * Also clears UI-specific state.
+   * Start a new conversation thread via ThreadPool.
+   * Preserves the existing thread state in threadHandleMap.
+   * Matches AMP's startAndSwitchToNewThread (SECTION 2d).
    */
   newThread(): void {
-    this.session.newThread();
+    const model = this.session.metadata.model;
+    const cwd = this.session.metadata.cwd;
+    const handle = this.threadPool.createThread({
+      cwd,
+      model,
+      agentMode: this.currentMode,
+    });
+
+    // Point AppState's session/conversation to the new thread's instances
+    this._switchToHandle(handle);
+
     this.selectedMessageIndex = null;
     this.currentMode = 'smart';
+    this._notifyListeners();
+  }
+
+  /**
+   * Switch AppState's session and conversation references to a thread handle.
+   * Re-wires the session listener and updates promptController if present.
+   */
+  private _switchToHandle(handle: ThreadHandle): void {
+    // Remove old session listener
+    this.session.removeListener(this._sessionListener);
+
+    // Point to new thread's state
+    this.session = handle.session;
+    this.conversation = handle.conversation;
+
+    // Re-wire session listener
+    this.session.addListener(this._sessionListener);
+
+    this._notifyListeners();
+  }
+
+  /**
+   * Switch to an existing thread by ID.
+   * Updates session/conversation to point at the target thread.
+   * Matches AMP's switchToExistingThread().
+   */
+  switchToThread(threadID: string): void {
+    this.threadPool.switchThread(threadID);
+    const handle = this.threadPool.activeThreadHandle;
+    this._switchToHandle(handle);
+    this.selectedMessageIndex = null;
+    this._notifyListeners();
+  }
+
+  /**
+   * Delete a thread by ID. If it was the active thread,
+   * switches to the next most recent thread or creates a new one.
+   */
+  deleteThread(threadID: string): void {
+    const wasActive = this.threadPool.activeThreadContextID === threadID;
+    this.threadPool.deleteThread(threadID);
+
+    if (wasActive) {
+      const activeHandle = this.threadPool.activeThreadHandleOrNull;
+      if (activeHandle) {
+        this._switchToHandle(activeHandle);
+      } else {
+        // No threads left -- create a fresh one
+        this.newThread();
+      }
+    }
     this._notifyListeners();
   }
 
@@ -633,9 +717,12 @@ export class AppState {
     if (items.length === 0) return null;
 
     const meta = this.session.metadata;
+    const activeHandle = this.threadPool.activeThreadHandleOrNull;
+
     return {
       version: 1,
       sessionId: meta.sessionId,
+      threadID: activeHandle?.threadID,
       cwd: meta.cwd,
       gitBranch: meta.gitBranch,
       model: meta.model,
@@ -645,6 +732,8 @@ export class AppState {
       plan: [...this.session.plan],
       usage: this.session.usage ? { ...this.session.usage } : null,
       currentMode: this.currentMode,
+      threadTitle: activeHandle?.title ?? null,
+      threadVisibility: activeHandle?.visibility,
     };
   }
 
@@ -697,6 +786,7 @@ export class AppState {
     /** Whether tool calls are expanded by default (N10). */
     defaultToolExpanded?: boolean;
   }): AppState {
+    const threadPool = new ThreadPool();
     const sessionId = crypto.randomUUID();
     const session = new SessionState({
       sessionId,
@@ -705,7 +795,21 @@ export class AppState {
       defaultToolExpanded: config.defaultToolExpanded,
     });
 
-    const appState = new AppState(session, config.promptHistory, config.sessionStore);
+    const appState = new AppState(session, config.promptHistory, config.sessionStore, threadPool);
+
+    // Register initial session as the first thread in the pool
+    const threadID = generateThreadID();
+    const initialHandle: ThreadHandle = {
+      threadID,
+      session,
+      conversation: appState.conversation,
+      title: null,
+      createdAt: Date.now(),
+      visibility: 'visible',
+      agentMode: 'smart',
+    };
+    threadPool.activateThread(initialHandle);
+
     const controller = new PromptController({
       session,
       provider: config.provider,
@@ -715,7 +819,7 @@ export class AppState {
     });
     appState.setPromptController(controller);
 
-    log.info(`AppState.create: sessionId=${sessionId} model=${config.provider.model} cwd=${config.cwd}`);
+    log.info(`AppState.create: sessionId=${sessionId} threadID=${threadID} model=${config.provider.model} cwd=${config.cwd}`);
 
     return appState;
   }

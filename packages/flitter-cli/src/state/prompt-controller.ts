@@ -23,7 +23,7 @@ import type {
 import type { PermissionRequest, PermissionResult } from './permission-types';
 import type { ToolRegistry } from '../tools/registry';
 import type { ToolContext } from '../tools/executor';
-import { log } from '../utils/logger';
+import { log, writeEntry } from '../utils/logger';
 import { traceStore } from '../utils/tracer';
 import { computeDelay, sleep, isRetryableError, DEFAULT_RETRY_CONFIG } from '../provider/retry';
 import type { RetryConfig } from '../provider/retry';
@@ -205,6 +205,15 @@ export class PromptController {
       // Provider threw an exception — route to session error
       const errMsg = err instanceof Error ? err.message : String(err);
       log.error(`PromptController: provider error: ${errMsg}`);
+
+      writeEntry({
+        kind: 'error',
+        category: 'provider',
+        message: errMsg,
+        stack: err instanceof Error ? err.stack : undefined,
+        traceId: this._currentAgentSpan?.traceId,
+        spanId: this._currentAgentSpan?.spanId,
+      });
 
       if (this._currentAgentSpan) {
         try {
@@ -695,6 +704,16 @@ export class PromptController {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         log.error(`PromptController: tool '${call.name}' threw: ${errMsg}`);
+        writeEntry({
+          kind: 'error',
+          category: 'tool_execution',
+          toolName: call.name,
+          toolCallId: call.toolCallId,
+          message: errMsg,
+          stack: err instanceof Error ? err.stack : undefined,
+          traceId: this._currentAgentSpan?.traceId,
+          spanId: toolSpanId ?? undefined,
+        });
         if (toolSpanId) {
           try {
             traceStore.endSpan(toolSpanId, 'error', {
@@ -754,7 +773,14 @@ export class PromptController {
       const result = await this.onPermissionRequest(request);
       // Accept any string result that is an approval
       return typeof result === 'string' && (result === 'yes' || result === 'allow-all-session' || result === 'allow-all-persistent');
-    } catch {
+    } catch (err) {
+      writeEntry({
+        kind: 'error',
+        category: 'permission',
+        toolName,
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined,
+      });
       return false;
     }
   }

@@ -297,8 +297,20 @@ export class PromptController {
         // Transition to tool_execution
         this._session.beginToolExecution(stopReason);
 
+        // Start tools container span
+        let toolsSpanId: string | undefined;
+        try {
+          toolsSpanId = traceStore.startSpan('tools', this._currentAgentSpan?.spanId ?? null, {
+            toolCount: pendingToolCalls.length,
+          }).spanId;
+        } catch {}
+
         // Execute all pending tool calls
-        const toolResults = await this._executeToolCalls(pendingToolCalls);
+        const toolResults = await this._executeToolCalls(pendingToolCalls, toolsSpanId);
+
+        if (toolsSpanId) {
+          try { traceStore.endSpan(toolsSpanId, 'ok'); } catch {}
+        }
 
         if (this._cancelled) {
           return;
@@ -570,6 +582,7 @@ export class PromptController {
    */
   private async _executeToolCalls(
     pendingCalls: PendingToolCall[],
+    parentSpanId?: string,
   ): Promise<ToolResultBlock[]> {
     const results: ToolResultBlock[] = [];
     const context: ToolContext = {
@@ -594,9 +607,21 @@ export class PromptController {
         continue;
       }
 
+      // Start individual tool span BEFORE permission check (includes permission time)
+      let toolSpanId: string | undefined;
+      try {
+        toolSpanId = traceStore.startSpan(`tool:${call.name}`, parentSpanId ?? null, {
+          toolName: call.name,
+          toolCallId: call.toolCallId,
+        }).spanId;
+      } catch {}
+
       const executor = this._toolRegistry?.getExecutor(call.name);
       if (!executor) {
         log.warn(`PromptController: no executor for tool '${call.name}'`);
+        if (toolSpanId) {
+          try { traceStore.endSpan(toolSpanId, 'error', { error: 'executor_not_found' }); } catch {}
+        }
         results.push({
           type: 'tool_result',
           tool_use_id: call.toolCallId,
@@ -614,6 +639,9 @@ export class PromptController {
       if (this._toolRegistry?.requiresPermission(call.name)) {
         const approved = await this._requestToolPermission(call.name, call.input);
         if (!approved) {
+          if (toolSpanId) {
+            try { traceStore.endSpan(toolSpanId, 'error', { error: 'permission_denied' }); } catch {}
+          }
           results.push({
             type: 'tool_result',
             tool_use_id: call.toolCallId,
@@ -648,6 +676,15 @@ export class PromptController {
           is_error: result.isError,
         });
 
+        if (toolSpanId) {
+          try {
+            traceStore.endSpan(toolSpanId, result.isError ? 'error' : 'ok', {
+              outputSize: result.content.length,
+              isError: result.isError,
+            });
+          } catch {}
+        }
+
         // Update tool call status
         this._session.updateToolCall(
           call.toolCallId,
@@ -658,6 +695,13 @@ export class PromptController {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         log.error(`PromptController: tool '${call.name}' threw: ${errMsg}`);
+        if (toolSpanId) {
+          try {
+            traceStore.endSpan(toolSpanId, 'error', {
+              errorMessage: errMsg,
+            });
+          } catch {}
+        }
         results.push({
           type: 'tool_result',
           tool_use_id: call.toolCallId,

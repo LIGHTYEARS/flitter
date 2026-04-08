@@ -89,6 +89,20 @@ export function closeLogFile(): void {
   }
 }
 
+/**
+ * Write a raw NDJSON entry to the log file, bypassing level checks.
+ * Used by the tracer for span records and structured error records.
+ * Falls back to stderr JSON output if no log file is open.
+ */
+export function writeEntry(entry: Record<string, unknown>): void {
+  const line = JSON.stringify(entry) + '\n';
+  if (logStream) {
+    logStream.write(line);
+  } else {
+    process.stderr.write(line);
+  }
+}
+
 function pruneOldLogs(logDir: string, retentionDays: number): void {
   if (retentionDays <= 0) return;
 
@@ -142,6 +156,7 @@ function buildJsonEntry(
   data?: Record<string, unknown>,
 ): Record<string, unknown> {
   const entry: Record<string, unknown> = {
+    kind: 'log',
     ts: new Date().toISOString(),
     level: level.toUpperCase(),
     msg: message,
@@ -205,6 +220,7 @@ function writeErrorLog(
 
   if (logStream) {
     const entry = buildJsonEntry(level, message, err, data);
+    entry.kind = 'error';
     logStream.write(JSON.stringify(entry) + '\n');
   } else {
     let text = message;

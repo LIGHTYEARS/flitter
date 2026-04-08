@@ -160,9 +160,17 @@ export function loadProjectInstructions(cwd: string): string | null {
 export async function getGitContext(cwd: string): Promise<{
   branch: string | null;
   log: string | null;
+  repoRoot: string | null;
 }> {
   try {
-    // Get current branch
+    const rootProc = Bun.spawn(
+      ['git', 'rev-parse', '--show-toplevel'],
+      { cwd, stdout: 'pipe', stderr: 'pipe' },
+    );
+    const rootOut = await new Response(rootProc.stdout).text();
+    const rootExit = await rootProc.exited;
+    const repoRoot = rootExit === 0 ? rootOut.trim() : null;
+
     const branchProc = Bun.spawn(
       ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
       { cwd, stdout: 'pipe', stderr: 'pipe' },
@@ -172,10 +180,9 @@ export async function getGitContext(cwd: string): Promise<{
     const branch = branchExit === 0 ? branchOut.trim() : null;
 
     if (!branch) {
-      return { branch: null, log: null };
+      return { branch: null, log: null, repoRoot };
     }
 
-    // Get recent commits (last 10, one-line format)
     const logProc = Bun.spawn(
       ['git', 'log', '--oneline', '-10', '--no-decorate'],
       { cwd, stdout: 'pipe', stderr: 'pipe' },
@@ -184,8 +191,8 @@ export async function getGitContext(cwd: string): Promise<{
     const logExit = await logProc.exited;
     const gitLog = logExit === 0 ? logOut.trim() : null;
 
-    return { branch, log: gitLog || null };
+    return { branch, log: gitLog || null, repoRoot };
   } catch {
-    return { branch: null, log: null };
+    return { branch: null, log: null, repoRoot: null };
   }
 }

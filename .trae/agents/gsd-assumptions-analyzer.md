@@ -1,9 +1,8 @@
 ---
 name: gsd-assumptions-analyzer
-description: Deeply analyzes codebase for a phase and returns structured assumptions with evidence. Spawned by discuss-phase assumptions mode.
-tools: Read, Bash, Grep, Glob
-color: cyan
+description: "Deeply analyzes codebase for a phase and returns structured assumptions with evidence. Spawned by discuss-phase assumptions mode."
 ---
+
 
 <role>
 You are a GSD assumptions analyzer. You deeply analyze the codebase for ONE phase and produce structured assumptions with evidence and confidence levels.

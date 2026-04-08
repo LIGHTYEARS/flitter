@@ -1,9 +1,8 @@
 // StatusBar — bottom status bar for flitter-cli, fixed height 1 row.
 //
-// @deprecated StatusBar is removed from the app-shell layout as of Phase 23.
-// All status information is now rendered in InputArea's rich border lines via
-// border-builders.ts. This file is kept for backward compatibility only.
-// Use border-helpers.ts for shortenPath, getFooterText.
+// Renders as the last line in the terminal, below InputArea.
+// Shows contextual status (running tools, waiting for approval, streaming)
+// with a static wave character prefix. Hidden when idle.
 //
 
 import { StatelessWidget, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
@@ -15,7 +14,8 @@ import { TextSpan } from '../../../flitter-core/src/core/text-span';
 import { Color } from '../../../flitter-core/src/core/color';
 import { Padding } from '../../../flitter-core/src/widgets/padding';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
-import { CliThemeProvider, type CliTheme } from '../themes';
+import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
+import { CliThemeProvider } from '../themes';
 
 export interface StatusBarProps {
   cwd: string;
@@ -29,13 +29,13 @@ export interface StatusBarProps {
   isRunningShell?: boolean;
   isAutoCompacting?: boolean;
   isHandingOff?: boolean;
+  isAwaitingPermission?: boolean;
+  hasRunningTools?: boolean;
+  hasStartedResponse?: boolean;
   statusMessage?: string;
   copyHighlight?: boolean;
-  /** Reverse-i-search state: shows search indicator in the status bar. */
   searchState?: { query: string; isFailing: boolean } | null;
-  /** Hint text displayed below the input when idle (matches AMP BottomGrid.hintText). */
   hintText?: string;
-  /** Whether deep/extended reasoning mode is active. */
   deepReasoningActive?: boolean;
 }
 
@@ -43,50 +43,31 @@ export interface StatusBarProps {
 // getFooterText — contextual status text based on app sub-states
 // ---------------------------------------------------------------------------
 
-/**
- * Returns the contextual footer/status text based on current app sub-states.
- *
- * Matches AMP's getFooterText from bottom-grid.ts with the following priority:
- *   1. isInterrupted   → 'Stream interrupted'
- *   2. isExecutingCommand → 'Executing command...'
- *   3. isRunningShell  → 'Running shell...'
- *   4. isAutoCompacting → 'Auto-compacting context...'
- *   5. isHandingOff    → 'Handing off to subagent...'
- *   6. isProcessing    → 'Streaming response...'
- *   7. default         → ''
- */
 export function getFooterText(props: {
   isProcessing: boolean;
+  isStreaming: boolean;
   isInterrupted: boolean;
   isExecutingCommand: boolean;
   isRunningShell: boolean;
   isAutoCompacting: boolean;
   isHandingOff: boolean;
+  isAwaitingPermission: boolean;
+  hasRunningTools: boolean;
+  hasStartedResponse: boolean;
 }): string {
   if (props.isInterrupted) return 'Stream interrupted';
   if (props.isExecutingCommand) return 'Executing command...';
   if (props.isRunningShell) return 'Running shell...';
   if (props.isAutoCompacting) return 'Auto-compacting context...';
   if (props.isHandingOff) return 'Handing off to subagent...';
-  if (props.isProcessing) return 'Streaming response...';
+  if (props.isProcessing && props.hasRunningTools) return 'Running tools...';
+  if (props.isProcessing && props.isAwaitingPermission) return 'Waiting for approval...';
+  if (props.isStreaming && props.hasStartedResponse) return 'Streaming response...';
+  if (props.isStreaming && !props.hasStartedResponse) return 'Waiting for response...';
+  if (props.isProcessing) return 'Running tools...';
   return '';
 }
 
-/**
- * Bottom status bar with contextual state messages.
- *
- * States (left section, evaluated in priority order):
- *   1. copyHighlight  → "Copied!" (green, bold)
- *   2. searchState    → "(reverse-i-search)'query':" or "(failing reverse-i-search)'query':"
- *   3. hintText       → dim muted hint text (from AMP BottomGrid)
- *   4. isStreaming     → "Esc to cancel" (yellow dim)
- *   5. statusMessage   → custom text (brightBlack dim)
- *   6. idle            → "? for shortcuts" (brightBlack dim)
- *
- * Right section always shows shortened cwd + optional git branch.
- *
- * Height is always exactly 1 line.
- */
 export class StatusBar extends StatelessWidget {
   private readonly cwd: string;
   private readonly gitBranch: string | undefined;
@@ -99,6 +80,9 @@ export class StatusBar extends StatelessWidget {
   private readonly isRunningShell: boolean;
   private readonly isAutoCompacting: boolean;
   private readonly isHandingOff: boolean;
+  private readonly isAwaitingPermission: boolean;
+  private readonly hasRunningTools: boolean;
+  private readonly hasStartedResponse: boolean;
   private readonly statusMessage: string | undefined;
   private readonly copyHighlight: boolean;
   private readonly searchState: { query: string; isFailing: boolean } | null;
@@ -118,6 +102,9 @@ export class StatusBar extends StatelessWidget {
     this.isRunningShell = props.isRunningShell ?? false;
     this.isAutoCompacting = props.isAutoCompacting ?? false;
     this.isHandingOff = props.isHandingOff ?? false;
+    this.isAwaitingPermission = props.isAwaitingPermission ?? false;
+    this.hasRunningTools = props.hasRunningTools ?? false;
+    this.hasStartedResponse = props.hasStartedResponse ?? false;
     this.statusMessage = props.statusMessage;
     this.copyHighlight = props.copyHighlight ?? false;
     this.searchState = props.searchState ?? null;
@@ -125,192 +112,68 @@ export class StatusBar extends StatelessWidget {
     this.deepReasoningActive = props.deepReasoningActive ?? false;
   }
 
-  /** Builds the status bar row: left status region + right cwd/branch region. */
   build(context: BuildContext): Widget {
     const theme = CliThemeProvider.maybeOf(context);
-    const left = this.buildLeft(theme);
+    const footerText = getFooterText({
+      isProcessing: this.isProcessing,
+      isStreaming: this.isStreaming,
+      isInterrupted: this.isInterrupted,
+      isExecutingCommand: this.isExecutingCommand,
+      isRunningShell: this.isRunningShell,
+      isAutoCompacting: this.isAutoCompacting,
+      isHandingOff: this.isHandingOff,
+      isAwaitingPermission: this.isAwaitingPermission,
+      hasRunningTools: this.hasRunningTools,
+      hasStartedResponse: this.hasStartedResponse,
+    });
+
+    if (!footerText) {
+      return SizedBox.shrink();
+    }
 
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
-    const rightParts: string[] = [];
-    if (this.agentName) rightParts.push(this.agentName);
-    if (this.gitBranch) rightParts.push(this.gitBranch);
-    rightParts.push(shortenPath(this.cwd));
-    const rightText = rightParts.join(' \u00b7 ');
+    const waveChar = getWavePrefix(footerText);
+    const leftText = waveChar ? `${waveChar} ${footerText}` : ` ${footerText}`;
 
-    const rightSpans: TextSpan[] = [
-      new TextSpan({
-        text: rightText,
+    const left = new Text({
+      text: new TextSpan({
+        text: leftText,
         style: new TextStyle({ foreground: mutedColor, dim: true }),
       }),
-    ];
+    });
+
+    const warningColor = theme?.base.warning ?? Color.yellow;
+    const right = new Text({
+      text: new TextSpan({
+        children: [
+          new TextSpan({
+            text: 'Esc',
+            style: new TextStyle({ foreground: warningColor, dim: true }),
+          }),
+          new TextSpan({
+            text: ' to cancel',
+            style: new TextStyle({ foreground: warningColor, dim: true }),
+          }),
+        ],
+      }),
+    });
 
     return new Padding({
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new Row({
         children: [
-          new Expanded({
-            child: left,
-          }),
-          new Text({
-            text: new TextSpan({ children: rightSpans }),
-          }),
+          new Expanded({ child: left }),
+          right,
         ],
       }),
     });
   }
 
-  /**
-   * Builds the left-side contextual text based on current state.
-   * Priority: copyHighlight > searchState > hintText > deepReasoning >
-   *           isInterrupted > isStreaming/processing sub-states > statusMessage > idle hint.
-   */
-  private buildLeft(theme: CliTheme | undefined): Widget {
-    const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
-    const keybindColor = theme?.app?.keybind ?? Color.blue;
+}
 
-    if (this.copyHighlight) {
-      return new Text({
-        text: new TextSpan({
-          text: 'Copied!',
-          style: new TextStyle({ foreground: theme?.base.success ?? Color.green, bold: true }),
-        }),
-      });
-    }
-
-    if (this.searchState) {
-      const prefix = this.searchState.isFailing
-        ? '(failing reverse-i-search)'
-        : '(reverse-i-search)';
-      const errorColor = Color.red;
-      const infoColor = theme?.base.info ?? Color.cyan;
-
-      return new Text({
-        text: new TextSpan({
-          children: [
-            new TextSpan({
-              text: prefix,
-              style: new TextStyle({
-                foreground: this.searchState.isFailing ? errorColor : infoColor,
-              }),
-            }),
-            new TextSpan({
-              text: `'${this.searchState.query}'`,
-              style: new TextStyle({
-                foreground: keybindColor,
-                bold: true,
-              }),
-            }),
-            new TextSpan({
-              text: ': ',
-              style: new TextStyle({ foreground: mutedColor }),
-            }),
-          ],
-        }),
-      });
-    }
-
-    if (this.hintText) {
-      return new Text({
-        text: new TextSpan({
-          text: this.hintText,
-          style: new TextStyle({ foreground: mutedColor, dim: true }),
-        }),
-      });
-    }
-
-    // Deep reasoning indicator (shown in left section when active, dim style)
-    if (this.deepReasoningActive) {
-      return new Text({
-        text: new TextSpan({
-          text: '[Deep Reasoning]',
-          style: new TextStyle({ foreground: mutedColor, dim: true }),
-        }),
-      });
-    }
-
-    // Interrupted state: warning-colored message
-    if (this.isInterrupted) {
-      const warningColor = theme?.base.warning ?? Color.yellow;
-      return new Text({
-        text: new TextSpan({
-          text: 'Stream interrupted',
-          style: new TextStyle({ foreground: warningColor }),
-        }),
-      });
-    }
-
-    // Processing sub-states: use getFooterText for contextual status
-    if (this.isProcessing || this.isStreaming) {
-      const footerText = getFooterText({
-        isProcessing: this.isProcessing,
-        isInterrupted: this.isInterrupted,
-        isExecutingCommand: this.isExecutingCommand,
-        isRunningShell: this.isRunningShell,
-        isAutoCompacting: this.isAutoCompacting,
-        isHandingOff: this.isHandingOff,
-      });
-
-      if (footerText) {
-        return new Text({
-          text: new TextSpan({
-            text: footerText,
-            style: new TextStyle({ foreground: mutedColor, dim: true }),
-          }),
-        });
-      }
-
-      // Fallback to "Esc to cancel" for streaming
-      const warningColor = theme?.base.warning ?? Color.yellow;
-      return new Text({
-        text: new TextSpan({
-          children: [
-            new TextSpan({
-              text: 'Esc',
-              style: new TextStyle({ foreground: warningColor, dim: true }),
-            }),
-            new TextSpan({
-              text: ' to cancel',
-              style: new TextStyle({ foreground: warningColor, dim: true }),
-            }),
-          ],
-        }),
-      });
-    }
-
-    if (this.statusMessage) {
-      return new Text({
-        text: new TextSpan({
-          text: this.statusMessage,
-          style: new TextStyle({ foreground: mutedColor, dim: true }),
-        }),
-      });
-    }
-
-    if (this.contextWindowUsagePercent !== undefined && this.contextWindowUsagePercent > 80) {
-      const warningColor = theme?.base.warning ?? Color.yellow;
-      return new Text({
-        text: new TextSpan({
-          text: `Context window at ${this.contextWindowUsagePercent}% — consider compacting`,
-          style: new TextStyle({ foreground: warningColor }),
-        }),
-      });
-    }
-
-    return new Text({
-      text: new TextSpan({
-        children: [
-          new TextSpan({
-            text: '?',
-            style: new TextStyle({ foreground: mutedColor, dim: true }),
-          }),
-          new TextSpan({
-            text: ' for shortcuts',
-            style: new TextStyle({ foreground: mutedColor, dim: true }),
-          }),
-        ],
-      }),
-    });
-  }
+function getWavePrefix(footerText: string): string {
+  if (footerText.startsWith('Waiting')) return '\u223C';
+  return '\u224B';
 }
 
 /**

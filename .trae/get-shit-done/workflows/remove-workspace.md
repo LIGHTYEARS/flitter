@@ -10,10 +10,10 @@ Read all files referenced by the invoking prompt's execution_context before star
 
 ## 1. Setup
 
-Extract workspace name from $ARGUMENTS.
+Extract workspace name from {{GSD_ARGS}}.
 
 ```bash
-INIT=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.claude/get-shit-done/bin/gsd-tools.cjs" init remove-workspace "$WORKSPACE_NAME")
+INIT=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.trae/get-shit-done/bin/gsd-tools.cjs" init remove-workspace "$WORKSPACE_NAME")
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
 ```
 
@@ -21,7 +21,7 @@ Parse JSON for: `workspace_name`, `workspace_path`, `has_manifest`, `strategy`, 
 
 **If no workspace name provided:**
 
-First run `/gsd:list-workspaces` to show available workspaces, then ask:
+First run `/gsd-list-workspaces` to show available workspaces, then ask:
 
 Use AskUserQuestion:
 - header: "Remove Workspace"

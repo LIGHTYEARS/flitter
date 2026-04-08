@@ -146,7 +146,7 @@ get-shit-done/
 - Subdirectories: None
 
 **commands/gsd/**
-- Purpose: Slash command definitions for Claude Code
+- Purpose: Slash command definitions for Trae
 - Contains: *.md files (one per command)
 - Key files: new-project.md, plan-phase.md, execute-plan.md
 - Subdirectories: None (flat structure)
@@ -186,7 +186,7 @@ get-shit-done/
 
 **Documentation:**
 - `README.md` - User-facing installation and usage guide
-- `CLAUDE.md` - Instructions for Claude Code when working in this repo
+- `.trae/rules/` - Instructions for Trae when working in this repo
 
 ## Naming Conventions
 
@@ -216,7 +216,7 @@ get-shit-done/
 
 **New Workflow:**
 - Implementation: `get-shit-done/workflows/{name}.md`
-- Usage: Reference from command with `@/Users/bytedance/.oh-my-coco/studio/flitter/.claude/get-shit-done/workflows/{name}.md`
+- Usage: Reference from command with `@/Users/bytedance/.oh-my-coco/studio/flitter/.trae/get-shit-done/workflows/{name}.md`
 
 **New Reference Document:**
 - Implementation: `get-shit-done/references/{name}.md`
@@ -229,12 +229,12 @@ get-shit-done/
 ## Special Directories
 
 **get-shit-done/**
-- Purpose: Resources installed to /Users/bytedance/.oh-my-coco/studio/flitter/.claude/
+- Purpose: Resources installed to /Users/bytedance/.oh-my-coco/studio/flitter/.trae/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 
 **commands/**
-- Purpose: Slash commands installed to /Users/bytedance/.oh-my-coco/studio/flitter/.claude/commands/
+- Purpose: Slash commands installed to /Users/bytedance/.oh-my-coco/studio/flitter/.trae/commands/
 - Source: Copied by bin/install.js during installation
 - Committed: Yes (source of truth)
 

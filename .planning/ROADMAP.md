@@ -325,10 +325,10 @@ Plans:
 **Goal:** Build end-to-end observability for the local agentic loop, aligned with AMP's tracing architecture. Three pillars: request tracing, rendering pipeline linkage, structured error capture.
 **Requirements**: Infrastructure phase (no formal requirement IDs)
 **Depends on:** Phase 37
-**Plans:** 4 plans (3 waves)
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 38-01: Tracer infrastructure — TraceStore, Span types, logger writeEntry() (Wave 1)
-- [ ] 38-02: Rendering pipeline bridge — setPipelineLogSink, frame-overrun detection (Wave 1)
-- [ ] 38-03: Agentic loop instrumentation — agent/inference/tool spans, TTFT, structured errors (Wave 2)
-- [ ] 38-04: Tests and verification — unit + integration tests for tracer, bridge, span emission (Wave 3)
+- [x] 38-01: Tracer infrastructure — TraceStore, Span types, logger writeEntry() (Wave 1)
+- [x] 38-02: Rendering pipeline bridge — setPipelineLogSink, frame-overrun detection (Wave 1)
+- [x] 38-03: Agentic loop instrumentation — agent/inference/tool spans, TTFT, structured errors (Wave 2)
+- [x] 38-04: Tests and verification — unit + integration tests for tracer, bridge, span emission (Wave 3)

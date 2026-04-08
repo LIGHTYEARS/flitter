@@ -31,12 +31,12 @@ Documents are reference material for Claude when planning/executing. Always incl
 Load codebase mapping context:
 
 ```bash
-INIT=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.claude/get-shit-done/bin/gsd-tools.cjs" init map-codebase)
+INIT=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.trae/get-shit-done/bin/gsd-tools.cjs" init map-codebase)
 if [[ "$INIT" == @file:* ]]; then INIT=$(cat "${INIT#@file:}"); fi
-AGENT_SKILLS_MAPPER=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.claude/get-shit-done/bin/gsd-tools.cjs" agent-skills gsd-codebase-mapper 2>/dev/null)
+AGENT_SKILLS_MAPPER=$(node "/Users/bytedance/.oh-my-coco/studio/flitter/.trae/get-shit-done/bin/gsd-tools.cjs" agent-skills gsd-codebase-mapper 2>/dev/null)
 ```
 
-Extract from init JSON: `mapper_model`, `commit_docs`, `codebase_dir`, `existing_maps`, `has_maps`, `codebase_dir_exists`.
+Extract from init JSON: `mapper_model`, `commit_docs`, `codebase_dir`, `existing_maps`, `has_maps`, `codebase_dir_exists`, `subagent_timeout`.
 </step>
 
 <step name="check_existing">
@@ -199,8 +199,10 @@ Wait for all 4 agents to complete using TaskOutput tool.
 TaskOutput tool:
   task_id: "{task_id from Agent result}"
   block: true
-  timeout: 300000
+  timeout: {subagent_timeout from init context, default 300000}
 ```
+
+> The timeout is configurable via `workflow.subagent_timeout` in `.planning/config.json` (milliseconds). Default: 300000 (5 minutes). Increase for large codebases or slower models.
 
 Call TaskOutput for all 4 agents in parallel (single message with 4 TaskOutput calls).
 
@@ -296,7 +298,7 @@ This would expose credentials if committed.
 **Action required:**
 1. Review the flagged content above
 2. If these are real secrets, they must be removed before committing
-3. Consider adding sensitive files to Claude Code "Deny" permissions
+3. Consider adding sensitive files to Trae "Deny" permissions
 
 Pausing before commit. Reply "safe to proceed" if the flagged content is not actually sensitive, or edit the files first.
 ```
@@ -312,7 +314,7 @@ Continue to commit_codebase_map.
 Commit the codebase map:
 
 ```bash
-node "/Users/bytedance/.oh-my-coco/studio/flitter/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs: map existing codebase" --files .planning/codebase/*.md
+node "/Users/bytedance/.oh-my-coco/studio/flitter/.trae/get-shit-done/bin/gsd-tools.cjs" commit "docs: map existing codebase" --files .planning/codebase/*.md
 ```
 
 Continue to offer_next.
@@ -347,14 +349,14 @@ Created .planning/codebase/:
 
 **Initialize project** — use codebase context for planning
 
-`/gsd:new-project`
+`/clear` then:
 
-<sub>`/clear` first → fresh context window</sub>
+`/gsd-new-project`
 
 ---
 
 **Also available:**
-- Re-run mapping: `/gsd:map-codebase`
+- Re-run mapping: `/gsd-map-codebase`
 - Review specific file: `cat .planning/codebase/STACK.md`
 - Edit any document before proceeding
 

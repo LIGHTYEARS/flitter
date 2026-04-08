@@ -1,7 +1,7 @@
 /**
  * Profile Pipeline — session scanning, message extraction, and sampling
  *
- * Reads Claude Code session history (read-only) to extract user messages
+ * Reads Trae session history (read-only) to extract user messages
  * for behavioral profiling. Three commands:
  *   - scan-sessions: list all projects and sessions
  *   - extract-messages: extract user messages from a specific project
@@ -160,7 +160,7 @@ async function cmdScanSessions(overridePath, options, raw) {
   const sessionsDir = getSessionsDir(overridePath);
   if (!sessionsDir) {
     const searchedPath = overridePath || '~/.claude/projects';
-    error(`No Claude Code sessions found at ${searchedPath}.${overridePath ? '' : ' Is Claude Code installed?'}`);
+    error(`No Trae sessions found at ${searchedPath}.${overridePath ? '' : ' Is Trae installed?'}`);
   }
 
   process.stderr.write('Reading your session history (read-only, nothing is modified or sent anywhere)...\n');
@@ -252,7 +252,7 @@ async function cmdExtractMessages(projectArg, options, raw, overridePath) {
   const sessionsDir = getSessionsDir(overridePath);
   if (!sessionsDir) {
     const searchedPath = overridePath || '~/.claude/projects';
-    error(`No Claude Code sessions found at ${searchedPath}.${overridePath ? '' : ' Is Claude Code installed?'}`);
+    error(`No Trae sessions found at ${searchedPath}.${overridePath ? '' : ' Is Trae installed?'}`);
   }
 
   let projectDirs;
@@ -393,7 +393,7 @@ async function cmdProfileSample(overridePath, options, raw) {
   const sessionsDir = getSessionsDir(overridePath);
   if (!sessionsDir) {
     const searchedPath = overridePath || '~/.claude/projects';
-    error(`No Claude Code sessions found at ${searchedPath}.${overridePath ? '' : ' Is Claude Code installed?'}`);
+    error(`No Trae sessions found at ${searchedPath}.${overridePath ? '' : ' Is Trae installed?'}`);
   }
 
   process.stderr.write('Reading your session history (read-only, nothing is modified or sent anywhere)...\n');

@@ -145,27 +145,38 @@ class ToolHeaderState extends State<ToolHeader> {
     const statusDim = (this.widget.status as string) === 'queued';
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
 
-    const spans: TextSpan[] = [
-      new TextSpan({
-        text: `${statusIcon} `,
-        style: new TextStyle({ foreground: statusColor, dim: statusDim }),
-      }),
-      new TextSpan({
-        text: this.widget.name,
-        style: new TextStyle({ foreground: theme?.app.toolName ?? Color.cyan, bold: true, dim: statusDim }),
-      }),
-    ];
+    const spans: TextSpan[] = [];
+    const hasName = !!this.widget.name;
+    const isRunning = this.widget.status === 'in_progress';
+
+    if (hasName) {
+      spans.push(
+        new TextSpan({
+          text: `${statusIcon} `,
+          style: new TextStyle({ foreground: statusColor, dim: statusDim }),
+        }),
+        new TextSpan({
+          text: this.widget.name,
+          style: new TextStyle({ foreground: theme?.app.toolName ?? Color.cyan, bold: true, dim: statusDim }),
+        }),
+      );
+    } else if (isRunning) {
+      const spinColor = this.widget.spinnerColor ?? theme?.app.toolRunning ?? Color.blue;
+      spans.push(new TextSpan({
+        text: this.spinner.toBraille(),
+        style: new TextStyle({ foreground: spinColor }),
+      }));
+    }
 
     for (const detail of this.widget.details) {
+      const prefix = spans.length > 0 ? ' ' : '';
       spans.push(new TextSpan({
-        text: ` ${detail}`,
+        text: `${prefix}${detail}`,
         style: new TextStyle({ foreground: mutedColor, dim: true }),
       }));
     }
 
-    if (this.widget.status === 'in_progress') {
-      // VPOL-05: Spinner color follows agent mode color (not static mutedColor).
-      // Falls back to theme.app.toolRunning when no spinnerColor is provided.
+    if (isRunning && hasName) {
       const spinColor = this.widget.spinnerColor ?? theme?.app.toolRunning ?? Color.blue;
       spans.push(new TextSpan({
         text: ` ${this.spinner.toBraille()}`,

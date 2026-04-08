@@ -24,7 +24,7 @@ import { ToolHeader } from './tool-header';
 import type { BaseToolProps, ToolCallItem } from './base-tool-props';
 import { pickString } from '../../utils/raw-input';
 import { extractShellOutput, extractRawNumber } from './tool-output-utils';
-import { resolveToolDisplayName } from './resolve-tool-name';
+
 import {
   HEADER_TRUNCATION_LIMIT,
   OUTPUT_TRUNCATION_LIMIT,
@@ -58,11 +58,12 @@ export class BashTool extends StatelessWidget {
     const details: string[] = [];
     if (command) {
       const shortCmd = truncateInline(command, HEADER_TRUNCATION_LIMIT);
-      details.push(`$ ${shortCmd}`);
+      const isRunning = this.toolCall.status === 'in_progress';
+      details.push(isRunning ? shortCmd : `$ ${shortCmd}`);
     }
 
     const header = new ToolHeader({
-      name: resolveToolDisplayName(this.toolCall),
+      name: '',
       status: this.toolCall.status,
       details,
       onToggle: this.onToggle,

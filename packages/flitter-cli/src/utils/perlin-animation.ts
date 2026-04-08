@@ -219,7 +219,7 @@ export function fbm(
     amplitude *= persistence;
     frequency *= lacunarity;
   }
-  return total / maxValue;
+  return (total / maxValue + 1) * 0.5;
 }
 
 // ---------------------------------------------------------------------------

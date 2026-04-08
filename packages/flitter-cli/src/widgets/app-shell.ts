@@ -58,6 +58,7 @@ import { FilePicker } from './file-picker';
 import { ShortcutHelpInline } from './shortcut-help-inline';
 import { SkillsModal } from './skills-modal';
 import { BashInvocationsWidget } from './bash-invocations';
+import { StatusBar } from './status-bar';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
 import { buildCommandList, type CommandItem } from '../commands/command-registry';
@@ -945,6 +946,20 @@ class AppShellState extends State<AppShell> {
           // Phase 32: Shell mode status for top-left border indicator
           shellModeStatus: this.widget.appState.currentShellModeStatus,
           onSpecialCommandTrigger: () => this.widget.appState.showThreadList(),
+        }),
+        new StatusBar({
+          cwd: this.widget.appState.metadata?.cwd ?? process.cwd(),
+          gitBranch: this.widget.appState.metadata?.gitBranch ?? undefined,
+          isProcessing: this.widget.appState.isProcessing,
+          isStreaming: this.widget.appState.lifecycle === 'streaming',
+          isInterrupted: this.widget.appState.isInterrupted ?? false,
+          isAwaitingPermission: this.widget.appState.isAwaitingPermission,
+          hasRunningTools: this.widget.appState.hasRunningTools,
+          hasStartedResponse: this.widget.appState.hasStartedResponse,
+          isExecutingCommand: false,
+          isRunningShell: false,
+          isAutoCompacting: false,
+          isHandingOff: false,
         }),
       ],
     });

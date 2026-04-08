@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
 status: executing
-last_updated: "2026-04-08T03:59:54.943Z"
-last_activity: 2026-04-08
+last_updated: "2026-04-08T14:05:50.982Z"
+last_activity: 2026-04-08 -- Phase 38 execution started
 progress:
-  total_phases: 15
+  total_phases: 16
   completed_phases: 13
-  total_plans: 31
+  total_plans: 35
   completed_plans: 28
-  percent: 90
+  percent: 80
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 37 — Simplify Factory.ts
+**Current focus:** Phase 38 — full-observability
 
 ## Current Milestone
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 37
-Plan: Not started
-Status: Executing Phase 37
-Last activity: 2026-04-08
+Phase: 38 (full-observability) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 38
+Last activity: 2026-04-08 -- Phase 38 execution started
 
 ## Phase Status
 

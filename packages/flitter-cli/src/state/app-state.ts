@@ -305,6 +305,21 @@ export class AppState {
     );
   }
 
+  get isAwaitingPermission(): boolean {
+    return this._permissionResolve !== null;
+  }
+
+  get hasRunningTools(): boolean {
+    return this.session.lifecycle === 'tool_execution';
+  }
+
+  get hasStartedResponse(): boolean {
+    for (const item of this.session.items) {
+      if (item.type === 'assistant_message' && item.isStreaming) return true;
+    }
+    return false;
+  }
+
   /** Elapsed milliseconds since the current prompt started (delegates to PromptController). */
   get elapsedMs(): number {
     return this._promptController?.elapsedMs ?? 0;
@@ -457,6 +472,7 @@ export class AppState {
           header: 'Run this command?',
           command,
           cwd: rawInput.cwd as string | undefined,
+          reason: 'Matches built-in permissions rule: ask Bash',
         };
       }
       case 'edit_file':
@@ -464,6 +480,7 @@ export class AppState {
         return {
           header: 'Allow editing file:',
           filePath: rawInput.path as string | undefined,
+          reason: 'Matches built-in permissions rule: ask Edit',
         };
       }
       case 'create_file':
@@ -472,6 +489,7 @@ export class AppState {
         return {
           header: 'Allow creating file:',
           filePath: rawInput.path as string | undefined,
+          reason: 'Matches built-in permissions rule: ask Create',
         };
       }
       default: {
@@ -481,6 +499,7 @@ export class AppState {
         return {
           header: `Allow ${toolCall.title}?`,
           json,
+          reason: 'Matches built-in permissions rule: ask Tool',
         };
       }
     }
@@ -1589,6 +1608,7 @@ export class AppState {
    */
   static create(config: {
     cwd: string;
+    gitBranch?: string | null;
     provider: Provider;
     promptHistory: PromptHistory;
     sessionStore: SessionStore;
@@ -1605,6 +1625,7 @@ export class AppState {
       sessionId,
       cwd: config.cwd,
       model: config.provider.model,
+      gitBranch: config.gitBranch,
       defaultToolExpanded: config.defaultToolExpanded,
     });
 

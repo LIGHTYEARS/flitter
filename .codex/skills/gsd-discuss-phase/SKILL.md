@@ -1,8 +1,8 @@
 ---
 name: "gsd-discuss-phase"
-description: "Gather phase context through adaptive questioning before planning. Use --auto to skip interactive questions (the agent picks recommended defaults)."
+description: "Gather phase context through adaptive questioning before planning. Use --auto to skip interactive questions (the agent picks recommended defaults). Use --chain for interactive discuss followed by automatic plan+execute. Use --power for bulk question generation into a file-based UI (answer at your own pace)."
 metadata:
-  short-description: "Gather phase context through adaptive questioning before planning. Use --auto to skip interactive questions (the agent picks recommended defaults)."
+  short-description: "Gather phase context through adaptive questioning before planning. Use --auto to skip interactive questions (the agent picks recommended defaults). Use --chain for interactive d..."
 ---
 
 <codex_skill_adapter>
@@ -62,8 +62,13 @@ Extract implementation decisions that downstream agents need — researcher and 
 <execution_context>
 @/Users/bytedance/.oh-my-coco/studio/flitter/.codex/get-shit-done/workflows/discuss-phase.md
 @/Users/bytedance/.oh-my-coco/studio/flitter/.codex/get-shit-done/workflows/discuss-phase-assumptions.md
+@/Users/bytedance/.oh-my-coco/studio/flitter/.codex/get-shit-done/workflows/discuss-phase-power.md
 @/Users/bytedance/.oh-my-coco/studio/flitter/.codex/get-shit-done/templates/context.md
 </execution_context>
+
+<runtime_note>
+**Copilot (VS Code):** Use `vscode_askquestions` wherever this workflow calls `AskUserQuestion`. They are equivalent — `vscode_askquestions` is the VS Code Copilot implementation of the same interactive question API.
+</runtime_note>
 
 <context>
 Phase number: {{GSD_ARGS}} (required)

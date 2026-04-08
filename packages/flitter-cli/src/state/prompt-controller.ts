@@ -431,11 +431,23 @@ export class PromptController {
       let stopReason = 'end_turn';
       let hasBegunStreaming = false;
       let shouldRetry = false;
+      let lastUsage: Record<string, unknown> | undefined;
+
+      const streamStartedAt = performance.now();
+      let inferenceSpanId: string | undefined;
+      try {
+        inferenceSpanId = traceStore.startSpan('inference', this._currentAgentSpan?.spanId ?? null, {
+          model: this._provider.model,
+        }).spanId;
+      } catch {}
 
       const stream = this._provider.sendPrompt(messages, options);
 
       for await (const event of stream) {
         if (this._cancelled) {
+          if (inferenceSpanId) {
+            try { traceStore.endSpan(inferenceSpanId, 'error', { cancelled: true }); } catch {}
+          }
           return { stopReason: 'cancelled', pendingToolCalls: [] };
         }
 
@@ -447,6 +459,13 @@ export class PromptController {
         )) {
           this._session.beginStreaming();
           hasBegunStreaming = true;
+
+          if (inferenceSpanId) {
+            try {
+              const ttft = performance.now() - streamStartedAt;
+              traceStore.addSpanEvent(inferenceSpanId, 'first-token', { ttftMs: Math.round(ttft) });
+            } catch {}
+          }
         }
 
         // Collect tool_call_ready events for later execution
@@ -458,9 +477,27 @@ export class PromptController {
           });
         }
 
+        // Track latest usage update for inference span enrichment
+        if (event.type === 'usage_update' && 'usage' in event) {
+          lastUsage = event.usage as unknown as Record<string, unknown>;
+        }
+
         // Dispatch to session (but don't complete stream yet for tool_use)
         if (event.type === 'message_complete') {
           stopReason = event.stopReason;
+
+          if (inferenceSpanId) {
+            try {
+              const totalLatency = performance.now() - streamStartedAt;
+              traceStore.setSpanAttributes(inferenceSpanId, {
+                stopReason,
+                totalLatencyMs: Math.round(totalLatency),
+                attempt,
+                ...lastUsage,
+              });
+            } catch {}
+          }
+
           if (stopReason !== 'tool_use') {
             // Normal completion — let session transition to complete
             this._session.completeStream(event.stopReason);
@@ -481,16 +518,39 @@ export class PromptController {
               `PromptController: retryable error on attempt ${attempt + 1}/${retryConfig.maxAttempts}, ` +
               `retrying in ${delay}ms: ${event.error.message}`,
             );
+
+            if (inferenceSpanId) {
+              try {
+                traceStore.endSpan(inferenceSpanId, 'error', { retried: true, attempt });
+              } catch {}
+              inferenceSpanId = undefined;
+            }
+
             await sleep(delay);
             shouldRetry = true;
             break;
           }
           // Not retryable or out of attempts — dispatch error normally
+          if (!shouldRetry && inferenceSpanId) {
+            try {
+              traceStore.endSpan(inferenceSpanId, 'error', {
+                errorMessage: event.error.message,
+                errorCode: event.error.code,
+                attempt,
+              });
+            } catch {}
+            inferenceSpanId = undefined;
+          }
           this._dispatchEvent(event);
           break;
         }
 
         this._dispatchEvent(event);
+      }
+
+      if (inferenceSpanId) {
+        try { traceStore.endSpan(inferenceSpanId, 'ok'); } catch {}
+        inferenceSpanId = undefined;
       }
 
       if (shouldRetry) {

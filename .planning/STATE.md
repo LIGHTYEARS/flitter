@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
-status: complete
-last_updated: "2026-04-07T16:50:00.000Z"
-last_activity: 2026-04-07
+status: executing
+last_updated: "2026-04-08T03:59:54.943Z"
+last_activity: 2026-04-08
 progress:
-  total_phases: 14
-  completed_phases: 14
-  total_plans: 30
-  completed_plans: 30
-  percent: 100
+  total_phases: 15
+  completed_phases: 13
+  total_plans: 31
+  completed_plans: 28
+  percent: 90
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Milestone v0.4.0 complete — all 14 phases shipped
+**Current focus:** Phase 37 — Simplify Factory.ts
 
 ## Current Milestone
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 36 (final)
-Plan: All complete
-Status: Milestone complete
-Last activity: 2026-04-07
+Phase: 37
+Plan: Not started
+Status: Executing Phase 37
+Last activity: 2026-04-08
 
 ## Phase Status
 
@@ -82,6 +82,11 @@ Progress: ██████████ 100%
 - 7 occurrences of `(appState as any).method?.()` in command-registry.ts for forward-declared methods (safe via optional chaining)
 
 ## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 37 added: Simplify Factory.ts
+- Phase 38 added: 建设全链路可观测能力 (planned: 4 plans, 3 waves)
 
 - `flitter-core` supports rendering primitives for chat, tool cards, markdown, scroll, overlays, and status surfaces
 - v0.3.0: bootstrap, session lifecycle, conversation model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence, migration closure

@@ -5,7 +5,7 @@
 - ✅ **v0.1.0 MVP** - Phases 1-5 (shipped 2026-03-26)
 - ✅ **v0.2.0 Rendering Overhaul** - Phases 6-11 (shipped 2026-03-28)
 - ✅ **v0.3.0 flitter-cli Full Parity** - Phases 12-22 (shipped 2026-04-03)
-- 🚧 **v0.4.0 Close All Gaps: Full AMP Fidelity** - Phases 23-36 (in progress)
+- 🚧 **v0.4.0 Close All Gaps: Full AMP Fidelity** - Phases 23-38 (in progress)
 
 ## Phases
 
@@ -315,7 +315,20 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 **Goal:** 消除 factory.ts 中冗余的 adapter-of-adapter 层。删除 PROVIDER_MAP、REVERSE_PROVIDER_MAP、DEFAULT_MODELS、PROVIDER_NAMES、resolveModel()，让 pi-ai 成为 provider/model 元数据的唯一来源。保留 OAuth token-store、baseUrl 覆盖、antigravity User-Agent 注入。
 **Requirements**: None (refactoring phase)
 **Depends on:** Phase 36
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 37-01: 简化 ProviderId 类型、重写 factory.ts 删除冗余映射、更新 config.ts 和测试 (Wave 1)
+- [x] 37-01: 简化 ProviderId 类型、重写 factory.ts 删除冗余映射、更新 config.ts 和测试 (Wave 1)
+
+### Phase 38: 建设全链路可观测能力
+
+**Goal:** Build end-to-end observability for the local agentic loop, aligned with AMP's tracing architecture. Three pillars: request tracing, rendering pipeline linkage, structured error capture.
+**Requirements**: Infrastructure phase (no formal requirement IDs)
+**Depends on:** Phase 37
+**Plans:** 4 plans (3 waves)
+
+Plans:
+- [ ] 38-01: Tracer infrastructure — TraceStore, Span types, logger writeEntry() (Wave 1)
+- [ ] 38-02: Rendering pipeline bridge — setPipelineLogSink, frame-overrun detection (Wave 1)
+- [ ] 38-03: Agentic loop instrumentation — agent/inference/tool spans, TTFT, structured errors (Wave 2)
+- [ ] 38-04: Tests and verification — unit + integration tests for tracer, bridge, span emission (Wave 3)

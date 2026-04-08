@@ -309,3 +309,13 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 34. Activity Group and Subagent Tree | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 35. Image Support and Overlays | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 36. Visual Polish | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
+
+### Phase 37: Simplify Factory.ts
+
+**Goal:** 消除 factory.ts 中冗余的 adapter-of-adapter 层。删除 PROVIDER_MAP、REVERSE_PROVIDER_MAP、DEFAULT_MODELS、PROVIDER_NAMES、resolveModel()，让 pi-ai 成为 provider/model 元数据的唯一来源。保留 OAuth token-store、baseUrl 覆盖、antigravity User-Agent 注入。
+**Requirements**: None (refactoring phase)
+**Depends on:** Phase 36
+**Plans:** 1 plan
+
+Plans:
+- [ ] 37-01: 简化 ProviderId 类型、重写 factory.ts 删除冗余映射、更新 config.ts 和测试 (Wave 1)

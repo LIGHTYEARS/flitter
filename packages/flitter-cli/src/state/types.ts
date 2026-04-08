@@ -315,6 +315,8 @@ export interface UsageInfo {
   readonly cost?: Readonly<{ amount: number; currency: string }> | null;
   readonly inputTokens?: number;
   readonly outputTokens?: number;
+  readonly cacheReadTokens?: number;
+  readonly cacheWriteTokens?: number;
 }
 
 /** A system-generated informational message. */

@@ -371,6 +371,8 @@ export class PiAiProvider implements Provider {
           used: (usage?.input ?? 0) + (usage?.output ?? 0),
           inputTokens: usage?.input,
           outputTokens: usage?.output,
+          cacheReadTokens: usage?.cacheRead,
+          cacheWriteTokens: usage?.cacheWrite,
           cost: usage?.cost?.total != null
             ? { amount: usage.cost.total, currency: '$' }
             : null,

@@ -5,6 +5,7 @@ import { chdir } from 'node:process';
 import { parseArgs } from './state/config';
 import type { ConnectTarget } from './state/config';
 import { closeLogFile, initLogFile, log, setLogLevel } from './utils/logger';
+import { initPipelineBridge, teardownPipelineBridge } from './utils/pipeline-bridge';
 import { startAppShell } from './widgets/app-shell';
 import { createProvider } from './provider/factory';
 import type { Provider } from './provider/provider';
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
   const config = parseArgs(process.argv);
   setLogLevel(config.logLevel);
   initLogFile(config.logRetentionDays);
+  initPipelineBridge();
 
   const promptHistory = new PromptHistory({
     filePath: config.historyFile,
@@ -165,9 +167,10 @@ async function main(): Promise<void> {
 
   const projectInstructions = loadProjectInstructions(config.cwd);
   const gitContext = await getGitContext(config.cwd);
+  const displayCwd = gitContext.repoRoot ?? config.cwd;
 
   const systemPrompt = buildSystemPrompt({
-    cwd: config.cwd,
+    cwd: displayCwd,
     model: config.model,
     providerName: provider.id,
     tools: toolRegistry.getDefinitions(),
@@ -176,14 +179,15 @@ async function main(): Promise<void> {
     projectInstructions,
   });
 
-  log.info(`System prompt built: ${systemPrompt.length} chars, tools: ${toolRegistry.size}, git: ${gitContext.branch ?? 'none'}`);
+  log.info(`System prompt built: ${systemPrompt.length} chars, tools: ${toolRegistry.size}, git: ${gitContext.branch ?? 'none'}, repoRoot: ${displayCwd}`);
 
   // Replace Task stub executor with the real TaskExecutor now that provider + system prompt exist
   const taskExecutor = new TaskExecutor(provider, systemPrompt);
   toolRegistry.replaceExecutor('Task', taskExecutor);
 
   const appState = AppState.create({
-    cwd: config.cwd,
+    cwd: displayCwd,
+    gitBranch: gitContext.branch,
     provider,
     promptHistory,
     sessionStore,
@@ -246,6 +250,7 @@ async function main(): Promise<void> {
 
   await binding.waitForExit();
   await gracefulShutdown();
+  teardownPipelineBridge();
   closeLogFile();
 }
 

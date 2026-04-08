@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { cliThemes } from '../themes';
 import type { ProviderId, ProviderConfig } from '../provider/provider';
-import { autoDetectProvider, DEFAULT_MODELS } from '../provider/factory';
+import { autoDetectProvider, getDefaultModel } from '../provider/factory';
 import { ConfigService, type Settings } from './config-service';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal';
@@ -298,14 +298,14 @@ export function parseArgs(argv: string[]): AppConfig {
   // Resolve provider configuration
   // ---------------------------------------------------------------------------
   // Priority: --provider CLI flag -> config.json provider -> auto-detect from env
-  // Within each provider: --model flag -> config.json model -> DEFAULT_MODELS[provider]
+  // Within each provider: --model flag -> config.json model -> getDefaultModel(provider)
 
   let providerConfig: ProviderConfig;
 
   if (providerId) {
     // Explicit provider selected via CLI or config
     const resolvedApiKey = apiKey ?? resolveApiKeyForProvider(providerId);
-    const resolvedModel = model ?? DEFAULT_MODELS[providerId] ?? 'claude-sonnet-4-20250514';
+    const resolvedModel = model ?? getDefaultModel(providerId);
     providerConfig = {
       id: providerId,
       apiKey: resolvedApiKey,
@@ -318,7 +318,7 @@ export function parseArgs(argv: string[]): AppConfig {
     if (detected) {
       providerConfig = {
         ...detected,
-        model: model ?? detected.model ?? DEFAULT_MODELS[detected.id] ?? 'claude-sonnet-4-20250514',
+        model: model ?? detected.model ?? getDefaultModel(detected.id),
         baseUrl: baseUrl ?? detected.baseUrl,
         apiKey: apiKey ?? detected.apiKey,
       };

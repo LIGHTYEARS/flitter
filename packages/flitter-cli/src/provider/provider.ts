@@ -8,7 +8,7 @@
 // StreamEvent vocabulary defined in state/types.ts.
 
 import type { StreamEvent, ProviderMessage, ToolDefinition } from '../state/types';
-import type { Model, Api } from '@mariozechner/pi-ai';
+import type { KnownProvider, Model, Api } from '@mariozechner/pi-ai';
 
 /**
  * Capabilities that a provider may or may not support.
@@ -48,27 +48,10 @@ export interface PromptOptions {
 }
 
 /**
- * Provider identifier — a branded string type for type safety.
- * Well-known values cover all AMP providers plus the extended pi-ai providers.
- * Per D-01: expanded to include all 15 AMP provider IDs.
+ * Provider identifier — based on pi-ai's KnownProvider with forward compatibility.
+ * All pi-ai provider names are valid; arbitrary strings accepted for custom providers.
  */
-export type ProviderId =
-  | 'anthropic'
-  | 'openai'
-  | 'chatgpt-codex'
-  | 'copilot'
-  | 'gemini'
-  | 'antigravity'
-  | 'openai-compatible'
-  | 'xai'
-  | 'groq'
-  | 'cerebras'
-  | 'openrouter'
-  | 'fireworks'
-  | 'baseten'
-  | 'moonshot'
-  | 'vertex'
-  | (string & {});
+export type ProviderId = KnownProvider | (string & {});
 
 /**
  * Abstract provider interface — backends implement this contract.

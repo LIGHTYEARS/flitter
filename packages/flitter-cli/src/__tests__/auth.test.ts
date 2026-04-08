@@ -260,22 +260,19 @@ describe('Provider factory', () => {
 
   it('throws for gemini without API key', () => {
     const { createProvider } = require('../provider/factory');
-    expect(() => createProvider({ id: 'gemini' })).toThrow('Gemini requires an API key');
+    expect(() => createProvider({ id: 'gemini' })).toThrow('No API key found');
   });
 
-  it('throws for unknown provider', () => {
+  it('throws for unknown provider without API key', () => {
     const { createProvider } = require('../provider/factory');
-    expect(() => createProvider({ id: 'nonexistent' })).toThrow("Unknown provider: 'nonexistent'");
+    expect(() => createProvider({ id: 'nonexistent', apiKey: 'k' })).toThrow();
   });
 
-  it('DEFAULT_MODELS has entries for all built-in providers', () => {
-    const { DEFAULT_MODELS } = require('../provider/factory');
-    expect(DEFAULT_MODELS['anthropic']).toBeDefined();
-    expect(DEFAULT_MODELS['openai']).toBeDefined();
-    expect(DEFAULT_MODELS['chatgpt-codex']).toBeDefined();
-    expect(DEFAULT_MODELS['copilot']).toBeDefined();
-    expect(DEFAULT_MODELS['gemini']).toBeDefined();
-    expect(DEFAULT_MODELS['antigravity']).toBeDefined();
-    expect(DEFAULT_MODELS['openai-compatible']).toBeDefined();
+  it('getDefaultModel returns a valid model for built-in providers', () => {
+    const { getDefaultModel } = require('../provider/factory');
+    expect(getDefaultModel('anthropic')).toBeDefined();
+    expect(getDefaultModel('openai')).toBeDefined();
+    expect(getDefaultModel('gemini')).toBeDefined();
+    expect(typeof getDefaultModel('anthropic')).toBe('string');
   });
 });

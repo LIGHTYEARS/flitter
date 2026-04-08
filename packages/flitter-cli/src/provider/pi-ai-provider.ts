@@ -222,8 +222,8 @@ export class PiAiProvider implements Provider {
 
     // Derive capabilities from piModel metadata
     this.capabilities = {
-      vision: piModel.input.includes('image'),
-      functionCalling: true, // pi-ai only includes tool-capable models
+      vision: Array.isArray(piModel.input) && piModel.input.includes('image'),
+      functionCalling: true,
       streaming: true,
       systemPrompt: true,
     };

@@ -24,6 +24,7 @@ import type { PermissionRequest, PermissionResult } from './permission-types';
 import type { ToolRegistry } from '../tools/registry';
 import type { ToolContext } from '../tools/executor';
 import { log } from '../utils/logger';
+import { traceStore } from '../utils/tracer';
 import { computeDelay, sleep, isRetryableError, DEFAULT_RETRY_CONFIG } from '../provider/retry';
 import type { RetryConfig } from '../provider/retry';
 
@@ -130,6 +131,9 @@ export class PromptController {
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
+  /** Current agent span handle for tracing the active submitPrompt() call. */
+  private _currentAgentSpan: { spanId: string; traceId: string } | null = null;
+
   constructor(options: PromptControllerOptions) {
     this._session = options.session;
     this._provider = options.provider;
@@ -181,6 +185,15 @@ export class PromptController {
 
     this._isSubmitting = true;
     this._cancelled = false;
+
+    // Start root agent span for tracing
+    try {
+      this._currentAgentSpan = traceStore.startSpan('agent', null, {
+        threadId: this._session.metadata?.sessionId,
+        messageText: text.slice(0, 200),
+      });
+    } catch {}
+
     this._startElapsedTimer();
 
     // Transition to processing and add user message
@@ -192,6 +205,15 @@ export class PromptController {
       // Provider threw an exception — route to session error
       const errMsg = err instanceof Error ? err.message : String(err);
       log.error(`PromptController: provider error: ${errMsg}`);
+
+      if (this._currentAgentSpan) {
+        try {
+          traceStore.endSpan(this._currentAgentSpan.spanId, 'error', {
+            errorCode: 'PROVIDER_ERROR',
+            errorMessage: errMsg,
+          });
+        } catch {}
+      }
 
       const currentLifecycle: string = this._session.lifecycle;
       if (
@@ -208,6 +230,15 @@ export class PromptController {
     } finally {
       this._stopElapsedTimer();
       this._isSubmitting = false;
+
+      if (this._currentAgentSpan) {
+        try {
+          const lifecycleAtEnd: string = this._session.lifecycle;
+          const status = lifecycleAtEnd === 'error' ? 'error' : 'ok';
+          traceStore.endSpan(this._currentAgentSpan.spanId, status);
+        } catch {}
+        this._currentAgentSpan = null;
+      }
 
       const finalLifecycle: string = this._session.lifecycle;
       if (finalLifecycle === 'complete' && this._onStreamComplete) {
@@ -231,7 +262,17 @@ export class PromptController {
       log.info(`PromptController: agentic loop iteration ${iteration}`);
 
       // Build messages from conversation history
+      let paSpanId: string | undefined;
+      try { paSpanId = traceStore.startSpan('prompt-assembly', this._currentAgentSpan?.spanId ?? null).spanId; } catch {}
       const messages = this._buildMessages(this._session.items);
+      if (paSpanId) {
+        try {
+          traceStore.endSpan(paSpanId, 'ok', {
+            messageCount: messages.length,
+            iteration,
+          });
+        } catch {}
+      }
 
       // Build options with tool definitions and system prompt
       const options: PromptOptions = {};

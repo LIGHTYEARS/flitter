@@ -181,7 +181,8 @@ export class ShortcutRegistry {
       if (entry.enabled && !entry.enabled(ctx)) {
         continue;
       }
-      return entry.action(ctx, event);
+      const result = entry.action(ctx, event);
+      return result;
     }
     return 'ignored';
   }

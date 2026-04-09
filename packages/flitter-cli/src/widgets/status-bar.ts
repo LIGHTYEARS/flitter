@@ -37,6 +37,8 @@ export interface StatusBarProps {
   searchState?: { query: string; isFailing: boolean } | null;
   hintText?: string;
   deepReasoningActive?: boolean;
+  inputText?: string;
+  isShowingShortcutsHelp?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +90,8 @@ export class StatusBar extends StatelessWidget {
   private readonly searchState: { query: string; isFailing: boolean } | null;
   private readonly hintText: string | undefined;
   private readonly deepReasoningActive: boolean;
+  private readonly inputText: string;
+  private readonly isShowingShortcutsHelp: boolean;
 
   constructor(props: StatusBarProps) {
     super({});
@@ -110,6 +114,8 @@ export class StatusBar extends StatelessWidget {
     this.searchState = props.searchState ?? null;
     this.hintText = props.hintText;
     this.deepReasoningActive = props.deepReasoningActive ?? false;
+    this.inputText = props.inputText ?? '';
+    this.isShowingShortcutsHelp = props.isShowingShortcutsHelp ?? false;
   }
 
   build(context: BuildContext): Widget {
@@ -128,6 +134,35 @@ export class StatusBar extends StatelessWidget {
     });
 
     if (!footerText) {
+      if (this.inputText === '' && !this.isShowingShortcutsHelp) {
+        const keybindColor = theme?.app.keybind ?? Color.blue;
+        const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
+
+        const hint = new Text({
+          text: new TextSpan({
+            children: [
+              new TextSpan({
+                text: '?',
+                style: new TextStyle({ foreground: keybindColor }),
+              }),
+              new TextSpan({
+                text: ' for shortcuts',
+                style: new TextStyle({ foreground: mutedColor, dim: true }),
+              }),
+            ],
+          }),
+        });
+
+        return new Padding({
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
+          child: new Row({
+            children: [
+              new Expanded({ child: hint }),
+            ],
+          }),
+        });
+      }
+
       return SizedBox.shrink();
     }
 

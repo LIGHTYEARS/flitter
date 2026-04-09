@@ -22,6 +22,11 @@ export const debugFlags = {
   debugInspectorEnabled: false,
   /** Enable debug-only invariant checks (e.g. setState() build-phase guard). Zero cost when false. */
   debugMode: false,
+  /** Enable per-frame span timeline tracing */
+  debugTimeline: false,
+  debugProfileBuilds: false,
+  debugProfileLayouts: false,
+  debugProfilePaints: false,
 };
 
 /**
@@ -60,6 +65,16 @@ export function applyEnvDebugFlags(): void {
     debugFlags.debugPrintBuilds = true;
     debugFlags.debugPrintLayouts = true;
     debugFlags.debugPrintPaints = true;
+  } else if (level === 'timeline') {
+    debugFlags.debugTimeline = true;
+  } else if (level === 'profile') {
+    debugFlags.debugProfileBuilds = true;
+    debugFlags.debugProfileLayouts = true;
+    debugFlags.debugProfilePaints = true;
+  } else if (level === 'all') {
+    for (const key of Object.keys(debugFlags) as Array<keyof typeof debugFlags>) {
+      debugFlags[key] = true;
+    }
   }
 }
 

@@ -117,12 +117,16 @@ export class WelcomeScreenState extends State<WelcomeScreen> {
             mainAxisSize: 'min',
             crossAxisAlignment: 'start',
             children: [
-              // Line 1: "Welcome to Amp" — dim foreground with green color
-              // ANSI golden: dim + green-ish; use dim:true + Color.green per CONTEXT D-03
               new Text({
                 text: new TextSpan({
-                  text: 'Welcome to Amp',
-                  style: new TextStyle({ foreground: Color.green, dim: true }),
+                  children: 'Welcome to Amp'.split('').map((ch, i) => {
+                    const g = Math.round(174 + (92 - 174) * i / 13);
+                    const b = Math.round(89 + (41 - 89) * i / 13);
+                    return new TextSpan({
+                      text: ch,
+                      style: new TextStyle({ foreground: Color.rgb(0, g, b) }),
+                    });
+                  }),
                 }),
               }),
 

@@ -591,6 +591,72 @@ describe('PaintContext', () => {
       expect(screen.getCell(2, 0).char).toBe('C');
     });
   });
+
+  // =========================================================================
+  // 11. fillRect alpha blending
+  // =========================================================================
+  describe('fillRect alpha blending (Gap fillRect)', () => {
+    /**
+     * Verifies that fillRect with a semi-transparent bg blends with
+     * the existing cell bg using standard alpha compositing:
+     * result = front * alpha + back * (1 - alpha).
+     */
+    test('fillRect with alpha bg blends with existing cell bg', () => {
+      ctx.drawChar(5, 3, 'X', { bg: Color.rgb(100, 200, 0) });
+
+      ctx.fillRect(5, 3, 1, 1, ' ', { bg: Color.rgb(0, 0, 0).withAlpha(0.5) });
+
+      const cell = screen.getCell(5, 3);
+      expect(cell.style?.bg).toBeDefined();
+      expect(cell.style!.bg!.r).toBe(50);
+      expect(cell.style!.bg!.g).toBe(100);
+      expect(cell.style!.bg!.b).toBe(0);
+    });
+
+    /**
+     * Verifies that fillRect with alpha bg falls back to rgb(0,0,0)
+     * when the existing cell has no bg defined.
+     */
+    test('fillRect with alpha bg uses fallback rgb(0,0,0) when existing cell has no bg', () => {
+      ctx.fillRect(2, 1, 1, 1, ' ', { bg: Color.rgb(200, 100, 50).withAlpha(0.5) });
+
+      const cell = screen.getCell(2, 1);
+      expect(cell.style?.bg).toBeDefined();
+      expect(cell.style!.bg!.r).toBe(100);
+      expect(cell.style!.bg!.g).toBe(50);
+      expect(cell.style!.bg!.b).toBe(25);
+    });
+
+    /**
+     * Verifies that fillRect with alpha fg falls back to rgb(255,255,255)
+     * when the existing cell has no fg defined.
+     */
+    test('fillRect with alpha fg uses fallback rgb(255,255,255) when existing cell has no fg', () => {
+      ctx.fillRect(3, 2, 1, 1, ' ', { fg: Color.rgb(0, 0, 0).withAlpha(0.5) });
+
+      const cell = screen.getCell(3, 2);
+      expect(cell.style?.fg).toBeDefined();
+      expect(cell.style!.fg!.r).toBe(128);
+      expect(cell.style!.fg!.g).toBe(128);
+      expect(cell.style!.fg!.b).toBe(128);
+    });
+
+    /**
+     * Verifies that fillRect with fully opaque style (alpha=1.0) takes
+     * the fast path and directly overwrites the cell without blending.
+     */
+    test('fillRect with opaque style (alpha=1.0) directly overwrites — fast path', () => {
+      ctx.drawChar(1, 1, 'X', { bg: Color.rgb(255, 0, 0) });
+
+      ctx.fillRect(1, 1, 1, 1, ' ', { bg: Color.rgb(0, 255, 0) });
+
+      const cell = screen.getCell(1, 1);
+      expect(cell.style?.bg).toBeDefined();
+      expect(cell.style!.bg!.r).toBe(0);
+      expect(cell.style!.bg!.g).toBe(255);
+      expect(cell.style!.bg!.b).toBe(0);
+    });
+  });
 });
 
 // ===========================================================================

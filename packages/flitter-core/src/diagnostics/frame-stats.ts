@@ -279,6 +279,22 @@ export class FrameStats {
     return sum / n;
   }
 
+  getRecentFrameTimes(n: number): number[] {
+    const count = Math.min(this._count, this.capacity);
+    const result: number[] = [];
+    const start = count < this.capacity ? 0 : this._index;
+    const len = Math.min(n, count);
+    for (let i = 0; i < len; i++) {
+      const idx = (start + count - len + i) % this.capacity;
+      result.push(this._buffer[idx]!);
+    }
+    return result;
+  }
+
+  phaseP50(phase: string): number {
+    return this.getPhasePercentile(phase, 50);
+  }
+
   /** Reset all data (frame buffer, phase buffers, and additional metrics). */
   reset(): void {
     this._buffer.fill(0);

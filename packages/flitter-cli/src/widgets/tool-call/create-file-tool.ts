@@ -26,6 +26,7 @@ import { extractOutputText } from './tool-output-utils';
 import { PREVIEW_TRUNCATION_LIMIT, truncateText } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 import { fileLink } from '../../utils/osc8-link';
+import type { ToolHeaderDetail } from './tool-header';
 
 interface CreateFileToolProps extends BaseToolProps {}
 
@@ -49,10 +50,12 @@ export class CreateFileTool extends StatelessWidget {
     const input = this.toolCall.rawInput ?? {};
     const filePath = pickString(input, ['file_path', 'path', 'filename', 'file', 'destination']);
 
+    const details: ToolHeaderDetail[] = filePath ? [fileLink(filePath, shortenPath(filePath))] : [];
+
     const header = new ToolHeader({
       name: resolveToolDisplayName(this.toolCall),
       status: this.toolCall.status,
-      details: filePath ? [fileLink(filePath, shortenPath(filePath))] : [],
+      details,
       onToggle: this.onToggle,
     });
 

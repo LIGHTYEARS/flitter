@@ -31,6 +31,7 @@ import { extractDiff as extractDiffUtil, extractOutputText } from './tool-output
 import { PREVIEW_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 import { fileLink } from '../../utils/osc8-link';
+import type { ToolHeaderDetail } from './tool-header';
 
 interface EditFileToolProps extends BaseToolProps {}
 
@@ -57,7 +58,7 @@ export class EditFileTool extends StatelessWidget {
 
     // VPOL-02: Wrap file path in OSC8 terminal hyperlink for clickable editor links.
     // VPOL-03: Extract diff stats unconditionally for collapsed header display.
-    const details: string[] = [];
+    const details: ToolHeaderDetail[] = [];
     if (filePath) {
       details.push(fileLink(filePath, shortenPath(filePath)));
     }

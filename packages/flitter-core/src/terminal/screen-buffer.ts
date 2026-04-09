@@ -214,6 +214,12 @@ export class ScreenBuffer {
    */
   private _fullClearPerformed: boolean = false;
 
+  private _lastRepaintPercent: number = 0;
+
+  get lastRepaintPercent(): number {
+    return this._lastRepaintPercent;
+  }
+
   constructor(width: number = 80, height: number = 24) {
     this.width = width;
     this.height = height;
@@ -279,6 +285,7 @@ export class ScreenBuffer {
     this.needsFullRefresh = true;
     this._dirtyRegions.length = 0;
     this._fullClearPerformed = false;
+    this._lastRepaintPercent = 0;
   }
 
   /** Set a cell in the back buffer. */
@@ -495,6 +502,7 @@ export class ScreenBuffer {
       this.needsFullRefresh = false;
       this._dirtyRegions.length = 0;
       this._fullClearPerformed = false;
+      this._lastRepaintPercent = 100;
       return patches;
     }
 
@@ -570,6 +578,15 @@ export class ScreenBuffer {
         patches.push({ row: y, patches: rowPatches });
       }
     }
+
+    let changedCells = 0;
+    for (const patch of patches) {
+      for (const cp of patch.patches) {
+        changedCells += cp.cells.length;
+      }
+    }
+    const totalCells = w * h;
+    this._lastRepaintPercent = totalCells > 0 ? (changedCells / totalCells) * 100 : 0;
 
     return patches;
   }

@@ -210,13 +210,15 @@ describe('FocusManager focus history', () => {
     innerOverlay.requestFocus();
     // History: [inputNode, outerOverlay]
 
-    // Overlay closes: both nodes disposed
+    // Overlay closes: both nodes disposed.
+    // dispose() on a focused node automatically calls restoreFocus() (Gap 29).
+    // innerOverlay.dispose() -> restoreFocus() -> pops outerOverlay -> focuses it
+    // outerOverlay.dispose() -> restoreFocus() -> pops inputNode -> focuses it
     innerOverlay.dispose();
     outerOverlay.dispose();
 
-    // restoreFocus should skip disposed outerOverlay, restore to inputNode
-    const restored = mgr.restoreFocus();
-    expect(restored).toBe(true);
+    // Focus should have been automatically restored to inputNode
+    // through the chain of dispose() -> restoreFocus() calls.
     expect(mgr.primaryFocus).toBe(inputNode);
   });
 
@@ -272,5 +274,114 @@ describe('FocusScopeNode._focusedChild cleanup on detach', () => {
     // Detach childA — should NOT clear scope._focusedChild since it's childB
     childA.detach();
     expect(scope.focusedChild).toBe(childB);
+  });
+});
+
+describe('FocusNode auto-restoreFocus on detach/dispose (Gap BUG-2)', () => {
+  beforeEach(() => FocusManager.reset());
+
+  /**
+   * Verifies that detach() on the currently focused node automatically
+   * restores focus to the previous holder via the focus history stack.
+   * A gets focus, B gets focus (history: [A]).
+   * B.detach() should auto-restore focus to A.
+   */
+  test('detach() on focused node auto-restores to previous', () => {
+    const mgr = FocusManager.instance;
+    const nodeA = new FocusNode({ debugLabel: 'A' });
+    const nodeB = new FocusNode({ debugLabel: 'B' });
+    mgr.registerNode(nodeA, null);
+    mgr.registerNode(nodeB, null);
+
+    nodeA.requestFocus();
+    nodeB.requestFocus();
+
+    nodeB.detach();
+    expect(mgr.primaryFocus).toBe(nodeA);
+  });
+
+  /**
+   * Verifies that dispose() on the currently focused node automatically
+   * restores focus to the previous holder via the focus history stack.
+   * A gets focus, B gets focus (history: [A]).
+   * B.dispose() should auto-restore focus to A.
+   */
+  test('dispose() on focused node auto-restores to previous', () => {
+    const mgr = FocusManager.instance;
+    const nodeA = new FocusNode({ debugLabel: 'A' });
+    const nodeB = new FocusNode({ debugLabel: 'B' });
+    mgr.registerNode(nodeA, null);
+    mgr.registerNode(nodeB, null);
+
+    nodeA.requestFocus();
+    nodeB.requestFocus();
+
+    nodeB.dispose();
+    expect(mgr.primaryFocus).toBe(nodeA);
+  });
+
+  /**
+   * Verifies that detaching a non-focused node does NOT alter
+   * primaryFocus. Only the focused node's detach should trigger
+   * focus restoration.
+   * A gets focus, B gets focus (history: [A]).
+   * A.detach() should NOT change primaryFocus — B stays focused.
+   */
+  test('detach on non-focused node does NOT trigger restoreFocus', () => {
+    const mgr = FocusManager.instance;
+    const nodeA = new FocusNode({ debugLabel: 'A' });
+    const nodeB = new FocusNode({ debugLabel: 'B' });
+    mgr.registerNode(nodeA, null);
+    mgr.registerNode(nodeB, null);
+
+    nodeA.requestFocus();
+    nodeB.requestFocus();
+
+    nodeA.detach();
+    expect(mgr.primaryFocus).toBe(nodeB);
+  });
+
+  /**
+   * Simulates CommandPalette teardown: a chain of dispose() calls
+   * restores focus through the entire overlay stack.
+   * inputNode, outerScope, innerScope all registered and focused in order.
+   * innerScope.dispose() -> auto-restore -> outerScope gets focus.
+   * outerScope.dispose() -> auto-restore -> inputNode gets focus.
+   */
+  test('chained dispose restores through overlay stack (simulates CommandPalette teardown)', () => {
+    const mgr = FocusManager.instance;
+    const inputNode = new FocusNode({ debugLabel: 'inputNode' });
+    const outerScope = new FocusNode({ debugLabel: 'outerScope' });
+    const innerScope = new FocusNode({ debugLabel: 'innerScope' });
+    mgr.registerNode(inputNode, null);
+    mgr.registerNode(outerScope, null);
+    mgr.registerNode(innerScope, null);
+
+    inputNode.requestFocus();
+    outerScope.requestFocus();
+    innerScope.requestFocus();
+
+    innerScope.dispose();
+    expect(mgr.primaryFocus).toBe(outerScope);
+
+    outerScope.dispose();
+    expect(mgr.primaryFocus).toBe(inputNode);
+  });
+
+  /**
+   * Verifies that detaching the only focused node when the focus
+   * history stack is empty leaves primaryFocus as null.
+   * Only A is registered and focused. History is empty.
+   * A.detach() clears focus with nothing to restore.
+   */
+  test('detach on focused node with empty history leaves primaryFocus null', () => {
+    const mgr = FocusManager.instance;
+    const nodeA = new FocusNode({ debugLabel: 'A' });
+    mgr.registerNode(nodeA, null);
+
+    nodeA.requestFocus();
+
+    nodeA.detach();
+    expect(mgr.primaryFocus).toBeNull();
   });
 });

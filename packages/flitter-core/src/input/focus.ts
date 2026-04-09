@@ -147,9 +147,13 @@ export class FocusNode {
     if (idx !== -1) {
       this._parent._children.splice(idx, 1);
     }
-    // If this node had primary focus, clear it
+    // If this node had primary focus, clear it and restore the previous holder.
+    // This handles the FocusScopeState.dispose() path where unregisterNode()
+    // calls detach() before FocusNode.dispose() — by the time dispose() runs,
+    // _hasPrimaryFocus is already false so restoreFocus must trigger here.
     if (this._hasPrimaryFocus) {
       this._clearPrimaryFocus();
+      FocusManager.instance.restoreFocus();
     }
     this._parent = null;
   }
@@ -312,6 +316,10 @@ export class FocusNode {
     if (this._disposed) return;
     this._disposed = true;
 
+    // Track whether this node held primary focus before disposal.
+    // If so, we need to restore focus to the previous holder (Gap 29).
+    const hadPrimaryFocus = this._hasPrimaryFocus;
+
     // Unfocus if needed
     if (this._hasPrimaryFocus) {
       this._clearPrimaryFocus();
@@ -330,6 +338,13 @@ export class FocusNode {
     this.onPaste = null;
     this._keyHandlers.length = 0;
     this._listeners.length = 0;
+
+    // Automatically restore focus to the previously focused node when a
+    // focused node is disposed (e.g., overlay FocusScope teardown).
+    // This wires the Gap 29 focus history mechanism into the disposal path.
+    if (hadPrimaryFocus) {
+      FocusManager.instance.restoreFocus();
+    }
   }
 
   // -- Internal --

@@ -272,10 +272,42 @@ export class PaintContext {
     char: string = ' ',
     style?: CellStyle,
   ): void {
+    const needsBgBlend = style?.bg !== undefined && style.bg.alpha < 1.0;
+    const needsFgBlend = style?.fg !== undefined && style.fg.alpha < 1.0;
+
+    if (!needsBgBlend && !needsFgBlend) {
+      for (let row = y; row < y + h; row++) {
+        for (let col = x; col < x + w; col++) {
+          if (this.isPositionInClip(col, row)) {
+            this.screen.setChar(col, row, char, style, 1);
+          }
+        }
+      }
+      return;
+    }
+
     for (let row = y; row < y + h; row++) {
       for (let col = x; col < x + w; col++) {
         if (this.isPositionInClip(col, row)) {
-          this.screen.setChar(col, row, char, style, 1);
+          const existing = this.screen.getCell(col, row);
+          let bg = style?.bg;
+          let fg = style?.fg;
+
+          if (needsBgBlend) {
+            const existBg = existing.style?.bg ?? Color.rgb(0, 0, 0);
+            bg = blendColor(bg!, existBg);
+          }
+
+          if (needsFgBlend) {
+            const existFg = existing.style?.fg ?? Color.rgb(255, 255, 255);
+            fg = blendColor(fg!, existFg);
+          }
+
+          const blendedStyle = (bg !== style?.bg || fg !== style?.fg)
+            ? { ...style, fg, bg }
+            : style;
+
+          this.screen.setChar(col, row, char, blendedStyle, 1);
         }
       }
     }

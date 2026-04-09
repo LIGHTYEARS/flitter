@@ -22,17 +22,22 @@ export function wrapOSC8Link(text: string, url: string): string {
   return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
 }
 
+/** A structured hyperlink descriptor for use with TextSpan.hyperlink. */
+export interface FileLinkDescriptor {
+  readonly text: string;
+  readonly uri: string;
+}
+
 /**
- * Wrap a file path in an OSC8 `file://` hyperlink.
+ * Build a structured file hyperlink descriptor for use with TextSpan.
  *
- * Uses the full absolute file path as the link URL, allowing terminals
- * to open the file in the configured editor when clicked.
+ * Returns { text, uri } so callers can feed it into TextSpan({ hyperlink: { uri } })
+ * instead of embedding raw OSC 8 escape sequences in plain text strings.
  *
  * @param filePath    - Absolute file path to link to.
  * @param displayText - Optional shorter display text (defaults to filePath).
- * @returns The display text wrapped in an OSC8 file:// hyperlink.
+ * @returns A FileLinkDescriptor with display text and file:// URI.
  */
-export function fileLink(filePath: string, displayText?: string): string {
-  const url = `file://${filePath}`;
-  return wrapOSC8Link(displayText ?? filePath, url);
+export function fileLink(filePath: string, displayText?: string): FileLinkDescriptor {
+  return { text: displayText ?? filePath, uri: `file://${filePath}` };
 }

@@ -584,6 +584,12 @@ export class RenderScrollbar extends RenderBox {
   paint(context: PaintContext, offset: Offset): void {
     if (typeof context.drawChar !== 'function') return;
 
+    if (this.scrollInfo) {
+      const contentExtent = this._getContentExtent();
+      const vpExtent = this._getViewportExtent();
+      if (vpExtent > 0 && contentExtent <= vpExtent) return;
+    }
+
     if (this.axis === 'vertical') {
       this._paintVertical(context, offset);
     } else {

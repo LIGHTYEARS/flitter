@@ -26,6 +26,7 @@ import { extractOutputText, extractRawNumber } from './tool-output-utils';
 import { OUTPUT_TRUNCATION_LIMIT } from './truncation-limits';
 import { resolveToolDisplayName, shortenPath } from './resolve-tool-name';
 import { fileLink } from '../../utils/osc8-link';
+import type { ToolHeaderDetail } from './tool-header';
 
 interface GrepToolProps extends BaseToolProps {}
 
@@ -52,7 +53,7 @@ export class GrepTool extends StatelessWidget {
     const pattern = pickString(input, ['pattern', 'query', 'glob', 'search_pattern', 'regex', 'search']);
     const searchPath = pickString(input, ['path', 'directory']);
 
-    const details: string[] = [];
+    const details: ToolHeaderDetail[] = [];
     if (pattern) details.push(`/${pattern}/`);
     if (searchPath) details.push(fileLink(searchPath, shortenPath(searchPath)));
 

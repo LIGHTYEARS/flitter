@@ -14,9 +14,6 @@
 
 import type { Widget } from '../../../flitter-core/src/framework/widget';
 import { Stack, Positioned } from '../../../flitter-core/src/widgets/stack';
-import { Container } from '../../../flitter-core/src/widgets/container';
-import { BoxDecoration } from '../../../flitter-core/src/layout/render-decorated';
-import { Color } from '../../../flitter-core/src/core/color';
 import type { StateListener } from './session';
 
 // ---------------------------------------------------------------------------
@@ -213,21 +210,6 @@ export class OverlayManager {
     const stackChildren: Widget[] = [baseContent];
 
     for (const entry of this.entries) {
-      // Modal mask
-      if (entry.modal) {
-        stackChildren.push(
-          new Positioned({
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: new Container({
-              decoration: new BoxDecoration({ color: Color.rgb(0, 0, 0).withAlpha(0.6) }),
-            }),
-          }),
-        );
-      }
-
       // Overlay widget
       const overlayWidget = entry.builder(() => this.dismiss(entry.id));
 

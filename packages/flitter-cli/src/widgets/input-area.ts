@@ -85,6 +85,15 @@ export function detectShellMode(text: string): ShellMode {
 /** Minimum container height: 3 content lines + 2 border rows. */
 export const MIN_HEIGHT = 5;
 
+/**
+ * Extra content lines required by ShortcutHelpInline topWidget.
+ * 6 shortcut rows + 1 SizedBox + 1 tmux hint + 1 divider = 9 (tmux).
+ * Non-tmux: 6 shortcut rows + 1 divider = 7.
+ * Subtract 1 because baseHeight already includes a minimum input line.
+ * This yields a total height matching AMP's 13-row InputArea with help.
+ */
+const TOP_WIDGET_LINES = 8;
+
 // ---------------------------------------------------------------------------
 // Step 1: InputArea props and StatefulWidget
 // ---------------------------------------------------------------------------
@@ -107,6 +116,10 @@ interface InputAreaProps {
   onSpecialCommandTrigger?: () => void;
   /** Callback fired when @: (commit) trigger is typed. */
   onCommitTrigger?: () => void;
+  /** Callback fired when ? is typed into an empty input. */
+  onQuestionMarkTrigger?: () => void;
+  /** Callback fired when / is typed into an empty input. */
+  onSlashTrigger?: () => void;
   // --- Border feature props (Phase 23) ---
   /** Current token usage from the session. */
   tokenUsage?: UsageInfo | null;
@@ -187,6 +200,10 @@ export class InputArea extends StatefulWidget {
   readonly onSpecialCommandTrigger?: () => void;
   /** Callback fired when @: (commit) trigger is typed. */
   readonly onCommitTrigger?: () => void;
+  /** Callback fired when ? is typed into an empty input. */
+  readonly onQuestionMarkTrigger?: () => void;
+  /** Callback fired when / is typed into an empty input. */
+  readonly onSlashTrigger?: () => void;
   // Border feature props
   readonly tokenUsage?: UsageInfo | null;
   readonly costUsd: number;
@@ -230,6 +247,8 @@ export class InputArea extends StatefulWidget {
     this.getFiles = props.getFiles;
     this.onSpecialCommandTrigger = props.onSpecialCommandTrigger;
     this.onCommitTrigger = props.onCommitTrigger;
+    this.onQuestionMarkTrigger = props.onQuestionMarkTrigger;
+    this.onSlashTrigger = props.onSlashTrigger;
     // Border feature props
     this.tokenUsage = props.tokenUsage;
     this.costUsd = props.costUsd ?? 0;
@@ -350,6 +369,8 @@ class InputAreaState extends State<InputArea> {
    * Compute the container height: 2 (border rows) + visible content lines.
    * When dragHeight is set the user's manual resize wins; otherwise
    * auto-expand kicks in, clamped to [MIN_HEIGHT, maxExpandLines + 2].
+   * When topWidget is present (e.g. ShortcutHelpInline), add its line
+   * count so the container is tall enough to avoid overflow.
    */
   private _computeHeight(): number {
     if (this.dragHeight !== null) {
@@ -357,7 +378,12 @@ class InputAreaState extends State<InputArea> {
     }
     const contentLines = Math.max(this._lineCount(), 1);
     const visibleLines = Math.min(contentLines, this.widget.maxExpandLines);
-    return Math.max(visibleLines + 2, MIN_HEIGHT);
+    const baseHeight = Math.max(visibleLines + 2, MIN_HEIGHT);
+    // When topWidget is displayed, expand to fit its content plus input line
+    if (this.widget.topWidget) {
+      return baseHeight + TOP_WIDGET_LINES;
+    }
+    return baseHeight;
   }
 
   // --- Step 6: Text change handler ---
@@ -370,9 +396,10 @@ class InputAreaState extends State<InputArea> {
   private _onTextChanged = (): void => {
     const newText = this.controller.text;
     if (newText !== this.currentText) {
-      const oldShell = detectShellMode(this.currentText);
+      const oldText = this.currentText;
+      const oldShell = detectShellMode(oldText);
       const newShell = detectShellMode(newText);
-      const oldLineCount = this.currentText.split('\n').length;
+      const oldLineCount = oldText.split('\n').length;
       const newLineCount = newText.split('\n').length;
       this.currentText = newText;
 
@@ -386,6 +413,18 @@ class InputAreaState extends State<InputArea> {
         this.widget.onSpecialCommandTrigger();
       } else if (newText.endsWith('@:') && this.widget.onCommitTrigger) {
         this.widget.onCommitTrigger();
+      }
+
+      if (newText === '?' && oldText === '') {
+        this.controller.clear();
+        this.widget.onQuestionMarkTrigger?.();
+        return;
+      }
+
+      if (newText === '/' && oldText === '') {
+        this.controller.clear();
+        this.widget.onSlashTrigger?.();
+        return;
       }
 
       if (oldShell !== newShell || oldLineCount !== newLineCount) {
@@ -579,7 +618,7 @@ class InputAreaState extends State<InputArea> {
 
       // D-07: Build bottom-right overlay (cwd + branch)
       bottomRight = buildBottomRightOverlay({
-        cwd: this.widget.cwd ?? process.cwd(),
+        cwd: this.widget.cwd || process.cwd(),
         gitBranch: this.widget.gitBranch,
         theme,
       });

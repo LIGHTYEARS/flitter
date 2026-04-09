@@ -313,6 +313,22 @@ export class AppState {
     return this.session.lifecycle === 'tool_execution';
   }
 
+  get isExecutingCommand(): boolean {
+    return false;
+  }
+
+  get isRunningShell(): boolean {
+    return false;
+  }
+
+  get isAutoCompacting(): boolean {
+    return false;
+  }
+
+  get isHandingOff(): boolean {
+    return this.handoffState.isGeneratingHandoff;
+  }
+
   get hasStartedResponse(): boolean {
     for (const item of this.session.items) {
       if (item.type === 'assistant_message' && item.isStreaming) return true;

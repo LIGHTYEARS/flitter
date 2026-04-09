@@ -10,12 +10,13 @@ import { ScreenBuffer } from '../terminal/screen-buffer';
 import { Color } from '../core/color';
 import { FrameStats } from './frame-stats';
 import type { CellStyle } from '../terminal/cell';
+import { PerfAttribution } from './perf-attribution';
 
 // --- Constants ---
 
 /** Overlay box dimensions */
 const BOX_WIDTH = 34;
-const BOX_HEIGHT = 14;
+const BOX_HEIGHT = 17;
 
 /** Frame budget at 60fps */
 const FRAME_BUDGET_MS = 16.67;
@@ -205,7 +206,33 @@ export class PerformanceOverlay {
     const mp95 = frameStats.mouseEventP95;
     const evtLine = `Key P95:${fmtMs(kp95, 5)} Mouse:${fmtMs(mp95, 5)}`;
     this._drawText(screen, contentX, row, evtLine, labelStyle, contentW);
-    // row++ not needed — last content row
+    row++;
+
+    this._drawHSep(screen, originX, row, borderStyle);
+    row++;
+
+    const attribution = PerfAttribution.instance;
+    const dirtyLine = `Dirty  build:${attribution.frameBuildCount.toString().padStart(4)} layout:${attribution.frameLayoutCount.toString().padStart(4)}`;
+    this._drawText(screen, contentX, row, dirtyLine, labelStyle, contentW);
+    row++;
+
+    const recentTimes = frameStats.getRecentFrameTimes(30);
+    const sparkChars = '▁▂▃▄▅▆▇█';
+    const maxTime = Math.max(FRAME_BUDGET_MS * 2, ...recentTimes);
+    const sparkStyles: { char: string; style: CellStyle }[] = [];
+    for (let i = 0; i < 30; i++) {
+      if (i < recentTimes.length) {
+        const t = recentTimes[i]!;
+        const level = Math.min(Math.floor((t / maxTime) * (sparkChars.length - 1)), sparkChars.length - 1);
+        const fg = t > FRAME_BUDGET_MS ? Color.red : Color.green;
+        sparkStyles.push({ char: sparkChars[level]!, style: { fg } });
+      } else {
+        sparkStyles.push({ char: ' ', style: { fg: Color.white } });
+      }
+    }
+    for (let i = 0; i < Math.min(sparkStyles.length, contentW); i++) {
+      screen.setChar(contentX + i, row, sparkStyles[i]!.char, sparkStyles[i]!.style);
+    }
   }
 
   // --- Private drawing helpers ---

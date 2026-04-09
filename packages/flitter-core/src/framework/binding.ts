@@ -39,6 +39,10 @@ import { FrameScheduler } from '../scheduler/frame-scheduler';
 import { TerminalManager } from '../terminal/terminal-manager';
 import { MockPlatform, BunPlatform, type PlatformAdapter } from '../terminal/platform';
 import { MediaQuery, MediaQueryData } from '../widgets/media-query';
+import { FrameTimeline } from '../diagnostics/frame-timeline';
+import { PerfAttribution } from '../diagnostics/perf-attribution';
+import type { PerfSink, FramePerfData } from '../diagnostics/perf-sink';
+import { createPerfSinkFromEnv } from '../diagnostics/perf-sink';
 
 // ---------------------------------------------------------------------------
 // Global build/paint scheduler accessors (Amp: lF, dF, VG8, XG8, xH)
@@ -243,6 +247,8 @@ export class WidgetsBinding {
   private _showFrameStatsOverlay: boolean = false;
   private _perfOverlay: PerformanceOverlay | null = null;
   private _frameStats: FrameStats | null = null;
+  private _frameTimeline: FrameTimeline | null = null;
+  private _perfSink: PerfSink | null = null;
 
   // --- waitForExit / stop pattern (Amp ref: J3.exitResolve) ---
   private _exitResolve: (() => void) | null = null;
@@ -290,6 +296,10 @@ export class WidgetsBinding {
     // Amp ref deviation: See .gap/02-deactivate-lifecycle.md
     _buildOwner = this.buildOwner;
 
+    this._perfSink = createPerfSinkFromEnv();
+
+    EventDispatcher.setFrameStatsGetter(() => this.getFrameStats());
+
     // Register 6 named frame callbacks with FrameScheduler (Amp ref: J3 constructor)
     // No try/catch, no dynamic require -- static import used.
     this.frameScheduler.addFrameCallback(
@@ -309,9 +319,15 @@ export class WidgetsBinding {
     this.frameScheduler.addFrameCallback(
       'build',
       () => {
+        const timeline = this.getFrameTimeline();
+        timeline.beginPhase('build');
+        const buildStart = performance.now();
         this.buildOwner.buildScopes();
-        this.buildOwner.finalizeTree(); // Permanently unmount deactivated elements
+        this.buildOwner.finalizeTree();
         this.updateRootRenderObject();
+        const buildMs = performance.now() - buildStart;
+        this.getFrameStats().recordPhase('build', buildMs);
+        timeline.endPhase('build', { durationMs: buildMs, dirtyNodes: this.buildOwner.stats.elementsRebuiltThisFrame });
       },
       'build',
       0,
@@ -320,10 +336,16 @@ export class WidgetsBinding {
     this.frameScheduler.addFrameCallback(
       'layout',
       () => {
+        const timeline = this.getFrameTimeline();
+        timeline.beginPhase('layout');
+        const layoutStart = performance.now();
         this.updateRootConstraints(this._renderViewSize);
         if (this.pipelineOwner.flushLayout()) {
           this._shouldPaintCurrentFrame = true;
         }
+        const layoutMs = performance.now() - layoutStart;
+        this.getFrameStats().recordPhase('layout', layoutMs);
+        timeline.endPhase('layout', { durationMs: layoutMs });
       },
       'layout',
       0,
@@ -331,7 +353,15 @@ export class WidgetsBinding {
     );
     this.frameScheduler.addFrameCallback(
       'paint-phase',
-      () => this.paint(),
+      () => {
+        const timeline = this.getFrameTimeline();
+        timeline.beginPhase('paint');
+        const paintStart = performance.now();
+        this.paint();
+        const paintMs = performance.now() - paintStart;
+        this.getFrameStats().recordPhase('paint', paintMs);
+        timeline.endPhase('paint', { durationMs: paintMs });
+      },
       'paint',
       0,
       'WidgetsBinding.paint',
@@ -339,9 +369,44 @@ export class WidgetsBinding {
     this.frameScheduler.addFrameCallback(
       'render-phase',
       () => {
+        const timeline = this.getFrameTimeline();
+        timeline.beginPhase('render');
+        const renderStart = performance.now();
         this.render();
-        // POST-FRAME: Re-evaluate hover state after layout changes
-        // Amp ref: Pg.reestablishHoverState() registered as post-frame callback
+        const renderMs = performance.now() - renderStart;
+        const fs = this.getFrameStats();
+        fs.recordPhase('render', renderMs);
+
+        const screen = this._tui.screenBuffer;
+        if (screen.lastRepaintPercent !== undefined) {
+          fs.recordRepaintPercent(screen.lastRepaintPercent);
+        }
+
+        const totalMs = this.frameScheduler.frameStats?.lastFrameTime ?? 0;
+        timeline.endPhase('render', { durationMs: renderMs });
+        timeline.endFrame({ totalMs, budgetPercent: (totalMs / 16.67) * 100 });
+
+        if (this._perfSink && this._didPaintCurrentFrame) {
+          const perfData: FramePerfData = {
+            kind: 'frame',
+            frameNumber: this.frameScheduler.frameNumber ?? 0,
+            totalMs,
+            phases: {
+              build: fs.phaseP50('build'),
+              layout: fs.phaseP50('layout'),
+              paint: fs.phaseP50('paint'),
+              render: fs.phaseP50('render'),
+            },
+            dirtyNodes: {
+              build: PerfAttribution.instance.frameBuildCount,
+              layout: PerfAttribution.instance.frameLayoutCount,
+            },
+            repaintPercent: screen.lastRepaintPercent ?? 0,
+            bytesWritten: fs.bytesWrittenP95,
+          };
+          this._perfSink.onFrame(perfData);
+        }
+
         if (this.mouseManager) {
           this.mouseManager.reestablishHoverState();
         }
@@ -384,6 +449,8 @@ export class WidgetsBinding {
       inst._showFrameStatsOverlay = false;
       inst._perfOverlay = null;
       inst._frameStats = null;
+      inst._frameTimeline = null;
+      inst._perfSink = null;
       inst._exitResolve = null;
       inst._exitPromise = null;
       inst._rootElementMountedCallback = null;
@@ -590,6 +657,17 @@ export class WidgetsBinding {
    * Amp ref: J3.beginFrame()
    */
   beginFrame(): void {
+    const fs = this.getFrameStats();
+    const lastTime = this.frameScheduler.frameStats?.lastFrameTime;
+    if (lastTime !== undefined && lastTime > 0) {
+      fs.recordFrame(lastTime);
+    }
+
+    PerfAttribution.instance.resetFrame();
+
+    const timeline = this.getFrameTimeline();
+    timeline.beginFrame(this.frameScheduler.frameNumber ?? 0);
+
     this._didPaintCurrentFrame = false;
     this._shouldPaintCurrentFrame =
       this._forcePaintOnNextFrame ||
@@ -683,6 +761,7 @@ export class WidgetsBinding {
 
     if (this._output && output.length > 0) {
       this._output.write(output);
+      this.getFrameStats().recordBytesWritten(output.length);
     }
 
     // Swap buffers
@@ -722,6 +801,27 @@ export class WidgetsBinding {
       this._frameStats = new FrameStats();
     }
     return this._frameStats;
+  }
+
+  getFrameTimeline(): FrameTimeline {
+    if (!this._frameTimeline) {
+      this._frameTimeline = new FrameTimeline();
+      if (this._perfSink) {
+        this._frameTimeline.setSink(this._perfSink);
+      }
+    }
+    return this._frameTimeline;
+  }
+
+  setPerfSink(sink: PerfSink | null): void {
+    this._perfSink = sink;
+    if (this._frameTimeline) {
+      this._frameTimeline.setSink(sink);
+    }
+  }
+
+  getPerfSink(): PerfSink | null {
+    return this._perfSink;
   }
 
   /** Whether the frame stats overlay is currently shown. */

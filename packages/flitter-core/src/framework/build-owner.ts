@@ -12,6 +12,7 @@ import { Element } from './element';
 import { GlobalKey } from '../core/key';
 import { FrameScheduler } from '../scheduler/frame-scheduler';
 import { debugFlags } from '../diagnostics/debug-flags';
+import { PerfAttribution } from '../diagnostics/perf-attribution';
 import { pipelineLog } from '../diagnostics/pipeline-debug';
 
 // ---------------------------------------------------------------------------
@@ -230,7 +231,13 @@ export class BuildOwner {
           const element = heap.extractMin();
           if (element.dirty) {
             try {
-              element.performRebuild();
+              if (debugFlags.debugProfileBuilds) {
+                const buildStart = performance.now();
+                element.performRebuild();
+                PerfAttribution.instance.recordBuild(element.widget.constructor.name, performance.now() - buildStart);
+              } else {
+                element.performRebuild();
+              }
               element._dirty = false;
               rebuiltCount++;
             } catch (error) {

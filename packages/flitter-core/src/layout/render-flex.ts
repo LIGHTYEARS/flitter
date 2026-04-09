@@ -480,18 +480,12 @@ export class RenderFlex extends ContainerRenderBox {
 
     // ---------------------------------------------------------------
     // Overflow detection: check if allocated children exceed the
-    // resolved main axis size. If so, flag overflow and emit a
-    // diagnostic warning to stderr via console.error.
+    // resolved main axis size. If so, flag _hasOverflow for
+    // programmatic detection (e.g. test assertions). No stderr
+    // output — console.error pollutes TUI rendering.
     // ---------------------------------------------------------------
     const resolvedMainSize = isHorizontal ? this.size.width : this.size.height;
     this._hasOverflow = allocatedSize > resolvedMainSize;
-
-    if (this._hasOverflow) {
-      const overflowAmount = allocatedSize - resolvedMainSize;
-      console.error(
-        `A RenderFlex overflowed by ${overflowAmount}px on the ${this._direction === 'horizontal' ? 'right' : 'bottom'}.`,
-      );
-    }
 
     // ---------------------------------------------------------------
     // Step 5: Position children using mainAxisAlignment

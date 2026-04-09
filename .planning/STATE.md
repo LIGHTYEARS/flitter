@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v0.4.0
 milestone_name: "Close All Gaps: Full AMP Fidelity"
-status: executing
-last_updated: "2026-04-08T14:05:50.982Z"
-last_activity: 2026-04-08 -- Phase 38 execution started
+status: complete
+last_updated: "2026-04-09T00:00:00.000Z"
+last_activity: 2026-04-09 -- Phase 38 complete, v0.4.0 milestone finalized
 progress:
   total_phases: 16
-  completed_phases: 13
+  completed_phases: 16
   total_plans: 35
-  completed_plans: 28
-  percent: 80
+  completed_plans: 35
+  percent: 100
 ---
 
 # Project State: flitter-cli
@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Phase 38 — full-observability
+**Current focus:** Milestone v0.4.0 complete — all phases delivered
 
 ## Current Milestone
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-04-06)
 
 ## Current Position
 
-Phase: 38 (full-observability) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 38
-Last activity: 2026-04-08 -- Phase 38 execution started
+Phase: 38 (full-observability) — COMPLETE
+Plan: 4 of 4
+Status: v0.4.0 milestone complete — all 16 phases, 35 plans delivered
+Last activity: 2026-04-09 -- Phase 38 complete, milestone finalized
 
 ## Phase Status
 
@@ -51,8 +51,10 @@ Last activity: 2026-04-08 -- Phase 38 execution started
 | 34 | Activity Group and Subagent Tree | Complete | 2/2 |
 | 35 | Image Support and Overlays | Complete | 3/3 |
 | 36 | Visual Polish | Complete | 1/1 |
+| 37 | Simplify Factory.ts | Complete | 1/1 |
+| 38 | Full Observability | Complete | 4/4 |
 
-Progress: ██████████ 100%
+Progress: ████████████████ 100%
 
 ## Recent Activity
 
@@ -63,6 +65,9 @@ Progress: ██████████ 100%
 - 2026-04-06: Phase 23 complete — InputArea Rich Border
 - 2026-04-07: Phases 24-36 complete — full autonomous execution
 - 2026-04-07: v0.4.0 milestone complete — 14 phases, 30 plans, 140 tests (327 expects)
+- 2026-04-08: Phase 37 complete — Simplify Factory.ts
+- 2026-04-08: Phase 38 complete — Full Observability (4 plans, 3 waves, 18 new tests)
+- 2026-04-09: v0.4.0 milestone finalized — 16 phases, 35 plans, 1144 tests (7388 expects)
 
 ## Decisions Log
 

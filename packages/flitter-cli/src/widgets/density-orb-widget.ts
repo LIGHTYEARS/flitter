@@ -29,9 +29,12 @@ const CELL_ROWS = 20;
 const NOISE_SCALE = 0.08;
 
 const DENSITY_CHARS = ' .:-=+*#';
-const WELCOME_DENSITY_CHARS = ' .:-=+*';
+const WELCOME_DENSITY_CHARS = ' .:-=+*#';
 
-const noise = PerlinNoise.shared;
+// Use a deterministic seed for consistent orb appearance across runs.
+// Seed 7 produces a balanced density distribution that reaches the full
+// character range (' .:-=+*') matching AMP's visual output.
+const noise = new PerlinNoise(7);
 
 // ---------------------------------------------------------------------------
 // Variant type
@@ -72,7 +75,7 @@ export class DensityOrbWidget extends StatefulWidget {
 
 class DensityOrbWidgetState extends State<DensityOrbWidget> {
   private timer: ReturnType<typeof setInterval> | null = null;
-  private timeOffset = 0;
+  private timeOffset = 0.5;
 
   /** Returns rendering and animation parameters for the current variant. */
   private getVariantConfig(): {
@@ -146,10 +149,17 @@ class DensityOrbWidgetState extends State<DensityOrbWidget> {
           continue;
         }
 
-        const n = noise.fbm(
+        const raw = noise.fbm(
           cellCol * config.noiseScale + this.timeOffset,
           cellRow * config.noiseScale + this.timeOffset * 0.7,
         );
+
+        // Remap fbm output from its effective ~[0.25,0.75] range to full [0,1].
+        // Perlin fbm clusters around 0.5 due to Gaussian-like distribution;
+        // without this stretch the density chars are limited to the lowest levels.
+        // Apply gamma 0.6 to boost midtones towards the higher density characters.
+        const stretched = Math.max(0, Math.min(1, (raw - 0.2) * 3.0));
+        const n = stretched ** 0.5;
 
         const edgeFade = 1 - dist;
         const adjusted = n * edgeFade;

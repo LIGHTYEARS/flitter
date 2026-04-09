@@ -5,7 +5,7 @@
 - ✅ **v0.1.0 MVP** - Phases 1-5 (shipped 2026-03-26)
 - ✅ **v0.2.0 Rendering Overhaul** - Phases 6-11 (shipped 2026-03-28)
 - ✅ **v0.3.0 flitter-cli Full Parity** - Phases 12-22 (shipped 2026-04-03)
-- 🚧 **v0.4.0 Close All Gaps: Full AMP Fidelity** - Phases 23-38 (in progress)
+- ✅ **v0.4.0 Close All Gaps: Full AMP Fidelity** - Phases 23-38 (shipped 2026-04-09)
 
 ## Phases
 
@@ -30,7 +30,7 @@ Phases 12-22 completed: bootstrap, session lifecycle, conversation model, chat v
 
 </details>
 
-### 🚧 v0.4.0 Close All Gaps (In Progress)
+### ✅ v0.4.0 Close All Gaps (Shipped 2026-04-09)
 
 **Milestone Goal:** Close all 81 audit-identified gaps to achieve pixel-level AMP fidelity.
 
@@ -309,6 +309,8 @@ Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 �
 | 34. Activity Group and Subagent Tree | v0.4.0 | 2/2 | Complete    | 2026-04-07 |
 | 35. Image Support and Overlays | v0.4.0 | 3/3 | Complete    | 2026-04-07 |
 | 36. Visual Polish | v0.4.0 | 1/1 | Complete    | 2026-04-07 |
+| 37. Simplify Factory.ts | v0.4.0 | 1/1 | Complete    | 2026-04-08 |
+| 38. Full Observability | v0.4.0 | 4/4 | Complete    | 2026-04-08 |
 
 ### Phase 37: Simplify Factory.ts
 

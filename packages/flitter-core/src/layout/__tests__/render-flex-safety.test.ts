@@ -176,25 +176,18 @@ describe('RenderFlex 负 flex 值', () => {
 // ---------------------------------------------------------------------------
 
 describe('RenderFlex debug 溢出警告', () => {
-  it('溢出时应输出含 "overflowed" 的诊断信息', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('溢出时应设置 hasOverflow 标志（不再输出 console.error）', () => {
+    const row = new RenderFlex({ direction: 'horizontal' });
+    const c1 = new FixedSizeBox(60, 10);
+    const c2 = new FixedSizeBox(60, 10);
 
-    try {
-      const row = new RenderFlex({ direction: 'horizontal' });
-      const c1 = new FixedSizeBox(60, 10);
-      const c2 = new FixedSizeBox(60, 10);
+    addChild(row, c1);
+    addChild(row, c2);
 
-      addChild(row, c1);
-      addChild(row, c2);
+    row.layout(BoxConstraints.tight(new Size(100, 20)));
 
-      row.layout(BoxConstraints.tight(new Size(100, 20)));
-
-      const allCalls = errorSpy.mock.calls.map((args) => args.join(' '));
-      const hasOverflowMsg = allCalls.some((msg) => /overflowed/i.test(msg));
-      expect(hasOverflowMsg).toBe(true);
-    } finally {
-      errorSpy.mockRestore();
-    }
+    // _hasOverflow flag is set for programmatic detection
+    expect(row.hasOverflow).toBe(true);
   });
 });
 
@@ -208,35 +201,26 @@ describe('RenderFlex debug 溢出警告', () => {
 
 describe('RenderFlex overflow: children exceed main axis (Row)', () => {
   it('three children exceeding Row width set hasOverflow and clamp to container width', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    try {
-      const row = new RenderFlex({ direction: 'horizontal' });
-      const c1 = new FixedSizeBox(50, 10);
-      const c2 = new FixedSizeBox(40, 10);
-      const c3 = new FixedSizeBox(30, 10);
+    const row = new RenderFlex({ direction: 'horizontal' });
+    const c1 = new FixedSizeBox(50, 10);
+    const c2 = new FixedSizeBox(40, 10);
+    const c3 = new FixedSizeBox(30, 10);
 
-      addChild(row, c1);
-      addChild(row, c2);
-      addChild(row, c3);
+    addChild(row, c1);
+    addChild(row, c2);
+    addChild(row, c3);
 
-      // Total child width = 50+40+30 = 120, container width = 80 → overflow 40
-      row.layout(BoxConstraints.tight(new Size(80, 20)));
+    // Total child width = 50+40+30 = 120, container width = 80 → overflow 40
+    row.layout(BoxConstraints.tight(new Size(80, 20)));
 
-      expect(row.hasOverflow).toBe(true);
-      expect(row.size.width).toBe(80);
-      expect(row.size.height).toBe(20);
+    expect(row.hasOverflow).toBe(true);
+    expect(row.size.width).toBe(80);
+    expect(row.size.height).toBe(20);
 
-      // Children retain their desired (unconstrained) main-axis sizes
-      expect(c1.size.width).toBe(50);
-      expect(c2.size.width).toBe(40);
-      expect(c3.size.width).toBe(30);
-
-      const allCalls = errorSpy.mock.calls.map((args) => args.join(' '));
-      const hasMsg = allCalls.some((msg) => /overflowed/i.test(msg));
-      expect(hasMsg).toBe(true);
-    } finally {
-      errorSpy.mockRestore();
-    }
+    // Children retain their desired (unconstrained) main-axis sizes
+    expect(c1.size.width).toBe(50);
+    expect(c2.size.width).toBe(40);
+    expect(c3.size.width).toBe(30);
   });
 
   it('children exactly matching container width do not overflow', () => {
@@ -266,35 +250,25 @@ describe('RenderFlex overflow: children exceed main axis (Row)', () => {
 
 describe('RenderFlex overflow: children exceed main axis (Column)', () => {
   it('Column children exceeding height set hasOverflow', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    try {
-      const column = new RenderFlex({ direction: 'vertical' });
-      const c1 = new FixedSizeBox(20, 30);
-      const c2 = new FixedSizeBox(20, 25);
-      const c3 = new FixedSizeBox(20, 20);
+    const column = new RenderFlex({ direction: 'vertical' });
+    const c1 = new FixedSizeBox(20, 30);
+    const c2 = new FixedSizeBox(20, 25);
+    const c3 = new FixedSizeBox(20, 20);
 
-      addChild(column, c1);
-      addChild(column, c2);
-      addChild(column, c3);
+    addChild(column, c1);
+    addChild(column, c2);
+    addChild(column, c3);
 
-      // Total child height = 30+25+20 = 75, container height = 50 → overflow 25
-      column.layout(BoxConstraints.tight(new Size(40, 50)));
+    // Total child height = 30+25+20 = 75, container height = 50 → overflow 25
+    column.layout(BoxConstraints.tight(new Size(40, 50)));
 
-      expect(column.hasOverflow).toBe(true);
-      expect(column.size.height).toBe(50);
-      expect(column.size.width).toBe(40);
+    expect(column.hasOverflow).toBe(true);
+    expect(column.size.height).toBe(50);
+    expect(column.size.width).toBe(40);
 
-      expect(c1.size.height).toBe(30);
-      expect(c2.size.height).toBe(25);
-      expect(c3.size.height).toBe(20);
-
-      // Diagnostic mentions "bottom" for vertical overflow
-      const allCalls = errorSpy.mock.calls.map((args) => args.join(' '));
-      const hasBottomMsg = allCalls.some((msg) => /overflowed.*bottom/i.test(msg));
-      expect(hasBottomMsg).toBe(true);
-    } finally {
-      errorSpy.mockRestore();
-    }
+    expect(c1.size.height).toBe(30);
+    expect(c2.size.height).toBe(25);
+    expect(c3.size.height).toBe(20);
   });
 
   it('Column children within height do not overflow', () => {

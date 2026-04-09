@@ -17,6 +17,7 @@ import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/e
 import { Column, Row } from '../../../flitter-core/src/widgets/flex';
 import { Expanded } from '../../../flitter-core/src/widgets/flexible';
 import { Container } from '../../../flitter-core/src/widgets/container';
+import { Center } from '../../../flitter-core/src/widgets/center';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
 import { FocusScope } from '../../../flitter-core/src/widgets/focus-scope';
 import { Text } from '../../../flitter-core/src/widgets/text';
@@ -30,6 +31,7 @@ import { Color } from '../../../flitter-core/src/core/color';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { BoxDecoration, Border, BorderSide } from '../../../flitter-core/src/layout/render-decorated';
 import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
+import { MediaQuery } from '../../../flitter-core/src/widgets/media-query';
 import { scoreCommand } from '../utils/fuzzy-match';
 
 // ---------------------------------------------------------------------------
@@ -288,7 +290,11 @@ class CommandPaletteState extends State<CommandPalette> {
     });
   }
 
-  build(_context: BuildContext): Widget {
+  build(context: BuildContext): Widget {
+    const mq = MediaQuery.maybeOf(context);
+    const screenHeight = mq?.size.height ?? 24;
+    const maxHeight = screenHeight - 4;
+
     const items = this.filteredItems;
 
     // Compute max category width for right-alignment
@@ -463,41 +469,43 @@ class CommandPaletteState extends State<CommandPalette> {
 
     // --- Inner column: title, search row, gap, list ---
     const innerColumn = new Column({
-      mainAxisSize: 'min',
       crossAxisAlignment: 'stretch',
+      mainAxisSize: 'min',
       children: [
         title,
         searchRow,
         new SizedBox({ height: 1 }),
-        scrollContent,
+        new SizedBox({
+          height: Math.min(items.length + 2, maxHeight - 5),
+          child: scrollContent,
+        }),
       ],
     });
 
-    // --- Bordered container with max width 80 ---
+    // --- Bordered container with max width 80 and bounded height ---
+    // Opaque black background ensures content underneath does not bleed through
+    // (previously the modal mask provided the backdrop, now the panel itself must).
     const borderedPanel = new Container({
-      constraints: new BoxConstraints({ maxWidth: 80 }),
+      constraints: new BoxConstraints({
+        maxWidth: 80,
+        minHeight: 0,
+        maxHeight: maxHeight,
+      }),
       padding: EdgeInsets.all(1),
       decoration: new BoxDecoration({
+        color: Color.black,
         border: Border.all(new BorderSide({ color: Color.brightBlack })),
       }),
       child: innerColumn,
-    });
-
-    // --- Outer column: top margin + centered panel ---
-    const outerColumn = new Column({
-      mainAxisAlignment: 'start',
-      crossAxisAlignment: 'center',
-      children: [
-        new SizedBox({ height: 2 }),
-        borderedPanel,
-      ],
     });
 
     // --- FocusScope: catches Escape, ArrowUp/Down, Enter ---
     return new FocusScope({
       autofocus: true,
       onKey: this._handleKey,
-      child: outerColumn,
+      child: new Center({
+        child: borderedPanel,
+      }),
     });
   }
 

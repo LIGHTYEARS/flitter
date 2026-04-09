@@ -656,7 +656,7 @@ class AppShellState extends State<AppShell> {
     overlayManager.show({
       id: OVERLAY_IDS.COMMAND_PALETTE,
       priority: OVERLAY_PRIORITIES.COMMAND_PALETTE,
-      modal: false,
+      modal: true,
       placement: { type: 'fullscreen' },
       builder: (onDismiss) => new CommandPalette({
         commands: items,
@@ -869,12 +869,13 @@ class AppShellState extends State<AppShell> {
    *
    * Layout:
    *   FocusScope (autofocus, onKey → ShortcutRegistry.dispatch)
-   *     OverlayManager.buildOverlays(
-   *       Column (max height, stretch width)
+   *     Column (max height, stretch width)
+   *       OverlayManager.buildOverlays(
    *         Expanded
    *           [scroll stack or centered content based on screenState]
-   *         InputArea (controller shared from AppShellState, with all border props)
-   *     )
+   *       )
+   *       InputArea (controller shared from AppShellState, with all border props)
+   *       StatusBar
    */
   build(_context: BuildContext): Widget {
     // D-14/D-15: detect mode transitions and bump pulse sequence.
@@ -891,11 +892,15 @@ class AppShellState extends State<AppShell> {
       ? this._buildScrollableContent()
       : this._buildCenteredContent();
 
+    const contentWithOverlays = new Expanded({
+      child: this.widget.appState.overlayManager.buildOverlays(content),
+    });
+
     const layoutColumn = new Column({
       mainAxisSize: 'max',
       crossAxisAlignment: 'stretch',
       children: [
-        new Expanded({ child: content }),
+        contentWithOverlays,
         ...(this.widget.appState.bashInvocations.length > 0
           ? [new BashInvocationsWidget({ invocations: this.widget.appState.bashInvocations })]
           : []),
@@ -914,14 +919,13 @@ class AppShellState extends State<AppShell> {
           isInterrupted: this.widget.appState.isInterrupted ?? false,
           hasConversation: this.widget.appState.items.length > 0,
           // Props migrated from StatusBar
-          cwd: this.widget.appState.metadata?.cwd ?? process.cwd(),
-          gitBranch: this.widget.appState.metadata?.gitBranch ?? undefined,
+          cwd: this.widget.appState.metadata.cwd,
+          gitBranch: this.widget.appState.metadata.gitBranch ?? undefined,
           isStreaming: this.widget.appState.lifecycle === 'streaming',
-          // TODO: wire these to real AppState fields when available in future phases
-          isExecutingCommand: false,
-          isRunningShell: false,
-          isAutoCompacting: false,
-          isHandingOff: false,
+          isExecutingCommand: this.widget.appState.isExecutingCommand,
+          isRunningShell: this.widget.appState.isRunningShell,
+          isAutoCompacting: this.widget.appState.isAutoCompacting,
+          isHandingOff: this.widget.appState.isHandingOff,
           statusMessage: undefined,
           // New border feature props
           agentModePulseSeq: this._agentModePulseSeq,
@@ -946,6 +950,8 @@ class AppShellState extends State<AppShell> {
           // Phase 32: Shell mode status for top-left border indicator
           shellModeStatus: this.widget.appState.currentShellModeStatus,
           onSpecialCommandTrigger: () => this.widget.appState.showThreadList(),
+          onQuestionMarkTrigger: () => this._showShortcutHelp(),
+          onSlashTrigger: () => this._showCommandPalette(),
         }),
         new StatusBar({
           cwd: this.widget.appState.metadata?.cwd ?? process.cwd(),
@@ -956,16 +962,15 @@ class AppShellState extends State<AppShell> {
           isAwaitingPermission: this.widget.appState.isAwaitingPermission,
           hasRunningTools: this.widget.appState.hasRunningTools,
           hasStartedResponse: this.widget.appState.hasStartedResponse,
-          isExecutingCommand: false,
-          isRunningShell: false,
-          isAutoCompacting: false,
-          isHandingOff: false,
+          isExecutingCommand: this.widget.appState.isExecutingCommand,
+          isRunningShell: this.widget.appState.isRunningShell,
+          isAutoCompacting: this.widget.appState.isAutoCompacting,
+          isHandingOff: this.widget.appState.isHandingOff,
+          inputText: this.textController.text,
+          isShowingShortcutsHelp: this._isShowingShortcutsHelp,
         }),
       ],
     });
-
-    // Wrap content with overlay stack — renders overlays on top of base content
-    const withOverlays = this.widget.appState.overlayManager.buildOverlays(layoutColumn);
 
     const baseTheme = cliThemes[this.widget.themeName] ?? cliThemes['dark']!;
     const theme = createCliTheme(baseTheme);
@@ -975,7 +980,7 @@ class AppShellState extends State<AppShell> {
       child: new FocusScope({
         autofocus: true,
         onKey: (event: KeyEvent): KeyEventResult => this._handleKey(event),
-        child: withOverlays,
+        child: layoutColumn,
       }),
     });
   }

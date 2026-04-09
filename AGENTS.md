@@ -11,6 +11,13 @@
 - **Hypothesis budget = 2**: After two negated hypotheses, switch to interception/trapping unconditionally.
 - **Ignore naming**: Do not infer behavior from variable names, function names, or structural resemblance to other frameworks. Trace actual data flow.
 
+## Subagent Delegation Protocol
+
+- **Visual + behavioral**: For interactive features, always verify both dimensions. Details → [memory/subagent-delegation-pitfalls.md](memory/subagent-delegation-pitfalls.md).
+- **`general_purpose_task` for runtime checks**: `search` subagents are read-only; use `general_purpose_task` when `tmux send-keys` / `tmux capture-pane` is needed.
+- **Pretty-print minified source first**: `tr ';' '\n'` before regex. Never trust regex on single-line minified code.
+- **Enumerate all trigger paths**: One feature may have multiple activators (key event + text change listener). Instruct subagents to find all of them.
+
 ## Observability Architecture
 
 - Permanent diagnostics live in `diagnostics/` as named exports with explicit imports. They are project infrastructure — never delete them.

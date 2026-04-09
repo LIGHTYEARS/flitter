@@ -67,6 +67,34 @@ function getDisplayName(providerId: string): string {
 }
 
 /**
+ * Map a pi-ai provider key to its API protocol string.
+ * Used when constructing Model objects for custom endpoints not in the catalog.
+ */
+const PROVIDER_API_MAP: Record<string, string> = {
+  'anthropic': 'anthropic-messages',
+  'openai': 'openai-completions',
+  'openai-codex': 'openai-responses',
+  'google': 'google-generative-ai',
+  'google-vertex': 'google-vertex',
+  'google-antigravity': 'google-generative-ai',
+  'xai': 'openai-completions',
+  'groq': 'openai-completions',
+  'openrouter': 'openai-completions',
+  'mistral': 'mistral-conversations',
+  'kimi-coding': 'anthropic-messages',
+};
+
+function resolveApi(piProvider: string): string | undefined {
+  if (PROVIDER_API_MAP[piProvider]) return PROVIDER_API_MAP[piProvider];
+  // Try to infer from catalog's first model
+  try {
+    const models = getModels(piProvider as KnownProvider);
+    if (models.length > 0) return models[0].api as string;
+  } catch { /* not in catalog */ }
+  return undefined;
+}
+
+/**
  * Get the default model ID for a provider from pi-ai's catalog.
  * Returns the first available model, or a hardcoded fallback.
  */
@@ -154,27 +182,45 @@ export function createProvider(config: ProviderConfig): Provider {
     );
   }
 
-  // Resolve pi-ai Model object — try exact match, then fall back to first available
+  // Resolve pi-ai Model object
   const piProvider = toPiAiProvider(providerId);
-  let model: Model<Api>;
+  let model: Model<Api> | undefined;
   try {
     model = getModel(piProvider as KnownProvider, modelId as Parameters<typeof getModel>[1]);
-  } catch {
-    log.warn(`createProvider: model '${modelId}' not in pi-ai catalog for '${piProvider}', using first available`);
-    try {
-      const available = getModels(piProvider as KnownProvider);
-      if (available.length === 0) {
-        throw new Error(`No models available for provider '${piProvider}'`);
-      }
-      model = available[0];
-    } catch (e) {
-      throw new Error(`Cannot resolve model '${modelId}' for provider '${providerId}': ${e}`);
-    }
-  }
+  } catch { /* model not in catalog */ }
 
-  // Custom baseUrl override — for OpenAI-compatible proxies (Volcano Engine Ark, LiteLLM, vLLM)
-  if (config.baseUrl) {
-    model = { ...model, id: modelId as typeof model.id, baseUrl: config.baseUrl };
+  if (!model && config.baseUrl) {
+    // Custom endpoint (Volcano Engine Ark, LiteLLM, vLLM, etc.): model ID not in catalog
+    // but protocol is known from the provider. Construct Model directly.
+    const api = resolveApi(piProvider);
+    if (!api) {
+      throw new Error(`Cannot determine API protocol for provider '${piProvider}'`);
+    }
+    model = {
+      id: modelId,
+      name: modelId,
+      api,
+      provider: piProvider,
+      baseUrl: config.baseUrl,
+      reasoning: false,
+      input: ['text'] as const,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    } as Model<Api>;
+    log.info(`createProvider: custom endpoint → baseUrl=${config.baseUrl}, api=${api}, model=${modelId}`);
+  } else if (!model) {
+    throw new Error(
+      `Model '${modelId}' not found in pi-ai catalog for provider '${piProvider}'.\n` +
+      `Specify a baseUrl for custom endpoints, or use a catalog model ID.`,
+    );
+  } else if (config.baseUrl) {
+    // Catalog model with baseUrl override (e.g. proxied Anthropic endpoint)
+    model = {
+      ...model,
+      id: modelId as typeof model.id,
+      baseUrl: config.baseUrl,
+    };
     log.info(`createProvider: baseUrl override → ${config.baseUrl}, model id → ${modelId}`);
   }
 

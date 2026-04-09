@@ -15,6 +15,7 @@ import { BoxConstraints } from '../core/box-constraints';
 import { Size } from '../core/types';
 import { debugFlags } from '../diagnostics/debug-flags';
 import { pipelineLog } from '../diagnostics/pipeline-debug';
+import { PerfAttribution } from '../diagnostics/perf-attribution';
 
 // ---------------------------------------------------------------------------
 // PipelineOwner (Amp: UB0)
@@ -202,7 +203,13 @@ export class PipelineOwner implements PipelineOwnerInterface {
           if (debugFlags.debugPrintLayouts) {
             pipelineLog('LAYOUT', `layout ROOT ${node.constructor.name}`);
           }
-          (node as RenderBox).layout(this._rootConstraints);
+          if (debugFlags.debugProfileLayouts) {
+            const layoutStart = performance.now();
+            (node as RenderBox).layout(this._rootConstraints);
+            PerfAttribution.instance.recordLayout(node.constructor.name, performance.now() - layoutStart);
+          } else {
+            (node as RenderBox).layout(this._rootConstraints);
+          }
           layoutPerformed = true;
         } else if (node instanceof RenderBox) {
           const cached = node.constraints;
@@ -210,7 +217,13 @@ export class PipelineOwner implements PipelineOwnerInterface {
             if (debugFlags.debugPrintLayouts) {
               pipelineLog('LAYOUT', `layout ${node.constructor.name} constraints=${cached.minWidth}x${cached.minHeight}-${cached.maxWidth}x${cached.maxHeight}`);
             }
-            node.layout(cached);
+            if (debugFlags.debugProfileLayouts) {
+              const layoutStart = performance.now();
+              node.layout(cached);
+              PerfAttribution.instance.recordLayout(node.constructor.name, performance.now() - layoutStart);
+            } else {
+              node.layout(cached);
+            }
             layoutPerformed = true;
           } else {
             if (debugFlags.debugPrintLayouts) {

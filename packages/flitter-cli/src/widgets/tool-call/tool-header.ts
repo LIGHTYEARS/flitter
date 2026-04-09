@@ -24,6 +24,7 @@ import { MouseRegion } from '../../../../flitter-core/src/widgets/mouse-region';
 import type { ToolCallItem } from '../../state/types';
 import { toolStatusIcon } from './tool-icons';
 import { CliThemeProvider, type CliTheme } from '../../themes';
+import type { FileLinkDescriptor } from '../../utils/osc8-link';
 
 /** Maximum character length for header detail strings before truncation. */
 const MAX_DETAIL_LENGTH = 80;
@@ -40,11 +41,14 @@ function normalizeInput(input: string): string {
   return normalized;
 }
 
+/** A single detail item: plain string or a structured hyperlink descriptor. */
+export type ToolHeaderDetail = string | FileLinkDescriptor;
+
 /** Props for the ToolHeader widget. */
 export interface ToolHeaderProps {
   name: string;
   status: ToolCallItem['status'];
-  details?: string[];
+  details?: ToolHeaderDetail[];
   children?: Widget[];
   onToggle?: () => void;
   /**
@@ -74,7 +78,7 @@ export interface ToolHeaderProps {
 export class ToolHeader extends StatefulWidget {
   readonly name: string;
   readonly status: ToolCallItem['status'];
-  readonly details: string[];
+  readonly details: ToolHeaderDetail[];
   readonly extraChildren: Widget[];
   readonly onToggle?: () => void;
   readonly spinnerColor?: Color;
@@ -83,7 +87,11 @@ export class ToolHeader extends StatefulWidget {
     super({});
     this.name = props.name;
     this.status = props.status;
-    this.details = (props.details ?? []).map(normalizeInput);
+    this.details = (props.details ?? []).map((d) =>
+      typeof d === 'string'
+        ? normalizeInput(d)
+        : { text: normalizeInput(d.text), uri: d.uri },
+    );
     this.extraChildren = props.children ?? [];
     this.onToggle = props.onToggle;
     this.spinnerColor = props.spinnerColor;
@@ -170,10 +178,19 @@ class ToolHeaderState extends State<ToolHeader> {
 
     for (const detail of this.widget.details) {
       const prefix = spans.length > 0 ? ' ' : '';
-      spans.push(new TextSpan({
-        text: `${prefix}${detail}`,
-        style: new TextStyle({ foreground: mutedColor, dim: true }),
-      }));
+      if (typeof detail === 'string') {
+        spans.push(new TextSpan({
+          text: `${prefix}${detail}`,
+          style: new TextStyle({ foreground: mutedColor, dim: true }),
+        }));
+      } else {
+        const linkColor = theme?.app.link ?? Color.blue;
+        spans.push(new TextSpan({
+          text: `${prefix}${detail.text}`,
+          style: new TextStyle({ foreground: linkColor, underline: true }),
+          hyperlink: { uri: detail.uri },
+        }));
+      }
     }
 
     if (isRunning && hasName) {

@@ -16,6 +16,7 @@ import { exportToMarkdown, exportToText } from './state/session-export';
 import { createDefaultRegistry } from './tools/defaults';
 import { TaskExecutor } from './tools/task-executor';
 import { buildSystemPrompt, loadProjectInstructions, getGitContext } from './provider/system-prompt';
+import { loadSkills } from './state/skill-loader';
 
 /**
  * Run OAuth authentication for the given target.
@@ -195,6 +196,11 @@ async function main(): Promise<void> {
     systemPrompt,
     defaultToolExpanded: config.defaultToolExpanded,
   });
+
+  // Load skills from local (.agents/skills/) and global (~/.agents/skills/) directories
+  const skillResult = loadSkills(displayCwd);
+  appState.skillService.setSkills(skillResult.skills, skillResult.errors, skillResult.warnings);
+  log.info(`Skills loaded: ${skillResult.skills.length} skills, ${skillResult.errors.length} errors, ${skillResult.warnings.length} warnings`);
 
   if (config.resumeSessionId) {
     let sessionId = config.resumeSessionId;

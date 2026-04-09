@@ -34,6 +34,11 @@ export type ResizeHandler = (width: number, height: number) => void;
  */
 export class EventDispatcher {
   private static _instance: EventDispatcher | null = null;
+  private static _getFrameStats: (() => { recordKeyEvent(ms: number): void; recordMouseEvent(ms: number): void }) | null = null;
+
+  static setFrameStatsGetter(getter: () => { recordKeyEvent(ms: number): void; recordMouseEvent(ms: number): void }): void {
+    EventDispatcher._getFrameStats = getter;
+  }
 
   // Event handler registries
   // Amp ref: J3.eventCallbacks
@@ -81,6 +86,7 @@ export class EventDispatcher {
       EventDispatcher._instance._pasteHandlers = [];
     }
     EventDispatcher._instance = null;
+    EventDispatcher._getFrameStats = null;
   }
 
   // --- Key handler registration ---
@@ -205,10 +211,16 @@ export class EventDispatcher {
    *   3. Run registered key handlers
    */
   dispatchKeyEvent(event: KeyEvent): KeyEventResult {
+    const start = performance.now();
+
     // Step 1: Key interceptors (global shortcuts)
     for (const interceptor of this._keyInterceptors) {
       const result = interceptor(event);
       if (result === 'handled') {
+        const elapsed = performance.now() - start;
+        if (EventDispatcher._getFrameStats) {
+          EventDispatcher._getFrameStats().recordKeyEvent(elapsed);
+        }
         return 'handled';
       }
     }
@@ -217,6 +229,10 @@ export class EventDispatcher {
     if (FocusManager.instance) {
       const result = FocusManager.instance.dispatchKeyEvent(event);
       if (result === 'handled') {
+        const elapsed = performance.now() - start;
+        if (EventDispatcher._getFrameStats) {
+          EventDispatcher._getFrameStats().recordKeyEvent(elapsed);
+        }
         return 'handled';
       }
     }
@@ -225,10 +241,18 @@ export class EventDispatcher {
     for (const handler of this._keyHandlers) {
       const result = handler(event);
       if (result === 'handled') {
+        const elapsed = performance.now() - start;
+        if (EventDispatcher._getFrameStats) {
+          EventDispatcher._getFrameStats().recordKeyEvent(elapsed);
+        }
         return 'handled';
       }
     }
 
+    const elapsed = performance.now() - start;
+    if (EventDispatcher._getFrameStats) {
+      EventDispatcher._getFrameStats().recordKeyEvent(elapsed);
+    }
     return 'ignored';
   }
 
@@ -240,6 +264,8 @@ export class EventDispatcher {
    *   2. Run registered mouse handlers
    */
   dispatchMouseEvent(event: MouseEvent): void {
+    const start = performance.now();
+
     // Step 1: Fire global release callbacks for release events
     if (event.action === 'release') {
       for (const callback of this._globalReleaseCallbacks) {
@@ -250,6 +276,11 @@ export class EventDispatcher {
     // Step 2: Run registered mouse handlers
     for (const handler of this._mouseHandlers) {
       handler(event);
+    }
+
+    const elapsed = performance.now() - start;
+    if (EventDispatcher._getFrameStats) {
+      EventDispatcher._getFrameStats().recordMouseEvent(elapsed);
     }
   }
 

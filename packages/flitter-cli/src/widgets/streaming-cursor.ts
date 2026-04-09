@@ -21,6 +21,7 @@ import { TextStyle } from '../../../flitter-core/src/core/text-style';
 import { TextSpan } from '../../../flitter-core/src/core/text-span';
 import { Color } from '../../../flitter-core/src/core/color';
 import { Markdown } from '../../../flitter-core/src/widgets/markdown';
+import { Column } from '../../../flitter-core/src/widgets/flex';
 import { CliThemeProvider } from '../themes';
 
 /**
@@ -32,7 +33,7 @@ import { CliThemeProvider } from '../themes';
 export const CURSOR_BLINK_INTERVAL_MS = 500;
 
 /** The cursor character used during streaming. Unicode FULL BLOCK (AMP parity). */
-const CURSOR_CHAR = '\u2588'; // █
+const CURSOR_CHAR = ' ';
 
 interface StreamingCursorProps {
   /** The assistant message text accumulated so far. */
@@ -171,7 +172,6 @@ export class StreamingCursorState extends State<StreamingCursor> {
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
 
     if (!isStreaming) {
-      // Not streaming: render final content, no cursor
       if (text.length > 0) {
         return new Markdown({ markdown: text });
       }
@@ -183,18 +183,32 @@ export class StreamingCursorState extends State<StreamingCursor> {
       });
     }
 
-    // Streaming: render content with blinking cursor
-    const cursorSuffix = this.cursorVisible ? ` ${CURSOR_CHAR}` : '';
+    const cursorWidget = this.cursorVisible
+      ? new Text({
+          text: new TextSpan({
+            text: CURSOR_CHAR,
+            style: new TextStyle({ inverse: true }),
+          }),
+        })
+      : new Text({
+          text: new TextSpan({ text: ' ' }),
+        });
 
     if (text.length > 0) {
-      return new Markdown({ markdown: text + cursorSuffix });
+      return new Column({
+        crossAxisAlignment: 'stretch',
+        mainAxisSize: 'min',
+        children: [
+          new Markdown({ markdown: text }),
+          cursorWidget,
+        ],
+      });
     }
 
-    // Empty text while streaming: standalone blinking cursor
     return new Text({
       text: new TextSpan({
         text: this.cursorVisible ? CURSOR_CHAR : ' ',
-        style: new TextStyle({ foreground: mutedColor }),
+        style: new TextStyle({ foreground: mutedColor, inverse: this.cursorVisible }),
       }),
     });
   }

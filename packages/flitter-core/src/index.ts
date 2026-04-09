@@ -66,6 +66,17 @@ export type { ElementNodeJson, RenderObjectJson, FocusNodeJson, KeystrokeEntry }
 // Pipeline debug sink redirection
 export { setPipelineLogSink, resetPipelineLogSink } from './diagnostics/pipeline-debug';
 
+// Performance Observability System
+export { FrameStats, RingBuffer } from './diagnostics/frame-stats';
+export { PerformanceOverlay, budgetColor, severityColor, severityStyle, BOX_WIDTH, BOX_HEIGHT } from './diagnostics/perf-overlay';
+export { FrameTimeline } from './diagnostics/frame-timeline';
+export type { TimelineSpan, PerfSinkLike } from './diagnostics/frame-timeline';
+export { PerfAttribution } from './diagnostics/perf-attribution';
+export type { WidgetPerfEntry } from './diagnostics/perf-attribution';
+export { NdjsonPerfSink, createPerfSinkFromEnv } from './diagnostics/perf-sink';
+export type { FramePerfData, PerfSink } from './diagnostics/perf-sink';
+export { debugFlags, setDebugFlag, resetDebugFlags } from './diagnostics/debug-flags';
+
 // Phase 22: Minor Fidelity Fixes
 export { estimateIntrinsicWidth } from './layout/layout-helpers';
 

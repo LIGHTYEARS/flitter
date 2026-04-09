@@ -6,6 +6,8 @@ import { ScreenBuffer } from '../terminal/screen-buffer.js';
 import { PaintContext } from './paint-context.js';
 import { RenderObject } from '../framework/render-object.js';
 import { Offset } from '../core/types.js';
+import { debugFlags } from '../diagnostics/debug-flags.js';
+import { PerfAttribution } from '../diagnostics/perf-attribution.js';
 
 /**
  * Paint a single render object and recursively paint its children.
@@ -24,7 +26,13 @@ export function paintRenderObject(
   offsetY: number,
 ): void {
   const offset = new Offset(offsetX, offsetY);
-  renderObj.paint(context, offset);
+  if (debugFlags.debugProfilePaints) {
+    const paintStart = performance.now();
+    renderObj.paint(context, offset);
+    PerfAttribution.instance.recordPaint(renderObj.constructor.name, performance.now() - paintStart);
+  } else {
+    renderObj.paint(context, offset);
+  }
 }
 
 /**

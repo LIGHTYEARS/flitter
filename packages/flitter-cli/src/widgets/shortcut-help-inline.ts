@@ -10,7 +10,7 @@
 //   Column (crossAxisAlignment: 'start', mainAxisSize: 'min')
 //     [6 Text rows, each with left+right shortcut pair]
 //     [optional: SizedBox(1) + tmux hint row when in tmux without extended-keys]
-//     Expanded(Divider) — horizontal separator
+//     Text('─'*width) — horizontal separator line
 
 import {
   StatelessWidget,
@@ -22,8 +22,6 @@ import { Text } from '../../../flitter-core/src/widgets/text';
 import { TextSpan } from '../../../flitter-core/src/core/text-span';
 import { TextStyle } from '../../../flitter-core/src/core/text-style';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
-import { Divider } from '../../../flitter-core/src/widgets/divider';
-import { Expanded } from '../../../flitter-core/src/widgets/flexible';
 import { CliThemeProvider } from '../themes';
 import {
   SHORTCUT_HELP_DATA,
@@ -156,6 +154,7 @@ export class ShortcutHelpInline extends StatelessWidget {
               new TextSpan({
                 text: 'https://ampcode.com/manual/appendix#amp-cli-tmux',
                 style: linkStyle,
+                hyperlink: { uri: 'https://ampcode.com/manual/appendix#amp-cli-tmux' },
               }),
             ],
           }),
@@ -163,9 +162,17 @@ export class ShortcutHelpInline extends StatelessWidget {
       );
     }
 
-    // Trailing divider (AMP uses Expanded > Divider with border color)
-    const divider = new Expanded({
-      child: new Divider({ color: borderColor }),
+    // Trailing divider: render a full-width horizontal rule via Text.
+    // Using Text with '─' characters instead of Divider widget because
+    // the parent Column uses crossAxisAlignment:'start' which may give
+    // Divider an unexpected layout width. Text with a long '─' string
+    // reliably fills available width and gets clipped by the container.
+    const dividerLineLength = (process.stdout.columns || 80) - 4; // padding + borders
+    const divider = new Text({
+      text: new TextSpan({
+        text: '\u2500'.repeat(dividerLineLength),
+        style: new TextStyle({ foreground: borderColor }),
+      }),
     });
 
     return new Column({

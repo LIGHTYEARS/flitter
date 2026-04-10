@@ -230,41 +230,42 @@ describe('AppState', () => {
       expect(appState.selectedMessageIndex).toBeNull();
     });
 
-    test('newThread() clears items', () => {
+    test('newThread() clears items', async () => {
       session.startProcessing('msg');
       session.appendAssistantChunk('reply');
       session.beginStreaming();
       session.completeStream('end_turn');
       expect(appState.items.length).toBeGreaterThan(0);
 
-      appState.newThread();
+      await appState.newThread();
       expect(appState.items.length).toBe(0);
     });
 
-    test('newThread() keeps sessionId unchanged', () => {
+    test('newThread() creates a new session with different sessionId', async () => {
       const originalId = appState.metadata.sessionId;
       session.startProcessing('msg');
       session.beginStreaming();
       session.completeStream('end_turn');
 
-      appState.newThread();
-      expect(appState.metadata.sessionId).toBe(originalId);
+      await appState.newThread();
+      // newThread now creates a fresh thread with a new session
+      expect(appState.metadata.sessionId).not.toBe(originalId);
     });
 
-    test('newThread() resets lifecycle to idle', () => {
+    test('newThread() resets lifecycle to idle', async () => {
       session.startProcessing('msg');
       session.beginStreaming();
       session.completeStream('end_turn');
       expect(appState.lifecycle).toBe('complete');
 
-      appState.newThread();
+      await appState.newThread();
       expect(appState.lifecycle).toBe('idle');
     });
 
-    test('newThread() clears selectedMessageIndex and resets currentMode to smart', () => {
+    test('newThread() clears selectedMessageIndex and resets currentMode to smart', async () => {
       appState.selectedMessageIndex = 2;
       appState.currentMode = 'deep';
-      appState.newThread();
+      await appState.newThread();
       expect(appState.selectedMessageIndex).toBeNull();
       expect(appState.currentMode).toBe('smart');
     });
@@ -313,10 +314,10 @@ describe('AppState', () => {
       expect(called).toBe(true);
     });
 
-    test('newThread notifies listeners', () => {
+    test('newThread notifies listeners', async () => {
       let callCount = 0;
       appState.addListener(() => { callCount++; });
-      appState.newThread();
+      await appState.newThread();
       // newThread triggers session.newThread (session listener fires) + _notifyListeners
       expect(callCount).toBeGreaterThan(0);
     });

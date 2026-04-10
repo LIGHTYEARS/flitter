@@ -222,17 +222,17 @@ describe('AppState turn and screen state integration', () => {
   // --- screenState: newThread ---
 
   describe('screenState after newThread', () => {
-    test('returns empty (not welcome) after newThread because turnCount > 0', async () => {
+    test('returns welcome after newThread because new session has turnCount 0', async () => {
       provider.mockEvents = [
         { type: 'text_delta', text: 'Done' },
         { type: 'message_complete', stopReason: 'end_turn' },
       ];
       await appState.submitPrompt('Hi');
 
-      appState.newThread();
+      await appState.newThread();
 
-      // turnCount is still > 0, so should be 'empty' not 'welcome'
-      expect(appState.screenState.kind).toBe('empty');
+      // newThread creates a fresh session with turnCount=0 -> 'welcome'
+      expect(appState.screenState.kind).toBe('welcome');
     });
 
     test('turns are cleared after newThread', async () => {
@@ -243,7 +243,7 @@ describe('AppState turn and screen state integration', () => {
       await appState.submitPrompt('Message');
       expect(appState.turns.length).toBeGreaterThan(0);
 
-      appState.newThread();
+      await appState.newThread();
       expect(appState.turns.length).toBe(0);
     });
   });

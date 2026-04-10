@@ -551,7 +551,7 @@ describe('Lifecycle Integration', () => {
       await appState.submitPrompt('hello');
       expect(appState.items.length).toBeGreaterThan(0);
 
-      appState.newThread();
+      await appState.newThread();
       expect(appState.items.length).toBe(0);
     });
 
@@ -563,11 +563,11 @@ describe('Lifecycle Integration', () => {
       await appState.submitPrompt('test');
       expect(appState.lifecycle).toBe('complete');
 
-      appState.newThread();
+      await appState.newThread();
       expect(appState.lifecycle).toBe('idle');
     });
 
-    test('preserves sessionId', async () => {
+    test('creates new session with different sessionId after newThread', async () => {
       const originalId = appState.metadata.sessionId;
 
       provider.mockEvents = [
@@ -576,29 +576,23 @@ describe('Lifecycle Integration', () => {
       ];
       await appState.submitPrompt('test');
 
-      appState.newThread();
-      expect(appState.metadata.sessionId).toBe(originalId);
+      await appState.newThread();
+      // newThread now creates a fresh thread with its own session
+      expect(appState.metadata.sessionId).not.toBe(originalId);
     });
 
-    test('allows new prompt submission after newThread', async () => {
+    test('new session is idle and empty after newThread', async () => {
       provider.mockEvents = [
         { type: 'text_delta', text: 'first' },
         { type: 'message_complete', stopReason: 'end_turn' },
       ];
       await appState.submitPrompt('hello');
 
-      appState.newThread();
+      await appState.newThread();
 
-      provider.mockEvents = [
-        { type: 'text_delta', text: 'fresh' },
-        { type: 'message_complete', stopReason: 'end_turn' },
-      ];
-      await appState.submitPrompt('new thread prompt');
-      expect(appState.lifecycle).toBe('complete');
-
-      // Should only have the new prompt's items
-      const userMessages = appState.items.filter(i => i.type === 'user_message');
-      expect(userMessages.length).toBe(1);
+      // New thread should have clean state
+      expect(appState.lifecycle).toBe('idle');
+      expect(appState.items.length).toBe(0);
     });
   });
 

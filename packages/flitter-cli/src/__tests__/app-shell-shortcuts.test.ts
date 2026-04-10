@@ -149,7 +149,7 @@ describe('AppShell — Shortcut Matrix', () => {
     expect(binding.isRunning).toBe(false);
   });
 
-  test('Ctrl+L -> calls newThread(), returns "handled"', () => {
+  test('Ctrl+L -> calls newThread(), returns "handled"', async () => {
     // First populate some conversation
     session.startProcessing('hello');
     session.beginStreaming();
@@ -160,6 +160,8 @@ describe('AppShell — Shortcut Matrix', () => {
 
     const result = handleKey(state, createKeyEvent('l', { ctrlKey: true }));
     expect(result).toBe('handled');
+    // newThread() is async; flush microtasks so createThread resolves
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(appState.items.length).toBe(0);
     expect(appState.lifecycle).toBe('idle');
   });
@@ -361,7 +363,7 @@ describe('AppShell — Submit Pipeline Integration', () => {
     expect(appState.isProcessing).toBe(false);
   });
 
-  test('Ctrl+L resets to welcome/empty screen state', () => {
+  test('Ctrl+L resets to welcome/empty screen state', async () => {
     WidgetsBinding.reset();
     const { appState, session } = createTestAppState();
     // Populate conversation
@@ -374,6 +376,8 @@ describe('AppShell — Submit Pipeline Integration', () => {
     const { state } = buildAppShellState(appState);
     handleKey(state, createKeyEvent('l', { ctrlKey: true }));
 
+    // newThread() is async; flush microtasks so createThread resolves
+    await new Promise(resolve => setTimeout(resolve, 0));
     expect(appState.items.length).toBe(0);
     expect(appState.lifecycle).toBe('idle');
   });

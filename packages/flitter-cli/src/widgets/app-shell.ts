@@ -552,6 +552,12 @@ class AppShellState extends State<AppShell> {
       pasteImage: () => {
         this.widget.appState.pasteImage();
       },
+      editPreviousMessage: () => {
+        this._editPreviousMessage();
+      },
+      canEditPreviousMessage: () => {
+        return this._canEditPreviousMessage();
+      },
     };
 
     return {
@@ -622,6 +628,83 @@ class AppShellState extends State<AppShell> {
     } finally {
       this._isNavigatingHistory = false;
     }
+  }
+
+  // --- Edit Previous Message (F13: KEYS-04 wiring) ---
+
+  /**
+   * Check whether editing the previous user message is possible.
+   * Returns true when the input is empty, the session is idle, and there is
+   * at least one user_message in the conversation items.
+   *
+   * Used as the guard predicate for the ArrowUp shortcut (KEYS-04) so the
+   * shortcut only fires when editing makes sense.
+   */
+  private _canEditPreviousMessage(): boolean {
+    // Only allow when input is empty (cursor at position 0, no text)
+    if (this.textController.text.length > 0) return false;
+
+    const appState = this.widget.appState;
+    if (appState.isProcessing) return false;
+
+    const items = appState.session.items;
+    // Check there is at least one user_message
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].type === 'user_message') return true;
+    }
+    return false;
+  }
+
+  /**
+   * Edit the previous user message in-place.
+   *
+   * Finds the last user_message in the conversation, truncates all items
+   * after it (removing the user message and all subsequent assistant/tool
+   * responses), then populates the InputArea with the message text so the
+   * user can re-edit and re-submit.
+   *
+   * Matches AMP's editPreviousMessage behavior from the ArrowUp shortcut
+   * (KEYS-04): find last user message -> truncateAfter(index-1) -> set input text.
+   */
+  private _editPreviousMessage(): void {
+    const appState = this.widget.appState;
+    const session = appState.session;
+    const items = session.items;
+
+    // Find the last user_message in the conversation
+    let lastUserMsgIndex = -1;
+    let lastUserMsgText = '';
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].type === 'user_message') {
+        lastUserMsgIndex = i;
+        lastUserMsgText = (items[i] as { text: string }).text ?? '';
+        break;
+      }
+    }
+
+    if (lastUserMsgIndex < 0 || !lastUserMsgText) return;
+
+    // Only allow editing when session is idle
+    if (session.lifecycle !== 'idle') return;
+
+    // Truncate everything from the user message onward.
+    // truncateAfter(index) keeps items[0..index], so to remove the user message
+    // itself we truncate at index-1.
+    if (lastUserMsgIndex > 0) {
+      session.truncateAfter(lastUserMsgIndex - 1);
+    } else {
+      // The user message is the first item — clear the entire conversation.
+      // Neither truncateAfter(-1) nor truncateBefore(length) work for this edge
+      // case, so use newThread() to reset items to empty.
+      session.newThread();
+    }
+
+    // Populate the InputArea with the message text for re-editing
+    this.textController.text = lastUserMsgText;
+    this.textController.cursorPosition = lastUserMsgText.length;
+
+    log.info(`AppShell: editPreviousMessage — loaded "${lastUserMsgText.slice(0, 40)}..." into input`);
+    this.setState();
   }
 
   // --- External Editor (I9: Ctrl+G wiring) ---

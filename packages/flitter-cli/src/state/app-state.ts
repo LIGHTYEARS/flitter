@@ -654,15 +654,21 @@ export class AppState {
   /**
    * Switch to an existing thread by ID.
    * Updates session/conversation to point at the target thread.
+   * Saves the current agent mode to the outgoing thread and restores
+   * the target thread's agent mode (F15 per-thread persistence).
    * Matches AMP's switchToExistingThread().
    */
   switchToThread(threadID: string): void {
     // AMP's onThreadSwitch() calls exitQueueMode() and handoffController?.resetUIState()
     this.exitQueueMode();
     this.exitHandoffMode();
-    this.threadPool.switchThread(threadID);
+    this.threadPool.switchThread(threadID, { currentAgentMode: this.currentMode });
     const handle = this.threadPool.activeThreadHandle;
     this._switchToHandle(handle);
+    // Restore the target thread's persisted agent mode (F15)
+    if (handle.agentMode !== null) {
+      this.currentMode = handle.agentMode;
+    }
     this.selectedMessageIndex = null;
     this._notifyListeners();
   }
@@ -747,13 +753,18 @@ export class AppState {
     this.cycleDeepReasoning();
   }
 
-  /** Cycle through visible agent modes. Per MODE-02. */
+  /** Cycle through visible agent modes. Per MODE-02. Updates active thread handle (F15). */
   cycleMode(): void {
     const current = this.currentMode ?? VISIBLE_MODE_KEYS[0];
     const idx = VISIBLE_MODE_KEYS.indexOf(current);
     const nextIdx = idx === -1 ? 0 : (idx + 1) % VISIBLE_MODE_KEYS.length;
     this.currentMode = VISIBLE_MODE_KEYS[nextIdx];
     this._agentModePulseSeq = (this._agentModePulseSeq ?? 0) + 1;
+    // Persist mode to active thread handle (F15)
+    const activeHandle = this.threadPool.activeThreadHandleOrNull;
+    if (activeHandle) {
+      activeHandle.agentMode = this.currentMode;
+    }
     log.info(`Agent mode cycled to: ${this.currentMode}`);
     this._notifyListeners();
   }

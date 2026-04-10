@@ -264,14 +264,27 @@ export class ThreadPool {
    * Matches AMP's RhR.switchThread(R) which calls
    * activateThreadWithNavigation(R, {recordNavigation: true}).
    *
+   * Optionally saves the current agent mode to the outgoing thread handle
+   * before switching, enabling per-thread mode persistence (F15).
+   *
    * @param threadID - The ID of the thread to switch to
+   * @param options - Optional: currentAgentMode to save on the outgoing thread
    * @throws If threadID is not found in threadHandleMap
    */
-  switchThread(threadID: string): void {
+  switchThread(threadID: string, options?: { currentAgentMode?: string | null }): void {
     const handle = this.threadHandleMap.get(threadID);
     if (!handle) {
       throw new Error(`ThreadPool.switchThread: thread ${threadID} not found`);
     }
+
+    // Save current agent mode to the outgoing thread handle (F15)
+    if (options?.currentAgentMode !== undefined && this.activeThreadContextID) {
+      const outgoing = this.threadHandleMap.get(this.activeThreadContextID);
+      if (outgoing) {
+        outgoing.agentMode = options.currentAgentMode;
+      }
+    }
+
     this.activateThreadWithNavigation(handle, true);
     log.info(`[thread-pool] switchThread: -> ${threadID}`);
   }

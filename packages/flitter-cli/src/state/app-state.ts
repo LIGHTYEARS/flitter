@@ -1885,6 +1885,7 @@ export class AppState {
       visibility: 'visible',
       agentMode: 'smart',
       queuedMessages: [],
+      status: null,
     };
     threadPool.activateThread(initialHandle);
 

@@ -453,11 +453,11 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 27. createHandoff creates a new thread and sets pendingHandoff
   // -------------------------------------------------------------------------
-  test('createHandoff creates a new thread and sets pendingHandoff', () => {
+  test('createHandoff creates a new thread and sets pendingHandoff', async () => {
     const sourceID = pool.activeThreadContextID!;
     const handleCountBefore = pool.threadCount;
 
-    const newHandle = pool.createHandoff('Build feature X');
+    const newHandle = await pool.createHandoff('Build feature X');
 
     expect(pool.threadCount).toBe(handleCountBefore + 1);
     expect(pool.pendingHandoff).not.toBeNull();
@@ -469,10 +469,10 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 28. createHandoff switches active thread to the new thread
   // -------------------------------------------------------------------------
-  test('createHandoff switches active thread to the new thread', () => {
+  test('createHandoff switches active thread to the new thread', async () => {
     const sourceID = pool.activeThreadContextID!;
 
-    const newHandle = pool.createHandoff('goal');
+    const newHandle = await pool.createHandoff('goal');
 
     expect(pool.activeThreadContextID).toBe(newHandle.threadID);
     expect(pool.activeThreadContextID).not.toBe(sourceID);
@@ -481,10 +481,10 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 29. createHandoff records navigation (source in backStack)
   // -------------------------------------------------------------------------
-  test('createHandoff records navigation (source pushed to backStack)', () => {
+  test('createHandoff records navigation (source pushed to backStack)', async () => {
     const sourceID = pool.activeThreadContextID!;
 
-    pool.createHandoff('goal');
+    await pool.createHandoff('goal');
 
     expect(pool.threadBackStack).toContain(sourceID);
   });
@@ -492,8 +492,8 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 30. createHandoff with agentMode option passes it to request
   // -------------------------------------------------------------------------
-  test('createHandoff with agentMode passes it to HandoffRequest', () => {
-    pool.createHandoff('goal', { agentMode: 'rush' });
+  test('createHandoff with agentMode passes it to HandoffRequest', async () => {
+    await pool.createHandoff('goal', { agentMode: 'rush' });
 
     expect(pool.pendingHandoff!.agentMode).toBe('rush');
   });
@@ -501,8 +501,8 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 31. createHandoff without agentMode defaults to null
   // -------------------------------------------------------------------------
-  test('createHandoff without agentMode defaults to null in request', () => {
-    pool.createHandoff('goal');
+  test('createHandoff without agentMode defaults to null in request', async () => {
+    await pool.createHandoff('goal');
 
     expect(pool.pendingHandoff!.agentMode).toBeNull();
   });
@@ -510,10 +510,10 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 32. createHandoff with no active thread throws
   // -------------------------------------------------------------------------
-  test('createHandoff with no active thread throws', () => {
+  test('createHandoff with no active thread throws', async () => {
     const emptyPool = new ThreadPool();
 
-    expect(() => emptyPool.createHandoff('goal')).toThrow(
+    expect(emptyPool.createHandoff('goal')).rejects.toThrow(
       'ThreadPool.createHandoff: no active thread context',
     );
   });
@@ -521,8 +521,8 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 33. completeHandoff moves pending to completedHandoffs
   // -------------------------------------------------------------------------
-  test('completeHandoff moves pendingHandoff to completedHandoffs', () => {
-    pool.createHandoff('goal');
+  test('completeHandoff moves pendingHandoff to completedHandoffs', async () => {
+    await pool.createHandoff('goal');
     expect(pool.pendingHandoff).not.toBeNull();
     expect(pool.completedHandoffs.length).toBe(0);
 
@@ -546,9 +546,9 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 35. getHandoffSourceThreadID returns source for handoff-created thread
   // -------------------------------------------------------------------------
-  test('getHandoffSourceThreadID returns source for handoff-created thread', () => {
+  test('getHandoffSourceThreadID returns source for handoff-created thread', async () => {
     const sourceID = pool.activeThreadContextID!;
-    const newHandle = pool.createHandoff('goal');
+    const newHandle = await pool.createHandoff('goal');
 
     const result = pool.getHandoffSourceThreadID(newHandle.threadID);
 
@@ -570,9 +570,9 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 37. getHandoffSourceThreadID defaults to active thread when no arg
   // -------------------------------------------------------------------------
-  test('getHandoffSourceThreadID defaults to active thread when no arg', () => {
+  test('getHandoffSourceThreadID defaults to active thread when no arg', async () => {
     const sourceID = pool.activeThreadContextID!;
-    pool.createHandoff('goal');
+    await pool.createHandoff('goal');
 
     // Active thread is now the handoff target
     const result = pool.getHandoffSourceThreadID();
@@ -592,11 +592,11 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 39. Multiple handoffs accumulate in completedHandoffs
   // -------------------------------------------------------------------------
-  test('multiple handoffs accumulate in completedHandoffs', () => {
-    pool.createHandoff('first goal');
+  test('multiple handoffs accumulate in completedHandoffs', async () => {
+    await pool.createHandoff('first goal');
     pool.completeHandoff();
 
-    pool.createHandoff('second goal');
+    await pool.createHandoff('second goal');
     pool.completeHandoff();
 
     expect(pool.completedHandoffs.length).toBe(2);
@@ -607,9 +607,9 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 40. HandoffRequest has createdAt timestamp
   // -------------------------------------------------------------------------
-  test('HandoffRequest has createdAt timestamp', () => {
+  test('HandoffRequest has createdAt timestamp', async () => {
     const before = Date.now();
-    pool.createHandoff('goal');
+    await pool.createHandoff('goal');
     const after = Date.now();
 
     expect(pool.pendingHandoff!.createdAt).toBeGreaterThanOrEqual(before);
@@ -619,11 +619,11 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 41. createHandoff notifies listeners
   // -------------------------------------------------------------------------
-  test('createHandoff notifies listeners', () => {
+  test('createHandoff notifies listeners', async () => {
     let notified = false;
     pool.addListener(() => { notified = true; });
 
-    pool.createHandoff('goal');
+    await pool.createHandoff('goal');
 
     expect(notified).toBe(true);
   });
@@ -631,8 +631,8 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 42. completeHandoff notifies listeners
   // -------------------------------------------------------------------------
-  test('completeHandoff notifies listeners', () => {
-    pool.createHandoff('goal');
+  test('completeHandoff notifies listeners', async () => {
+    await pool.createHandoff('goal');
 
     let notified = false;
     pool.addListener(() => { notified = true; });
@@ -645,9 +645,9 @@ describe('HAND-03: Cross-thread handoff tracking', () => {
   // -------------------------------------------------------------------------
   // 43. removeThread cleans up handoff source map
   // -------------------------------------------------------------------------
-  test('removeThread cleans up handoff source map entry', () => {
+  test('removeThread cleans up handoff source map entry', async () => {
     const sourceID = pool.activeThreadContextID!;
-    const newHandle = pool.createHandoff('goal');
+    const newHandle = await pool.createHandoff('goal');
 
     expect(pool.getHandoffSourceThreadID(newHandle.threadID)).toBe(sourceID);
 

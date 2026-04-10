@@ -28,7 +28,7 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 1. createThread preserves existing thread
   // -------------------------------------------------------------------------
-  test('createThread preserves existing thread in threadHandleMap', () => {
+  test('createThread preserves existing thread in threadHandleMap', async () => {
     // Create first thread manually and activate it
     const h1 = makeHandle();
     pool.activateThread(h1);
@@ -37,7 +37,7 @@ describe('Thread Lifecycle Operations', () => {
     h1.session.startProcessing('Hello from thread A');
 
     // Now create a second thread
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     // Thread A should still be in the map with its items
     expect(pool.threadHandleMap.has(h1.threadID)).toBe(true);
@@ -51,9 +51,9 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 2. switchThread changes activeThreadContextID
   // -------------------------------------------------------------------------
-  test('switchThread changes activeThreadContextID', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('switchThread changes activeThreadContextID', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     expect(pool.activeThreadContextID).toBe(h2.threadID);
 
@@ -74,9 +74,9 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 4. deleteThread removes from map
   // -------------------------------------------------------------------------
-  test('deleteThread removes thread from map', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('deleteThread removes thread from map', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     expect(pool.threadHandleMap.size).toBe(2);
 
@@ -88,9 +88,9 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 5. deleteThread active thread switches to next
   // -------------------------------------------------------------------------
-  test('deleteThread on active thread switches to most recent alternative', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('deleteThread on active thread switches to most recent alternative', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     // h2 is active
     expect(pool.activeThreadContextID).toBe(h2.threadID);
@@ -104,8 +104,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 6. deleteThread last thread sets activeThreadContextID to null
   // -------------------------------------------------------------------------
-  test('deleteThread last thread sets activeThreadContextID to null', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('deleteThread last thread sets activeThreadContextID to null', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     pool.deleteThread(h1.threadID);
     expect(pool.activeThreadContextID).toBeNull();
@@ -115,8 +115,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 7. generateTitle from first user message
   // -------------------------------------------------------------------------
-  test('generateTitle sets title from first user message', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('generateTitle sets title from first user message', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     // Add a user message to the thread's session
     h1.session.startProcessing('Hello world');
@@ -129,8 +129,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 8. generateTitle truncates at 80 chars
   // -------------------------------------------------------------------------
-  test('generateTitle truncates long messages at 80 chars with ellipsis', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('generateTitle truncates long messages at 80 chars with ellipsis', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     const longText = 'A'.repeat(100);
     h1.session.startProcessing(longText);
@@ -144,8 +144,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 9. generateTitle skips if already titled
   // -------------------------------------------------------------------------
-  test('generateTitle skips threads that already have a title', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('generateTitle skips threads that already have a title', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     h1.session.startProcessing('Hello world');
     pool.setThreadTitle(h1.threadID, 'Custom Title');
@@ -157,8 +157,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 10. setThreadVisibility updates handle
   // -------------------------------------------------------------------------
-  test('setThreadVisibility updates the handle visibility', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('setThreadVisibility updates the handle visibility', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
     expect(h1.visibility).toBe('visible');
 
     pool.setThreadVisibility(h1.threadID, 'hidden');
@@ -171,10 +171,10 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 11. getVisibleThreads excludes hidden
   // -------------------------------------------------------------------------
-  test('getVisibleThreads excludes hidden and archived threads', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h3 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('getVisibleThreads excludes hidden and archived threads', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h3 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     pool.setThreadVisibility(h2.threadID, 'hidden');
 
@@ -188,8 +188,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 12. threadWorkerMap getOrCreateWorker
   // -------------------------------------------------------------------------
-  test('getOrCreateWorker creates worker with initial state', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('getOrCreateWorker creates worker with initial state', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     const worker = pool.getOrCreateWorker(h1.threadID);
     expect(worker.state).toBe('initial');
@@ -205,8 +205,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 13. setWorkerInferenceState updates state
   // -------------------------------------------------------------------------
-  test('setWorkerInferenceState updates inference state and turnStartTime', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('setWorkerInferenceState updates inference state and turnStartTime', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     pool.setWorkerInferenceState(h1.threadID, 'running');
     const worker = pool.getOrCreateWorker(h1.threadID);
@@ -222,9 +222,9 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 14. activeWorkerCount getter
   // -------------------------------------------------------------------------
-  test('activeWorkerCount counts non-disposed workers', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('activeWorkerCount counts non-disposed workers', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     pool.getOrCreateWorker(h1.threadID);
     pool.getOrCreateWorker(h2.threadID);
@@ -239,9 +239,9 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 15. createThread records navigation (back stack populated)
   // -------------------------------------------------------------------------
-  test('createThread records navigation via activateThreadWithNavigation', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
-    const h2 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('createThread records navigation via activateThreadWithNavigation', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
+    const h2 = await pool.createThread({ cwd: '/tmp', model: 'test' });
 
     // h1 should be on the back stack after h2 creation
     expect(pool.threadBackStack).toContain(h1.threadID);
@@ -251,8 +251,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 16. deleteThread cleans up worker map
   // -------------------------------------------------------------------------
-  test('deleteThread also removes from threadWorkerMap', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('deleteThread also removes from threadWorkerMap', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
     pool.getOrCreateWorker(h1.threadID);
     expect(pool.threadWorkerMap.has(h1.threadID)).toBe(true);
 
@@ -270,8 +270,8 @@ describe('Thread Lifecycle Operations', () => {
   // -------------------------------------------------------------------------
   // 18. generateTitle with no user messages is a no-op
   // -------------------------------------------------------------------------
-  test('generateTitle with no user messages does not set title', () => {
-    const h1 = pool.createThread({ cwd: '/tmp', model: 'test' });
+  test('generateTitle with no user messages does not set title', async () => {
+    const h1 = await pool.createThread({ cwd: '/tmp', model: 'test' });
     pool.generateTitle(h1.threadID);
     expect(h1.title).toBeNull();
   });

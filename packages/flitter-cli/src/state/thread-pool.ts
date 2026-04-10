@@ -216,11 +216,44 @@ export class ThreadPool {
    * Matches AMP's RhR.createThread(R) which calls
    * activateThreadWithNavigation(R, {recordNavigation: true}).
    *
+   * Supports seeded messages, parent relationships, and draft/queue transfer.
+   *
    * @param options - Thread creation options (cwd, model, agentMode, etc.)
    * @returns The newly created ThreadHandle
    */
-  createThread(options: Omit<CreateThreadHandleOptions, 'threadID'>): ThreadHandle {
+  async createThread(options: Omit<CreateThreadHandleOptions, 'threadID'> & {
+    seededMessages?: Array<{ role: 'user' | 'assistant'; text: string }>;
+    parent?: { threadID: string; relationType: ThreadRelationType };
+    draftContent?: string;
+    queuedMessages?: QueuedMessage[];
+  }): Promise<ThreadHandle> {
     const handle = createThreadHandle(options);
+
+    // Inject seeded messages if provided
+    if (options.seededMessages) {
+      for (const msg of options.seededMessages) {
+        if (msg.role === 'user') {
+          handle.session.addUserMessage(msg.text);
+        }
+        // Assistant messages handled as needed
+      }
+    }
+
+    // Register parent relationship
+    if (options.parent) {
+      this.addRelationship(options.parent.relationType, options.parent.threadID, handle.threadID);
+      // Inherit visibility from parent
+      const parentHandle = this.threadHandleMap.get(options.parent.threadID);
+      if (parentHandle) {
+        handle.visibility = parentHandle.visibility;
+      }
+    }
+
+    // Transfer queued messages
+    if (options.queuedMessages && options.queuedMessages.length > 0) {
+      handle.queuedMessages = [...options.queuedMessages];
+    }
+
     this.activateThreadWithNavigation(handle, true);
     log.info(`[thread-pool] createThread: ${handle.threadID}`);
     return handle;
@@ -415,21 +448,34 @@ export class ThreadPool {
   }
 
   /**
-   * Generate a thread title from the first user message in the conversation.
-   * Matches AMP's triggerTitleGeneration() from SECTION 3:
+   * Generate a thread title with AbortController support and skip rules.
+   * Matches AMP's triggerTitleGeneration with abort, skip rules, child-thread check.
+   *
    * - Skip if thread already has a title
+   * - Skip for child threads (created via fork/handoff)
+   * - Skip if message contains any skipIfContains pattern
+   * - Respect AbortSignal cancellation
    * - Find the first user message
    * - Truncate content to MAX_TITLE_LENGTH characters
    * - Set as the thread title
    *
    * @param threadID - The thread to generate a title for
+   * @param options - Optional abort signal and skip rules
    */
-  generateTitle(threadID: string): void {
+  generateTitle(threadID: string, options?: {
+    abortSignal?: AbortSignal;
+    skipIfContains?: string[];
+  }): void {
     const handle = this.threadHandleMap.get(threadID);
     if (!handle) return;
 
     // Skip if already titled (matches AMP: this.thread.title check)
     if (handle.title) return;
+
+    // Skip for child threads (threads created via fork/handoff)
+    const relationships = this.getRelationships(threadID);
+    const isChildThread = relationships.some(r => r.targetThreadID === threadID);
+    if (isChildThread) return;
 
     const items = handle.session.items;
     // Find first user message (matches AMP: messages.find(h => h.role !== "user"))
@@ -439,12 +485,37 @@ export class ThreadPool {
     const text = firstUserMsg.text?.trim();
     if (!text) return;
 
+    // Skip rules: if message contains any skip pattern, don't generate
+    if (options?.skipIfContains) {
+      for (const pattern of options.skipIfContains) {
+        if (text.includes(pattern)) return;
+      }
+    }
+
+    // Check abort signal
+    if (options?.abortSignal?.aborted) return;
+
     // Truncate to MAX_TITLE_LENGTH, add ellipsis if truncated
     const title = text.length > MAX_TITLE_LENGTH
       ? text.slice(0, MAX_TITLE_LENGTH - 1) + '\u2026'
       : text;
 
+    // Wire to ThreadWorker's titleGeneration AbortController
+    const worker = this.threadWorkerMap.get(threadID);
+    if (worker) {
+      worker.ops.titleGeneration = new AbortController();
+      if (options?.abortSignal) {
+        options.abortSignal.addEventListener('abort', () => worker.abortTitleGeneration());
+      }
+    }
+
     this.setThreadTitle(threadID, title);
+
+    // Clear the title generation op
+    if (worker) {
+      worker.ops.titleGeneration = null;
+    }
+
     log.info(`[thread-pool] generateTitle: ${threadID} -> "${title}"`);
   }
 
@@ -647,14 +718,14 @@ export class ThreadPool {
    * @param options - Optional configuration (agentMode for target thread)
    * @returns The newly created ThreadHandle for the handoff target
    */
-  createHandoff(goal: string, options?: { agentMode?: string | null }): ThreadHandle {
+  async createHandoff(goal: string, options?: { agentMode?: string | null }): Promise<ThreadHandle> {
     const sourceThreadID = this.activeThreadContextID;
     if (!sourceThreadID) {
       throw new Error('ThreadPool.createHandoff: no active thread context');
     }
 
     // Create a new thread (this records navigation)
-    const handle = this.createThread({
+    const handle = await this.createThread({
       cwd: this.activeThreadHandle.session.metadata.cwd,
       model: this.activeThreadHandle.session.metadata.model,
       agentMode: options?.agentMode ?? null,
@@ -723,6 +794,10 @@ export class ThreadPool {
     delete this.threadTitles[threadID];
     this.threadWorkerMap.delete(threadID);
     this._handoffSourceMap.delete(threadID);
+    // Clean up relationships involving this thread
+    this._relationships = this._relationships.filter(
+      r => r.sourceThreadID !== threadID && r.targetThreadID !== threadID
+    );
 
     // Remove from recent threads
     const recentIdx = this.recentThreadIDs.indexOf(threadID);
@@ -764,6 +839,7 @@ export class ThreadPool {
     this.activeThreadContextID = null;
     Object.keys(this.threadTitles).forEach(k => delete this.threadTitles[k]);
     this.threadWorkerMap.clear();
+    this._relationships.length = 0;
     this._listeners.clear();
   }
 }

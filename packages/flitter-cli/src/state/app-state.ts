@@ -613,13 +613,13 @@ export class AppState {
    * Preserves the existing thread state in threadHandleMap.
    * Matches AMP's startAndSwitchToNewThread (SECTION 2d).
    */
-  newThread(): void {
+  async newThread(): Promise<void> {
     // AMP's startAndSwitchToNewThread calls onThreadSwitch which exits queue/handoff mode
     this.exitQueueMode();
     this.exitHandoffMode();
     const model = this.session.metadata.model;
     const cwd = this.session.metadata.cwd;
-    const handle = this.threadPool.createThread({
+    const handle = await this.threadPool.createThread({
       cwd,
       model,
       agentMode: this.currentMode,
@@ -1150,7 +1150,7 @@ export class AppState {
 
     try {
       // Create handoff thread via ThreadPool
-      const handle = this.threadPool.createHandoff(goal, {
+      const handle = await this.threadPool.createHandoff(goal, {
         agentMode: this.currentMode,
       });
 

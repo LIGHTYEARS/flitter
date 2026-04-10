@@ -529,6 +529,8 @@ export type ThreadInferenceState = 'idle' | 'running' | 'cancelled';
 /**
  * Per-thread worker state machine entry.
  * Tracks the thread's execution state independently of other threads.
+ *
+ * @deprecated Use ThreadWorker class from './thread-worker' instead.
  */
 export interface ThreadWorkerEntry {
   /** The thread this worker belongs to. */

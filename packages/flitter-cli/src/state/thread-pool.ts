@@ -4,9 +4,10 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
+import { ThreadWorker } from './thread-worker';
 import { log } from '../utils/logger';
 
 /** Maximum number of recent thread IDs to retain. AMP caps at 50. */
@@ -453,21 +454,16 @@ export class ThreadPool {
    * Matches AMP's threadWorkerService (tr) with getOrCreateForThread.
    * Each thread gets an independent worker tracking inference state.
    */
-  readonly threadWorkerMap: Map<string, ThreadWorkerEntry> = new Map();
+  readonly threadWorkerMap: Map<string, ThreadWorker> = new Map();
 
   /**
    * Get or create a worker entry for a thread.
    * Matches AMP's tr.getOrCreateForThread() from SECTION 4d.
    */
-  getOrCreateWorker(threadID: string): ThreadWorkerEntry {
+  getOrCreateWorker(threadID: string): ThreadWorker {
     let worker = this.threadWorkerMap.get(threadID);
     if (!worker) {
-      worker = {
-        threadID: threadID as import('./types').ThreadID,
-        state: 'initial',
-        inferenceState: 'idle',
-        turnStartTime: null,
-      };
+      worker = new ThreadWorker(threadID as import('./types').ThreadID);
       this.threadWorkerMap.set(threadID, worker);
     }
     return worker;
@@ -478,11 +474,14 @@ export class ThreadPool {
    */
   setWorkerInferenceState(threadID: string, state: ThreadInferenceState): void {
     const worker = this.getOrCreateWorker(threadID);
-    worker.inferenceState = state;
+    // Map legacy inference states to delta events
     if (state === 'running') {
-      worker.turnStartTime = Date.now();
+      worker.handle({ type: 'user:message-queue:dequeue' });
+    } else if (state === 'cancelled') {
+      worker.handle({ type: 'cancelled' });
     } else {
-      worker.turnStartTime = null;
+      // 'idle' maps to inference completed
+      worker.handle({ type: 'inference:completed' });
     }
     this._notifyListeners();
   }
@@ -494,7 +493,7 @@ export class ThreadPool {
   get activeWorkerCount(): number {
     let count = 0;
     for (const worker of this.threadWorkerMap.values()) {
-      if (worker.state !== 'disposed') count++;
+      if (worker.isRunning) count++;
     }
     return count;
   }

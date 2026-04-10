@@ -327,27 +327,27 @@ truncateAfter(index: number): void {
 | isAutoCompacting: false (hardcoded) | Must read PromptController compaction state | Enables UI feedback during compaction |
 | createThread synchronous | Must become async with seededMessages | Required for handoff and fork thread creation |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **F8 Thread Preview hover trigger mechanism**
+1. **F8 Thread Preview hover trigger mechanism** — RESOLVED (Plan 39-07, Task 1)
    - What we know: `ThreadPreview` widget exists in `thread-list.ts:118`; preview is shown in AMP on hover/selection
    - What's unclear: In TUI context, "hover" likely means keyboard selection — does the thread list's currently-selected item trigger preview, or does it require a separate keystroke?
-   - Recommendation: Check `20_thread_management.js` AMP source for the exact trigger; likely implement as "selected item shows preview" rather than mouse hover
+   - Resolution: Plan 39-07 implements preview on keyboard selection (onPreviewThread callback). "Selected item shows preview" approach adopted, not mouse hover.
 
-2. **F19 Interleaved thinking wired to pi-ai**
+2. **F19 Interleaved thinking wired to pi-ai** — OUT_OF_SCOPE (P2-MED, not covered by Phase 39 plans)
    - What we know: `config-service.ts` schema has `anthropic.interleavedThinking.enabled`
    - What's unclear: Does `pi-ai-provider.ts` read this setting and pass it to the API request?
-   - Recommendation: Inspect `packages/flitter-cli/src/provider/pi-ai-provider.ts` before implementing F19
+   - Resolution: F19 is P2-MED priority. Not included in current plan set (39-01 through 39-07 cover P0+P1 only). Will be addressed in a subsequent phase or plan batch.
 
-3. **F30 Resizable bottom grid — was this removed?**
+3. **F30 Resizable bottom grid — was this removed?** — OUT_OF_SCOPE (P2-MED, not covered by Phase 39 plans)
    - What we know: SPEC mentions `bottomGridUserHeight` / `bottomGridDragStartY`; grep found no such fields in `app-state.ts`
    - What's unclear: Phase 23 BORDER-08 requirement says "Resizable bottom grid with bottomGridUserHeight global state" was completed — so it may exist somewhere else
-   - Recommendation: Inspect `app-shell.ts` and `input-area.ts` for drag resize state before implementing
+   - Resolution: F30 is P2-MED priority. Not included in current plan set. Requires codebase inspection before implementation.
 
-4. **F13 editPreviousMessage hook wiring**
+4. **F13 editPreviousMessage hook wiring** — RESOLVED (Plan 39-03, Task 2)
    - What we know: Shortcut is registered in `defaults.ts`; `ctx.hooks.editPreviousMessage?.()` is called; `editPreviousMessage?(): void` is in `registry.ts`
    - What's unclear: The hook implementation (actual function that reads last user message and populates InputArea) is not in `app-shell.ts`
-   - Recommendation: This is a genuine gap — implement the hook body in `app-shell.ts` similar to other hook implementations
+   - Resolution: Plan 39-03 Task 2 wires the editPreviousMessage hook implementation in app-shell.ts — finds last user message, calls truncateAfter, and populates InputArea.
 
 ## Environment Availability
 

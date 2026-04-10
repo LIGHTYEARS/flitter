@@ -508,7 +508,27 @@ export interface ThreadHandle {
   agentMode: string | null;
   /** Per-thread queued messages waiting for submission. Matches AMP's thread.queuedMessages. */
   queuedMessages: QueuedMessage[];
+  /** Thread merge/relationship status. */
+  status: ThreadStatus;
 }
+
+// ---------------------------------------------------------------------------
+// Thread Relationships (F7)
+// ---------------------------------------------------------------------------
+
+/** Relationship type between threads. Matches AMP's thread_relationships protocol. */
+export type ThreadRelationType = 'fork' | 'handoff' | 'mention';
+
+/** A directional relationship between two threads. */
+export interface ThreadRelationship {
+  readonly type: ThreadRelationType;
+  readonly sourceThreadID: string;
+  readonly targetThreadID: string;
+  readonly createdAt: number;
+}
+
+/** Thread merge status. Matches AMP's thread merging lifecycle. */
+export type ThreadStatus = 'merging' | 'merged' | null;
 
 // ---------------------------------------------------------------------------
 // Thread Worker State (THRD-10)

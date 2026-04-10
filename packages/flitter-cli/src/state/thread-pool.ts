@@ -4,7 +4,7 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest, ThreadRelationship, ThreadRelationType } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
 import { ThreadWorker } from './thread-worker';
@@ -68,6 +68,9 @@ export class ThreadPool {
   // --- Listeners ---
   private _listeners: Set<StateListener> = new Set();
 
+  /** Thread relationships (fork/handoff/mention). */
+  private _relationships: ThreadRelationship[] = [];
+
   // ---------------------------------------------------------------------------
   // Listener Management
   // ---------------------------------------------------------------------------
@@ -85,6 +88,42 @@ export class ThreadPool {
   /** Notify all registered listeners. */
   private _notifyListeners(): void {
     this._listeners.forEach(fn => fn());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Thread Relationships (F7)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Register a relationship between two threads.
+   * @param type - Relationship type (fork, handoff, mention)
+   * @param sourceThreadID - The originating thread
+   * @param targetThreadID - The target/child thread
+   */
+  addRelationship(type: ThreadRelationType, sourceThreadID: string, targetThreadID: string): void {
+    this._relationships.push({
+      type,
+      sourceThreadID,
+      targetThreadID,
+      createdAt: Date.now(),
+    });
+    this._notifyListeners();
+  }
+
+  /**
+   * Get all relationships for a thread (as source or target).
+   */
+  getRelationships(threadID: string): ThreadRelationship[] {
+    return this._relationships.filter(
+      r => r.sourceThreadID === threadID || r.targetThreadID === threadID
+    );
+  }
+
+  /**
+   * Get child threads of a given thread.
+   */
+  getChildThreads(threadID: string): ThreadRelationship[] {
+    return this._relationships.filter(r => r.sourceThreadID === threadID);
   }
 
   // ---------------------------------------------------------------------------

@@ -569,6 +569,72 @@ export class ThreadPool {
   }
 
   // ---------------------------------------------------------------------------
+  // Thread Merging (F34)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Merge one thread into another by appending the source thread's
+   * conversation items to the target thread.
+   *
+   * Matches AMP's thread merge lifecycle from 20_thread_management.js:
+   * 1. Set source status to 'merging'
+   * 2. Copy conversation items from source to target
+   * 3. Set source status to 'merged'
+   * 4. Hide the source thread (set visibility to 'hidden')
+   * 5. Switch to target thread if source was active
+   *
+   * @param sourceThreadID - The thread to merge from (will be hidden after merge)
+   * @param targetThreadID - The thread to merge into (receives source items)
+   * @returns true if merge succeeded, false if either thread not found
+   */
+  mergeThreadInto(sourceThreadID: string, targetThreadID: string): boolean {
+    const sourceHandle = this.threadHandleMap.get(sourceThreadID);
+    const targetHandle = this.threadHandleMap.get(targetThreadID);
+
+    if (!sourceHandle || !targetHandle) {
+      log.warn(`[thread-pool] mergeThreadInto: thread not found (source=${!!sourceHandle}, target=${!!targetHandle})`);
+      return false;
+    }
+
+    if (sourceThreadID === targetThreadID) {
+      log.warn(`[thread-pool] mergeThreadInto: cannot merge thread into itself`);
+      return false;
+    }
+
+    // Phase 1: Mark source as merging
+    sourceHandle.status = 'merging';
+    this._notifyListeners();
+
+    // Phase 2: Copy conversation items from source to target
+    const sourceItems = sourceHandle.session.items;
+    for (const item of sourceItems) {
+      if (item.type === 'user_message') {
+        targetHandle.session.addUserMessage(item.text);
+      }
+      // System messages and tool calls are structural — skip to avoid
+      // duplicate tool_call IDs and broken references
+    }
+
+    // Phase 3: Mark source as merged
+    sourceHandle.status = 'merged';
+
+    // Phase 4: Hide the source thread
+    sourceHandle.visibility = 'hidden';
+
+    // Phase 5: Register merge relationship
+    this.addRelationship('mention', sourceThreadID, targetThreadID);
+
+    // Phase 6: If source was active, switch to target
+    if (this.activeThreadContextID === sourceThreadID) {
+      this.activateThreadWithNavigation(targetHandle, true);
+    }
+
+    log.info(`[thread-pool] mergeThreadInto: ${sourceThreadID} -> ${targetThreadID}`);
+    this._notifyListeners();
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
   // Thread Worker Map (THRD-10)
   // ---------------------------------------------------------------------------
 

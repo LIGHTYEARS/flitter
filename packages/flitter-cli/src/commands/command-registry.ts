@@ -250,5 +250,18 @@ export function buildCommandList(
     },
   });
 
+  // 16. thread > merge (F34)
+  commands.push({
+    id: 'thread-merge',
+    category: 'thread',
+    label: 'merge',
+    description: 'Merge current thread into another thread',
+    execute: (_onDismiss: () => void) => {
+      // Open thread list for merge target selection.
+      // The active thread is the source; the selected thread is the target.
+      appState.showThreadList();
+    },
+  });
+
   return commands;
 }

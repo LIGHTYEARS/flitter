@@ -65,6 +65,7 @@ export class SelectionList extends StatefulWidget {
   readonly items: readonly SelectionItem[];
   readonly onSelect: (value: string) => void;
   readonly onCancel?: () => void;
+  readonly onHighlightChange?: (value: string) => void;
   readonly initialIndex?: number;
   readonly enableMouseInteraction: boolean;
   readonly showDescription: boolean;
@@ -76,6 +77,7 @@ export class SelectionList extends StatefulWidget {
     items: readonly SelectionItem[];
     onSelect: (value: string) => void;
     onCancel?: () => void;
+    onHighlightChange?: (value: string) => void;
     initialIndex?: number;
     enableMouseInteraction?: boolean;
     showDescription?: boolean;
@@ -86,6 +88,7 @@ export class SelectionList extends StatefulWidget {
     this.items = opts.items;
     this.onSelect = opts.onSelect;
     this.onCancel = opts.onCancel;
+    this.onHighlightChange = opts.onHighlightChange;
     this.initialIndex = opts.initialIndex;
     this.enableMouseInteraction = opts.enableMouseInteraction ?? true;
     this.showDescription = opts.showDescription ?? true;
@@ -314,6 +317,7 @@ export class SelectionListState extends State<SelectionList> {
       this._moveToNextEnabled(-1);
       this._ensureSelectedVisible();
     });
+    this._notifyHighlightChange();
   }
 
   /**
@@ -325,6 +329,20 @@ export class SelectionListState extends State<SelectionList> {
       this._moveToNextEnabled(1);
       this._ensureSelectedVisible();
     });
+    this._notifyHighlightChange();
+  }
+
+  /**
+   * Notify the onHighlightChange callback with the currently highlighted item's value.
+   * Called after any selection movement to support preview-on-highlight features.
+   */
+  private _notifyHighlightChange(): void {
+    const items = this.widget.items;
+    if (items.length === 0) return;
+    const item = items[this._selectedIndex];
+    if (item && !item.disabled && this.widget.onHighlightChange) {
+      this.widget.onHighlightChange(item.value);
+    }
   }
 
   /**

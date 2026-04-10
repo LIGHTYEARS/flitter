@@ -146,6 +146,13 @@ export class AppState {
   /** Files modified during the current session. Matches AMP's ThreadWorker.fileChanges. */
   fileChanges: FileChangeEntry[] = [];
 
+  /**
+   * Currently previewed thread ID in the thread list overlay (F8).
+   * Set when the user navigates the thread list with keyboard.
+   * Matches AMP's thread picker preview on highlight.
+   */
+  previewThreadID: string | null = null;
+
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
 
@@ -741,14 +748,20 @@ export class AppState {
         getThreadTitle: (threadID: string) => {
           return this.threadPool.threadTitles[threadID] ?? null;
         },
+        onPreviewThread: (threadID: string) => {
+          this.previewThreadID = threadID;
+          this._notifyListeners();
+        },
       }),
     });
   }
 
   /**
    * Dismiss the thread list overlay if it is currently shown.
+   * Clears the preview thread ID to reset preview state.
    */
   dismissThreadList(): void {
+    this.previewThreadID = null;
     this.overlayManager.dismiss(OVERLAY_IDS.THREAD_LIST);
   }
 

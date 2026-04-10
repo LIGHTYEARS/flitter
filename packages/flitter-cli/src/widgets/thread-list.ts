@@ -104,6 +104,12 @@ interface ThreadListProps {
   readonly getThreadItems?: (threadID: string) => ReadonlyArray<ConversationItem>;
   /** Optional: callback to get thread title for preview. */
   readonly getThreadTitle?: (threadID: string) => string | null;
+  /**
+   * Optional: called when the highlighted thread changes (keyboard navigation).
+   * Used to update the preview panel in the app shell.
+   * Matches AMP's thread picker preview on highlight (F8).
+   */
+  readonly onPreviewThread?: (threadID: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +238,7 @@ export class ThreadList extends StatelessWidget {
   private readonly onDismiss: () => void;
   private readonly getThreadItems?: (threadID: string) => ReadonlyArray<ConversationItem>;
   private readonly getThreadTitle?: (threadID: string) => string | null;
+  private readonly onPreviewThread?: (threadID: string) => void;
 
   constructor(props: ThreadListProps) {
     super({});
@@ -241,6 +248,7 @@ export class ThreadList extends StatelessWidget {
     this.onDismiss = props.onDismiss;
     this.getThreadItems = props.getThreadItems;
     this.getThreadTitle = props.getThreadTitle;
+    this.onPreviewThread = props.onPreviewThread;
   }
 
   build(_context: BuildContext): Widget {
@@ -271,6 +279,7 @@ export class ThreadList extends StatelessWidget {
         items,
         onSelect: this.onSelect,
         onCancel: this.onDismiss,
+        onHighlightChange: this.onPreviewThread,
         showDescription: true,
       });
     } else {

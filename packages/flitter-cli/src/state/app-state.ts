@@ -333,7 +333,9 @@ export class AppState {
   }
 
   get isAutoCompacting(): boolean {
-    return false;
+    if (!this._promptController) return false;
+    const status = this._promptController.getCompactionStatus();
+    return status.compactionState === 'compacting';
   }
 
   get isHandingOff(): boolean {

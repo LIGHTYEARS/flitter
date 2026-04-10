@@ -850,6 +850,44 @@ export class SessionState {
     this.notifyListeners();
   }
 
+  /**
+   * Truncate the conversation before the given items-array index.
+   * Removes all items before `index` (exclusive), preserving items from
+   * `index` onward. Used by compaction to prune early context.
+   *
+   * No-op if the index is out of bounds. Only allowed when lifecycle is idle.
+   */
+  truncateBefore(index: number): void {
+    if (this._lifecycle !== 'idle') {
+      log.warn(`SessionState: truncateBefore ignored — lifecycle is '${this._lifecycle}'`);
+      return;
+    }
+    if (index <= 0 || index >= this._items.length) return;
+
+    this._items = this._items.slice(index);
+
+    // Reset streaming state
+    this._streamingMsgIndex = -1;
+    this._streamingThinkingIndex = -1;
+    this._streamingTextBuffer = '';
+    this._streamingThinkingBuffer = '';
+
+    // Rebuild tool call index
+    this._toolCallIndex.clear();
+    for (let i = 0; i < this._items.length; i++) {
+      const item = this._items[i];
+      if (item.type === 'tool_call') {
+        this._toolCallIndex.set(item.toolCallId, i);
+      }
+    }
+
+    // Reset task stack to avoid stale parent-child relationships
+    this._openTaskStack = [];
+
+    this.bumpVersion();
+    this.notifyListeners();
+  }
+
   // ---------------------------------------------------------------------------
   // Session Restoration
   // ---------------------------------------------------------------------------

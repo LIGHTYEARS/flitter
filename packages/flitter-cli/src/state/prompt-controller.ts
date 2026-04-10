@@ -421,6 +421,14 @@ export class PromptController {
           : null;
 
         log.info(`PromptController: compaction — cutting at index ${cutIndex}, preserving ${items.length - cutIndex} items`);
+
+        // Ensure session is in idle state for truncation
+        if (this._session.lifecycle !== 'idle') {
+          this._session.reset();
+        }
+
+        // ACTUALLY EXECUTE THE TRUNCATION (F3 fix)
+        this._session.truncateBefore(cutIndex);
       }
 
       this._compactionState = 'complete';

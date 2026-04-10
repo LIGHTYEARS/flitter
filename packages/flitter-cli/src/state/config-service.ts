@@ -2,25 +2,58 @@ import { z } from 'zod';
 import { log } from '../utils/logger';
 
 /**
- * Zod schema for provider-specific settings matching AMP sKR schema
- * Contains 9 supported settings keys for Phase 25
+ * Zod schema for provider-specific settings matching AMP xPR settings list.
+ *
+ * Covers all 15 known AMP settings keys:
+ *   agent.deepReasoningEffort, agent.skipTitleGenerationIfMessageContains,
+ *   anthropic.effort, anthropic.interleavedThinking.enabled, anthropic.provider,
+ *   anthropic.speed, anthropic.temperature, anthropic.thinking.enabled,
+ *   gemini.thinkingLevel, internal.compactionThresholdPercent, internal.model,
+ *   internal.oracleReasoningEffort, openai.speed, tools.disable, tools.enable
  */
 export const settingsSchema = z.object({
+  // Agent-level settings
   'agent.deepReasoningEffort': z.enum(['medium', 'high', 'xhigh']).optional(),
-  'anthropic.speed': z.enum(['standard', 'fast']).optional(),
+  'agent.skipTitleGenerationIfMessageContains': z.string().optional(),
+
+  // Anthropic provider settings
+  'anthropic.effort': z.enum(['medium', 'high', 'xhigh']).optional(),
+  'anthropic.interleavedThinking.enabled': z.boolean().optional(),
   'anthropic.provider': z.enum(['anthropic', 'vertex']).optional(),
+  'anthropic.speed': z.enum(['standard', 'fast']).optional(),
   'anthropic.temperature': z.number().optional(),
   'anthropic.thinking.enabled': z.boolean().optional(),
-  'anthropic.interleavedThinking.enabled': z.boolean().optional(),
-  'anthropic.effort': z.enum(['low', 'medium', 'high', 'max']).optional(),
+
+  // OpenAI provider settings
   'openai.speed': z.enum(['standard', 'fast']).optional(),
+
+  // Gemini provider settings
+  'gemini.thinkingLevel': z.enum(['minimal', 'low', 'medium', 'high']).optional(),
+
+  // Internal settings
   'internal.model': z.union([z.string(), z.record(z.string(), z.string())]).optional(),
   'internal.compactionThresholdPercent': z.number().min(0).max(100).optional(),
-  'gemini.thinkingLevel': z.enum(['minimal', 'low', 'medium', 'high']).optional(),
+  'internal.oracleReasoningEffort': z.enum(['medium', 'high', 'xhigh']).optional(),
+
+  // Tool permission settings
+  'tools.disable': z.array(z.string()).optional(),
+  'tools.enable': z.array(z.string()).optional(),
 }).strict();
 
 export type Settings = z.infer<typeof settingsSchema>;
 export type SettingsKey = keyof Settings;
+
+// ---------------------------------------------------------------------------
+// Default values for settings that have well-known defaults
+// ---------------------------------------------------------------------------
+
+/** Default values for settings keys. Only keys with documented defaults are listed. */
+export const SETTINGS_DEFAULTS: Partial<Settings> = {
+  'internal.compactionThresholdPercent': 80,
+  'anthropic.interleavedThinking.enabled': false,
+  'anthropic.effort': 'high',
+  'openai.speed': 'standard',
+};
 
 /**
  * ConfigService provides typed, validated access to provider-specific settings
@@ -42,6 +75,23 @@ export class ConfigService {
    */
   get<K extends SettingsKey>(key: K): Settings[K] | undefined {
     return this._settings[key] as Settings[K] | undefined;
+  }
+
+  /**
+   * Get a typed setting value with a fallback to the documented default.
+   * First checks explicitly set values, then falls back to SETTINGS_DEFAULTS,
+   * and finally returns the provided fallback or undefined.
+   *
+   * @param key Setting key to retrieve
+   * @param fallback Optional fallback if neither explicit nor default exists
+   * @returns Setting value, default, or fallback
+   */
+  getWithDefault<K extends SettingsKey>(key: K, fallback?: Settings[K]): Settings[K] | undefined {
+    const explicit = this._settings[key] as Settings[K] | undefined;
+    if (explicit !== undefined) return explicit;
+    const defaultVal = SETTINGS_DEFAULTS[key] as Settings[K] | undefined;
+    if (defaultVal !== undefined) return defaultVal;
+    return fallback;
   }
 
   /**

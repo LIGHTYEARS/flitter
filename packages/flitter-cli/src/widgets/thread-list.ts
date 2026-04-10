@@ -5,15 +5,16 @@
 // message count, cwd, visibility, and agentMode. The current thread is
 // highlighted with a "●" prefix and disabled.
 //
-// ThreadPreview — read-only split-view of a thread's conversation items
-// matching AMP's thread picker preview (SECTION 6, 20_thread_management.js).
+// Split-view: when previewThreadID is set (defaults to the first thread),
+// renders a Row layout: [ThreadList panel | ThreadPreview panel].
+// ThreadPreview is imported from ./thread-preview.ts.
 //
 // Colors use hardcoded defaults (cyan info, brightBlack muted) rather
 // than AmpThemeProvider. Follows the same pattern as command-palette.ts.
 
-import { StatelessWidget, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
+import { StatefulWidget, State, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
 import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/events';
-import { Column } from '../../../flitter-core/src/widgets/flex';
+import { Column, Row } from '../../../flitter-core/src/widgets/flex';
 import { Container } from '../../../flitter-core/src/widgets/container';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
 import { FocusScope } from '../../../flitter-core/src/widgets/focus-scope';
@@ -26,6 +27,7 @@ import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { BoxDecoration, Border, BorderSide } from '../../../flitter-core/src/layout/render-decorated';
 import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
 import type { ThreadHandle, ConversationItem } from '../state/types';
+import { ThreadPreview } from './thread-preview';
 
 // ---------------------------------------------------------------------------
 // Hardcoded colors (matches command-palette.ts convention)
@@ -107,115 +109,29 @@ interface ThreadListProps {
 }
 
 // ---------------------------------------------------------------------------
-// ThreadPreview
+// ThreadPreview (re-exported from ./thread-preview.ts)
+// ---------------------------------------------------------------------------
+
+// ThreadPreview is now a standalone module. Re-export for backward compatibility.
+export { ThreadPreview } from './thread-preview';
+
+// ---------------------------------------------------------------------------
+// ThreadList (StatefulWidget with split-view preview support)
 // ---------------------------------------------------------------------------
 
 /**
- * ThreadPreview — shows a read-only view of a thread's conversation items.
- * Rendered next to the thread list in a split-view layout.
- * Matches AMP's thread preview with independent scroll controller.
- */
-export class ThreadPreview extends StatelessWidget {
-  private readonly items: ReadonlyArray<ConversationItem>;
-  private readonly title: string | null;
-
-  constructor(props: { items: ReadonlyArray<ConversationItem>; title: string | null }) {
-    super({});
-    this.items = props.items;
-    this.title = props.title;
-  }
-
-  build(_context: BuildContext): Widget {
-    const previewLines: Widget[] = [];
-
-    // Title header
-    if (this.title) {
-      previewLines.push(new Text({
-        text: new TextSpan({
-          text: this.title,
-          style: new TextStyle({ foreground: INFO_COLOR, bold: true }),
-        }),
-      }));
-      previewLines.push(new SizedBox({ height: 1 }));
-    }
-
-    // Show up to 20 items as preview
-    const maxPreviewItems = 20;
-    const displayItems = this.items.slice(0, maxPreviewItems);
-
-    for (const item of displayItems) {
-      if (item.type === 'user_message') {
-        const text = item.text?.slice(0, 120) ?? '';
-        previewLines.push(new Text({
-          text: new TextSpan({
-            text: `> ${text}`,
-            style: new TextStyle({ foreground: Color.white, bold: true }),
-          }),
-        }));
-      } else if (item.type === 'assistant_message') {
-        const text = item.text?.slice(0, 120) ?? '';
-        previewLines.push(new Text({
-          text: new TextSpan({
-            text: text,
-            style: new TextStyle({ foreground: MUTED_COLOR }),
-          }),
-        }));
-      } else if (item.type === 'tool_call') {
-        previewLines.push(new Text({
-          text: new TextSpan({
-            text: `[${item.title}]`,
-            style: new TextStyle({ foreground: MUTED_COLOR, italic: true }),
-          }),
-        }));
-      }
-    }
-
-    if (this.items.length > maxPreviewItems) {
-      previewLines.push(new Text({
-        text: new TextSpan({
-          text: `... ${this.items.length - maxPreviewItems} more items`,
-          style: new TextStyle({ foreground: MUTED_COLOR, italic: true }),
-        }),
-      }));
-    }
-
-    if (previewLines.length === 0) {
-      previewLines.push(new Text({
-        text: new TextSpan({
-          text: '(empty thread)',
-          style: new TextStyle({ foreground: MUTED_COLOR, italic: true }),
-        }),
-      }));
-    }
-
-    return new Container({
-      constraints: new BoxConstraints({ maxWidth: 60 }),
-      padding: EdgeInsets.symmetric({ horizontal: 2, vertical: 1 }),
-      decoration: new BoxDecoration({
-        border: Border.all(new BorderSide({ color: MUTED_COLOR, width: 1, style: 'rounded' })),
-      }),
-      child: new Column({
-        mainAxisSize: 'min',
-        crossAxisAlignment: 'start',
-        children: previewLines,
-      }),
-    });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// ThreadList
-// ---------------------------------------------------------------------------
-
-/**
- * ThreadList — StatelessWidget overlay for browsing conversation threads.
+ * ThreadList — StatefulWidget overlay for browsing conversation threads.
+ *
+ * Manages a previewThreadID state that tracks the currently previewed thread.
+ * When getThreadItems callback is provided and previewThreadID is set,
+ * renders a split-view Row layout: [ThreadList panel | ThreadPreview panel].
  *
  * Wired to ThreadPool state. Renders a bordered panel with a title showing
  * thread count and a SelectionList of threads. Each item shows: summary
  * (title / first user message / threadID prefix), relative time, message
  * count. The current thread is prefixed with "●" and disabled.
  *
- * Widget structure:
+ * Widget structure (without preview):
  *   FocusScope (onKey: Escape -> onDismiss)
  *     Column (start, center)
  *       SizedBox (height: 2)
@@ -224,14 +140,20 @@ export class ThreadPreview extends StatelessWidget {
  *           Text "Threads (N)" (cyan, bold)
  *           SizedBox (height: 1)
  *           SelectionList (thread items) OR Text "No threads available"
+ *
+ * Widget structure (with preview):
+ *   FocusScope (onKey: Escape -> onDismiss)
+ *     Column (start, center)
+ *       SizedBox (height: 2)
+ *       Row [borderedPanel, SizedBox(width:1), ThreadPreview]
  */
-export class ThreadList extends StatelessWidget {
-  private readonly threads: ThreadEntry[];
-  private readonly currentThreadID: string | null;
-  private readonly onSelect: (threadID: string) => void;
-  private readonly onDismiss: () => void;
-  private readonly getThreadItems?: (threadID: string) => ReadonlyArray<ConversationItem>;
-  private readonly getThreadTitle?: (threadID: string) => string | null;
+export class ThreadList extends StatefulWidget {
+  readonly threads: ThreadEntry[];
+  readonly currentThreadID: string | null;
+  readonly onSelect: (threadID: string) => void;
+  readonly onDismiss: () => void;
+  readonly getThreadItems?: (threadID: string) => ReadonlyArray<ConversationItem>;
+  readonly getThreadTitle?: (threadID: string) => string | null;
 
   constructor(props: ThreadListProps) {
     super({});
@@ -243,19 +165,84 @@ export class ThreadList extends StatelessWidget {
     this.getThreadTitle = props.getThreadTitle;
   }
 
+  /** Create the mutable state for ThreadList. */
+  createState(): State<ThreadList> {
+    return new ThreadListState();
+  }
+}
+
+/**
+ * Mutable state for the ThreadList widget.
+ * Tracks previewThreadID — the ID of the thread currently being previewed
+ * in the split-view panel. Defaults to the first thread in the list.
+ */
+class ThreadListState extends State<ThreadList> {
+  /**
+   * The thread ID currently being previewed in the split-view panel.
+   * Null when no preview is active (e.g., empty thread list or no getThreadItems).
+   */
+  private _previewThreadID: string | null = null;
+
+  /** Accessor for the current preview thread ID. */
+  get previewThreadID(): string | null {
+    return this._previewThreadID;
+  }
+
+  /** Initialize previewThreadID to the first thread in the list. */
+  initState(): void {
+    super.initState();
+    this._initializePreviewThread();
+  }
+
+  /** Update previewThreadID if the thread list changed. */
+  didUpdateWidget(_oldWidget: ThreadList): void {
+    // If current preview thread is no longer in the list, reset
+    if (this._previewThreadID) {
+      const stillExists = this.widget.threads.some(t => t.threadID === this._previewThreadID);
+      if (!stillExists) {
+        this._initializePreviewThread();
+      }
+    } else {
+      this._initializePreviewThread();
+    }
+  }
+
+  /**
+   * Set previewThreadID to the first thread in the list.
+   * Picks the first non-current thread if available, otherwise the first thread.
+   */
+  private _initializePreviewThread(): void {
+    const threads = this.widget.threads;
+    if (threads.length === 0) {
+      this._previewThreadID = null;
+      return;
+    }
+    // Prefer first non-current thread for preview; fall back to first thread
+    const nonCurrent = threads.find(t => t.threadID !== this.widget.currentThreadID);
+    this._previewThreadID = nonCurrent?.threadID ?? threads[0]!.threadID;
+  }
+
+  /**
+   * Handle thread selection: update previewThreadID and forward to onSelect.
+   * The preview updates immediately on selection.
+   */
+  private _handleSelect = (threadID: string): void => {
+    this.widget.onSelect(threadID);
+  };
+
   build(_context: BuildContext): Widget {
     const side = new BorderSide({ color: INFO_COLOR, width: 1, style: 'rounded' });
 
     const title = new Text({
       text: new TextSpan({
-        text: `Threads (${this.threads.length})`,
+        text: `Threads (${this.widget.threads.length})`,
         style: new TextStyle({ foreground: INFO_COLOR, bold: true }),
       }),
     });
 
-    const items: SelectionItem[] = this.threads.map(t => {
+    const items: SelectionItem[] = this.widget.threads.map(t => {
       const age = formatAge(t.updatedAt);
-      const isCurrent = t.threadID === this.currentThreadID;
+      const isCurrent = t.threadID === this.widget.currentThreadID;
       const prefix = isCurrent ? '● ' : '';
       return {
         label: `${prefix}${t.summary || t.threadID.slice(0, 8)}`,
@@ -269,8 +256,8 @@ export class ThreadList extends StatelessWidget {
     if (items.length > 0) {
       listContent = new SelectionList({
         items,
-        onSelect: this.onSelect,
-        onCancel: this.onDismiss,
+        onSelect: this._handleSelect,
+        onCancel: this.widget.onDismiss,
         showDescription: true,
       });
     } else {
@@ -301,12 +288,36 @@ export class ThreadList extends StatelessWidget {
       child: innerColumn,
     });
 
+    // Build the main content: optionally with split-view preview
+    let mainContent: Widget;
+    const canShowPreview = this._previewThreadID !== null && this.widget.getThreadItems;
+
+    if (canShowPreview) {
+      const previewItems = this.widget.getThreadItems!(this._previewThreadID!);
+      const previewTitle = this.widget.getThreadTitle?.(this._previewThreadID!) ?? null;
+
+      mainContent = new Row({
+        mainAxisSize: 'min',
+        crossAxisAlignment: 'start',
+        children: [
+          borderedPanel,
+          new SizedBox({ width: 1 }),
+          new ThreadPreview({
+            items: previewItems,
+            title: previewTitle,
+          }),
+        ],
+      });
+    } else {
+      mainContent = borderedPanel;
+    }
+
     const outerColumn = new Column({
       mainAxisAlignment: 'start',
       crossAxisAlignment: 'center',
       children: [
         new SizedBox({ height: 2 }),
-        borderedPanel,
+        mainContent,
       ],
     });
 
@@ -314,7 +325,7 @@ export class ThreadList extends StatelessWidget {
       autofocus: true,
       onKey: (event: KeyEvent): KeyEventResult => {
         if (event.key === 'Escape') {
-          this.onDismiss();
+          this.widget.onDismiss();
           return 'handled';
         }
         return 'ignored';

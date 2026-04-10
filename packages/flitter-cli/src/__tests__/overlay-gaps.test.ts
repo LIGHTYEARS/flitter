@@ -8,8 +8,8 @@
 //          (BoxDecoration with color: Color.black) so content underneath
 //          does not bleed through.
 //
-// BUG-passthrough — buildOverlays returns baseContent directly (same
-//          reference, no Stack wrapper) when no overlays are active.
+// BUG-passthrough — buildOverlays always returns Stack (even with no overlays)
+//          to prevent widget tree type changes that cause subtree unmount.
 
 import { describe, test, expect } from 'bun:test';
 import { OverlayManager } from '../state/overlay-manager';
@@ -98,21 +98,24 @@ describe('BUG-1: CommandPalette borderedPanel has opaque background', () => {
 });
 
 // ---------------------------------------------------------------------------
-// BUG-passthrough — buildOverlays returns baseContent when no overlays
+// Stable Stack — buildOverlays always returns Stack to prevent tree type changes
 // ---------------------------------------------------------------------------
 
-describe('buildOverlays returns baseContent directly when no overlays active', () => {
+describe('buildOverlays always returns Stack (prevents widget tree type change)', () => {
   /**
-   * When there are no overlay entries, buildOverlays must return the exact
-   * same widget reference that was passed in — no Stack wrapper.
+   * Even with no overlay entries, buildOverlays must return a Stack wrapping
+   * the base content. This ensures the Expanded child type never changes,
+   * preventing subtree unmount/remount when overlays appear or disappear.
    */
-  test('returns same reference as input', () => {
+  test('returns Stack containing base as only child when no overlays', () => {
     const manager = new OverlayManager();
     const base = new Text({ text: 'base' });
 
     const result = manager.buildOverlays(base);
 
-    expect(result).toBe(base);
-    expect(result).not.toBeInstanceOf(Stack);
+    expect(result).toBeInstanceOf(Stack);
+    const stack = result as Stack;
+    expect(stack.children).toHaveLength(1);
+    expect(stack.children[0]).toBe(base);
   });
 });

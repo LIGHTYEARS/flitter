@@ -44,7 +44,10 @@ import { launchEditor, type EditorResult } from '../utils/editor-launcher';
 import { readImageFromClipboard } from '../utils/clipboard-image';
 import { ToastController } from '../widgets/toast-overlay';
 import { SkillService } from './skill-service';
+import { HandoffService } from './handoff-service';
 import type { SkillDefinition } from './skill-types';
+import { parseShellCommand } from '../widgets/input-area';
+import { BashExecutor } from '../tools/bash-executor';
 
 /**
  * AppState is the top-level application state for the flitter-cli TUI.
@@ -94,24 +97,27 @@ export class AppState {
 
   /**
    * Handoff mode UI state matching AMP's GhR.handoffState object exactly.
-   * Tracks the enter/generate/abort/exit lifecycle for thread handoff.
-   * See 24_main_app_state.js and 30_main_tui_state.js in AMP source.
+   * Delegates to HandoffService for the actual state management (S2-11).
+   * This getter provides backward-compatible read access.
    */
-  handoffState: HandoffState = { ...DEFAULT_HANDOFF_STATE };
+  get handoffState(): HandoffState {
+    return this._handoffService?.handoffState ?? { ...DEFAULT_HANDOFF_STATE };
+  }
 
-  /** Interval timer for handoff countdown auto-submit. Cleared on exit/abort/submit. */
-  private _countdownTimer: ReturnType<typeof setInterval> | null = null;
-
-  /** Braille spinner animation frame index for handoff generating state. */
-  private _spinnerFrame: number = 0;
+  /**
+   * HandoffService instance — owns all handoff mode lifecycle logic.
+   * Extracted from AppState to match AMP's pVR() handoff service pattern (S2-11).
+   * Initialized in create() factory after ThreadPool is available.
+   */
+  private _handoffService: HandoffService | null = null;
 
   // --- Bash Invocation Tracking (SHELL-01, SHELL-02) ---
 
   /** Active bash invocations tracked in the UI. Matches AMP's bashInvocations array. */
   bashInvocations: BashInvocation[] = [];
 
-  /** Pending bash invocations by ID — awaiting acknowledgement. Matches AMP's pendingBashInvocations. */
-  pendingBashInvocations: Map<string, BashInvocation> = new Map();
+  /** 等待显示的 bash invocation（75ms 延迟后才加入 bashInvocations[]）。匹配 AMP 的 pendingBashInvocations。 */
+  pendingBashInvocations = new Map<string, { invocation: BashInvocation; showTimer: ReturnType<typeof setTimeout> }>();
 
   /** Timestamps when each invocation was first shown (epoch ms). */
   bashInvocationShownAt: Map<string, number> = new Map();
@@ -121,6 +127,28 @@ export class AppState {
 
   /** Current shell mode status for UI display. Matches AMP's currentShellModeStatus. */
   currentShellModeStatus: ShellModeStatus = null;
+
+  // --- Double-Escape 取消确认状态 (G4) ---
+
+  /** 是否处于"确认取消处理"状态（第一次 Esc 后设为 true，1s 超时后重置）。匹配 AMP 的 isConfirmingCancelProcessing。 */
+  isConfirmingCancelProcessing = false;
+
+  /** 取消确认超时计时器（1s 后自动重置 isConfirmingCancelProcessing）。 */
+  cancelProcessingConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // --- Edit Previous Message (S2-7) ---
+
+  /**
+   * Whether the user is currently editing a previous message.
+   * AMP ref: isEditingPreviousMessage — true when Up-arrow triggers edit mode.
+   */
+  isEditingPreviousMessage = false;
+
+  /**
+   * Index of the message being edited in session.items, or null if not editing.
+   * AMP ref: editingMessageOrdinal — tracks which message ordinal is being edited.
+   */
+  editingMessageIndex: number | null = null;
 
   // --- Image Attachment State (IMG-01, IMG-02, IMG-03, IMG-04) ---
 
@@ -134,6 +162,16 @@ export class AppState {
 
   /** Files modified during the current session. Matches AMP's ThreadWorker.fileChanges. */
   fileChanges: FileChangeEntry[] = [];
+
+  // --- MCP Server Status (OVLY-06) ---
+
+  /** MCP server connection status entries for the MCP status modal. */
+  mcpServers: import('../widgets/mcp-status-modal').McpServerEntry[] = [];
+
+  // --- Console Log Viewer (OVLY-07) ---
+
+  /** Runtime log entries for the console overlay. */
+  consoleLogEntries: Array<{ timestamp: number; level: string; message: string }> = [];
 
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
@@ -313,16 +351,20 @@ export class AppState {
     return this.session.lifecycle === 'tool_execution';
   }
 
+  /** True when a tool command (e.g. Bash) is actively executing. Derived from session lifecycle. */
   get isExecutingCommand(): boolean {
-    return false;
+    return this.session.lifecycle === 'tool_execution';
   }
 
   get isRunningShell(): boolean {
-    return false;
+    return this.bashInvocations.some(inv => inv.status === 'running') ||
+      this.pendingBashInvocations.size > 0;
   }
 
+  /** True when auto-compaction is in progress. Derived from PromptController compaction state. */
   get isAutoCompacting(): boolean {
-    return false;
+    const status = this._promptController?.getCompactionStatus?.();
+    return status?.compactionState === 'compacting';
   }
 
   get isHandingOff(): boolean {
@@ -414,10 +456,26 @@ export class AppState {
   // ---------------------------------------------------------------------------
 
   /**
-   * Submit a user prompt. Delegates to PromptController.submitPrompt().
-   * Handles the full lifecycle: processing -> streaming -> complete/error.
+   * Submit a user prompt. Intercepts `$`/`$$` prefixed text to invoke
+   * bash commands directly (matching AMP's onTextSubmitted shell mode branch).
+   * Non-shell text delegates to PromptController.submitPrompt().
    */
   async submitPrompt(text: string): Promise<void> {
+    this.clearCompletedBashInvocations();
+
+    const shellCmd = parseShellCommand(text);
+    if (shellCmd) {
+      if (!shellCmd.cmd) {
+        log.info('AppState.submitPrompt: empty shell command, ignoring');
+        return;
+      }
+      if (this.isProcessing) {
+        log.info('AppState.submitPrompt: shell mode blocked while agent is active');
+        return;
+      }
+      await this.invokeBashCommand(shellCmd.cmd, { visibility: shellCmd.visibility });
+      return;
+    }
     return this.promptController.submitPrompt(text);
   }
 
@@ -553,8 +611,8 @@ export class AppState {
     if (this._isShutdown) return;
     this._isShutdown = true;
 
-    // Clean up handoff countdown timer
-    this._clearCountdownTimer();
+    // Clean up handoff state via HandoffService
+    this._handoffService?.exitHandoffMode();
 
     // Cancel any active prompt stream before saving
     if (this._promptController) {
@@ -600,13 +658,16 @@ export class AppState {
     this._switchToHandle(handle);
 
     this.selectedMessageIndex = null;
-    this.currentMode = 'smart';
+    // New threads default to 'smart' mode (matching AMP).
+    // This also persists to the new thread handle via setAgentMode.
+    this.setAgentMode('smart');
     this._notifyListeners();
   }
 
   /**
    * Switch AppState's session and conversation references to a thread handle.
    * Re-wires the session listener and updates promptController if present.
+   * Restores per-thread agentMode if the target thread has one stored.
    */
   private _switchToHandle(handle: ThreadHandle): void {
     // Remove old session listener
@@ -618,6 +679,14 @@ export class AppState {
 
     // Re-wire session listener
     this.session.addListener(this._sessionListener);
+
+    // Restore per-thread agent mode if available (S2-9).
+    // Matches AMP's per-thread agentMode persistence:
+    // on thread switch, the target thread's stored agentMode is restored.
+    if (handle.agentMode) {
+      this.currentMode = handle.agentMode;
+      log.info(`_switchToHandle: restored agentMode="${handle.agentMode}" from thread ${handle.threadID}`);
+    }
 
     this._notifyListeners();
   }
@@ -723,9 +792,28 @@ export class AppState {
     const current = this.currentMode ?? VISIBLE_MODE_KEYS[0];
     const idx = VISIBLE_MODE_KEYS.indexOf(current);
     const nextIdx = idx === -1 ? 0 : (idx + 1) % VISIBLE_MODE_KEYS.length;
-    this.currentMode = VISIBLE_MODE_KEYS[nextIdx];
+    this.setAgentMode(VISIBLE_MODE_KEYS[nextIdx]);
     this._agentModePulseSeq = (this._agentModePulseSeq ?? 0) + 1;
-    log.info(`Agent mode cycled to: ${this.currentMode}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * Set the active agent mode globally and persist to the current thread handle.
+   * Matches AMP's per-thread agentMode persistence (214 refs):
+   * - Sets the global currentMode on AppState
+   * - Writes agentMode to the active thread handle for per-thread persistence
+   * - On thread switch, the stored agentMode is restored
+   *
+   * @param mode - The agent mode key to set (e.g., 'smart', 'rush', 'deep')
+   */
+  setAgentMode(mode: string): void {
+    this.currentMode = mode;
+    // Persist to current thread handle for per-thread restoration
+    const handle = this.threadPool.activeThreadHandleOrNull;
+    if (handle) {
+      handle.agentMode = mode;
+    }
+    log.info(`Agent mode set to: ${mode}`);
     this._notifyListeners();
   }
 
@@ -998,209 +1086,97 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
-  // Handoff Mode (HAND-01, HAND-02, HAND-03)
+  // Handoff Mode (HAND-01, HAND-02, HAND-03) — delegates to HandoffService (S2-11)
   // ---------------------------------------------------------------------------
 
-  /** Braille spinner animation frames matching AMP's toBraille() output. */
-  private static readonly _BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
   /**
-   * Enter handoff mode. The InputArea switches to handoff prompt editing.
-   * Matches AMP's enterHandoffMode callback passed to InputArea.
-   *
-   * While in handoff mode (and not generating), the user can change the
-   * agent mode for the target thread (canChangeAgentModeInPromptEditor).
+   * Enter handoff mode. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    */
   enterHandoffMode(): void {
-    if (this.handoffState.isInHandoffMode) return;
-    this.handoffState = {
-      ...DEFAULT_HANDOFF_STATE,
-      isInHandoffMode: true,
-    };
-    log.info('AppState.enterHandoffMode');
-    this._notifyListeners();
+    this._handoffService?.enterHandoffMode();
   }
 
   /**
-   * Exit handoff mode, resetting all handoff state to defaults.
-   * Clears any active countdown timer and spinner.
-   *
-   * Called on:
-   * - Thread switch (onThreadSwitch -> handoffController?.resetUIState())
-   * - Second Escape in abort confirmation
-   * - Handoff submission completion
-   * - New thread creation
-   *
-   * Matches AMP's exitHandoffMode / resetUIState pattern.
+   * Exit handoff mode. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    */
   exitHandoffMode(): void {
-    if (!this.handoffState.isInHandoffMode &&
-        !this.handoffState.isGeneratingHandoff &&
-        this.handoffState.countdownSeconds === null) {
-      return; // Already in default state
-    }
-    this._clearCountdownTimer();
-    this.handoffState = { ...DEFAULT_HANDOFF_STATE };
-    this._spinnerFrame = 0;
-    log.info('AppState.exitHandoffMode');
-    this._notifyListeners();
+    this._handoffService?.exitHandoffMode();
   }
 
   /**
-   * Submit the handoff goal. Creates a new thread via ThreadPool.createHandoff()
-   * and transitions to generating state.
-   *
-   * Matches AMP's submit flow:
-   * 1. Sets isGeneratingHandoff = true, starts spinner
-   * 2. Calls threadPool.createHandoff(goal, options)
-   * 3. On completion: exits handoff mode, switches to new thread
+   * Submit the handoff goal. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    *
    * @param goal - The user's goal text for the new thread
    */
   async submitHandoff(goal: string): Promise<void> {
-    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) {
-      log.warn('AppState.submitHandoff: not in handoff mode');
-      return;
-    }
-
-    // Transition to generating state
-    this._clearCountdownTimer();
-    this._spinnerFrame = 0;
-    this.handoffState = {
-      ...this.handoffState,
-      isGeneratingHandoff: true,
-      isConfirmingAbortHandoff: false,
-      pendingHandoffPrompt: goal,
-      spinner: AppState._BRAILLE_FRAMES[0],
-      countdownSeconds: null,
-    };
-    log.info(`AppState.submitHandoff: goal="${goal.slice(0, 60)}..."`);
-    this._notifyListeners();
-
-    // Start spinner animation
-    const spinnerInterval = setInterval(() => {
-      this._spinnerFrame = (this._spinnerFrame + 1) % AppState._BRAILLE_FRAMES.length;
-      this.handoffState = {
-        ...this.handoffState,
-        spinner: AppState._BRAILLE_FRAMES[this._spinnerFrame],
-      };
-      this._notifyListeners();
-    }, 80);
-
-    try {
-      // Create handoff thread via ThreadPool
-      const handle = this.threadPool.createHandoff(goal, {
-        agentMode: this.currentMode,
-      });
-
-      // Switch to the new thread
-      clearInterval(spinnerInterval);
-      this.exitHandoffMode();
-      this._switchToHandle(handle);
-      this.selectedMessageIndex = null;
-
-      log.info(`AppState.submitHandoff: complete, switched to ${handle.threadID}`);
-      this._notifyListeners();
-    } catch (err) {
-      clearInterval(spinnerInterval);
-      this.exitHandoffMode();
-      log.error(`AppState.submitHandoff: failed`, err);
-      this._notifyListeners();
-    }
+    if (!this._handoffService) return;
+    await this._handoffService.submitHandoff(
+      goal,
+      this.currentMode,
+      (handle: ThreadHandle) => {
+        this._switchToHandle(handle);
+        this.selectedMessageIndex = null;
+      },
+    );
   }
 
   /**
-   * Handle Escape key during handoff mode. Two-stage abort:
-   * - First call: sets isConfirmingAbortHandoff = true
-   * - Second call: exits handoff mode entirely
-   *
-   * Matches AMP's two-stage abort pattern:
-   *   "Esc to abort handoff" -> "Esc again to abort handoff"
+   * Handle Escape key during handoff mode. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    */
   abortHandoffConfirmation(): void {
-    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) return;
-
-    if (this.handoffState.isConfirmingAbortHandoff) {
-      // Second Escape: actually exit
-      this.exitHandoffMode();
-      log.info('AppState.abortHandoffConfirmation: confirmed, exiting handoff mode');
-    } else {
-      // First Escape: enter confirmation state
-      this.handoffState = {
-        ...this.handoffState,
-        isConfirmingAbortHandoff: true,
-      };
-      log.info('AppState.abortHandoffConfirmation: awaiting confirmation');
-      this._notifyListeners();
-    }
+    this._handoffService?.abortHandoffConfirmation();
   }
 
   /**
-   * Start the handoff countdown timer. Decrements countdownSeconds every
-   * second and auto-submits when it reaches 0.
-   *
-   * Matches AMP's countdown UI: "Auto-submitting in N..." with "type to edit"
-   * hint. Typing or editing cancels the countdown.
+   * Start the handoff countdown timer. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    *
    * @param seconds - Initial countdown value (typically 10-30)
    * @param goal - The goal text to auto-submit when countdown reaches 0
    */
   startCountdown(seconds: number, goal: string): void {
-    this._clearCountdownTimer();
-    this.handoffState = {
-      ...this.handoffState,
-      countdownSeconds: seconds,
-      pendingHandoffPrompt: goal,
-    };
-    this._notifyListeners();
-
-    this._countdownTimer = setInterval(() => {
-      const current = this.handoffState.countdownSeconds;
-      if (current === null || current <= 1) {
-        // Countdown complete: auto-submit
-        this._clearCountdownTimer();
-        const pendingGoal = this.handoffState.pendingHandoffPrompt;
-        if (pendingGoal) {
-          this.submitHandoff(pendingGoal).catch(err => {
-            log.error('AppState.startCountdown: auto-submit failed', err);
-          });
-        }
-      } else {
-        this.handoffState = {
-          ...this.handoffState,
-          countdownSeconds: current - 1,
-        };
-        this._notifyListeners();
-      }
-    }, 1000);
+    this._handoffService?.startCountdown(
+      seconds,
+      goal,
+      this.currentMode,
+      (handle: ThreadHandle) => {
+        this._switchToHandle(handle);
+        this.selectedMessageIndex = null;
+      },
+    );
   }
 
   /**
-   * Cancel the countdown timer without exiting handoff mode.
-   * Called when the user starts typing (editing the goal).
-   *
-   * Matches AMP's "type to edit" behavior that cancels the auto-submit.
+   * Cancel the countdown timer. Delegates to HandoffService.
+   * Public signature is preserved for backward compatibility.
    */
   cancelCountdown(): void {
-    if (this.handoffState.countdownSeconds === null) return;
-    this._clearCountdownTimer();
-    this.handoffState = {
-      ...this.handoffState,
-      countdownSeconds: null,
-    };
-    log.info('AppState.cancelCountdown');
-    this._notifyListeners();
+    this._handoffService?.cancelCountdown();
   }
 
   /**
-   * Clear the internal countdown interval timer.
-   * Idempotent — safe to call when no timer is active.
+   * Follow a handoff target thread if the source is still active.
+   * Delegates to HandoffService. New public API (S2-11).
+   *
+   * @param targetThreadID - The handoff target thread to follow
    */
-  private _clearCountdownTimer(): void {
-    if (this._countdownTimer !== null) {
-      clearInterval(this._countdownTimer);
-      this._countdownTimer = null;
-    }
+  followHandoffIfSourceActive(targetThreadID: string): void {
+    this._handoffService?.followHandoffIfSourceActive(targetThreadID);
+  }
+
+  /**
+   * Build a handoff system prompt for the given source thread.
+   * Delegates to HandoffService. New public API (S2-11).
+   *
+   * @param sourceThreadID - The thread that initiated the handoff
+   * @returns A system prompt string, or empty string if service not ready
+   */
+  buildHandoffSystemPrompt(sourceThreadID: string): string {
+    return this._handoffService?.buildHandoffSystemPrompt(sourceThreadID) ?? '';
   }
 
   // ---------------------------------------------------------------------------
@@ -1219,19 +1195,110 @@ export class AppState {
   }
 
   /**
-   * Remove a bash invocation by ID and clean up associated timers.
+   * 移除 bash invocation。严格参照 AMP 的 removeBashInvocation 实现：
+   * - 如果还在 pending 中，取消 showTimer 并直接删除
+   * - 如果已显示但不足 500ms，设置延迟移除定时器（G2: 500ms 最小显示时间）
+   * - 否则立即通过 doRemoveBashInvocation 移除
    */
   removeBashInvocation(id: string): void {
-    this.bashInvocations = this.bashInvocations.filter(inv => inv.id !== id);
+    // 先检查 pending——如果还在 pending 中，取消 showTimer 并直接移除
+    const pendingEntry = this.pendingBashInvocations.get(id);
+    if (pendingEntry) {
+      clearTimeout(pendingEntry.showTimer);
+      this.pendingBashInvocations.delete(id);
+      return;
+    }
+
+    // G2: 500ms 最小显示时间
+    const shownAt = this.bashInvocationShownAt.get(id);
+    if (shownAt !== undefined) {
+      const elapsed = Date.now() - shownAt;
+      if (elapsed < 500 && !this.bashInvocationRemoveTimers.has(id)) {
+        const timer = setTimeout(() => {
+          this.doRemoveBashInvocation(id);
+        }, 500 - elapsed);
+        this.bashInvocationRemoveTimers.set(id, timer);
+        return;
+      }
+    }
+
+    this.doRemoveBashInvocation(id);
+  }
+
+  /**
+   * 实际移除 bash invocation 的内部方法。参照 AMP 的 doRemoveBashInvocation。
+   * 清理 shownAt 和 removeTimer 记录，从 bashInvocations[] 中过滤移除，并通知 UI。
+   */
+  private doRemoveBashInvocation(id: string): void {
     this.bashInvocationShownAt.delete(id);
-    const timer = this.bashInvocationRemoveTimers.get(id);
-    if (timer) {
+    this.bashInvocationRemoveTimers.delete(id);
+    this.bashInvocations = this.bashInvocations.filter(inv => inv.id !== id);
+    log.info(`AppState.doRemoveBashInvocation: id=${id}`);
+    this._notifyListeners();
+  }
+
+  /**
+   * 取消所有 bash invocation（pending + running + shown）。
+   * 严格参照 AMP cancelBashInvocations 实现（chunk-044.js tr 后 line 393-396）：
+   * 1. 清理 pending invocations（清除 showTimer 并 abort）
+   * 2. 清理 remove timers 和 shownAt 记录
+   * 3. Abort 正在运行的 invocation 并清空 shown 列表
+   */
+  cancelBashInvocations(): void {
+    // 1. 清理 pending invocations
+    for (const [id, entry] of this.pendingBashInvocations) {
+      clearTimeout(entry.showTimer);
+      entry.invocation.abortController.abort();
+      this.pendingBashInvocations.delete(id);
+    }
+
+    // 2. 清理 remove timers
+    for (const [id, timer] of this.bashInvocationRemoveTimers) {
       clearTimeout(timer);
       this.bashInvocationRemoveTimers.delete(id);
+      this.bashInvocationShownAt.delete(id);
     }
-    this.pendingBashInvocations.delete(id);
-    log.info(`AppState.removeBashInvocation: id=${id}`);
+
+    // 3. Abort 正在运行的 invocation（匹配 AMP: 只 abort status 为 running 的）
+    const running = this.bashInvocations.find(inv => inv.status === 'running');
+    if (running) {
+      running.abortController.abort();
+    }
+
+    this.bashInvocations = [];
     this._notifyListeners();
+  }
+
+  /**
+   * 清理所有已完成/失败的 bash invocation。
+   * 在用户提交新 prompt 时调用，使之前的输出消失。
+   * 同时处理 pending 和 shown 中的已完成项。
+   */
+  clearCompletedBashInvocations(): void {
+    // 清理 pending 中已完成的
+    for (const [id, entry] of this.pendingBashInvocations) {
+      if (entry.invocation.status !== 'running') {
+        clearTimeout(entry.showTimer);
+        this.pendingBashInvocations.delete(id);
+      }
+    }
+    // 清理 shown 中已完成的
+    const before = this.bashInvocations.length;
+    const completedIds = this.bashInvocations
+      .filter(inv => inv.status !== 'running')
+      .map(inv => inv.id);
+    for (const id of completedIds) {
+      this.bashInvocationShownAt.delete(id);
+      const timer = this.bashInvocationRemoveTimers.get(id);
+      if (timer) {
+        clearTimeout(timer);
+        this.bashInvocationRemoveTimers.delete(id);
+      }
+    }
+    this.bashInvocations = this.bashInvocations.filter(inv => inv.status === 'running');
+    if (this.bashInvocations.length !== before) {
+      this._notifyListeners();
+    }
   }
 
   /**
@@ -1243,6 +1310,81 @@ export class AppState {
     this.currentShellModeStatus = status;
     log.info(`AppState.setShellModeStatus: ${status}`);
     this._notifyListeners();
+  }
+
+  /**
+   * 直接执行 shell 模式的 bash 命令（`$`/`$$` 前缀）。
+   * 严格参照 AMP 的 invokeBashCommand 实现：
+   * - G1: 75ms pending→shown 延迟（先放入 pendingBashInvocations，75ms 后才加入 bashInvocations[]）
+   * - G2: 完成后通过 removeBashInvocation 实现 500ms 最小显示时间
+   * - 使用 AbortController 支持取消
+   */
+  async invokeBashCommand(command: string, opts: { visibility: 'shell' | 'hidden' }): Promise<void> {
+    const id = `bash-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const abortController = new AbortController();
+    const invocation: BashInvocation = {
+      id,
+      command,
+      startedAt: Date.now(),
+      status: 'running',
+      abortController,
+      hidden: opts.visibility === 'hidden',
+    };
+
+    // G1: 75ms pending→shown 延迟（AMP: pendingBashInvocations + setTimeout 75ms）
+    const showTimer = setTimeout(() => {
+      const entry = this.pendingBashInvocations.get(id);
+      if (entry) {
+        this.pendingBashInvocations.delete(id);
+        this.bashInvocationShownAt.set(id, Date.now());
+        this.bashInvocations = [...this.bashInvocations, entry.invocation];
+        this._notifyListeners();
+      }
+    }, 75);
+
+    this.pendingBashInvocations.set(id, { invocation, showTimer });
+
+    log.info(`AppState.invokeBashCommand: id=${id} cmd=${command.slice(0, 200)} visibility=${opts.visibility}`);
+
+    const executor = new BashExecutor();
+    try {
+      const result = await executor.execute(
+        { command },
+        { cwd: this.metadata.cwd, abortSignal: abortController.signal },
+      );
+
+      const finalStatus = result.isError ? 'failed' : 'completed';
+
+      // 更新 pending 和 shown 中的 invocation 状态和输出
+      const pendingEntry = this.pendingBashInvocations.get(id);
+      if (pendingEntry) {
+        pendingEntry.invocation.status = finalStatus as BashInvocation['status'];
+        pendingEntry.invocation.output = result.content;
+      }
+      this.bashInvocations = this.bashInvocations.map(inv =>
+        inv.id === id
+          ? { ...inv, status: finalStatus as BashInvocation['status'], output: result.content }
+          : inv,
+      );
+
+      this._notifyListeners();
+      this.removeBashInvocation(id);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+
+      const pendingEntry = this.pendingBashInvocations.get(id);
+      if (pendingEntry) {
+        pendingEntry.invocation.status = 'failed';
+        pendingEntry.invocation.output = `Error: ${errMsg}`;
+      }
+      this.bashInvocations = this.bashInvocations.map(inv =>
+        inv.id === id ? { ...inv, status: 'failed' as const, output: `Error: ${errMsg}` } : inv,
+      );
+
+      log.error(`AppState.invokeBashCommand: error: ${errMsg}`);
+      this._notifyListeners();
+      this.removeBashInvocation(id);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1376,6 +1518,71 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
+  // Edit Previous Message (S2-7)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Attempt to edit the previous user message.
+   *
+   * Finds the last user message in the session, copies its text into the
+   * input controller, marks the editing state, and truncates the conversation
+   * after that message so re-submission replaces the original exchange.
+   *
+   * AMP ref: editingMessageOrdinal, isEditingPreviousMessage
+   *
+   * @returns true if a message was found and editing was initiated, false otherwise
+   */
+  editPreviousMessage(): boolean {
+    // Only allow editing when session is idle
+    if (this.session.lifecycle !== 'idle' && this.session.lifecycle !== 'complete' && this.session.lifecycle !== 'cancelled') {
+      log.debug('AppState.editPreviousMessage: rejected', { lifecycle: this.session.lifecycle });
+      return false;
+    }
+
+    // Reset lifecycle to idle if in terminal state
+    if (this.session.lifecycle === 'complete' || this.session.lifecycle === 'cancelled') {
+      this.session.reset();
+    }
+
+    const index = this.session.getLastUserMessageIndex();
+    if (index === null) {
+      log.debug('AppState.editPreviousMessage: no user message found');
+      return false;
+    }
+
+    const text = this.session.getMessageAt(index);
+    if (text === null || text.trim().length === 0) {
+      log.debug('AppState.editPreviousMessage: empty user message', { index });
+      return false;
+    }
+
+    // Set editing state
+    this.isEditingPreviousMessage = true;
+    this.editingMessageIndex = index;
+
+    // Truncate conversation after the user message (removes assistant reply + subsequent)
+    this.session.truncateAfter(index);
+
+    log.info('AppState.editPreviousMessage: editing message', { index, textLength: text.length });
+    this._notifyListeners();
+
+    // Return the text for the caller to put into the input controller
+    return true;
+  }
+
+  /**
+   * Cancel editing mode without submitting.
+   * Resets isEditingPreviousMessage and editingMessageIndex.
+   */
+  cancelEditPreviousMessage(): void {
+    if (!this.isEditingPreviousMessage) return;
+    this.isEditingPreviousMessage = false;
+    this.editingMessageIndex = null;
+    log.info('AppState.cancelEditPreviousMessage');
+    this._notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
   // Confirmation Overlay (OVLY-02)
   // ---------------------------------------------------------------------------
 
@@ -1485,6 +1692,52 @@ export class AppState {
       placement: { type: 'fullscreen' },
       builder: (onDismiss: () => void) => new FileChangesOverlay({
         files: this.fileChanges,
+        onDismiss,
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // MCP Status Modal (OVLY-06)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show the MCP status modal listing all MCP server connections.
+   * Matches AMP's MCP server status overlay pattern.
+   */
+  showMcpStatus(): void {
+    // Lazy import to avoid circular dependency
+    const { McpStatusModal } = require('../widgets/mcp-status-modal');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.MCP_STATUS,
+      priority: OVERLAY_PRIORITIES.MCP_STATUS,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new McpStatusModal({
+        servers: this.mcpServers ?? [],
+        onDismiss,
+      }),
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Console Overlay (OVLY-07)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Show the console overlay with runtime log entries.
+   * Displays log entries from consoleLogEntries with level-based coloring.
+   */
+  showConsole(): void {
+    // Lazy import to avoid circular dependency
+    const { ConsoleOverlay } = require('../widgets/console-overlay');
+    this.overlayManager.show({
+      id: OVERLAY_IDS.CONSOLE,
+      priority: OVERLAY_PRIORITIES.CONSOLE,
+      modal: true,
+      placement: { type: 'fullscreen' },
+      builder: (onDismiss: () => void) => new ConsoleOverlay({
+        logEntries: this.consoleLogEntries,
         onDismiss,
       }),
     });
@@ -1658,6 +1911,8 @@ export class AppState {
       visibility: 'visible',
       agentMode: 'smart',
       queuedMessages: [],
+      draftContent: null,
+      threadStatus: null,
     };
     threadPool.activateThread(initialHandle);
 
@@ -1676,9 +1931,26 @@ export class AppState {
         // Read from ConfigService if available, default to 80%
         return config.configService?.get('internal.compactionThresholdPercent') ?? 80;
       },
+      getPendingSkills: () => {
+        return appState.skillService.getPendingSkills();
+      },
+      clearPendingSkills: () => {
+        appState.skillService.clearPendingSkills();
+      },
     });
     appState.setPromptController(controller);
     threadPool.setCompactionStatusProvider(() => controller.getCompactionStatus());
+
+    // Initialize HandoffService (S2-11) — must come after threadPool is available
+    appState._handoffService = new HandoffService({
+      threadPool: appState.threadPool,
+      onSubmit: (text: string) => {
+        appState.submitPrompt(text);
+      },
+      onStateChange: () => {
+        appState._notifyListeners();
+      },
+    });
 
     log.info(`AppState.create: sessionId=${sessionId} threadID=${threadID} model=${config.provider.model} cwd=${config.cwd}`);
 

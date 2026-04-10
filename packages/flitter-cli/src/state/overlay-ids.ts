@@ -24,6 +24,10 @@ export const OVERLAY_IDS = {
   CONTEXT_DETAIL: 'contextDetail',
   CONTEXT_ANALYZE: 'contextAnalyze',
   FILE_CHANGES: 'fileChanges',
+  MCP_STATUS: 'mcpStatus',
+  NEWS_FEED: 'newsFeed',
+  IDE_PICKER: 'idePicker',
+  CONSOLE: 'console',
 } as const;
 
 /**
@@ -48,6 +52,10 @@ export const OVERLAY_PRIORITIES = {
   CONTEXT_DETAIL: 50,
   CONTEXT_ANALYZE: 50,
   FILE_CHANGES: 50,
+  MCP_STATUS: 50,
+  NEWS_FEED: 50,
+  IDE_PICKER: 50,
+  CONSOLE: 50,
   FILE_PICKER: 25,
   TOAST: 10,
 } as const;

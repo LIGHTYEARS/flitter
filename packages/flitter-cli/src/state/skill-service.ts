@@ -15,6 +15,27 @@ import type {
 } from './skill-types';
 import { homedir } from 'node:os';
 import { relative, resolve } from 'node:path';
+import { log } from '../utils/logger';
+
+// ---------------------------------------------------------------------------
+// PendingSkill — a skill queued for injection into the next prompt turn
+// ---------------------------------------------------------------------------
+
+/**
+ * A skill queued for injection into the next prompt turn.
+ * Matches AMP's _pendingSkills BehaviorSubject element shape.
+ *
+ * - id: unique identifier for deduplication and removal
+ * - name: skill display name (used as invoke key)
+ * - content: skill body text to inject as an info message
+ * - injectedAt: epoch ms when the skill was added (for ordering/diagnostics)
+ */
+export interface PendingSkill {
+  id: string;
+  name: string;
+  content: string;
+  injectedAt?: number;
+}
 
 // ---------------------------------------------------------------------------
 // SkillService
@@ -42,6 +63,12 @@ export class SkillService {
 
   /** Change listeners notified on any state mutation. */
   private _listeners: Set<() => void> = new Set();
+
+  /**
+   * Pending skills awaiting injection into the next prompt turn.
+   * Keyed by skill ID for O(1) add/remove. Matches AMP's _pendingSkills BehaviorSubject.
+   */
+  private _pendingSkills: Map<string, PendingSkill> = new Map();
 
   // -------------------------------------------------------------------------
   // Public getters
@@ -116,6 +143,66 @@ export class SkillService {
   /** Unregister a previously registered listener. */
   removeListener(fn: () => void): void {
     this._listeners.delete(fn);
+  }
+
+  // -------------------------------------------------------------------------
+  // Pending Skills — injection pipeline (matching AMP's _pendingSkills)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Add a skill to the pending injection queue.
+   * Deduplicates by ID — if a skill with the same ID already exists,
+   * the call is a no-op. Matches AMP's addPendingSkill pattern:
+   * `if(!T.some((a)=>a.name===R.name)) this._pendingSkills.next([...T, R])`
+   *
+   * @param skill - The PendingSkill to queue for injection
+   */
+  addPendingSkill(skill: PendingSkill): void {
+    if (this._pendingSkills.has(skill.id)) {
+      log.debug('SkillService.addPendingSkill: duplicate, skipping', { skillId: skill.id, skillName: skill.name });
+      return;
+    }
+    const stamped: PendingSkill = {
+      ...skill,
+      injectedAt: skill.injectedAt ?? Date.now(),
+    };
+    this._pendingSkills.set(skill.id, stamped);
+    log.info('SkillService.addPendingSkill', { skillId: skill.id, skillName: skill.name });
+    this._notifyListeners();
+  }
+
+  /**
+   * Remove a pending skill by ID.
+   * Matches AMP's removePendingSkill: `T.filter((a)=>a.name!==R)`.
+   *
+   * @param skillId - The ID of the pending skill to remove
+   */
+  removePendingSkill(skillId: string): void {
+    if (!this._pendingSkills.has(skillId)) return;
+    const skill = this._pendingSkills.get(skillId);
+    this._pendingSkills.delete(skillId);
+    log.info('SkillService.removePendingSkill', { skillId, skillName: skill?.name });
+    this._notifyListeners();
+  }
+
+  /**
+   * Get all pending skills as an ordered array.
+   * Returns skills in insertion order (Map iteration order).
+   * Matches AMP's getPendingSkills: `this._pendingSkills.getValue()`.
+   */
+  getPendingSkills(): PendingSkill[] {
+    return Array.from(this._pendingSkills.values());
+  }
+
+  /**
+   * Clear all pending skills. Called after injection or on thread switch.
+   * Matches AMP's clearPendingSkills: `this._pendingSkills.next([])`.
+   */
+  clearPendingSkills(): void {
+    if (this._pendingSkills.size === 0) return;
+    this._pendingSkills.clear();
+    log.info('SkillService.clearPendingSkills');
+    this._notifyListeners();
   }
 
   // -------------------------------------------------------------------------

@@ -327,7 +327,7 @@ export class WidgetsBinding {
         this.updateRootRenderObject();
         const buildMs = performance.now() - buildStart;
         this.getFrameStats().recordPhase('build', buildMs);
-        timeline.endPhase('build', { durationMs: buildMs, dirtyNodes: this.buildOwner.stats.elementsRebuiltThisFrame });
+        timeline.endPhase('build', { durationMs: buildMs, dirtyNodes: this.buildOwner.buildStats.elementsRebuiltThisFrame });
       },
       'build',
       0,

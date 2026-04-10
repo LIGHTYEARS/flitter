@@ -10,7 +10,7 @@ import { TextEditingController } from '../../../flitter-core/src/widgets/text-fi
 import { Stack, Positioned } from '../../../flitter-core/src/widgets/stack';
 import { Container } from '../../../flitter-core/src/widgets/container';
 import { MouseRegion } from '../../../flitter-core/src/widgets/mouse-region';
-import { InputArea, detectShellMode, MIN_HEIGHT } from '../widgets/input-area';
+import { InputArea, detectShellMode, parseShellCommand, MIN_HEIGHT } from '../widgets/input-area';
 
 // ---------------------------------------------------------------------------
 // Test Helpers
@@ -126,6 +126,81 @@ describe('InputArea — Shell Mode Detection', () => {
 
   test('detectShellMode returns "background" for $$<text> (no space)', () => {
     expect(detectShellMode('$$server')).toBe('background');
+  });
+});
+
+// ===========================================================================
+// Group 2b: parseShellCommand
+// ===========================================================================
+
+describe('InputArea — parseShellCommand', () => {
+
+  test('returns null for regular text (no $ prefix)', () => {
+    expect(parseShellCommand('hello world')).toBeNull();
+  });
+
+  test('returns null for empty string', () => {
+    expect(parseShellCommand('')).toBeNull();
+  });
+
+  test('parses $ prefix with command', () => {
+    const result = parseShellCommand('$ ls -la');
+    expect(result).toEqual({ cmd: 'ls -la', visibility: 'shell' });
+  });
+
+  test('parses $$ prefix with command', () => {
+    const result = parseShellCommand('$$ npm run dev');
+    expect(result).toEqual({ cmd: 'npm run dev', visibility: 'hidden' });
+  });
+
+  test('lone $ returns empty cmd with visibility shell', () => {
+    const result = parseShellCommand('$');
+    expect(result).toEqual({ cmd: '', visibility: 'shell' });
+  });
+
+  test('lone $$ returns empty cmd with visibility hidden', () => {
+    const result = parseShellCommand('$$');
+    expect(result).toEqual({ cmd: '', visibility: 'hidden' });
+  });
+
+  test('$ prefix without space (no gap) — cmd is the text after $', () => {
+    const result = parseShellCommand('$git status');
+    expect(result).toEqual({ cmd: 'git status', visibility: 'shell' });
+  });
+
+  test('$$ prefix without space (no gap) — cmd is the text after $$', () => {
+    const result = parseShellCommand('$$server');
+    expect(result).toEqual({ cmd: 'server', visibility: 'hidden' });
+  });
+
+  test('$ prefix with leading/trailing whitespace in cmd is trimmed', () => {
+    const result = parseShellCommand('$   echo hi   ');
+    expect(result).toEqual({ cmd: 'echo hi', visibility: 'shell' });
+  });
+
+  test('$$ prefix with leading/trailing whitespace in cmd is trimmed', () => {
+    const result = parseShellCommand('$$   npm start   ');
+    expect(result).toEqual({ cmd: 'npm start', visibility: 'hidden' });
+  });
+
+  test('$$$ input matches $$ branch — cmd starts with $', () => {
+    // $$$ starts with $$ so it enters the $$ branch; slice(2) = "$", trim = "$"
+    const result = parseShellCommand('$$$');
+    expect(result).toEqual({ cmd: '$', visibility: 'hidden' });
+  });
+
+  test('$ with only whitespace after prefix returns empty cmd', () => {
+    const result = parseShellCommand('$   ');
+    expect(result).toEqual({ cmd: '', visibility: 'shell' });
+  });
+
+  test('$$ with only whitespace after prefix returns empty cmd', () => {
+    const result = parseShellCommand('$$   ');
+    expect(result).toEqual({ cmd: '', visibility: 'hidden' });
+  });
+
+  test('text starting with space then $ is not shell (no prefix match)', () => {
+    expect(parseShellCommand(' $ ls')).toBeNull();
   });
 });
 

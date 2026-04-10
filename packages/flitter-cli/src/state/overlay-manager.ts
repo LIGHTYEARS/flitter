@@ -199,14 +199,11 @@ export class OverlayManager {
    * - If modal, a semi-transparent mask is inserted before the overlay widget
    * - The overlay widget is wrapped in a Positioned according to its placement
    *
-   * Children order: [base, mask1?, overlay1, mask2?, overlay2, ...]
+   * Children order: [base, overlay1, overlay2, ...]
    * Lower-priority entries are first (painted behind higher ones).
+   * Always returns a Stack (even with no overlays) to prevent widget tree type changes.
    */
   buildOverlays(baseContent: Widget): Widget {
-    if (this.entries.length === 0) {
-      return baseContent;
-    }
-
     const stackChildren: Widget[] = [baseContent];
 
     for (const entry of this.entries) {

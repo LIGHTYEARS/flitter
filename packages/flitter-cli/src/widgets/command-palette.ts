@@ -460,36 +460,44 @@ class CommandPaletteState extends State<CommandPalette> {
       child: listColumn,
     });
 
+    // GAP-m6: hide scrollbar when all items fit in viewport (no scroll needed).
+    // Title (1) + search (1) + gap (1) + padding (2) + border (2) = 7 overhead rows.
+    const listViewportHeight = Math.max(1, maxHeight - 7);
+    const needsScrollbar = items.length > listViewportHeight;
+
     const scrollContent = new Row({
       children: [
         new Expanded({ child: scrollView }),
-        new Scrollbar({ controller: this.scrollController }),
+        ...(needsScrollbar
+          ? [new Scrollbar({ controller: this.scrollController })]
+          : []),
       ],
     });
 
     // --- Inner column: title, search row, gap, list ---
+    // Use Expanded on the scroll area so it fills remaining space within the
+    // bounded Container, preventing RenderFlex overflow with Infinity heights.
     const innerColumn = new Column({
       crossAxisAlignment: 'stretch',
-      mainAxisSize: 'min',
+      mainAxisSize: 'max',
       children: [
         title,
         searchRow,
         new SizedBox({ height: 1 }),
-        new SizedBox({
-          height: Math.min(items.length + 2, maxHeight - 5),
-          child: scrollContent,
-        }),
+        new Expanded({ child: scrollContent }),
       ],
     });
 
     // --- Bordered container with max width 80 and bounded height ---
     // Opaque black background ensures content underneath does not bleed through
     // (previously the modal mask provided the backdrop, now the panel itself must).
+    // Clamp maxHeight to at least 7 (overhead rows) to avoid negative constraints.
+    const safeMaxHeight = Math.max(7, maxHeight);
     const borderedPanel = new Container({
       constraints: new BoxConstraints({
         maxWidth: 80,
         minHeight: 0,
-        maxHeight: maxHeight,
+        maxHeight: safeMaxHeight,
       }),
       padding: EdgeInsets.all(1),
       decoration: new BoxDecoration({

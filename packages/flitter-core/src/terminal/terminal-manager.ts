@@ -114,7 +114,8 @@ export class TerminalManager {
       this.renderer.enableMouse() +
       this.renderer.enableBracketedPaste() +
       this.renderer.enableInBandResize() +
-      this.renderer.enableEmojiWidth();
+      this.renderer.enableEmojiWidth() +
+      this.renderer.enableKittyKeyboard();
 
     this.platform.writeStdout(initSequence);
 
@@ -271,7 +272,8 @@ export class TerminalManager {
       this.renderer.enableMouse() +
       this.renderer.enableBracketedPaste() +
       this.renderer.enableInBandResize() +
-      this.renderer.enableEmojiWidth();
+      this.renderer.enableEmojiWidth() +
+      this.renderer.enableKittyKeyboard();
 
     this.platform.writeStdout(resumeSequence);
     this.screenBuffer.markForRefresh();

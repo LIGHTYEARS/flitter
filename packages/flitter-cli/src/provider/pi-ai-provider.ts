@@ -30,6 +30,7 @@ import type {
   UsageInfo,
   ToolDefinition,
 } from '../state/types';
+import type { ConfigService } from '../state/config-service';
 import { log } from '../utils/logger';
 
 /**
@@ -197,6 +198,8 @@ export class PiAiProvider implements Provider {
 
   private readonly _apiKey: string;
   private readonly _headers?: Record<string, string>;
+  /** Optional ConfigService for provider-specific settings (speed, interleavedThinking, etc.). */
+  private readonly _configService?: ConfigService;
   private _abort: AbortController | null = null;
 
   /**
@@ -205,6 +208,7 @@ export class PiAiProvider implements Provider {
    * @param providerName - Human-readable display name (e.g., 'Anthropic').
    * @param apiKey - API key for authentication (or OAuth access token).
    * @param headers - Optional custom HTTP headers (e.g., User-Agent for antigravity).
+   * @param configService - Optional ConfigService for reading provider-specific settings.
    */
   constructor(
     piModel: Model<Api>,
@@ -212,6 +216,7 @@ export class PiAiProvider implements Provider {
     providerName: string,
     apiKey: string,
     headers?: Record<string, string>,
+    configService?: ConfigService,
   ) {
     this.piModel = piModel;
     this.id = providerId;
@@ -219,6 +224,7 @@ export class PiAiProvider implements Provider {
     this.model = piModel.id;
     this._apiKey = apiKey;
     this._headers = headers;
+    this._configService = configService;
 
     // Derive capabilities from piModel metadata
     this.capabilities = {
@@ -275,6 +281,39 @@ export class PiAiProvider implements Provider {
     // Pass custom headers (e.g., antigravity User-Agent spoofing)
     if (this._headers) {
       streamOptions['headers'] = this._headers;
+    }
+
+    // S3-1: Apply provider-specific speed settings from ConfigService.
+    // Speed affects model request latency/quality trade-off.
+    if (this._configService) {
+      const isAnthropic = this.id === 'anthropic' || this.id === 'vertex';
+      const isOpenAI = this.id === 'openai' || this.id === 'openai-compatible' || this.id === 'chatgpt-codex' || this.id === 'copilot';
+
+      if (isAnthropic) {
+        const anthropicSpeed = this._configService.get('anthropic.speed');
+        if (anthropicSpeed) {
+          streamOptions['speed'] = anthropicSpeed;
+          log.debug(`PiAiProvider.sendPrompt: anthropic.speed=${anthropicSpeed}`);
+        }
+      }
+
+      if (isOpenAI) {
+        const openaiSpeed = this._configService.get('openai.speed');
+        if (openaiSpeed) {
+          streamOptions['speed'] = openaiSpeed;
+          log.debug(`PiAiProvider.sendPrompt: openai.speed=${openaiSpeed}`);
+        }
+      }
+
+      // S3-2: Apply interleaved thinking setting for Anthropic models.
+      // When enabled, allows the model to interleave thinking with text output.
+      if (isAnthropic) {
+        const interleavedThinking = this._configService.get('anthropic.interleavedThinking.enabled');
+        if (interleavedThinking === true) {
+          streamOptions['interleavedThinking'] = true;
+          log.debug('PiAiProvider.sendPrompt: interleavedThinking=true');
+        }
+      }
     }
 
     const eventStream = piAiStream(this.piModel, context, streamOptions as Parameters<typeof piAiStream>[2]);

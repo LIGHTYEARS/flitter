@@ -232,7 +232,7 @@ describe('Thread Lifecycle Operations', () => {
 
     // Dispose one worker
     const worker1 = pool.getOrCreateWorker(h1.threadID);
-    worker1.state = 'disposed';
+    worker1.dispose();
     expect(pool.activeWorkerCount).toBe(1);
   });
 

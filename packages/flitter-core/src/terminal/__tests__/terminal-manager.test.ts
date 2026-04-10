@@ -7,6 +7,8 @@ import { TerminalManager } from '../terminal-manager.js';
 
 // ANSI escape sequence fragments for assertions
 const CSI = '\x1b[';
+const KITTY_KEYBOARD_ON = `${CSI}>5u`;
+const KITTY_KEYBOARD_OFF = `${CSI}<u`;
 const ALT_SCREEN_ON = `${CSI}?1049h`;
 const ALT_SCREEN_OFF = `${CSI}?1049l`;
 const HIDE_CURSOR = `${CSI}?25l`;
@@ -112,6 +114,12 @@ describe('TerminalManager', () => {
       expect(platform.getResizeCallbackCount()).toBe(1);
     });
 
+    test('writes Kitty keyboard enable sequence for instant ESC resolution', () => {
+      manager.initialize();
+      const output = platform.getOutput();
+      expect(output).toContain(KITTY_KEYBOARD_ON);
+    });
+
     test('double initialize is a no-op', () => {
       manager.initialize();
       platform.clearOutput();
@@ -173,6 +181,14 @@ describe('TerminalManager', () => {
       manager.dispose();
       const output = platform.getOutput();
       expect(output).toContain(RESET);
+    });
+
+    test('writes Kitty keyboard disable sequence on dispose', () => {
+      manager.initialize();
+      platform.clearOutput();
+      manager.dispose();
+      const output = platform.getOutput();
+      expect(output).toContain(KITTY_KEYBOARD_OFF);
     });
 
     test('unregisters stdin handler', () => {
@@ -427,6 +443,16 @@ describe('TerminalManager', () => {
       expect(output).toContain(HIDE_CURSOR);
       expect(output).toContain(MOUSE_ON);
       expect(output).toContain(BRACKETED_PASTE_ON);
+    });
+
+    test('resume writes Kitty keyboard enable sequence', () => {
+      manager.initialize();
+      manager.suspend();
+      platform.clearOutput();
+      manager.resume();
+
+      const output = platform.getOutput();
+      expect(output).toContain(KITTY_KEYBOARD_ON);
     });
 
     test('resume marks screen for full refresh', () => {

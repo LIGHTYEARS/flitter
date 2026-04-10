@@ -1,6 +1,6 @@
 {
   "version": "1.34.2",
-  "timestamp": "2026-04-08T13:18:53.844Z",
+  "timestamp": "2026-04-09T13:49:49.717Z",
   "files": {
     "get-shit-done/VERSION": "ef3afc161b7b22605d04802ef5c8448df9fb68226784bb6d76dde299d384bff9",
     "get-shit-done/bin/gsd-tools.cjs": "8c7813dec8628e47c196c2801251de0d6080111baf89c962454ce569957cd378",
@@ -266,11 +266,6 @@
     "agents/gsd-ui-checker.md": "1b985db3c8495d35925e80daef72af2d55d554f82f29b41725ef8b887ee439c0",
     "agents/gsd-ui-researcher.md": "3422fc4a8104c20c7d0a405e90cda49df5305fcbb64e2c9684cc087390347d4f",
     "agents/gsd-user-profiler.md": "72d6eba0cae5a8b4fd07564bff27d28dc81dfe8f5ae05d8008975558fb79a4ba",
-    "agents/gsd-verifier.md": "885be015b5757d683a7db3da1913e77d51140b957effad5355eb5d2d36cc726b",
-    "hooks/gsd-check-update.js": "b2c886e9e370341094dfbf4300dcd0910e5c6cc46c387da1d86c3a79b0b392b6",
-    "hooks/gsd-context-monitor.js": "8cacd356733bf845c0f873eef960d2e7e7f368ebbee9b28dec9adade441bd3df",
-    "hooks/gsd-prompt-guard.js": "6e0185eb8128d47a215b8ac38a1ed5aa5e21685955420766e19749f2f77af25f",
-    "hooks/gsd-statusline.js": "70d35683eb44f820e47a10b72e93b130cf794159f894d929306ce77c23ad892f",
-    "hooks/gsd-workflow-guard.js": "c3e410c528789f54843e6a4319b5b8770c01c0f48cfea3a771ac9622e606990e"
+    "agents/gsd-verifier.md": "885be015b5757d683a7db3da1913e77d51140b957effad5355eb5d2d36cc726b"
   }
 }

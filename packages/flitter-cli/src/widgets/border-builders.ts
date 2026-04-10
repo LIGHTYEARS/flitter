@@ -338,6 +338,10 @@ export function buildBottomLeftOverlay(opts: {
   isHandingOff: boolean;
   statusMessage?: string;
   theme: CliTheme;
+  /** 是否有正在运行或等待显示的 bash invocations。 */
+  isRunningBashInvocations?: boolean;
+  /** 是否正在确认取消处理（二次 Esc 确认状态）。 */
+  isConfirmingCancelProcessing?: boolean;
 }): BorderOverlayResult | null {
   const mutedColor = opts.theme.base.mutedForeground;
   const keybindColor = opts.theme.app.keybind;
@@ -354,6 +358,29 @@ export function buildBottomLeftOverlay(opts: {
         }),
       }),
       textWidth: text.length,
+    };
+  }
+
+  // AMP: isConfirmingCancelProcessing → "Esc again to cancel"（二次 Esc 确认取消）
+  if (opts.isConfirmingCancelProcessing) {
+    const escText = 'Esc';
+    const cancelText = ' again to cancel';
+    return {
+      widget: new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: escText,
+              style: new TextStyle({ foreground: keybindColor }),
+            }),
+            new TextSpan({
+              text: cancelText,
+              style: new TextStyle({ foreground: mutedColor, dim: true }),
+            }),
+          ],
+        }),
+      }),
+      textWidth: escText.length + cancelText.length,
     };
   }
 
@@ -405,6 +432,29 @@ export function buildBottomLeftOverlay(opts: {
         }),
       }),
       textWidth: text.length,
+    };
+  }
+
+  // AMP: bash invocations 运行中且非 streaming 时显示 "Esc to cancel"
+  if (opts.isRunningBashInvocations && !opts.isStreaming) {
+    const escText = 'Esc';
+    const cancelText = ' to cancel';
+    return {
+      widget: new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: escText,
+              style: new TextStyle({ foreground: keybindColor }),
+            }),
+            new TextSpan({
+              text: cancelText,
+              style: new TextStyle({ foreground: mutedColor, dim: true }),
+            }),
+          ],
+        }),
+      }),
+      textWidth: escText.length + cancelText.length,
     };
   }
 

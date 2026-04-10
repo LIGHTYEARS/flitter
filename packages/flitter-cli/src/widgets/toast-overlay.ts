@@ -2,18 +2,21 @@
 //
 // Matches AMP's x1R (ToastController) class and toast overlay rendering.
 // Provides a simple show/dismiss API with auto-dismiss timer and
-// type-based styling (success, error, info).
+// type-based styling (success, error, info, warning).
 //
 // Key behaviors:
 // - ToastController is a standalone observable (listener pattern)
 // - show() replaces any current toast with the new one
-// - Auto-dismiss via setTimeout (configurable duration)
+// - Auto-dismiss via setTimeout (configurable duration, default 3s)
 // - Non-modal overlay at TOAST priority (10) — does not absorb keys
 //
 // AMP usage patterns:
 // - toastController.show(message, "success")
 // - toastController.show(message, "success", 8000)  // custom duration
 // - showToast: (t, i="success", c) => this.toastController.show(t, i, c)
+//
+// S2-6: Added 'warning' type, options-based show() overload, and
+// complete ToastController lifecycle management.
 
 import { StatelessWidget, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
 import { Row } from '../../../flitter-core/src/widgets/flex';
@@ -46,6 +49,7 @@ const DEFAULT_DURATIONS: Record<ToastType, number> = {
   success: 3000,
   error: 5000,
   info: 3000,
+  warning: 4000,
 };
 
 /**
@@ -72,19 +76,40 @@ export class ToastController {
   /**
    * Show a toast notification. Replaces any currently active toast.
    *
+   * Supports two calling conventions:
+   *   show(message, type?, durationMs?)  — legacy positional args
+   *   show(message, options?)            — options-based (S2-6)
+   *
    * @param message - The text to display
-   * @param type - Toast type for styling (default: 'success')
-   * @param durationMs - Auto-dismiss duration in ms (default: per type)
+   * @param typeOrOptions - Toast type string or options object
+   * @param durationMs - Auto-dismiss duration in ms (positional override, ignored when options object is used)
    */
-  show(message: string, type: ToastType = 'success', durationMs?: number): void {
+  show(
+    message: string,
+    typeOrOptions?: ToastType | { type?: ToastType; duration?: number },
+    durationMs?: number,
+  ): void {
     // Clear any existing timer
     this._clearTimer();
+
+    // Resolve type and duration from the two possible calling conventions
+    let type: ToastType;
+    let duration: number;
+
+    if (typeof typeOrOptions === 'object' && typeOrOptions !== null) {
+      // Options-based API (S2-6)
+      type = typeOrOptions.type ?? 'info';
+      duration = typeOrOptions.duration ?? DEFAULT_DURATIONS[type];
+    } else {
+      // Legacy positional API
+      type = typeOrOptions ?? 'success';
+      duration = durationMs ?? DEFAULT_DURATIONS[type];
+    }
 
     this._current = { message, type };
     this._notifyListeners();
 
     // Set auto-dismiss timer
-    const duration = durationMs ?? DEFAULT_DURATIONS[type];
     this._timer = setTimeout(() => {
       this.dismiss();
     }, duration);
@@ -142,6 +167,7 @@ const TYPE_ICONS: Record<ToastType, string> = {
   success: '\u2713 ',   // checkmark
   error: '\u2717 ',     // X mark
   info: '\u2139 ',      // info circle
+  warning: '\u26A0 ',   // warning triangle
 };
 
 /** Type color per toast type. */
@@ -149,6 +175,7 @@ const TYPE_COLORS: Record<ToastType, Color> = {
   success: Color.green,
   error: Color.red,
   info: Color.cyan,
+  warning: Color.yellow,
 };
 
 /** Props for the ToastOverlay widget. */

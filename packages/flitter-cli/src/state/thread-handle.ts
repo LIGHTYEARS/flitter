@@ -55,5 +55,7 @@ export function createThreadHandle(options: CreateThreadHandleOptions): ThreadHa
     visibility: options.visibility ?? 'visible',
     agentMode: options.agentMode ?? null,
     queuedMessages: [],
+    draftContent: null,
+    threadStatus: null,
   };
 }

@@ -1087,4 +1087,80 @@ describe('InputParser', () => {
       parser.dispose();
     });
   });
+
+  describe('real-world ESC dismiss latency: Kitty protocol vs legacy', () => {
+    test('legacy ESC (0x1b) requires 500ms timeout — user perceives delay', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      const start = performance.now();
+      parser.feed('\x1b');
+
+      expect(events.length).toBe(0);
+
+      parser.flushEscapeTimeout();
+      const elapsed = performance.now() - start;
+
+      expect(events.length).toBe(1);
+      expect((events[0] as KeyEvent).key).toBe('Escape');
+      expect(elapsed).toBeLessThan(50);
+      parser.dispose();
+    });
+
+    test('Kitty ESC (CSI 27 u) resolves instantly — no timeout needed', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      const start = performance.now();
+      parser.feed('\x1b[27u');
+      const elapsed = performance.now() - start;
+
+      expect(events.length).toBe(1);
+      expect((events[0] as KeyEvent).key).toBe('Escape');
+      expect(elapsed).toBeLessThan(5);
+      parser.dispose();
+    });
+
+    test('legacy ESC with real timer has >= 500ms latency', async () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      const start = performance.now();
+      parser.feed('\x1b');
+      expect(events.length).toBe(0);
+
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const elapsed = performance.now() - start;
+
+      expect(events.length).toBe(1);
+      expect((events[0] as KeyEvent).key).toBe('Escape');
+      expect(elapsed).toBeGreaterThanOrEqual(490);
+      parser.dispose();
+    });
+
+    test('Kitty ESC fed byte-by-byte still resolves without timeout', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      for (const char of '\x1b[27u') {
+        parser.feed(char);
+      }
+
+      expect(events.length).toBe(1);
+      expect((events[0] as KeyEvent).key).toBe('Escape');
+      parser.dispose();
+    });
+
+    test('Kitty Ctrl+Escape resolves instantly', () => {
+      const events: InputEvent[] = [];
+      const parser = new InputParser((event) => events.push(event));
+
+      parser.feed('\x1b[27;5u');
+      expect(events.length).toBe(1);
+      const event = events[0] as KeyEvent;
+      expect(event.key).toBe('Escape');
+      expect(event.ctrlKey).toBe(true);
+      parser.dispose();
+    });
+  });
 });

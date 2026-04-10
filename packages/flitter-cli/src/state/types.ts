@@ -141,6 +141,17 @@ export const AGENT_MODES: Record<string, AgentModeDefinition> = {
       secondaryColor: { r: 255, g: 119, b: 42 },
     },
   },
+  code: {
+    key: 'code',
+    displayName: 'Code',
+    description: 'Optimized for code generation and editing tasks',
+    primaryModel: 'claude-opus-4-6',
+    visible: true,
+    uiHints: {
+      primaryColor: { r: 0, g: 40, b: 60 },
+      secondaryColor: { r: 0, g: 200, b: 220 },
+    },
+  },
 };
 
 /** Ordered list of all visible mode keys for cycling (AGG excluded because visible: false). */
@@ -508,6 +519,10 @@ export interface ThreadHandle {
   agentMode: string | null;
   /** Per-thread queued messages waiting for submission. Matches AMP's thread.queuedMessages. */
   queuedMessages: QueuedMessage[];
+  /** Draft content for the thread's input field. Matches AMP's setDraftContent(). */
+  draftContent: string | null;
+  /** Thread merging/merged lifecycle status. Null when not involved in a merge. */
+  threadStatus: 'merging' | 'merged' | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -529,6 +544,11 @@ export type ThreadInferenceState = 'idle' | 'running' | 'cancelled';
 /**
  * Per-thread worker state machine entry.
  * Tracks the thread's execution state independently of other threads.
+ *
+ * @deprecated Use ThreadWorker class instead (from './thread-worker.ts').
+ * This interface is retained for backward compatibility during migration.
+ * ThreadWorker exposes the same getter interface (state, inferenceState,
+ * turnStartTime) plus event-driven handle() dispatch.
  */
 export interface ThreadWorkerEntry {
   /** The thread this worker belongs to. */
@@ -668,6 +688,12 @@ export interface BashInvocation {
   readonly startedAt: number;
   /** Current execution status. */
   status: 'running' | 'completed' | 'failed';
+  /** Command output text (populated on completion/failure). */
+  output?: string;
+  /** 用于取消正在运行的命令的 AbortController。 */
+  abortController: AbortController;
+  /** 是否隐藏（由 $$ 前缀触发），不在 UI 中显示。 */
+  hidden: boolean;
 }
 
 /** Shell mode status matching AMP's currentShellModeStatus. */
@@ -699,4 +725,41 @@ export interface FileChangeEntry {
 }
 
 /** Toast notification type for styling. Matches AMP's toastController.show() type parameter. */
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
+
+// ---------------------------------------------------------------------------
+// Thread Relationship Types (THRD-REL)
+// ---------------------------------------------------------------------------
+
+/**
+ * Relationship type between two threads.
+ * Matches AMP's ji0 enum from 20_thread_management.js SECTION 1:
+ *   ji0 = X.enum(["fork","handoff","mention"])
+ *
+ * - 'fork': Thread was forked from another thread
+ * - 'handoff': Thread was created via handoff (sub-thread delegation)
+ * - 'mention': Thread was referenced via @@ mention
+ */
+export type ThreadRelationshipType = 'fork' | 'handoff' | 'mention';
+
+/**
+ * A relationship between two threads.
+ * Matches AMP's mi0 schema from 32_protocol_schemas.js / 20_thread_management.js:
+ *   mi0 = X.object({
+ *     threadID: Gf, type: ji0, role: vi0,
+ *     messageIndex, blockIndex, createdAt, comment
+ *   })
+ *
+ * Simplified for flitter-cli to track source -> target relationships
+ * in the ThreadPool without full DTW protocol dependencies.
+ */
+export interface ThreadRelationship {
+  /** The relationship type (fork, handoff, or mention). */
+  readonly type: ThreadRelationshipType;
+  /** The source thread ID that initiated the relationship. */
+  readonly sourceID: string;
+  /** The target thread ID that received the relationship. */
+  readonly targetID: string;
+  /** Epoch ms when the relationship was created. */
+  readonly createdAt: number;
+}

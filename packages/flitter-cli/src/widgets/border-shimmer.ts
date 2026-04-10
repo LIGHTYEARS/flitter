@@ -6,10 +6,15 @@
 // The widget renders a row of colored characters with a gradient trail using
 // lerpColor, simulating a highlight that travels across the border.
 //
+// S3-3: Added `isActive` mode for deep reasoning shimmer. When isActive=true,
+// the border characters continuously cycle through shimmer characters (░▒▓█▓▒░)
+// using a timer-based animation loop. The animation stops when isActive becomes false.
+//
 // Architecture:
 //   - StatefulWidget: holds _position and _active state.
 //   - Uses setInterval (same as WaveSpinner) for broad Bun/Node compatibility.
-//   - Animation: one full sweep (right-to-left by default), then stops.
+//   - Sweep mode: one full sweep (right-to-left by default), then stops.
+//   - Active mode: continuous shimmer character cycling on border chars.
 //   - Gradient: `trail` character-wide gradient from color → backgroundColor.
 //
 // Phase 23, Plan 03 (D-14/D-15).
@@ -38,6 +43,11 @@ const SHIMMER_INTERVAL_MS = 80;
 /** Default direction for the shimmer sweep. */
 type ShimmerDirection = 'left-to-right' | 'right-to-left';
 
+/** Shimmer characters used for deep reasoning active mode cycling. */
+const SHIMMER_CHARS = ['░', '▒', '▓', '█', '▓', '▒', '░'] as const;
+/** Interval between frames for the active shimmer cycling mode. */
+const ACTIVE_SHIMMER_INTERVAL_MS = 120;
+
 // ---------------------------------------------------------------------------
 // BorderShimmerProps
 // ---------------------------------------------------------------------------
@@ -56,6 +66,12 @@ interface BorderShimmerProps {
   direction?: ShimmerDirection;
   /** Fixed width for the shimmer bar in columns. Defaults to terminal width or 80. */
   width?: number;
+  /**
+   * S3-3: When true, activates continuous shimmer cycling animation on border chars.
+   * Used during deep reasoning mode to provide visual feedback.
+   * When false, the continuous shimmer stops (sweep animation via trigger still works).
+   */
+  isActive?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +94,8 @@ export class BorderShimmer extends StatefulWidget {
   readonly trail: number;
   readonly direction: ShimmerDirection;
   readonly width?: number;
+  /** S3-3: Whether continuous shimmer cycling is active (deep reasoning mode). */
+  readonly isActive: boolean;
 
   constructor(props: BorderShimmerProps) {
     super();
@@ -87,6 +105,7 @@ export class BorderShimmer extends StatefulWidget {
     this.trail = props.trail ?? 5;
     this.direction = props.direction ?? 'right-to-left';
     this.width = props.width;
+    this.isActive = props.isActive ?? false;
   }
 
   createState(): BorderShimmerState {
@@ -110,49 +129,78 @@ class BorderShimmerState extends State<BorderShimmer> {
   private _position = -1;
   /** Whether the sweep animation is currently running. */
   private _active = false;
-  /** setInterval handle for the animation loop. */
+  /** setInterval handle for the sweep animation loop. */
   private _timer: ReturnType<typeof setInterval> | null = null;
   /** The trigger value we last saw — used to detect changes in didUpdateWidget. */
   private _lastTrigger = 0;
 
+  // --- S3-3: Active shimmer cycling state ---
+  /** setInterval handle for the active shimmer cycling loop. */
+  private _activeTimer: ReturnType<typeof setInterval> | null = null;
+  /** Current frame index in the SHIMMER_CHARS cycle (0..SHIMMER_CHARS.length-1). */
+  private _shimmerFrame = 0;
+  /** Whether the active shimmer cycling is currently running. */
+  private _isActiveCycling = false;
+
   /**
    * Store the initial trigger value so we can detect future changes.
-   * Do NOT start animation on first mount (trigger=0 is the idle state).
+   * Do NOT start sweep animation on first mount (trigger=0 is the idle state).
+   * If isActive is true on mount, start the active shimmer cycling.
    */
   override initState(): void {
     super.initState();
     this._lastTrigger = this.widget.trigger;
+    if (this.widget.isActive) {
+      this._startActiveCycling();
+    }
   }
 
   /**
    * Detect trigger changes and start a new sweep when the agent mode changes.
-   * Only reacts to trigger increments > 0 (ignores initial mount).
+   * Also handles isActive transitions for continuous shimmer cycling.
    */
   override didUpdateWidget(oldWidget: BorderShimmer): void {
     super.didUpdateWidget(oldWidget);
+
+    // Sweep trigger detection (existing behavior)
     if (this.widget.trigger !== this._lastTrigger) {
       this._lastTrigger = this.widget.trigger;
       if (this.widget.trigger > 0) {
         this._startAnimation();
       }
     }
+
+    // S3-3: isActive transition detection
+    if (this.widget.isActive && !this._isActiveCycling) {
+      this._startActiveCycling();
+    } else if (!this.widget.isActive && this._isActiveCycling) {
+      this._stopActiveCycling();
+    }
   }
 
   /**
-   * Stop and dispose the animation timer when the widget is removed from the tree.
+   * Stop and dispose all animation timers when the widget is removed from the tree.
    */
   override dispose(): void {
     this._stopAnimation();
+    this._stopActiveCycling();
     super.dispose();
   }
 
   /**
    * Build a single-row Row of Text widgets that renders the shimmer gradient.
    *
-   * When the animation is not active, renders a transparent / empty row.
+   * When active shimmer cycling is on (isActive=true), renders border chars
+   * cycling through SHIMMER_CHARS. When sweep is active, renders sweep gradient.
+   * When neither is active, renders an invisible single-row spacer.
    */
   build(_context: BuildContext): Widget {
     const totalWidth = this.widget.width ?? (process.stdout.columns || 80) - 2;
+
+    // S3-3: Active shimmer cycling takes priority over idle state (but not sweep)
+    if (this._isActiveCycling && !this._active) {
+      return this._buildActiveShimmerRow(totalWidth);
+    }
 
     if (!this._active) {
       // Idle: render an invisible single-row spacer.
@@ -257,6 +305,72 @@ class BorderShimmerState extends State<BorderShimmer> {
         new Text({
           text: new TextSpan({
             text: borderChar,
+            style: new TextStyle({ foreground: charColor }),
+          }),
+        }),
+      );
+    }
+
+    return new Row({
+      mainAxisSize: 'min',
+      children,
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // S3-3: Active shimmer cycling (deep reasoning mode)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Start the continuous shimmer cycling animation.
+   * Each tick advances the shimmer frame index, causing border chars to cycle
+   * through SHIMMER_CHARS (░▒▓█▓▒░).
+   */
+  private _startActiveCycling(): void {
+    if (this._isActiveCycling) return;
+    this._isActiveCycling = true;
+    this._shimmerFrame = 0;
+    this._activeTimer = setInterval(() => {
+      this.setState(() => {
+        this._shimmerFrame = (this._shimmerFrame + 1) % SHIMMER_CHARS.length;
+      });
+    }, ACTIVE_SHIMMER_INTERVAL_MS);
+  }
+
+  /**
+   * Stop the continuous shimmer cycling animation.
+   */
+  private _stopActiveCycling(): void {
+    this._isActiveCycling = false;
+    if (this._activeTimer !== null) {
+      clearInterval(this._activeTimer);
+      this._activeTimer = null;
+    }
+  }
+
+  /**
+   * Build the active shimmer row displaying cycling border characters.
+   *
+   * Each column renders a shimmer character from SHIMMER_CHARS, offset by
+   * the column position to create a wave/falling effect across the border.
+   * The character for column `col` is SHIMMER_CHARS[(shimmerFrame + col) % length].
+   */
+  private _buildActiveShimmerRow(totalWidth: number): Widget {
+    const children: Widget[] = [];
+    const charsLen = SHIMMER_CHARS.length;
+
+    for (let col = 0; col < totalWidth; col++) {
+      const charIndex = (this._shimmerFrame + col) % charsLen;
+      const shimmerChar = SHIMMER_CHARS[charIndex];
+
+      // Gradient intensity based on char position in the cycle
+      const t = charIndex / (charsLen - 1); // 0.0 at ░, 1.0 at █, back down
+      const charColor = lerpColor(this.widget.backgroundColor, this.widget.color, t);
+
+      children.push(
+        new Text({
+          text: new TextSpan({
+            text: shimmerChar,
             style: new TextStyle({ foreground: charColor }),
           }),
         }),

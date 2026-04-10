@@ -291,7 +291,7 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 23 → 24 → 25 → 26 → 27 → 28 → 29 → 30 → 31 → 32 → 33 → 34 → 35 → 36
+Phases execute in numeric order: 23 -> 24 -> 25 -> 26 -> 27 -> 28 -> 29 -> 30 -> 31 -> 32 -> 33 -> 34 -> 35 -> 36
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -334,3 +334,19 @@ Plans:
 - [x] 38-02: Rendering pipeline bridge — setPipelineLogSink, frame-overrun detection (Wave 1)
 - [x] 38-03: Agentic loop instrumentation — agent/inference/tool spans, TTFT, structured errors (Wave 2)
 - [x] 38-04: Tests and verification — unit + integration tests for tracer, bridge, span emission (Wave 3)
+
+### Phase 39: Align flitter-cli with AMP 44 gaps
+
+**Goal:** Close P0-CRITICAL and P1-HIGH gaps from the 4-subagent audit (ThreadWorker state machine, compaction pruning, queue auto-dequeue, thread relationships, createThread async, edit previous message, per-thread mode, HandoffService extraction, queue UI, multi-option confirmation, pending skills injection, thread preview, thread merging). P2-MED and P3-LOW deferred to Phase 39b.
+**Requirements**: F1, F2, F3, F7, F8, F9, F10, F11, F13, F14, F15, F16, F17, F33, F34, F35
+**Depends on:** Phase 38
+**Plans:** 7 plans
+
+Plans:
+- [ ] 39-01-PLAN.md — ThreadWorker event-driven state machine (F1, F35)
+- [ ] 39-02-PLAN.md — Compaction actual pruning (F3)
+- [ ] 39-03-PLAN.md — Queue auto-dequeue + edit previous message (F2, F13)
+- [ ] 39-04-PLAN.md — Thread relationships + async createThread + title gen enhanced (F7, F9, F16)
+- [ ] 39-05-PLAN.md — Agent mode per-thread + HandoffService extraction (F15, F17)
+- [ ] 39-06-PLAN.md — Queue UI + confirmation multi-option + pending skills injection (F10, F11, F14)
+- [ ] 39-07-PLAN.md — Thread preview split-view + visibility command + thread merging (F8, F33, F34)

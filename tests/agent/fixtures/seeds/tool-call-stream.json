@@ -1,0 +1,6 @@
+{
+  "description": "Stream with a tool call (bash)",
+  "type": "tool-call",
+  "toolName": "bash",
+  "toolInput": { "command": "echo hello" }
+}

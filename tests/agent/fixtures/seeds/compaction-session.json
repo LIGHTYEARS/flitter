@@ -1,0 +1,7 @@
+{
+  "description": "50-turn session near compaction threshold (contextUsage ~92%)",
+  "turns": 50,
+  "includeToolCalls": true,
+  "toolCallRatio": 0.3,
+  "contextUsage": 0.92
+}

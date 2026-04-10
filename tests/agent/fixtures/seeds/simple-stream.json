@@ -1,0 +1,5 @@
+{
+  "description": "Simple text response stream",
+  "type": "simple-text",
+  "text": "This is a simple test response for basic validation."
+}

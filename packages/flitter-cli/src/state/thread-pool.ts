@@ -634,6 +634,16 @@ export class ThreadPool {
     return true;
   }
 
+  /**
+   * Get thread merge status.
+   * Returns the ThreadStatus for the given thread, or null if not found.
+   * Matches AMP's thread status query pattern.
+   */
+  getThreadStatus(threadID: string): import('./types').ThreadStatus {
+    const handle = this.threadHandleMap.get(threadID);
+    return handle?.status ?? null;
+  }
+
   // ---------------------------------------------------------------------------
   // Thread Worker Map (THRD-10)
   // ---------------------------------------------------------------------------

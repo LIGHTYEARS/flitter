@@ -44,7 +44,6 @@ import { launchEditor, type EditorResult } from '../utils/editor-launcher';
 import { readImageFromClipboard } from '../utils/clipboard-image';
 import { ToastController } from '../widgets/toast-overlay';
 import { SkillService } from './skill-service';
-import { HandoffService } from './handoff-service';
 import type { SkillDefinition } from './skill-types';
 import { parseShellCommand } from '../widgets/input-area';
 import { BashExecutor } from '../tools/bash-executor';
@@ -97,19 +96,16 @@ export class AppState {
 
   /**
    * Handoff mode UI state matching AMP's GhR.handoffState object exactly.
-   * Delegates to HandoffService for the actual state management (S2-11).
-   * This getter provides backward-compatible read access.
+   * Tracks the enter/generate/abort/exit lifecycle for thread handoff.
+   * See 24_main_app_state.js and 30_main_tui_state.js in AMP source.
    */
-  get handoffState(): HandoffState {
-    return this._handoffService?.handoffState ?? { ...DEFAULT_HANDOFF_STATE };
-  }
+  handoffState: HandoffState = { ...DEFAULT_HANDOFF_STATE };
 
-  /**
-   * HandoffService instance — owns all handoff mode lifecycle logic.
-   * Extracted from AppState to match AMP's pVR() handoff service pattern (S2-11).
-   * Initialized in create() factory after ThreadPool is available.
-   */
-  private _handoffService: HandoffService | null = null;
+  /** Interval timer for handoff countdown auto-submit. Cleared on exit/abort/submit. */
+  private _countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Braille spinner animation frame index for handoff generating state. */
+  private _spinnerFrame: number = 0;
 
   // --- Bash Invocation Tracking (SHELL-01, SHELL-02) ---
 
@@ -136,20 +132,6 @@ export class AppState {
   /** 取消确认超时计时器（1s 后自动重置 isConfirmingCancelProcessing）。 */
   cancelProcessingConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // --- Edit Previous Message (S2-7) ---
-
-  /**
-   * Whether the user is currently editing a previous message.
-   * AMP ref: isEditingPreviousMessage — true when Up-arrow triggers edit mode.
-   */
-  isEditingPreviousMessage = false;
-
-  /**
-   * Index of the message being edited in session.items, or null if not editing.
-   * AMP ref: editingMessageOrdinal — tracks which message ordinal is being edited.
-   */
-  editingMessageIndex: number | null = null;
-
   // --- Image Attachment State (IMG-01, IMG-02, IMG-03, IMG-04) ---
 
   /** Active image attachments. Matches AMP's GhR.imageAttachments array. */
@@ -162,16 +144,6 @@ export class AppState {
 
   /** Files modified during the current session. Matches AMP's ThreadWorker.fileChanges. */
   fileChanges: FileChangeEntry[] = [];
-
-  // --- MCP Server Status (OVLY-06) ---
-
-  /** MCP server connection status entries for the MCP status modal. */
-  mcpServers: import('../widgets/mcp-status-modal').McpServerEntry[] = [];
-
-  // --- Console Log Viewer (OVLY-07) ---
-
-  /** Runtime log entries for the console overlay. */
-  consoleLogEntries: Array<{ timestamp: number; level: string; message: string }> = [];
 
   /** Current agent mode — defaults to 'smart' matching AMP. */
   currentMode: string | null = 'smart';
@@ -351,9 +323,8 @@ export class AppState {
     return this.session.lifecycle === 'tool_execution';
   }
 
-  /** True when a tool command (e.g. Bash) is actively executing. Derived from session lifecycle. */
   get isExecutingCommand(): boolean {
-    return this.session.lifecycle === 'tool_execution';
+    return false;
   }
 
   get isRunningShell(): boolean {
@@ -361,10 +332,8 @@ export class AppState {
       this.pendingBashInvocations.size > 0;
   }
 
-  /** True when auto-compaction is in progress. Derived from PromptController compaction state. */
   get isAutoCompacting(): boolean {
-    const status = this._promptController?.getCompactionStatus?.();
-    return status?.compactionState === 'compacting';
+    return false;
   }
 
   get isHandingOff(): boolean {
@@ -611,8 +580,8 @@ export class AppState {
     if (this._isShutdown) return;
     this._isShutdown = true;
 
-    // Clean up handoff state via HandoffService
-    this._handoffService?.exitHandoffMode();
+    // Clean up handoff countdown timer
+    this._clearCountdownTimer();
 
     // Cancel any active prompt stream before saving
     if (this._promptController) {
@@ -658,16 +627,13 @@ export class AppState {
     this._switchToHandle(handle);
 
     this.selectedMessageIndex = null;
-    // New threads default to 'smart' mode (matching AMP).
-    // This also persists to the new thread handle via setAgentMode.
-    this.setAgentMode('smart');
+    this.currentMode = 'smart';
     this._notifyListeners();
   }
 
   /**
    * Switch AppState's session and conversation references to a thread handle.
    * Re-wires the session listener and updates promptController if present.
-   * Restores per-thread agentMode if the target thread has one stored.
    */
   private _switchToHandle(handle: ThreadHandle): void {
     // Remove old session listener
@@ -679,14 +645,6 @@ export class AppState {
 
     // Re-wire session listener
     this.session.addListener(this._sessionListener);
-
-    // Restore per-thread agent mode if available (S2-9).
-    // Matches AMP's per-thread agentMode persistence:
-    // on thread switch, the target thread's stored agentMode is restored.
-    if (handle.agentMode) {
-      this.currentMode = handle.agentMode;
-      log.info(`_switchToHandle: restored agentMode="${handle.agentMode}" from thread ${handle.threadID}`);
-    }
 
     this._notifyListeners();
   }
@@ -792,28 +750,9 @@ export class AppState {
     const current = this.currentMode ?? VISIBLE_MODE_KEYS[0];
     const idx = VISIBLE_MODE_KEYS.indexOf(current);
     const nextIdx = idx === -1 ? 0 : (idx + 1) % VISIBLE_MODE_KEYS.length;
-    this.setAgentMode(VISIBLE_MODE_KEYS[nextIdx]);
+    this.currentMode = VISIBLE_MODE_KEYS[nextIdx];
     this._agentModePulseSeq = (this._agentModePulseSeq ?? 0) + 1;
-    this._notifyListeners();
-  }
-
-  /**
-   * Set the active agent mode globally and persist to the current thread handle.
-   * Matches AMP's per-thread agentMode persistence (214 refs):
-   * - Sets the global currentMode on AppState
-   * - Writes agentMode to the active thread handle for per-thread persistence
-   * - On thread switch, the stored agentMode is restored
-   *
-   * @param mode - The agent mode key to set (e.g., 'smart', 'rush', 'deep')
-   */
-  setAgentMode(mode: string): void {
-    this.currentMode = mode;
-    // Persist to current thread handle for per-thread restoration
-    const handle = this.threadPool.activeThreadHandleOrNull;
-    if (handle) {
-      handle.agentMode = mode;
-    }
-    log.info(`Agent mode set to: ${mode}`);
+    log.info(`Agent mode cycled to: ${this.currentMode}`);
     this._notifyListeners();
   }
 
@@ -1086,97 +1025,209 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
-  // Handoff Mode (HAND-01, HAND-02, HAND-03) — delegates to HandoffService (S2-11)
+  // Handoff Mode (HAND-01, HAND-02, HAND-03)
   // ---------------------------------------------------------------------------
 
+  /** Braille spinner animation frames matching AMP's toBraille() output. */
+  private static readonly _BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
   /**
-   * Enter handoff mode. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Enter handoff mode. The InputArea switches to handoff prompt editing.
+   * Matches AMP's enterHandoffMode callback passed to InputArea.
+   *
+   * While in handoff mode (and not generating), the user can change the
+   * agent mode for the target thread (canChangeAgentModeInPromptEditor).
    */
   enterHandoffMode(): void {
-    this._handoffService?.enterHandoffMode();
+    if (this.handoffState.isInHandoffMode) return;
+    this.handoffState = {
+      ...DEFAULT_HANDOFF_STATE,
+      isInHandoffMode: true,
+    };
+    log.info('AppState.enterHandoffMode');
+    this._notifyListeners();
   }
 
   /**
-   * Exit handoff mode. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Exit handoff mode, resetting all handoff state to defaults.
+   * Clears any active countdown timer and spinner.
+   *
+   * Called on:
+   * - Thread switch (onThreadSwitch -> handoffController?.resetUIState())
+   * - Second Escape in abort confirmation
+   * - Handoff submission completion
+   * - New thread creation
+   *
+   * Matches AMP's exitHandoffMode / resetUIState pattern.
    */
   exitHandoffMode(): void {
-    this._handoffService?.exitHandoffMode();
+    if (!this.handoffState.isInHandoffMode &&
+        !this.handoffState.isGeneratingHandoff &&
+        this.handoffState.countdownSeconds === null) {
+      return; // Already in default state
+    }
+    this._clearCountdownTimer();
+    this.handoffState = { ...DEFAULT_HANDOFF_STATE };
+    this._spinnerFrame = 0;
+    log.info('AppState.exitHandoffMode');
+    this._notifyListeners();
   }
 
   /**
-   * Submit the handoff goal. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Submit the handoff goal. Creates a new thread via ThreadPool.createHandoff()
+   * and transitions to generating state.
+   *
+   * Matches AMP's submit flow:
+   * 1. Sets isGeneratingHandoff = true, starts spinner
+   * 2. Calls threadPool.createHandoff(goal, options)
+   * 3. On completion: exits handoff mode, switches to new thread
    *
    * @param goal - The user's goal text for the new thread
    */
   async submitHandoff(goal: string): Promise<void> {
-    if (!this._handoffService) return;
-    await this._handoffService.submitHandoff(
-      goal,
-      this.currentMode,
-      (handle: ThreadHandle) => {
-        this._switchToHandle(handle);
-        this.selectedMessageIndex = null;
-      },
-    );
+    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) {
+      log.warn('AppState.submitHandoff: not in handoff mode');
+      return;
+    }
+
+    // Transition to generating state
+    this._clearCountdownTimer();
+    this._spinnerFrame = 0;
+    this.handoffState = {
+      ...this.handoffState,
+      isGeneratingHandoff: true,
+      isConfirmingAbortHandoff: false,
+      pendingHandoffPrompt: goal,
+      spinner: AppState._BRAILLE_FRAMES[0],
+      countdownSeconds: null,
+    };
+    log.info(`AppState.submitHandoff: goal="${goal.slice(0, 60)}..."`);
+    this._notifyListeners();
+
+    // Start spinner animation
+    const spinnerInterval = setInterval(() => {
+      this._spinnerFrame = (this._spinnerFrame + 1) % AppState._BRAILLE_FRAMES.length;
+      this.handoffState = {
+        ...this.handoffState,
+        spinner: AppState._BRAILLE_FRAMES[this._spinnerFrame],
+      };
+      this._notifyListeners();
+    }, 80);
+
+    try {
+      // Create handoff thread via ThreadPool
+      const handle = this.threadPool.createHandoff(goal, {
+        agentMode: this.currentMode,
+      });
+
+      // Switch to the new thread
+      clearInterval(spinnerInterval);
+      this.exitHandoffMode();
+      this._switchToHandle(handle);
+      this.selectedMessageIndex = null;
+
+      log.info(`AppState.submitHandoff: complete, switched to ${handle.threadID}`);
+      this._notifyListeners();
+    } catch (err) {
+      clearInterval(spinnerInterval);
+      this.exitHandoffMode();
+      log.error(`AppState.submitHandoff: failed`, err);
+      this._notifyListeners();
+    }
   }
 
   /**
-   * Handle Escape key during handoff mode. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Handle Escape key during handoff mode. Two-stage abort:
+   * - First call: sets isConfirmingAbortHandoff = true
+   * - Second call: exits handoff mode entirely
+   *
+   * Matches AMP's two-stage abort pattern:
+   *   "Esc to abort handoff" -> "Esc again to abort handoff"
    */
   abortHandoffConfirmation(): void {
-    this._handoffService?.abortHandoffConfirmation();
+    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) return;
+
+    if (this.handoffState.isConfirmingAbortHandoff) {
+      // Second Escape: actually exit
+      this.exitHandoffMode();
+      log.info('AppState.abortHandoffConfirmation: confirmed, exiting handoff mode');
+    } else {
+      // First Escape: enter confirmation state
+      this.handoffState = {
+        ...this.handoffState,
+        isConfirmingAbortHandoff: true,
+      };
+      log.info('AppState.abortHandoffConfirmation: awaiting confirmation');
+      this._notifyListeners();
+    }
   }
 
   /**
-   * Start the handoff countdown timer. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Start the handoff countdown timer. Decrements countdownSeconds every
+   * second and auto-submits when it reaches 0.
+   *
+   * Matches AMP's countdown UI: "Auto-submitting in N..." with "type to edit"
+   * hint. Typing or editing cancels the countdown.
    *
    * @param seconds - Initial countdown value (typically 10-30)
    * @param goal - The goal text to auto-submit when countdown reaches 0
    */
   startCountdown(seconds: number, goal: string): void {
-    this._handoffService?.startCountdown(
-      seconds,
-      goal,
-      this.currentMode,
-      (handle: ThreadHandle) => {
-        this._switchToHandle(handle);
-        this.selectedMessageIndex = null;
-      },
-    );
+    this._clearCountdownTimer();
+    this.handoffState = {
+      ...this.handoffState,
+      countdownSeconds: seconds,
+      pendingHandoffPrompt: goal,
+    };
+    this._notifyListeners();
+
+    this._countdownTimer = setInterval(() => {
+      const current = this.handoffState.countdownSeconds;
+      if (current === null || current <= 1) {
+        // Countdown complete: auto-submit
+        this._clearCountdownTimer();
+        const pendingGoal = this.handoffState.pendingHandoffPrompt;
+        if (pendingGoal) {
+          this.submitHandoff(pendingGoal).catch(err => {
+            log.error('AppState.startCountdown: auto-submit failed', err);
+          });
+        }
+      } else {
+        this.handoffState = {
+          ...this.handoffState,
+          countdownSeconds: current - 1,
+        };
+        this._notifyListeners();
+      }
+    }, 1000);
   }
 
   /**
-   * Cancel the countdown timer. Delegates to HandoffService.
-   * Public signature is preserved for backward compatibility.
+   * Cancel the countdown timer without exiting handoff mode.
+   * Called when the user starts typing (editing the goal).
+   *
+   * Matches AMP's "type to edit" behavior that cancels the auto-submit.
    */
   cancelCountdown(): void {
-    this._handoffService?.cancelCountdown();
+    if (this.handoffState.countdownSeconds === null) return;
+    this._clearCountdownTimer();
+    this.handoffState = {
+      ...this.handoffState,
+      countdownSeconds: null,
+    };
+    log.info('AppState.cancelCountdown');
+    this._notifyListeners();
   }
 
   /**
-   * Follow a handoff target thread if the source is still active.
-   * Delegates to HandoffService. New public API (S2-11).
-   *
-   * @param targetThreadID - The handoff target thread to follow
+   * Clear the internal countdown interval timer.
+   * Idempotent — safe to call when no timer is active.
    */
-  followHandoffIfSourceActive(targetThreadID: string): void {
-    this._handoffService?.followHandoffIfSourceActive(targetThreadID);
-  }
-
-  /**
-   * Build a handoff system prompt for the given source thread.
-   * Delegates to HandoffService. New public API (S2-11).
-   *
-   * @param sourceThreadID - The thread that initiated the handoff
-   * @returns A system prompt string, or empty string if service not ready
-   */
-  buildHandoffSystemPrompt(sourceThreadID: string): string {
-    return this._handoffService?.buildHandoffSystemPrompt(sourceThreadID) ?? '';
+  private _clearCountdownTimer(): void {
+    if (this._countdownTimer !== null) {
+      clearInterval(this._countdownTimer);
+      this._countdownTimer = null;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1518,71 +1569,6 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
-  // Edit Previous Message (S2-7)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Attempt to edit the previous user message.
-   *
-   * Finds the last user message in the session, copies its text into the
-   * input controller, marks the editing state, and truncates the conversation
-   * after that message so re-submission replaces the original exchange.
-   *
-   * AMP ref: editingMessageOrdinal, isEditingPreviousMessage
-   *
-   * @returns true if a message was found and editing was initiated, false otherwise
-   */
-  editPreviousMessage(): boolean {
-    // Only allow editing when session is idle
-    if (this.session.lifecycle !== 'idle' && this.session.lifecycle !== 'complete' && this.session.lifecycle !== 'cancelled') {
-      log.debug('AppState.editPreviousMessage: rejected', { lifecycle: this.session.lifecycle });
-      return false;
-    }
-
-    // Reset lifecycle to idle if in terminal state
-    if (this.session.lifecycle === 'complete' || this.session.lifecycle === 'cancelled') {
-      this.session.reset();
-    }
-
-    const index = this.session.getLastUserMessageIndex();
-    if (index === null) {
-      log.debug('AppState.editPreviousMessage: no user message found');
-      return false;
-    }
-
-    const text = this.session.getMessageAt(index);
-    if (text === null || text.trim().length === 0) {
-      log.debug('AppState.editPreviousMessage: empty user message', { index });
-      return false;
-    }
-
-    // Set editing state
-    this.isEditingPreviousMessage = true;
-    this.editingMessageIndex = index;
-
-    // Truncate conversation after the user message (removes assistant reply + subsequent)
-    this.session.truncateAfter(index);
-
-    log.info('AppState.editPreviousMessage: editing message', { index, textLength: text.length });
-    this._notifyListeners();
-
-    // Return the text for the caller to put into the input controller
-    return true;
-  }
-
-  /**
-   * Cancel editing mode without submitting.
-   * Resets isEditingPreviousMessage and editingMessageIndex.
-   */
-  cancelEditPreviousMessage(): void {
-    if (!this.isEditingPreviousMessage) return;
-    this.isEditingPreviousMessage = false;
-    this.editingMessageIndex = null;
-    log.info('AppState.cancelEditPreviousMessage');
-    this._notifyListeners();
-  }
-
-  // ---------------------------------------------------------------------------
   // Confirmation Overlay (OVLY-02)
   // ---------------------------------------------------------------------------
 
@@ -1692,52 +1678,6 @@ export class AppState {
       placement: { type: 'fullscreen' },
       builder: (onDismiss: () => void) => new FileChangesOverlay({
         files: this.fileChanges,
-        onDismiss,
-      }),
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // MCP Status Modal (OVLY-06)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Show the MCP status modal listing all MCP server connections.
-   * Matches AMP's MCP server status overlay pattern.
-   */
-  showMcpStatus(): void {
-    // Lazy import to avoid circular dependency
-    const { McpStatusModal } = require('../widgets/mcp-status-modal');
-    this.overlayManager.show({
-      id: OVERLAY_IDS.MCP_STATUS,
-      priority: OVERLAY_PRIORITIES.MCP_STATUS,
-      modal: true,
-      placement: { type: 'fullscreen' },
-      builder: (onDismiss: () => void) => new McpStatusModal({
-        servers: this.mcpServers ?? [],
-        onDismiss,
-      }),
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Console Overlay (OVLY-07)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Show the console overlay with runtime log entries.
-   * Displays log entries from consoleLogEntries with level-based coloring.
-   */
-  showConsole(): void {
-    // Lazy import to avoid circular dependency
-    const { ConsoleOverlay } = require('../widgets/console-overlay');
-    this.overlayManager.show({
-      id: OVERLAY_IDS.CONSOLE,
-      priority: OVERLAY_PRIORITIES.CONSOLE,
-      modal: true,
-      placement: { type: 'fullscreen' },
-      builder: (onDismiss: () => void) => new ConsoleOverlay({
-        logEntries: this.consoleLogEntries,
         onDismiss,
       }),
     });
@@ -1911,8 +1851,6 @@ export class AppState {
       visibility: 'visible',
       agentMode: 'smart',
       queuedMessages: [],
-      draftContent: null,
-      threadStatus: null,
     };
     threadPool.activateThread(initialHandle);
 
@@ -1931,26 +1869,9 @@ export class AppState {
         // Read from ConfigService if available, default to 80%
         return config.configService?.get('internal.compactionThresholdPercent') ?? 80;
       },
-      getPendingSkills: () => {
-        return appState.skillService.getPendingSkills();
-      },
-      clearPendingSkills: () => {
-        appState.skillService.clearPendingSkills();
-      },
     });
     appState.setPromptController(controller);
     threadPool.setCompactionStatusProvider(() => controller.getCompactionStatus());
-
-    // Initialize HandoffService (S2-11) — must come after threadPool is available
-    appState._handoffService = new HandoffService({
-      threadPool: appState.threadPool,
-      onSubmit: (text: string) => {
-        appState.submitPrompt(text);
-      },
-      onStateChange: () => {
-        appState._notifyListeners();
-      },
-    });
 
     log.info(`AppState.create: sessionId=${sessionId} threadID=${threadID} model=${config.provider.model} cwd=${config.cwd}`);
 

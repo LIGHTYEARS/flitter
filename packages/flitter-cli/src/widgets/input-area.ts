@@ -41,9 +41,8 @@ import { basename } from 'node:path';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
 import { Color } from '../../../flitter-core/src/core/color';
 import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
-import type { UsageInfo, QueuedMessage } from '../state/types';
+import type { UsageInfo } from '../state/types';
 import { CliThemeProvider, agentModeColor } from '../themes';
-import { QueuedMessagesList } from './queued-messages-list';
 import {
   buildTopLeftOverlay,
   buildTopRightOverlay,
@@ -99,11 +98,8 @@ export function parseShellCommand(text: string): { cmd: string; visibility: 'she
 // Step 3: Auto-expanding height constants
 // ---------------------------------------------------------------------------
 
-/** Minimum container height in rows (drag resize floor). */
-export const MIN_HEIGHT = 3;
-
-/** Maximum drag height as a fraction of screen height (60%). */
-const MAX_HEIGHT_FRACTION = 0.6;
+/** Minimum container height: 3 content lines + 2 border rows. */
+export const MIN_HEIGHT = 5;
 
 /**
  * Extra content lines required by ShortcutHelpInline topWidget.
@@ -134,8 +130,6 @@ interface InputAreaProps {
   getFiles?: () => Promise<string[]>;
   /** Callback fired when @@ (special command) trigger is typed. */
   onSpecialCommandTrigger?: () => void;
-  /** Callback fired when @@ is typed to trigger the thread mention picker. */
-  onThreadMentionTrigger?: () => void;
   /** Callback fired when @: (commit) trigger is typed. */
   onCommitTrigger?: () => void;
   /** Callback fired when ? is typed into an empty input. */
@@ -200,12 +194,6 @@ interface InputAreaProps {
   isRunningBashInvocations?: boolean;
   /** 是否正在确认取消处理（二次 Esc 确认状态）。 */
   isConfirmingCancelProcessing?: boolean;
-  /** S3-3: Whether deep reasoning is active, triggering continuous shimmer on the border. */
-  deepReasoningActive?: boolean;
-  /** Queued messages to display above the text field (S2-4). */
-  queuedMessages?: ReadonlyArray<QueuedMessage>;
-  /** Callback to interrupt (remove) a specific queued message by ID (S2-4). */
-  onInterrupt?: (messageID: string) => void;
 }
 
 /**
@@ -230,8 +218,6 @@ export class InputArea extends StatefulWidget {
   readonly getFiles?: () => Promise<string[]>;
   /** Callback fired when @@ (special command) trigger is typed. */
   readonly onSpecialCommandTrigger?: () => void;
-  /** Callback fired when @@ is typed to trigger the thread mention picker. */
-  readonly onThreadMentionTrigger?: () => void;
   /** Callback fired when @: (commit) trigger is typed. */
   readonly onCommitTrigger?: () => void;
   /** Callback fired when ? is typed into an empty input. */
@@ -273,12 +259,6 @@ export class InputArea extends StatefulWidget {
   readonly isRunningBashInvocations: boolean;
   /** 是否正在确认取消处理（二次 Esc 确认状态）。 */
   readonly isConfirmingCancelProcessing: boolean;
-  /** S3-3: Whether deep reasoning is active, triggering continuous shimmer on the border. */
-  readonly deepReasoningActive: boolean;
-  /** Queued messages to display above the text field (S2-4). */
-  readonly queuedMessages: ReadonlyArray<QueuedMessage>;
-  /** Callback to interrupt a specific queued message by ID (S2-4). */
-  readonly onInterrupt?: (messageID: string) => void;
 
   constructor(props: InputAreaProps) {
     super();
@@ -290,7 +270,6 @@ export class InputArea extends StatefulWidget {
     this.overlayTexts = props.overlayTexts ?? [];
     this.getFiles = props.getFiles;
     this.onSpecialCommandTrigger = props.onSpecialCommandTrigger;
-    this.onThreadMentionTrigger = props.onThreadMentionTrigger;
     this.onCommitTrigger = props.onCommitTrigger;
     this.onQuestionMarkTrigger = props.onQuestionMarkTrigger;
     this.onSlashTrigger = props.onSlashTrigger;
@@ -321,9 +300,6 @@ export class InputArea extends StatefulWidget {
     this.onShellModeChange = props.onShellModeChange;
     this.isRunningBashInvocations = props.isRunningBashInvocations ?? false;
     this.isConfirmingCancelProcessing = props.isConfirmingCancelProcessing ?? false;
-    this.deepReasoningActive = props.deepReasoningActive ?? false;
-    this.queuedMessages = props.queuedMessages ?? [];
-    this.onInterrupt = props.onInterrupt;
   }
 
   createState(): InputAreaState {
@@ -459,9 +435,8 @@ class InputAreaState extends State<InputArea> {
       }
 
       // Priority trigger detection: @@ and @: before plain @
-      if (newText.endsWith('@@') && !oldText.endsWith('@@')) {
-        this.widget.onSpecialCommandTrigger?.();
-        this.widget.onThreadMentionTrigger?.();
+      if (newText.endsWith('@@') && this.widget.onSpecialCommandTrigger) {
+        this.widget.onSpecialCommandTrigger();
       } else if (newText.endsWith('@:') && this.widget.onCommitTrigger) {
         this.widget.onCommitTrigger();
       }
@@ -504,7 +479,7 @@ class InputAreaState extends State<InputArea> {
   /**
    * Handle mouse events on the top border for drag-resize.
    * Press: record starting Y and current computed height.
-   * Drag: compute delta, clamp to [MIN_HEIGHT, floor(screenHeight * 0.6)].
+   * Drag: compute delta, clamp to [MIN_HEIGHT, floor(screenHeight/2)].
    * Release: clear drag tracking state.
    */
   private _handleDragPress = (_e: { x: number; y: number }): void => {
@@ -515,8 +490,8 @@ class InputAreaState extends State<InputArea> {
   private _handleDragMove = (_e: { x: number; y: number }): void => {
     if (this.dragStartY !== null && this.dragStartHeight !== null) {
       const delta = this.dragStartY - _e.y;
-      // S3-13: Use MAX_HEIGHT_FRACTION (60%) of terminal screen height for dynamic max height.
-      const maxHeight = Math.max(MIN_HEIGHT, Math.floor((this.widget.screenHeight ?? 50) * MAX_HEIGHT_FRACTION));
+      // D-12/D-13: Use actual terminal screen height for dynamic max height.
+      const maxHeight = Math.max(MIN_HEIGHT, Math.floor((this.widget.screenHeight ?? 50) / 2));
       const newHeight = Math.max(MIN_HEIGHT, Math.min(this.dragStartHeight + delta, maxHeight));
       if (newHeight !== this.dragHeight) {
         this.dragHeight = newHeight;
@@ -711,23 +686,11 @@ class InputAreaState extends State<InputArea> {
 
     // Bordered container with auto-expanding height and gap-aware decoration
     // When topWidget is present (e.g. shortcut help), stack it above the text field
-    // When queuedMessages are present (S2-4), insert QueuedMessagesList above input
-    const columnChildren: Widget[] = [];
-    if (this.widget.topWidget) {
-      columnChildren.push(this.widget.topWidget);
-    }
-    if (this.widget.queuedMessages.length > 0) {
-      columnChildren.push(new QueuedMessagesList({
-        queuedMessages: this.widget.queuedMessages,
-        onInterrupt: this.widget.onInterrupt,
-      }));
-    }
-
-    const containerChild = columnChildren.length > 0
+    const containerChild = this.widget.topWidget
       ? new Column({
           crossAxisAlignment: 'stretch',
           mainAxisSize: 'min',
-          children: [...columnChildren, autocompleteWrapped],
+          children: [this.widget.topWidget, autocompleteWrapped],
         })
       : autocompleteWrapped;
 
@@ -761,7 +724,6 @@ class InputAreaState extends State<InputArea> {
             trigger: this.widget.agentModePulseSeq,
             trail: 5,
             direction: 'right-to-left',
-            isActive: this.widget.deepReasoningActive ?? false,
           }),
         }),
       );

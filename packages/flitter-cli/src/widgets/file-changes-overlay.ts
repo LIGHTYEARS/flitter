@@ -2,27 +2,16 @@
 //
 // Matches AMP's isShowingFileChangesOverlay and ThreadWorker.fileChanges pattern.
 // Shows file changes with status icons (created/modified/deleted) and
-// relative paths. Color coding: created=green, modified=yellow, deleted=red.
-//
-// Supports scrolling for long file lists via SingleChildScrollView +
-// keyboard ArrowUp/ArrowDown navigation.
+// relative paths.
 //
 // Key bindings:
-//   Escape     → dismiss overlay
-//   ArrowUp    → scroll up
-//   ArrowDown  → scroll down
+//   Escape → dismiss overlay
 //
 // Modal overlay at FILE_CHANGES priority (50).
 
-import {
-  StatefulWidget,
-  State,
-  Widget,
-  type BuildContext,
-} from '../../../flitter-core/src/framework/widget';
-import { Column, Row } from '../../../flitter-core/src/widgets/flex';
+import { StatelessWidget, Widget, type BuildContext } from '../../../flitter-core/src/framework/widget';
+import { Column } from '../../../flitter-core/src/widgets/flex';
 import { Container } from '../../../flitter-core/src/widgets/container';
-import { Expanded } from '../../../flitter-core/src/widgets/flexible';
 import { Text } from '../../../flitter-core/src/widgets/text';
 import { TextSpan } from '../../../flitter-core/src/core/text-span';
 import { TextStyle } from '../../../flitter-core/src/core/text-style';
@@ -33,9 +22,6 @@ import { EdgeInsets } from '../../../flitter-core/src/layout/edge-insets';
 import { SizedBox } from '../../../flitter-core/src/widgets/sized-box';
 import { Center } from '../../../flitter-core/src/widgets/center';
 import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
-import { SingleChildScrollView } from '../../../flitter-core/src/widgets/scroll-view';
-import { ScrollController } from '../../../flitter-core/src/widgets/scroll-controller';
-import { Scrollbar } from '../../../flitter-core/src/widgets/scrollbar';
 import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/events';
 import type { FileChangeEntry } from '../state/types';
 
@@ -66,12 +52,6 @@ const STATUS_STYLES: Record<FileChangeEntry['status'], { icon: string; color: Co
   deleted:  { icon: '-', color: Color.red },
 };
 
-/** Number of lines to scroll per ArrowUp/ArrowDown key press. */
-const SCROLL_STEP = 3;
-
-/** Maximum visible height for the overlay (in terminal rows). */
-const MAX_VISIBLE_HEIGHT = 30;
-
 // ---------------------------------------------------------------------------
 // FileChangesOverlay
 // ---------------------------------------------------------------------------
@@ -83,68 +63,24 @@ const MAX_VISIBLE_HEIGHT = 30;
  * Each file entry shows a status icon (+ created, ~ modified, - deleted)
  * with color coding and the relative file path.
  *
- * Supports keyboard scroll (ArrowUp/ArrowDown) for long lists.
- *
  * Layout:
- *   FocusScope (autofocus, key handler)
+ *   FocusScope (autofocus, absorbs all keys)
  *     Center
- *       Container (bordered blue, padded, maxWidth: 70, maxHeight: MAX_VISIBLE_HEIGHT)
+ *       Container (bordered blue, padded, maxWidth: 60)
  *         Column
- *           "File Changes" title + count + summary
- *           Expanded (scroll area with file entries)
+ *           "File Changes" title + count
+ *           File entry rows (or empty state)
  *           Footer hints
  */
-export class FileChangesOverlay extends StatefulWidget {
-  readonly files: readonly FileChangeEntry[];
-  readonly onDismiss: () => void;
+export class FileChangesOverlay extends StatelessWidget {
+  private readonly files: readonly FileChangeEntry[];
+  private readonly onDismiss: () => void;
 
   constructor(props: FileChangesOverlayProps) {
-    super();
+    super({});
     this.files = props.files;
     this.onDismiss = props.onDismiss;
   }
-
-  createState(): FileChangesOverlayState {
-    return new FileChangesOverlayState();
-  }
-}
-
-/**
- * State for FileChangesOverlay. Owns a ScrollController for keyboard-
- * driven scrolling of long file change lists.
- */
-class FileChangesOverlayState extends State<FileChangesOverlay> {
-  /** ScrollController for the file list scroll area. */
-  private scrollController = new ScrollController();
-
-  /** Dispose scroll controller on teardown. */
-  dispose(): void {
-    this.scrollController.dispose();
-    super.dispose();
-  }
-
-  /**
-   * Handle keyboard events: Escape to dismiss, ArrowUp/ArrowDown to scroll.
-   */
-  private _handleKey = (event: KeyEvent): KeyEventResult => {
-    if (event.key === 'Escape') {
-      this.widget.onDismiss();
-      return 'handled';
-    }
-    if (event.key === 'ArrowUp') {
-      const newOffset = Math.max(0, this.scrollController.offset - SCROLL_STEP);
-      this.scrollController.jumpTo(newOffset);
-      return 'handled';
-    }
-    if (event.key === 'ArrowDown') {
-      const maxScroll = this.scrollController.maxScrollExtent;
-      const newOffset = Math.min(maxScroll, this.scrollController.offset + SCROLL_STEP);
-      this.scrollController.jumpTo(newOffset);
-      return 'handled';
-    }
-    // Absorb all keys while overlay is shown
-    return 'handled';
-  };
 
   build(_context: BuildContext): Widget {
     const side = new BorderSide({
@@ -153,22 +89,10 @@ class FileChangesOverlayState extends State<FileChangesOverlay> {
       style: 'rounded',
     });
 
-    const files = this.widget.files;
-
-    // Compute summary counts per status
-    let createdCount = 0;
-    let modifiedCount = 0;
-    let deletedCount = 0;
-    for (const f of files) {
-      if (f.status === 'created') createdCount++;
-      else if (f.status === 'modified') modifiedCount++;
-      else if (f.status === 'deleted') deletedCount++;
-    }
-
-    const headerChildren: Widget[] = [];
+    const children: Widget[] = [];
 
     // Title with count
-    headerChildren.push(
+    children.push(
       new Text({
         text: new TextSpan({
           children: [
@@ -177,56 +101,18 @@ class FileChangesOverlayState extends State<FileChangesOverlay> {
               style: new TextStyle({ foreground: BORDER_COLOR, bold: true }),
             }),
             new TextSpan({
-              text: ` (${files.length})`,
+              text: ` (${this.files.length})`,
               style: new TextStyle({ foreground: MUTED_COLOR }),
             }),
           ],
         }),
       }),
     );
+    children.push(new SizedBox({ height: 1 }));
 
-    // Summary line showing count per status type
-    if (files.length > 0) {
-      const summaryParts: TextSpan[] = [];
-      if (createdCount > 0) {
-        summaryParts.push(new TextSpan({
-          text: `+${createdCount} created`,
-          style: new TextStyle({ foreground: Color.green }),
-        }));
-      }
-      if (modifiedCount > 0) {
-        if (summaryParts.length > 0) {
-          summaryParts.push(new TextSpan({ text: '  ', style: new TextStyle({ foreground: MUTED_COLOR }) }));
-        }
-        summaryParts.push(new TextSpan({
-          text: `~${modifiedCount} modified`,
-          style: new TextStyle({ foreground: Color.yellow }),
-        }));
-      }
-      if (deletedCount > 0) {
-        if (summaryParts.length > 0) {
-          summaryParts.push(new TextSpan({ text: '  ', style: new TextStyle({ foreground: MUTED_COLOR }) }));
-        }
-        summaryParts.push(new TextSpan({
-          text: `-${deletedCount} deleted`,
-          style: new TextStyle({ foreground: Color.red }),
-        }));
-      }
-      headerChildren.push(
-        new Text({
-          text: new TextSpan({ children: summaryParts }),
-        }),
-      );
-    }
-
-    headerChildren.push(new SizedBox({ height: 1 }));
-
-    // File entry widgets
-    const fileEntryWidgets: Widget[] = [];
-
-    if (files.length === 0) {
+    if (this.files.length === 0) {
       // Empty state
-      fileEntryWidgets.push(
+      children.push(
         new Text({
           text: new TextSpan({
             text: 'No files changed in this session',
@@ -235,10 +121,10 @@ class FileChangesOverlayState extends State<FileChangesOverlay> {
         }),
       );
     } else {
-      // File entries with status icon and colored path
-      for (const file of files) {
+      // File entries
+      for (const file of this.files) {
         const style = STATUS_STYLES[file.status];
-        fileEntryWidgets.push(
+        children.push(
           new Text({
             text: new TextSpan({
               children: [
@@ -258,8 +144,8 @@ class FileChangesOverlayState extends State<FileChangesOverlay> {
     }
 
     // Footer
-    const footerChildren: Widget[] = [
-      new SizedBox({ height: 1 }),
+    children.push(new SizedBox({ height: 1 }));
+    children.push(
       new Text({
         text: new TextSpan({
           children: [
@@ -271,64 +157,30 @@ class FileChangesOverlayState extends State<FileChangesOverlay> {
               text: ' close',
               style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
             }),
-            ...(files.length > MAX_VISIBLE_HEIGHT - 6 ? [
-              new TextSpan({
-                text: '  ',
-              }),
-              new TextSpan({
-                text: '↑↓',
-                style: new TextStyle({ foreground: KEYBIND_COLOR }),
-              }),
-              new TextSpan({
-                text: ' scroll',
-                style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
-              }),
-            ] : []),
           ],
         }),
       }),
-    ];
-
-    // Scroll area for file entries
-    const scrollArea = new Expanded({
-      child: new Row({
-        crossAxisAlignment: 'stretch',
-        children: [
-          new Expanded({
-            child: new SingleChildScrollView({
-              controller: this.scrollController,
-              child: new Column({
-                mainAxisSize: 'min',
-                crossAxisAlignment: 'start',
-                children: fileEntryWidgets,
-              }),
-            }),
-          }),
-          new Scrollbar({
-            controller: this.scrollController,
-            thumbColor: Color.brightBlack,
-            trackColor: Color.defaultColor,
-          }),
-        ],
-      }),
-    });
+    );
 
     return new FocusScope({
       autofocus: true,
-      onKey: this._handleKey,
+      onKey: (event: KeyEvent): KeyEventResult => {
+        if (event.key === 'Escape') {
+          this.onDismiss();
+          return 'handled';
+        }
+        // Absorb all keys while overlay is shown
+        return 'handled';
+      },
       child: new Center({
         child: new Container({
           decoration: new BoxDecoration({ border: Border.all(side) }),
           padding: EdgeInsets.symmetric({ horizontal: 2, vertical: 1 }),
-          constraints: new BoxConstraints({ maxWidth: 70, maxHeight: MAX_VISIBLE_HEIGHT }),
+          constraints: new BoxConstraints({ maxWidth: 60 }),
           child: new Column({
             mainAxisSize: 'min',
             crossAxisAlignment: 'start',
-            children: [
-              ...headerChildren,
-              scrollArea,
-              ...footerChildren,
-            ],
+            children,
           }),
         }),
       }),

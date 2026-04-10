@@ -222,44 +222,23 @@ export function buildCommandList(
     },
   });
 
-  // 14. thread > hide — set current thread visibility to 'hidden'
+  // 14. thread > set visibility
   commands.push({
-    id: 'thread-hide',
+    id: 'thread-set-visibility',
     category: 'thread',
-    label: 'hide',
-    description: 'Hide the current thread',
+    label: 'set visibility',
+    description: 'Toggle current thread visibility (visible/hidden)',
     execute: (_onDismiss: () => void) => {
       const activeID = appState.threadPool.activeThreadContextID;
       if (!activeID) return;
-      appState.threadPool.setThreadVisibility(activeID, 'hidden');
+      const handle = appState.threadPool.threadHandleMap.get(activeID);
+      if (!handle) return;
+      const newVisibility = handle.visibility === 'visible' ? 'hidden' : 'visible';
+      appState.threadPool.setThreadVisibility(activeID, newVisibility);
     },
   });
 
-  // 15. thread > archive — set current thread visibility to 'archived'
-  commands.push({
-    id: 'thread-archive',
-    category: 'thread',
-    label: 'archive',
-    description: 'Archive the current thread',
-    execute: (_onDismiss: () => void) => {
-      const activeID = appState.threadPool.activeThreadContextID;
-      if (!activeID) return;
-      appState.threadPool.setThreadVisibility(activeID, 'archived');
-    },
-  });
-
-  // 16. thread > show all — toggle display mode to include hidden threads
-  commands.push({
-    id: 'thread-show-all',
-    category: 'thread',
-    label: 'show all',
-    description: 'Toggle showing all threads including hidden ones',
-    execute: (_onDismiss: () => void) => {
-      (appState as any).toggleShowAllThreads?.();
-    },
-  });
-
-  // 17. prompt > paste image from clipboard (Ctrl v)
+  // 15. prompt > paste image from clipboard (Ctrl v)
   commands.push({
     id: 'paste-image',
     category: 'prompt',
@@ -268,50 +247,6 @@ export function buildCommandList(
     shortcutHint: 'Ctrl+V',
     execute: (_onDismiss: () => void) => {
       ctx.hooks.pasteImage?.();
-    },
-  });
-
-  // 18. mcp > status
-  commands.push({
-    id: 'mcp-status',
-    category: 'mcp',
-    label: 'status',
-    description: 'Show MCP server connection status',
-    execute: (_onDismiss: () => void) => {
-      appState.showMcpStatus();
-    },
-  });
-
-  // 19. news > feed — open the news feed overlay
-  commands.push({
-    id: 'news-feed',
-    category: 'news',
-    label: 'feed',
-    description: 'Show the news feed overlay',
-    execute: (_onDismiss: () => void) => {
-      (appState as any).showNewsFeed?.();
-    },
-  });
-
-  // 20. ide > pick — open the IDE picker overlay
-  commands.push({
-    id: 'ide-pick',
-    category: 'ide',
-    label: 'pick',
-    description: 'Open the IDE picker to select an IDE',
-    execute: (_onDismiss: () => void) => {
-      (appState as any).showIdePicker?.();
-    },
-  });
-
-  // 21. console > show — open the debug log viewer overlay
-  commands.push({
-    id: 'console-show',
-    category: 'console',
-    label: 'show',
-    description: 'Show the debug console log viewer',
-    execute: (_onDismiss: () => void) => {
-      (appState as any).showConsole?.();
     },
   });
 

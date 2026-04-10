@@ -46,7 +46,6 @@ import { CliThemeProvider } from '../themes';
 import type { CliBaseTheme, CliAppColors } from '../themes';
 import type { SkillDefinition, SkillError, SkillWarning } from '../state/skill-types';
 import { groupSkillsByPath, relativizePath } from '../state/skill-service';
-import { SkillPreview, type SkillPreviewData } from './skill-preview';
 
 // ---------------------------------------------------------------------------
 // SkillsModal Props — matching AMP m9T constructor exactly
@@ -972,21 +971,8 @@ export class SkillsModalState extends State<SkillsModal> {
           }),
         });
 
-    // --- SkillPreview summary widget (S4-10) ---
-    // Renders a bordered preview with name/author/description/content summary
-    // at the top of the detail panel when a skill is selected.
-    const previewData: SkillPreviewData = {
-      name: skill.name,
-      description: skill.description ? cleanDescription(skill.description) : '',
-      content: skill.content || '',
-      author: skill.frontmatter?.metadata?.['author'],
-    };
-    const skillPreviewWidget = new SkillPreview({ skill: previewData });
-
     // --- Detail content column (uR) matching AMP ---
     const detailColumnChildren: Widget[] = [
-      skillPreviewWidget,
-      new SizedBox({ height: 1 }),
       skillMdLabel,
       new SizedBox({ height: 1 }),
     ];

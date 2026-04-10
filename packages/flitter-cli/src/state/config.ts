@@ -63,12 +63,6 @@ export interface AppConfig {
   connectTarget: ConnectTarget | null;
   /** Whether tool calls are expanded by default in the UI (N10). */
   defaultToolExpanded: boolean;
-  /** Anthropic speed setting: 'standard' (default) or 'fast'. Convenience accessor for configService. */
-  anthropicSpeed: 'standard' | 'fast';
-  /** OpenAI speed setting: 'standard' (default) or 'fast'. Convenience accessor for configService. */
-  openAISpeed: 'standard' | 'fast';
-  /** Whether interleaved thinking is enabled for Anthropic models. Convenience accessor for configService. */
-  interleavedThinking: boolean;
   /** Provider-specific settings service with Zod validation. */
   configService: ConfigService;
 }
@@ -356,9 +350,6 @@ export function parseArgs(argv: string[]): AppConfig {
     exportSession,
     connectTarget,
     defaultToolExpanded,
-    anthropicSpeed: (configService.get('anthropic.speed') ?? 'standard') as 'standard' | 'fast',
-    openAISpeed: (configService.get('openai.speed') ?? 'standard') as 'standard' | 'fast',
-    interleavedThinking: configService.get('anthropic.interleavedThinking.enabled') ?? false,
     configService,
   };
 }

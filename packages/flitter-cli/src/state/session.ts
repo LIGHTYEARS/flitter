@@ -803,33 +803,6 @@ export class SessionState {
   // ---------------------------------------------------------------------------
 
   /**
-   * Find the index of the last user_message in the items array.
-   * Returns null if there are no user messages. Skips user messages
-   * that are tool-result carriers (text is empty + has toolResults).
-   *
-   * AMP ref: editingMessageOrdinal — used for Up-arrow edit previous message.
-   */
-  getLastUserMessageIndex(): number | null {
-    for (let i = this._items.length - 1; i >= 0; i--) {
-      const item = this._items[i];
-      if (item.type === 'user_message' && item.text.trim().length > 0) {
-        return i;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Get the text of the last user_message in the items array.
-   * Returns null if there are no user messages with text content.
-   */
-  getLastUserMessageText(): string | null {
-    const index = this.getLastUserMessageIndex();
-    if (index === null) return null;
-    return this.getMessageAt(index);
-  }
-
-  /**
    * Get the text of a user message at the given items-array index.
    * Returns null if the index is out of bounds or not a user message.
    */
@@ -872,66 +845,6 @@ export class SessionState {
 
     // Reset task stack to avoid stale parent-child relationships (I6)
     this._openTaskStack = [];
-
-    this.bumpVersion();
-    this.notifyListeners();
-  }
-
-  /**
-   * Remove all conversation items before the given index for compaction.
-   *
-   * System messages (type 'system_message') that appear before the cut index
-   * are preserved and re-prepended — matching AMP's compaction behavior which
-   * retains system prompts and informational markers.
-   *
-   * Allowed in any lifecycle — called by PromptController._checkCompaction()
-   * after inference completes.
-   *
-   * No-op if:
-   * - index <= 0 (nothing to remove)
-   * - index >= items.length (would remove everything)
-   *
-   * @param index - The cut point: items[0..index-1] are removed, items[index..] are kept.
-   */
-  truncateBefore(index: number): void {
-    if (index <= 0 || index >= this._items.length) {
-      log.debug(`SessionState: truncateBefore no-op — index=${index}, items.length=${this._items.length}`);
-      return;
-    }
-
-    const beforeCount = this._items.length;
-
-    // Collect system messages from the region being removed
-    const preservedSystemMessages: ConversationItem[] = [];
-    for (let i = 0; i < index; i++) {
-      if (this._items[i].type === 'system_message') {
-        preservedSystemMessages.push(this._items[i]);
-      }
-    }
-
-    // Build new items: preserved system messages + items from cut point onward
-    const keptItems = this._items.slice(index);
-    this._items = [...preservedSystemMessages, ...keptItems];
-
-    // Reset streaming state — compaction should only happen after streaming completes
-    this._streamingMsgIndex = -1;
-    this._streamingThinkingIndex = -1;
-    this._streamingTextBuffer = '';
-    this._streamingThinkingBuffer = '';
-
-    // Rebuild tool call index from the new items array
-    this._toolCallIndex.clear();
-    for (let i = 0; i < this._items.length; i++) {
-      const item = this._items[i];
-      if (item.type === 'tool_call') {
-        this._toolCallIndex.set(item.toolCallId, i);
-      }
-    }
-
-    // Reset task stack — compaction invalidates parent-child chains
-    this._openTaskStack = [];
-
-    log.info(`SessionState: truncateBefore index=${index} — removed ${beforeCount - this._items.length} items, preserved ${preservedSystemMessages.length} system messages, ${this._items.length} items remain`);
 
     this.bumpVersion();
     this.notifyListeners();

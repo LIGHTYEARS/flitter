@@ -141,7 +141,7 @@ async function main(): Promise<void> {
 
   let provider: Provider;
   try {
-    provider = createProvider(config.providerConfig, config.configService);
+    provider = createProvider(config.providerConfig);
     log.info(`Provider: ${provider.id} model=${provider.model} contextWindow=${provider.piModel.contextWindow} reasoning=${provider.piModel.reasoning}`);
     log.info(`ConfigService initialized with ${Object.keys(config.configService.snapshot()).length} settings`);
   } catch (error) {

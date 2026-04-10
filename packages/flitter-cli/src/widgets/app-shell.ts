@@ -68,7 +68,6 @@ import { listProjectFiles } from '../utils/file-list';
 import { launchEditor } from '../utils/editor-launcher';
 import { log } from '../utils/logger';
 import { CliThemeProvider, createCliTheme, cliThemes } from '../themes';
-import { EffortHintController } from '../utils/effort-hint-controller';
 
 // ---------------------------------------------------------------------------
 // AppShell — root widget
@@ -176,9 +175,6 @@ class AppShellState extends State<AppShell> {
   /** BORDER-08: persisted drag height for InputArea (bottomGridUserHeight global state).
    * Null means auto-expand is active. Persists across widget rebuilds. */
   private _bottomGridUserHeight: number | null = null;
-
-  /** S3-4: EffortHintController for per-thread effort level hints. */
-  private _effortHintController = new EffortHintController();
 
   /** Whether shortcut help is displayed inline inside InputArea.
    * Matches AMP's isShowingShortcutsHelp state flag.
@@ -421,26 +417,9 @@ class AppShellState extends State<AppShell> {
       }
     }
 
-    // --- 3. Arrow key history navigation (E6) + edit previous message (S2-7) ---
+    // --- 3. Arrow key history navigation (E6) ---
     if (!this.widget.appState.overlayManager.hasOverlays) {
       if (key === 'ArrowUp' && !shift && !ctrl && !alt) {
-        // S2-7: When input is empty and session has user messages,
-        // trigger "edit previous message" instead of history navigation.
-        const inputEmpty = this.textController.text.trim().length === 0;
-        if (inputEmpty && !this.widget.appState.isEditingPreviousMessage) {
-          const appState = this.widget.appState;
-          const text = appState.session.getLastUserMessageText();
-          if (text !== null) {
-            const success = appState.editPreviousMessage();
-            if (success) {
-              this.textController.text = text;
-              this.textController.cursorPosition = text.length;
-              this.setState();
-              return 'handled';
-            }
-          }
-        }
-        // Fallback: standard prompt history navigation
         this._navigateHistory('backward');
         return 'handled';
       }
@@ -853,24 +832,6 @@ class AppShellState extends State<AppShell> {
   // --- Content Builders ---
 
   /**
-   * S3-4: Compute the effort hint text for the current thread and effort level.
-   *
-   * Returns the hint text if deep reasoning is active and the current thread
-   * hasn't seen the hint yet. Returns null otherwise.
-   */
-  private _getEffortHintText(): string | null {
-    const appState = this.widget.appState;
-    if (!appState.deepReasoningActive || !appState.deepReasoningEffort) {
-      return null;
-    }
-    const threadID = appState.threadPool?.activeThreadContextID ?? '__default__';
-    if (this._effortHintController.canShowHintInCurrentThread(threadID)) {
-      return this._effortHintController.getHintText(appState.deepReasoningEffort);
-    }
-    return null;
-  }
-
-  /**
    * Determine whether the current screen state needs scroll infrastructure.
    *
    * Only 'ready' and 'processing' screens have conversation content that
@@ -1032,7 +993,6 @@ class AppShellState extends State<AppShell> {
           onSlashTrigger: () => this._showCommandPalette(),
           isRunningBashInvocations: this.widget.appState.bashInvocations.length > 0 || this.widget.appState.pendingBashInvocations.size > 0,
           isConfirmingCancelProcessing: (this.widget.appState as any).isConfirmingCancelProcessing ?? false,
-          deepReasoningActive: this.widget.appState.deepReasoningActive,
         }),
         new StatusBar({
           cwd: this.widget.appState.metadata?.cwd ?? process.cwd(),
@@ -1050,9 +1010,6 @@ class AppShellState extends State<AppShell> {
           inputText: this.textController.text,
           isShowingShortcutsHelp: this._isShowingShortcutsHelp,
           runningBashInvocations: this.widget.appState.bashInvocations.length > 0 || this.widget.appState.pendingBashInvocations.size > 0,
-          deepReasoningActive: this.widget.appState.deepReasoningActive,
-          deepReasoningEffort: this.widget.appState.deepReasoningEffort,
-          effortHintText: this._getEffortHintText(),
         }),
       ],
     });

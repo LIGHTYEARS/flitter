@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.4.0
-milestone_name: "Close All Gaps: Full AMP Fidelity"
-status: complete
-last_updated: "2026-04-09T00:00:00.000Z"
-last_activity: 2026-04-09 -- Phase 38 complete, v0.4.0 milestone finalized
+milestone_name: Close All Gaps
+status: executing
+last_updated: "2026-04-10T10:04:37.451Z"
+last_activity: 2026-04-10 -- Phase 39 execution started
 progress:
-  total_phases: 16
-  completed_phases: 16
-  total_plans: 35
-  completed_plans: 35
-  percent: 100
+  total_phases: 17
+  completed_phases: 14
+  total_plans: 42
+  completed_plans: 32
+  percent: 76
 ---
 
 # Project State: flitter-cli
@@ -20,18 +20,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-06)
 
 **Core value:** Ship a native `flitter-cli` that achieves 100% behavioral and TUI parity with Amp, without depending on coco or ACP bridging.
-**Current focus:** Milestone v0.4.0 complete — all phases delivered
+**Current focus:** Phase 39 — Align flitter-cli with AMP 44 gaps
 
 ## Current Milestone
 
-**v0.4.0** — Close All Gaps: Full AMP Fidelity (COMPLETE)
+**v0.4.0** — Close All Gaps: Full AMP Fidelity (ACTIVE — Phase 39 added)
 
 ## Current Position
 
-Phase: 38 (full-observability) — COMPLETE
-Plan: 4 of 4
-Status: v0.4.0 milestone complete — all 16 phases, 35 plans delivered
-Last activity: 2026-04-09 -- Phase 38 complete, milestone finalized
+Phase: 39 (Align flitter-cli with AMP 44 gaps) — EXECUTING
+Plan: 1 of 7
+Status: Executing Phase 39
+Last activity: 2026-04-10 -- Phase 39 execution started
 
 ## Phase Status
 
@@ -53,8 +53,9 @@ Last activity: 2026-04-09 -- Phase 38 complete, milestone finalized
 | 36 | Visual Polish | Complete | 1/1 |
 | 37 | Simplify Factory.ts | Complete | 1/1 |
 | 38 | Full Observability | Complete | 4/4 |
+| 39 | Align flitter-cli with AMP 44 gaps | Not Planned | 0/0 |
 
-Progress: ████████████████ 100%
+Progress: ██████████████░░ 94%
 
 ## Recent Activity
 
@@ -68,6 +69,7 @@ Progress: ████████████████ 100%
 - 2026-04-08: Phase 37 complete — Simplify Factory.ts
 - 2026-04-08: Phase 38 complete — Full Observability (4 plans, 3 waves, 18 new tests)
 - 2026-04-09: v0.4.0 milestone finalized — 16 phases, 35 plans, 1144 tests (7388 expects)
+- 2026-04-10: Phase 39 added — Align flitter-cli with AMP 44 gaps (4 subagent audit: 100 checkpoints, 45% aligned, 44 gaps)
 
 ## Decisions Log
 
@@ -92,6 +94,7 @@ Progress: ████████████████ 100%
 
 - Phase 37 added: Simplify Factory.ts
 - Phase 38 added: 建设全链路可观测能力 (planned: 4 plans, 3 waves)
+- Phase 39 added: Align flitter-cli with AMP 44 gaps
 
 - `flitter-core` supports rendering primitives for chat, tool cards, markdown, scroll, overlays, and status surfaces
 - v0.3.0: bootstrap, session lifecycle, conversation model, chat view, input, overlays, tool rendering, content rendering, status/theme, history/persistence, migration closure

@@ -78,7 +78,7 @@ function fbm2D(
 
 /** Density characters from empty to full, ordered by visual weight. */
 const DENSITY_CHARS = ' .:-=+*#%@';
-const WELCOME_DENSITY_CHARS = ' .:-=+*#';
+const WELCOME_DENSITY_CHARS = ' .:-=+*';
 
 const DEFAULT_WIDTH = 40;
 const DEFAULT_HEIGHT = 20;
@@ -174,9 +174,7 @@ export class DensityOrb {
 
         // Fade towards edges of the ellipse
         const edgeFade = 1 - dist;
-        // Contrast multiplier: welcome variant uses 1.6x to spread across more density levels
-        const contrastMul = this.variant === 'welcome' ? 1.6 : 1.0;
-        const adjusted = n * edgeFade * contrastMul;
+        const adjusted = n * edgeFade;
 
         // Map to density character
         let level = Math.floor(adjusted * (numChars - 1));

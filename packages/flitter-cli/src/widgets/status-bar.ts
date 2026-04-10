@@ -37,10 +37,6 @@ export interface StatusBarProps {
   searchState?: { query: string; isFailing: boolean } | null;
   hintText?: string;
   deepReasoningActive?: boolean;
-  /** S3-4: Current deep reasoning effort level string (e.g. 'medium', 'high', 'xhigh'). */
-  deepReasoningEffort?: string | null;
-  /** S3-4: Effort hint text to display when deep reasoning is active. */
-  effortHintText?: string | null;
   inputText?: string;
   isShowingShortcutsHelp?: boolean;
   /** 是否有正在运行或等待显示的 bash invocations（bashInvocations.length > 0 || pendingBashInvocations.size > 0）。 */
@@ -102,10 +98,6 @@ export class StatusBar extends StatelessWidget {
   private readonly searchState: { query: string; isFailing: boolean } | null;
   private readonly hintText: string | undefined;
   private readonly deepReasoningActive: boolean;
-  /** S3-4: Current deep reasoning effort level. */
-  private readonly deepReasoningEffort: string | null;
-  /** S3-4: Effort hint text from EffortHintController. */
-  private readonly effortHintText: string | null;
   private readonly inputText: string;
   private readonly isShowingShortcutsHelp: boolean;
   private readonly runningBashInvocations: boolean;
@@ -131,8 +123,6 @@ export class StatusBar extends StatelessWidget {
     this.searchState = props.searchState ?? null;
     this.hintText = props.hintText;
     this.deepReasoningActive = props.deepReasoningActive ?? false;
-    this.deepReasoningEffort = props.deepReasoningEffort ?? null;
-    this.effortHintText = props.effortHintText ?? null;
     this.inputText = props.inputText ?? '';
     this.isShowingShortcutsHelp = props.isShowingShortcutsHelp ?? false;
     this.runningBashInvocations = props.runningBashInvocations ?? false;
@@ -155,36 +145,6 @@ export class StatusBar extends StatelessWidget {
     });
 
     if (!footerText) {
-      // S3-4: Show effort level hint when deep reasoning is active and idle
-      if (this.deepReasoningActive && this.effortHintText) {
-        const effortColor = theme?.base.accent ?? Color.magenta;
-        const mutedColor2 = theme?.base.mutedForeground ?? Color.brightBlack;
-
-        const effortHint = new Text({
-          text: new TextSpan({
-            children: [
-              new TextSpan({
-                text: '◆ ',
-                style: new TextStyle({ foreground: effortColor }),
-              }),
-              new TextSpan({
-                text: this.effortHintText,
-                style: new TextStyle({ foreground: mutedColor2, dim: true }),
-              }),
-            ],
-          }),
-        });
-
-        return new Padding({
-          padding: EdgeInsets.symmetric({ horizontal: 1 }),
-          child: new Row({
-            children: [
-              new Expanded({ child: effortHint }),
-            ],
-          }),
-        });
-      }
-
       if (this.inputText === '' && !this.isShowingShortcutsHelp) {
         const keybindColor = theme?.app.keybind ?? Color.blue;
         const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;

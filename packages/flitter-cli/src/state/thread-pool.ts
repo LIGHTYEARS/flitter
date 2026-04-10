@@ -4,10 +4,9 @@
 // navigation stacks, and recent thread ID tracking (max 50).
 // Source: 20_thread_management.js SECTION 2b (class RhR).
 
-import type { ThreadHandle, ThreadVisibility, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest, ThreadRelationship, ThreadRelationshipType, ConversationItem } from './types';
+import type { ThreadHandle, ThreadVisibility, ThreadWorkerEntry, ThreadInferenceState, QueuedMessage, CompactionStatus, HandoffRequest } from './types';
 import type { StateListener } from './session';
 import { createThreadHandle, type CreateThreadHandleOptions } from './thread-handle';
-import { ThreadWorker } from './thread-worker';
 import { log } from '../utils/logger';
 
 /** Maximum number of recent thread IDs to retain. AMP caps at 50. */
@@ -15,35 +14,6 @@ const MAX_RECENT_THREADS = 50;
 
 /** Maximum length for auto-generated thread titles. Matches AMP title truncation. */
 const MAX_TITLE_LENGTH = 80;
-
-/**
- * Per-thread operational abort controllers.
- * Matches AMP's ThreadWorker.ops pattern for cancellable async operations.
- */
-interface ThreadOps {
-  /** AbortController for in-flight title generation. Aborted on re-trigger or thread dispose. */
-  titleGeneration: AbortController | null;
-}
-
-/**
- * Extended options for createThread.
- * Matches AMP's createThread(R, T) parameter T from
- * 20_thread_queue_handoff.js:
- *   T = { seededMessages?, parent?, draftContent?, queuedMessages?,
- *         newThreadID?, agentMode?, initialUserMessage? }
- *
- * Simplified for flitter-cli to the subset we need now.
- */
-export interface CreateThreadExtendedOptions {
-  /** Pre-seed conversation items into the new thread's session. */
-  seededMessages?: ConversationItem[];
-  /** Parent thread ID — if provided, applyParentRelationship('fork') is called. */
-  parentThreadID?: string;
-  /** Draft content to set on the new thread's input field. */
-  draftContent?: string;
-  /** Queued messages to transfer from another thread. */
-  queuedMessages?: QueuedMessage[];
-}
 
 /**
  * ThreadPool manages multiple concurrent ThreadHandle instances with
@@ -96,43 +66,6 @@ export class ThreadPool {
 
   // --- Listeners ---
   private _listeners: Set<StateListener> = new Set();
-
-  /**
-   * Per-thread operational abort controllers for cancellable async operations.
-   * Matches AMP's ThreadWorker.ops pattern (ops.titleGeneration, etc.).
-   */
-  private readonly _threadOps: Map<string, ThreadOps> = new Map();
-
-  /**
-   * Configurable skip patterns for title generation.
-   * If the first user message contains any of these strings, title generation is skipped.
-   * Matches AMP's config: "agent.skipTitleGenerationIfMessageContains" (array of strings).
-   * Set externally via setSkipTitleGenerationPatterns().
-   */
-  private _skipTitleGenerationPatterns: string[] = [];
-
-  /**
-   * Set the skip patterns for title generation.
-   * Matches AMP's configService settings["agent.skipTitleGenerationIfMessageContains"].
-   *
-   * @param patterns - Array of strings; if first message contains any, skip title generation
-   */
-  setSkipTitleGenerationPatterns(patterns: string[]): void {
-    this._skipTitleGenerationPatterns = patterns;
-  }
-
-  /**
-   * Get or create the ThreadOps for a thread.
-   * Lazily initializes ops with null abort controllers.
-   */
-  private _getOps(threadID: string): ThreadOps {
-    let ops = this._threadOps.get(threadID);
-    if (!ops) {
-      ops = { titleGeneration: null };
-      this._threadOps.set(threadID, ops);
-    }
-    return ops;
-  }
 
   // ---------------------------------------------------------------------------
   // Listener Management
@@ -240,72 +173,16 @@ export class ThreadPool {
   /**
    * Create a new thread and activate it with navigation recording.
    * The existing active thread is preserved in threadHandleMap (not lost).
-   *
-   * Matches AMP's createThread(R, T) from 20_thread_queue_handoff.js:
-   *   async createThread(R, T) {
-   *     let a = T?.newThreadID ?? jt(), e = T?.agentMode, r = false;
-   *     if (T?.seededMessages) await this.seedThreadMessages(R, a, T.seededMessages, e), r = true;
-   *     let h = await this.createThreadWorker(R, a);
-   *     ...
-   *     if (T?.parent) await this.applyParentRelationship(R, h, a, T.parent), ...;
-   *     if (T?.draftContent) ...;
-   *     if (T?.queuedMessages) await this.transferQueuedMessages(h, T.queuedMessages);
-   *   }
+   * Matches AMP's RhR.createThread(R) which calls
+   * activateThreadWithNavigation(R, {recordNavigation: true}).
    *
    * @param options - Thread creation options (cwd, model, agentMode, etc.)
-   * @param extended - Extended options: seededMessages, parentThreadID, draftContent, queuedMessages
    * @returns The newly created ThreadHandle
    */
-  createThread(
-    options: Omit<CreateThreadHandleOptions, 'threadID'>,
-    extended?: CreateThreadExtendedOptions,
-  ): ThreadHandle {
-    const startMs = Date.now();
-
+  createThread(options: Omit<CreateThreadHandleOptions, 'threadID'>): ThreadHandle {
     const handle = createThreadHandle(options);
-    const threadID = handle.threadID;
-
-    // --- AMP step 1: seed messages into the new thread's session ---
-    // Matches: if (T?.seededMessages) await this.seedThreadMessages(R, a, T.seededMessages, e)
-    if (extended?.seededMessages && extended.seededMessages.length > 0) {
-      for (const item of extended.seededMessages) {
-        if (item.type === 'user_message') {
-          handle.session.addUserMessage(item.text ?? '');
-        } else if (item.type === 'system_message') {
-          handle.session.addSystemMessage(item.text ?? '');
-        }
-        // Other item types (assistant_message, tool_call, etc.) are not
-        // seeded directly — they come from the inference response.
-      }
-      log.info(`[thread-pool] createThread: seeded ${extended.seededMessages.length} messages into ${threadID}`);
-    }
-
-    // Activate the thread (records navigation)
     this.activateThreadWithNavigation(handle, true);
-
-    // --- AMP step 2: register parent relationship ---
-    // Matches: if (T?.parent) await this.applyParentRelationship(R, h, a, T.parent)
-    if (extended?.parentThreadID) {
-      this.applyParentRelationship(extended.parentThreadID, threadID, 'fork');
-    }
-
-    // --- AMP step 3: set draft content ---
-    // Matches: if (T?.draftContent) { ... set the draft ... }
-    if (extended?.draftContent) {
-      handle.draftContent = extended.draftContent;
-      log.info(`[thread-pool] createThread: set draftContent on ${threadID}, len=${extended.draftContent.length}`);
-    }
-
-    // --- AMP step 4: transfer queued messages ---
-    // Matches: if (T?.queuedMessages) await this.transferQueuedMessages(h, T.queuedMessages)
-    if (extended?.queuedMessages && extended.queuedMessages.length > 0) {
-      handle.queuedMessages = [...extended.queuedMessages];
-      log.info(`[thread-pool] createThread: transferred ${extended.queuedMessages.length} queued messages to ${threadID}`);
-    }
-
-    const elapsedMs = Date.now() - startMs;
-    log.info(`[thread-pool] createThread: ${threadID} (elapsed=${elapsedMs}ms, seeded=${extended?.seededMessages?.length ?? 0}, parent=${extended?.parentThreadID ?? 'none'}, draft=${!!extended?.draftContent}, queued=${extended?.queuedMessages?.length ?? 0})`);
-
+    log.info(`[thread-pool] createThread: ${handle.threadID}`);
     return handle;
   }
 
@@ -314,26 +191,11 @@ export class ThreadPool {
    * Matches AMP's RhR.switchThread(R) which calls
    * activateThreadWithNavigation(R, {recordNavigation: true}).
    *
-   * S3-15: Also checks pendingHandoffThreads so callers can switch to
-   * an optimistic handoff target before completeHandoff() promotes it.
-   *
    * @param threadID - The ID of the thread to switch to
-   * @throws If threadID is not found in threadHandleMap or pendingHandoffThreads
+   * @throws If threadID is not found in threadHandleMap
    */
   switchThread(threadID: string): void {
-    let handle = this.threadHandleMap.get(threadID);
-
-    // S3-15: Fall back to pendingHandoffThreads for optimistic handoff handles
-    if (!handle) {
-      handle = this.pendingHandoffThreads.get(threadID);
-      if (handle) {
-        // Promote into threadHandleMap so it persists after this switch
-        this.threadHandleMap.set(threadID, handle);
-        this.pendingHandoffThreads.delete(threadID);
-        log.info(`[thread-pool] switchThread: promoted pending handoff handle ${threadID} to threadHandleMap`);
-      }
-    }
-
+    const handle = this.threadHandleMap.get(threadID);
     if (!handle) {
       throw new Error(`ThreadPool.switchThread: thread ${threadID} not found`);
     }
@@ -513,91 +375,34 @@ export class ThreadPool {
   }
 
   /**
-   * Generate a thread title from the first eligible user message in the conversation.
-   * Enhanced to match AMP's triggerTitleGeneration() from SECTION 3:
-   *
-   * 1. Skip if thread already has a title
-   * 2. Skip if thread is a sub-thread (has parentThreadID via handoff source map)
-   * 3. Abort any in-flight title generation (via ops.titleGeneration AbortController)
-   * 4. Check skipTitleGenerationIfMessageContains patterns
-   * 5. Find the first eligible user message (not matching skip patterns)
-   * 6. Truncate content to MAX_TITLE_LENGTH characters
-   * 7. Set as the thread title
+   * Generate a thread title from the first user message in the conversation.
+   * Matches AMP's triggerTitleGeneration() from SECTION 3:
+   * - Skip if thread already has a title
+   * - Find the first user message
+   * - Truncate content to MAX_TITLE_LENGTH characters
+   * - Set as the thread title
    *
    * @param threadID - The thread to generate a title for
    */
-  async generateTitle(threadID: string): Promise<void> {
+  generateTitle(threadID: string): void {
     const handle = this.threadHandleMap.get(threadID);
     if (!handle) return;
 
     // Skip if already titled (matches AMP: this.thread.title check)
     if (handle.title) return;
 
-    // Skip if sub-thread (matches AMP: this.thread.mainThreadID !== undefined check)
-    // Uses the handoff source map to determine parent-child relationships.
-    const parentThreadID = this.getHandoffSourceThreadID(threadID);
-    if (parentThreadID) {
-      log.info(`[thread-pool] generateTitle: skipping sub-thread ${threadID} (parent: ${parentThreadID})`);
-      return;
-    }
-
-    // Abort any previous in-flight title generation for this thread
-    // Matches AMP: this.ops.titleGeneration?.abort(); this.ops.titleGeneration = new AbortController;
-    const ops = this._getOps(threadID);
-    ops.titleGeneration?.abort();
-    ops.titleGeneration = new AbortController();
-    const signal = ops.titleGeneration.signal;
-
-    // Read skip patterns (matches AMP: settings["agent.skipTitleGenerationIfMessageContains"])
-    const skipPatterns = this._skipTitleGenerationPatterns.filter(
-      (p) => typeof p === 'string',
-    );
-
-    // Find first eligible user message
-    // Matches AMP: this.thread.messages.find(h => h.role !== "user" ? false : ...)
     const items = handle.session.items;
-    let firstEligibleText: string | undefined;
+    // Find first user message (matches AMP: messages.find(h => h.role !== "user"))
+    const firstUserMsg = items.find(item => item.type === 'user_message');
+    if (!firstUserMsg || firstUserMsg.type !== 'user_message') return;
 
-    for (const item of items) {
-      if (item.type !== 'user_message') continue;
-      const text = item.text?.trim();
-      if (!text) continue;
-
-      // If no skip patterns, first user message is eligible
-      if (skipPatterns.length === 0) {
-        firstEligibleText = text;
-        break;
-      }
-
-      // Check that the message does NOT contain any skip patterns
-      // Matches AMP: !e.some((i) => t.includes(i))
-      const containsSkipPattern = skipPatterns.some((pattern) =>
-        text.includes(pattern),
-      );
-      if (!containsSkipPattern) {
-        firstEligibleText = text;
-        break;
-      }
-    }
-
-    if (!firstEligibleText) {
-      log.debug(`[thread-pool] generateTitle: no eligible message for ${threadID}`, {
-        skipPatterns,
-        hasFirstEligibleMessage: false,
-      });
-      return;
-    }
-
-    // Check if aborted before setting title
-    if (signal.aborted) return;
+    const text = firstUserMsg.text?.trim();
+    if (!text) return;
 
     // Truncate to MAX_TITLE_LENGTH, add ellipsis if truncated
-    const title = firstEligibleText.length > MAX_TITLE_LENGTH
-      ? firstEligibleText.slice(0, MAX_TITLE_LENGTH - 1) + '\u2026'
-      : firstEligibleText;
-
-    // Final abort check
-    if (signal.aborted) return;
+    const title = text.length > MAX_TITLE_LENGTH
+      ? text.slice(0, MAX_TITLE_LENGTH - 1) + '\u2026'
+      : text;
 
     this.setThreadTitle(threadID, title);
     log.info(`[thread-pool] generateTitle: ${threadID} -> "${title}"`);
@@ -646,91 +451,38 @@ export class ThreadPool {
   /**
    * Per-thread worker state machines.
    * Matches AMP's threadWorkerService (tr) with getOrCreateForThread.
-   * Each thread gets an independent ThreadWorker tracking inference state.
-   *
-   * Migrated from Map<string, ThreadWorkerEntry> to Map<string, ThreadWorker>.
-   * ThreadWorker is the event-driven state machine class that replaces the
-   * plain ThreadWorkerEntry data interface.
+   * Each thread gets an independent worker tracking inference state.
    */
-  readonly threadWorkerMap: Map<string, ThreadWorker> = new Map();
+  readonly threadWorkerMap: Map<string, ThreadWorkerEntry> = new Map();
 
   /**
-   * Callback invoked when a queued message is dequeued and ready for inference.
-   * Set by the application bootstrap (e.g., AppState) to connect the dequeue
-   * event to PromptController.sendUserMessage() or equivalent.
-   *
-   * Signature: (threadID, message) => void
-   * The caller is responsible for starting inference with the dequeued message.
-   */
-  onDequeueMessage: ((threadID: string, message: QueuedMessage) => void) | null = null;
-
-  /**
-   * Get or create a ThreadWorker for a thread.
+   * Get or create a worker entry for a thread.
    * Matches AMP's tr.getOrCreateForThread() from SECTION 4d.
-   *
-   * Returns a ThreadWorker instance. The worker starts in 'initial' state
-   * and must be activated via worker.activate() before use.
-   *
-   * On creation, wires:
-   *   1. worker.onDequeue — forwards dequeued messages to ThreadPool.onDequeueMessage
-   *   2. worker listener — auto-triggers tryDequeue on idle transitions
    */
-  getOrCreateWorker(threadID: string): ThreadWorker {
+  getOrCreateWorker(threadID: string): ThreadWorkerEntry {
     let worker = this.threadWorkerMap.get(threadID);
     if (!worker) {
-      worker = new ThreadWorker(threadID);
-      this.threadWorkerMap.set(threadID, worker);
-
-      // Wire onDequeue callback: when ThreadWorker determines a message
-      // should be dequeued, forward to ThreadPool's onDequeueMessage callback.
-      worker.onDequeue = (message: QueuedMessage) => {
-        log.info(`[thread-pool] onDequeue: forwarding message "${message.text.slice(0, 40)}..." from ${threadID}`);
-        if (this.onDequeueMessage) {
-          this.onDequeueMessage(threadID, message);
-        }
-        this._notifyListeners();
+      worker = {
+        threadID: threadID as import('./types').ThreadID,
+        state: 'initial',
+        inferenceState: 'idle',
+        turnStartTime: null,
       };
-
-      // Wire worker listener: when the worker state changes, check for
-      // auto-dequeue if it transitioned to idle.
-      // Matches AMP's inference:completed -> queuedMessages check pattern.
-      const workerRef = worker;
-      worker.addListener(() => {
-        if (workerRef.activityState === 'idle') {
-          const handle = this.threadHandleMap.get(threadID);
-          if (handle && handle.queuedMessages.length > 0) {
-            log.debug(`[thread-pool] worker idle with queued messages, attempting tryDequeue for ${threadID}`);
-            workerRef.tryDequeue(handle.queuedMessages);
-          }
-        }
-      });
-
-      log.debug(`[thread-pool] getOrCreateWorker: created new ThreadWorker for ${threadID}`);
+      this.threadWorkerMap.set(threadID, worker);
     }
     return worker;
   }
 
   /**
-   * Update a thread worker's inference state via delta dispatch.
-   *
-   * Translates the old setWorkerInferenceState(threadID, state) call into
-   * ThreadWorker.handle() delta events, maintaining backward compatibility
-   * while using the new event-driven state machine.
-   *
-   * @deprecated Callers should use getOrCreateWorker(threadID).handle() directly.
+   * Update a thread worker's inference state.
    */
   setWorkerInferenceState(threadID: string, state: ThreadInferenceState): void {
     const worker = this.getOrCreateWorker(threadID);
-    switch (state) {
-      case 'running':
-        worker.handle({ type: 'assistant:message:start' });
-        break;
-      case 'cancelled':
-        worker.handle({ type: 'cancelled' });
-        break;
-      case 'idle':
-        worker.handle({ type: 'inference:completed' });
-        break;
+    worker.inferenceState = state;
+    if (state === 'running') {
+      worker.turnStartTime = Date.now();
+    } else {
+      worker.turnStartTime = null;
     }
     this._notifyListeners();
   }
@@ -748,17 +500,13 @@ export class ThreadPool {
   }
 
   // ---------------------------------------------------------------------------
-  // Message Queue (QUEUE-01, QUEUE-02)
+  // Message Queue (QUEUE-01)
   // ---------------------------------------------------------------------------
 
   /**
    * Enqueue a message on the active thread's queue.
    * Matches AMP's gZR.queueMessage() which delegates to the active handle.
    * The enqueued message is stored on the thread's queuedMessages array.
-   *
-   * After enqueueing, if the thread's worker is idle, immediately triggers
-   * a dequeue attempt. This matches AMP's 'user:message-queue:enqueue'
-   * handler which auto-dequeues when not tool-running and idle/cancelled.
    *
    * @param text - The user message text to enqueue
    * @param images - Optional image attachments
@@ -779,55 +527,7 @@ export class ThreadPool {
 
     handle.queuedMessages.push(msg);
     log.info(`[thread-pool] queueMessage: queued "${text.slice(0, 40)}..." on ${handle.threadID}, queueLen=${handle.queuedMessages.length}`);
-
-    // Dispatch enqueue delta to worker state machine.
-    // The worker's _notify() will trigger the ThreadPool's worker listener,
-    // which checks for idle state and calls tryDequeue if appropriate.
-    // This matches AMP's 'user:message-queue:enqueue' -> auto-dequeue pattern.
-    const worker = this.threadWorkerMap.get(handle.threadID);
-    if (worker) {
-      worker.handle({ type: 'user:message-queue:enqueue' });
-    }
-
     this._notifyListeners();
-  }
-
-  /**
-   * Dequeue the next queued message from a thread.
-   * Returns the dequeued message, or null if the queue is empty or
-   * the worker is not in a state that allows dequeue.
-   *
-   * Matches AMP's pattern where the ThreadWorker checks queuedMessages
-   * on the thread and shifts the first message for processing.
-   *
-   * @param threadID - The thread to dequeue from
-   * @returns The dequeued message, or null if nothing to dequeue
-   */
-  dequeueNextMessage(threadID: string): QueuedMessage | null {
-    const handle = this.threadHandleMap.get(threadID);
-    if (!handle || handle.queuedMessages.length === 0) {
-      return null;
-    }
-
-    const worker = this.threadWorkerMap.get(threadID);
-    if (!worker) {
-      return null;
-    }
-
-    // Guard: only dequeue when worker is idle
-    if (worker.activityState !== 'idle') {
-      log.debug(`[thread-pool] dequeueNextMessage: worker not idle (${worker.activityState}) for ${threadID}`);
-      return null;
-    }
-
-    const message = handle.queuedMessages.shift() ?? null;
-    if (message) {
-      // Transition worker state via dequeue delta
-      worker.handle({ type: 'user:message-queue:dequeue' });
-      log.info(`[thread-pool] dequeueNextMessage: dequeued "${message.text.slice(0, 40)}..." from ${threadID}, remaining=${handle.queuedMessages.length}`);
-      this._notifyListeners();
-    }
-    return message;
   }
 
   /**
@@ -845,49 +545,6 @@ export class ThreadPool {
       log.info(`[thread-pool] discardQueuedMessages: cleared ${count} messages on ${handle.threadID}`);
     }
     this._notifyListeners();
-  }
-
-  /**
-   * Interrupt (remove) a single queued message by thread ID and message ID.
-   *
-   * Searches the specified thread's queuedMessages for an entry matching
-   * the given messageID and removes it. Notifies the thread's worker via
-   * 'user:message-queue:dequeue' delta if a message was removed, so the
-   * worker state machine stays consistent.
-   *
-   * Matches AMP's per-message interrupt pattern for queue mode (QUEUE-03).
-   *
-   * @param threadID - The thread whose queue to search
-   * @param messageID - The id of the QueuedMessage to remove
-   * @returns true if the message was found and removed, false otherwise
-   */
-  interruptQueuedMessage(threadID: string, messageID: string): boolean {
-    const handle = this.threadHandleMap.get(threadID);
-    if (!handle) {
-      log.warn(`[thread-pool] interruptQueuedMessage: thread ${threadID} not found`);
-      return false;
-    }
-
-    const idx = handle.queuedMessages.findIndex(m => m.id === messageID);
-    if (idx === -1) {
-      log.debug(`[thread-pool] interruptQueuedMessage: message ${messageID} not found in ${threadID}`);
-      return false;
-    }
-
-    // Remove the single message from the queue
-    const [removed] = handle.queuedMessages.splice(idx, 1);
-    log.info(`[thread-pool] interruptQueuedMessage: removed "${removed.text.slice(0, 40)}..." from ${threadID}, remaining=${handle.queuedMessages.length}`);
-
-    // Notify worker so its internal bookkeeping stays consistent.
-    // The dequeue delta signals that the queue changed; the worker will
-    // not actually process this message since it was removed before dequeue.
-    const worker = this.threadWorkerMap.get(threadID);
-    if (worker) {
-      worker.handle({ type: 'user:message-queue:dequeue' });
-    }
-
-    this._notifyListeners();
-    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -927,18 +584,6 @@ export class ThreadPool {
   pendingHandoff: HandoffRequest | null = null;
 
   /**
-   * Optimistic ThreadHandle instances for in-flight handoffs.
-   * Keyed by target threadID. Allows switchThread() to navigate to a
-   * handoff target before the handoff is fully complete.
-   *
-   * When completeHandoff() is called, entries are promoted from
-   * pendingHandoffThreads into the formal threadHandleMap.
-   *
-   * S3-15: pendingHandoffThreads (optimistic handles).
-   */
-  readonly pendingHandoffThreads: Map<string, ThreadHandle> = new Map();
-
-  /**
    * Log of completed handoff requests for history/debugging.
    * Each entry records the source->target thread relationship and goal.
    */
@@ -950,71 +595,6 @@ export class ThreadPool {
    * handoff-created threads. Matches AMP's getEmptyHandoffParentThreadID().
    */
   private readonly _handoffSourceMap: Map<string, string> = new Map();
-
-  // ---------------------------------------------------------------------------
-  // Thread Relationships (THRD-REL)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Array of all tracked thread relationships.
-   * Matches AMP's threadRelationshipsSubject from 32_protocol_schemas.js:
-   *   Jo0 = X.object({ type: "thread_relationships", seq, relationships: X.array(mi0) })
-   * And 20_thread_management.js SECTION 9 relationship creation pattern.
-   *
-   * Stores source -> target relationships of type fork/handoff/mention
-   * for cross-thread navigation and relationship display.
-   */
-  readonly threadRelationships: ThreadRelationship[] = [];
-
-  /**
-   * Register a parent-child relationship between two threads.
-   * Matches AMP's threadWorkerService.applyParentRelationship() from
-   * 20_thread_queue_handoff.js createThread flow:
-   *   if (T?.parent) await this.applyParentRelationship(R, h, a, T.parent)
-   *
-   * Creates a ThreadRelationship record and appends it to the
-   * threadRelationships array. Also registers in _handoffSourceMap
-   * if the type is 'handoff' for backward compatibility with
-   * getHandoffSourceThreadID().
-   *
-   * @param sourceThreadID - The parent/source thread ID
-   * @param targetThreadID - The child/target thread ID
-   * @param type - The relationship type (fork, handoff, or mention)
-   */
-  applyParentRelationship(sourceThreadID: string, targetThreadID: string, type: ThreadRelationshipType): void {
-    const relationship: ThreadRelationship = {
-      type,
-      sourceID: sourceThreadID,
-      targetID: targetThreadID,
-      createdAt: Date.now(),
-    };
-
-    this.threadRelationships.push(relationship);
-
-    // Keep _handoffSourceMap in sync for backward compatibility
-    if (type === 'handoff') {
-      this._handoffSourceMap.set(targetThreadID, sourceThreadID);
-    }
-
-    log.info(`[thread-pool] applyParentRelationship: ${sourceThreadID} -[${type}]-> ${targetThreadID}`);
-    this._notifyListeners();
-  }
-
-  /**
-   * Get all relationships that involve a specific thread (as source or target).
-   * Returns relationships where the thread is either the sourceID or targetID.
-   *
-   * Matches AMP's pattern of querying thread_relationships by threadID,
-   * used for displaying relationship indicators in the thread list/preview.
-   *
-   * @param threadID - The thread ID to query relationships for
-   * @returns Array of ThreadRelationship records involving this thread
-   */
-  getRelationshipsForThread(threadID: string): ThreadRelationship[] {
-    return this.threadRelationships.filter(
-      r => r.sourceID === threadID || r.targetID === threadID
-    );
-  }
 
   /**
    * Create a handoff: new thread with cross-thread tracking.
@@ -1044,10 +624,6 @@ export class ThreadPool {
 
     const targetThreadID = handle.threadID;
 
-    // S3-15: Store optimistic handle in pendingHandoffThreads so callers
-    // can switchThread() to the target before completeHandoff() promotes it.
-    this.pendingHandoffThreads.set(targetThreadID, handle);
-
     // Record the handoff request
     const request: HandoffRequest = {
       sourceThreadID,
@@ -1060,7 +636,7 @@ export class ThreadPool {
     this.pendingHandoff = request;
     this._handoffSourceMap.set(targetThreadID, sourceThreadID);
 
-    log.info(`[thread-pool] createHandoff: ${sourceThreadID} -> ${targetThreadID}, goal="${goal.slice(0, 60)}", pendingHandoffThreads.size=${this.pendingHandoffThreads.size}`);
+    log.info(`[thread-pool] createHandoff: ${sourceThreadID} -> ${targetThreadID}, goal="${goal.slice(0, 60)}"`);
     this._notifyListeners();
 
     return handle;
@@ -1069,26 +645,11 @@ export class ThreadPool {
   /**
    * Mark the pending handoff as complete and move to completed list.
    * Called after the handoff thread has been activated and is running.
-   *
-   * S3-15: Also promotes the target thread from pendingHandoffThreads
-   * into the formal threadHandleMap (if not already promoted by switchThread).
    */
   completeHandoff(): void {
     if (this.pendingHandoff) {
-      const targetThreadID = this.pendingHandoff.targetThreadID;
-
-      // S3-15: Promote from pendingHandoffThreads to threadHandleMap
-      const pendingHandle = this.pendingHandoffThreads.get(targetThreadID);
-      if (pendingHandle) {
-        if (!this.threadHandleMap.has(targetThreadID)) {
-          this.threadHandleMap.set(targetThreadID, pendingHandle);
-        }
-        this.pendingHandoffThreads.delete(targetThreadID);
-        log.info(`[thread-pool] completeHandoff: promoted ${targetThreadID} from pendingHandoffThreads`);
-      }
-
       this.completedHandoffs.push(this.pendingHandoff);
-      log.info(`[thread-pool] completeHandoff: ${this.pendingHandoff.sourceThreadID} -> ${targetThreadID}`);
+      log.info(`[thread-pool] completeHandoff: ${this.pendingHandoff.sourceThreadID} -> ${this.pendingHandoff.targetThreadID}`);
       this.pendingHandoff = null;
       this._notifyListeners();
     }
@@ -1120,20 +681,10 @@ export class ThreadPool {
    * and removes from back/forward stacks.
    */
   removeThread(threadID: string): void {
-    // Abort any in-flight operations for this thread
-    const ops = this._threadOps.get(threadID);
-    if (ops) {
-      ops.titleGeneration?.abort();
-      this._threadOps.delete(threadID);
-    }
-
     this.threadHandleMap.delete(threadID);
     delete this.threadTitles[threadID];
     this.threadWorkerMap.delete(threadID);
     this._handoffSourceMap.delete(threadID);
-
-    // S3-15: Also clean up from pendingHandoffThreads
-    this.pendingHandoffThreads.delete(threadID);
 
     // Remove from recent threads
     const recentIdx = this.recentThreadIDs.indexOf(threadID);
@@ -1168,12 +719,6 @@ export class ThreadPool {
    * Matches AMP's RhR.dispose() (line 1251-1253).
    */
   dispose(): void {
-    // Abort all in-flight operations
-    for (const ops of this._threadOps.values()) {
-      ops.titleGeneration?.abort();
-    }
-    this._threadOps.clear();
-
     this.threadHandleMap.clear();
     this.threadBackStack.length = 0;
     this.threadForwardStack.length = 0;

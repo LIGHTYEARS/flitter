@@ -8,9 +8,7 @@ import type { Model, Api, KnownProvider } from '@mariozechner/pi-ai';
 import type { Provider, ProviderConfig, ProviderId } from './provider';
 import { PiAiProvider } from './pi-ai-provider';
 import { loadToken, hasValidToken } from '../auth/token-store';
-import type { ConfigService } from '../state/config-service';
 import { log } from '../utils/logger';
-import { findModel as findCatalogModel } from './model-catalog';
 
 /**
  * Backwards-compatible aliases for provider IDs that don't match pi-ai names.
@@ -114,11 +112,8 @@ export function getDefaultModel(providerId: string): string {
  * OAuth providers (chatgpt-codex/openai-codex, copilot/github-copilot, antigravity/google-antigravity)
  * load tokens from disk and pass the access token as the API key.
  * Throws if credentials are missing.
- *
- * @param config - Provider configuration (id, apiKey, model, baseUrl, headers, auth).
- * @param configService - Optional ConfigService for provider-specific settings (speed, interleavedThinking).
  */
-export function createProvider(config: ProviderConfig, configService?: ConfigService): Provider {
+export function createProvider(config: ProviderConfig): Provider {
   log.info(`createProvider: provider='${config.id}' model=${config.model ?? 'default'}`);
 
   const providerId = config.id;
@@ -197,12 +192,10 @@ export function createProvider(config: ProviderConfig, configService?: ConfigSer
   if (!model && config.baseUrl) {
     // Custom endpoint (Volcano Engine Ark, LiteLLM, vLLM, etc.): model ID not in catalog
     // but protocol is known from the provider. Construct Model directly.
-    // Enrich with model-catalog data when available for contextWindow/maxTokens.
     const api = resolveApi(piProvider);
     if (!api) {
       throw new Error(`Cannot determine API protocol for provider '${piProvider}'`);
     }
-    const catalogEntry = findCatalogModel(modelId);
     model = {
       id: modelId,
       name: modelId,
@@ -212,12 +205,9 @@ export function createProvider(config: ProviderConfig, configService?: ConfigSer
       reasoning: false,
       input: ['text'] as const,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: catalogEntry?.contextWindow ?? 200_000,
-      maxTokens: catalogEntry?.maxOutputTokens ?? 16_384,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
     } as Model<Api>;
-    if (catalogEntry) {
-      log.info(`createProvider: custom endpoint enriched from catalog → contextWindow=${catalogEntry.contextWindow}, maxTokens=${catalogEntry.maxOutputTokens}`);
-    }
     log.info(`createProvider: custom endpoint → baseUrl=${config.baseUrl}, api=${api}, model=${modelId}`);
   } else if (!model) {
     throw new Error(
@@ -243,7 +233,7 @@ export function createProvider(config: ProviderConfig, configService?: ConfigSer
   const displayName = getDisplayName(providerId);
   log.info(`createProvider: resolved model '${model.id}' (${model.name}) for '${displayName}'`);
 
-  return new PiAiProvider(model, providerId as ProviderId, displayName, apiKey, headers, configService);
+  return new PiAiProvider(model, providerId as ProviderId, displayName, apiKey, headers);
 }
 
 /**

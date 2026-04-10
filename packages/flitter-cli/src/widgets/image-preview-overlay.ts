@@ -7,7 +7,6 @@
 // Key bindings:
 //   Escape → dismiss overlay
 //   s      → save image to file (prompts for path)
-//   o      → open image in system default viewer (S3-5)
 //
 // The overlay is modal (absorbs all keys via FocusScope).
 // Rendered via OverlayManager with IMAGE_PREVIEW priority (50).
@@ -28,7 +27,6 @@ import { BoxConstraints } from '../../../flitter-core/src/core/box-constraints';
 import type { KeyEvent, KeyEventResult } from '../../../flitter-core/src/input/events';
 import type { ImageAttachment } from '../state/types';
 import { supportsKittyGraphics } from '../utils/kitty-graphics';
-import { spawn } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -42,13 +40,6 @@ interface ImagePreviewOverlayProps {
   onDismiss: () => void;
   /** Optional callback to save the image to a file path. */
   onSave?: (path: string) => void;
-  /**
-   * S3-5: Optional callback invoked when the user presses 'o' to open the image externally.
-   * If not provided, the default behavior uses `open` (macOS) to launch the system viewer.
-   */
-  onImageClick?: (filePath: string) => void;
-  /** S3-5: Optional file path to the image on disk (required for external open). */
-  filePath?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,18 +74,12 @@ export class ImagePreviewOverlay extends StatelessWidget {
   private readonly image: ImageAttachment;
   private readonly onDismiss: () => void;
   private readonly onSave?: (path: string) => void;
-  /** S3-5: Callback for opening image in external viewer. */
-  private readonly onImageClick?: (filePath: string) => void;
-  /** S3-5: File path to the image on disk. */
-  private readonly filePath?: string;
 
   constructor(props: ImagePreviewOverlayProps) {
     super({});
     this.image = props.image;
     this.onDismiss = props.onDismiss;
     this.onSave = props.onSave;
-    this.onImageClick = props.onImageClick;
-    this.filePath = props.filePath;
   }
 
   build(_context: BuildContext): Widget {
@@ -185,24 +170,6 @@ export class ImagePreviewOverlay extends StatelessWidget {
       );
     }
 
-    // S3-5: "Open externally" hint (when filePath is available or onImageClick is set)
-    if (this.filePath || this.onImageClick) {
-      footerChildren.push(
-        new TextSpan({
-          text: '  ',
-          style: new TextStyle({ foreground: MUTED_COLOR }),
-        }),
-        new TextSpan({
-          text: 'o',
-          style: new TextStyle({ foreground: KEYBIND_COLOR }),
-        }),
-        new TextSpan({
-          text: ' open externally',
-          style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
-        }),
-      );
-    }
-
     contentChildren.push(
       new Text({
         text: new TextSpan({ children: footerChildren }),
@@ -222,11 +189,6 @@ export class ImagePreviewOverlay extends StatelessWidget {
           this.onSave(filename);
           return 'handled';
         }
-        // S3-5: 'o' key — open image in system default viewer
-        if (event.key === 'o') {
-          this._openExternally();
-          return 'handled';
-        }
         // Absorb all other keys while overlay is shown
         return 'handled';
       },
@@ -243,43 +205,5 @@ export class ImagePreviewOverlay extends StatelessWidget {
         }),
       }),
     });
-  }
-
-  /**
-   * S3-5: Open the image in the system default external viewer.
-   *
-   * If an `onImageClick` callback was provided, invokes that.
-   * Otherwise, falls back to `child_process.spawn('open', [filePath])` on macOS.
-   * If no filePath is available, saves a temp file first then opens it.
-   */
-  private _openExternally(): void {
-    if (this.onImageClick && this.filePath) {
-      this.onImageClick(this.filePath);
-      return;
-    }
-
-    // Determine file path: use provided path or write to temp file
-    let targetPath = this.filePath;
-    if (!targetPath) {
-      // Write image data to a temp file and open that
-      const tmpDir = process.env.TMPDIR || '/tmp';
-      const ext = this.image.mimeType.split('/')[1] || 'png';
-      targetPath = `${tmpDir}/flitter-preview-${Date.now()}.${ext}`;
-      try {
-        const { writeFileSync } = require('node:fs');
-        writeFileSync(targetPath, Buffer.from(this.image.data));
-      } catch {
-        // Unable to write temp file — silently fail
-        return;
-      }
-    }
-
-    if (this.onImageClick) {
-      this.onImageClick(targetPath);
-    } else {
-      // Default: use macOS `open` command to launch system viewer.
-      // Detached so the child process does not block the TUI.
-      spawn('open', [targetPath], { detached: true, stdio: 'ignore' }).unref();
-    }
   }
 }

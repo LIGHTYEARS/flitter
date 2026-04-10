@@ -27,7 +27,6 @@ import { log, writeEntry } from '../utils/logger';
 import { traceStore } from '../utils/tracer';
 import { computeDelay, sleep, isRetryableError, DEFAULT_RETRY_CONFIG } from '../provider/retry';
 import type { RetryConfig } from '../provider/retry';
-import type { PendingSkill } from './skill-service';
 
 /** Maximum number of agentic loop iterations before forcing stop. */
 const MAX_AGENTIC_ITERATIONS = 50;
@@ -66,18 +65,6 @@ export interface PromptControllerOptions {
    * Defaults to 80 if not provided. (COMP-01).
    */
   getCompactionThreshold?: () => number;
-  /**
-   * Callback to get pending skills for injection into the next prompt.
-   * When provided, pending skills are consumed and injected as system
-   * info messages at the start of each turn. Matches AMP's pattern:
-   * "Pending skills will be injected as info message".
-   */
-  getPendingSkills?: () => PendingSkill[];
-  /**
-   * Callback to clear pending skills after they have been consumed
-   * and injected into the prompt. Called after injection.
-   */
-  clearPendingSkills?: () => void;
 }
 
 /**
@@ -141,12 +128,6 @@ export class PromptController {
   /** Callback to get the compaction threshold from ConfigService (COMP-01). */
   private readonly _getCompactionThreshold: (() => number) | null;
 
-  /** Callback to get pending skills for injection (S2-8). */
-  private readonly _getPendingSkills: (() => PendingSkill[]) | null;
-
-  /** Callback to clear pending skills after consumption (S2-8). */
-  private readonly _clearPendingSkills: (() => void) | null;
-
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
@@ -163,8 +144,6 @@ export class PromptController {
     this._getQueuedMessages = options.getQueuedMessages ?? null;
     this._getContextUsagePercent = options.getContextUsagePercent ?? null;
     this._getCompactionThreshold = options.getCompactionThreshold ?? null;
-    this._getPendingSkills = options.getPendingSkills ?? null;
-    this._clearPendingSkills = options.clearPendingSkills ?? null;
   }
 
   /**
@@ -177,24 +156,6 @@ export class PromptController {
       cutMessageId: this._cutMessageId,
       usagePercent: this._getContextUsagePercent?.() ?? 0,
     };
-  }
-
-  /**
-   * Submit a user message for inference, triggered by auto-dequeue.
-   *
-   * This is the entry point for the external dequeue path: when the
-   * ThreadPool's worker listener detects an idle transition and shifts
-   * a queued message, it invokes ThreadPool.onDequeueMessage which
-   * should call this method.
-   *
-   * Delegates to submitPrompt() for the actual inference lifecycle.
-   * Matches AMP's pattern where dequeue triggers runInferenceAndUpdateThread().
-   *
-   * @param text - The dequeued message text to submit
-   */
-  async sendUserMessage(text: string): Promise<void> {
-    log.info(`PromptController.sendUserMessage: "${text.slice(0, 40)}..." (from dequeue)`);
-    await this.submitPrompt(text);
   }
 
   /**
@@ -313,30 +274,6 @@ export class PromptController {
       let paSpanId: string | undefined;
       try { paSpanId = traceStore.startSpan('prompt-assembly', this._currentAgentSpan?.spanId ?? null).spanId; } catch {}
       const messages = this._buildMessages(this._session.items);
-
-      // --- Pending skills injection (S2-8) ---
-      // Matches AMP's pattern: "Pending skills will be injected as info message"
-      // Consume pending skills on the FIRST iteration only (user message turn start).
-      // Each pending skill is injected as a system role info message:
-      //   { role: 'system', content: '[Skill: ${skill.name}]\n${skill.content}' }
-      if (iteration === 1 && this._getPendingSkills) {
-        const pendingSkills = this._getPendingSkills();
-        if (pendingSkills.length > 0) {
-          log.info('PromptController: injecting pending skills as info messages', {
-            skillCount: pendingSkills.length,
-            skillNames: pendingSkills.map(s => s.name),
-          });
-          for (const skill of pendingSkills) {
-            messages.push({
-              role: 'user',
-              content: `[Skill: ${skill.name}]\n${skill.content}`,
-            });
-          }
-          // Clear pending skills after consumption
-          this._clearPendingSkills?.();
-        }
-      }
-
       if (paSpanId) {
         try {
           traceStore.endSpan(paSpanId, 'ok', {
@@ -435,9 +372,7 @@ export class PromptController {
    * Matches AMP's compaction lifecycle:
    *   1. Check usage > compactionThresholdPercent (default 80%)
    *   2. Transition to 'pending' -> 'compacting' -> 'complete'
-   *   3. Compute cut point preserving last N user-assistant turns
-   *   4. Call session.truncateBefore(cutIndex) to actually remove old items
-   *   5. Set cutMessageId to mark the oldest preserved message
+   *   3. Set cutMessageId to mark the oldest preserved message
    *
    * Compaction in flitter-cli prunes early conversation items to reclaim
    * context window space for new turns.
@@ -465,8 +400,6 @@ export class PromptController {
       this._compactionState = 'compacting';
       log.info('PromptController: compaction_started');
 
-      const compactionStartMs = performance.now();
-
       // Find the cut point: preserve at least the last 2 user-assistant turns
       const items = this._session.items;
       const userMessageIndices: number[] = [];
@@ -481,23 +414,13 @@ export class PromptController {
         : 0;
 
       if (cutIndex > 0) {
-        // Mark the cut boundary BEFORE truncation
+        // Mark the cut boundary
         const cutItem = items[cutIndex];
         this._cutMessageId = cutItem.type === 'user_message'
           ? `msg-${cutItem.timestamp}`
           : null;
 
-        const beforeCount = items.length;
-
-        // Actually remove old items via session.truncateBefore()
-        this._session.truncateBefore(cutIndex);
-
-        const afterCount = this._session.items.length;
-        const elapsedMs = Math.round(performance.now() - compactionStartMs);
-
-        log.info(`PromptController: compaction — cut at index ${cutIndex}, removed ${beforeCount - afterCount} items, ${afterCount} remaining (${elapsedMs}ms)`);
-      } else {
-        log.info('PromptController: compaction — no items to cut (cutIndex=0)');
+        log.info(`PromptController: compaction — cutting at index ${cutIndex}, preserving ${items.length - cutIndex} items`);
       }
 
       this._compactionState = 'complete';

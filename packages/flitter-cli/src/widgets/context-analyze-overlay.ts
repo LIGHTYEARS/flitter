@@ -57,8 +57,6 @@ const SECTION_COLOR = Color.cyan;
 /**
  * Simple heuristic token estimate: ~4 characters per token.
  * Matches AMP's contextAnalyzeDeps per-message breakdown approach.
- * Project does not bundle tiktoken; this char/4 heuristic is the standard
- * estimation used throughout the codebase (see context-warning.ts).
  */
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -84,15 +82,6 @@ function getItemText(item: ConversationItem): string {
     default:
       return '';
   }
-}
-
-/**
- * Format a percentage value as a string with one decimal place.
- * Returns "0.0%" for zero total to avoid NaN.
- */
-function fmtPercent(part: number, total: number): string {
-  if (total === 0) return '0.0%';
-  return `${((part / total) * 100).toFixed(1)}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,14 +138,12 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
     );
     children.push(new SizedBox({ height: 1 }));
 
-    // Count items by type and accumulate per-category token estimates
+    // Count items by type
     let userCount = 0;
     let assistantCount = 0;
     let toolCallCount = 0;
     let thinkingCount = 0;
-    let systemCount = 0;
     const toolNames = new Set<string>();
-    let systemTokens = 0;
     let userTokens = 0;
     let assistantTokens = 0;
     let toolTokens = 0;
@@ -166,10 +153,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
       const tokens = estimateTokens(text);
 
       switch (item.type) {
-        case 'system_message':
-          systemCount++;
-          systemTokens += tokens;
-          break;
         case 'user_message':
           userCount++;
           userTokens += tokens;
@@ -189,8 +172,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
       }
     }
 
-    const totalTokens = systemTokens + userTokens + assistantTokens + toolTokens;
-
     // Summary section
     children.push(
       new Text({
@@ -203,7 +184,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
 
     const summaryRows: [string, string][] = [
       ['Messages', `${this.items.length} total`],
-      ['System messages', `${systemCount}`],
       ['User messages', `${userCount}`],
       ['Assistant messages', `${assistantCount}`],
       ['Tool calls', `${toolCallCount}`],
@@ -212,8 +192,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
     if (thinkingCount > 0) {
       summaryRows.push(['Thinking blocks', `${thinkingCount}`]);
     }
-
-    summaryRows.push(['Est. total tokens', `~${totalTokens.toLocaleString('en-US')}`]);
 
     if (this.usage) {
       summaryRows.push(['Context used', `${this.usage.used.toLocaleString('en-US')} / ${this.usage.size.toLocaleString('en-US')}`]);
@@ -242,7 +220,7 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
 
     children.push(new SizedBox({ height: 1 }));
 
-    // Per-category token estimate breakdown with percentage
+    // Token estimate breakdown
     children.push(
       new Text({
         text: new TextSpan({
@@ -253,7 +231,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
     );
 
     const tokenRows: [string, number][] = [
-      ['System prompt', systemTokens],
       ['User messages', userTokens],
       ['Assistant messages', assistantTokens],
       ['Tool calls', toolTokens],
@@ -273,12 +250,6 @@ export class ContextAnalyzeOverlay extends StatelessWidget {
               text: new TextSpan({
                 text: `~${tokens.toLocaleString('en-US')}`,
                 style: new TextStyle({ foreground: VALUE_COLOR }),
-              }),
-            }),
-            new Text({
-              text: new TextSpan({
-                text: ` (${fmtPercent(tokens, totalTokens)})`,
-                style: new TextStyle({ foreground: MUTED_COLOR }),
               }),
             }),
           ],

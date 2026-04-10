@@ -47,6 +47,7 @@ import { SkillService } from './skill-service';
 import type { SkillDefinition } from './skill-types';
 import { parseShellCommand } from '../widgets/input-area';
 import { BashExecutor } from '../tools/bash-executor';
+import { HandoffService } from './handoff-service';
 
 /**
  * AppState is the top-level application state for the flitter-cli TUI.
@@ -86,6 +87,9 @@ export class AppState {
   /** The prompt controller wiring Provider to SessionState. Set after construction. */
   private _promptController: PromptController | null = null;
 
+  /** Lazily-created HandoffService instance — delegates handoff lifecycle (F17). */
+  private _handoffService: HandoffService | null = null;
+
   // --- UI-specific state (not session concerns) ---
 
   /** Compact view toggle. */
@@ -103,9 +107,6 @@ export class AppState {
 
   /** Interval timer for handoff countdown auto-submit. Cleared on exit/abort/submit. */
   private _countdownTimer: ReturnType<typeof setInterval> | null = null;
-
-  /** Braille spinner animation frame index for handoff generating state. */
-  private _spinnerFrame: number = 0;
 
   // --- Bash Invocation Tracking (SHELL-01, SHELL-02) ---
 
@@ -250,6 +251,24 @@ export class AppState {
       throw new Error('AppState: promptController not set — call setPromptController() first');
     }
     return this._promptController;
+  }
+
+  /**
+   * Access the HandoffService, lazily creating it on first access.
+   * Delegates all handoff lifecycle operations (F17).
+   */
+  get handoffService(): HandoffService {
+    if (!this._handoffService) {
+      this._handoffService = new HandoffService({
+        threadPool: this.threadPool,
+        getHandoffState: () => this.handoffState,
+        setHandoffState: (s) => { this.handoffState = s; },
+        getActiveThreadID: () => this.threadPool.activeThreadContextID,
+        getCurrentMode: () => this.currentMode,
+        notifyListeners: () => this._notifyListeners(),
+      });
+    }
+    return this._handoffService;
   }
 
   // ---------------------------------------------------------------------------
@@ -1070,205 +1089,73 @@ export class AppState {
   }
 
   // ---------------------------------------------------------------------------
-  // Handoff Mode (HAND-01, HAND-02, HAND-03)
+  // Handoff Mode (HAND-01, HAND-02, HAND-03) — delegates to HandoffService (F17)
   // ---------------------------------------------------------------------------
 
-  /** Braille spinner animation frames matching AMP's toBraille() output. */
-  private static readonly _BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
   /**
-   * Enter handoff mode. The InputArea switches to handoff prompt editing.
-   * Matches AMP's enterHandoffMode callback passed to InputArea.
-   *
-   * While in handoff mode (and not generating), the user can change the
-   * agent mode for the target thread (canChangeAgentModeInPromptEditor).
+   * Enter handoff mode. Delegates to HandoffService.enterHandoffMode().
    */
   enterHandoffMode(): void {
-    if (this.handoffState.isInHandoffMode) return;
-    this.handoffState = {
-      ...DEFAULT_HANDOFF_STATE,
-      isInHandoffMode: true,
-    };
-    log.info('AppState.enterHandoffMode');
-    this._notifyListeners();
+    this.handoffService.enterHandoffMode();
   }
 
   /**
    * Exit handoff mode, resetting all handoff state to defaults.
-   * Clears any active countdown timer and spinner.
-   *
-   * Called on:
-   * - Thread switch (onThreadSwitch -> handoffController?.resetUIState())
-   * - Second Escape in abort confirmation
-   * - Handoff submission completion
-   * - New thread creation
-   *
-   * Matches AMP's exitHandoffMode / resetUIState pattern.
+   * Delegates to HandoffService.exitHandoffMode().
    */
   exitHandoffMode(): void {
-    if (!this.handoffState.isInHandoffMode &&
-        !this.handoffState.isGeneratingHandoff &&
-        this.handoffState.countdownSeconds === null) {
-      return; // Already in default state
-    }
-    this._clearCountdownTimer();
-    this.handoffState = { ...DEFAULT_HANDOFF_STATE };
-    this._spinnerFrame = 0;
-    log.info('AppState.exitHandoffMode');
-    this._notifyListeners();
+    this.handoffService.exitHandoffMode();
   }
 
   /**
-   * Submit the handoff goal. Creates a new thread via ThreadPool.createHandoff()
-   * and transitions to generating state.
-   *
-   * Matches AMP's submit flow:
-   * 1. Sets isGeneratingHandoff = true, starts spinner
-   * 2. Calls threadPool.createHandoff(goal, options)
-   * 3. On completion: exits handoff mode, switches to new thread
+   * Submit the handoff goal. Creates a new thread and switches to it.
+   * Delegates to HandoffService.submitHandoff().
    *
    * @param goal - The user's goal text for the new thread
    */
   async submitHandoff(goal: string): Promise<void> {
-    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) {
-      log.warn('AppState.submitHandoff: not in handoff mode');
-      return;
-    }
-
-    // Transition to generating state
-    this._clearCountdownTimer();
-    this._spinnerFrame = 0;
-    this.handoffState = {
-      ...this.handoffState,
-      isGeneratingHandoff: true,
-      isConfirmingAbortHandoff: false,
-      pendingHandoffPrompt: goal,
-      spinner: AppState._BRAILLE_FRAMES[0],
-      countdownSeconds: null,
-    };
-    log.info(`AppState.submitHandoff: goal="${goal.slice(0, 60)}..."`);
-    this._notifyListeners();
-
-    // Start spinner animation
-    const spinnerInterval = setInterval(() => {
-      this._spinnerFrame = (this._spinnerFrame + 1) % AppState._BRAILLE_FRAMES.length;
-      this.handoffState = {
-        ...this.handoffState,
-        spinner: AppState._BRAILLE_FRAMES[this._spinnerFrame],
-      };
-      this._notifyListeners();
-    }, 80);
-
-    try {
-      // Create handoff thread via ThreadPool
-      const handle = await this.threadPool.createHandoff(goal, {
-        agentMode: this.currentMode,
-      });
-
-      // Switch to the new thread
-      clearInterval(spinnerInterval);
-      this.exitHandoffMode();
+    const handle = await this.handoffService.submitHandoff(goal);
+    if (handle) {
       this._switchToHandle(handle);
       this.selectedMessageIndex = null;
-
       log.info(`AppState.submitHandoff: complete, switched to ${handle.threadID}`);
       this._notifyListeners();
-    } catch (err) {
-      clearInterval(spinnerInterval);
-      this.exitHandoffMode();
-      log.error(`AppState.submitHandoff: failed`, err);
-      this._notifyListeners();
     }
   }
 
   /**
-   * Handle Escape key during handoff mode. Two-stage abort:
-   * - First call: sets isConfirmingAbortHandoff = true
-   * - Second call: exits handoff mode entirely
-   *
-   * Matches AMP's two-stage abort pattern:
-   *   "Esc to abort handoff" -> "Esc again to abort handoff"
+   * Handle Escape key during handoff mode. Two-stage abort.
+   * Delegates to HandoffService.abortHandoffConfirmation().
    */
   abortHandoffConfirmation(): void {
-    if (!this.handoffState.isInHandoffMode && this.handoffState.countdownSeconds === null) return;
-
-    if (this.handoffState.isConfirmingAbortHandoff) {
-      // Second Escape: actually exit
-      this.exitHandoffMode();
-      log.info('AppState.abortHandoffConfirmation: confirmed, exiting handoff mode');
-    } else {
-      // First Escape: enter confirmation state
-      this.handoffState = {
-        ...this.handoffState,
-        isConfirmingAbortHandoff: true,
-      };
-      log.info('AppState.abortHandoffConfirmation: awaiting confirmation');
-      this._notifyListeners();
-    }
+    this.handoffService.abortHandoffConfirmation();
   }
 
   /**
-   * Start the handoff countdown timer. Decrements countdownSeconds every
-   * second and auto-submits when it reaches 0.
-   *
-   * Matches AMP's countdown UI: "Auto-submitting in N..." with "type to edit"
-   * hint. Typing or editing cancels the countdown.
-   *
-   * @param seconds - Initial countdown value (typically 10-30)
-   * @param goal - The goal text to auto-submit when countdown reaches 0
+   * Start the handoff countdown timer.
+   * Delegates to HandoffService.startCountdown().
    */
   startCountdown(seconds: number, goal: string): void {
-    this._clearCountdownTimer();
-    this.handoffState = {
-      ...this.handoffState,
-      countdownSeconds: seconds,
-      pendingHandoffPrompt: goal,
-    };
-    this._notifyListeners();
-
-    this._countdownTimer = setInterval(() => {
-      const current = this.handoffState.countdownSeconds;
-      if (current === null || current <= 1) {
-        // Countdown complete: auto-submit
-        this._clearCountdownTimer();
-        const pendingGoal = this.handoffState.pendingHandoffPrompt;
-        if (pendingGoal) {
-          this.submitHandoff(pendingGoal).catch(err => {
-            log.error('AppState.startCountdown: auto-submit failed', err);
-          });
-        }
-      } else {
-        this.handoffState = {
-          ...this.handoffState,
-          countdownSeconds: current - 1,
-        };
-        this._notifyListeners();
-      }
-    }, 1000);
+    this.handoffService.startCountdown(seconds, goal);
   }
 
   /**
    * Cancel the countdown timer without exiting handoff mode.
-   * Called when the user starts typing (editing the goal).
-   *
-   * Matches AMP's "type to edit" behavior that cancels the auto-submit.
+   * Delegates to HandoffService.cancelCountdown().
    */
   cancelCountdown(): void {
-    if (this.handoffState.countdownSeconds === null) return;
-    this._clearCountdownTimer();
-    this.handoffState = {
-      ...this.handoffState,
-      countdownSeconds: null,
-    };
-    log.info('AppState.cancelCountdown');
-    this._notifyListeners();
+    this.handoffService.cancelCountdown();
   }
 
   /**
    * Clear the internal countdown interval timer.
-   * Idempotent — safe to call when no timer is active.
+   * Delegates to HandoffService.dispose() for cleanup.
    */
   private _clearCountdownTimer(): void {
+    // Preserved for shutdown() and legacy callers — delegate to service
+    if (this._handoffService) {
+      this._handoffService.dispose();
+    }
     if (this._countdownTimer !== null) {
       clearInterval(this._countdownTimer);
       this._countdownTimer = null;

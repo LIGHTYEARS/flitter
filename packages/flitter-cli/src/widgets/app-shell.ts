@@ -58,6 +58,7 @@ import { FilePicker } from './file-picker';
 import { ShortcutHelpInline } from './shortcut-help-inline';
 import { SkillsModal } from './skills-modal';
 import { BashInvocationsWidget } from './bash-invocations';
+import { QueuedMessagesList } from './queued-messages-list';
 import { StatusBar } from './status-bar';
 import type { AppState } from '../state/app-state';
 import { OVERLAY_IDS, OVERLAY_PRIORITIES } from '../state/overlay-ids';
@@ -1026,6 +1027,22 @@ class AppShellState extends State<AppShell> {
         ...(this.widget.appState.bashInvocations.length > 0
           ? [new BashInvocationsWidget({ invocations: this.widget.appState.bashInvocations })]
           : []),
+        ...(() => {
+          const queuedMessages = this.widget.appState.threadPool.activeThreadHandleOrNull?.queuedMessages ?? [];
+          if (queuedMessages.length > 0) {
+            return [new QueuedMessagesList({
+              messages: queuedMessages,
+              onInterrupt: (msgId) => {
+                const handle = this.widget.appState.threadPool.activeThreadHandleOrNull;
+                if (handle) {
+                  handle.queuedMessages = handle.queuedMessages.filter((m: { id: string }) => m.id !== msgId);
+                  this.setState();
+                }
+              },
+            })];
+          }
+          return [];
+        })(),
         new InputArea({
           // Core input props
           onSubmit: (text) => this.widget.appState.submitPrompt(text),

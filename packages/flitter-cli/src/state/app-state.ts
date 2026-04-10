@@ -1026,6 +1026,38 @@ export class AppState {
     this._notifyListeners();
   }
 
+  /**
+   * Enqueue a message for later submission with smart-enqueue-when-idle.
+   *
+   * Wraps ThreadPool.queueMessage() with an additional check: if the thread
+   * worker is idle and we just added the first message to the queue, immediately
+   * dequeue it and submit through the normal prompt flow. This avoids the user
+   * having to wait for an explicit dequeue when nothing is running.
+   *
+   * Matches AMP's gZR.queueMessage() + immediate dequeue-when-idle pattern
+   * from 29_thread_worker_statemachine.js.
+   *
+   * @param text - The user message text to enqueue
+   * @param images - Optional image attachments
+   */
+  enqueueMessage(text: string, images?: Array<{ filename: string }>): void {
+    this.threadPool.queueMessage(text, images);
+
+    // Smart dequeue: if worker is idle, immediately dequeue and submit
+    const handle = this.threadPool.activeThreadHandleOrNull;
+    if (!handle) return;
+
+    const worker = this.threadPool.getOrCreateWorker(handle.threadID);
+    if (worker.isIdle && handle.queuedMessages.length === 1) {
+      // Only auto-dequeue if we just added the first message (not accumulating)
+      const next = handle.queuedMessages.shift();
+      if (next) {
+        log.info(`AppState.enqueueMessage: worker idle, immediate dequeue "${next.text.slice(0, 40)}..."`);
+        this.submitPrompt(next.text);
+      }
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Handoff Mode (HAND-01, HAND-02, HAND-03)
   // ---------------------------------------------------------------------------

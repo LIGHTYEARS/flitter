@@ -1513,6 +1513,7 @@ export class AppState {
     message?: string;
     onConfirm: () => void;
     onCancel?: () => void;
+    options?: Array<{ label: string; keybind: string; callback: () => void }>;
   }): void {
     // Lazy import to avoid circular dependency
     const { ConfirmationOverlay } = require('../widgets/confirmation-overlay');
@@ -1533,6 +1534,7 @@ export class AppState {
           opts.onCancel?.();
         },
         onDismiss,
+        options: opts.options,
       }),
     });
   }
@@ -1802,6 +1804,7 @@ export class AppState {
         // Read from ConfigService if available, default to 80%
         return config.configService?.get('internal.compactionThresholdPercent') ?? 80;
       },
+      consumePendingSkills: () => appState.consumePendingSkillsMessage(),
     });
     appState.setPromptController(controller);
     threadPool.setCompactionStatusProvider(() => controller.getCompactionStatus());

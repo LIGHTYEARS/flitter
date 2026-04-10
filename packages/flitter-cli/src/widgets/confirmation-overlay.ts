@@ -45,6 +45,12 @@ export interface ConfirmationOverlayProps {
   onCancel: () => void;
   /** Callback to dismiss the overlay (presses Escape). Typically same as onCancel. */
   onDismiss: () => void;
+  /** Additional options beyond yes/no. Each option has a label, keybind, and callback. */
+  options?: Array<{
+    label: string;
+    keybind: string;  // e.g., 'a' for "always allow"
+    callback: () => void;
+  }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +90,7 @@ export class ConfirmationOverlay extends StatelessWidget {
   private readonly onConfirm: () => void;
   private readonly onCancel: () => void;
   private readonly onDismiss: () => void;
+  private readonly _options: Array<{ label: string; keybind: string; callback: () => void }> | undefined;
 
   constructor(props: ConfirmationOverlayProps) {
     super({});
@@ -92,6 +99,7 @@ export class ConfirmationOverlay extends StatelessWidget {
     this.onConfirm = props.onConfirm;
     this.onCancel = props.onCancel;
     this.onDismiss = props.onDismiss;
+    this._options = props.options;
   }
 
   build(_context: BuildContext): Widget {
@@ -126,43 +134,65 @@ export class ConfirmationOverlay extends StatelessWidget {
     contentChildren.push(new SizedBox({ height: 1 }));
 
     // Option buttons row — [y] Yes  [n] No matching AMP's inverted-color style
-    contentChildren.push(
-      new Row({
-        children: [
-          // [y] Yes button
-          new Text({
-            text: new TextSpan({
-              children: [
-                new TextSpan({
-                  text: '[y]',
-                  style: new TextStyle({ foreground: Color.black, background: Color.green, bold: true }),
-                }),
-                new TextSpan({
-                  text: ' Yes',
-                  style: new TextStyle({ foreground: FG_COLOR }),
-                }),
-              ],
+    // Plus any additional options when provided (F11 multi-option support)
+    const buttonChildren: Widget[] = [
+      // [y] Yes button
+      new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: '[y]',
+              style: new TextStyle({ foreground: Color.black, background: Color.green, bold: true }),
             }),
-          }),
-          new SizedBox({ width: 3 }),
-          // [n] No button
-          new Text({
-            text: new TextSpan({
-              children: [
-                new TextSpan({
-                  text: '[n]',
-                  style: new TextStyle({ foreground: Color.black, background: Color.red, bold: true }),
-                }),
-                new TextSpan({
-                  text: ' No',
-                  style: new TextStyle({ foreground: FG_COLOR }),
-                }),
-              ],
+            new TextSpan({
+              text: ' Yes',
+              style: new TextStyle({ foreground: FG_COLOR }),
             }),
-          }),
-        ],
+          ],
+        }),
       }),
-    );
+      new SizedBox({ width: 3 }),
+      // [n] No button
+      new Text({
+        text: new TextSpan({
+          children: [
+            new TextSpan({
+              text: '[n]',
+              style: new TextStyle({ foreground: Color.black, background: Color.red, bold: true }),
+            }),
+            new TextSpan({
+              text: ' No',
+              style: new TextStyle({ foreground: FG_COLOR }),
+            }),
+          ],
+        }),
+      }),
+    ];
+
+    // Append additional option buttons (F11)
+    if (this._options) {
+      for (const opt of this._options) {
+        buttonChildren.push(new SizedBox({ width: 3 }));
+        buttonChildren.push(
+          new Text({
+            text: new TextSpan({
+              children: [
+                new TextSpan({
+                  text: `[${opt.keybind}]`,
+                  style: new TextStyle({ foreground: Color.black, background: Color.cyan, bold: true }),
+                }),
+                new TextSpan({
+                  text: ` ${opt.label}`,
+                  style: new TextStyle({ foreground: FG_COLOR }),
+                }),
+              ],
+            }),
+          }),
+        );
+      }
+    }
+
+    contentChildren.push(new Row({ children: buttonChildren }));
 
     // Footer
     contentChildren.push(new SizedBox({ height: 1 }));
@@ -197,6 +227,15 @@ export class ConfirmationOverlay extends StatelessWidget {
         if (event.key === 'Escape') {
           this.onDismiss();
           return 'handled';
+        }
+        // Check additional option keybinds (F11)
+        if (this._options) {
+          for (const opt of this._options) {
+            if (event.key === opt.keybind || event.key === opt.keybind.toUpperCase()) {
+              opt.callback();
+              return 'handled';
+            }
+          }
         }
         // Absorb all other keys while overlay is shown
         return 'handled';

@@ -65,6 +65,12 @@ export interface PromptControllerOptions {
    * Defaults to 80 if not provided. (COMP-01).
    */
   getCompactionThreshold?: () => number;
+  /**
+   * Callback to consume pending skills injection message before inference.
+   * Returns a skill injection message string, or null if no pending skills.
+   * Matching AMP's pending skills BehaviorSubject consumption pattern (F14).
+   */
+  consumePendingSkills?: () => string | null;
 }
 
 /**
@@ -128,6 +134,9 @@ export class PromptController {
   /** Callback to get the compaction threshold from ConfigService (COMP-01). */
   private readonly _getCompactionThreshold: (() => number) | null;
 
+  /** Callback to consume pending skills injection message (F14). */
+  private readonly _consumePendingSkills: (() => string | null) | null;
+
   /** Elapsed milliseconds since the current prompt started. */
   elapsedMs: number = 0;
 
@@ -144,6 +153,7 @@ export class PromptController {
     this._getQueuedMessages = options.getQueuedMessages ?? null;
     this._getContextUsagePercent = options.getContextUsagePercent ?? null;
     this._getCompactionThreshold = options.getCompactionThreshold ?? null;
+    this._consumePendingSkills = options.consumePendingSkills ?? null;
   }
 
   /**
@@ -185,6 +195,17 @@ export class PromptController {
 
     this._isSubmitting = true;
     this._cancelled = false;
+
+    // --- Pending skills injection (F14) ---
+    // Consume any pending skills and inject as a system message before inference.
+    // Matching AMP's pending skills BehaviorSubject consumption in thread worker.
+    if (this._consumePendingSkills) {
+      const skillsMessage = this._consumePendingSkills();
+      if (skillsMessage) {
+        this._session.addSystemMessage(skillsMessage);
+        log.info(`PromptController: injected pending skills message`);
+      }
+    }
 
     // Start root agent span for tracing
     try {

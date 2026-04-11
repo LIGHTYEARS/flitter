@@ -1,0 +1,39 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-11T08:36:17.110Z",
+  "phase": "none",
+  "phase_name": "shell-mode-refactor",
+  "phase_dir": ".planning",
+  "plan": 1,
+  "task": 3,
+  "total_tasks": 4,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "BashExecutor.subscribe() Observable API", "status": "done"},
+    {"id": 2, "name": "invokeBashCommand non-blocking refactor + conversation persistence", "status": "done"},
+    {"id": 3, "name": "Fix rendering — BashTool output not visible on screen", "status": "in_progress", "progress": "Root cause identified: layout/rendering issue. BashTool.build() receives correct data but output Padding(Text) child not rendered."}
+  ],
+  "remaining_tasks": [
+    {"id": 3, "name": "Fix rendering — BashTool output body invisible", "status": "in_progress"},
+    {"id": 4, "name": "Remove debug logging from app-state.ts and bash-tool.ts", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "BashTool Column([header, outputPadding]) only renders header — output body invisible despite correct data", "type": "technical", "workaround": "Likely flitter-core layout constraint issue in StickyHeader or outer Column"}
+  ],
+  "human_actions_pending": [],
+  "decisions": [
+    {"decision": "Keep session.addToolCall/updateToolCall for persistence (matches AMP)", "rationale": "AMP's invokeBashTool persists to thread items via same mechanism. Shell output should be permanent conversation items."},
+    {"decision": "Title format 'Bash $ {command}' for resolveToolName dispatch", "rationale": "resolveToolName splits on space, first token must be 'Bash' to route to BashTool renderer"},
+    {"decision": "Force collapsed=false via setItemCollapsed for shell-mode tool calls", "rationale": "Config default is defaultToolExpanded=false, but shell-mode output must always be visible"}
+  ],
+  "uncommitted_files": [
+    "packages/flitter-cli/src/__tests__/app-state-turns.test.ts",
+    "packages/flitter-cli/src/__tests__/tool-executors.test.ts",
+    "packages/flitter-cli/src/state/app-state.ts",
+    "packages/flitter-cli/src/state/types.ts",
+    "packages/flitter-cli/src/tools/bash-executor.ts",
+    "packages/flitter-cli/src/widgets/tool-call/bash-tool.ts"
+  ],
+  "next_action": "Debug why BashTool's Column body children (output Padding/Text) are invisible despite build() returning them with correct data. Compare widget tree for shell-mode vs agent-initiated bash tool calls. Check StickyHeader constraints and outer Column layout.",
+  "context_notes": "The entire data pipeline works: subscribe→next→updateToolCall→BashTool.build(expanded=true, output='hello\\n'). Logs confirm BashTool.build receives extractOutput len=6. The Column with [header, Padding(Text(output))] is returned but only header renders on screen. This is a flitter-core rendering/layout issue, not a state issue."
+}

@@ -1,8 +1,21 @@
 {
-  "files": [],
-  "references": [
-    { "path": "packages/flitter-core" },
-    { "path": "packages/flitter-cli" },
-    { "path": "packages/flitter-amp" }
-  ]
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "noEmit": true,
+    "composite": true,
+    "strict": true,
+    "downlevelIteration": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": false,
+    "types": ["bun-types"]
+  },
+  "include": ["packages/**/*", "apps/**/*"],
+  "exclude": ["node_modules", "amp-cli-reversed", "**/*.test.ts"]
 }

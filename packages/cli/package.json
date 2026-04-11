@@ -1,0 +1,30 @@
+{
+  "name": "@flitter/cli",
+  "version": "0.1.0",
+  "description": "CLI entry & command system",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "bin": {
+    "flitter": "./bin/flitter.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@flitter/agent-core": "workspace:*",
+    "@flitter/tui": "workspace:*",
+    "@flitter/data": "workspace:*",
+    "@flitter/llm": "workspace:*"
+  },
+  "keywords": [
+    "cli",
+    "terminal"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "bun-types": "^1.1.0",
+    "typescript": "^5.4.0"
+  }
+}

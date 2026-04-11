@@ -1,15 +1,28 @@
 {
-  "name": "flitter",
+  "name": "flitter-monorepo",
+  "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "test": "pnpm -r run test",
-    "typecheck": "pnpm -r run typecheck",
-    "build": "pnpm -r run build"
-  },
+  "type": "module",
+  "description": "Flitter monorepo",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
-  "dependencies": {
-    "@mariozechner/pi-ai": "^0.65.2"
+  "scripts": {
+    "build": "bun build packages/*/src/index.ts --outdir=dist",
+    "test": "bun test",
+    "lint": "echo 'Lint script placeholder'",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "flitter",
+    "ai",
+    "agent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "bun-types": "^1.1.0",
+    "typescript": "^5.4.0"
   }
 }

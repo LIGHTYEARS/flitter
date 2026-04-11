@@ -5,8 +5,585 @@
 // Category: util
 
 // Module: xhR (CJS)
-(T)=>{var R;
-Object.defineProperty(T,"__esModule",{value:!0}),T.OutlierDetectionLoadBalancer=T.OutlierDetectionLoadBalancingConfig=void 0,T.setup=S;
-var a=Ic(),e=c8(),t=LvT(),r=MvT(),h=lx(),i=OZ(),c=rm(),s=mc(),A=UZ(),l=j3(),o="outlier_detection";
-function n(O){l.trace(e.LogVerbosity.DEBUG,o,O)}var p="outlier_detection",_=((R=process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION)!==null&&R!==void 0?R:"true")==="true",m={stdev_factor:1900,enforcement_percentage:100,minimum_hosts:5,request_volume:100},b={threshold:85,enforcement_percentage:100,minimum_hosts:5,request_volume:50};
-function y(O,j,d,C){if(j in O&&O[j]!==void 0&&typeof O[j]!==d){let L=C?`${C}.${j}`:j;throw Error(`outlier detection config ${L} parse error: expected ${d}, got ${typeof O[j]}`)}}function u(O,j,d){let C=d?`${d}.${j}`:j;if(j in O&&O[j]!==void 0){if(!(0,t.isDuration)(O[j]))throw Error(`outlier detection config ${C} parse error: expected Duration, got ${typeof O[j]}`);if(!(O[j].seconds>=0&&O[j].seconds<=315576000000&&O[j].nanos>=0&&O[j].nanos<=999999999))throw Error(`outlier detection config ${C} parse error: values out of range for non-negative Duaration`)}}function P(O,j,d){let C=d?`${d}.${j}`:j;if(y(O,j,"number",d),j in O&&O[j]!==void 0&&!(O[j]>=0&&O[j]<=100))throw Error(`outlier detection config ${C} parse error: value out of range for percentage (0-100)`)}class k{constructor(O,j,d,C,L,w,D){if(this.childPolicy=D,D.getLoadBalancerName()==="pick_first")throw Error("outlier_detection LB policy cannot have a pick_first child policy");this.intervalMs=O!==null&&O!==void 0?O:1e4,this.baseEjectionTimeMs=j!==null&&j!==void 0?j:30000,this.maxEjectionTimeMs=d!==null&&d!==void 0?d:300000,this.maxEjectionPercent=C!==null&&C!==void 0?C:10,this.successRateEjection=L?Object.assign(Object.assign({},m),L):null,this.failurePercentageEjection=w?Object.assign(Object.assign({},b),w):null}getLoadBalancerName(){return p}toJsonObject(){var O,j;return{outlier_detection:{interval:(0,t.msToDuration)(this.intervalMs),base_ejection_time:(0,t.msToDuration)(this.baseEjectionTimeMs),max_ejection_time:(0,t.msToDuration)(this.maxEjectionTimeMs),max_ejection_percent:this.maxEjectionPercent,success_rate_ejection:(O=this.successRateEjection)!==null&&O!==void 0?O:void 0,failure_percentage_ejection:(j=this.failurePercentageEjection)!==null&&j!==void 0?j:void 0,child_policy:[this.childPolicy.toJsonObject()]}}}getIntervalMs(){return this.intervalMs}getBaseEjectionTimeMs(){return this.baseEjectionTimeMs}getMaxEjectionTimeMs(){return this.maxEjectionTimeMs}getMaxEjectionPercent(){return this.maxEjectionPercent}getSuccessRateEjectionConfig(){return this.successRateEjection}getFailurePercentageEjectionConfig(){return this.failurePercentageEjection}getChildPolicy(){return this.childPolicy}static createFromJson(O){var j;if(u(O,"interval"),u(O,"base_ejection_time"),u(O,"max_ejection_time"),P(O,"max_ejection_percent"),"success_rate_ejection"in O&&O.success_rate_ejection!==void 0){if(typeof O.success_rate_ejection!=="object")throw Error("outlier detection config success_rate_ejection must be an object");y(O.success_rate_ejection,"stdev_factor","number","success_rate_ejection"),P(O.success_rate_ejection,"enforcement_percentage","success_rate_ejection"),y(O.success_rate_ejection,"minimum_hosts","number","success_rate_ejection"),y(O.success_rate_ejection,"request_volume","number","success_rate_ejection")}if("failure_percentage_ejection"in O&&O.failure_percentage_ejection!==void 0){if(typeof O.failure_percentage_ejection!=="object")throw Error("outlier detection config failure_percentage_ejection must be an object");P(O.failure_percentage_ejection,"threshold","failure_percentage_ejection"),P(O.failure_percentage_ejection,"enforcement_percentage","failure_percentage_ejection"),y(O.failure_percentage_ejection,"minimum_hosts","number","failure_percentage_ejection"),y(O.failure_percentage_ejection,"request_volume","number","failure_percentage_ejection")}if(!("child_policy"in O)||!Array.isArray(O.child_policy))throw Error("outlier detection config child_policy must be an array");let d=(0,h.selectLbConfigFromList)(O.child_policy);if(!d)throw Error("outlier detection config child_policy: no valid recognized policy found");return new k(O.interval?(0,t.durationToMs)(O.interval):null,O.base_ejection_time?(0,t.durationToMs)(O.base_ejection_time):null,O.max_ejection_time?(0,t.durationToMs)(O.max_ejection_time):null,(j=O.max_ejection_percent)!==null&&j!==void 0?j:null,O.success_rate_ejection,O.failure_percentage_ejection,d)}}T.OutlierDetectionLoadBalancingConfig=k;class x extends A.BaseSubchannelWrapper{constructor(O,j){super(O);this.mapEntry=j,this.refCount=0}ref(){this.child.ref(),this.refCount+=1}unref(){if(this.child.unref(),this.refCount-=1,this.refCount<=0){if(this.mapEntry){let O=this.mapEntry.subchannelWrappers.indexOf(this);if(O>=0)this.mapEntry.subchannelWrappers.splice(O,1)}}}eject(){this.setHealthy(!1)}uneject(){this.setHealthy(!0)}getMapEntry(){return this.mapEntry}getWrappedSubchannel(){return this.child}}function f(){return{success:0,failure:0}}class v{constructor(){this.activeBucket=f(),this.inactiveBucket=f()}addSuccess(){this.activeBucket.success+=1}addFailure(){this.activeBucket.failure+=1}switchBuckets(){this.inactiveBucket=this.activeBucket,this.activeBucket=f()}getLastSuccesses(){return this.inactiveBucket.success}getLastFailures(){return this.inactiveBucket.failure}}class g{constructor(O,j){this.wrappedPicker=O,this.countCalls=j}pick(O){let j=this.wrappedPicker.pick(O);if(j.pickResultType===c.PickResultType.COMPLETE){let d=j.subchannel,C=d.getMapEntry();if(C){let L=j.onCallEnded;if(this.countCalls)L=(w)=>{var D;if(w===e.Status.OK)C.counter.addSuccess();else C.counter.addFailure();(D=j.onCallEnded)===null||D===void 0||D.call(j,w)};return Object.assign(Object.assign({},j),{subchannel:d.getWrappedSubchannel(),onCallEnded:L})}else return Object.assign(Object.assign({},j),{subchannel:d.getWrappedSubchannel()})}else return j}}class I{constructor(O){this.entryMap=new s.EndpointMap,this.latestConfig=null,this.timerStartTime=null,this.childBalancer=new i.ChildLoadBalancerHandler((0,r.createChildChannelControlHelper)(O,{createSubchannel:(j,d)=>{let C=O.createSubchannel(j,d),L=this.entryMap.getForSubchannelAddress(j),w=new x(C,L);if((L===null||L===void 0?void 0:L.currentEjectionTimestamp)!==null)w.eject();return L===null||L===void 0||L.subchannelWrappers.push(w),w},updateState:(j,d,C)=>{if(j===a.ConnectivityState.READY)O.updateState(j,new g(d,this.isCountingEnabled()),C);else O.updateState(j,d,C)}})),this.ejectionTimer=setInterval(()=>{},0),clearInterval(this.ejectionTimer)}isCountingEnabled(){return this.latestConfig!==null&&(this.latestConfig.getSuccessRateEjectionConfig()!==null||this.latestConfig.getFailurePercentageEjectionConfig()!==null)}getCurrentEjectionPercent(){let O=0;for(let j of this.entryMap.values())if(j.currentEjectionTimestamp!==null)O+=1;return O*100/this.entryMap.size}runSuccessRateCheck(O){if(!this.latestConfig)return;let j=this.latestConfig.getSuccessRateEjectionConfig();if(!j)return;n("Running success rate check");let d=j.request_volume,C=0,L=[];for(let[Q,W]of this.entryMap.entries()){let eT=W.counter.getLastSuccesses(),iT=W.counter.getLastFailures();if(n("Stats for "+(0,s.endpointToString)(Q)+": successes="+eT+" failures="+iT+" targetRequestVolume="+d),eT+iT>=d)C+=1,L.push(eT/(eT+iT))}if(n("Found "+C+" success rate candidates; currentEjectionPercent="+this.getCurrentEjectionPercent()+" successRates=["+L+"]"),C<j.minimum_hosts)return;let w=L.reduce((Q,W)=>Q+W)/L.length,D=0;for(let Q of L){let W=Q-w;D+=W*W}let B=D/L.length,M=Math.sqrt(B),V=w-M*(j.stdev_factor/1000);n("stdev="+M+" ejectionThreshold="+V);for(let[Q,W]of this.entryMap.entries()){if(this.getCurrentEjectionPercent()>=this.latestConfig.getMaxEjectionPercent())break;let eT=W.counter.getLastSuccesses(),iT=W.counter.getLastFailures();if(eT+iT<d)continue;let aT=eT/(eT+iT);if(n("Checking candidate "+Q+" successRate="+aT),aT<V){let oT=Math.random()*100;if(n("Candidate "+Q+" randomNumber="+oT+" enforcement_percentage="+j.enforcement_percentage),oT<j.enforcement_percentage)n("Ejecting candidate "+Q),this.eject(W,O)}}}runFailurePercentageCheck(O){if(!this.latestConfig)return;let j=this.latestConfig.getFailurePercentageEjectionConfig();if(!j)return;n("Running failure percentage check. threshold="+j.threshold+" request volume threshold="+j.request_volume);let d=0;for(let C of this.entryMap.values()){let L=C.counter.getLastSuccesses(),w=C.counter.getLastFailures();if(L+w>=j.request_volume)d+=1}if(d<j.minimum_hosts)return;for(let[C,L]of this.entryMap.entries()){if(this.getCurrentEjectionPercent()>=this.latestConfig.getMaxEjectionPercent())break;let w=L.counter.getLastSuccesses(),D=L.counter.getLastFailures();if(n("Candidate successes="+w+" failures="+D),w+D<j.request_volume)continue;if(D*100/(D+w)>j.threshold){let B=Math.random()*100;if(n("Candidate "+C+" randomNumber="+B+" enforcement_percentage="+j.enforcement_percentage),B<j.enforcement_percentage)n("Ejecting candidate "+C),this.eject(L,O)}}}eject(O,j){O.currentEjectionTimestamp=new Date,O.ejectionTimeMultiplier+=1;for(let d of O.subchannelWrappers)d.eject()}uneject(O){O.currentEjectionTimestamp=null;for(let j of O.subchannelWrappers)j.uneject()}switchAllBuckets(){for(let O of this.entryMap.values())O.counter.switchBuckets()}startTimer(O){var j,d;this.ejectionTimer=setTimeout(()=>this.runChecks(),O),(d=(j=this.ejectionTimer).unref)===null||d===void 0||d.call(j)}runChecks(){let O=new Date;if(n("Ejection timer running"),this.switchAllBuckets(),!this.latestConfig)return;this.timerStartTime=O,this.startTimer(this.latestConfig.getIntervalMs()),this.runSuccessRateCheck(O),this.runFailurePercentageCheck(O);for(let[j,d]of this.entryMap.entries())if(d.currentEjectionTimestamp===null){if(d.ejectionTimeMultiplier>0)d.ejectionTimeMultiplier-=1}else{let C=this.latestConfig.getBaseEjectionTimeMs(),L=this.latestConfig.getMaxEjectionTimeMs(),w=new Date(d.currentEjectionTimestamp.getTime());if(w.setMilliseconds(w.getMilliseconds()+Math.min(C*d.ejectionTimeMultiplier,Math.max(C,L))),w<new Date)n("Unejecting "+j),this.uneject(d)}}updateAddressList(O,j,d){if(!(j instanceof k))return;n("Received update with config: "+JSON.stringify(j.toJsonObject(),void 0,2));for(let L of O)if(!this.entryMap.has(L))n("Adding map entry for "+(0,s.endpointToString)(L)),this.entryMap.set(L,{counter:new v,currentEjectionTimestamp:null,ejectionTimeMultiplier:0,subchannelWrappers:[]});this.entryMap.deleteMissing(O);let C=j.getChildPolicy();if(this.childBalancer.updateAddressList(O,C,d),j.getSuccessRateEjectionConfig()||j.getFailurePercentageEjectionConfig())if(this.timerStartTime){n("Previous timer existed. Replacing timer"),clearTimeout(this.ejectionTimer);let L=j.getIntervalMs()-(new Date().getTime()-this.timerStartTime.getTime());this.startTimer(L)}else n("Starting new timer"),this.timerStartTime=new Date,this.startTimer(j.getIntervalMs()),this.switchAllBuckets();else{n("Counting disabled. Cancelling timer."),this.timerStartTime=null,clearTimeout(this.ejectionTimer);for(let L of this.entryMap.values())this.uneject(L),L.ejectionTimeMultiplier=0}this.latestConfig=j}exitIdle(){this.childBalancer.exitIdle()}resetBackoff(){this.childBalancer.resetBackoff()}destroy(){clearTimeout(this.ejectionTimer),this.childBalancer.destroy()}getTypeName(){return p}}T.OutlierDetectionLoadBalancer=I;function S(){if(_)(0,r.registerLoadBalancerType)(p,I,k)}}
+(T) => {
+  var R;
+  (Object.defineProperty(T, "__esModule", { value: !0 }),
+    (T.OutlierDetectionLoadBalancer = T.OutlierDetectionLoadBalancingConfig =
+      void 0),
+    (T.setup = S));
+  var a = Ic(),
+    e = c8(),
+    t = LvT(),
+    r = MvT(),
+    h = lx(),
+    i = OZ(),
+    c = rm(),
+    s = mc(),
+    A = UZ(),
+    l = j3(),
+    o = "outlier_detection";
+  function n(O) {
+    l.trace(e.LogVerbosity.DEBUG, o, O);
+  }
+  var p = "outlier_detection",
+    _ =
+      ((R = process.env.GRPC_EXPERIMENTAL_ENABLE_OUTLIER_DETECTION) !== null &&
+      R !== void 0
+        ? R
+        : "true") === "true",
+    m = {
+      stdev_factor: 1900,
+      enforcement_percentage: 100,
+      minimum_hosts: 5,
+      request_volume: 100,
+    },
+    b = {
+      threshold: 85,
+      enforcement_percentage: 100,
+      minimum_hosts: 5,
+      request_volume: 50,
+    };
+  function y(O, j, d, C) {
+    if (j in O && O[j] !== void 0 && typeof O[j] !== d) {
+      let L = C ? `${C}.${j}` : j;
+      throw Error(
+        `outlier detection config ${L} parse error: expected ${d}, got ${typeof O[j]}`,
+      );
+    }
+  }
+  function u(O, j, d) {
+    let C = d ? `${d}.${j}` : j;
+    if (j in O && O[j] !== void 0) {
+      if (!(0, t.isDuration)(O[j]))
+        throw Error(
+          `outlier detection config ${C} parse error: expected Duration, got ${typeof O[j]}`,
+        );
+      if (
+        !(
+          O[j].seconds >= 0 &&
+          O[j].seconds <= 315576000000 &&
+          O[j].nanos >= 0 &&
+          O[j].nanos <= 999999999
+        )
+      )
+        throw Error(
+          `outlier detection config ${C} parse error: values out of range for non-negative Duaration`,
+        );
+    }
+  }
+  function P(O, j, d) {
+    let C = d ? `${d}.${j}` : j;
+    if (
+      (y(O, j, "number", d),
+      j in O && O[j] !== void 0 && !(O[j] >= 0 && O[j] <= 100))
+    )
+      throw Error(
+        `outlier detection config ${C} parse error: value out of range for percentage (0-100)`,
+      );
+  }
+  class k {
+    constructor(O, j, d, C, L, w, D) {
+      if (((this.childPolicy = D), D.getLoadBalancerName() === "pick_first"))
+        throw Error(
+          "outlier_detection LB policy cannot have a pick_first child policy",
+        );
+      ((this.intervalMs = O !== null && O !== void 0 ? O : 1e4),
+        (this.baseEjectionTimeMs = j !== null && j !== void 0 ? j : 30000),
+        (this.maxEjectionTimeMs = d !== null && d !== void 0 ? d : 300000),
+        (this.maxEjectionPercent = C !== null && C !== void 0 ? C : 10),
+        (this.successRateEjection = L
+          ? Object.assign(Object.assign({}, m), L)
+          : null),
+        (this.failurePercentageEjection = w
+          ? Object.assign(Object.assign({}, b), w)
+          : null));
+    }
+    getLoadBalancerName() {
+      return p;
+    }
+    toJsonObject() {
+      var O, j;
+      return {
+        outlier_detection: {
+          interval: (0, t.msToDuration)(this.intervalMs),
+          base_ejection_time: (0, t.msToDuration)(this.baseEjectionTimeMs),
+          max_ejection_time: (0, t.msToDuration)(this.maxEjectionTimeMs),
+          max_ejection_percent: this.maxEjectionPercent,
+          success_rate_ejection:
+            (O = this.successRateEjection) !== null && O !== void 0
+              ? O
+              : void 0,
+          failure_percentage_ejection:
+            (j = this.failurePercentageEjection) !== null && j !== void 0
+              ? j
+              : void 0,
+          child_policy: [this.childPolicy.toJsonObject()],
+        },
+      };
+    }
+    getIntervalMs() {
+      return this.intervalMs;
+    }
+    getBaseEjectionTimeMs() {
+      return this.baseEjectionTimeMs;
+    }
+    getMaxEjectionTimeMs() {
+      return this.maxEjectionTimeMs;
+    }
+    getMaxEjectionPercent() {
+      return this.maxEjectionPercent;
+    }
+    getSuccessRateEjectionConfig() {
+      return this.successRateEjection;
+    }
+    getFailurePercentageEjectionConfig() {
+      return this.failurePercentageEjection;
+    }
+    getChildPolicy() {
+      return this.childPolicy;
+    }
+    static createFromJson(O) {
+      var j;
+      if (
+        (u(O, "interval"),
+        u(O, "base_ejection_time"),
+        u(O, "max_ejection_time"),
+        P(O, "max_ejection_percent"),
+        "success_rate_ejection" in O && O.success_rate_ejection !== void 0)
+      ) {
+        if (typeof O.success_rate_ejection !== "object")
+          throw Error(
+            "outlier detection config success_rate_ejection must be an object",
+          );
+        (y(
+          O.success_rate_ejection,
+          "stdev_factor",
+          "number",
+          "success_rate_ejection",
+        ),
+          P(
+            O.success_rate_ejection,
+            "enforcement_percentage",
+            "success_rate_ejection",
+          ),
+          y(
+            O.success_rate_ejection,
+            "minimum_hosts",
+            "number",
+            "success_rate_ejection",
+          ),
+          y(
+            O.success_rate_ejection,
+            "request_volume",
+            "number",
+            "success_rate_ejection",
+          ));
+      }
+      if (
+        "failure_percentage_ejection" in O &&
+        O.failure_percentage_ejection !== void 0
+      ) {
+        if (typeof O.failure_percentage_ejection !== "object")
+          throw Error(
+            "outlier detection config failure_percentage_ejection must be an object",
+          );
+        (P(
+          O.failure_percentage_ejection,
+          "threshold",
+          "failure_percentage_ejection",
+        ),
+          P(
+            O.failure_percentage_ejection,
+            "enforcement_percentage",
+            "failure_percentage_ejection",
+          ),
+          y(
+            O.failure_percentage_ejection,
+            "minimum_hosts",
+            "number",
+            "failure_percentage_ejection",
+          ),
+          y(
+            O.failure_percentage_ejection,
+            "request_volume",
+            "number",
+            "failure_percentage_ejection",
+          ));
+      }
+      if (!("child_policy" in O) || !Array.isArray(O.child_policy))
+        throw Error("outlier detection config child_policy must be an array");
+      let d = (0, h.selectLbConfigFromList)(O.child_policy);
+      if (!d)
+        throw Error(
+          "outlier detection config child_policy: no valid recognized policy found",
+        );
+      return new k(
+        O.interval ? (0, t.durationToMs)(O.interval) : null,
+        O.base_ejection_time ? (0, t.durationToMs)(O.base_ejection_time) : null,
+        O.max_ejection_time ? (0, t.durationToMs)(O.max_ejection_time) : null,
+        (j = O.max_ejection_percent) !== null && j !== void 0 ? j : null,
+        O.success_rate_ejection,
+        O.failure_percentage_ejection,
+        d,
+      );
+    }
+  }
+  T.OutlierDetectionLoadBalancingConfig = k;
+  class x extends A.BaseSubchannelWrapper {
+    constructor(O, j) {
+      super(O);
+      ((this.mapEntry = j), (this.refCount = 0));
+    }
+    ref() {
+      (this.child.ref(), (this.refCount += 1));
+    }
+    unref() {
+      if ((this.child.unref(), (this.refCount -= 1), this.refCount <= 0)) {
+        if (this.mapEntry) {
+          let O = this.mapEntry.subchannelWrappers.indexOf(this);
+          if (O >= 0) this.mapEntry.subchannelWrappers.splice(O, 1);
+        }
+      }
+    }
+    eject() {
+      this.setHealthy(!1);
+    }
+    uneject() {
+      this.setHealthy(!0);
+    }
+    getMapEntry() {
+      return this.mapEntry;
+    }
+    getWrappedSubchannel() {
+      return this.child;
+    }
+  }
+  function f() {
+    return { success: 0, failure: 0 };
+  }
+  class v {
+    constructor() {
+      ((this.activeBucket = f()), (this.inactiveBucket = f()));
+    }
+    addSuccess() {
+      this.activeBucket.success += 1;
+    }
+    addFailure() {
+      this.activeBucket.failure += 1;
+    }
+    switchBuckets() {
+      ((this.inactiveBucket = this.activeBucket), (this.activeBucket = f()));
+    }
+    getLastSuccesses() {
+      return this.inactiveBucket.success;
+    }
+    getLastFailures() {
+      return this.inactiveBucket.failure;
+    }
+  }
+  class g {
+    constructor(O, j) {
+      ((this.wrappedPicker = O), (this.countCalls = j));
+    }
+    pick(O) {
+      let j = this.wrappedPicker.pick(O);
+      if (j.pickResultType === c.PickResultType.COMPLETE) {
+        let d = j.subchannel,
+          C = d.getMapEntry();
+        if (C) {
+          let L = j.onCallEnded;
+          if (this.countCalls)
+            L = (w) => {
+              var D;
+              if (w === e.Status.OK) C.counter.addSuccess();
+              else C.counter.addFailure();
+              (D = j.onCallEnded) === null || D === void 0 || D.call(j, w);
+            };
+          return Object.assign(Object.assign({}, j), {
+            subchannel: d.getWrappedSubchannel(),
+            onCallEnded: L,
+          });
+        } else
+          return Object.assign(Object.assign({}, j), {
+            subchannel: d.getWrappedSubchannel(),
+          });
+      } else return j;
+    }
+  }
+  class I {
+    constructor(O) {
+      ((this.entryMap = new s.EndpointMap()),
+        (this.latestConfig = null),
+        (this.timerStartTime = null),
+        (this.childBalancer = new i.ChildLoadBalancerHandler(
+          (0, r.createChildChannelControlHelper)(O, {
+            createSubchannel: (j, d) => {
+              let C = O.createSubchannel(j, d),
+                L = this.entryMap.getForSubchannelAddress(j),
+                w = new x(C, L);
+              if (
+                (L === null || L === void 0
+                  ? void 0
+                  : L.currentEjectionTimestamp) !== null
+              )
+                w.eject();
+              return (
+                L === null || L === void 0 || L.subchannelWrappers.push(w),
+                w
+              );
+            },
+            updateState: (j, d, C) => {
+              if (j === a.ConnectivityState.READY)
+                O.updateState(j, new g(d, this.isCountingEnabled()), C);
+              else O.updateState(j, d, C);
+            },
+          }),
+        )),
+        (this.ejectionTimer = setInterval(() => {}, 0)),
+        clearInterval(this.ejectionTimer));
+    }
+    isCountingEnabled() {
+      return (
+        this.latestConfig !== null &&
+        (this.latestConfig.getSuccessRateEjectionConfig() !== null ||
+          this.latestConfig.getFailurePercentageEjectionConfig() !== null)
+      );
+    }
+    getCurrentEjectionPercent() {
+      let O = 0;
+      for (let j of this.entryMap.values())
+        if (j.currentEjectionTimestamp !== null) O += 1;
+      return (O * 100) / this.entryMap.size;
+    }
+    runSuccessRateCheck(O) {
+      if (!this.latestConfig) return;
+      let j = this.latestConfig.getSuccessRateEjectionConfig();
+      if (!j) return;
+      n("Running success rate check");
+      let d = j.request_volume,
+        C = 0,
+        L = [];
+      for (let [Q, W] of this.entryMap.entries()) {
+        let eT = W.counter.getLastSuccesses(),
+          iT = W.counter.getLastFailures();
+        if (
+          (n(
+            "Stats for " +
+              (0, s.endpointToString)(Q) +
+              ": successes=" +
+              eT +
+              " failures=" +
+              iT +
+              " targetRequestVolume=" +
+              d,
+          ),
+          eT + iT >= d)
+        )
+          ((C += 1), L.push(eT / (eT + iT)));
+      }
+      if (
+        (n(
+          "Found " +
+            C +
+            " success rate candidates; currentEjectionPercent=" +
+            this.getCurrentEjectionPercent() +
+            " successRates=[" +
+            L +
+            "]",
+        ),
+        C < j.minimum_hosts)
+      )
+        return;
+      let w = L.reduce((Q, W) => Q + W) / L.length,
+        D = 0;
+      for (let Q of L) {
+        let W = Q - w;
+        D += W * W;
+      }
+      let B = D / L.length,
+        M = Math.sqrt(B),
+        V = w - M * (j.stdev_factor / 1000);
+      n("stdev=" + M + " ejectionThreshold=" + V);
+      for (let [Q, W] of this.entryMap.entries()) {
+        if (
+          this.getCurrentEjectionPercent() >=
+          this.latestConfig.getMaxEjectionPercent()
+        )
+          break;
+        let eT = W.counter.getLastSuccesses(),
+          iT = W.counter.getLastFailures();
+        if (eT + iT < d) continue;
+        let aT = eT / (eT + iT);
+        if ((n("Checking candidate " + Q + " successRate=" + aT), aT < V)) {
+          let oT = Math.random() * 100;
+          if (
+            (n(
+              "Candidate " +
+                Q +
+                " randomNumber=" +
+                oT +
+                " enforcement_percentage=" +
+                j.enforcement_percentage,
+            ),
+            oT < j.enforcement_percentage)
+          )
+            (n("Ejecting candidate " + Q), this.eject(W, O));
+        }
+      }
+    }
+    runFailurePercentageCheck(O) {
+      if (!this.latestConfig) return;
+      let j = this.latestConfig.getFailurePercentageEjectionConfig();
+      if (!j) return;
+      n(
+        "Running failure percentage check. threshold=" +
+          j.threshold +
+          " request volume threshold=" +
+          j.request_volume,
+      );
+      let d = 0;
+      for (let C of this.entryMap.values()) {
+        let L = C.counter.getLastSuccesses(),
+          w = C.counter.getLastFailures();
+        if (L + w >= j.request_volume) d += 1;
+      }
+      if (d < j.minimum_hosts) return;
+      for (let [C, L] of this.entryMap.entries()) {
+        if (
+          this.getCurrentEjectionPercent() >=
+          this.latestConfig.getMaxEjectionPercent()
+        )
+          break;
+        let w = L.counter.getLastSuccesses(),
+          D = L.counter.getLastFailures();
+        if (
+          (n("Candidate successes=" + w + " failures=" + D),
+          w + D < j.request_volume)
+        )
+          continue;
+        if ((D * 100) / (D + w) > j.threshold) {
+          let B = Math.random() * 100;
+          if (
+            (n(
+              "Candidate " +
+                C +
+                " randomNumber=" +
+                B +
+                " enforcement_percentage=" +
+                j.enforcement_percentage,
+            ),
+            B < j.enforcement_percentage)
+          )
+            (n("Ejecting candidate " + C), this.eject(L, O));
+        }
+      }
+    }
+    eject(O, j) {
+      ((O.currentEjectionTimestamp = new Date()),
+        (O.ejectionTimeMultiplier += 1));
+      for (let d of O.subchannelWrappers) d.eject();
+    }
+    uneject(O) {
+      O.currentEjectionTimestamp = null;
+      for (let j of O.subchannelWrappers) j.uneject();
+    }
+    switchAllBuckets() {
+      for (let O of this.entryMap.values()) O.counter.switchBuckets();
+    }
+    startTimer(O) {
+      var j, d;
+      ((this.ejectionTimer = setTimeout(() => this.runChecks(), O)),
+        (d = (j = this.ejectionTimer).unref) === null ||
+          d === void 0 ||
+          d.call(j));
+    }
+    runChecks() {
+      let O = new Date();
+      if (
+        (n("Ejection timer running"),
+        this.switchAllBuckets(),
+        !this.latestConfig)
+      )
+        return;
+      ((this.timerStartTime = O),
+        this.startTimer(this.latestConfig.getIntervalMs()),
+        this.runSuccessRateCheck(O),
+        this.runFailurePercentageCheck(O));
+      for (let [j, d] of this.entryMap.entries())
+        if (d.currentEjectionTimestamp === null) {
+          if (d.ejectionTimeMultiplier > 0) d.ejectionTimeMultiplier -= 1;
+        } else {
+          let C = this.latestConfig.getBaseEjectionTimeMs(),
+            L = this.latestConfig.getMaxEjectionTimeMs(),
+            w = new Date(d.currentEjectionTimestamp.getTime());
+          if (
+            (w.setMilliseconds(
+              w.getMilliseconds() +
+                Math.min(C * d.ejectionTimeMultiplier, Math.max(C, L)),
+            ),
+            w < new Date())
+          )
+            (n("Unejecting " + j), this.uneject(d));
+        }
+    }
+    updateAddressList(O, j, d) {
+      if (!(j instanceof k)) return;
+      n(
+        "Received update with config: " +
+          JSON.stringify(j.toJsonObject(), void 0, 2),
+      );
+      for (let L of O)
+        if (!this.entryMap.has(L))
+          (n("Adding map entry for " + (0, s.endpointToString)(L)),
+            this.entryMap.set(L, {
+              counter: new v(),
+              currentEjectionTimestamp: null,
+              ejectionTimeMultiplier: 0,
+              subchannelWrappers: [],
+            }));
+      this.entryMap.deleteMissing(O);
+      let C = j.getChildPolicy();
+      if (
+        (this.childBalancer.updateAddressList(O, C, d),
+        j.getSuccessRateEjectionConfig() ||
+          j.getFailurePercentageEjectionConfig())
+      )
+        if (this.timerStartTime) {
+          (n("Previous timer existed. Replacing timer"),
+            clearTimeout(this.ejectionTimer));
+          let L =
+            j.getIntervalMs() -
+            (new Date().getTime() - this.timerStartTime.getTime());
+          this.startTimer(L);
+        } else
+          (n("Starting new timer"),
+            (this.timerStartTime = new Date()),
+            this.startTimer(j.getIntervalMs()),
+            this.switchAllBuckets());
+      else {
+        (n("Counting disabled. Cancelling timer."),
+          (this.timerStartTime = null),
+          clearTimeout(this.ejectionTimer));
+        for (let L of this.entryMap.values())
+          (this.uneject(L), (L.ejectionTimeMultiplier = 0));
+      }
+      this.latestConfig = j;
+    }
+    exitIdle() {
+      this.childBalancer.exitIdle();
+    }
+    resetBackoff() {
+      this.childBalancer.resetBackoff();
+    }
+    destroy() {
+      (clearTimeout(this.ejectionTimer), this.childBalancer.destroy());
+    }
+    getTypeName() {
+      return p;
+    }
+  }
+  T.OutlierDetectionLoadBalancer = I;
+  function S() {
+    if (_) (0, r.registerLoadBalancerType)(p, I, k);
+  }
+};

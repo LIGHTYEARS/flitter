@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: ZDT (ESM)
-()=>{s0(),om(),rR(),YDT=c0(KA(),1),QDT=c0(QA(),1)}
+() => {
+  (s0(), om(), rR(), (YDT = c0(KA(), 1)), (QDT = c0(QA(), 1)));
+};

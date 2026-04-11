@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: MfR (ESM)
-()=>{rR(),OfR(),kwT=/[\uDB40][\uDC00-\uDC7F]/g,Zg=new Map}
+() => {
+  (rR(), OfR(), (kwT = /[\uDB40][\uDC00-\uDC7F]/g), (Zg = new Map()));
+};

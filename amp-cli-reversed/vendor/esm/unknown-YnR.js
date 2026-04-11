@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: YnR (ESM)
-()=>{w$=new Uint8Array(256),Lg=w$.length}
+() => {
+  ((w$ = new Uint8Array(256)), (Lg = w$.length));
+};

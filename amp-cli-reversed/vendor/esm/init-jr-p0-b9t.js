@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: m9T (ESM)
-()=>{jR(),P0(),b9T(),rO(),kN(),Px()}
+() => {
+  (jR(), P0(), b9T(), rO(), kN(), Px());
+};

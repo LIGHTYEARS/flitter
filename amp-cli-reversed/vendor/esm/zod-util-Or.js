@@ -5,4 +5,20 @@
 // Category: schema
 
 // Module: Or (ESM)
-()=>{X0(),dJ(),sRT(),b6(),zoR(),GoR(),LS(),ijT(),ZvT(),zjT(),YJ(),HjT(),R6(),qoR(),_6()}
+() => {
+  (X0(),
+    dJ(),
+    sRT(),
+    b6(),
+    zoR(),
+    GoR(),
+    LS(),
+    ijT(),
+    ZvT(),
+    zjT(),
+    YJ(),
+    HjT(),
+    R6(),
+    qoR(),
+    _6());
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: tMT (ESM)
-()=>{Ya(),Sc()}
+() => {
+  (Ya(), Sc());
+};

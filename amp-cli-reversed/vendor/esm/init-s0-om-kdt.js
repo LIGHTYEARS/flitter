@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: $c (ESM)
-()=>{s0(),om(),KdT()}
+() => {
+  (s0(), om(), KdT());
+};

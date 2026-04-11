@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: boR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

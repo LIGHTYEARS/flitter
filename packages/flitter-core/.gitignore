@@ -1,8 +1,0 @@
-node_modules/
-dist/
-*.tgz
-.DS_Store
-coverage/
-docs/.vitepress/dist
-docs/.vitepress/cache
-node_modules

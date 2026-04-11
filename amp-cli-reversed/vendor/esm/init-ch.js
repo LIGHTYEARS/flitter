@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Ec (ESM)
-()=>{Ch()}
+() => {
+  Ch();
+};

@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: mkR (ESM)
-()=>{s0(),rR()}
+() => {
+  (s0(), rR());
+};

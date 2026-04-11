@@ -4,15 +4,922 @@
 // Exports: aPR, ePR, hDT, tPR, oDT, lDT, rPR, hPR, iPR, plT, _lT, ADT, oPR, Uq, m, nPR, lPR, APR, pPR, z$
 // Category: cli
 
-ctionTimeout=setTimeout(()=>{this._startOrAuthSse(T).catch((t)=>{this.onerror?.(Error(`Failed to reconnect SSE stream: ${t instanceof Error?t.message:String(t)}`)),this._scheduleReconnection(T,R+1)})},e)}_handleSseStream(T,R,a){if(!T)return;let{onresumptiontoken:e,replayMessageId:t}=R,r,h=!1,i=!1;(async()=>{try{let c=T.pipeThrough(new TextDecoderStream).pipeThrough(new eDT({onRetry:(s)=>{this._serverRetryMs=s}})).getReader();while(!0){let{value:s,done:A}=await c.read();if(A)break;if(s.id)r=s.id,h=!0,e?.(s.id);if(!s.data)continue;if(!s.event||s.event==="message")try{let l=vP.parse(JSON.parse(s.data));if(zg(l)){if(i=!0,t!==void 0)l.id=t}this.onmessage?.(l)}catch(l){this.onerror?.(l)}}if((a||h)&&!i&&this._abortController&&!this._abortController.signal.aborted)this._scheduleReconnection({resumptionToken:r,onresumptiontoken:e,replayMessageId:t},0)}catch(c){if(this.onerror?.(Error(`SSE stream disconnected: ${c}`)),(a||h)&&!i&&this._abortController&&!this._abortController.signal.aborted)try{this._scheduleReconnection({resumptionToken:r,onresumptiontoken:e,replayMessageId:t},0)}catch(s){this.onerror?.(Error(`Failed to reconnect: ${s instanceof Error?s.message:String(s)}`))}}})()}async start(){if(this._abortController)throw Error("StreamableHTTPClientTransport already started! If using Client class, note that connect() calls start() automatically.");this._abortController=new AbortController}async finishAuth(T){if(!this._authProvider)throw new _h("No auth provider");if(await Q_(this._authProvider,{serverUrl:this._url,authorizationCode:T,resourceMetadataUrl:this._resourceMetadataUrl,scope:this._scope,fetchFn:this._fetchWithInit})!=="AUTHORIZED")throw new _h("Failed to authorize")}async close(){if(this._reconnectionTimeout)clearTimeout(this._reconnectionTimeout),this._reconnectionTimeout=void 0;this._abortController?.abort(),this.onclose?.()}async send(T,R){try{let{resumptionToken:a,onresumptiontoken:e}=R||{};if(a){this._startOrAuthSse({resumptionToken:a,replayMessageId:cG(T)?T.id:void 0}).catch((A)=>this.onerror?.(A));return}let t=await this._commonHeaders();t.set("content-type","application/json"),t.set("accept","application/json, text/event-stream");let r={...this._requestInit,method:"POST",headers:t,body:JSON.stringify(T),signal:this._abortController?.signal},h=await(this._fetch??fetch)(this._url,r),i=h.headers.get("mcp-session-id");if(i)this._sessionId=i;if(!h.ok){let A=await h.text().catch(()=>null);if(h.status===401&&this._authProvider){if(this._hasCompletedAuthFlow)throw new I_(401,"Server returned 401 after successful authentication");let{resourceMetadataUrl:l,scope:o}=ZD(h);if(this._resourceMetadataUrl=l,this._scope=o,await Q_(this._authProvider,{serverUrl:this._url,resourceMetadataUrl:this._resourceMetadataUrl,scope:this._scope,fetchFn:this._fetchWithInit})!=="AUTHORIZED")throw new _h;return this._hasCompletedAuthFlow=!0,this.send(T)}if(h.status===403&&this._authProvider){let{resourceMetadataUrl:l,scope:o,error:n}=ZD(h);if(n==="insufficient_scope"){let p=h.headers.get("WWW-Authenticate");if(this._lastUpscopingHeader===p)throw new I_(403,"Server returned 403 after trying upscoping");if(o)this._scope=o;if(l)this._resourceMetadataUrl=l;if(this._lastUpscopingHeader=p??void 0,await Q_(this._authProvider,{serverUrl:this._url,resourceMetadataUrl:this._resourceMetadataUrl,scope:this._scope,fetchFn:this._fetch})!=="AUTHORIZED")throw new _h;return this.send(T)}}throw new I_(h.status,`Error POSTing to endpoint: ${A}`)}if(this._hasCompletedAuthFlow=!1,this._lastUpscopingHeader=void 0,h.status===202){if(await h.body?.cancel(),zmR(T))this._startOrAuthSse({resumptionToken:void 0}).catch((A)=>this.onerror?.(A));return}let c=(Array.isArray(T)?T:[T]).filter((A)=>("method"in A)&&("id"in A)&&A.id!==void 0).length>0,s=h.headers.get("content-type");if(c)if(s?.includes("text/event-stream"))this._handleSseStream(h.body,{onresumptiontoken:e},!1);else if(s?.includes("application/json")){let A=await h.json(),l=Array.isArray(A)?A.map((o)=>vP.parse(o)):[vP.parse(A)];for(let o of l)this.onmessage?.(o)}else throw await h.body?.cancel(),new I_(-1,`Unexpected content type: ${s}`);else await h.body?.cancel()}catch(a){throw this.onerror?.(a),a}}get sessionId(){return this._sessionId}async terminateSession(){if(!this._sessionId)return;try{let T=await this._commonHeaders(),R={...this._requestInit,method:"DELETE",headers:T,signal:this._abortController?.signal},a=await(this._fetch??fetch)(this._url,R);if(await a.body?.cancel(),!a.ok&&a.status!==405)throw new I_(a.status,`Failed to terminate session: ${a.statusText}`);this._sessionId=void 0}catch(T){throw this.onerror?.(T),T}}setProtocolVersion(T){this._protocolVersion=T}get protocolVersion(){return this._protocolVersion}async resumeStream(T,R){await this._startOrAuthSse({resumptionToken:T,onresumptiontoken:R?.onresumptiontoken})}}function aPR(T){return{AGENT:"amp",AGENT_THREAD_ID:T?.thread?.id||"",AMP_CURRENT_THREAD_ID:T?.thread?.id||""}}function ePR(T,R){let a=aPR(R);return{...T,...a}}function hDT(T,R="always",a){return AR.of(ePR(iDT,a))}class sDT{recordEvent(){}}function tPR(T){U9T=T}function oDT(T){U9T.recordEvent(T)}function lDT(T){return T==="StdioClientTransport"}function rPR(T){let R=lDT(T.transport)?"localConnected":"remoteConnected";oDT({feature:"mcp.connection",action:R,metadata:{transport:T.transport,url:T.url,serverName:T.serverName,threadId:T.threadId}})}function hPR(T){let R=lDT(T.transport)?"localToolCalled":"remoteToolCalled";oDT({feature:"mcp.toolUsage",action:R,metadata:{transport:T.transport,url:T.url,toolName:T.toolName,serverName:T.serverName,threadId:T.threadId}})}function iPR(T,R){if(R)return`stdio://${R}`;return`stdio://${T.split(/[/\\]/).pop()||"unknown"}`}function plT(T){if(T instanceof _h||T?.name==="UnauthorizedError"||T instanceof JCT)return!0;if(T instanceof Error){let R=T.message.toLowerCase(),a=R.includes("http 403")||R.includes("403 forbidden"),e=R.includes("forbidden"),t=R.includes("insufficient_scope");if((a||e)&&!t)return!0}return!1}async function _lT(T){let{transport:R,oauthProvider:a,oldClient:e,baseUrl:t,requestInit:r,transportType:h,serverName:i}=T,c=a;try{J.debug("Waiting for OAuth authorization code");let s=await c.getAuthorizationCode();J.debug("Got authorization code, calling finishAuth",{codeLength:s.length});try{await R.finishAuth(s),J.debug("finishAuth completed - tokens exchanged, provider now has tokens")}catch(o){throw await c.cleanupOnFailure(),o}await c.releaseLockOnSuccess();try{await e.close()}catch(o){J.debug("Failed to close previous client",{error:o})}let A=new wj(Yg.clientInfo,{capabilities:Yg.capabilities}),l=h==="HTTP"?new T7(t,{requestInit:r,authProvider:a}):new JD(t,{requestInit:r,authProvider:a});return J.debug("Connecting with authenticated transport"),await A.connect(l,{timeout:blT}),J.debug(`${h} OAuth flow succeeded - client connected`),{client:A,transportInfo:{type:h==="HTTP"?"StreamableHTTPClientTransport":"SSEClientTransport",url:R7(t)}}}catch(s){if(s instanceof Z0T){if(J.info("Another Amp instance is handling OAuth, waiting for tokens",{serverName:i,holderPid:s.holderPid}),await c.waitForTokensFromOtherInstance()){try{await e.close()}catch(o){J.debug("Failed to close previous client",{error:o})}let A=new wj(Yg.clientInfo,{capabilities:Yg.capabilities}),l=h==="HTTP"?new T7(t,{requestInit:r,authProvider:a}):new JD(t,{requestInit:r,authProvider:a});return await A.connect(l,{timeout:blT}),J.debug(`${h} connected using tokens from another instance`),{client:A,transportInfo:{type:h==="HTTP"?"StreamableHTTPClientTransport":"SSEClientTransport",url:R7(t)}}}throw new vG("Timed out waiting for OAuth tokens from another Amp instance. Please try again.",s)}if(J.error(`${h} OAuth flow failed`,{serverName:i,baseUrl:t.toString(),error:s.message,errorName:s.name}),s.name==="OAuthTimeoutError")throw s;throw new vG(`OAuth authentication failed: ${s.message}
+ctionTimeout = setTimeout(() => {
+  this._startOrAuthSse(T).catch((t) => {
+    this.onerror?.(Error(`Failed to reconnect SSE stream: ${t instanceof Error?t.message:String(t)}`)), this._scheduleReconnection(T, R + 1)
+  })
+}, e)
+}
+_handleSseStream(T, R, a) {
+  if (!T) return;
+  let {
+    onresumptiontoken: e,
+    replayMessageId: t
+  } = R, r, h = !1, i = !1;
+  (async () => {
+    try {
+      let c = T.pipeThrough(new TextDecoderStream).pipeThrough(new eDT({
+        onRetry: (s) => {
+          this._serverRetryMs = s
+        }
+      })).getReader();
+      while (!0) {
+        let {
+          value: s,
+          done: A
+        } = await c.read();
+        if (A) break;
+        if (s.id) r = s.id, h = !0, e?.(s.id);
+        if (!s.data) continue;
+        if (!s.event || s.event === "message") try {
+          let l = vP.parse(JSON.parse(s.data));
+          if (zg(l)) {
+            if (i = !0, t !== void 0) l.id = t
+          }
+          this.onmessage?.(l)
+        }
+        catch (l) {
+          this.onerror?.(l)
+        }
+      }
+      if ((a || h) && !i && this._abortController && !this._abortController.signal.aborted) this._scheduleReconnection({
+        resumptionToken: r,
+        onresumptiontoken: e,
+        replayMessageId: t
+      }, 0)
+    } catch (c) {
+      if (this.onerror?.(Error(`SSE stream disconnected: ${c}`)), (a || h) && !i && this._abortController && !this._abortController.signal.aborted) try {
+        this._scheduleReconnection({
+          resumptionToken: r,
+          onresumptiontoken: e,
+          replayMessageId: t
+        }, 0)
+      }
+      catch (s) {
+        this.onerror?.(Error(`Failed to reconnect: ${s instanceof Error?s.message:String(s)}`))
+      }
+    }
+  })()
+}
+async start() {
+  if (this._abortController) throw Error("StreamableHTTPClientTransport already started! If using Client class, note that connect() calls start() automatically.");
+  this._abortController = new AbortController
+}
+async finishAuth(T) {
+  if (!this._authProvider) throw new _h("No auth provider");
+  if (await Q_(this._authProvider, {
+      serverUrl: this._url,
+      authorizationCode: T,
+      resourceMetadataUrl: this._resourceMetadataUrl,
+      scope: this._scope,
+      fetchFn: this._fetchWithInit
+    }) !== "AUTHORIZED") throw new _h("Failed to authorize")
+}
+async close() {
+  if (this._reconnectionTimeout) clearTimeout(this._reconnectionTimeout), this._reconnectionTimeout = void 0;
+  this._abortController?.abort(), this.onclose?.()
+}
+async send(T, R) {
+  try {
+    let {
+      resumptionToken: a,
+      onresumptiontoken: e
+    } = R || {};
+    if (a) {
+      this._startOrAuthSse({
+        resumptionToken: a,
+        replayMessageId: cG(T) ? T.id : void 0
+      }).catch((A) => this.onerror?.(A));
+      return
+    }
+    let t = await this._commonHeaders();
+    t.set("content-type", "application/json"), t.set("accept", "application/json, text/event-stream");
+    let r = {
+        ...this._requestInit,
+        method: "POST",
+        headers: t,
+        body: JSON.stringify(T),
+        signal: this._abortController?.signal
+      },
+      h = await (this._fetch ?? fetch)(this._url, r),
+      i = h.headers.get("mcp-session-id");
+    if (i) this._sessionId = i;
+    if (!h.ok) {
+      let A = await h.text().catch(() => null);
+      if (h.status === 401 && this._authProvider) {
+        if (this._hasCompletedAuthFlow) throw new I_(401, "Server returned 401 after successful authentication");
+        let {
+          resourceMetadataUrl: l,
+          scope: o
+        } = ZD(h);
+        if (this._resourceMetadataUrl = l, this._scope = o, await Q_(this._authProvider, {
+            serverUrl: this._url,
+            resourceMetadataUrl: this._resourceMetadataUrl,
+            scope: this._scope,
+            fetchFn: this._fetchWithInit
+          }) !== "AUTHORIZED") throw new _h;
+        return this._hasCompletedAuthFlow = !0, this.send(T)
+      }
+      if (h.status === 403 && this._authProvider) {
+        let {
+          resourceMetadataUrl: l,
+          scope: o,
+          error: n
+        } = ZD(h);
+        if (n === "insufficient_scope") {
+          let p = h.headers.get("WWW-Authenticate");
+          if (this._lastUpscopingHeader === p) throw new I_(403, "Server returned 403 after trying upscoping");
+          if (o) this._scope = o;
+          if (l) this._resourceMetadataUrl = l;
+          if (this._lastUpscopingHeader = p ?? void 0, await Q_(this._authProvider, {
+              serverUrl: this._url,
+              resourceMetadataUrl: this._resourceMetadataUrl,
+              scope: this._scope,
+              fetchFn: this._fetch
+            }) !== "AUTHORIZED") throw new _h;
+          return this.send(T)
+        }
+      }
+      throw new I_(h.status, `Error POSTing to endpoint: ${A}`)
+    }
+    if (this._hasCompletedAuthFlow = !1, this._lastUpscopingHeader = void 0, h.status === 202) {
+      if (await h.body?.cancel(), zmR(T)) this._startOrAuthSse({
+        resumptionToken: void 0
+      }).catch((A) => this.onerror?.(A));
+      return
+    }
+    let c = (Array.isArray(T) ? T : [T]).filter((A) => ("method" in A) && ("id" in A) && A.id !== void 0).length > 0,
+      s = h.headers.get("content-type");
+    if (c)
+      if (s?.includes("text/event-stream")) this._handleSseStream(h.body, {
+        onresumptiontoken: e
+      }, !1);
+      else if (s?.includes("application/json")) {
+      let A = await h.json(),
+        l = Array.isArray(A) ? A.map((o) => vP.parse(o)) : [vP.parse(A)];
+      for (let o of l) this.onmessage?.(o)
+    } else throw await h.body?.cancel(), new I_(-1, `Unexpected content type: ${s}`);
+    else await h.body?.cancel()
+  } catch (a) {
+    throw this.onerror?.(a), a
+  }
+}
+get sessionId() {
+  return this._sessionId
+}
+async terminateSession() {
+  if (!this._sessionId) return;
+  try {
+    let T = await this._commonHeaders(),
+      R = {
+        ...this._requestInit,
+        method: "DELETE",
+        headers: T,
+        signal: this._abortController?.signal
+      },
+      a = await (this._fetch ?? fetch)(this._url, R);
+    if (await a.body?.cancel(), !a.ok && a.status !== 405) throw new I_(a.status, `Failed to terminate session: ${a.statusText}`);
+    this._sessionId = void 0
+  } catch (T) {
+    throw this.onerror?.(T), T
+  }
+}
+setProtocolVersion(T) {
+  this._protocolVersion = T
+}
+get protocolVersion() {
+  return this._protocolVersion
+}
+async resumeStream(T, R) {
+  await this._startOrAuthSse({
+    resumptionToken: T,
+    onresumptiontoken: R?.onresumptiontoken
+  })
+}
+}
+
+function aPR(T) {
+  return {
+    AGENT: "amp",
+    AGENT_THREAD_ID: T?.thread?.id || "",
+    AMP_CURRENT_THREAD_ID: T?.thread?.id || ""
+  }
+}
+
+function ePR(T, R) {
+  let a = aPR(R);
+  return {
+    ...T,
+    ...a
+  }
+}
+
+function hDT(T, R = "always", a) {
+  return AR.of(ePR(iDT, a))
+}
+class sDT {
+  recordEvent() {}
+}
+
+function tPR(T) {
+  U9T = T
+}
+
+function oDT(T) {
+  U9T.recordEvent(T)
+}
+
+function lDT(T) {
+  return T === "StdioClientTransport"
+}
+
+function rPR(T) {
+  let R = lDT(T.transport) ? "localConnected" : "remoteConnected";
+  oDT({
+    feature: "mcp.connection",
+    action: R,
+    metadata: {
+      transport: T.transport,
+      url: T.url,
+      serverName: T.serverName,
+      threadId: T.threadId
+    }
+  })
+}
+
+function hPR(T) {
+  let R = lDT(T.transport) ? "localToolCalled" : "remoteToolCalled";
+  oDT({
+    feature: "mcp.toolUsage",
+    action: R,
+    metadata: {
+      transport: T.transport,
+      url: T.url,
+      toolName: T.toolName,
+      serverName: T.serverName,
+      threadId: T.threadId
+    }
+  })
+}
+
+function iPR(T, R) {
+  if (R) return `stdio://${R}`;
+  return `stdio://${T.split(/[/\\]/).pop()||"unknown"}`
+}
+
+function plT(T) {
+  if (T instanceof _h || T?.name === "UnauthorizedError" || T instanceof JCT) return !0;
+  if (T instanceof Error) {
+    let R = T.message.toLowerCase(),
+      a = R.includes("http 403") || R.includes("403 forbidden"),
+      e = R.includes("forbidden"),
+      t = R.includes("insufficient_scope");
+    if ((a || e) && !t) return !0
+  }
+  return !1
+}
+async function _lT(T) {
+  let {
+    transport: R,
+    oauthProvider: a,
+    oldClient: e,
+    baseUrl: t,
+    requestInit: r,
+    transportType: h,
+    serverName: i
+  } = T, c = a;
+  try {
+    J.debug("Waiting for OAuth authorization code");
+    let s = await c.getAuthorizationCode();
+    J.debug("Got authorization code, calling finishAuth", {
+      codeLength: s.length
+    });
+    try {
+      await R.finishAuth(s), J.debug("finishAuth completed - tokens exchanged, provider now has tokens")
+    } catch (o) {
+      throw await c.cleanupOnFailure(), o
+    }
+    await c.releaseLockOnSuccess();
+    try {
+      await e.close()
+    } catch (o) {
+      J.debug("Failed to close previous client", {
+        error: o
+      })
+    }
+    let A = new wj(Yg.clientInfo, {
+        capabilities: Yg.capabilities
+      }),
+      l = h === "HTTP" ? new T7(t, {
+        requestInit: r,
+        authProvider: a
+      }) : new JD(t, {
+        requestInit: r,
+        authProvider: a
+      });
+    return J.debug("Connecting with authenticated transport"), await A.connect(l, {
+      timeout: blT
+    }), J.debug(`${h} OAuth flow succeeded - client connected`), {
+      client: A,
+      transportInfo: {
+        type: h === "HTTP" ? "StreamableHTTPClientTransport" : "SSEClientTransport",
+        url: R7(t)
+      }
+    }
+  } catch (s) {
+    if (s instanceof Z0T) {
+      if (J.info("Another Amp instance is handling OAuth, waiting for tokens", {
+          serverName: i,
+          holderPid: s.holderPid
+        }), await c.waitForTokensFromOtherInstance()) {
+        try {
+          await e.close()
+        } catch (o) {
+          J.debug("Failed to close previous client", {
+            error: o
+          })
+        }
+        let A = new wj(Yg.clientInfo, {
+            capabilities: Yg.capabilities
+          }),
+          l = h === "HTTP" ? new T7(t, {
+            requestInit: r,
+            authProvider: a
+          }) : new JD(t, {
+            requestInit: r,
+            authProvider: a
+          });
+        return await A.connect(l, {
+          timeout: blT
+        }), J.debug(`${h} connected using tokens from another instance`), {
+          client: A,
+          transportInfo: {
+            type: h === "HTTP" ? "StreamableHTTPClientTransport" : "SSEClientTransport",
+            url: R7(t)
+          }
+        }
+      }
+      throw new vG("Timed out waiting for OAuth tokens from another Amp instance. Please try again.", s)
+    }
+    if (J.error(`${h} OAuth flow failed`, {
+        serverName: i,
+        baseUrl: t.toString(),
+        error: s.message,
+        errorName: s.name
+      }), s.name === "OAuthTimeoutError") throw s;
+    throw new vG(`OAuth authentication failed: ${s.message}
 
 If this server doesn't support OAuth, add authentication headers to your config.
 If it does support OAuth, ensure you've registered with:
-  amp mcp oauth login <server-name> --server-url <url> --client-id <id> --auth-url <url> --token-url <url>`,s)}}function ADT(T,R){for(let a of T??[])if(r9T(oPR(R),a.matches))return a.action==="allow";return!0}function oPR(T){if("command"in T)return{command:T.command,args:T.args?.join(" "),env:T.env};return T}function Uq(T,R,a,e,t,r,h){let i=new wj(Bj.clientInfo,{capabilities:Bj.capabilities}),c=null,s=!!t,A=!1,l=null,o=new f0("idle");if(h)o.subscribe((w)=>h(w));if(t)t.onAuthStateChange=(w)=>{o.next(w)};let n=new f0(0),p=new f0(null),_=new f0(!1);function m(w,D){if(A)return;if(w>=ky.maxRetries){J.warn("MCP max reconnection attempts reached",{serverName:r,attempts:w}),p.next(null);return}if(D&&_DT.includes(D.code)){J.info("MCP not reconnecting due to permanent error",{serverName:r,errorCode:D.code}),p.next(null);return}let B=Math.min(ky.initialDelayMs*ky.backoffFactor**w,ky.maxDelayMs);J.info("MCP scheduling reconnection",{serverName:r,attempt:w+1,maxAttempts:ky.maxRetries,delayMs:B}),p.next({attempt:w+1,nextRetryMs:B}),l=setTimeout(()=>{if(l=null,!A)p.next(null),_.next(!1),n.next(w+1)},B)}let b=n.pipe(f0T((w)=>sET(Q9(async()=>{if(await i.close(),a!=="enabled"||A)return null;let D=await pPR(T,i,R,e,t,r);if(SG.set(D.client,D.transportInfo),rPR({transport:D.transportInfo.type,url:D.transportInfo.url,serverName:r}),D.client.onclose=()=>{if(!A)J.warn("MCP client connection closed unexpectedly",{serverName:r}),m(0)},c=D.client,w>0)J.info("MCP reconnection successful",{serverName:r,afterAttempts:w});return D.client}),k0T).pipe(mE({onUnsubscribe:async()=>{try{await(c??i).close()}catch(D){J.error("Error closing client in lifecycle",{error:D})}}})),{shouldCountRefs:!0})),y=0,u=b.subscribe((w)=>{if(w instanceof Error){J.error("MCP client connection error in observable",{serverName:r,error:w.message,errorName:w.name,stack:w.stack});let D=mlT(w,r,s);m(y,D),y++}else if(w&&!(w instanceof Error)&&w!==Jo)c=w,y=0,J.debug("Active client captured for lifecycle management")}),P=(w)=>mlT(w,r,s),k=b.pipe(vs((w)=>{if(w?.name==="AbortError")return J.debug("Caught AbortError in connection observable, treating as connection failed"),AR.of(Error("Connection aborted"));return AR.of(w)}),JR((w)=>{if(w===null){if(a==="denied")return{type:"denied"};return{type:"awaiting-approval"}}if(w===Jo)return{type:"connecting"};if(w instanceof Error)return{type:"failed",error:P(w)};return{type:"connected",capabilities:w.getServerCapabilities(),serverInfo:w.getServerVersion()}})),x=v3(o,p,k).pipe(JR(([w,D,B])=>{if(w==="authenticating")return{type:"authenticating"};if(D&&B.type==="failed")return{type:"reconnecting",attempt:D.attempt,nextRetryMs:D.nextRetryMs};return B})),f=b.pipe(JR((w)=>{if(w&&!(w instanceof Error)&&w!==Jo)return w;return null})),v=f.pipe(L9((w)=>{if(!w)return AR.of(null);let D=new W0;return w.setNotificationHandler(VD,()=>{D.next()}),D.pipe(mE({onUnsubscribe:()=>w.removeNotificationHandler("notifications/tools/list_changed")}),Y3(void 0),JR(()=>w))})),g=f.pipe(L9((w)=>{if(!w)return AR.of(null);let D=new W0;return w.setNotificationHandler(GD,()=>{D.next()}),D.pipe(mE({onUnsubscribe:()=>w.removeNotificationHandler("notifications/resources/list_changed")}),Y3(void 0),JR(()=>w))})),I=f.pipe(L9((w)=>{if(!w)return AR.of(null);let D=new W0;return w.setNotificationHandler(KD,()=>{D.next()}),D.pipe(mE({onUnsubscribe:()=>w.removeNotificationHandler("notifications/prompts/list_changed")}),Y3(void 0),JR(()=>w))})),S=[],O=v.pipe(L9((w)=>{if(!w)return AR.of(S);return Q9(async()=>{let D=await w.listTools();return _.next(!0),S=D.tools,D.tools}).pipe(Y3(S),vs((D)=>{return J.error("Failed to list tools",{serverName:r,error:D}),_.next(!0),AR.of(S)}))})),j=_.pipe(JR((w)=>w)),d=I.pipe(L9((w)=>{if(!w)return AR.of([]);return Q9(async()=>{if(!w.getServerCapabilities()?.prompts)return[];return(await w.listPrompts()).prompts}).pipe(Y3([]),vs((D)=>{return J.error("Failed to list prompts",{serverName:r,error:D}),AR.of([])}))})),C=g.pipe(L9((w)=>{if(!w)return AR.of([]);return Q9(async()=>{if(!w.getServerCapabilities()?.resources)return[];return(await w.listResources()).resources}).pipe(Y3([]),vs((D)=>{return J.error("Failed to list resources",{serverName:r,error:D}),AR.of([])}))})),L=async()=>{let w=await UnR(b);if(!w||w instanceof Error)throw Error("MCP client is not connected");return w};return{status:x,tools:O,toolsLoaded:j,resources:C,prompts:d,async callTool(w,D,B){let M=await L(),V=await M.callTool(w,void 0,{signal:B,timeout:999999000});if(!("content"in V))throw Error("unexpected response");let Q=SG.get(M);if(Q)hPR({transport:Q.type,url:Q.url,toolName:w.name,serverName:r,threadId:D.thread?.id});let W=bPR(V.content);if(V.isError)throw Error(mPR(w.name,W));return W},async listResources(w,D){let B=await L();if(!B.getServerCapabilities()?.resources)return[];return(await B.listResources(w,{signal:D,timeout:999999000})).resources},async readResource(w,D){return(await(await L()).readResource(w,{signal:D,timeout:999999000})).contents},async getPrompt(w,D,B){try{return await(await L()).getPrompt({name:w,arguments:D},{signal:B,timeout:999999000})}catch(M){return null}},async[Symbol.asyncDispose](){if(A=!0,l!==null)clearTimeout(l),l=null;p.next(null),u.unsubscribe();try{await(c??i).close()}catch(w){J.error("Error closing MCP client",{error:w})}}}}async function nPR(T,R,a,e,t){let r=a?{headers:a}:void 0,h=new T7(R,t?{requestInit:r,authProvider:t}:r?{requestInit:r}:void 0);try{await e.connect(h,{timeout:jG}),J.debug("Connected using StreamableHTTPClientTransport");let s=R7(R);return{client:e,transportInfo:{type:"StreamableHTTPClientTransport",url:s}}}catch(s){if(plT(s)&&t){J.debug("OAuth authorization required, starting OAuth flow",{serverName:T,baseUrl:R.toString()});try{return await _lT({transport:h,oauthProvider:t,oldClient:e,baseUrl:R,requestInit:r,transportType:"HTTP",serverName:T})}catch(A){if(A.name==="OAuthTimeoutError")throw A;J.debug("HTTP OAuth flow failed, will try SSE fallback",{serverName:T,error:A.message})}}J.debug("StreamableHTTPClientTransport failed, falling back to SSE",{serverName:T,baseUrl:R.toString(),error:s.message})}try{await e.close()}catch(s){J.debug("Failed to close previous client",{error:s})}let i=new wj(Bj.clientInfo,{capabilities:Bj.capabilities}),c=new JD(R,t?{requestInit:r,authProvider:t}:r?{requestInit:r}:void 0);try{await i.connect(c,{timeout:jG}),J.debug("Connected using SSEClientTransport");let s=R7(R);return{client:i,transportInfo:{type:"SSEClientTransport",url:s}}}catch(s){if(plT(s)&&t)return J.debug("SSE OAuth authorization required, completing flow",{serverName:T,baseUrl:R.toString()}),await _lT({transport:c,oauthProvider:t,oldClient:i,baseUrl:R,requestInit:r,transportType:"SSE",serverName:T});throw s}}function lPR(T){let R=T.command.toLowerCase(),a=T.args?.join(" ").toLowerCase()??"";if(R.includes("mcp-remote")||a.includes("mcp-remote"))return!0;if((R==="npx"||R==="bunx")&&a.includes("mcp-remote"))return!0;return!1}async function APR(T,R,a,e){let t=a.loadProfile==="never"||!a.workingDirectory||!Pj(a.workingDirectory)?process.env:await m0(hDT(a.workingDirectory.fsPath,a.loadProfile)),r=T.env?Object.entries(T.env).reduce((o,[n,p])=>({...o,[n]:z$(p,t)}),{}):void 0,h=_PR({...t,...r,AWS_VAULT_PROMPT:"stdout"}),i=z$(T.command,h),c=T.args?T.args.map((o)=>z$(o,h)):void 0,s=lPR(T),A=!1;if(s&&e){let o=await dj(e);if(!o.acquired){J.info("Another Amp instance is connecting to OAuth proxy, waiting",{serverName:e,holderPid:o.holder.pid});let n=Date.now(),p=300000;while(Date.now()-n<p)if(await new Promise((_)=>setTimeout(_,a4T)),(await dj(e)).acquired){A=!0,J.info("Acquired lock after waiting, proceeding with connection",{serverName:e,waitedMs:Date.now()-n});break}if(!A){let _=gpR(e);throw Error(`Timed out waiting for another Amp instance to complete OAuth for ${e}. If this persists, you can manually remove the lock file: ${_}`)}}else A=!0}let l=new TDT({command:i,args:c,stderr:"pipe",cwd:a.workingDirectory&&Pj(a.workingDirectory)?a.workingDirectory.fsPath:void 0,env:h});try{await R.connect(l,{timeout:jG});let o=iPR(i,e);if(A&&e)await ED(e);return{client:R,transportInfo:{type:"StdioClientTransport",url:o}}}catch(o){if(A&&e)await ED(e);if(o instanceof Error&&o.message.includes("Connection closed"))throw Error("MCP server connection was closed unexpectedly.");throw o}}async function pPR(T,R,a,e,t,r){if(!ADT(e,T))throw Error("MCP server is not allowed by MCP permissions");if("url"in T){let h=z$(T.url,process.env),i=T.headers?Object.entries(T.headers).reduce((c,[s,A])=>({...c,[s]:z$(A,process.env)}),{}):void 0;return nPR(r,new URL(h),i,R,t)}return APR(T,R,a,r)}function z$(T,R){return T.replace(/\$\{([^}]+)\}/g,(a,e)=>{let t=R[e];if(t===void 0)return a;return t})}function _PR(T){let{AMP_API_KEY:R,...a}=T;return a}function bPR(T){return T.map((R)=>{if(R.type==="text"){let a=Mb.bufferByteLengthCompat(R.text);if(a>ML){let e=Mb.utf8Clamp(R.text,ML),t=Math.round(a/1024);return{type:"text",text:`${e}
+  amp mcp oauth login <server-name> --server-url <url> --client-id <id> --auth-url <url> --token-url <url>`, s)
+  }
+}
 
-... [Tool result truncated - showing first ${Math.round(ML/1024)}KB of ${t}KB total. The tool result was too long and has been shortened. Consider using more specific queries or parameters to get focused results.]`}}}if(R.type==="image"){let a=uPR(R.data);if(a)return{type:"text",text:`[MCP image error: ${a}]`}}return R})}function mPR(T,R){let a=R.filter((e)=>e.type==="text").map((e)=>e.text.trim()).filter((e)=>e.length>0);if(a.length>0)return a.join(`
+function ADT(T, R) {
+  for (let a of T ?? [])
+    if (r9T(oPR(R), a.matches)) return a.action === "allow";
+  return !0
+}
 
-`);return`MCP tool "${T}" returned an error response without details.`}function uPR(T){return XA({source:{type:"base64",data:T}})}function mlT(T,R,a=!1){let e=T.message;if(T instanceof l9)switch(T.code){case c9.RequestTimeout:return{code:"timeout",message:e};case c9.ConnectionClosed:return{code:"network",message:e||"Connection closed unexpectedly"};case c9.InvalidRequest:case c9.InvalidParams:case c9.ParseError:case c9.MethodNotFound:case c9.InternalError:return{code:"server-error",message:e}}if(e.includes("does not support dynamic client registration"))e=`OAuth connection failed: ${e}
+function oPR(T) {
+  if ("command" in T) return {
+    command: T.command,
+    args: T.args?.join(" "),
+    env: T.env
+  };
+  return T
+}
+
+function Uq(T, R, a, e, t, r, h) {
+  let i = new wj(Bj.clientInfo, {
+      capabilities: Bj.capabilities
+    }),
+    c = null,
+    s = !!t,
+    A = !1,
+    l = null,
+    o = new f0("idle");
+  if (h) o.subscribe((w) => h(w));
+  if (t) t.onAuthStateChange = (w) => {
+    o.next(w)
+  };
+  let n = new f0(0),
+    p = new f0(null),
+    _ = new f0(!1);
+
+  function m(w, D) {
+    if (A) return;
+    if (w >= ky.maxRetries) {
+      J.warn("MCP max reconnection attempts reached", {
+        serverName: r,
+        attempts: w
+      }), p.next(null);
+      return
+    }
+    if (D && _DT.includes(D.code)) {
+      J.info("MCP not reconnecting due to permanent error", {
+        serverName: r,
+        errorCode: D.code
+      }), p.next(null);
+      return
+    }
+    let B = Math.min(ky.initialDelayMs * ky.backoffFactor ** w, ky.maxDelayMs);
+    J.info("MCP scheduling reconnection", {
+      serverName: r,
+      attempt: w + 1,
+      maxAttempts: ky.maxRetries,
+      delayMs: B
+    }), p.next({
+      attempt: w + 1,
+      nextRetryMs: B
+    }), l = setTimeout(() => {
+      if (l = null, !A) p.next(null), _.next(!1), n.next(w + 1)
+    }, B)
+  }
+  let b = n.pipe(f0T((w) => sET(Q9(async () => {
+      if (await i.close(), a !== "enabled" || A) return null;
+      let D = await pPR(T, i, R, e, t, r);
+      if (SG.set(D.client, D.transportInfo), rPR({
+          transport: D.transportInfo.type,
+          url: D.transportInfo.url,
+          serverName: r
+        }), D.client.onclose = () => {
+          if (!A) J.warn("MCP client connection closed unexpectedly", {
+            serverName: r
+          }), m(0)
+        }, c = D.client, w > 0) J.info("MCP reconnection successful", {
+        serverName: r,
+        afterAttempts: w
+      });
+      return D.client
+    }), k0T).pipe(mE({
+      onUnsubscribe: async () => {
+        try {
+          await (c ?? i).close()
+        } catch (D) {
+          J.error("Error closing client in lifecycle", {
+            error: D
+          })
+        }
+      }
+    })), {
+      shouldCountRefs: !0
+    })),
+    y = 0,
+    u = b.subscribe((w) => {
+      if (w instanceof Error) {
+        J.error("MCP client connection error in observable", {
+          serverName: r,
+          error: w.message,
+          errorName: w.name,
+          stack: w.stack
+        });
+        let D = mlT(w, r, s);
+        m(y, D), y++
+      } else if (w && !(w instanceof Error) && w !== Jo) c = w, y = 0, J.debug("Active client captured for lifecycle management")
+    }),
+    P = (w) => mlT(w, r, s),
+    k = b.pipe(vs((w) => {
+      if (w?.name === "AbortError") return J.debug("Caught AbortError in connection observable, treating as connection failed"), AR.of(Error("Connection aborted"));
+      return AR.of(w)
+    }), JR((w) => {
+      if (w === null) {
+        if (a === "denied") return {
+          type: "denied"
+        };
+        return {
+          type: "awaiting-approval"
+        }
+      }
+      if (w === Jo) return {
+        type: "connecting"
+      };
+      if (w instanceof Error) return {
+        type: "failed",
+        error: P(w)
+      };
+      return {
+        type: "connected",
+        capabilities: w.getServerCapabilities(),
+        serverInfo: w.getServerVersion()
+      }
+    })),
+    x = v3(o, p, k).pipe(JR(([w, D, B]) => {
+      if (w === "authenticating") return {
+        type: "authenticating"
+      };
+      if (D && B.type === "failed") return {
+        type: "reconnecting",
+        attempt: D.attempt,
+        nextRetryMs: D.nextRetryMs
+      };
+      return B
+    })),
+    f = b.pipe(JR((w) => {
+      if (w && !(w instanceof Error) && w !== Jo) return w;
+      return null
+    })),
+    v = f.pipe(L9((w) => {
+      if (!w) return AR.of(null);
+      let D = new W0;
+      return w.setNotificationHandler(VD, () => {
+        D.next()
+      }), D.pipe(mE({
+        onUnsubscribe: () => w.removeNotificationHandler("notifications/tools/list_changed")
+      }), Y3(void 0), JR(() => w))
+    })),
+    g = f.pipe(L9((w) => {
+      if (!w) return AR.of(null);
+      let D = new W0;
+      return w.setNotificationHandler(GD, () => {
+        D.next()
+      }), D.pipe(mE({
+        onUnsubscribe: () => w.removeNotificationHandler("notifications/resources/list_changed")
+      }), Y3(void 0), JR(() => w))
+    })),
+    I = f.pipe(L9((w) => {
+      if (!w) return AR.of(null);
+      let D = new W0;
+      return w.setNotificationHandler(KD, () => {
+        D.next()
+      }), D.pipe(mE({
+        onUnsubscribe: () => w.removeNotificationHandler("notifications/prompts/list_changed")
+      }), Y3(void 0), JR(() => w))
+    })),
+    S = [],
+    O = v.pipe(L9((w) => {
+      if (!w) return AR.of(S);
+      return Q9(async () => {
+        let D = await w.listTools();
+        return _.next(!0), S = D.tools, D.tools
+      }).pipe(Y3(S), vs((D) => {
+        return J.error("Failed to list tools", {
+          serverName: r,
+          error: D
+        }), _.next(!0), AR.of(S)
+      }))
+    })),
+    j = _.pipe(JR((w) => w)),
+    d = I.pipe(L9((w) => {
+      if (!w) return AR.of([]);
+      return Q9(async () => {
+        if (!w.getServerCapabilities()?.prompts) return [];
+        return (await w.listPrompts()).prompts
+      }).pipe(Y3([]), vs((D) => {
+        return J.error("Failed to list prompts", {
+          serverName: r,
+          error: D
+        }), AR.of([])
+      }))
+    })),
+    C = g.pipe(L9((w) => {
+      if (!w) return AR.of([]);
+      return Q9(async () => {
+        if (!w.getServerCapabilities()?.resources) return [];
+        return (await w.listResources()).resources
+      }).pipe(Y3([]), vs((D) => {
+        return J.error("Failed to list resources", {
+          serverName: r,
+          error: D
+        }), AR.of([])
+      }))
+    })),
+    L = async () => {
+      let w = await UnR(b);
+      if (!w || w instanceof Error) throw Error("MCP client is not connected");
+      return w
+    };
+  return {
+    status: x,
+    tools: O,
+    toolsLoaded: j,
+    resources: C,
+    prompts: d,
+    async callTool(w, D, B) {
+      let M = await L(),
+        V = await M.callTool(w, void 0, {
+          signal: B,
+          timeout: 999999000
+        });
+      if (!("content" in V)) throw Error("unexpected response");
+      let Q = SG.get(M);
+      if (Q) hPR({
+        transport: Q.type,
+        url: Q.url,
+        toolName: w.name,
+        serverName: r,
+        threadId: D.thread?.id
+      });
+      let W = bPR(V.content);
+      if (V.isError) throw Error(mPR(w.name, W));
+      return W
+    },
+    async listResources(w, D) {
+      let B = await L();
+      if (!B.getServerCapabilities()?.resources) return [];
+      return (await B.listResources(w, {
+        signal: D,
+        timeout: 999999000
+      })).resources
+    },
+    async readResource(w, D) {
+      return (await (await L()).readResource(w, {
+        signal: D,
+        timeout: 999999000
+      })).contents
+    },
+    async getPrompt(w, D, B) {
+      try {
+        return await (await L()).getPrompt({
+          name: w,
+          arguments: D
+        }, {
+          signal: B,
+          timeout: 999999000
+        })
+      } catch (M) {
+        return null
+      }
+    },
+    async [Symbol.asyncDispose]() {
+      if (A = !0, l !== null) clearTimeout(l), l = null;
+      p.next(null), u.unsubscribe();
+      try {
+        await (c ?? i).close()
+      } catch (w) {
+        J.error("Error closing MCP client", {
+          error: w
+        })
+      }
+    }
+  }
+}
+async function nPR(T, R, a, e, t) {
+  let r = a ? {
+      headers: a
+    } :
+    void 0,
+    h = new T7(R, t ? {
+        requestInit: r,
+        authProvider: t
+      } :
+      r ? {
+        requestInit: r
+      } :
+      void 0);
+  try {
+    await e.connect(h, {
+      timeout: jG
+    }), J.debug("Connected using StreamableHTTPClientTransport");
+    let s = R7(R);
+    return {
+      client: e,
+      transportInfo: {
+        type: "StreamableHTTPClientTransport",
+        url: s
+      }
+    }
+  } catch (s) {
+    if (plT(s) && t) {
+      J.debug("OAuth authorization required, starting OAuth flow", {
+        serverName: T,
+        baseUrl: R.toString()
+      });
+      try {
+        return await _lT({
+          transport: h,
+          oauthProvider: t,
+          oldClient: e,
+          baseUrl: R,
+          requestInit: r,
+          transportType: "HTTP",
+          serverName: T
+        })
+      } catch (A) {
+        if (A.name === "OAuthTimeoutError") throw A;
+        J.debug("HTTP OAuth flow failed, will try SSE fallback", {
+          serverName: T,
+          error: A.message
+        })
+      }
+    }
+    J.debug("StreamableHTTPClientTransport failed, falling back to SSE", {
+      serverName: T,
+      baseUrl: R.toString(),
+      error: s.message
+    })
+  }
+  try {
+    await e.close()
+  } catch (s) {
+    J.debug("Failed to close previous client", {
+      error: s
+    })
+  }
+  let i = new wj(Bj.clientInfo, {
+      capabilities: Bj.capabilities
+    }),
+    c = new JD(R, t ? {
+        requestInit: r,
+        authProvider: t
+      } :
+      r ? {
+        requestInit: r
+      } :
+      void 0);
+  try {
+    await i.connect(c, {
+      timeout: jG
+    }), J.debug("Connected using SSEClientTransport");
+    let s = R7(R);
+    return {
+      client: i,
+      transportInfo: {
+        type: "SSEClientTransport",
+        url: s
+      }
+    }
+  } catch (s) {
+    if (plT(s) && t) return J.debug("SSE OAuth authorization required, completing flow", {
+      serverName: T,
+      baseUrl: R.toString()
+    }), await _lT({
+      transport: c,
+      oauthProvider: t,
+      oldClient: i,
+      baseUrl: R,
+      requestInit: r,
+      transportType: "SSE",
+      serverName: T
+    });
+    throw s
+  }
+}
+
+function lPR(T) {
+  let R = T.command.toLowerCase(),
+    a = T.args?.join(" ").toLowerCase() ?? "";
+  if (R.includes("mcp-remote") || a.includes("mcp-remote")) return !0;
+  if ((R === "npx" || R === "bunx") && a.includes("mcp-remote")) return !0;
+  return !1
+}
+async function APR(T, R, a, e) {
+  let t = a.loadProfile === "never" || !a.workingDirectory || !Pj(a.workingDirectory) ? process.env : await m0(hDT(a.workingDirectory.fsPath, a.loadProfile)),
+    r = T.env ? Object.entries(T.env).reduce((o, [n, p]) => ({
+      ...o,
+      [n]: z$(p, t)
+    }), {}) : void 0,
+    h = _PR({
+      ...t,
+      ...r,
+      AWS_VAULT_PROMPT: "stdout"
+    }),
+    i = z$(T.command, h),
+    c = T.args ? T.args.map((o) => z$(o, h)) : void 0,
+    s = lPR(T),
+    A = !1;
+  if (s && e) {
+    let o = await dj(e);
+    if (!o.acquired) {
+      J.info("Another Amp instance is connecting to OAuth proxy, waiting", {
+        serverName: e,
+        holderPid: o.holder.pid
+      });
+      let n = Date.now(),
+        p = 300000;
+      while (Date.now() - n < p)
+        if (await new Promise((_) => setTimeout(_, a4T)), (await dj(e)).acquired) {
+          A = !0, J.info("Acquired lock after waiting, proceeding with connection", {
+            serverName: e,
+            waitedMs: Date.now() - n
+          });
+          break
+        }
+      if (!A) {
+        let _ = gpR(e);
+        throw Error(`Timed out waiting for another Amp instance to complete OAuth for ${e}. If this persists, you can manually remove the lock file: ${_}`)
+      }
+    } else A = !0
+  }
+  let l = new TDT({
+    command: i,
+    args: c,
+    stderr: "pipe",
+    cwd: a.workingDirectory && Pj(a.workingDirectory) ? a.workingDirectory.fsPath : void 0,
+    env: h
+  });
+  try {
+    await R.connect(l, {
+      timeout: jG
+    });
+    let o = iPR(i, e);
+    if (A && e) await ED(e);
+    return {
+      client: R,
+      transportInfo: {
+        type: "StdioClientTransport",
+        url: o
+      }
+    }
+  } catch (o) {
+    if (A && e) await ED(e);
+    if (o instanceof Error && o.message.includes("Connection closed")) throw Error("MCP server connection was closed unexpectedly.");
+    throw o
+  }
+}
+async function pPR(T, R, a, e, t, r) {
+  if (!ADT(e, T)) throw Error("MCP server is not allowed by MCP permissions");
+  if ("url" in T) {
+    let h = z$(T.url, process.env),
+      i = T.headers ? Object.entries(T.headers).reduce((c, [s, A]) => ({
+        ...c,
+        [s]: z$(A, process.env)
+      }), {}) : void 0;
+    return nPR(r, new URL(h), i, R, t)
+  }
+  return APR(T, R, a, r)
+}
+
+function z$(T, R) {
+  return T.replace(/\$\{([^}]+)\}/g, (a, e) => {
+    let t = R[e];
+    if (t === void 0) return a;
+    return t
+  })
+}
+
+function _PR(T) {
+  let {
+    AMP_API_KEY: R,
+    ...a
+  } = T;
+  return a
+}
+
+function bPR(T) {
+  return T.map((R) => {
+    if (R.type === "text") {
+      let a = Mb.bufferByteLengthCompat(R.text);
+      if (a > ML) {
+        let e = Mb.utf8Clamp(R.text, ML),
+          t = Math.round(a / 1024);
+        return {
+          type: "text",
+          text: `${e}
+
+... [Tool result truncated - showing first ${Math.round(ML/1024)}KB of ${t}KB total. The tool result was too long and has been shortened. Consider using more specific queries or parameters to get focused results.]`
+        }
+      }
+    }
+    if (R.type === "image") {
+      let a = uPR(R.data);
+      if (a) return {
+        type: "text",
+        text: `[MCP image error: ${a}]`
+      }
+    }
+    return R
+  })
+}
+
+function mPR(T, R) {
+  let a = R.filter((e) => e.type === "text").map((e) => e.text.trim()).filter((e) => e.length > 0);
+  if (a.length > 0) return a.join(`
+
+`);
+  return `MCP tool "${T}" returned an error response without details.`
+}
+
+function uPR(T) {
+  return XA({
+    source: {
+      type: "base64",
+      data: T
+    }
+  })
+}
+
+function mlT(T, R, a = !1) {
+  let e = T.message;
+  if (T instanceof l9) switch (T.code) {
+    case c9.RequestTimeout:
+      return {
+        code: "timeout", message: e
+      };
+    case c9.ConnectionClosed:
+      return {
+        code: "network", message: e || "Connection closed unexpectedly"
+      };
+    case c9.InvalidRequest:
+    case c9.InvalidParams:
+    case c9.ParseError:
+    case c9.MethodNotFound:
+    case c9.InternalError:
+      return {
+        code: "server-error", message: e
+      }
+  }
+  if (e.includes("does not support dynamic client registration")) e = `OAuth connection failed: ${e}
 
 Try registering OAuth credentials manually:
   amp mcp oauth login ${R||"<server-name>"} --server-url <url> --client-id <id>
@@ -20,7 +927,384 @@ Try registering OAuth credentials manually:
 Required: --server-url, --client-id
 Optional: --auth-url, --token-url (auto-discovered if not provided), --client-secret, --scopes
 
-If manual registration doesn't work, this server likely doesn't support OAuth.`;let t="server-error";if(e.includes("timeout")||e.includes("Timeout"))t="timeout";else if(e.includes("OAuth")||e.includes("authorization")||e.includes("Unauthorized")||e.includes("401"))t="auth-failed";else if(e.includes("fetch failed")||e.includes("network")||e.includes("ECONNREFUSED")||e.includes("ECONNRESET")||e.includes("ETIMEDOUT")||e.includes("Not connected")||e.includes("Connection closed"))t="network";else if(e.includes("spawn")||e.includes("ENOENT")||e.includes("command not found"))t="spawn-failed";else if(e.includes("not allowed by MCP permissions"))t="permission-denied";if(t==="auth-failed"&&a&&R&&!e.includes("amp mcp oauth logout"))e=`${e}
+If manual registration doesn't work, this server likely doesn't support OAuth.`;
+  let t = "server-error";
+  if (e.includes("timeout") || e.includes("Timeout")) t = "timeout";
+  else if (e.includes("OAuth") || e.includes("authorization") || e.includes("Unauthorized") || e.includes("401")) t = "auth-failed";
+  else if (e.includes("fetch failed") || e.includes("network") || e.includes("ECONNREFUSED") || e.includes("ECONNRESET") || e.includes("ETIMEDOUT") || e.includes("Not connected") || e.includes("Connection closed")) t = "network";
+  else if (e.includes("spawn") || e.includes("ENOENT") || e.includes("command not found")) t = "spawn-failed";
+  else if (e.includes("not allowed by MCP permissions")) t = "permission-denied";
+  if (t === "auth-failed" && a && R && !e.includes("amp mcp oauth logout")) e = `${e}
 
 If this is due to stale OAuth credentials, clear them and retry:
-  amp mcp oauth logout ${R}`;return{code:t,message:e,stderr:T.stderr}}function R7(T){let R=new URL(T.toString());R.username="",R.password="",R.hash="";let a=["token","key","api_key","apikey","access_token","secret","password","auth","authorization","bearer","jwt","session","sessionid","sid"];for(let e of Array.from(R.searchParams.keys())){let t=e.toLowerCase();if(a.some((r)=>t.includes(r))){let r=R.searchParams.getAll(e);R.searchParams.delete(e);for(let h=0;h<r.length;h++)R.searchParams.append(e,"[REDACTED]")}}return R.toString()}async function yPR(T){let R=await fetch(T,{signal:AbortSignal.timeout(1e4)});if(!R.ok)throw Error(`MCP registry request failed with status ${R.status}`);return(await R.json()).servers.map((a)=>a.server)}async function PPR(T){let R=Date.now(),a=OG.get(T);if(a&&R-a.timestamp<300000)return a.servers;let e=await yPR(T);return OG.set(T,{servers:e,timestamp:R}),e}function ulT(T){try{let R=new URL(T);if(R.hash="",R.protocol==="http:"&&R.port==="80"||R.protocol==="https:"&&R.port==="443")R.port="";let a=`${R.protocol}//${R.host}${R.pathname}`;if(a.endsWith("/")&&R.pathname!=="/")a=a.slice(0,-1);return a}catch{return T}}function kPR(T){let R=T.command.toLowerCase(),a=R.split("/").pop()??R;if(!T.args?.length)return null;let e=uDT[a];if(e){let r=T.args[0];if(r&&e[r]){let h=e[r];for(let i=1;i<T.args.length;i++){let c=T.args[i];if(c&&!c.startsWith("-"))return{registryType:h,identifier:c}}return null}}let t=mDT[a];if(t){for(let r of T.args)if(r&&!r.startsWith("-"))return{registryType:t,identifier:r}}return null}function xPR(T,R){if("url"in T){let e=ulT(T.url);return R.flatMap((t)=>t.remotes?.map((r)=>ulT(r.url))??[]).includes(e)}let a=kPR(T);if(a)return R.flatMap((e)=>e.packages?.map((t)=>({registryType:t.registryType,identifier:t.identifier}))??[]).some((e)=>e.registryType===a.registryType&&e.identifier===a.identifier);return!1}async function fPR(T,R){if(!R)return{approved:T,blocked:{}};let a=Object.entries(T);if(a.length===0)return{approved:{},blocked:{}};let e;try{e=await PPR(R)}catch(h){return{approved:{},blocked:T,error:h instanceof Error?h:Error(String(h))}}let t={},r={};for(let[h,i]of a)if(xPR(i,e))t[h]=i;else r[h]=i;return{approved:t,blocked:r}}async function gPR(T){let R=$PR(T),a=JSON.stringify(R);if(typeof globalThis.crypto<"u"&&globalThis.crypto.subtle){let t=new TextEncoder().encode(a),r=await globalThis.crypto.subtle.digest("SHA-256",t);return Array.from(new Uint8Array(r)).map((h)=>h.toString(16).padStart(2,"0")).join("")}let{createHash:e}=await import("crypto");return e("sha256").update(a).digest("hex")}function $PR(T){if("command"in T)return{type:"command",command:T.command,args:T.args||[],env:ylT(T.env||{})};return{type:"url",url:T.url,headers:ylT(T.headers||{}),transport:T.transport||"http"}}function ylT(T){let R={};for(let a of Object.keys(T).sort())R[a]=T[a];return R}function PlT(T,R){return{...T,_ampSkillName:R._ampSkillName,_ampSkillNames:R._ampSkillNames,_ampSkillIncludeTools:R._ampSkillIncludeTools}}function yDT(T,R){if(!T||T.length===0)return[];let a=new Set(Object.keys(R??{}));return T.filter((e)=>!a.has(e))}function Hq(T){if(T.hasNonSkillSource)return!1;if(!T.includeTools||T.includeTools.length===0)return!1;return yDT(T.skillNames,T.includeToolsBySkill).length===0}function vPR(T){let R=yDT(T.skillNames,T.includeToolsBySkill),a=T.includeToolsBySkill?Object.entries(T.includeToolsBySkill).filter(([,t])=>t.some((r)=>Cj(T.toolName,r))).map(([t])=>t):[],e=Array.from(new Set([...R,...a]));return e.length>0?e:void 0}function jPR({configService:T,externalMCPServers:R=AR.of({}),skillMCPServers:a=AR.of({}),createOAuthProvider:e,trustStore:t,oauthStorage:r}){let h=new kDT,i=new W0,c,s=v3(T.config,R,a,ln(T)).pipe(JR(([{settings:{mcpServers:g,mcpPermissions:I,mcpTrustedServers:S,"terminal.commands.nodeSpawn.loadProfile":O}},j,d,C])=>({mcpServers:g,mcpPermissions:I,mcpTrustedServers:S,mcpRegistryUrl:X9(C)?C.workspace?.mcpRegistryUrl??null:null,loadProfile:O,externalMCPServers:j,skillMCPServers:d})),E9((g,I)=>XE(g,I))),A=T.workspaceRoot.pipe(JR((g)=>g??void 0),E9((g,I)=>g?.toString()===I?.toString())),l=new Map;function o(g){let I=g.spec,S=Hq({hasNonSkillSource:g.isFromMainConfig,skillNames:g.skillNames,includeTools:I.includeTools,includeToolsBySkill:I._ampSkillIncludeTools});return{name:g.name,spec:g.spec,isExternal:g.isExternal,requiresApproval:!1,specHash:void 0,skillName:g.skillName,skillNames:g.skillNames,includeTools:S?I.includeTools:void 0,status:{type:"blocked-by-registry",registryUrl:g.registryUrl},tools:[],prompts:[]}}let n,p,_=v3(s,A,i.pipe(Y3(void 0))).pipe(KS(300),L9(([{mcpServers:g,mcpPermissions:I,mcpTrustedServers:S,mcpRegistryUrl:O,loadProfile:j,externalMCPServers:d,skillMCPServers:C},L,w])=>Q9(async(D)=>{let B=[],M={};for(let[W,eT]of Object.entries(C??{}))M[W]=eT;for(let[W,eT]of Object.entries(g??{})){let iT=C?.[W];if(iT)M[W]=PlT(eT,iT);else M[W]=eT}for(let[W,eT]of Object.entries(d??{})){let iT=M[W];if(iT?._ampSkillNames)M[W]=PlT(eT,iT);else M[W]=eT}let V=M;if(O){let W=await fPR(V,O);if(D.aborted)return{connections:[],blocked:[]};if(W.error)return J.error("MCP registry unreachable, blocking all MCP servers (fail-closed)",{registryUrl:O,error:W.error.message}),B=Object.entries(V).map(([eT,iT])=>({name:eT,spec:iT,registryUrl:O,isExternal:eT in d,isFromMainConfig:Boolean(g?.[eT])||Boolean(d?.[eT]),skillName:iT._ampSkillName,skillNames:iT._ampSkillNames})),await Promise.all(Array.from(l.entries()).map(async([eT,{client:iT}])=>{J.info("Disposing MCP connection due to registry failure",{serverName:eT}),await iT[Symbol.asyncDispose](),l.delete(eT)})),{connections:[],blocked:B};B=Object.entries(W.blocked).map(([eT,iT])=>({name:eT,spec:iT,registryUrl:O,isExternal:eT in d,isFromMainConfig:Boolean(g?.[eT])||Boolean(d?.[eT]),skillName:iT._ampSkillName,skillNames:iT._ampSkillNames}));for(let[eT]of Object.entries(W.blocked)){J.warn("MCP server blocked by registry",{serverName:eT,registryUrl:O});let iT=l.get(eT);if(iT)await iT.client[Symbol.asyncDispose](),l.delete(eT)}V=W.approved}else B=[];let Q=h.consume()||!XE(n,I)||!XE(p,S);n=I,p=S;for(let[W,eT]of Object.entries(V)){let iT=l.get(W);if(!Q&&iT&&XE(iT.spec,eT))continue;let aT="url"in eT&&(!!eT.oauth||!eT.headers&&eT.transport!=="http"),oT="url"in eT?eT.oauth:void 0,TT="url"in eT?eT.url:void 0,tT=aT&&e&&TT?await e(W,TT,oT):void 0,lT=eT._target==="workspace",N=await gPR(eT),q=!1,F;if(lT){let Z={serverName:W,specHash:N};if(!await t.isTrusted(Z)){let X=await t.hasEntry?.(Z),rT=X?"denied":"awaiting-approval";if(F=Uq(eT,{workingDirectory:L,loadProfile:j},rT,I,tT,W),q=rT==="awaiting-approval",J.info(`MCP server ${W} ${rT==="denied"?"was denied":"requires approval before execution"}`,{specHash:N,trustState:rT}),!X)c?.(W,eT)}else F=Uq(eT,{workingDirectory:L,loadProfile:j},"enabled",I,tT,W)}else F=Uq(eT,{workingDirectory:L,loadProfile:j},"enabled",I,tT,W);let E=Boolean(g?.[W]||d?.[W]),U=eT;if(l.set(W,{spec:eT,client:F,isExternal:Boolean(d[W]),skillName:U._ampSkillName,skillNames:U._ampSkillNames,isFromMainConfig:E,requiresApproval:q,specHash:N}),iT)await iT.client[Symbol.asyncDispose]()}for(let[W,{client:eT}]of l.entries())if(!V||!(W in V))await eT[Symbol.asyncDispose](),l.delete(W);return{connections:Array.from(l.entries()),blocked:B}})),f3({shouldCountRefs:!1})),m=_.subscribe({}
+  amp mcp oauth logout ${R}`;
+  return {
+    code: t,
+    message: e,
+    stderr: T.stderr
+  }
+}
+
+function R7(T) {
+  let R = new URL(T.toString());
+  R.username = "", R.password = "", R.hash = "";
+  let a = ["token", "key", "api_key", "apikey", "access_token", "secret", "password", "auth", "authorization", "bearer", "jwt", "session", "sessionid", "sid"];
+  for (let e of Array.from(R.searchParams.keys())) {
+    let t = e.toLowerCase();
+    if (a.some((r) => t.includes(r))) {
+      let r = R.searchParams.getAll(e);
+      R.searchParams.delete(e);
+      for (let h = 0; h < r.length; h++) R.searchParams.append(e, "[REDACTED]")
+    }
+  }
+  return R.toString()
+}
+async function yPR(T) {
+  let R = await fetch(T, {
+    signal: AbortSignal.timeout(1e4)
+  });
+  if (!R.ok) throw Error(`MCP registry request failed with status ${R.status}`);
+  return (await R.json()).servers.map((a) => a.server)
+}
+async function PPR(T) {
+  let R = Date.now(),
+    a = OG.get(T);
+  if (a && R - a.timestamp < 300000) return a.servers;
+  let e = await yPR(T);
+  return OG.set(T, {
+    servers: e,
+    timestamp: R
+  }), e
+}
+
+function ulT(T) {
+  try {
+    let R = new URL(T);
+    if (R.hash = "", R.protocol === "http:" && R.port === "80" || R.protocol === "https:" && R.port === "443") R.port = "";
+    let a = `${R.protocol}//${R.host}${R.pathname}`;
+    if (a.endsWith("/") && R.pathname !== "/") a = a.slice(0, -1);
+    return a
+  } catch {
+    return T
+  }
+}
+
+function kPR(T) {
+  let R = T.command.toLowerCase(),
+    a = R.split("/").pop() ?? R;
+  if (!T.args?.length) return null;
+  let e = uDT[a];
+  if (e) {
+    let r = T.args[0];
+    if (r && e[r]) {
+      let h = e[r];
+      for (let i = 1; i < T.args.length; i++) {
+        let c = T.args[i];
+        if (c && !c.startsWith("-")) return {
+          registryType: h,
+          identifier: c
+        }
+      }
+      return null
+    }
+  }
+  let t = mDT[a];
+  if (t) {
+    for (let r of T.args)
+      if (r && !r.startsWith("-")) return {
+        registryType: t,
+        identifier: r
+      }
+  }
+  return null
+}
+
+function xPR(T, R) {
+  if ("url" in T) {
+    let e = ulT(T.url);
+    return R.flatMap((t) => t.remotes?.map((r) => ulT(r.url)) ?? []).includes(e)
+  }
+  let a = kPR(T);
+  if (a) return R.flatMap((e) => e.packages?.map((t) => ({
+    registryType: t.registryType,
+    identifier: t.identifier
+  })) ?? []).some((e) => e.registryType === a.registryType && e.identifier === a.identifier);
+  return !1
+}
+async function fPR(T, R) {
+  if (!R) return {
+    approved: T,
+    blocked: {}
+  };
+  let a = Object.entries(T);
+  if (a.length === 0) return {
+    approved: {},
+    blocked: {}
+  };
+  let e;
+  try {
+    e = await PPR(R)
+  } catch (h) {
+    return {
+      approved: {},
+      blocked: T,
+      error: h instanceof Error ? h : Error(String(h))
+    }
+  }
+  let t = {},
+    r = {};
+  for (let [h, i] of a)
+    if (xPR(i, e)) t[h] = i;
+    else r[h] = i;
+  return {
+    approved: t,
+    blocked: r
+  }
+}
+async function gPR(T) {
+  let R = $PR(T),
+    a = JSON.stringify(R);
+  if (typeof globalThis.crypto < "u" && globalThis.crypto.subtle) {
+    let t = new TextEncoder().encode(a),
+      r = await globalThis.crypto.subtle.digest("SHA-256", t);
+    return Array.from(new Uint8Array(r)).map((h) => h.toString(16).padStart(2, "0")).join("")
+  }
+  let {
+    createHash: e
+  } = await import("crypto");
+  return e("sha256").update(a).digest("hex")
+}
+
+function $PR(T) {
+  if ("command" in T) return {
+    type: "command",
+    command: T.command,
+    args: T.args || [],
+    env: ylT(T.env || {})
+  };
+  return {
+    type: "url",
+    url: T.url,
+    headers: ylT(T.headers || {}),
+    transport: T.transport || "http"
+  }
+}
+
+function ylT(T) {
+  let R = {};
+  for (let a of Object.keys(T).sort()) R[a] = T[a];
+  return R
+}
+
+function PlT(T, R) {
+  return {
+    ...T,
+    _ampSkillName: R._ampSkillName,
+    _ampSkillNames: R._ampSkillNames,
+    _ampSkillIncludeTools: R._ampSkillIncludeTools
+  }
+}
+
+function yDT(T, R) {
+  if (!T || T.length === 0) return [];
+  let a = new Set(Object.keys(R ?? {}));
+  return T.filter((e) => !a.has(e))
+}
+
+function Hq(T) {
+  if (T.hasNonSkillSource) return !1;
+  if (!T.includeTools || T.includeTools.length === 0) return !1;
+  return yDT(T.skillNames, T.includeToolsBySkill).length === 0
+}
+
+function vPR(T) {
+  let R = yDT(T.skillNames, T.includeToolsBySkill),
+    a = T.includeToolsBySkill ? Object.entries(T.includeToolsBySkill).filter(([, t]) => t.some((r) => Cj(T.toolName, r))).map(([t]) => t) : [],
+    e = Array.from(new Set([...R, ...a]));
+  return e.length > 0 ? e : void 0
+}
+
+function jPR({
+  configService: T,
+  externalMCPServers: R = AR.of({}),
+  skillMCPServers: a = AR.of({}),
+  createOAuthProvider: e,
+  trustStore: t,
+  oauthStorage: r
+}) {
+  let h = new kDT,
+    i = new W0,
+    c, s = v3(T.config, R, a, ln(T)).pipe(JR(([{
+      settings: {
+        mcpServers: g,
+        mcpPermissions: I,
+        mcpTrustedServers: S,
+        "terminal.commands.nodeSpawn.loadProfile": O
+      }
+    }, j, d, C]) => ({
+      mcpServers: g,
+      mcpPermissions: I,
+      mcpTrustedServers: S,
+      mcpRegistryUrl: X9(C) ? C.workspace?.mcpRegistryUrl ?? null : null,
+      loadProfile: O,
+      externalMCPServers: j,
+      skillMCPServers: d
+    })), E9((g, I) => XE(g, I))),
+    A = T.workspaceRoot.pipe(JR((g) => g ?? void 0), E9((g, I) => g?.toString() === I?.toString())),
+    l = new Map;
+
+  function o(g) {
+    let I = g.spec,
+      S = Hq({
+        hasNonSkillSource: g.isFromMainConfig,
+        skillNames: g.skillNames,
+        includeTools: I.includeTools,
+        includeToolsBySkill: I._ampSkillIncludeTools
+      });
+    return {
+      name: g.name,
+      spec: g.spec,
+      isExternal: g.isExternal,
+      requiresApproval: !1,
+      specHash: void 0,
+      skillName: g.skillName,
+      skillNames: g.skillNames,
+      includeTools: S ? I.includeTools : void 0,
+      status: {
+        type: "blocked-by-registry",
+        registryUrl: g.registryUrl
+      },
+      tools: [],
+      prompts: []
+    }
+  }
+  let n, p, _ = v3(s, A, i.pipe(Y3(void 0))).pipe(KS(300), L9(([{
+      mcpServers: g,
+      mcpPermissions: I,
+      mcpTrustedServers: S,
+      mcpRegistryUrl: O,
+      loadProfile: j,
+      externalMCPServers: d,
+      skillMCPServers: C
+    }, L, w]) => Q9(async (D) => {
+      let B = [],
+        M = {};
+      for (let [W, eT] of Object.entries(C ?? {})) M[W] = eT;
+      for (let [W, eT] of Object.entries(g ?? {})) {
+        let iT = C?.[W];
+        if (iT) M[W] = PlT(eT, iT);
+        else M[W] = eT
+      }
+      for (let [W, eT] of Object.entries(d ?? {})) {
+        let iT = M[W];
+        if (iT?._ampSkillNames) M[W] = PlT(eT, iT);
+        else M[W] = eT
+      }
+      let V = M;
+      if (O) {
+        let W = await fPR(V, O);
+        if (D.aborted) return {
+          connections: [],
+          blocked: []
+        };
+        if (W.error) return J.error("MCP registry unreachable, blocking all MCP servers (fail-closed)", {
+          registryUrl: O,
+          error: W.error.message
+        }), B = Object.entries(V).map(([eT, iT]) => ({
+          name: eT,
+          spec: iT,
+          registryUrl: O,
+          isExternal: eT in d,
+          isFromMainConfig: Boolean(g?.[eT]) || Boolean(d?.[eT]),
+          skillName: iT._ampSkillName,
+          skillNames: iT._ampSkillNames
+        })), await Promise.all(Array.from(l.entries()).map(async ([eT, {
+          client: iT
+        }]) => {
+          J.info("Disposing MCP connection due to registry failure", {
+            serverName: eT
+          }), await iT[Symbol.asyncDispose](), l.delete(eT)
+        })), {
+          connections: [],
+          blocked: B
+        };
+        B = Object.entries(W.blocked).map(([eT, iT]) => ({
+          name: eT,
+          spec: iT,
+          registryUrl: O,
+          isExternal: eT in d,
+          isFromMainConfig: Boolean(g?.[eT]) || Boolean(d?.[eT]),
+          skillName: iT._ampSkillName,
+          skillNames: iT._ampSkillNames
+        }));
+        for (let [eT] of Object.entries(W.blocked)) {
+          J.warn("MCP server blocked by registry", {
+            serverName: eT,
+            registryUrl: O
+          });
+          let iT = l.get(eT);
+          if (iT) await iT.client[Symbol.asyncDispose](), l.delete(eT)
+        }
+        V = W.approved
+      } else B = [];
+      let Q = h.consume() || !XE(n, I) || !XE(p, S);
+      n = I, p = S;
+      for (let [W, eT] of Object.entries(V)) {
+        let iT = l.get(W);
+        if (!Q && iT && XE(iT.spec, eT)) continue;
+        let aT = "url" in eT && (!!eT.oauth || !eT.headers && eT.transport !== "http"),
+          oT = "url" in eT ? eT.oauth : void 0,
+          TT = "url" in eT ? eT.url : void 0,
+          tT = aT && e && TT ? await e(W, TT, oT) : void 0,
+          lT = eT._target === "workspace",
+          N = await gPR(eT),
+          q = !1,
+          F;
+        if (lT) {
+          let Z = {
+            serverName: W,
+            specHash: N
+          };
+          if (!await t.isTrusted(Z)) {
+            let X = await t.hasEntry?.(Z),
+              rT = X ? "denied" : "awaiting-approval";
+            if (F = Uq(eT, {
+                workingDirectory: L,
+                loadProfile: j
+              }, rT, I, tT, W), q = rT === "awaiting-approval", J.info(`MCP server ${W} ${rT==="denied"?"was denied":"requires approval before execution"}`, {
+                specHash: N,
+                trustState: rT
+              }), !X) c?.(W, eT)
+          } else F = Uq(eT, {
+            workingDirectory: L,
+            loadProfile: j
+          }, "enabled", I, tT, W)
+        } else F = Uq(eT, {
+          workingDirectory: L,
+          loadProfile: j
+        }, "enabled", I, tT, W);
+        let E = Boolean(g?.[W] || d?.[W]),
+          U = eT;
+        if (l.set(W, {
+            spec: eT,
+            client: F,
+            isExternal: Boolean(d[W]),
+            skillName: U._ampSkillName,
+            skillNames: U._ampSkillNames,
+            isFromMainConfig: E,
+            requiresApproval: q,
+            specHash: N
+          }), iT) await iT.client[Symbol.asyncDispose]()
+      }
+      for (let [W, {
+          client: eT
+        }] of l.entries())
+        if (!V || !(W in V)) await eT[Symbol.asyncDispose](), l.delete(W);
+      return {
+        connections: Array.from(l.entries()),
+        blocked: B
+      }
+    })), f3({
+      shouldCountRefs: !1
+    })),
+    m = _.subscribe({}

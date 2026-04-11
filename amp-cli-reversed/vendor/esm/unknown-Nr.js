@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: Nr (ESM)
-()=>{_AT=mwT({}),Sa=_AT}
+() => {
+  ((_AT = mwT({})), (Sa = _AT));
+};

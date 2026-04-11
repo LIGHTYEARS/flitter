@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: lwT (ESM)
-()=>{Ii()}
+() => {
+  Ii();
+};

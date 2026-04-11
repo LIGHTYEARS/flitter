@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: VDT (ESM)
-()=>{dG=typeof process<"u"?ikR.homedir():null}
+() => {
+  dG = typeof process < "u" ? ikR.homedir() : null;
+};

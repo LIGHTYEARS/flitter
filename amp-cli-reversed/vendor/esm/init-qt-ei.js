@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Lh (ESM)
-()=>{Qt(),Ei()}
+() => {
+  (Qt(), Ei());
+};

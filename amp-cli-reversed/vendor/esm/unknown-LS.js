@@ -5,4 +5,21 @@
 // Category: unknown
 
 // Module: LS (ESM)
-()=>{GB=Object.freeze({status:"aborted"}),FZ=Symbol("zod_brand"),ql=class extends Error{constructor(){super("Encountered Promise during synchronous parse. Use .parseAsync() instead.")}},zv=class extends Error{constructor(R){super(`Encountered unidirectional transform during encode: ${R}`);this.name="ZodEncodeError"}},Fv={}}
+() => {
+  ((GB = Object.freeze({ status: "aborted" })),
+    (FZ = Symbol("zod_brand")),
+    (ql = class extends Error {
+      constructor() {
+        super(
+          "Encountered Promise during synchronous parse. Use .parseAsync() instead.",
+        );
+      }
+    }),
+    (zv = class extends Error {
+      constructor(R) {
+        super(`Encountered unidirectional transform during encode: ${R}`);
+        this.name = "ZodEncodeError";
+      }
+    }),
+    (Fv = {}));
+};

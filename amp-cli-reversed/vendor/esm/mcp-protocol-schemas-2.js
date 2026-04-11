@@ -5,4 +5,566 @@
 // Category: schema
 
 // Module: YA (ESM)
-()=>{na(),XLT=[$N,"2025-06-18","2025-03-26","2024-11-05","2024-10-07"],Te=s0T((T)=>T!==null&&(typeof T==="object"||typeof T==="function")),mq=X8([eR(),b8().int()]),uq=eR(),NmR=za({ttl:X8([b8(),Qv()]).optional(),pollInterval:b8().optional()}),doT=l0({ttl:b8().optional()}),EoT=l0({taskId:eR()}),jE=za({progressToken:mq.optional(),[f_]:EoT.optional()}),hr=l0({_meta:jE.optional()}),Py=hr.extend({task:doT.optional()}),Re=l0({method:eR(),params:hr.loose().optional()}),Vr=l0({_meta:jE.optional()}),Xr=l0({method:eR(),params:Vr.loose().optional()}),ae=za({_meta:jE.optional()}),Yf=X8([eR(),b8().int()]),iG=l0({jsonrpc:H0(vE),id:Yf,...Re.shape}).strict(),sG=l0({jsonrpc:H0(vE),...Xr.shape}).strict(),fL=l0({jsonrpc:H0(vE),id:Yf,result:ae}).strict(),function(T){T[T.ConnectionClosed=-32000]="ConnectionClosed",T[T.RequestTimeout=-32001]="RequestTimeout",T[T.ParseError=-32700]="ParseError",T[T.InvalidRequest=-32600]="InvalidRequest",T[T.MethodNotFound=-32601]="MethodNotFound",T[T.InvalidParams=-32602]="InvalidParams",T[T.InternalError=-32603]="InternalError",T[T.UrlElicitationRequired=-32042]="UrlElicitationRequired"}(c9||(c9={})),IL=l0({jsonrpc:H0(vE),id:Yf.optional(),error:l0({code:b8().int(),message:eR(),data:h3().optional()})}).strict(),vP=X8([iG,sG,fL,IL]),qmR=X8([fL,IL]),X_=ae.strict(),CoT=Vr.extend({requestId:Yf.optional(),reason:eR().optional()}),gL=Xr.extend({method:H0("notifications/cancelled"),params:CoT}),LoT=l0({src:eR(),mimeType:eR().optional(),sizes:i0(eR()).optional(),theme:Tt(["light","dark"]).optional()}),xu=l0({icons:i0(LoT).optional()}),Hp=l0({name:eR(),title:eR().optional()}),yq=Hp.extend({...Hp.shape,...xu.shape,version:eR(),websiteUrl:eR().optional(),description:eR().optional()}),MoT=Zv(l0({applyDefaults:Q8().optional()}),_3(eR(),h3())),DoT=PD((T)=>{if(T&&typeof T==="object"&&!Array.isArray(T)){if(Object.keys(T).length===0)return{form:{}}}return T},Zv(l0({form:MoT.optional(),url:Te.optional()}),_3(eR(),h3()).optional())),woT=za({list:Te.optional(),cancel:Te.optional(),requests:za({sampling:za({createMessage:Te.optional()}).optional(),elicitation:za({create:Te.optional()}).optional()}).optional()}),BoT=za({list:Te.optional(),cancel:Te.optional(),requests:za({tools:za({call:Te.optional()}).optional()}).optional()}),NoT=l0({experimental:_3(eR(),Te).optional(),sampling:l0({context:Te.optional(),tools:Te.optional()}).optional(),elicitation:DoT.optional(),roots:l0({listChanged:Q8().optional()}).optional(),tasks:woT.optional()}),UoT=hr.extend({protocolVersion:eR(),capabilities:NoT,clientInfo:yq}),HoT=Re.extend({method:H0("initialize"),params:UoT}),WoT=l0({experimental:_3(eR(),Te).optional(),logging:Te.optional(),completions:Te.optional(),prompts:l0({listChanged:Q8().optional()}).optional(),resources:l0({subscribe:Q8().optional(),listChanged:Q8().optional()}).optional(),tools:l0({listChanged:Q8().optional()}).optional(),tasks:BoT.optional()}),oG=ae.extend({protocolVersion:eR(),capabilities:WoT,serverInfo:yq,instructions:eR().optional()}),nG=Xr.extend({method:H0("notifications/initialized"),params:Vr.optional()}),$L=Re.extend({method:H0("ping"),params:hr.optional()}),qoT=l0({progress:b8(),total:g3(b8()),message:g3(eR())}),zoT=l0({...Vr.shape,...qoT.shape,progressToken:mq}),vL=Xr.extend({method:H0("notifications/progress"),params:zoT}),FoT=hr.extend({cursor:uq.optional()}),fu=Re.extend({params:FoT.optional()}),Iu=ae.extend({nextCursor:uq.optional()}),GoT=Tt(["working","input_required","completed","failed","cancelled"]),gu=l0({taskId:eR(),status:GoT,ttl:X8([b8(),Qv()]),createdAt:eR(),lastUpdatedAt:eR(),pollInterval:g3(b8()),statusMessage:g3(eR())}),jP=ae.extend({task:gu}),KoT=Vr.merge(gu),W$=Xr.extend({method:H0("notifications/tasks/status"),params:KoT}),jL=Re.extend({method:H0("tasks/get"),params:hr.extend({taskId:eR()})}),SL=ae.merge(gu),OL=Re.extend({method:H0("tasks/result"),params:hr.extend({taskId:eR()})}),FmR=ae.loose(),dL=fu.extend({method:H0("tasks/list")}),EL=Iu.extend({tasks:i0(gu)}),CL=Re.extend({method:H0("tasks/cancel"),params:hr.extend({taskId:eR()})}),YLT=ae.merge(gu),Pq=l0({uri:eR(),mimeType:g3(eR()),_meta:_3(eR(),h3()).optional()}),kq=Pq.extend({text:eR()}),SE=eR().refine((T)=>{try{return atob(T),!0}catch{return!1}},{message:"Invalid Base64 string"}),xq=Pq.extend({blob:SE}),$u=Tt(["user","assistant"]),Wp=l0({audience:i0($u).optional(),priority:b8().min(0).max(1).optional(),lastModified:m6.datetime({offset:!0}).optional()}),fq=l0({...Hp.shape,...xu.shape,uri:eR(),description:g3(eR()),mimeType:g3(eR()),annotations:Wp.optional(),_meta:g3(za({}))}),VoT=l0({...Hp.shape,...xu.shape,uriTemplate:eR(),description:g3(eR()),mimeType:g3(eR()),annotations:Wp.optional(),_meta:g3(za({}))}),XoT=fu.extend({method:H0("resources/list")}),lG=Iu.extend({resources:i0(fq)}),YoT=fu.extend({method:H0("resources/templates/list")}),AG=Iu.extend({resourceTemplates:i0(VoT)}),OE=hr.extend({uri:eR()}),QoT=OE,ZoT=Re.extend({method:H0("resources/read"),params:QoT}),pG=ae.extend({contents:i0(X8([kq,xq]))}),GD=Xr.extend({method:H0("notifications/resources/list_changed"),params:Vr.optional()}),JoT=OE,TnT=Re.extend({method:H0("resources/subscribe"),params:JoT}),RnT=OE,anT=Re.extend({method:H0("resources/unsubscribe"),params:RnT}),enT=Vr.extend({uri:eR()}),tnT=Xr.extend({method:H0("notifications/resources/updated"),params:enT}),rnT=l0({name:eR(),description:g3(eR()),required:g3(Q8())}),hnT=l0({...Hp.shape,...xu.shape,description:g3(eR()),arguments:g3(i0(rnT)),_meta:g3(za({}))}),inT=fu.extend({method:H0("prompts/list")}),_G=Iu.extend({prompts:i0(hnT)}),cnT=hr.extend({name:eR(),arguments:_3(eR(),eR()).optional()}),snT=Re.extend({method:H0("prompts/get"),params:cnT}),dE=l0({type:H0("text"),text:eR(),annotations:Wp.optional(),_meta:_3(eR(),h3()).optional()}),EE=l0({type:H0("image"),data:SE,mimeType:eR(),annotations:Wp.optional(),_meta:_3(eR(),h3()).optional()}),CE=l0({type:H0("audio"),data:SE,mimeType:eR(),annotations:Wp.optional(),_meta:_3(eR(),h3()).optional()}),onT=l0({type:H0("tool_use"),name:eR(),id:eR(),input:_3(eR(),h3()),_meta:_3(eR(),h3()).optional()}),nnT=l0({type:H0("resource"),resource:X8([kq,xq]),annotations:Wp.optional(),_meta:_3(eR(),h3()).optional()}),lnT=fq.extend({type:H0("resource_link")}),LE=X8([dE,EE,CE,lnT,nnT]),AnT=l0({role:$u,content:LE}),bG=ae.extend({description:eR().optional(),messages:i0(AnT)}),KD=Xr.extend({method:H0("notifications/prompts/list_changed"),params:Vr.optional()}),pnT=l0({title:eR().optional(),readOnlyHint:Q8().optional(),destructiveHint:Q8().optional(),idempotentHint:Q8().optional(),openWorldHint:Q8().optional()}),_nT=l0({taskSupport:Tt(["required","optional","forbidden"]).optional()}),Iq=l0({...Hp.shape,...xu.shape,description:eR().optional(),inputSchema:l0({type:H0("object"),properties:_3(eR(),Te).optional(),required:i0(eR()).optional()}).catchall(h3()),outputSchema:l0({type:H0("object"),properties:_3(eR(),Te).optional(),required:i0(eR()).optional()}).catchall(h3()).optional(),annotations:pnT.optional(),execution:_nT.optional(),_meta:_3(eR(),h3()).optional()}),bnT=fu.extend({method:H0("tools/list")}),mG=Iu.extend({tools:i0(Iq)}),q$=ae.extend({content:i0(LE).default([]),structuredContent:_3(eR(),h3()).optional(),isError:Q8().optional()}),GmR=q$.or(ae.extend({toolResult:h3()})),mnT=Py.extend({name:eR(),arguments:_3(eR(),h3()).optional()}),unT=Re.extend({method:H0("tools/call"),params:mnT}),VD=Xr.extend({method:H0("notifications/tools/list_changed"),params:Vr.optional()}),QLT=l0({autoRefresh:Q8().default(!0),debounceMs:b8().int().nonnegative().default(300)}),gq=Tt(["debug","info","notice","warning","error","critical","alert","emergency"]),ynT=hr.extend({level:gq}),PnT=Re.extend({method:H0("logging/setLevel"),params:ynT}),knT=Vr.extend({level:gq,logger:eR().optional(),data:h3()}),xnT=Xr.extend({method:H0("notifications/message"),params:knT}),fnT=l0({name:eR().optional()}),InT=l0({hints:i0(fnT).optional(),costPriority:b8().min(0).max(1).optional(),speedPriority:b8().min(0).max(1).optional(),intelligencePriority:b8().min(0).max(1).optional()}),gnT=l0({mode:Tt(["auto","required","none"]).optional()}),$nT=l0({type:H0("tool_result"),toolUseId:eR().describe("The unique identifier for the corresponding tool call."),content:i0(LE).default([]),structuredContent:l0({}).loose().optional(),isError:Q8().optional(),_meta:_3(eR(),h3()).optional()}),vnT=uD("type",[dE,EE,CE]),Qf=uD("type",[dE,EE,CE,onT,$nT]),jnT=l0({role:$u,content:X8([Qf,i0(Qf)]),_meta:_3(eR(),h3()).optional()}),SnT=Py.extend({messages:i0(jnT),modelPreferences:InT.optional(),systemPrompt:eR().optional(),includeContext:Tt(["none","thisServer","allServers"]).optional(),temperature:b8().optional(),maxTokens:b8().int(),stopSequences:i0(eR()).optional(),metadata:Te.optional(),tools:i0(Iq).optional(),toolChoice:gnT.optional()}),uG=Re.extend({method:H0("sampling/createMessage"),params:SnT}),yG=ae.extend({model:eR(),stopReason:g3(Tt(["endTurn","stopSequence","maxTokens"]).or(eR())),role:$u,content:vnT}),PG=ae.extend({model:eR(),stopReason:g3(Tt(["endTurn","stopSequence","maxTokens","toolUse"]).or(eR())),role:$u,content:X8([Qf,i0(Qf)])}),OnT=l0({type:H0("boolean"),title:eR().optional(),description:eR().optional(),default:Q8().optional()}),dnT=l0({type:H0("string"),title:eR().optional(),description:eR().optional(),minLength:b8().optional(),maxLength:b8().optional(),format:Tt(["email","uri","date","date-time"]).optional(),default:eR().optional()}),EnT=l0({type:Tt(["number","integer"]),title:eR().optional(),description:eR().optional(),minimum:b8().optional(),maximum:b8().optional(),default:b8().optional()}),CnT=l0({type:H0("string"),title:eR().optional(),description:eR().optional(),enum:i0(eR()),default:eR().optional()}),LnT=l0({type:H0("string"),title:eR().optional(),description:eR().optional(),oneOf:i0(l0({const:eR(),title:eR()})),default:eR().optional()}),MnT=l0({type:H0("string"),title:eR().optional(),description:eR().optional(),enum:i0(eR()),enumNames:i0(eR()).optional(),default:eR().optional()}),DnT=X8([CnT,LnT]),wnT=l0({type:H0("array"),title:eR().optional(),description:eR().optional(),minItems:b8().optional(),maxItems:b8().optional(),items:l0({type:H0("string"),enum:i0(eR())}),default:i0(eR()).optional()}),BnT=l0({type:H0("array"),title:eR().optional(),description:eR().optional(),minItems:b8().optional(),maxItems:b8().optional(),items:l0({anyOf:i0(l0({const:eR(),title:eR()}))}),default:i0(eR()).optional()}),NnT=X8([wnT,BnT]),UnT=X8([MnT,DnT,NnT]),HnT=X8([UnT,OnT,dnT,EnT]),WnT=Py.extend({mode:H0("form").optional(),message:eR(),requestedSchema:l0({type:H0("object"),properties:_3(eR(),HnT),required:i0(eR()).optional()})}),qnT=Py.extend({mode:H0("url"),message:eR(),elicitationId:eR(),url:eR().url()}),znT=X8([WnT,qnT]),kG=Re.extend({method:H0("elicitation/create"),params:znT}),FnT=Vr.extend({elicitationId:eR()}),GnT=Xr.extend({method:H0("notifications/elicitation/complete"),params:FnT}),xG=ae.extend({action:Tt(["accept","decline","cancel"]),content:PD((T)=>T===null?void 0:T,_3(eR(),X8([eR(),b8(),Q8(),i0(eR())])).optional())}),KnT=l0({type:H0("ref/resource"),uri:eR()}),VnT=l0({type:H0("ref/prompt"),name:eR()}),XnT=hr.extend({ref:X8([VnT,KnT]),argument:l0({name:eR(),value:eR()}),context:l0({arguments:_3(eR(),eR()).optional()}).optional()}),YnT=Re.extend({method:H0("completion/complete"),params:XnT}),fG=ae.extend({completion:za({values:i0(eR()).max(100),total:g3(b8().int()),hasMore:g3(Q8())})}),QnT=l0({uri:eR().startsWith("file://"),name:eR().optional(),_meta:_3(eR(),h3()).optional()}),ZnT=Re.extend({method:H0("roots/list"),params:hr.optional()}),JnT=ae.extend({roots:i0(QnT)}),TlT=Xr.extend({method:H0("notifications/roots/list_changed"),params:Vr.optional()}),KmR=X8([$L,HoT,YnT,PnT,snT,inT,XoT,YoT,ZoT,TnT,anT,unT,bnT,jL,OL,dL,CL]),VmR=X8([gL,vL,nG,TlT,W$]),XmR=X8([X_,yG,PG,xG,JnT,SL,EL,jP]),YmR=X8([$L,uG,kG,ZnT,jL,OL,dL,CL]),QmR=X8([gL,vL,xnT,tnT,GD,VD,KD,W$,GnT]),ZmR=X8([X_,oG,fG,bG,_G,lG,AG,pG,q$,mG,SL,EL,jP]),l9=class T extends Error{constructor(R,a,e){super(`MCP error ${R}: ${a}`);this.code=R,this.data=e,this.name="McpError"}static fromError(R,a,e){if(R===c9.UrlElicitationRequired&&e){let t=e;if(t.elicitations)return new RlT(t.elicitations,a)}return new T(R,a,e)}},RlT=class extends l9{constructor(R,a=`URL elicitation${R.length>1?"s":""} required`){super(c9.UrlElicitationRequired,a,{elicitations:R})}get elicitations(){return this.data?.elicitations??[]}}}
+() => {
+  (na(),
+    (XLT = [$N, "2025-06-18", "2025-03-26", "2024-11-05", "2024-10-07"]),
+    (Te = s0T(
+      (T) => T !== null && (typeof T === "object" || typeof T === "function"),
+    )),
+    (mq = X8([eR(), b8().int()])),
+    (uq = eR()),
+    (NmR = za({
+      ttl: X8([b8(), Qv()]).optional(),
+      pollInterval: b8().optional(),
+    })),
+    (doT = l0({ ttl: b8().optional() })),
+    (EoT = l0({ taskId: eR() })),
+    (jE = za({ progressToken: mq.optional(), [f_]: EoT.optional() })),
+    (hr = l0({ _meta: jE.optional() })),
+    (Py = hr.extend({ task: doT.optional() })),
+    (Re = l0({ method: eR(), params: hr.loose().optional() })),
+    (Vr = l0({ _meta: jE.optional() })),
+    (Xr = l0({ method: eR(), params: Vr.loose().optional() })),
+    (ae = za({ _meta: jE.optional() })),
+    (Yf = X8([eR(), b8().int()])),
+    (iG = l0({ jsonrpc: H0(vE), id: Yf, ...Re.shape }).strict()),
+    (sG = l0({ jsonrpc: H0(vE), ...Xr.shape }).strict()),
+    (fL = l0({ jsonrpc: H0(vE), id: Yf, result: ae }).strict()),
+    (function (T) {
+      ((T[(T.ConnectionClosed = -32000)] = "ConnectionClosed"),
+        (T[(T.RequestTimeout = -32001)] = "RequestTimeout"),
+        (T[(T.ParseError = -32700)] = "ParseError"),
+        (T[(T.InvalidRequest = -32600)] = "InvalidRequest"),
+        (T[(T.MethodNotFound = -32601)] = "MethodNotFound"),
+        (T[(T.InvalidParams = -32602)] = "InvalidParams"),
+        (T[(T.InternalError = -32603)] = "InternalError"),
+        (T[(T.UrlElicitationRequired = -32042)] = "UrlElicitationRequired"));
+    })(c9 || (c9 = {})),
+    (IL = l0({
+      jsonrpc: H0(vE),
+      id: Yf.optional(),
+      error: l0({ code: b8().int(), message: eR(), data: h3().optional() }),
+    }).strict()),
+    (vP = X8([iG, sG, fL, IL])),
+    (qmR = X8([fL, IL])),
+    (X_ = ae.strict()),
+    (CoT = Vr.extend({ requestId: Yf.optional(), reason: eR().optional() })),
+    (gL = Xr.extend({ method: H0("notifications/cancelled"), params: CoT })),
+    (LoT = l0({
+      src: eR(),
+      mimeType: eR().optional(),
+      sizes: i0(eR()).optional(),
+      theme: Tt(["light", "dark"]).optional(),
+    })),
+    (xu = l0({ icons: i0(LoT).optional() })),
+    (Hp = l0({ name: eR(), title: eR().optional() })),
+    (yq = Hp.extend({
+      ...Hp.shape,
+      ...xu.shape,
+      version: eR(),
+      websiteUrl: eR().optional(),
+      description: eR().optional(),
+    })),
+    (MoT = Zv(l0({ applyDefaults: Q8().optional() }), _3(eR(), h3()))),
+    (DoT = PD(
+      (T) => {
+        if (T && typeof T === "object" && !Array.isArray(T)) {
+          if (Object.keys(T).length === 0) return { form: {} };
+        }
+        return T;
+      },
+      Zv(
+        l0({ form: MoT.optional(), url: Te.optional() }),
+        _3(eR(), h3()).optional(),
+      ),
+    )),
+    (woT = za({
+      list: Te.optional(),
+      cancel: Te.optional(),
+      requests: za({
+        sampling: za({ createMessage: Te.optional() }).optional(),
+        elicitation: za({ create: Te.optional() }).optional(),
+      }).optional(),
+    })),
+    (BoT = za({
+      list: Te.optional(),
+      cancel: Te.optional(),
+      requests: za({
+        tools: za({ call: Te.optional() }).optional(),
+      }).optional(),
+    })),
+    (NoT = l0({
+      experimental: _3(eR(), Te).optional(),
+      sampling: l0({ context: Te.optional(), tools: Te.optional() }).optional(),
+      elicitation: DoT.optional(),
+      roots: l0({ listChanged: Q8().optional() }).optional(),
+      tasks: woT.optional(),
+    })),
+    (UoT = hr.extend({
+      protocolVersion: eR(),
+      capabilities: NoT,
+      clientInfo: yq,
+    })),
+    (HoT = Re.extend({ method: H0("initialize"), params: UoT })),
+    (WoT = l0({
+      experimental: _3(eR(), Te).optional(),
+      logging: Te.optional(),
+      completions: Te.optional(),
+      prompts: l0({ listChanged: Q8().optional() }).optional(),
+      resources: l0({
+        subscribe: Q8().optional(),
+        listChanged: Q8().optional(),
+      }).optional(),
+      tools: l0({ listChanged: Q8().optional() }).optional(),
+      tasks: BoT.optional(),
+    })),
+    (oG = ae.extend({
+      protocolVersion: eR(),
+      capabilities: WoT,
+      serverInfo: yq,
+      instructions: eR().optional(),
+    })),
+    (nG = Xr.extend({
+      method: H0("notifications/initialized"),
+      params: Vr.optional(),
+    })),
+    ($L = Re.extend({ method: H0("ping"), params: hr.optional() })),
+    (qoT = l0({ progress: b8(), total: g3(b8()), message: g3(eR()) })),
+    (zoT = l0({ ...Vr.shape, ...qoT.shape, progressToken: mq })),
+    (vL = Xr.extend({ method: H0("notifications/progress"), params: zoT })),
+    (FoT = hr.extend({ cursor: uq.optional() })),
+    (fu = Re.extend({ params: FoT.optional() })),
+    (Iu = ae.extend({ nextCursor: uq.optional() })),
+    (GoT = Tt([
+      "working",
+      "input_required",
+      "completed",
+      "failed",
+      "cancelled",
+    ])),
+    (gu = l0({
+      taskId: eR(),
+      status: GoT,
+      ttl: X8([b8(), Qv()]),
+      createdAt: eR(),
+      lastUpdatedAt: eR(),
+      pollInterval: g3(b8()),
+      statusMessage: g3(eR()),
+    })),
+    (jP = ae.extend({ task: gu })),
+    (KoT = Vr.merge(gu)),
+    (W$ = Xr.extend({ method: H0("notifications/tasks/status"), params: KoT })),
+    (jL = Re.extend({
+      method: H0("tasks/get"),
+      params: hr.extend({ taskId: eR() }),
+    })),
+    (SL = ae.merge(gu)),
+    (OL = Re.extend({
+      method: H0("tasks/result"),
+      params: hr.extend({ taskId: eR() }),
+    })),
+    (FmR = ae.loose()),
+    (dL = fu.extend({ method: H0("tasks/list") })),
+    (EL = Iu.extend({ tasks: i0(gu) })),
+    (CL = Re.extend({
+      method: H0("tasks/cancel"),
+      params: hr.extend({ taskId: eR() }),
+    })),
+    (YLT = ae.merge(gu)),
+    (Pq = l0({
+      uri: eR(),
+      mimeType: g3(eR()),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (kq = Pq.extend({ text: eR() })),
+    (SE = eR().refine(
+      (T) => {
+        try {
+          return (atob(T), !0);
+        } catch {
+          return !1;
+        }
+      },
+      { message: "Invalid Base64 string" },
+    )),
+    (xq = Pq.extend({ blob: SE })),
+    ($u = Tt(["user", "assistant"])),
+    (Wp = l0({
+      audience: i0($u).optional(),
+      priority: b8().min(0).max(1).optional(),
+      lastModified: m6.datetime({ offset: !0 }).optional(),
+    })),
+    (fq = l0({
+      ...Hp.shape,
+      ...xu.shape,
+      uri: eR(),
+      description: g3(eR()),
+      mimeType: g3(eR()),
+      annotations: Wp.optional(),
+      _meta: g3(za({})),
+    })),
+    (VoT = l0({
+      ...Hp.shape,
+      ...xu.shape,
+      uriTemplate: eR(),
+      description: g3(eR()),
+      mimeType: g3(eR()),
+      annotations: Wp.optional(),
+      _meta: g3(za({})),
+    })),
+    (XoT = fu.extend({ method: H0("resources/list") })),
+    (lG = Iu.extend({ resources: i0(fq) })),
+    (YoT = fu.extend({ method: H0("resources/templates/list") })),
+    (AG = Iu.extend({ resourceTemplates: i0(VoT) })),
+    (OE = hr.extend({ uri: eR() })),
+    (QoT = OE),
+    (ZoT = Re.extend({ method: H0("resources/read"), params: QoT })),
+    (pG = ae.extend({ contents: i0(X8([kq, xq])) })),
+    (GD = Xr.extend({
+      method: H0("notifications/resources/list_changed"),
+      params: Vr.optional(),
+    })),
+    (JoT = OE),
+    (TnT = Re.extend({ method: H0("resources/subscribe"), params: JoT })),
+    (RnT = OE),
+    (anT = Re.extend({ method: H0("resources/unsubscribe"), params: RnT })),
+    (enT = Vr.extend({ uri: eR() })),
+    (tnT = Xr.extend({
+      method: H0("notifications/resources/updated"),
+      params: enT,
+    })),
+    (rnT = l0({ name: eR(), description: g3(eR()), required: g3(Q8()) })),
+    (hnT = l0({
+      ...Hp.shape,
+      ...xu.shape,
+      description: g3(eR()),
+      arguments: g3(i0(rnT)),
+      _meta: g3(za({})),
+    })),
+    (inT = fu.extend({ method: H0("prompts/list") })),
+    (_G = Iu.extend({ prompts: i0(hnT) })),
+    (cnT = hr.extend({ name: eR(), arguments: _3(eR(), eR()).optional() })),
+    (snT = Re.extend({ method: H0("prompts/get"), params: cnT })),
+    (dE = l0({
+      type: H0("text"),
+      text: eR(),
+      annotations: Wp.optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (EE = l0({
+      type: H0("image"),
+      data: SE,
+      mimeType: eR(),
+      annotations: Wp.optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (CE = l0({
+      type: H0("audio"),
+      data: SE,
+      mimeType: eR(),
+      annotations: Wp.optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (onT = l0({
+      type: H0("tool_use"),
+      name: eR(),
+      id: eR(),
+      input: _3(eR(), h3()),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (nnT = l0({
+      type: H0("resource"),
+      resource: X8([kq, xq]),
+      annotations: Wp.optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (lnT = fq.extend({ type: H0("resource_link") })),
+    (LE = X8([dE, EE, CE, lnT, nnT])),
+    (AnT = l0({ role: $u, content: LE })),
+    (bG = ae.extend({ description: eR().optional(), messages: i0(AnT) })),
+    (KD = Xr.extend({
+      method: H0("notifications/prompts/list_changed"),
+      params: Vr.optional(),
+    })),
+    (pnT = l0({
+      title: eR().optional(),
+      readOnlyHint: Q8().optional(),
+      destructiveHint: Q8().optional(),
+      idempotentHint: Q8().optional(),
+      openWorldHint: Q8().optional(),
+    })),
+    (_nT = l0({
+      taskSupport: Tt(["required", "optional", "forbidden"]).optional(),
+    })),
+    (Iq = l0({
+      ...Hp.shape,
+      ...xu.shape,
+      description: eR().optional(),
+      inputSchema: l0({
+        type: H0("object"),
+        properties: _3(eR(), Te).optional(),
+        required: i0(eR()).optional(),
+      }).catchall(h3()),
+      outputSchema: l0({
+        type: H0("object"),
+        properties: _3(eR(), Te).optional(),
+        required: i0(eR()).optional(),
+      })
+        .catchall(h3())
+        .optional(),
+      annotations: pnT.optional(),
+      execution: _nT.optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (bnT = fu.extend({ method: H0("tools/list") })),
+    (mG = Iu.extend({ tools: i0(Iq) })),
+    (q$ = ae.extend({
+      content: i0(LE).default([]),
+      structuredContent: _3(eR(), h3()).optional(),
+      isError: Q8().optional(),
+    })),
+    (GmR = q$.or(ae.extend({ toolResult: h3() }))),
+    (mnT = Py.extend({ name: eR(), arguments: _3(eR(), h3()).optional() })),
+    (unT = Re.extend({ method: H0("tools/call"), params: mnT })),
+    (VD = Xr.extend({
+      method: H0("notifications/tools/list_changed"),
+      params: Vr.optional(),
+    })),
+    (QLT = l0({
+      autoRefresh: Q8().default(!0),
+      debounceMs: b8().int().nonnegative().default(300),
+    })),
+    (gq = Tt([
+      "debug",
+      "info",
+      "notice",
+      "warning",
+      "error",
+      "critical",
+      "alert",
+      "emergency",
+    ])),
+    (ynT = hr.extend({ level: gq })),
+    (PnT = Re.extend({ method: H0("logging/setLevel"), params: ynT })),
+    (knT = Vr.extend({ level: gq, logger: eR().optional(), data: h3() })),
+    (xnT = Xr.extend({ method: H0("notifications/message"), params: knT })),
+    (fnT = l0({ name: eR().optional() })),
+    (InT = l0({
+      hints: i0(fnT).optional(),
+      costPriority: b8().min(0).max(1).optional(),
+      speedPriority: b8().min(0).max(1).optional(),
+      intelligencePriority: b8().min(0).max(1).optional(),
+    })),
+    (gnT = l0({ mode: Tt(["auto", "required", "none"]).optional() })),
+    ($nT = l0({
+      type: H0("tool_result"),
+      toolUseId: eR().describe(
+        "The unique identifier for the corresponding tool call.",
+      ),
+      content: i0(LE).default([]),
+      structuredContent: l0({}).loose().optional(),
+      isError: Q8().optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (vnT = uD("type", [dE, EE, CE])),
+    (Qf = uD("type", [dE, EE, CE, onT, $nT])),
+    (jnT = l0({
+      role: $u,
+      content: X8([Qf, i0(Qf)]),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (SnT = Py.extend({
+      messages: i0(jnT),
+      modelPreferences: InT.optional(),
+      systemPrompt: eR().optional(),
+      includeContext: Tt(["none", "thisServer", "allServers"]).optional(),
+      temperature: b8().optional(),
+      maxTokens: b8().int(),
+      stopSequences: i0(eR()).optional(),
+      metadata: Te.optional(),
+      tools: i0(Iq).optional(),
+      toolChoice: gnT.optional(),
+    })),
+    (uG = Re.extend({ method: H0("sampling/createMessage"), params: SnT })),
+    (yG = ae.extend({
+      model: eR(),
+      stopReason: g3(Tt(["endTurn", "stopSequence", "maxTokens"]).or(eR())),
+      role: $u,
+      content: vnT,
+    })),
+    (PG = ae.extend({
+      model: eR(),
+      stopReason: g3(
+        Tt(["endTurn", "stopSequence", "maxTokens", "toolUse"]).or(eR()),
+      ),
+      role: $u,
+      content: X8([Qf, i0(Qf)]),
+    })),
+    (OnT = l0({
+      type: H0("boolean"),
+      title: eR().optional(),
+      description: eR().optional(),
+      default: Q8().optional(),
+    })),
+    (dnT = l0({
+      type: H0("string"),
+      title: eR().optional(),
+      description: eR().optional(),
+      minLength: b8().optional(),
+      maxLength: b8().optional(),
+      format: Tt(["email", "uri", "date", "date-time"]).optional(),
+      default: eR().optional(),
+    })),
+    (EnT = l0({
+      type: Tt(["number", "integer"]),
+      title: eR().optional(),
+      description: eR().optional(),
+      minimum: b8().optional(),
+      maximum: b8().optional(),
+      default: b8().optional(),
+    })),
+    (CnT = l0({
+      type: H0("string"),
+      title: eR().optional(),
+      description: eR().optional(),
+      enum: i0(eR()),
+      default: eR().optional(),
+    })),
+    (LnT = l0({
+      type: H0("string"),
+      title: eR().optional(),
+      description: eR().optional(),
+      oneOf: i0(l0({ const: eR(), title: eR() })),
+      default: eR().optional(),
+    })),
+    (MnT = l0({
+      type: H0("string"),
+      title: eR().optional(),
+      description: eR().optional(),
+      enum: i0(eR()),
+      enumNames: i0(eR()).optional(),
+      default: eR().optional(),
+    })),
+    (DnT = X8([CnT, LnT])),
+    (wnT = l0({
+      type: H0("array"),
+      title: eR().optional(),
+      description: eR().optional(),
+      minItems: b8().optional(),
+      maxItems: b8().optional(),
+      items: l0({ type: H0("string"), enum: i0(eR()) }),
+      default: i0(eR()).optional(),
+    })),
+    (BnT = l0({
+      type: H0("array"),
+      title: eR().optional(),
+      description: eR().optional(),
+      minItems: b8().optional(),
+      maxItems: b8().optional(),
+      items: l0({ anyOf: i0(l0({ const: eR(), title: eR() })) }),
+      default: i0(eR()).optional(),
+    })),
+    (NnT = X8([wnT, BnT])),
+    (UnT = X8([MnT, DnT, NnT])),
+    (HnT = X8([UnT, OnT, dnT, EnT])),
+    (WnT = Py.extend({
+      mode: H0("form").optional(),
+      message: eR(),
+      requestedSchema: l0({
+        type: H0("object"),
+        properties: _3(eR(), HnT),
+        required: i0(eR()).optional(),
+      }),
+    })),
+    (qnT = Py.extend({
+      mode: H0("url"),
+      message: eR(),
+      elicitationId: eR(),
+      url: eR().url(),
+    })),
+    (znT = X8([WnT, qnT])),
+    (kG = Re.extend({ method: H0("elicitation/create"), params: znT })),
+    (FnT = Vr.extend({ elicitationId: eR() })),
+    (GnT = Xr.extend({
+      method: H0("notifications/elicitation/complete"),
+      params: FnT,
+    })),
+    (xG = ae.extend({
+      action: Tt(["accept", "decline", "cancel"]),
+      content: PD(
+        (T) => (T === null ? void 0 : T),
+        _3(eR(), X8([eR(), b8(), Q8(), i0(eR())])).optional(),
+      ),
+    })),
+    (KnT = l0({ type: H0("ref/resource"), uri: eR() })),
+    (VnT = l0({ type: H0("ref/prompt"), name: eR() })),
+    (XnT = hr.extend({
+      ref: X8([VnT, KnT]),
+      argument: l0({ name: eR(), value: eR() }),
+      context: l0({ arguments: _3(eR(), eR()).optional() }).optional(),
+    })),
+    (YnT = Re.extend({ method: H0("completion/complete"), params: XnT })),
+    (fG = ae.extend({
+      completion: za({
+        values: i0(eR()).max(100),
+        total: g3(b8().int()),
+        hasMore: g3(Q8()),
+      }),
+    })),
+    (QnT = l0({
+      uri: eR().startsWith("file://"),
+      name: eR().optional(),
+      _meta: _3(eR(), h3()).optional(),
+    })),
+    (ZnT = Re.extend({ method: H0("roots/list"), params: hr.optional() })),
+    (JnT = ae.extend({ roots: i0(QnT) })),
+    (TlT = Xr.extend({
+      method: H0("notifications/roots/list_changed"),
+      params: Vr.optional(),
+    })),
+    (KmR = X8([
+      $L,
+      HoT,
+      YnT,
+      PnT,
+      snT,
+      inT,
+      XoT,
+      YoT,
+      ZoT,
+      TnT,
+      anT,
+      unT,
+      bnT,
+      jL,
+      OL,
+      dL,
+      CL,
+    ])),
+    (VmR = X8([gL, vL, nG, TlT, W$])),
+    (XmR = X8([X_, yG, PG, xG, JnT, SL, EL, jP])),
+    (YmR = X8([$L, uG, kG, ZnT, jL, OL, dL, CL])),
+    (QmR = X8([gL, vL, xnT, tnT, GD, VD, KD, W$, GnT])),
+    (ZmR = X8([X_, oG, fG, bG, _G, lG, AG, pG, q$, mG, SL, EL, jP])),
+    (l9 = class T extends Error {
+      constructor(R, a, e) {
+        super(`MCP error ${R}: ${a}`);
+        ((this.code = R), (this.data = e), (this.name = "McpError"));
+      }
+      static fromError(R, a, e) {
+        if (R === c9.UrlElicitationRequired && e) {
+          let t = e;
+          if (t.elicitations) return new RlT(t.elicitations, a);
+        }
+        return new T(R, a, e);
+      }
+    }),
+    (RlT = class extends l9 {
+      constructor(R, a = `URL elicitation${R.length > 1 ? "s" : ""} required`) {
+        super(c9.UrlElicitationRequired, a, { elicitations: R });
+      }
+      get elicitations() {
+        return this.data?.elicitations ?? [];
+      }
+    }));
+};

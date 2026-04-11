@@ -5,4 +5,15 @@
 // Category: unknown
 
 // Module: f9T (ESM)
-()=>{s0(),Zt(),Mh(),BLT={".jpg":"image/jpeg",".jpeg":"image/jpeg",".png":"image/png",".gif":"image/gif",".webp":"image/webp"}}
+() => {
+  (s0(),
+    Zt(),
+    Mh(),
+    (BLT = {
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".png": "image/png",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+    }));
+};

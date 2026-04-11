@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: bMT (ESM)
-()=>{Sc()}
+() => {
+  Sc();
+};

@@ -5,4 +5,19 @@
 // Category: unknown
 
 // Module: dOT (ESM)
-()=>{Or(),OOT(),HRT=MS(Ar),WRT=DS(Ar),qRT=wS(Ar),zRT=BS(Ar),FRT=TJ(Ar),GRT=RJ(Ar),KRT=aJ(Ar),VRT=eJ(Ar),XRT=tJ(Ar),YRT=rJ(Ar),QRT=hJ(Ar),ZRT=iJ(Ar)}
+() => {
+  (Or(),
+    OOT(),
+    (HRT = MS(Ar)),
+    (WRT = DS(Ar)),
+    (qRT = wS(Ar)),
+    (zRT = BS(Ar)),
+    (FRT = TJ(Ar)),
+    (GRT = RJ(Ar)),
+    (KRT = aJ(Ar)),
+    (VRT = eJ(Ar)),
+    (XRT = tJ(Ar)),
+    (YRT = rJ(Ar)),
+    (QRT = hJ(Ar)),
+    (ZRT = iJ(Ar)));
+};

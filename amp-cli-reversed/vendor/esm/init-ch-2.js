@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Qt (ESM)
-()=>{Ch()}
+() => {
+  Ch();
+};

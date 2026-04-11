@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: G7T (ESM)
-()=>{q7T(),s8T()}
+() => {
+  (q7T(), s8T());
+};

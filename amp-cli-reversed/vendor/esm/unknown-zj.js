@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: zj (ESM)
-()=>{TK=new WeakMap}
+() => {
+  TK = new WeakMap();
+};

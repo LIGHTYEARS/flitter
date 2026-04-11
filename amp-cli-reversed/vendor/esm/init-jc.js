@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: j9T (ESM)
-()=>{Ya()}
+() => {
+  Ya();
+};

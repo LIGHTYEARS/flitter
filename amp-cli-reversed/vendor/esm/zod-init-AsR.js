@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: AsR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: jR (ESM)
-()=>{CnR(),GS(),HnR(),oET(),WnR(),rET(),y0T(),qnR()}
+() => {
+  (CnR(), GS(), HnR(), oET(), WnR(), rET(), y0T(), qnR());
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: _6 (ESM)
-()=>{R6()}
+() => {
+  R6();
+};

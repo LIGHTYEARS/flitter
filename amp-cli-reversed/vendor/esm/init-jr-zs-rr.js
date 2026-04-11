@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: nkR (ESM)
-()=>{jR(),Zs(),rR(),jc(),Zt()}
+() => {
+  (jR(), Zs(), rR(), jc(), Zt());
+};

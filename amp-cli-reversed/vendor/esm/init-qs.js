@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: om (ESM)
-()=>{qS()}
+() => {
+  qS();
+};

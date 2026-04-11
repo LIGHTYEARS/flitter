@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: HnR (ESM)
-()=>{GS(),oET(),Jo=Symbol.for("@@pendingOperation")}
+() => {
+  (GS(), oET(), (Jo = Symbol.for("@@pendingOperation")));
+};

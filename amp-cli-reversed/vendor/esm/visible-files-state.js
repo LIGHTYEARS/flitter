@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: ap (ESM)
-()=>{s0(),Br(),c7={currentlyVisibleFiles:[]}}
+() => {
+  (s0(), Br(), (c7 = { currentlyVisibleFiles: [] }));
+};

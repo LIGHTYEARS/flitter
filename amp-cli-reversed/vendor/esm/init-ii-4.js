@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: yk (ESM)
-()=>{Ii(),D7T=/^[a-z][a-z0-9+.-]*:/i,ZG=QG}
+() => {
+  (Ii(), (D7T = /^[a-z][a-z0-9+.-]*:/i), (ZG = QG));
+};

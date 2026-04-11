@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Ci (ESM)
-()=>{jR(),rR(),Ei(),X2=new WeakMap}
+() => {
+  (jR(), rR(), Ei(), (X2 = new WeakMap()));
+};

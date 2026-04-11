@@ -5,4 +5,20 @@
 // Category: util
 
 // Module: RhR (CJS)
-(T,R)=>{R.exports={nested:{google:{nested:{protobuf:{nested:{SourceContext:{fields:{fileName:{type:"string",id:1}}}}}}}}}}
+(T, R) => {
+  R.exports = {
+    nested: {
+      google: {
+        nested: {
+          protobuf: {
+            nested: {
+              SourceContext: {
+                fields: { fileName: { type: "string", id: 1 } },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: TfR (ESM)
-()=>{zj(),zj()}
+() => {
+  (zj(), zj());
+};

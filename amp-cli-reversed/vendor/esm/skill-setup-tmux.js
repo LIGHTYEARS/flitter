@@ -5,7 +5,17 @@
 // Category: util
 
 // Module: EkR (ESM)
-()=>{i7T={name:"setup-tmux",description:"Configure tmux for optimal Amp CLI compatibility. Use when setting up tmux, troubleshooting tmux issues (images, clipboard, Shift+Enter), or asked to check/fix tmux configuration.",frontmatter:{name:"setup-tmux",description:"Configure tmux for optimal Amp CLI compatibility. Use when setting up tmux, troubleshooting tmux issues (images, clipboard, Shift+Enter), or asked to check/fix tmux configuration."},content:`# Setup tmux for Amp
+() => {
+  i7T = {
+    name: "setup-tmux",
+    description:
+      "Configure tmux for optimal Amp CLI compatibility. Use when setting up tmux, troubleshooting tmux issues (images, clipboard, Shift+Enter), or asked to check/fix tmux configuration.",
+    frontmatter: {
+      name: "setup-tmux",
+      description:
+        "Configure tmux for optimal Amp CLI compatibility. Use when setting up tmux, troubleshooting tmux issues (images, clipboard, Shift+Enter), or asked to check/fix tmux configuration.",
+    },
+    content: `# Setup tmux for Amp
 
 Analyzes and configures tmux to work optimally with Amp CLI.
 
@@ -135,4 +145,7 @@ After runtime changes, tell the user to reload their config or restart tmux to p
 - "Check my tmux configuration"
 - "Why don't images work in tmux?"
 - "Enable Shift+Enter in tmux"
-`,baseDir:"builtin:///skills"}}
+`,
+    baseDir: "builtin:///skills",
+  };
+};

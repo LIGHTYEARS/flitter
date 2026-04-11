@@ -5,5 +5,89 @@
 // Category: util
 
 // Module: zB (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.createOtlpGrpcExporterTransport=T.GrpcExporterTransport=T.createEmptyMetadata=T.createSslCredentials=T.createInsecureCredentials=void 0;
-var R=UrR(),a=`OTel-OTLP-Exporter-JavaScript/${R.VERSION}`;function e(o){if(o)return`${o} ${a}`;return a}var t=0,r=2;function h(o){return o==="gzip"?r:t}function i(){let{credentials:o}=cL();return o.createInsecure()}T.createInsecureCredentials=i;function c(o,n,p){let{credentials:_}=cL();return _.createSsl(o,n,p)}T.createSslCredentials=c;function s(){let{Metadata:o}=cL();return new o}T.createEmptyMetadata=s;class A{_parameters;_client;_metadata;constructor(o){this._parameters=o}shutdown(){this._client?.close()}send(o,n){let p=Buffer.from(o);if(this._client==null){let{createServiceClientConstructor:_}=fhR();try{this._metadata=this._parameters.metadata()}catch(b){return Promise.resolve({status:"failure",error:b})}let m=_(this._parameters.grpcPath,this._parameters.grpcName);try{this._client=new m(this._parameters.address,this._parameters.credentials(),{"grpc.default_compression_algorithm":h(this._parameters.compression),"grpc.primary_user_agent":e(this._parameters.userAgent)})}catch(b){return Promise.resolve({status:"failure",error:b})}}return new Promise((_)=>{let m=Date.now()+n;if(this._metadata==null)return _({error:Error("metadata was null"),status:"failure"});this._client.export(p,this._metadata,{deadline:m},(b,y)=>{if(b)_({status:"failure",error:b});else _({data:y,status:"success"})})})}}T.GrpcExporterTransport=A;function l(o){return new A(o)}T.createOtlpGrpcExporterTransport=l}
+(T) => {
+  (Object.defineProperty(T, "__esModule", { value: !0 }),
+    (T.createOtlpGrpcExporterTransport =
+      T.GrpcExporterTransport =
+      T.createEmptyMetadata =
+      T.createSslCredentials =
+      T.createInsecureCredentials =
+        void 0));
+  var R = UrR(),
+    a = `OTel-OTLP-Exporter-JavaScript/${R.VERSION}`;
+  function e(o) {
+    if (o) return `${o} ${a}`;
+    return a;
+  }
+  var t = 0,
+    r = 2;
+  function h(o) {
+    return o === "gzip" ? r : t;
+  }
+  function i() {
+    let { credentials: o } = cL();
+    return o.createInsecure();
+  }
+  T.createInsecureCredentials = i;
+  function c(o, n, p) {
+    let { credentials: _ } = cL();
+    return _.createSsl(o, n, p);
+  }
+  T.createSslCredentials = c;
+  function s() {
+    let { Metadata: o } = cL();
+    return new o();
+  }
+  T.createEmptyMetadata = s;
+  class A {
+    _parameters;
+    _client;
+    _metadata;
+    constructor(o) {
+      this._parameters = o;
+    }
+    shutdown() {
+      this._client?.close();
+    }
+    send(o, n) {
+      let p = Buffer.from(o);
+      if (this._client == null) {
+        let { createServiceClientConstructor: _ } = fhR();
+        try {
+          this._metadata = this._parameters.metadata();
+        } catch (b) {
+          return Promise.resolve({ status: "failure", error: b });
+        }
+        let m = _(this._parameters.grpcPath, this._parameters.grpcName);
+        try {
+          this._client = new m(
+            this._parameters.address,
+            this._parameters.credentials(),
+            {
+              "grpc.default_compression_algorithm": h(
+                this._parameters.compression,
+              ),
+              "grpc.primary_user_agent": e(this._parameters.userAgent),
+            },
+          );
+        } catch (b) {
+          return Promise.resolve({ status: "failure", error: b });
+        }
+      }
+      return new Promise((_) => {
+        let m = Date.now() + n;
+        if (this._metadata == null)
+          return _({ error: Error("metadata was null"), status: "failure" });
+        this._client.export(p, this._metadata, { deadline: m }, (b, y) => {
+          if (b) _({ status: "failure", error: b });
+          else _({ data: y, status: "success" });
+        });
+      });
+    }
+  }
+  T.GrpcExporterTransport = A;
+  function l(o) {
+    return new A(o);
+  }
+  T.createOtlpGrpcExporterTransport = l;
+};

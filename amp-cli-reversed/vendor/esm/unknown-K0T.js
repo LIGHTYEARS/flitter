@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: K0T (ESM)
-()=>{s0(),Ks(),rR(),F0T(),gx(),MCT(),uL=DCT.join(RN,"ide")}
+() => {
+  (s0(), Ks(), rR(), F0T(), gx(), MCT(), (uL = DCT.join(RN, "ide")));
+};

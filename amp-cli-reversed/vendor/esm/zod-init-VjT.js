@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: VjT (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

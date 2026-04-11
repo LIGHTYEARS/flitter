@@ -1,7 +1,0 @@
-{
-  "description": "200-turn session for performance tests",
-  "turns": 200,
-  "includeToolCalls": true,
-  "toolCallRatio": 0.2,
-  "contextUsage": 0.95
-}

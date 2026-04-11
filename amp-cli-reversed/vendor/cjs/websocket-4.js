@@ -5,4 +5,693 @@
 // Category: util
 
 // Module: X0T (CJS)
-(T,R)=>{var a=qT("events"),e=qT("https"),t=qT("http"),r=qT("net"),h=qT("tls"),{randomBytes:i,createHash:c}=qT("crypto"),{Duplex:s,Readable:A}=qT("stream"),{URL:l}=qT("url"),o=eO(),n=HCT(),p=WCT(),{isBlob:_}=tO(),{BINARY_TYPES:m,CLOSE_TIMEOUT:b,EMPTY_BUFFER:y,GUID:u,kForOnEventAttribute:P,kListener:k,kStatusCode:x,kWebSocket:f,NOOP:v}=GA(),{EventTarget:{addEventListener:g,removeEventListener:I}}=mpR(),{format:S,parse:O}=V0T(),{toBuffer:j}=pN(),d=Symbol("kAborted"),C=[8,13],L=["CONNECTING","OPEN","CLOSING","CLOSED"],w=/^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;class D extends a{constructor(hT,pT,mT){super();if(this._binaryType=m[0],this._closeCode=1006,this._closeFrameReceived=!1,this._closeFrameSent=!1,this._closeMessage=y,this._closeTimer=null,this._errorEmitted=!1,this._extensions={},this._paused=!1,this._protocol="",this._readyState=D.CONNECTING,this._receiver=null,this._sender=null,this._socket=null,hT!==null){if(this._bufferedAmount=0,this._isServer=!1,this._redirects=0,pT===void 0)pT=[];else if(!Array.isArray(pT))if(typeof pT==="object"&&pT!==null)mT=pT,pT=[];else pT=[pT];B(this,hT,pT,mT)}else this._autoPong=mT.autoPong,this._closeTimeout=mT.closeTimeout,this._isServer=!0}get binaryType(){return this._binaryType}set binaryType(hT){if(!m.includes(hT))return;if(this._binaryType=hT,this._receiver)this._receiver._binaryType=hT}get bufferedAmount(){if(!this._socket)return this._bufferedAmount;return this._socket._writableState.length+this._sender._bufferedBytes}get extensions(){return Object.keys(this._extensions).join()}get isPaused(){return this._paused}get onclose(){return null}get onerror(){return null}get onopen(){return null}get onmessage(){return null}get protocol(){return this._protocol}get readyState(){return this._readyState}get url(){return this._url}setSocket(hT,pT,mT){let yT=new n({allowSynchronousEvents:mT.allowSynchronousEvents,binaryType:this.binaryType,extensions:this._extensions,isServer:this._isServer,maxPayload:mT.maxPayload,skipUTF8Validation:mT.skipUTF8Validation}),uT=new p(hT,this._extensions,mT.generateMask);if(this._receiver=yT,this._sender=uT,this._socket=hT,yT[f]=this,uT[f]=this,hT[f]=this,yT.on("conclude",iT),yT.on("drain",aT),yT.on("error",oT),yT.on("message",tT),yT.on("ping",lT),yT.on("pong",N),uT.onerror=F,hT.setTimeout)hT.setTimeout(0);if(hT.setNoDelay)hT.setNoDelay();if(pT.length>0)hT.unshift(pT);hT.on("close",U),hT.on("data",Z),hT.on("end",X),hT.on("error",rT),this._readyState=D.OPEN,this.emit("open")}emitClose(){if(!this._socket){this._readyState=D.CLOSED,this.emit("close",this._closeCode,this._closeMessage);return}if(this._extensions[o.extensionName])this._extensions[o.extensionName].cleanup();this._receiver.removeAllListeners(),this._readyState=D.CLOSED,this.emit("close",this._closeCode,this._closeMessage)}close(hT,pT){if(this.readyState===D.CLOSED)return;if(this.readyState===D.CONNECTING){W(this,this._req,"WebSocket was closed before the connection was established");return}if(this.readyState===D.CLOSING){if(this._closeFrameSent&&(this._closeFrameReceived||this._receiver._writableState.errorEmitted))this._socket.end();return}this._readyState=D.CLOSING,this._sender.close(hT,pT,!this._isServer,(mT)=>{if(mT)return;if(this._closeFrameSent=!0,this._closeFrameReceived||this._receiver._writableState.errorEmitted)this._socket.end()}),E(this)}pause(){if(this.readyState===D.CONNECTING||this.readyState===D.CLOSED)return;this._paused=!0,this._socket.pause()}ping(hT,pT,mT){if(this.readyState===D.CONNECTING)throw Error("WebSocket is not open: readyState 0 (CONNECTING)");if(typeof hT==="function")mT=hT,hT=pT=void 0;else if(typeof pT==="function")mT=pT,pT=void 0;if(typeof hT==="number")hT=hT.toString();if(this.readyState!==D.OPEN){eT(this,hT,mT);return}if(pT===void 0)pT=!this._isServer;this._sender.ping(hT||y,pT,mT)}pong(hT,pT,mT){if(this.readyState===D.CONNECTING)throw Error("WebSocket is not open: readyState 0 (CONNECTING)");if(typeof hT==="function")mT=hT,hT=pT=void 0;else if(typeof pT==="function")mT=pT,pT=void 0;if(typeof hT==="number")hT=hT.toString();if(this.readyState!==D.OPEN){eT(this,hT,mT);return}if(pT===void 0)pT=!this._isServer;this._sender.pong(hT||y,pT,mT)}resume(){if(this.readyState===D.CONNECTING||this.readyState===D.CLOSED)return;if(this._paused=!1,!this._receiver._writableState.needDrain)this._socket.resume()}send(hT,pT,mT){if(this.readyState===D.CONNECTING)throw Error("WebSocket is not open: readyState 0 (CONNECTING)");if(typeof pT==="function")mT=pT,pT={};if(typeof hT==="number")hT=hT.toString();if(this.readyState!==D.OPEN){eT(this,hT,mT);return}let yT={binary:typeof hT!=="string",mask:!this._isServer,compress:!0,fin:!0,...pT};if(!this._extensions[o.extensionName])yT.compress=!1;this._sender.send(hT||y,yT,mT)}terminate(){if(this.readyState===D.CLOSED)return;if(this.readyState===D.CONNECTING){W(this,this._req,"WebSocket was closed before the connection was established");return}if(this._socket)this._readyState=D.CLOSING,this._socket.destroy()}}Object.defineProperty(D,"CONNECTING",{enumerable:!0,value:L.indexOf("CONNECTING")}),Object.defineProperty(D.prototype,"CONNECTING",{enumerable:!0,value:L.indexOf("CONNECTING")}),Object.defineProperty(D,"OPEN",{enumerable:!0,value:L.indexOf("OPEN")}),Object.defineProperty(D.prototype,"OPEN",{enumerable:!0,value:L.indexOf("OPEN")}),Object.defineProperty(D,"CLOSING",{enumerable:!0,value:L.indexOf("CLOSING")}),Object.defineProperty(D.prototype,"CLOSING",{enumerable:!0,value:L.indexOf("CLOSING")}),Object.defineProperty(D,"CLOSED",{enumerable:!0,value:L.indexOf("CLOSED")}),Object.defineProperty(D.prototype,"CLOSED",{enumerable:!0,value:L.indexOf("CLOSED")}),["binaryType","bufferedAmount","extensions","isPaused","protocol","readyState","url"].forEach((hT)=>{Object.defineProperty(D.prototype,hT,{enumerable:!0})}),["open","error","close","message"].forEach((hT)=>{Object.defineProperty(D.prototype,`on${hT}`,{enumerable:!0,get(){for(let pT of this.listeners(hT))if(pT[P])return pT[k];return null},set(pT){for(let mT of this.listeners(hT))if(mT[P]){this.removeListener(hT,mT);break}if(typeof pT!=="function")return;this.addEventListener(hT,pT,{[P]:!0})}})}),D.prototype.addEventListener=g,D.prototype.removeEventListener=I,R.exports=D;function B(hT,pT,mT,yT){let uT={allowSynchronousEvents:!0,autoPong:!0,closeTimeout:b,protocolVersion:C[1],maxPayload:104857600,skipUTF8Validation:!1,perMessageDeflate:!0,followRedirects:!1,maxRedirects:10,...yT,socketPath:void 0,hostname:void 0,protocol:void 0,timeout:void 0,method:"GET",host:void 0,path:void 0,port:void 0};if(hT._autoPong=uT.autoPong,hT._closeTimeout=uT.closeTimeout,!C.includes(uT.protocolVersion))throw RangeError(`Unsupported protocol version: ${uT.protocolVersion} (supported versions: ${C.join(", ")})`);let bT;if(pT instanceof l)bT=pT;else try{bT=new l(pT)}catch{throw SyntaxError(`Invalid URL: ${pT}`)}if(bT.protocol==="http:")bT.protocol="ws:";else if(bT.protocol==="https:")bT.protocol="wss:";hT._url=bT.href;let jT=bT.protocol==="wss:",fT=bT.protocol==="ws+unix:",MT;if(bT.protocol!=="ws:"&&!jT&&!fT)MT=`The URL's protocol must be one of "ws:", "wss:", "http:", "https:", or "ws+unix:"`;else if(fT&&!bT.pathname)MT="The URL's pathname is empty";else if(bT.hash)MT="The URL contains a fragment identifier";if(MT){let NT=SyntaxError(MT);if(hT._redirects===0)throw NT;else{M(hT,NT);return}}let UT=jT?443:80,QT=i(16).toString("base64"),hR=jT?e.request:t.request,cR=new Set,kT;if(uT.createConnection=uT.createConnection||(jT?Q:V),uT.defaultPort=uT.defaultPort||UT,uT.port=bT.port||UT,uT.host=bT.hostname.startsWith("[")?bT.hostname.slice(1,-1):bT.hostname,uT.headers={...uT.headers,"Sec-WebSocket-Version":uT.protocolVersion,"Sec-WebSocket-Key":QT,Connection:"Upgrade",Upgrade:"websocket"},uT.path=bT.pathname+bT.search,uT.timeout=uT.handshakeTimeout,uT.perMessageDeflate)kT=new o({...uT.perMessageDeflate,isServer:!1,maxPayload:uT.maxPayload}),uT.headers["Sec-WebSocket-Extensions"]=S({[o.extensionName]:kT.offer()});if(mT.length){for(let NT of mT){if(typeof NT!=="string"||!w.test(NT)||cR.has(NT))throw SyntaxError("An invalid or duplicated subprotocol was specified");cR.add(NT)}uT.headers["Sec-WebSocket-Protocol"]=mT.join(",")}if(uT.origin)if(uT.protocolVersion<13)uT.headers["Sec-WebSocket-Origin"]=uT.origin;else uT.headers.Origin=uT.origin;if(bT.username||bT.password)uT.auth=`${bT.username}:${bT.password}`;if(fT){let NT=uT.path.split(":");uT.socketPath=NT[0],uT.path=NT[1]}let GT;if(uT.followRedirects){if(hT._redirects===0){hT._originalIpc=fT,hT._originalSecure=jT,hT._originalHostOrSocketPath=fT?uT.socketPath:bT.host;let NT=yT&&yT.headers;if(yT={...yT,headers:{}},NT)for(let[KT,$T]of Object.entries(NT))yT.headers[KT.toLowerCase()]=$T}else if(hT.listenerCount("redirect")===0){let NT=fT?hT._originalIpc?uT.socketPath===hT._originalHostOrSocketPath:!1:hT._originalIpc?!1:bT.host===hT._originalHostOrSocketPath;if(!NT||hT._originalSecure&&!jT){if(delete uT.headers.authorization,delete uT.headers.cookie,!NT)delete uT.headers.host;uT.auth=void 0}}if(uT.auth&&!yT.headers.authorization)yT.headers.authorization="Basic "+Buffer.from(uT.auth).toString("base64");if(GT=hT._req=hR(uT),hT._redirects)hT.emit("redirect",hT.url,GT)}else GT=hT._req=hR(uT);if(uT.timeout)GT.on("timeout",()=>{W(hT,GT,"Opening handshake has timed out")});if(GT.on("error",(NT)=>{if(GT===null||GT[d])return;GT=hT._req=null,M(hT,NT)}),GT.on("response",(NT)=>{let KT=NT.headers.location,$T=NT.statusCode;if(KT&&uT.followRedirects&&$T>=300&&$T<400){if(++hT._redirects>uT.maxRedirects){W(hT,GT,"Maximum redirects exceeded");return}GT.abort();let OT;try{OT=new l(KT,pT)}catch(_T){let WT=SyntaxError(`Invalid URL: ${KT}`);M(hT,WT);return}B(hT,OT,mT,yT)}else if(!hT.emit("unexpected-response",GT,NT))W(hT,GT,`Unexpected server response: ${NT.statusCode}`)}),GT.on("upgrade",(NT,KT,$T)=>{if(hT.emit("upgrade",NT),hT.readyState!==D.CONNECTING)return;GT=hT._req=null;let OT=NT.headers.upgrade;if(OT===void 0||OT.toLowerCase()!=="websocket"){W(hT,KT,"Invalid Upgrade header");return}let _T=c("sha1").update(QT+u).digest("base64");if(NT.headers["sec-websocket-accept"]!==_T){W(hT,KT,"Invalid Sec-WebSocket-Accept header");return}let WT=NT.headers["sec-websocket-protocol"],iR;if(WT!==void 0){if(!cR.size)iR="Server sent a subprotocol but none was requested";else if(!cR.has(WT))iR="Server sent an invalid subprotocol"}else if(cR.size)iR="Server sent no subprotocol";if(iR){W(hT,KT,iR);return}if(WT)hT._protocol=WT;let nT=NT.headers["sec-websocket-extensions"];if(nT!==void 0){if(!kT){W(hT,KT,"Server sent a Sec-WebSocket-Extensions header but no extension was requested");return}let JT;try{JT=O(nT)}catch(ST){W(hT,KT,"Invalid Sec-WebSocket-Extensions header");return}let RR=Object.keys(JT);if(RR.length!==1||RR[0]!==o.extensionName){W(hT,KT,"Server indicated an extension that was not requested");return}try{kT.accept(JT[o.extensionName])}catch(ST){W(hT,KT,"Invalid Sec-WebSocket-Extensions header");return}hT._extensions[o.extensionName]=kT}hT.setSocket(KT,$T,{allowSynchronousEvents:uT.allowSynchronousEvents,generateMask:uT.generateMask,maxPayload:uT.maxPayload,skipUTF8Validation:uT.skipUTF8Validation})}),uT.finishRequest)uT.finishRequest(GT,hT);else GT.end()}function M(hT,pT){hT._readyState=D.CLOSING,hT._errorEmitted=!0,hT.emit("error",pT),hT.emitClose()}function V(hT){return hT.path=hT.socketPath,r.connect(hT)}function Q(hT){if(hT.path=void 0,!hT.servername&&hT.servername!=="")hT.servername=r.isIP(hT.host)?"":hT.host;return h.connect(hT)}function W(hT,pT,mT){hT._readyState=D.CLOSING;let yT=Error(mT);if(Error.captureStackTrace(yT,W),pT.setHeader){if(pT[d]=!0,pT.abort(),pT.socket&&!pT.socket.destroyed)pT.socket.destroy();process.nextTick(M,hT,yT)}else pT.destroy(yT),pT.once("error",hT.emit.bind(hT,"error")),pT.once("close",hT.emitClose.bind(hT))}function eT(hT,pT,mT){if(pT){let yT=_(pT)?pT.size:j(pT).length;if(hT._socket)hT._sender._bufferedBytes+=yT;else hT._bufferedAmount+=yT}if(mT){let yT=Error(`WebSocket is not open: readyState ${hT.readyState} (${L[hT.readyState]})`);process.nextTick(mT,yT)}}function iT(hT,pT){let mT=this[f];if(mT._closeFrameReceived=!0,mT._closeMessage=pT,mT._closeCode=hT,mT._socket[f]===void 0)return;if(mT._socket.removeListener("data",Z),process.nextTick(q,mT._socket),hT===1005)mT.close();else mT.close(hT,pT)}function aT(){let hT=this[f];if(!hT.isPaused)hT._socket.resume()}function oT(hT){let pT=this[f];if(pT._socket[f]!==void 0)pT._socket.removeListener("data",Z),process.nextTick(q,pT._socket),pT.close(hT[x]);if(!pT._errorEmitted)pT._errorEmitted=!0,pT.emit("error",hT)}function TT(){this[f].emitClose()}function tT(hT,pT){this[f].emit("message",hT,pT)}function lT(hT){let pT=this[f];if(pT._autoPong)pT.pong(hT,!this._isServer,v);pT.emit("ping",hT)}function N(hT){this[f].emit("pong",hT)}function q(hT){hT.resume()}function F(hT){let pT=this[f];if(pT.readyState===D.CLOSED)return;if(pT.readyState===D.OPEN)pT._readyState=D.CLOSING,E(pT);if(this._socket.end(),!pT._errorEmitted)pT._errorEmitted=!0,pT.emit("error",hT)}function E(hT){hT._closeTimer=setTimeout(hT._socket.destroy.bind(hT._socket),hT._closeTimeout)}function U(){let hT=this[f];if(this.removeListener("close",U),this.removeListener("data",Z),this.removeListener("end",X),hT._readyState=D.CLOSING,!this._readableState.endEmitted&&!hT._closeFrameReceived&&!hT._receiver._writableState.errorEmitted&&this._readableState.length!==0){let pT=this.read(this._readableState.length);hT._receiver.write(pT)}if(hT._receiver.end(),this[f]=void 0,clearTimeout(hT._closeTimer),hT._receiver._writableState.finished||hT._receiver._writableState.errorEmitted)hT.emitClose();else hT._receiver.on("error",TT),hT._receiver.on("finish",TT)}function Z(hT){if(!this[f]._receiver.write(hT))this.pause()}function X(){let hT=this[f];hT._readyState=D.CLOSING,hT._receiver.end(),this.end()}function rT(){let hT=this[f];if(this.removeListener("error",rT),this.on("error",v),hT)hT._readyState=D.CLOSING,this.destroy()}}
+(T, R) => {
+  var a = qT("events"),
+    e = qT("https"),
+    t = qT("http"),
+    r = qT("net"),
+    h = qT("tls"),
+    { randomBytes: i, createHash: c } = qT("crypto"),
+    { Duplex: s, Readable: A } = qT("stream"),
+    { URL: l } = qT("url"),
+    o = eO(),
+    n = HCT(),
+    p = WCT(),
+    { isBlob: _ } = tO(),
+    {
+      BINARY_TYPES: m,
+      CLOSE_TIMEOUT: b,
+      EMPTY_BUFFER: y,
+      GUID: u,
+      kForOnEventAttribute: P,
+      kListener: k,
+      kStatusCode: x,
+      kWebSocket: f,
+      NOOP: v,
+    } = GA(),
+    {
+      EventTarget: { addEventListener: g, removeEventListener: I },
+    } = mpR(),
+    { format: S, parse: O } = V0T(),
+    { toBuffer: j } = pN(),
+    d = Symbol("kAborted"),
+    C = [8, 13],
+    L = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"],
+    w = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
+  class D extends a {
+    constructor(hT, pT, mT) {
+      super();
+      if (
+        ((this._binaryType = m[0]),
+        (this._closeCode = 1006),
+        (this._closeFrameReceived = !1),
+        (this._closeFrameSent = !1),
+        (this._closeMessage = y),
+        (this._closeTimer = null),
+        (this._errorEmitted = !1),
+        (this._extensions = {}),
+        (this._paused = !1),
+        (this._protocol = ""),
+        (this._readyState = D.CONNECTING),
+        (this._receiver = null),
+        (this._sender = null),
+        (this._socket = null),
+        hT !== null)
+      ) {
+        if (
+          ((this._bufferedAmount = 0),
+          (this._isServer = !1),
+          (this._redirects = 0),
+          pT === void 0)
+        )
+          pT = [];
+        else if (!Array.isArray(pT))
+          if (typeof pT === "object" && pT !== null) ((mT = pT), (pT = []));
+          else pT = [pT];
+        B(this, hT, pT, mT);
+      } else
+        ((this._autoPong = mT.autoPong),
+          (this._closeTimeout = mT.closeTimeout),
+          (this._isServer = !0));
+    }
+    get binaryType() {
+      return this._binaryType;
+    }
+    set binaryType(hT) {
+      if (!m.includes(hT)) return;
+      if (((this._binaryType = hT), this._receiver))
+        this._receiver._binaryType = hT;
+    }
+    get bufferedAmount() {
+      if (!this._socket) return this._bufferedAmount;
+      return this._socket._writableState.length + this._sender._bufferedBytes;
+    }
+    get extensions() {
+      return Object.keys(this._extensions).join();
+    }
+    get isPaused() {
+      return this._paused;
+    }
+    get onclose() {
+      return null;
+    }
+    get onerror() {
+      return null;
+    }
+    get onopen() {
+      return null;
+    }
+    get onmessage() {
+      return null;
+    }
+    get protocol() {
+      return this._protocol;
+    }
+    get readyState() {
+      return this._readyState;
+    }
+    get url() {
+      return this._url;
+    }
+    setSocket(hT, pT, mT) {
+      let yT = new n({
+          allowSynchronousEvents: mT.allowSynchronousEvents,
+          binaryType: this.binaryType,
+          extensions: this._extensions,
+          isServer: this._isServer,
+          maxPayload: mT.maxPayload,
+          skipUTF8Validation: mT.skipUTF8Validation,
+        }),
+        uT = new p(hT, this._extensions, mT.generateMask);
+      if (
+        ((this._receiver = yT),
+        (this._sender = uT),
+        (this._socket = hT),
+        (yT[f] = this),
+        (uT[f] = this),
+        (hT[f] = this),
+        yT.on("conclude", iT),
+        yT.on("drain", aT),
+        yT.on("error", oT),
+        yT.on("message", tT),
+        yT.on("ping", lT),
+        yT.on("pong", N),
+        (uT.onerror = F),
+        hT.setTimeout)
+      )
+        hT.setTimeout(0);
+      if (hT.setNoDelay) hT.setNoDelay();
+      if (pT.length > 0) hT.unshift(pT);
+      (hT.on("close", U),
+        hT.on("data", Z),
+        hT.on("end", X),
+        hT.on("error", rT),
+        (this._readyState = D.OPEN),
+        this.emit("open"));
+    }
+    emitClose() {
+      if (!this._socket) {
+        ((this._readyState = D.CLOSED),
+          this.emit("close", this._closeCode, this._closeMessage));
+        return;
+      }
+      if (this._extensions[o.extensionName])
+        this._extensions[o.extensionName].cleanup();
+      (this._receiver.removeAllListeners(),
+        (this._readyState = D.CLOSED),
+        this.emit("close", this._closeCode, this._closeMessage));
+    }
+    close(hT, pT) {
+      if (this.readyState === D.CLOSED) return;
+      if (this.readyState === D.CONNECTING) {
+        W(
+          this,
+          this._req,
+          "WebSocket was closed before the connection was established",
+        );
+        return;
+      }
+      if (this.readyState === D.CLOSING) {
+        if (
+          this._closeFrameSent &&
+          (this._closeFrameReceived ||
+            this._receiver._writableState.errorEmitted)
+        )
+          this._socket.end();
+        return;
+      }
+      ((this._readyState = D.CLOSING),
+        this._sender.close(hT, pT, !this._isServer, (mT) => {
+          if (mT) return;
+          if (
+            ((this._closeFrameSent = !0),
+            this._closeFrameReceived ||
+              this._receiver._writableState.errorEmitted)
+          )
+            this._socket.end();
+        }),
+        E(this));
+    }
+    pause() {
+      if (this.readyState === D.CONNECTING || this.readyState === D.CLOSED)
+        return;
+      ((this._paused = !0), this._socket.pause());
+    }
+    ping(hT, pT, mT) {
+      if (this.readyState === D.CONNECTING)
+        throw Error("WebSocket is not open: readyState 0 (CONNECTING)");
+      if (typeof hT === "function") ((mT = hT), (hT = pT = void 0));
+      else if (typeof pT === "function") ((mT = pT), (pT = void 0));
+      if (typeof hT === "number") hT = hT.toString();
+      if (this.readyState !== D.OPEN) {
+        eT(this, hT, mT);
+        return;
+      }
+      if (pT === void 0) pT = !this._isServer;
+      this._sender.ping(hT || y, pT, mT);
+    }
+    pong(hT, pT, mT) {
+      if (this.readyState === D.CONNECTING)
+        throw Error("WebSocket is not open: readyState 0 (CONNECTING)");
+      if (typeof hT === "function") ((mT = hT), (hT = pT = void 0));
+      else if (typeof pT === "function") ((mT = pT), (pT = void 0));
+      if (typeof hT === "number") hT = hT.toString();
+      if (this.readyState !== D.OPEN) {
+        eT(this, hT, mT);
+        return;
+      }
+      if (pT === void 0) pT = !this._isServer;
+      this._sender.pong(hT || y, pT, mT);
+    }
+    resume() {
+      if (this.readyState === D.CONNECTING || this.readyState === D.CLOSED)
+        return;
+      if (((this._paused = !1), !this._receiver._writableState.needDrain))
+        this._socket.resume();
+    }
+    send(hT, pT, mT) {
+      if (this.readyState === D.CONNECTING)
+        throw Error("WebSocket is not open: readyState 0 (CONNECTING)");
+      if (typeof pT === "function") ((mT = pT), (pT = {}));
+      if (typeof hT === "number") hT = hT.toString();
+      if (this.readyState !== D.OPEN) {
+        eT(this, hT, mT);
+        return;
+      }
+      let yT = {
+        binary: typeof hT !== "string",
+        mask: !this._isServer,
+        compress: !0,
+        fin: !0,
+        ...pT,
+      };
+      if (!this._extensions[o.extensionName]) yT.compress = !1;
+      this._sender.send(hT || y, yT, mT);
+    }
+    terminate() {
+      if (this.readyState === D.CLOSED) return;
+      if (this.readyState === D.CONNECTING) {
+        W(
+          this,
+          this._req,
+          "WebSocket was closed before the connection was established",
+        );
+        return;
+      }
+      if (this._socket)
+        ((this._readyState = D.CLOSING), this._socket.destroy());
+    }
+  }
+  (Object.defineProperty(D, "CONNECTING", {
+    enumerable: !0,
+    value: L.indexOf("CONNECTING"),
+  }),
+    Object.defineProperty(D.prototype, "CONNECTING", {
+      enumerable: !0,
+      value: L.indexOf("CONNECTING"),
+    }),
+    Object.defineProperty(D, "OPEN", {
+      enumerable: !0,
+      value: L.indexOf("OPEN"),
+    }),
+    Object.defineProperty(D.prototype, "OPEN", {
+      enumerable: !0,
+      value: L.indexOf("OPEN"),
+    }),
+    Object.defineProperty(D, "CLOSING", {
+      enumerable: !0,
+      value: L.indexOf("CLOSING"),
+    }),
+    Object.defineProperty(D.prototype, "CLOSING", {
+      enumerable: !0,
+      value: L.indexOf("CLOSING"),
+    }),
+    Object.defineProperty(D, "CLOSED", {
+      enumerable: !0,
+      value: L.indexOf("CLOSED"),
+    }),
+    Object.defineProperty(D.prototype, "CLOSED", {
+      enumerable: !0,
+      value: L.indexOf("CLOSED"),
+    }),
+    [
+      "binaryType",
+      "bufferedAmount",
+      "extensions",
+      "isPaused",
+      "protocol",
+      "readyState",
+      "url",
+    ].forEach((hT) => {
+      Object.defineProperty(D.prototype, hT, { enumerable: !0 });
+    }),
+    ["open", "error", "close", "message"].forEach((hT) => {
+      Object.defineProperty(D.prototype, `on${hT}`, {
+        enumerable: !0,
+        get() {
+          for (let pT of this.listeners(hT)) if (pT[P]) return pT[k];
+          return null;
+        },
+        set(pT) {
+          for (let mT of this.listeners(hT))
+            if (mT[P]) {
+              this.removeListener(hT, mT);
+              break;
+            }
+          if (typeof pT !== "function") return;
+          this.addEventListener(hT, pT, { [P]: !0 });
+        },
+      });
+    }),
+    (D.prototype.addEventListener = g),
+    (D.prototype.removeEventListener = I),
+    (R.exports = D));
+  function B(hT, pT, mT, yT) {
+    let uT = {
+      allowSynchronousEvents: !0,
+      autoPong: !0,
+      closeTimeout: b,
+      protocolVersion: C[1],
+      maxPayload: 104857600,
+      skipUTF8Validation: !1,
+      perMessageDeflate: !0,
+      followRedirects: !1,
+      maxRedirects: 10,
+      ...yT,
+      socketPath: void 0,
+      hostname: void 0,
+      protocol: void 0,
+      timeout: void 0,
+      method: "GET",
+      host: void 0,
+      path: void 0,
+      port: void 0,
+    };
+    if (
+      ((hT._autoPong = uT.autoPong),
+      (hT._closeTimeout = uT.closeTimeout),
+      !C.includes(uT.protocolVersion))
+    )
+      throw RangeError(
+        `Unsupported protocol version: ${uT.protocolVersion} (supported versions: ${C.join(", ")})`,
+      );
+    let bT;
+    if (pT instanceof l) bT = pT;
+    else
+      try {
+        bT = new l(pT);
+      } catch {
+        throw SyntaxError(`Invalid URL: ${pT}`);
+      }
+    if (bT.protocol === "http:") bT.protocol = "ws:";
+    else if (bT.protocol === "https:") bT.protocol = "wss:";
+    hT._url = bT.href;
+    let jT = bT.protocol === "wss:",
+      fT = bT.protocol === "ws+unix:",
+      MT;
+    if (bT.protocol !== "ws:" && !jT && !fT)
+      MT = `The URL's protocol must be one of "ws:", "wss:", "http:", "https:", or "ws+unix:"`;
+    else if (fT && !bT.pathname) MT = "The URL's pathname is empty";
+    else if (bT.hash) MT = "The URL contains a fragment identifier";
+    if (MT) {
+      let NT = SyntaxError(MT);
+      if (hT._redirects === 0) throw NT;
+      else {
+        M(hT, NT);
+        return;
+      }
+    }
+    let UT = jT ? 443 : 80,
+      QT = i(16).toString("base64"),
+      hR = jT ? e.request : t.request,
+      cR = new Set(),
+      kT;
+    if (
+      ((uT.createConnection = uT.createConnection || (jT ? Q : V)),
+      (uT.defaultPort = uT.defaultPort || UT),
+      (uT.port = bT.port || UT),
+      (uT.host = bT.hostname.startsWith("[")
+        ? bT.hostname.slice(1, -1)
+        : bT.hostname),
+      (uT.headers = {
+        ...uT.headers,
+        "Sec-WebSocket-Version": uT.protocolVersion,
+        "Sec-WebSocket-Key": QT,
+        Connection: "Upgrade",
+        Upgrade: "websocket",
+      }),
+      (uT.path = bT.pathname + bT.search),
+      (uT.timeout = uT.handshakeTimeout),
+      uT.perMessageDeflate)
+    )
+      ((kT = new o({
+        ...uT.perMessageDeflate,
+        isServer: !1,
+        maxPayload: uT.maxPayload,
+      })),
+        (uT.headers["Sec-WebSocket-Extensions"] = S({
+          [o.extensionName]: kT.offer(),
+        })));
+    if (mT.length) {
+      for (let NT of mT) {
+        if (typeof NT !== "string" || !w.test(NT) || cR.has(NT))
+          throw SyntaxError(
+            "An invalid or duplicated subprotocol was specified",
+          );
+        cR.add(NT);
+      }
+      uT.headers["Sec-WebSocket-Protocol"] = mT.join(",");
+    }
+    if (uT.origin)
+      if (uT.protocolVersion < 13)
+        uT.headers["Sec-WebSocket-Origin"] = uT.origin;
+      else uT.headers.Origin = uT.origin;
+    if (bT.username || bT.password) uT.auth = `${bT.username}:${bT.password}`;
+    if (fT) {
+      let NT = uT.path.split(":");
+      ((uT.socketPath = NT[0]), (uT.path = NT[1]));
+    }
+    let GT;
+    if (uT.followRedirects) {
+      if (hT._redirects === 0) {
+        ((hT._originalIpc = fT),
+          (hT._originalSecure = jT),
+          (hT._originalHostOrSocketPath = fT ? uT.socketPath : bT.host));
+        let NT = yT && yT.headers;
+        if (((yT = { ...yT, headers: {} }), NT))
+          for (let [KT, $T] of Object.entries(NT))
+            yT.headers[KT.toLowerCase()] = $T;
+      } else if (hT.listenerCount("redirect") === 0) {
+        let NT = fT
+          ? hT._originalIpc
+            ? uT.socketPath === hT._originalHostOrSocketPath
+            : !1
+          : hT._originalIpc
+            ? !1
+            : bT.host === hT._originalHostOrSocketPath;
+        if (!NT || (hT._originalSecure && !jT)) {
+          if ((delete uT.headers.authorization, delete uT.headers.cookie, !NT))
+            delete uT.headers.host;
+          uT.auth = void 0;
+        }
+      }
+      if (uT.auth && !yT.headers.authorization)
+        yT.headers.authorization =
+          "Basic " + Buffer.from(uT.auth).toString("base64");
+      if (((GT = hT._req = hR(uT)), hT._redirects))
+        hT.emit("redirect", hT.url, GT);
+    } else GT = hT._req = hR(uT);
+    if (uT.timeout)
+      GT.on("timeout", () => {
+        W(hT, GT, "Opening handshake has timed out");
+      });
+    if (
+      (GT.on("error", (NT) => {
+        if (GT === null || GT[d]) return;
+        ((GT = hT._req = null), M(hT, NT));
+      }),
+      GT.on("response", (NT) => {
+        let KT = NT.headers.location,
+          $T = NT.statusCode;
+        if (KT && uT.followRedirects && $T >= 300 && $T < 400) {
+          if (++hT._redirects > uT.maxRedirects) {
+            W(hT, GT, "Maximum redirects exceeded");
+            return;
+          }
+          GT.abort();
+          let OT;
+          try {
+            OT = new l(KT, pT);
+          } catch (_T) {
+            let WT = SyntaxError(`Invalid URL: ${KT}`);
+            M(hT, WT);
+            return;
+          }
+          B(hT, OT, mT, yT);
+        } else if (!hT.emit("unexpected-response", GT, NT))
+          W(hT, GT, `Unexpected server response: ${NT.statusCode}`);
+      }),
+      GT.on("upgrade", (NT, KT, $T) => {
+        if ((hT.emit("upgrade", NT), hT.readyState !== D.CONNECTING)) return;
+        GT = hT._req = null;
+        let OT = NT.headers.upgrade;
+        if (OT === void 0 || OT.toLowerCase() !== "websocket") {
+          W(hT, KT, "Invalid Upgrade header");
+          return;
+        }
+        let _T = c("sha1")
+          .update(QT + u)
+          .digest("base64");
+        if (NT.headers["sec-websocket-accept"] !== _T) {
+          W(hT, KT, "Invalid Sec-WebSocket-Accept header");
+          return;
+        }
+        let WT = NT.headers["sec-websocket-protocol"],
+          iR;
+        if (WT !== void 0) {
+          if (!cR.size) iR = "Server sent a subprotocol but none was requested";
+          else if (!cR.has(WT)) iR = "Server sent an invalid subprotocol";
+        } else if (cR.size) iR = "Server sent no subprotocol";
+        if (iR) {
+          W(hT, KT, iR);
+          return;
+        }
+        if (WT) hT._protocol = WT;
+        let nT = NT.headers["sec-websocket-extensions"];
+        if (nT !== void 0) {
+          if (!kT) {
+            W(
+              hT,
+              KT,
+              "Server sent a Sec-WebSocket-Extensions header but no extension was requested",
+            );
+            return;
+          }
+          let JT;
+          try {
+            JT = O(nT);
+          } catch (ST) {
+            W(hT, KT, "Invalid Sec-WebSocket-Extensions header");
+            return;
+          }
+          let RR = Object.keys(JT);
+          if (RR.length !== 1 || RR[0] !== o.extensionName) {
+            W(hT, KT, "Server indicated an extension that was not requested");
+            return;
+          }
+          try {
+            kT.accept(JT[o.extensionName]);
+          } catch (ST) {
+            W(hT, KT, "Invalid Sec-WebSocket-Extensions header");
+            return;
+          }
+          hT._extensions[o.extensionName] = kT;
+        }
+        hT.setSocket(KT, $T, {
+          allowSynchronousEvents: uT.allowSynchronousEvents,
+          generateMask: uT.generateMask,
+          maxPayload: uT.maxPayload,
+          skipUTF8Validation: uT.skipUTF8Validation,
+        });
+      }),
+      uT.finishRequest)
+    )
+      uT.finishRequest(GT, hT);
+    else GT.end();
+  }
+  function M(hT, pT) {
+    ((hT._readyState = D.CLOSING),
+      (hT._errorEmitted = !0),
+      hT.emit("error", pT),
+      hT.emitClose());
+  }
+  function V(hT) {
+    return ((hT.path = hT.socketPath), r.connect(hT));
+  }
+  function Q(hT) {
+    if (((hT.path = void 0), !hT.servername && hT.servername !== ""))
+      hT.servername = r.isIP(hT.host) ? "" : hT.host;
+    return h.connect(hT);
+  }
+  function W(hT, pT, mT) {
+    hT._readyState = D.CLOSING;
+    let yT = Error(mT);
+    if ((Error.captureStackTrace(yT, W), pT.setHeader)) {
+      if (((pT[d] = !0), pT.abort(), pT.socket && !pT.socket.destroyed))
+        pT.socket.destroy();
+      process.nextTick(M, hT, yT);
+    } else
+      (pT.destroy(yT),
+        pT.once("error", hT.emit.bind(hT, "error")),
+        pT.once("close", hT.emitClose.bind(hT)));
+  }
+  function eT(hT, pT, mT) {
+    if (pT) {
+      let yT = _(pT) ? pT.size : j(pT).length;
+      if (hT._socket) hT._sender._bufferedBytes += yT;
+      else hT._bufferedAmount += yT;
+    }
+    if (mT) {
+      let yT = Error(
+        `WebSocket is not open: readyState ${hT.readyState} (${L[hT.readyState]})`,
+      );
+      process.nextTick(mT, yT);
+    }
+  }
+  function iT(hT, pT) {
+    let mT = this[f];
+    if (
+      ((mT._closeFrameReceived = !0),
+      (mT._closeMessage = pT),
+      (mT._closeCode = hT),
+      mT._socket[f] === void 0)
+    )
+      return;
+    if (
+      (mT._socket.removeListener("data", Z),
+      process.nextTick(q, mT._socket),
+      hT === 1005)
+    )
+      mT.close();
+    else mT.close(hT, pT);
+  }
+  function aT() {
+    let hT = this[f];
+    if (!hT.isPaused) hT._socket.resume();
+  }
+  function oT(hT) {
+    let pT = this[f];
+    if (pT._socket[f] !== void 0)
+      (pT._socket.removeListener("data", Z),
+        process.nextTick(q, pT._socket),
+        pT.close(hT[x]));
+    if (!pT._errorEmitted) ((pT._errorEmitted = !0), pT.emit("error", hT));
+  }
+  function TT() {
+    this[f].emitClose();
+  }
+  function tT(hT, pT) {
+    this[f].emit("message", hT, pT);
+  }
+  function lT(hT) {
+    let pT = this[f];
+    if (pT._autoPong) pT.pong(hT, !this._isServer, v);
+    pT.emit("ping", hT);
+  }
+  function N(hT) {
+    this[f].emit("pong", hT);
+  }
+  function q(hT) {
+    hT.resume();
+  }
+  function F(hT) {
+    let pT = this[f];
+    if (pT.readyState === D.CLOSED) return;
+    if (pT.readyState === D.OPEN) ((pT._readyState = D.CLOSING), E(pT));
+    if ((this._socket.end(), !pT._errorEmitted))
+      ((pT._errorEmitted = !0), pT.emit("error", hT));
+  }
+  function E(hT) {
+    hT._closeTimer = setTimeout(
+      hT._socket.destroy.bind(hT._socket),
+      hT._closeTimeout,
+    );
+  }
+  function U() {
+    let hT = this[f];
+    if (
+      (this.removeListener("close", U),
+      this.removeListener("data", Z),
+      this.removeListener("end", X),
+      (hT._readyState = D.CLOSING),
+      !this._readableState.endEmitted &&
+        !hT._closeFrameReceived &&
+        !hT._receiver._writableState.errorEmitted &&
+        this._readableState.length !== 0)
+    ) {
+      let pT = this.read(this._readableState.length);
+      hT._receiver.write(pT);
+    }
+    if (
+      (hT._receiver.end(),
+      (this[f] = void 0),
+      clearTimeout(hT._closeTimer),
+      hT._receiver._writableState.finished ||
+        hT._receiver._writableState.errorEmitted)
+    )
+      hT.emitClose();
+    else (hT._receiver.on("error", TT), hT._receiver.on("finish", TT));
+  }
+  function Z(hT) {
+    if (!this[f]._receiver.write(hT)) this.pause();
+  }
+  function X() {
+    let hT = this[f];
+    ((hT._readyState = D.CLOSING), hT._receiver.end(), this.end());
+  }
+  function rT() {
+    let hT = this[f];
+    if ((this.removeListener("error", rT), this.on("error", v), hT))
+      ((hT._readyState = D.CLOSING), this.destroy());
+  }
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: TO (ESM)
-()=>{Qt()}
+() => {
+  Qt();
+};

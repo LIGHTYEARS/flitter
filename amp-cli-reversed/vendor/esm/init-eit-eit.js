@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: na (ESM)
-()=>{EiT(),EiT(),Qh=nCT}
+() => {
+  (EiT(), EiT(), (Qh = nCT));
+};

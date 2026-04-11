@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: pET (ESM)
-()=>{RlR()}
+() => {
+  RlR();
+};

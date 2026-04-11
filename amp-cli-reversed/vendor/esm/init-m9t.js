@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: YuR (ESM)
-()=>{MMT=c0(M9T(),1),DMT=c0(VuR(),1)}
+() => {
+  ((MMT = c0(M9T(), 1)), (DMT = c0(VuR(), 1)));
+};

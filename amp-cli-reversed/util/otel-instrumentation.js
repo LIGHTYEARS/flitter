@@ -4,24 +4,281 @@
 // Exports: dBR, EBR, to, add, function, CBR, LBR, MBR, CmT, FNR, dX, GNR, T5T, iUR, cUR, wUR, az, WUR, zmT, Wb
 // Category: util
 
-;await new Promise((N)=>setTimeout(N,Math.min(aT,SmT)));let TT="",tT=-1,lT=aT+5000;while(v.length>0||TT.length!==tT){if(e.aborted)break;if(Date.now()-oT>lT){J.debug("REPL drainOutput timeout exceeded",{elapsed:Date.now()-oT});break}tT=TT.length;while(v.length>0)TT+=v.shift();await new Promise((N)=>setTimeout(N,SmT))}return g=0,TT},C=[],L=[],w=[],D="",B="",M=!1,V=0,Q=o??BBR,W=!1;try{let aT=await d(Q);if(S&&!aT){a.next({status:"error",progress:{threadID:p},error:{message:`The REPL process "${i}" exited immediately with code ${O} without producing any output. Check that the binary exists and the arguments are correct.`}}),a.complete();return}if(aT)C.push({role:"user",content:`[REPL started. Initial output:]
-${aT}`});else C.push({role:"user",content:"[REPL started. Awaiting your input.]"});let oT=await R.configService.getLatest(e),{model:TT}=pn(oT.settings,R.thread),tT=Xt(TT),lT=Ys(TT),N=Math.floor(lT*NBR);for(let q=0;q<DBR&&!M&&!e.aborted;q++){if(S){B=`REPL process exited with code ${O}`;break}if(j.error){B=`REPL process error: ${j.error.message}`;break}if(I){B=`REPL output exceeded ${OmT} bytes limit`;break}if(V>0&&V>=N){B=`Context window limit reached (${V.toLocaleString()} / ${lT.toLocaleString()} tokens used)`;break}a.next({status:"in-progress",progress:{threadID:p,iteration:q+1,transcript:[...L]}});let F=new AbortController,E=setTimeout(()=>{F.abort()},dmT),U=e.aborted?e:AbortSignal.any([e,F.signal]),Z;try{Z=await SwT(C,[rqT],[{type:"text",text:P}],{id:p,agentMode:R.agentMode},{configService:R.configService},tT,U)}catch(uT){if(clearTimeout(E),F.signal.aborted&&!e.aborted){B=`Iteration ${q+1} timed out after ${dmT}ms`;break}throw uT}finally{clearTimeout(E)}if(Z["~debugUsage"]){let uT=Z["~debugUsage"];V=uT.inputTokens,w.push({inferenceTimeMs:0,usage:{model:uT.model??tT,inputTokens:uT.inputTokens,outputTokens:uT.outputTokens,cacheWriteTokens:uT.cacheCreationInputTokens??0,cacheReadTokens:uT.cacheReadInputTokens??0}})}if(!Z.message){B="No response from model";break}let X=Z.message.content.filter((uT)=>uT.type==="tool_use");if(X.length>0){let uT=X.find((jT)=>jT.name==="stop");if(uT){B=uT.input.message??"Session ended",M=!0,C.push({role:"assistant",content:Z.message.content}),C.push({role:"user",content:[o7(uT.id,{status:"done",result:`Session terminated: ${B}`})]});break}let bT=X.map((jT)=>({type:"tool_result",tool_use_id:jT.id,content:`Unknown tool: ${jT.name}`}));C.push({role:"assistant",content:Z.message.content}),C.push({role:"user",content:bT});continue}let rT=Z.message.content.filter((uT)=>uT.type==="text").map((uT)=>uT.text).join(""),hT,pT=!1;if(rT){let uT=MBR(rT);hT=uT.join(`
-`);for(let bT of uT)if(!k.write(bT+`
-`)){pT=!0;break}}if(pT){B=S?`REPL process exited with code ${O} (write failed)`:"Failed to write to REPL stdin";break}let mT=hT&&!W;if(hT)W=!0,L.push({type:"input",content:hT}),a.next({status:"in-progress",progress:{threadID:p,iteration:q+1,input:hT,transcript:[...L]}});C.push({role:"assistant",content:Z.message.content});let yT=await d(wBR);if(yT)D=yT,L.push({type:"output",content:yT}),C.push({role:"user",content:`[REPL output:]
-${yT}`}),a.next({status:"in-progress",progress:{threadID:p,iteration:q+1,input:hT,output:yT,transcript:[...L]}});else if(mT&&!S){k.kill(),a.next({status:"error",progress:{threadID:p},error:{message:`The REPL process "${i}" did not produce any output after receiving input. This typically means the program is waiting for input but is not running in interactive mode.
+;
+await new Promise((N) => setTimeout(N, Math.min(aT, SmT)));
+let TT = "",
+  tT = -1,
+  lT = aT + 5000;
+while (v.length > 0 || TT.length !== tT) {
+  if (e.aborted) break;
+  if (Date.now() - oT > lT) {
+    J.debug("REPL drainOutput timeout exceeded", {
+      elapsed: Date.now() - oT
+    });
+    break
+  }
+  tT = TT.length;
+  while (v.length > 0) TT += v.shift();
+  await new Promise((N) => setTimeout(N, SmT))
+}
+return g = 0, TT
+}, C = [], L = [], w = [], D = "", B = "", M = !1, V = 0, Q = o ?? BBR, W = !1;
+try {
+  let aT = await d(Q);
+  if (S && !aT) {
+    a.next({
+      status: "error",
+      progress: {
+        threadID: p
+      },
+      error: {
+        message: `The REPL process "${i}" exited immediately with code ${O} without producing any output. Check that the binary exists and the arguments are correct.`
+      }
+    }), a.complete();
+    return
+  }
+  if (aT) C.push({
+    role: "user",
+    content: `[REPL started. Initial output:]
+${aT}`
+  });
+  else C.push({
+    role: "user",
+    content: "[REPL started. Awaiting your input.]"
+  });
+  let oT = await R.configService.getLatest(e),
+    {
+      model: TT
+    } = pn(oT.settings, R.thread),
+    tT = Xt(TT),
+    lT = Ys(TT),
+    N = Math.floor(lT * NBR);
+  for (let q = 0; q < DBR && !M && !e.aborted; q++) {
+    if (S) {
+      B = `REPL process exited with code ${O}`;
+      break
+    }
+    if (j.error) {
+      B = `REPL process error: ${j.error.message}`;
+      break
+    }
+    if (I) {
+      B = `REPL output exceeded ${OmT} bytes limit`;
+      break
+    }
+    if (V > 0 && V >= N) {
+      B = `Context window limit reached (${V.toLocaleString()} / ${lT.toLocaleString()} tokens used)`;
+      break
+    }
+    a.next({
+      status: "in-progress",
+      progress: {
+        threadID: p,
+        iteration: q + 1,
+        transcript: [...L]
+      }
+    });
+    let F = new AbortController,
+      E = setTimeout(() => {
+        F.abort()
+      }, dmT),
+      U = e.aborted ? e : AbortSignal.any([e, F.signal]),
+      Z;
+    try {
+      Z = await SwT(C, [rqT], [{
+        type: "text",
+        text: P
+      }], {
+        id: p,
+        agentMode: R.agentMode
+      }, {
+        configService: R.configService
+      }, tT, U)
+    } catch (uT) {
+      if (clearTimeout(E), F.signal.aborted && !e.aborted) {
+        B = `Iteration ${q+1} timed out after ${dmT}ms`;
+        break
+      }
+      throw uT
+    } finally {
+      clearTimeout(E)
+    }
+    if (Z["~debugUsage"]) {
+      let uT = Z["~debugUsage"];
+      V = uT.inputTokens, w.push({
+        inferenceTimeMs: 0,
+        usage: {
+          model: uT.model ?? tT,
+          inputTokens: uT.inputTokens,
+          outputTokens: uT.outputTokens,
+          cacheWriteTokens: uT.cacheCreationInputTokens ?? 0,
+          cacheReadTokens: uT.cacheReadInputTokens ?? 0
+        }
+      })
+    }
+    if (!Z.message) {
+      B = "No response from model";
+      break
+    }
+    let X = Z.message.content.filter((uT) => uT.type === "tool_use");
+    if (X.length > 0) {
+      let uT = X.find((jT) => jT.name === "stop");
+      if (uT) {
+        B = uT.input.message ?? "Session ended", M = !0, C.push({
+          role: "assistant",
+          content: Z.message.content
+        }), C.push({
+          role: "user",
+          content: [o7(uT.id, {
+            status: "done",
+            result: `Session terminated: ${B}`
+          })]
+        });
+        break
+      }
+      let bT = X.map((jT) => ({
+        type: "tool_result",
+        tool_use_id: jT.id,
+        content: `Unknown tool: ${jT.name}`
+      }));
+      C.push({
+        role: "assistant",
+        content: Z.message.content
+      }), C.push({
+        role: "user",
+        content: bT
+      });
+      continue
+    }
+    let rT = Z.message.content.filter((uT) => uT.type === "text").map((uT) => uT.text).join(""),
+      hT, pT = !1;
+    if (rT) {
+      let uT = MBR(rT);
+      hT = uT.join(`
+`);
+      for (let bT of uT)
+        if (!k.write(bT + `
+`)) {
+          pT = !0;
+          break
+        }
+    }
+    if (pT) {
+      B = S ? `REPL process exited with code ${O} (write failed)` : "Failed to write to REPL stdin";
+      break
+    }
+    let mT = hT && !W;
+    if (hT) W = !0, L.push({
+      type: "input",
+      content: hT
+    }), a.next({
+      status: "in-progress",
+      progress: {
+        threadID: p,
+        iteration: q + 1,
+        input: hT,
+        transcript: [...L]
+      }
+    });
+    C.push({
+      role: "assistant",
+      content: Z.message.content
+    });
+    let yT = await d(wBR);
+    if (yT) D = yT, L.push({
+      type: "output",
+      content: yT
+    }), C.push({
+      role: "user",
+      content: `[REPL output:]
+${yT}`
+    }), a.next({
+      status: "in-progress",
+      progress: {
+        threadID: p,
+        iteration: q + 1,
+        input: hT,
+        output: yT,
+        transcript: [...L]
+      }
+    });
+    else if (mT && !S) {
+      k.kill(), a.next({
+        status: "error",
+        progress: {
+          threadID: p
+        },
+        error: {
+          message: `The REPL process "${i}" did not produce any output after receiving input. This typically means the program is waiting for input but is not running in interactive mode.
 
 To fix this, try invoking the REPL with flags that enable interactive mode:
 - python: use \`python3 -i\` for interactive mode
 - bash, zsh: use \`bash -i\` for interactive mode
 - irb: use --noautocomplete
 
-If the program requires a TTY, it may not be compatible with this tool.`}}),a.complete();
-return}else C.push({role:"user",content:"[No output received. The REPL may be waiting for more input or processing.]"})}}catch(aT){k.kill();
-let oT=S?` (process exited with code ${O})`:"";a.next({status:"error",progress:{threadID:p,transcript:L},error:{message:`Agent loop error: ${aT}${oT}`}}),a.complete();return}finally{k.kill()}let eT=[];if(B)eT.push(B);else eT.push("Session ended");if(S)eT.push(`
-Process exit code: ${O}`);if(D)eT.push(`
+If the program requires a TTY, it may not be compatible with this tool.`
+        }
+      }), a.complete();
+      return
+    } else C.push({
+      role: "user",
+      content: "[No output received. The REPL may be waiting for more input or processing.]"
+    })
+  }
+} catch (aT) {
+  k.kill();
+  let oT = S ? ` (process exited with code ${O})` : "";
+  a.next({
+    status: "error",
+    progress: {
+      threadID: p,
+      transcript: L
+    },
+    error: {
+      message: `Agent loop error: ${aT}${oT}`
+    }
+  }), a.complete();
+  return
+} finally {
+  k.kill()
+}
+let eT = [];
+if (B) eT.push(B);
+else eT.push("Session ended");
+if (S) eT.push(`
+Process exit code: ${O}`);
+if (D) eT.push(`
 Last output:
-${D}`);if(I)eT.push(`
-[Warning: Output was truncated due to buffer overflow]`);let iT=eT.join("");J.debug("REPL tool completed with subthread usage",{subThreadID:p,inferenceCount:w.length,exitCode:O}),a.next({status:"done",progress:{threadID:p,transcript:L},result:iT,"~debug":{threadID:p,inferences:w,exitCode:O}}),a.complete()}function dBR(T,R){if(T.length<=R)return T;return T.substring(0,R-3)+"..."}function EBR(T,R,a){return`You are a REPL operator. Your text responses are sent DIRECTLY to a ${T}.
+${D}`);
+if (I) eT.push(`
+[Warning: Output was truncated due to buffer overflow]`);
+let iT = eT.join("");
+J.debug("REPL tool completed with subthread usage", {
+  subThreadID: p,
+  inferenceCount: w.length,
+  exitCode: O
+}), a.next({
+  status: "done",
+  progress: {
+    threadID: p,
+    transcript: L
+  },
+  result: iT,
+  "~debug": {
+    threadID: p,
+    inferences: w,
+    exitCode: O
+  }
+}), a.complete()
+}
+
+function dBR(T, R) {
+  if (T.length <= R) return T;
+  return T.substring(0, R - 3) + "..."
+}
+
+function EBR(T, R, a) {
+  return `You are a REPL operator. Your text responses are sent DIRECTLY to a ${T}.
 
 CRITICAL RULES:
 1. Your response text goes VERBATIM to the REPL - no exceptions
@@ -69,32 +326,1875 @@ ${a}
 - Your entire text response is piped to the REPL stdin
 - Call the \`stop\` tool when done (with a summary message)
 
-Remember: You are typing INTO the REPL. Act like it.`}function CBR(T){let R=[`Working directory: ${T}`,""];try{let a=Nx.readdirSync(T,{withFileTypes:!0});if(a.length===0)return R.push("Directory is empty."),R.join(`
-`);let e=a.filter((t)=>!t.name.startsWith(".")).sort((t,r)=>{if(t.isDirectory()!==r.isDirectory())return t.isDirectory()?-1:1;return t.name.localeCompare(r.name)});R.push("Files in working directory:");for(let t of e.slice(0,20))if(t.isDirectory())R.push(`  ${t.name}/`);else{R.push(`  ${t.name}`);let r=tqT.join(T,t.name),h=LBR(r,3);if(h){R.push("    ---");for(let i of h.split(`
-`))R.push(`    ${i}`);R.push("    ---")}}if(e.length>20)R.push(`  ... and ${e.length-20} more files`)}catch{R.push("Could not read directory contents.")}return R.join(`
-`)}function LBR(T,R){try{return Nx.readFileSync(T,"utf-8").split(`
-`).slice(0,R).join(`
-`)}catch{return""}}function MBR(T){let R=/```(?:\w+)?\n([\s\S]*?)```/g,a=[],e;while((e=R.exec(T))!==null)if(e[1])a.push(e[1].trim());if(a.length===0)return[T.trim()];return a}function CmT(T,R,a,e){return new AR((t)=>{let r=!1,h=new AbortController;return(async()=>{let i=h.signal,c=setTimeout(()=>{J.warn("Handoff timeout reached",{mode:a,name:"handoff",threadID:R.thread.id,timeoutMs:oM}),h.abort(Error(`Handoff timed out after ${oM}ms`))},oM);try{if(t.next({status:"in-progress"}),J.debug("Starting handoff",{mode:a,name:"handoff",threadID:R.thread.id,goal:T.goal}),r||i.aborted){clearTimeout(c);return}let s=await e(i);if(clearTimeout(c),r||i.aborted)return;J.info("Handoff thread created and running in background",{mode:a,name:"handoff",fromThreadID:R.thread.id,newThreadID:s,goal:T.goal}),t.next({status:"done",result:{newThreadID:s,message:`Created handoff thread ${s}. Work is now running in the background.`}}),t.complete()}catch(s){if(clearTimeout(c),r)return;let A=i.aborted&&i.reason instanceof Error,l=A?i.reason.message:s instanceof Error?s.message:"Failed to create handoff thread";J.error("Handoff failed",s,{mode:a,name:"handoff",threadID:R.thread.id,isTimeout:A}),t.next({status:"error",error:{message:l}}),t.complete()}})(),()=>{r=!0,h.abort(Error("Handoff cancelled"))}})}function FNR(T){let R=(a)=>{if(a.type==="focus")ZqT=a.focused};T.onFocus(R)}function dX(){return ZqT}function GNR(T,R=300000){R5T=R,nv=Date.now(),T.onKey(()=>{nv=Date.now()}),T.onMouse(()=>{nv=Date.now()})}function T5T(){return Date.now()-nv>=R5T}function iUR(T,R){let a=T.status,e=[];if(T.spec._target==="flag")e.push("--mcp-config flag");else if(T.spec._target==="workspace")e.push(R?"workspace: trusted":"workspace: untrusted");else e.push("user settings");if(T.requiresApproval)e.push("server: untrusted");let t=e.length>0?` (${e.join(", ")})`:"";switch(a.type){case"failed":{let r=`${T.name}${t}: error - ${a.error.message||"Unknown error"}`;if(a.error.stderr)r+=`
-${a.error.stderr}`;return r}case"connected":{let r=T.tools;if(r instanceof Error)return`${T.name}${t}: error loading tools - ${r.message}`;if(r.length===0)return`${T.name}${t}: connected (no tools)`;let h=r.map((i)=>i.spec.name).join(", ");return`${T.name}${t}: connected (${r.length} tools: ${h})`}case"connecting":return`${T.name}${t}: connecting...`;case"reconnecting":return`${T.name}${t}: reconnecting (attempt ${a.attempt}, retry in ${a.nextRetryMs}ms)...`;case"authenticating":return`${T.name}${t}: authenticating (waiting for OAuth)...`;case"awaiting-approval":return`${T.name}${t}: awaiting approval`;case"denied":return`${T.name}${t}: denied by user`;case"blocked-by-registry":return`${T.name}${t}: blocked by workspace MCP registry`}}async function cUR(T,R,a){let e;try{e=await R(T);let{mcpService:t,settings:r}=e,h=new Map,i=!1,c=!1,s=!1;await new Promise((A,l)=>{let o=t.servers.subscribe({next:async(n)=>{let p=n;if(a)p=n.filter((_)=>_.name===a);if(!i&&p.length===0&&a){process.stderr.write(`MCP server "${a}" not found
-`),l(Error("Server not found"));return}if(!i&&p.length===0&&!a){process.stdout.write(`No MCP servers configured
-`),A();return}if(!s){let _=r.getSettingsFilePath(),m=`${r.getWorkspaceRootPath()}/.amp/settings.json`;process.stdout.write(`User settings: ${_}
-`),process.stdout.write(`Workspace settings: ${m}
+Remember: You are typing INTO the REPL. Act like it.`
+}
 
-`),s=!0}c=await m0(t.isWorkspaceTrusted());for(let _ of p){let m=iUR(_,c),b=h.get(_.name);if(m!==b)process.stdout.write(m+`
-`),h.set(_.name,m),i=!0}if(p.every((_)=>{if(_.status.type==="failed"||_.status.type==="denied"||_.status.type==="awaiting-approval"||_.status.type==="blocked-by-registry")return!0;if(_.status.type==="connected"&&_.tools instanceof Error)return!0;if(_.status.type==="connected"&&Array.isArray(_.tools)&&_.tools.length>0)return!0;return!1})&&p.length>0)o.unsubscribe(),A()},error:(n)=>{l(n)}});setTimeout(()=>{if(o.unsubscribe(),!i)l(Error("Timeout waiting for MCP servers"));else A()},30000)}),process.exit(0)}catch(t){process.stderr.write((t instanceof Error?t.message:String(t))+`
-`),process.exit(1)}finally{if(e)await e.asyncDispose()}}function wUR(){let T="1.3.10";if(!T)return!1;let R=T.split(".").map(Number),a=R[0]??0,e=R[1]??0,t=R[2]??0;if(!Number.isFinite(a)||!Number.isFinite(e)||!Number.isFinite(t))return!1;if(a!==1||e!==2)return!1;return t<22}function az(T){T.setRawMode(!0),T.on("data",(a)=>{P8.buffer.push(Buffer.from(a))}),P8.stream=T;let R=()=>{if(P8.takenOver)return;let a=P8.stream;if(!a)return;try{if(a.isTTY)a.setRawMode(!1)}catch{}try{a.removeAllListeners("data"),a.destroy()}catch{}P8.stream=null};process.once("exit",R),process.once("SIGINT",R),process.once("SIGTERM",R)}async function WUR(){let[T,R,a,e,t,r]=await Promise.all([Promise.resolve().then(()=>c0(n0(),1)),Promise.resolve().then(()=>c0(sZ(),1)),Promise.resolve().then(()=>c0(d$T(),1)),Promise.resolve().then(()=>c0(biR(),1)),Promise.resolve().then(()=>c0(nx(),1)),Promise.resolve().then(()=>c0(em(),1))]);class h extends a.InstrumentationBase{originalFetch;constructor(i={}){super("fetch-instrumentation","1.0.0",i)}init(){}enable(){this.originalFetch=globalThis.fetch;let i=this.tracer,c=this.originalFetch;globalThis.fetch=async(s,A)=>{let l=typeof s==="string"?new URL(s):s instanceof URL?s:new URL(s.url),o=A?.method||"GET";return i.startActiveSpan(`fetch ${l.pathname}${l.searchParams.size>0?"?"+l.searchParams.toString():""}`,{kind:T.SpanKind.CLIENT,attributes:{[r.ATTR_HTTP_REQUEST_METHOD]:o,[r.ATTR_URL_FULL]:l.toString()}},async(n)=>{try{let p=await c.call(globalThis,s,A);if(n.setAttribute("http.response.status_code",p.status),p.status>=400)n.setStatus({code:T.SpanStatusCode.ERROR,message:`HTTP ${p.status}`});return n.end(),p}catch(p){throw n.recordException(p instanceof Error?p:Error(String(p))),n.setStatus({code:T.SpanStatusCode.ERROR,message:p instanceof Error?p.message:String(p)}),n.end(),p}})}}disable(){if(this.originalFetch)globalThis.fetch=this.originalFetch}}new e.NodeSDK({serviceName:"amp.cli",sampler:new t.AlwaysOnSampler,contextManager:new R.AsyncLocalStorageContextManager,instrumentations:[new h],metricReader:void 0}).start()}function zmT(T){if(T.startsWith("file://"))return zR.parse(T).fsPath;return T}async function Wb(T,R){try{let a=VUR(),e={timeout:5000,signal:R};switch(a){case"win32":await tz(`start "" "${T}"`,e);break;case"darwin":await tz(`open "${T}"`,e);break;default:await tz(`xdg-open "${T}"`,e);break}J.info("Opened browser with auth URL",{url:T})}catch(a){throw J.error("Failed to open browser",{error:a}),a}}function j5T(T,R=!1){let a=T.length,e=0,t="",r=0,h=16,i=0,c=0,s=0,A=0,l=0;function o(u,P){let k=0,x=0;while(k<u||!P){let f=T.charCodeAt(e);if(f>=48&&f<=57)x=x*16+f-48;else if(f>=65&&f<=70)x=x*16+f-65+10;else if(f>=97&&f<=102)x=x*16+f-97+10;else break;e++,k++}if(k<u)x=-1;return x}function n(u){e=u,t="",r=0,h=16,l=0}function p(){let u=e;if(T.charCodeAt(e)===48)e++;else{e++;while(e<T.length&&Gu(T.charCodeAt(e)))e++}if(e<T.length&&T.charCodeAt(e)===46)if(e++,e<T.length&&Gu(T.charCodeAt(e))){e++;while(e<T.length&&Gu(T.charCodeAt(e)))e++}else return l=3,T.substring(u,e);let P=e;if(e<T.length&&(T.charCodeAt(e)===69||T.charCodeAt(e)===101)){if(e++,e<T.length&&T.charCodeAt(e)===43||T.charCodeAt(e)===45)e++;if(e<T.length&&Gu(T.charCodeAt(e))){e++;while(e<T.length&&Gu(T.charCodeAt(e)))e++;P=e}else l=3}return T.substring(u,P)}function _(){let u="",P=e;while(!0){if(e>=a){u+=T.substring(P,e),l=2;break}let k=T.charCodeAt(e);if(k===34){u+=T.substring(P,e),e++;break}if(k===92){if(u+=T.substring(P,e),e++,e>=a){l=2;break}switch(T.charCodeAt(e++)){case 34:u+='"';break;case 92:u+="\\";break;case 47:u+="/";break;case 98:u+="\b";break;case 102:u+="\f";break;case 110:u+=`
-`;break;case 114:u+="\r";break;case 116:u+="\t";break;case 117:let x=o(4,!0);if(x>=0)u+=String.fromCharCode(x);else l=4;break;default:l=5}P=e;continue}if(k>=0&&k<=31)if(UI(k)){u+=T.substring(P,e),l=2;break}else l=6;e++}return u}function m(){if(t="",l=0,r=e,c=i,A=s,e>=a)return r=a,h=17;let u=T.charCodeAt(e);if(rz(u)){do e++,t+=String.fromCharCode(u),u=T.charCodeAt(e);while(rz(u));return h=15}if(UI(u)){if(e++,t+=String.fromCharCode(u),u===13&&T.charCodeAt(e)===10)e++,t+=`
-`;return i++,s=e,h=14}switch(u){case 123:return e++,h=1;case 125:return e++,h=2;case 91:return e++,h=3;case 93:return e++,h=4;case 58:return e++,h=6;case 44:return e++,h=5;case 34:return e++,t=_(),h=10;case 47:let P=e-1;if(T.charCodeAt(e+1)===47){e+=2;while(e<a){if(UI(T.charCodeAt(e)))break;e++}return t=T.substring(P,e),h=12}if(T.charCodeAt(e+1)===42){e+=2;let k=a-1,x=!1;while(e<k){let f=T.charCodeAt(e);if(f===42&&T.charCodeAt(e+1)===47){e+=2,x=!0;break}if(e++,UI(f)){if(f===13&&T.charCodeAt(e)===10)e++;i++,s=e}}if(!x)e++,l=1;return t=T.substring(P,e),h=13}return t+=String.fromCharCode(u),e++,h=16;case 45:if(t+=String.fromCharCode(u),e++,e===a||!Gu(T.charCodeAt(e)))return h=16;case 48:case 49:case 50:case 51:case 52:case 53:case 54:case 55:case 56:case 57:return t+=p(),h=11;default:while(e<a&&b(u))e++,u=T.charCodeAt(e);if(r!==e){switch(t=T.substring(r,e),t){case"true":return h=8;case"false":return h=9;case"null":return h=7}return h=16}return t+=String.fromCharCode(u),e++,h=16}}function b(u){if(rz(u)||UI(u))return!1;switch(u){case 125:case 93:case 123:case 91:case 34:case 58:case 44:case 47:return!1}return!0}function y(){let u;do u=m();while(u>=12&&u<=15);return u}return{setPosition:n,getPosition:()=>e,scan:R?y:m,getToken:()=>h,getTokenValue:()=>t,getTokenOffset:()=>r,getTokenLength:()=>e-r,getTokenStartLine:()=>c,getTokenStartCharacter:()=>r-A,getTokenError:()=>l}}function rz(T){return T===32||T===9}function UI(T){return T===10||T===13}function Gu(T){return T>=48&&T<=57}function JUR(T,R,a){let e,t,r,h,i;if(R){h=R.offset,i=h+R.length,r=h;while(r>0&&!ew(T,r-1))r--;let k=i;while(k<T.length&&!ew(T,k))k++;t=T.substring(r,k),e=THR(t,a)}else t=T,e=0,r=0,h=0,i=T.length;let c=RHR(a,T),s=ZUR.includes(c),A=0,l=0,o;if(a.insertSpaces)o=Zh[a.tabSize||4]??Ku(Zh[1],a.tabSize||4);else o="\t";let n=o==="\t"?"\t":" ",p=j5T(t,!1),_=!1;function m(){if(A>1)return Ku(c,A)+Ku(o,e+l);let k=o.length*(e+l);if(!s||k>GmT[n][c].length)return c+Ku(o,e+l);if(k<=0)return c;return GmT[n][c][k]}function b(){let k=p.scan();A=0;while(k===15||k===14){if(k===14&&a.keepLines)A+=1;else if(k===14)A=1;k=p.scan()}return _=k===16||p.getTokenError()!==0,k}let y=[];function u(k,x,f){if(!_&&(!R||x<i&&f>h)&&T.substring(x,f)!==k)y.push({offset:x,length:f-x,content:k})}let P=b();if(a.keepLines&&A>0)u(Ku(c,A),0,0);if(P!==17){let k=p.getTokenOffset()+r,x=o.length*e<20&&a.insertSpaces?Zh[o.length*e]:Ku(o,e);u(x,r,k)}while(P!==17){let k=p.getTokenOffset()+p.getTokenLength()+r,x=b(),f="",v=!1;while(A===0&&(x===12||x===13)){let I=p.getTokenOffset()+r;u(Zh[1],k,I),k=p.getTokenOffset()+p.getTokenLength()+r,v=x===12,f=v?m():"",x=b()}if(x===2){if(P!==1)l--;if(a.keepLines&&A>0||!a.keepLines&&P!==1)f=m();else if(a.keepLines)f=Zh[1]}else if(x===4){if(P!==3)l--;if(a.keepLines&&A>0||!a.keepLines&&P!==3)f=m();else if(a.keepLines)f=Zh[1]}else{switch(P){case 3:case 1:if(l++,a.keepLines&&A>0||!a.keepLines)f=m();else f=Zh[1];break;case 5:if(a.keepLines&&A>0||!a.keepLines)f=m();else f=Zh[1];break;case 12:f=m();break;case 13:if(A>0)f=m();else if(!v)f=Zh[1];break;case 6:if(a.keepLines&&A>0)f=m();else if(!v)f=Zh[1];break;case 10:if(a.keepLines&&A>0)f=m();else if(x===6&&!v)f="";break;case 7:case 8:case 9:case 11:case 2:case 4:if(a.keepLines&&A>0)f=m();else if((x===12||x===13)&&!v)f=Zh[1];else if(x!==5&&x!==17)_=!0;break;case 16:_=!0;break}if(A>0&&(x===12||x===13))f=m()}if(x===17)if(a.keepLines&&A>0)f=m();else f=a.insertFinalNewline?c:"";let g=p.getTokenOffset()+r;u(f,k,g),P=x}return y}function Ku(T,R){let a="";for(let e=0;e<R;e++)a+=T;return a}function THR(T,R){let a=0,e=0,t=R.tabSize||4;while(a<T.length){let r=T.charAt(a);if(r===Zh[1])e++;else if(r==="\t")e+=t;else break;a++}return Math.floor(e/t)}function RHR(T,R){for(let a=0;a<R.length;a++){let e=R.charAt(a);if(e==="\r"){if(a+1<R.length&&R.charAt(a+1)===`
-`)return`\r
-`;return"\r"}else if(e===`
-`)return`
-`}return T&&T.eol||`
-`}function ew(T,R){return`\r
-`.indexOf(T.charAt(R))!==-1}function aHR(T,R=[],a=Qj.DEFAULT){let e=null,t=[],r=[];function h(i){if(Array.isArray(t))t.push(i);else if(e!==null)t[e]=i}return S5T(T,{onObjectBegin:()=>{let i={};h(i),r.push(t),t=i,e=null},onObjectProperty:(i)=>{e=i},onObjectEnd:()=>{t=r.pop()},onArrayBegin:()=>{let i=[];h(i),r.push(t),t=i,e=null},onArrayEnd:()=>{t=r.pop()},onLiteralValue:h,onError:(i,c,s)=>{R.push({error:i,offset:c,length:s})}},a),t[0]}function eHR(T,R=[],a=Qj.DEFAULT){let e={type:"array",offset:-1,length:-1,children:[],parent:void 0};function t(i){if(e.type==="property")e.length=i-e.offset,e=e.parent}function r(i){return e.children.push(i),i}S5T(T,{onObjectBegin:(i)=>{e=r({type:"object",offset:i,length:-1,parent:e,children:[]})},onObjectProperty:(i,c,s)=>{e=r({type:"property",offset:c,length:-1,parent:e,children:[]}),e.children.push({type:"string",value:i,offset:c,length:s,parent:e})},onObjectEnd:(i,c)=>{t(i+c),e.length=i+c-e.offset,e=e.parent,t(i+c)},onArrayBegin:(i,c)=>{e=r({type:"array",offset:i,length:-1,parent:e,children:[]})},onArrayEnd:(i,c)=>{e.length=i+c-e.offset,e=e.parent,t(i+c)},onLiteralValue:(i,c,s)=>{r({type:tHR(i),offset:c,length:s,parent:e,value:i}),t(c+s)},onSeparator:(i,c,s)=>{if(e.type==="property"){if(i===":")e.colonOffset=c;else if(i===",")t(c)}},onError:(i,c,s)=>{R.push({error:i,offset:c,length:s})}},a);let h=e.children[0];if(h)delete h.parent;return h}function KmT(T,R){if(!T)return;let a=T;for(let e of R)if(typeof e==="string"){if(a.type!=="object"||!Array.isArray(a.children))return;let t=!1;for(let r of a.children)if(Array.isArray(r.children)&&r.children[0].value===e&&r.children.length===2){a=r.children[1],t=!0;break}if(!t)return}else{let t=e;if(a.type!=="array"||t<0||!Array.isArray(a.children)||t>=a.children.length)return;a=a.children[t]}return a}function S5T(T,R,a=Qj.DEFAULT){let e=j5T(T,!1),t=[],r=0;function h(d){return d?()=>r===0&&d(e.getTokenOffset(),e.getTokenLength(),e.getTokenStartLine(),e.getTokenStartCharacter()):()=>!0}function i(d){return d?(C)=>r===0&&d(C,e.getTokenOffset(),e.getTokenLength(),e.getTokenStartLine(),e.getTokenStartCharacter()):()=>!0}function c(d){return d?(C)=>r===0&&d(C,e.getTokenOffset(),e.getTokenLength(),e.getTokenStartLine(),e.getTokenStartCharacter(),()=>t.slice()):()=>!0}function s(d){return d?()=>{if(r>0)r++;else if(d(e.getTokenOffset(),e.getTokenLength(),e.getTokenStartLine(),e.getTokenStartCharacter(),()=>t.slice())===!1)r=1}:()=>!0}function A(d){return d?()=>{if(r>0)r--;if(r===0)d(e.getTokenOffset(),e.getTokenLength(),e.getTokenStartLine(),e.getTokenStartCharacter())}:()=>!0}let l=s(R.onObjectBegin),o=c(R.onObjectProperty),n=A(R.onObjectEnd),p=s(R.onArrayBegin),_=A(R.onArrayEnd),m=c(R.onLiteralValue),b=i(R.onSeparator),y=h(R.onComment),u=i(R.onError),P=a&&a.disallowComments,k=a&&a.allowTrailingComma;function x(){while(!0){let d=e.scan();switch(e.getTokenError()){case 4:f(14);break;case 5:f(15);break;case 3:f(13);break;case 1:if(!P)f(11);break;case 2:f(12);break;case 6:f(16);break}switch(d){case 12:case 13:if(P)f(10);else y();break;case 16:f(1);break;case 15:case 14:break;default:return d}}}function f(d,C=[],L=[]){if(u(d),C.length+L.length>0){let w=e.getToken();while(w!==17){if(C.indexOf(w)!==-1){x();break}else if(L.indexOf(w)!==-1)break;w=x()}}}function v(d){let C=e.getTokenValue();if(d)m(C);else o(C),t.push(C);return x(),!0}function g(){switch(e.getToken()){case 11:let d=e.getTokenValue(),C=Number(d);if(isNaN(C))f(2),C=0;m(C);break;case 7:m(null);break;case 8:m(!0);break;case 9:m(!1);break;default:return!1}return x(),!0}function I(){if(e.getToken()!==10)return f(3,[],[2,5]),!1;if(v(!1),e.getToken()===6){if(b(":"),x(),!j())f(4,[],[2,5])}else f(5,[],[2,5]);return t.pop(),!0}function S(){l(),x();let d=!1;while(e.getToken()!==2&&e.getToken()!==17){if(e.getToken()===5){if(!d)f(4,[],[]);if(b(","),x(),e.getToken()===2&&k)break}else if(d)f(6,[],[]);if(!I())f(4,[],[2,5]);d=!0}if(n(),e.getToken()!==2)f(7,[2],[]);else x();return!0}function O(){p(),x();let d=!0,C=!1;while(e.getToken()!==4&&e.getToken()!==17){if(e.getToken()===5){if(!C)f(4,[],[]);if(b(","),x(),e.getToken()===4&&k)break}else if(C)f(6,[],[]);if(d)t.push(0),d=!1;else t[t.length-1]++;if(!j())f(4,[],[4,5]);C=!0}if(_(),!d)t.pop();if(e.getToken()!==4)f(8,[4],[]);else x();return!0}function j(){switch(e.getToken()){case 3:return O();case 1:return S();case 10:return v(!0);default:return g()}}if(x(),e.getToken()===17){if(a.allowEmptyContent)return!0;return f(4,[],[]),!1}if(!j())return f(4,[],[]),!1;if(e.getToken()!==17)f(9,[],[]);return!0}function tHR(T){switch(typeof T){case"boolean":return"boolean";case"number":return"number";case"string":return"string";case"object":{if(!T)return"null";else if(Array.isArray(T))return"array";return"object"}default:return"null"}}function rHR(T,R,a,e){let t=R.slice(),r=eHR(T,[]),h=void 0,i=void 0;while(t.length>0)if(i=t.pop(),h=KmT(r,t),h===void 0&&a!==void 0)if(typeof i==="string")a={[i]:a};else a=[a];else break;if(!h){if(a===void 0)throw Error("Can not delete in empty document");return r_(T,{offset:r?r.offset:0,length:r?r.length:0,content:JSON.stringify(a)},e)}else if(h.type==="object"&&typeof i==="string"&&Array.isArray(h.children)){let c=KmT(h,[i]);if(c!==void 0)if(a===void 0){if(!c.parent)throw Error("Malformed AST");let s=h.children.indexOf(c.parent),A,l=c.parent.offset+c.parent.length;if(s>0){let o=h.children[s-1];A=o.offset+o.length}else if(A=h.offset+1,h.children.length>1)l=h.children[1].offset;return r_(T,{offset:A,length:l-A,content:""},e)}else return r_(T,{offset:c.offset,length:c.length,content:JSON.stringify(a)},e);else{if(a===void 0)return[];let s=`${JSON.stringify(i)}: ${JSON.stringify(a)}`,A=e.getInsertionIndex?e.getInsertionIndex(h.children.map((o)=>o.children[0].value)):h.children.length,l;if(A>0){let o=h.children[A-1];l={offset:o.offset+o.length,length:0,content:","+s}}else if(h.children.length===0)l={offset:h.offset+1,length:0,content:s};else l={offset:h.offset+1,length:0,content:s+","};return r_(T,l,e)}}else if(h.type==="array"&&typeof i==="number"&&Array.isArray(h.children)){let c=i;if(c===-1){let s=`${JSON.stringify(a)}`,A;if(h.children.length===0)A={offset:h.offset+1,length:0,content:s};else{let l=h.children[h.children.length-1];A={offset:l.offset+l.length,length:0,content:","+s}}return r_(T,A,e)}else if(a===void 0&&h.children.length>=0){let s=i,A=h.children[s],l;if(h.children.length===1)l={offset:h.offset+1,length:h.length-2,content:""};else if(h.children.length-1===s){let o=h.children[s-1],n=o.offset+o.length,p=h.offset+h.length;l={offset:n,length:p-2-n,content:""}}else l={offset:A.offset,length:h.children[s+1].offset-A.offset,content:""};return r_(T,l,e)}else if(a!==void 0){let s,A=`${JSON.stringify(a)}`;if(!e.isArrayInsertion&&h.children.length>i){let l=h.children[i];s={offset:l.offset,length:l.length,content:A}}else if(h.children.length===0||i===0)s={offset:h.offset+1,length:0,content:h.children.length===0?A:A+","};else{let l=i>h.children.length?h.children.length:i,o=h.children[l-1];s={offset:o.offset+o.length,length:0,content:","+A}}return r_(T,s,e)}else throw Error(`Can not ${a===void 0?"remove":e.isArrayInsertion?"insert":"modify"} Array index ${c} as length is not sufficient`)}else throw Error(`Can not add ${typeof i!=="number"?"index":"property"} to parent of type ${h.type}`)}function r_(T,R,a){if(!a.formattingOptions)return[R];let e=EX(T,R),t=R.offset,r=R.offset+R.content.length;if(R.length===0||R.content.length===0){while(t>0&&!ew(e,t-1))t--;while(r<e.length&&!ew(e,r))r++}let h=JUR(e,{offset:t,length:r-t},{...a.formattingOptions,keepLines:!1});for(let c=h.length-1;c>=0;c--){let s=h[c];e=EX(e,s),t=Math.min(t,s.offset),r=Math.max(r,s.offset+s.length),r+=s.content.length-s.length}let i=T.length-(e.length-r)-t;return[{offset:t,length:i,content:e.substring(t,r)}]}function EX(T,R){return T.substring(0,R.offset)+R.content+T.substring(R.offset+R.length)}function QmT(T,R,a,e){return rHR(T,R,a,e)}function ZmT(T,R){let a=R.slice(0).sort((t,r)=>{let h=t.offset-r.offset;if(h===0)return t.length-r.length;return h}),e=T.length;for(let t=a.length-1;t>=0;t--){let r=a[t];if(r.offset+r.length<=e)T=EX(T,r);else throw Error("Overlapping edit");e=r.offset}return T}class d5T{options;value;lastError;lastUpdated=0;pendingPromise;eventsSubject=new W0;events=this.eventsSubject;constructor(T){this.options=T}async get(){if(this.lastError)return this.recompute();let T=Date.now()-this.lastUpdated;if(this.value===void 0||T>=this.options.hardTTL)return this.recompute();if(T>=this.options.softTTL&&!this.pendingPromise)this.recompute().catch(()=>{});return this.value}getCached(){return this.value}async refresh(){return this.recompute()}recompute(){if(this.pendingPromise)return this.pendingPromise;return this.pendingPromise=this.performRecomputation(),this.pendingPromise.finally(()=>{this.pendingPromise=void 0}),this.pendingPromise}async performRecomputation(){try{let T=await this.options.compute(),R=this.value;this.lastError=void 0,this.value=T,this.lastUpdated=Date.now();let a=this.options.changes(R,T);if(a!==void 0)try{this.eventsSubject.next(a)}catch(e){J.error("Uncaught error for GlobalCachedValue.events subscriber",e)}return T}catch(T){let R=T instanceof Error?T:Error(String(T));this.lastError=R;let a=this.value;this.value=void 0;let e=this.options.changes(a,void 0);if(e!==void 0)try{this.eventsSubject.next(e)}catch(t){J.error("Uncaught error for GlobalCachedValue.events subscriber",t)}throw R}}}function hHR(T){if(!/^\d{4}-\d{2}-\d{2}$/.test(T))throw Error(`Invalid compatibility date format "${T}". Expected format: YYYY-MM-DD (e.g., "2024-01-15")`);let R=new Date(T+"T00:00:00.000Z");if(Number.isNaN(R.getTime()))throw Error(`Invalid compatibility date "${T}". Date could not be parsed.`);let a=T.split("-").map(Number),[e,t,r]=a;if(a.length!==3||e===void 0||t===void 0||r===void 0)throw Error(`Invalid compatibility date "${T}". Could not parse date components.`);if(R.getUTCFullYear()!==e||R.getUTCMonth()!==t-1||R.getUTCDate()!==r)throw Error(`Invalid compatibility date "${T}". Date components are invalid.`);return R}function iHR(T,R={fetch:()=>JmT.get(),changes:JmT.events}){return{...T,async get(a,e){let t=await R.fetch();if(e==="admin"||!e&&a in t)return t[a];return T.get(a,e)},async keys(){let a=await T.keys(),e=await R.fetch(),t=Object.keys(e),r=new Set([...a,...t]);return Array.from(r)},get changes(){if(R.changes)return xj(T.changes,R.changes);return T.changes}}}function cHR(T,R){let a=T??{},e=R??{},t=JSON.stringify(a,Object.keys(a).sort()),r=JSON.stringify(e,Object.keys(e).sort());if(t===r)return[];let h=new Set([...Object.keys(a),...Object.keys(e)]);return Array.from(h)}function sHR(){switch(QUR.platform()){case"darwin":return"/Library/Application Support/ampcode/managed-settings.json";case"linux":return"/etc/ampcode/managed-settings.json";case"win32":return"C:\\ProgramData\\ampcode\\managed-settings.json";default:return null}}async function oHR(){let T=sHR();if(!T)return"{}";try{return await YUR.promises.readFile(T,"utf-8")}catch(R){if(R.code==="ENOENT")return"{}";throw R}}function Ms(T,R){let a=CX.getValue();CX.next({...a,[T]:R})}function LX({storage:T,secretStorage:R,workspaceRoot:a,defaultAmpURL:e=Lr,preferThreadEnv:t,homeDir:r,userConfigDir:h}){let i=Q9(async()=>{let o=await T.keys();return Object.fromEntries(await Promise.all(o.map(async(n)=>[n,await T.get(n)])))}).pipe(L9((o)=>sET(AR.of(o),T.changes.pipe(I2(async(n)=>{return await Promise.all(n.map(async(p)=>{let _=await T.get(p);o[p]=_})),{...o}})))),JR((o)=>{let n={...o,url:o.url||e};if(n.permissions)n.permissions=I0T(n.permissions);return n}),f3(),E9()),c=v3(R.changes.pipe(Y3(void 0)),i.pipe(JR(({url:o})=>o),E9())).pipe(I2(async([,o])=>({getToken:async(n,p)=>{return R.get(n,p)},isSet:{[o]:Object.fromEntries(await Promise.all(oCT.map(async(n)=>[n,!!await R.get(n,o)])))}}))),s=v3(i,c,CX).pipe(E9(([o,n,p],[_,m,b])=>o===_&&n===m&&p===b),JR(([o,n,p])=>({settings:{...o,...p},secrets:n})),f3()),A=a.pipe(JR((o)=>({workspaceFolders:o?[d0(o)]:null,isWindows:JS().os==="windows",homeDir:typeof process==="object"&&process.env.HOME?d0(zR.file(process.env.HOME)):void 0,preferThreadEnv:t}))),l=A.subscribe((o)=>{AET(o)});return{get(o,n){return T.get(o,n)},updateSettings(o,n,p){return T.set(o,n,p)},async appendSettings(o,n,p){let _=await T.get(o,p);if(_===void 0)return T.set(o,n,p);else if(!Array.isArray(_))throw Error(`Cannot append to non-array setting: ${o}`);else if(_.length===0)return T.set(o,n,p);else{let m=[..._,...n];return T.set(o,m,p)}},async prependSettings(o,n,p){let _=await T.get(o,p);if(_===void 0)return T.set(o,n,p);else if(!Array.isArray(_))throw Error(`Cannot prepend to non-array setting: ${o}`);else if(_.length===0)return T.set(o,n,p);else{let m=[...n,..._];return T.set(o,m,p)}},deleteSettings(o,n){return T.delete(o,n)},updateSecret(o,n,p){return R.set(o,n,p)},workspaceRoot:a,displayPathEnvInfo:A,homeDir:r,userConfigDir:h,config:s,async getLatest(o){return m0(s,o)},unsubscribe(){l.unsubscribe()}}}function nHR(T){return{config:AR.of(T),async getLatest(){return T}}}function TuT(T){return T.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function PHR(T){let R=T.lastIndexOf(":");if(R===-1)return{hostname:T,port:void 0};let a=T.slice(R+1),e=parseInt(a,10);if(isNaN(e))return{hostname:T,port:void 0};return{hostname:T.slice(0,R),port:e}}function kHR(T){return bHR.has(T.toLowerCase())}function HI(T,R,a,e){T.writeHead(R,{"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":uHR});let t=yHR.replaceAll("{{title}}",TuT(a)).replaceAll("{{message}}",TuT(e));T.end(t)}function Vu(T,R,a){T.writeHead(R,{"Content-Type":"text/plain"}),T.end(a)}class L5T{server=null;pendingFlows=new Map;port;expectedPath="/oauth/callback";startPromise=null;constructor(T=C5T){this.port=T}async waitForCallback(T,R=pHR){if(this.pendingFlows.has(T))throw Error(`OAuth flow with state ${T} is already pending`);return await this.ensureServerRunning(),J.info("Registering OAuth flow with callback server",{state:T.slice(0,8)+"...",pendingCount:this.pendingFlows.size+1}),new Promise((a,e)=>{let t=setTimeout(()=>{J.warn("OAuth flow timed out",{state:T.slice(0,8)+"..."}),this.pendingFlows.delete(T),this.maybeStopServer(),e(new T4T)},R);this.pendingFlows.set(T,{resolve:a,reject:e,timeoutId:t})})}cancelFlow(T){let R=this.pendingFlows.get(T);if(R)J.info("Cancelling OAuth flow",{state:T.slice(0,8)+"...",remainingFlows:this.pendingFlows.size-1}),clearTimeout(R.timeoutId),this.pendingFlows.delete(T),R.reject(Error("OAuth flow was cancelled")),this.maybeStopServer()}getRedirectUrl(){return`http://localhost:${this.port}${this.expectedPath}`}hasPendingFlow(T){return this.pendingFlows.has(T)}close(){for(let[,T]of this.pendingFlows)clearTimeout(T.timeoutId),T.reject(Error("OAuth callback server was closed"));if(this.pendingFlows.clear(),this.server)this.server.close(),this.server=null}async ensureServerRunning(){if(this.server)return;if(this.startPromise)return this.startPromise;this.startPromise=this.startServer();try{await this.startPromise}finally{this.startPromise=null}}async startServer(){J.debug("Starting shared OAuth callback server",{port:this.port}),this.server=E5T.createServer((T,R)=>this.handleSharedRequest(T,R)),await new Promise((T,R)=>{this.server.once("error",(a)=>{if(a.code==="EADDRINUSE")R(Error(`OAuth callback server failed to start - port ${this.port} is already in use.
+function CBR(T) {
+  let R = [`Working directory: ${T}`, ""];
+  try {
+    let a = Nx.readdirSync(T, {
+      withFileTypes: !0
+    });
+    if (a.length === 0) return R.push("Directory is empty."), R.join(`
+`);
+    let e = a.filter((t) => !t.name.startsWith(".")).sort((t, r) => {
+      if (t.isDirectory() !== r.isDirectory()) return t.isDirectory() ? -1 : 1;
+      return t.name.localeCompare(r.name)
+    });
+    R.push("Files in working directory:");
+    for (let t of e.slice(0, 20))
+      if (t.isDirectory()) R.push(`  ${t.name}/`);
+      else {
+        R.push(`  ${t.name}`);
+        let r = tqT.join(T, t.name),
+          h = LBR(r, 3);
+        if (h) {
+          R.push("    ---");
+          for (let i of h.split(`
+`)) R.push(`    ${i}`);
+          R.push("    ---")
+        }
+      }
+    if (e.length > 20) R.push(`  ... and ${e.length-20} more files`)
+  } catch {
+    R.push("Could not read directory contents.")
+  }
+  return R.join(`
+`)
+}
+
+function LBR(T, R) {
+  try {
+    return Nx.readFileSync(T, "utf-8").split(`
+`).slice(0, R).join(`
+`)
+  } catch {
+    return ""
+  }
+}
+
+function MBR(T) {
+  let R = /```(?:\w+)?\n([\s\S]*?)```/g,
+    a = [],
+    e;
+  while ((e = R.exec(T)) !== null)
+    if (e[1]) a.push(e[1].trim());
+  if (a.length === 0) return [T.trim()];
+  return a
+}
+
+function CmT(T, R, a, e) {
+  return new AR((t) => {
+    let r = !1,
+      h = new AbortController;
+    return (async () => {
+      let i = h.signal,
+        c = setTimeout(() => {
+          J.warn("Handoff timeout reached", {
+            mode: a,
+            name: "handoff",
+            threadID: R.thread.id,
+            timeoutMs: oM
+          }), h.abort(Error(`Handoff timed out after ${oM}ms`))
+        }, oM);
+      try {
+        if (t.next({
+            status: "in-progress"
+          }), J.debug("Starting handoff", {
+            mode: a,
+            name: "handoff",
+            threadID: R.thread.id,
+            goal: T.goal
+          }), r || i.aborted) {
+          clearTimeout(c);
+          return
+        }
+        let s = await e(i);
+        if (clearTimeout(c), r || i.aborted) return;
+        J.info("Handoff thread created and running in background", {
+          mode: a,
+          name: "handoff",
+          fromThreadID: R.thread.id,
+          newThreadID: s,
+          goal: T.goal
+        }), t.next({
+          status: "done",
+          result: {
+            newThreadID: s,
+            message: `Created handoff thread ${s}. Work is now running in the background.`
+          }
+        }), t.complete()
+      } catch (s) {
+        if (clearTimeout(c), r) return;
+        let A = i.aborted && i.reason instanceof Error,
+          l = A ? i.reason.message : s instanceof Error ? s.message : "Failed to create handoff thread";
+        J.error("Handoff failed", s, {
+          mode: a,
+          name: "handoff",
+          threadID: R.thread.id,
+          isTimeout: A
+        }), t.next({
+          status: "error",
+          error: {
+            message: l
+          }
+        }), t.complete()
+      }
+    })(), () => {
+      r = !0, h.abort(Error("Handoff cancelled"))
+    }
+  })
+}
+
+function FNR(T) {
+  let R = (a) => {
+    if (a.type === "focus") ZqT = a.focused
+  };
+  T.onFocus(R)
+}
+
+function dX() {
+  return ZqT
+}
+
+function GNR(T, R = 300000) {
+  R5T = R, nv = Date.now(), T.onKey(() => {
+    nv = Date.now()
+  }), T.onMouse(() => {
+    nv = Date.now()
+  })
+}
+
+function T5T() {
+  return Date.now() - nv >= R5T
+}
+
+function iUR(T, R) {
+  let a = T.status,
+    e = [];
+  if (T.spec._target === "flag") e.push("--mcp-config flag");
+  else if (T.spec._target === "workspace") e.push(R ? "workspace: trusted" : "workspace: untrusted");
+  else e.push("user settings");
+  if (T.requiresApproval) e.push("server: untrusted");
+  let t = e.length > 0 ? ` (${e.join(", ")})` : "";
+  switch (a.type) {
+    case "failed": {
+      let r = `${T.name}${t}: error - ${a.error.message||"Unknown error"}`;
+      if (a.error.stderr) r += `
+${a.error.stderr}`;
+      return r
+    }
+    case "connected": {
+      let r = T.tools;
+      if (r instanceof Error) return `${T.name}${t}: error loading tools - ${r.message}`;
+      if (r.length === 0) return `${T.name}${t}: connected (no tools)`;
+      let h = r.map((i) => i.spec.name).join(", ");
+      return `${T.name}${t}: connected (${r.length} tools: ${h})`
+    }
+    case "connecting":
+      return `${T.name}${t}: connecting...`;
+    case "reconnecting":
+      return `${T.name}${t}: reconnecting (attempt ${a.attempt}, retry in ${a.nextRetryMs}ms)...`;
+    case "authenticating":
+      return `${T.name}${t}: authenticating (waiting for OAuth)...`;
+    case "awaiting-approval":
+      return `${T.name}${t}: awaiting approval`;
+    case "denied":
+      return `${T.name}${t}: denied by user`;
+    case "blocked-by-registry":
+      return `${T.name}${t}: blocked by workspace MCP registry`
+  }
+}
+async function cUR(T, R, a) {
+  let e;
+  try {
+    e = await R(T);
+    let {
+      mcpService: t,
+      settings: r
+    } = e, h = new Map, i = !1, c = !1, s = !1;
+    await new Promise((A, l) => {
+      let o = t.servers.subscribe({
+        next: async (n) => {
+          let p = n;
+          if (a) p = n.filter((_) => _.name === a);
+          if (!i && p.length === 0 && a) {
+            process.stderr.write(`MCP server "${a}" not found
+`), l(Error("Server not found"));
+            return
+          }
+          if (!i && p.length === 0 && !a) {
+            process.stdout.write(`No MCP servers configured
+`), A();
+            return
+          }
+          if (!s) {
+            let _ = r.getSettingsFilePath(),
+              m = `${r.getWorkspaceRootPath()}/.amp/settings.json`;
+            process.stdout.write(`User settings: ${_}
+`), process.stdout.write(`Workspace settings: ${m}
+
+`), s = !0
+          }
+          c = await m0(t.isWorkspaceTrusted());
+          for (let _ of p) {
+            let m = iUR(_, c),
+              b = h.get(_.name);
+            if (m !== b) process.stdout.write(m + `
+`), h.set(_.name, m), i = !0
+          }
+          if (p.every((_) => {
+              if (_.status.type === "failed" || _.status.type === "denied" || _.status.type === "awaiting-approval" || _.status.type === "blocked-by-registry") return !0;
+              if (_.status.type === "connected" && _.tools instanceof Error) return !0;
+              if (_.status.type === "connected" && Array.isArray(_.tools) && _.tools.length > 0) return !0;
+              return !1
+            }) && p.length > 0) o.unsubscribe(), A()
+        },
+        error: (n) => {
+          l(n)
+        }
+      });
+      setTimeout(() => {
+        if (o.unsubscribe(), !i) l(Error("Timeout waiting for MCP servers"));
+        else A()
+      }, 30000)
+    }), process.exit(0)
+  } catch (t) {
+    process.stderr.write((t instanceof Error ? t.message : String(t)) + `
+`), process.exit(1)
+  } finally {
+    if (e) await e.asyncDispose()
+  }
+}
+
+function wUR() {
+  let T = "1.3.10";
+  if (!T) return !1;
+  let R = T.split(".").map(Number),
+    a = R[0] ?? 0,
+    e = R[1] ?? 0,
+    t = R[2] ?? 0;
+  if (!Number.isFinite(a) || !Number.isFinite(e) || !Number.isFinite(t)) return !1;
+  if (a !== 1 || e !== 2) return !1;
+  return t < 22
+}
+
+function az(T) {
+  T.setRawMode(!0), T.on("data", (a) => {
+    P8.buffer.push(Buffer.from(a))
+  }), P8.stream = T;
+  let R = () => {
+    if (P8.takenOver) return;
+    let a = P8.stream;
+    if (!a) return;
+    try {
+      if (a.isTTY) a.setRawMode(!1)
+    } catch {}
+    try {
+      a.removeAllListeners("data"), a.destroy()
+    } catch {}
+    P8.stream = null
+  };
+  process.once("exit", R), process.once("SIGINT", R), process.once("SIGTERM", R)
+}
+async function WUR() {
+  let [T, R, a, e, t, r] = await Promise.all([Promise.resolve().then(() => c0(n0(), 1)), Promise.resolve().then(() => c0(sZ(), 1)), Promise.resolve().then(() => c0(d$T(), 1)), Promise.resolve().then(() => c0(biR(), 1)), Promise.resolve().then(() => c0(nx(), 1)), Promise.resolve().then(() => c0(em(), 1))]);
+  class h extends a.InstrumentationBase {
+    originalFetch;
+    constructor(i = {}) {
+      super("fetch-instrumentation", "1.0.0", i)
+    }
+    init() {}
+    enable() {
+      this.originalFetch = globalThis.fetch;
+      let i = this.tracer,
+        c = this.originalFetch;
+      globalThis.fetch = async (s, A) => {
+        let l = typeof s === "string" ? new URL(s) : s instanceof URL ? s : new URL(s.url),
+          o = A?.method || "GET";
+        return i.startActiveSpan(`fetch ${l.pathname}${l.searchParams.size>0?"?"+l.searchParams.toString():""}`, {
+          kind: T.SpanKind.CLIENT,
+          attributes: {
+            [r.ATTR_HTTP_REQUEST_METHOD]: o,
+            [r.ATTR_URL_FULL]: l.toString()
+          }
+        }, async (n) => {
+          try {
+            let p = await c.call(globalThis, s, A);
+            if (n.setAttribute("http.response.status_code", p.status), p.status >= 400) n.setStatus({
+              code: T.SpanStatusCode.ERROR,
+              message: `HTTP ${p.status}`
+            });
+            return n.end(), p
+          } catch (p) {
+            throw n.recordException(p instanceof Error ? p : Error(String(p))), n.setStatus({
+              code: T.SpanStatusCode.ERROR,
+              message: p instanceof Error ? p.message : String(p)
+            }), n.end(), p
+          }
+        })
+      }
+    }
+    disable() {
+      if (this.originalFetch) globalThis.fetch = this.originalFetch
+    }
+  }
+  new e.NodeSDK({
+    serviceName: "amp.cli",
+    sampler: new t.AlwaysOnSampler,
+    contextManager: new R.AsyncLocalStorageContextManager,
+    instrumentations: [new h],
+    metricReader: void 0
+  }).start()
+}
+
+function zmT(T) {
+  if (T.startsWith("file://")) return zR.parse(T).fsPath;
+  return T
+}
+async function Wb(T, R) {
+  try {
+    let a = VUR(),
+      e = {
+        timeout: 5000,
+        signal: R
+      };
+    switch (a) {
+      case "win32":
+        await tz(`start "" "${T}"`, e);
+        break;
+      case "darwin":
+        await tz(`open "${T}"`, e);
+        break;
+      default:
+        await tz(`xdg-open "${T}"`, e);
+        break
+    }
+    J.info("Opened browser with auth URL", {
+      url: T
+    })
+  } catch (a) {
+    throw J.error("Failed to open browser", {
+      error: a
+    }), a
+  }
+}
+
+function j5T(T, R = !1) {
+  let a = T.length,
+    e = 0,
+    t = "",
+    r = 0,
+    h = 16,
+    i = 0,
+    c = 0,
+    s = 0,
+    A = 0,
+    l = 0;
+
+  function o(u, P) {
+    let k = 0,
+      x = 0;
+    while (k < u || !P) {
+      let f = T.charCodeAt(e);
+      if (f >= 48 && f <= 57) x = x * 16 + f - 48;
+      else if (f >= 65 && f <= 70) x = x * 16 + f - 65 + 10;
+      else if (f >= 97 && f <= 102) x = x * 16 + f - 97 + 10;
+      else break;
+      e++, k++
+    }
+    if (k < u) x = -1;
+    return x
+  }
+
+  function n(u) {
+    e = u, t = "", r = 0, h = 16, l = 0
+  }
+
+  function p() {
+    let u = e;
+    if (T.charCodeAt(e) === 48) e++;
+    else {
+      e++;
+      while (e < T.length && Gu(T.charCodeAt(e))) e++
+    }
+    if (e < T.length && T.charCodeAt(e) === 46)
+      if (e++, e < T.length && Gu(T.charCodeAt(e))) {
+        e++;
+        while (e < T.length && Gu(T.charCodeAt(e))) e++
+      }
+    else return l = 3, T.substring(u, e);
+    let P = e;
+    if (e < T.length && (T.charCodeAt(e) === 69 || T.charCodeAt(e) === 101)) {
+      if (e++, e < T.length && T.charCodeAt(e) === 43 || T.charCodeAt(e) === 45) e++;
+      if (e < T.length && Gu(T.charCodeAt(e))) {
+        e++;
+        while (e < T.length && Gu(T.charCodeAt(e))) e++;
+        P = e
+      } else l = 3
+    }
+    return T.substring(u, P)
+  }
+
+  function _() {
+    let u = "",
+      P = e;
+    while (!0) {
+      if (e >= a) {
+        u += T.substring(P, e), l = 2;
+        break
+      }
+      let k = T.charCodeAt(e);
+      if (k === 34) {
+        u += T.substring(P, e), e++;
+        break
+      }
+      if (k === 92) {
+        if (u += T.substring(P, e), e++, e >= a) {
+          l = 2;
+          break
+        }
+        switch (T.charCodeAt(e++)) {
+          case 34:
+            u += '"';
+            break;
+          case 92:
+            u += "\\";
+            break;
+          case 47:
+            u += "/";
+            break;
+          case 98:
+            u += "\b";
+            break;
+          case 102:
+            u += "\f";
+            break;
+          case 110:
+            u += `
+`;
+            break;
+          case 114:
+            u += "\r";
+            break;
+          case 116:
+            u += "\t";
+            break;
+          case 117:
+            let x = o(4, !0);
+            if (x >= 0) u += String.fromCharCode(x);
+            else l = 4;
+            break;
+          default:
+            l = 5
+        }
+        P = e;
+        continue
+      }
+      if (k >= 0 && k <= 31)
+        if (UI(k)) {
+          u += T.substring(P, e), l = 2;
+          break
+        }
+      else l = 6;
+      e++
+    }
+    return u
+  }
+
+  function m() {
+    if (t = "", l = 0, r = e, c = i, A = s, e >= a) return r = a, h = 17;
+    let u = T.charCodeAt(e);
+    if (rz(u)) {
+      do e++, t += String.fromCharCode(u), u = T.charCodeAt(e);
+      while (rz(u));
+      return h = 15
+    }
+    if (UI(u)) {
+      if (e++, t += String.fromCharCode(u), u === 13 && T.charCodeAt(e) === 10) e++, t += `
+`;
+      return i++, s = e, h = 14
+    }
+    switch (u) {
+      case 123:
+        return e++, h = 1;
+      case 125:
+        return e++, h = 2;
+      case 91:
+        return e++, h = 3;
+      case 93:
+        return e++, h = 4;
+      case 58:
+        return e++, h = 6;
+      case 44:
+        return e++, h = 5;
+      case 34:
+        return e++, t = _(), h = 10;
+      case 47:
+        let P = e - 1;
+        if (T.charCodeAt(e + 1) === 47) {
+          e += 2;
+          while (e < a) {
+            if (UI(T.charCodeAt(e))) break;
+            e++
+          }
+          return t = T.substring(P, e), h = 12
+        }
+        if (T.charCodeAt(e + 1) === 42) {
+          e += 2;
+          let k = a - 1,
+            x = !1;
+          while (e < k) {
+            let f = T.charCodeAt(e);
+            if (f === 42 && T.charCodeAt(e + 1) === 47) {
+              e += 2, x = !0;
+              break
+            }
+            if (e++, UI(f)) {
+              if (f === 13 && T.charCodeAt(e) === 10) e++;
+              i++, s = e
+            }
+          }
+          if (!x) e++, l = 1;
+          return t = T.substring(P, e), h = 13
+        }
+        return t += String.fromCharCode(u), e++, h = 16;
+      case 45:
+        if (t += String.fromCharCode(u), e++, e === a || !Gu(T.charCodeAt(e))) return h = 16;
+      case 48:
+      case 49:
+      case 50:
+      case 51:
+      case 52:
+      case 53:
+      case 54:
+      case 55:
+      case 56:
+      case 57:
+        return t += p(), h = 11;
+      default:
+        while (e < a && b(u)) e++, u = T.charCodeAt(e);
+        if (r !== e) {
+          switch (t = T.substring(r, e), t) {
+            case "true":
+              return h = 8;
+            case "false":
+              return h = 9;
+            case "null":
+              return h = 7
+          }
+          return h = 16
+        }
+        return t += String.fromCharCode(u), e++, h = 16
+    }
+  }
+
+  function b(u) {
+    if (rz(u) || UI(u)) return !1;
+    switch (u) {
+      case 125:
+      case 93:
+      case 123:
+      case 91:
+      case 34:
+      case 58:
+      case 44:
+      case 47:
+        return !1
+    }
+    return !0
+  }
+
+  function y() {
+    let u;
+    do u = m();
+    while (u >= 12 && u <= 15);
+    return u
+  }
+  return {
+    setPosition: n,
+    getPosition: () => e,
+    scan: R ? y : m,
+    getToken: () => h,
+    getTokenValue: () => t,
+    getTokenOffset: () => r,
+    getTokenLength: () => e - r,
+    getTokenStartLine: () => c,
+    getTokenStartCharacter: () => r - A,
+    getTokenError: () => l
+  }
+}
+
+function rz(T) {
+  return T === 32 || T === 9
+}
+
+function UI(T) {
+  return T === 10 || T === 13
+}
+
+function Gu(T) {
+  return T >= 48 && T <= 57
+}
+
+function JUR(T, R, a) {
+  let e, t, r, h, i;
+  if (R) {
+    h = R.offset, i = h + R.length, r = h;
+    while (r > 0 && !ew(T, r - 1)) r--;
+    let k = i;
+    while (k < T.length && !ew(T, k)) k++;
+    t = T.substring(r, k), e = THR(t, a)
+  } else t = T, e = 0, r = 0, h = 0, i = T.length;
+  let c = RHR(a, T),
+    s = ZUR.includes(c),
+    A = 0,
+    l = 0,
+    o;
+  if (a.insertSpaces) o = Zh[a.tabSize || 4] ?? Ku(Zh[1], a.tabSize || 4);
+  else o = "\t";
+  let n = o === "\t" ? "\t" : " ",
+    p = j5T(t, !1),
+    _ = !1;
+
+  function m() {
+    if (A > 1) return Ku(c, A) + Ku(o, e + l);
+    let k = o.length * (e + l);
+    if (!s || k > GmT[n][c].length) return c + Ku(o, e + l);
+    if (k <= 0) return c;
+    return GmT[n][c][k]
+  }
+
+  function b() {
+    let k = p.scan();
+    A = 0;
+    while (k === 15 || k === 14) {
+      if (k === 14 && a.keepLines) A += 1;
+      else if (k === 14) A = 1;
+      k = p.scan()
+    }
+    return _ = k === 16 || p.getTokenError() !== 0, k
+  }
+  let y = [];
+
+  function u(k, x, f) {
+    if (!_ && (!R || x < i && f > h) && T.substring(x, f) !== k) y.push({
+      offset: x,
+      length: f - x,
+      content: k
+    })
+  }
+  let P = b();
+  if (a.keepLines && A > 0) u(Ku(c, A), 0, 0);
+  if (P !== 17) {
+    let k = p.getTokenOffset() + r,
+      x = o.length * e < 20 && a.insertSpaces ? Zh[o.length * e] : Ku(o, e);
+    u(x, r, k)
+  }
+  while (P !== 17) {
+    let k = p.getTokenOffset() + p.getTokenLength() + r,
+      x = b(),
+      f = "",
+      v = !1;
+    while (A === 0 && (x === 12 || x === 13)) {
+      let I = p.getTokenOffset() + r;
+      u(Zh[1], k, I), k = p.getTokenOffset() + p.getTokenLength() + r, v = x === 12, f = v ? m() : "", x = b()
+    }
+    if (x === 2) {
+      if (P !== 1) l--;
+      if (a.keepLines && A > 0 || !a.keepLines && P !== 1) f = m();
+      else if (a.keepLines) f = Zh[1]
+    } else if (x === 4) {
+      if (P !== 3) l--;
+      if (a.keepLines && A > 0 || !a.keepLines && P !== 3) f = m();
+      else if (a.keepLines) f = Zh[1]
+    } else {
+      switch (P) {
+        case 3:
+        case 1:
+          if (l++, a.keepLines && A > 0 || !a.keepLines) f = m();
+          else f = Zh[1];
+          break;
+        case 5:
+          if (a.keepLines && A > 0 || !a.keepLines) f = m();
+          else f = Zh[1];
+          break;
+        case 12:
+          f = m();
+          break;
+        case 13:
+          if (A > 0) f = m();
+          else if (!v) f = Zh[1];
+          break;
+        case 6:
+          if (a.keepLines && A > 0) f = m();
+          else if (!v) f = Zh[1];
+          break;
+        case 10:
+          if (a.keepLines && A > 0) f = m();
+          else if (x === 6 && !v) f = "";
+          break;
+        case 7:
+        case 8:
+        case 9:
+        case 11:
+        case 2:
+        case 4:
+          if (a.keepLines && A > 0) f = m();
+          else if ((x === 12 || x === 13) && !v) f = Zh[1];
+          else if (x !== 5 && x !== 17) _ = !0;
+          break;
+        case 16:
+          _ = !0;
+          break
+      }
+      if (A > 0 && (x === 12 || x === 13)) f = m()
+    }
+    if (x === 17)
+      if (a.keepLines && A > 0) f = m();
+      else f = a.insertFinalNewline ? c : "";
+    let g = p.getTokenOffset() + r;
+    u(f, k, g), P = x
+  }
+  return y
+}
+
+function Ku(T, R) {
+  let a = "";
+  for (let e = 0; e < R; e++) a += T;
+  return a
+}
+
+function THR(T, R) {
+  let a = 0,
+    e = 0,
+    t = R.tabSize || 4;
+  while (a < T.length) {
+    let r = T.charAt(a);
+    if (r === Zh[1]) e++;
+    else if (r === "\t") e += t;
+    else break;
+    a++
+  }
+  return Math.floor(e / t)
+}
+
+function RHR(T, R) {
+  for (let a = 0; a < R.length; a++) {
+    let e = R.charAt(a);
+    if (e === "\r") {
+      if (a + 1 < R.length && R.charAt(a + 1) === `
+`) return `\r
+`;
+      return "\r"
+    } else if (e === `
+`) return `
+`
+  }
+  return T && T.eol || `
+`
+}
+
+function ew(T, R) {
+  return `\r
+`.indexOf(T.charAt(R)) !== -1
+}
+
+function aHR(T, R = [], a = Qj.DEFAULT) {
+  let e = null,
+    t = [],
+    r = [];
+
+  function h(i) {
+    if (Array.isArray(t)) t.push(i);
+    else if (e !== null) t[e] = i
+  }
+  return S5T(T, {
+    onObjectBegin: () => {
+      let i = {};
+      h(i), r.push(t), t = i, e = null
+    },
+    onObjectProperty: (i) => {
+      e = i
+    },
+    onObjectEnd: () => {
+      t = r.pop()
+    },
+    onArrayBegin: () => {
+      let i = [];
+      h(i), r.push(t), t = i, e = null
+    },
+    onArrayEnd: () => {
+      t = r.pop()
+    },
+    onLiteralValue: h,
+    onError: (i, c, s) => {
+      R.push({
+        error: i,
+        offset: c,
+        length: s
+      })
+    }
+  }, a), t[0]
+}
+
+function eHR(T, R = [], a = Qj.DEFAULT) {
+  let e = {
+    type: "array",
+    offset: -1,
+    length: -1,
+    children: [],
+    parent: void 0
+  };
+
+  function t(i) {
+    if (e.type === "property") e.length = i - e.offset, e = e.parent
+  }
+
+  function r(i) {
+    return e.children.push(i), i
+  }
+  S5T(T, {
+    onObjectBegin: (i) => {
+      e = r({
+        type: "object",
+        offset: i,
+        length: -1,
+        parent: e,
+        children: []
+      })
+    },
+    onObjectProperty: (i, c, s) => {
+      e = r({
+        type: "property",
+        offset: c,
+        length: -1,
+        parent: e,
+        children: []
+      }), e.children.push({
+        type: "string",
+        value: i,
+        offset: c,
+        length: s,
+        parent: e
+      })
+    },
+    onObjectEnd: (i, c) => {
+      t(i + c), e.length = i + c - e.offset, e = e.parent, t(i + c)
+    },
+    onArrayBegin: (i, c) => {
+      e = r({
+        type: "array",
+        offset: i,
+        length: -1,
+        parent: e,
+        children: []
+      })
+    },
+    onArrayEnd: (i, c) => {
+      e.length = i + c - e.offset, e = e.parent, t(i + c)
+    },
+    onLiteralValue: (i, c, s) => {
+      r({
+        type: tHR(i),
+        offset: c,
+        length: s,
+        parent: e,
+        value: i
+      }), t(c + s)
+    },
+    onSeparator: (i, c, s) => {
+      if (e.type === "property") {
+        if (i === ":") e.colonOffset = c;
+        else if (i === ",") t(c)
+      }
+    },
+    onError: (i, c, s) => {
+      R.push({
+        error: i,
+        offset: c,
+        length: s
+      })
+    }
+  }, a);
+  let h = e.children[0];
+  if (h) delete h.parent;
+  return h
+}
+
+function KmT(T, R) {
+  if (!T) return;
+  let a = T;
+  for (let e of R)
+    if (typeof e === "string") {
+      if (a.type !== "object" || !Array.isArray(a.children)) return;
+      let t = !1;
+      for (let r of a.children)
+        if (Array.isArray(r.children) && r.children[0].value === e && r.children.length === 2) {
+          a = r.children[1], t = !0;
+          break
+        }
+      if (!t) return
+    }
+  else {
+    let t = e;
+    if (a.type !== "array" || t < 0 || !Array.isArray(a.children) || t >= a.children.length) return;
+    a = a.children[t]
+  }
+  return a
+}
+
+function S5T(T, R, a = Qj.DEFAULT) {
+  let e = j5T(T, !1),
+    t = [],
+    r = 0;
+
+  function h(d) {
+    return d ? () => r === 0 && d(e.getTokenOffset(), e.getTokenLength(), e.getTokenStartLine(), e.getTokenStartCharacter()) : () => !0
+  }
+
+  function i(d) {
+    return d ? (C) => r === 0 && d(C, e.getTokenOffset(), e.getTokenLength(), e.getTokenStartLine(), e.getTokenStartCharacter()) : () => !0
+  }
+
+  function c(d) {
+    return d ? (C) => r === 0 && d(C, e.getTokenOffset(), e.getTokenLength(), e.getTokenStartLine(), e.getTokenStartCharacter(), () => t.slice()) : () => !0
+  }
+
+  function s(d) {
+    return d ? () => {
+        if (r > 0) r++;
+        else if (d(e.getTokenOffset(), e.getTokenLength(), e.getTokenStartLine(), e.getTokenStartCharacter(), () => t.slice()) === !1) r = 1
+      } :
+      () => !0
+  }
+
+  function A(d) {
+    return d ? () => {
+        if (r > 0) r--;
+        if (r === 0) d(e.getTokenOffset(), e.getTokenLength(), e.getTokenStartLine(), e.getTokenStartCharacter())
+      } :
+      () => !0
+  }
+  let l = s(R.onObjectBegin),
+    o = c(R.onObjectProperty),
+    n = A(R.onObjectEnd),
+    p = s(R.onArrayBegin),
+    _ = A(R.onArrayEnd),
+    m = c(R.onLiteralValue),
+    b = i(R.onSeparator),
+    y = h(R.onComment),
+    u = i(R.onError),
+    P = a && a.disallowComments,
+    k = a && a.allowTrailingComma;
+
+  function x() {
+    while (!0) {
+      let d = e.scan();
+      switch (e.getTokenError()) {
+        case 4:
+          f(14);
+          break;
+        case 5:
+          f(15);
+          break;
+        case 3:
+          f(13);
+          break;
+        case 1:
+          if (!P) f(11);
+          break;
+        case 2:
+          f(12);
+          break;
+        case 6:
+          f(16);
+          break
+      }
+      switch (d) {
+        case 12:
+        case 13:
+          if (P) f(10);
+          else y();
+          break;
+        case 16:
+          f(1);
+          break;
+        case 15:
+        case 14:
+          break;
+        default:
+          return d
+      }
+    }
+  }
+
+  function f(d, C = [], L = []) {
+    if (u(d), C.length + L.length > 0) {
+      let w = e.getToken();
+      while (w !== 17) {
+        if (C.indexOf(w) !== -1) {
+          x();
+          break
+        } else if (L.indexOf(w) !== -1) break;
+        w = x()
+      }
+    }
+  }
+
+  function v(d) {
+    let C = e.getTokenValue();
+    if (d) m(C);
+    else o(C), t.push(C);
+    return x(), !0
+  }
+
+  function g() {
+    switch (e.getToken()) {
+      case 11:
+        let d = e.getTokenValue(),
+          C = Number(d);
+        if (isNaN(C)) f(2), C = 0;
+        m(C);
+        break;
+      case 7:
+        m(null);
+        break;
+      case 8:
+        m(!0);
+        break;
+      case 9:
+        m(!1);
+        break;
+      default:
+        return !1
+    }
+    return x(), !0
+  }
+
+  function I() {
+    if (e.getToken() !== 10) return f(3, [], [2, 5]), !1;
+    if (v(!1), e.getToken() === 6) {
+      if (b(":"), x(), !j()) f(4, [], [2, 5])
+    } else f(5, [], [2, 5]);
+    return t.pop(), !0
+  }
+
+  function S() {
+    l(), x();
+    let d = !1;
+    while (e.getToken() !== 2 && e.getToken() !== 17) {
+      if (e.getToken() === 5) {
+        if (!d) f(4, [], []);
+        if (b(","), x(), e.getToken() === 2 && k) break
+      } else if (d) f(6, [], []);
+      if (!I()) f(4, [], [2, 5]);
+      d = !0
+    }
+    if (n(), e.getToken() !== 2) f(7, [2], []);
+    else x();
+    return !0
+  }
+
+  function O() {
+    p(), x();
+    let d = !0,
+      C = !1;
+    while (e.getToken() !== 4 && e.getToken() !== 17) {
+      if (e.getToken() === 5) {
+        if (!C) f(4, [], []);
+        if (b(","), x(), e.getToken() === 4 && k) break
+      } else if (C) f(6, [], []);
+      if (d) t.push(0), d = !1;
+      else t[t.length - 1]++;
+      if (!j()) f(4, [], [4, 5]);
+      C = !0
+    }
+    if (_(), !d) t.pop();
+    if (e.getToken() !== 4) f(8, [4], []);
+    else x();
+    return !0
+  }
+
+  function j() {
+    switch (e.getToken()) {
+      case 3:
+        return O();
+      case 1:
+        return S();
+      case 10:
+        return v(!0);
+      default:
+        return g()
+    }
+  }
+  if (x(), e.getToken() === 17) {
+    if (a.allowEmptyContent) return !0;
+    return f(4, [], []), !1
+  }
+  if (!j()) return f(4, [], []), !1;
+  if (e.getToken() !== 17) f(9, [], []);
+  return !0
+}
+
+function tHR(T) {
+  switch (typeof T) {
+    case "boolean":
+      return "boolean";
+    case "number":
+      return "number";
+    case "string":
+      return "string";
+    case "object": {
+      if (!T) return "null";
+      else if (Array.isArray(T)) return "array";
+      return "object"
+    }
+    default:
+      return "null"
+  }
+}
+
+function rHR(T, R, a, e) {
+  let t = R.slice(),
+    r = eHR(T, []),
+    h = void 0,
+    i = void 0;
+  while (t.length > 0)
+    if (i = t.pop(), h = KmT(r, t), h === void 0 && a !== void 0)
+      if (typeof i === "string") a = {
+        [i]: a
+      };
+      else a = [a];
+  else break;
+  if (!h) {
+    if (a === void 0) throw Error("Can not delete in empty document");
+    return r_(T, {
+      offset: r ? r.offset : 0,
+      length: r ? r.length : 0,
+      content: JSON.stringify(a)
+    }, e)
+  } else if (h.type === "object" && typeof i === "string" && Array.isArray(h.children)) {
+    let c = KmT(h, [i]);
+    if (c !== void 0)
+      if (a === void 0) {
+        if (!c.parent) throw Error("Malformed AST");
+        let s = h.children.indexOf(c.parent),
+          A, l = c.parent.offset + c.parent.length;
+        if (s > 0) {
+          let o = h.children[s - 1];
+          A = o.offset + o.length
+        } else if (A = h.offset + 1, h.children.length > 1) l = h.children[1].offset;
+        return r_(T, {
+          offset: A,
+          length: l - A,
+          content: ""
+        }, e)
+      }
+    else return r_(T, {
+      offset: c.offset,
+      length: c.length,
+      content: JSON.stringify(a)
+    }, e);
+    else {
+      if (a === void 0) return [];
+      let s = `${JSON.stringify(i)}: ${JSON.stringify(a)}`,
+        A = e.getInsertionIndex ? e.getInsertionIndex(h.children.map((o) => o.children[0].value)) : h.children.length,
+        l;
+      if (A > 0) {
+        let o = h.children[A - 1];
+        l = {
+          offset: o.offset + o.length,
+          length: 0,
+          content: "," + s
+        }
+      } else if (h.children.length === 0) l = {
+        offset: h.offset + 1,
+        length: 0,
+        content: s
+      };
+      else l = {
+        offset: h.offset + 1,
+        length: 0,
+        content: s + ","
+      };
+      return r_(T, l, e)
+    }
+  } else if (h.type === "array" && typeof i === "number" && Array.isArray(h.children)) {
+    let c = i;
+    if (c === -1) {
+      let s = `${JSON.stringify(a)}`,
+        A;
+      if (h.children.length === 0) A = {
+        offset: h.offset + 1,
+        length: 0,
+        content: s
+      };
+      else {
+        let l = h.children[h.children.length - 1];
+        A = {
+          offset: l.offset + l.length,
+          length: 0,
+          content: "," + s
+        }
+      }
+      return r_(T, A, e)
+    } else if (a === void 0 && h.children.length >= 0) {
+      let s = i,
+        A = h.children[s],
+        l;
+      if (h.children.length === 1) l = {
+        offset: h.offset + 1,
+        length: h.length - 2,
+        content: ""
+      };
+      else if (h.children.length - 1 === s) {
+        let o = h.children[s - 1],
+          n = o.offset + o.length,
+          p = h.offset + h.length;
+        l = {
+          offset: n,
+          length: p - 2 - n,
+          content: ""
+        }
+      } else l = {
+        offset: A.offset,
+        length: h.children[s + 1].offset - A.offset,
+        content: ""
+      };
+      return r_(T, l, e)
+    } else if (a !== void 0) {
+      let s, A = `${JSON.stringify(a)}`;
+      if (!e.isArrayInsertion && h.children.length > i) {
+        let l = h.children[i];
+        s = {
+          offset: l.offset,
+          length: l.length,
+          content: A
+        }
+      } else if (h.children.length === 0 || i === 0) s = {
+        offset: h.offset + 1,
+        length: 0,
+        content: h.children.length === 0 ? A : A + ","
+      };
+      else {
+        let l = i > h.children.length ? h.children.length : i,
+          o = h.children[l - 1];
+        s = {
+          offset: o.offset + o.length,
+          length: 0,
+          content: "," + A
+        }
+      }
+      return r_(T, s, e)
+    } else throw Error(`Can not ${a===void 0?"remove":e.isArrayInsertion?"insert":"modify"} Array index ${c} as length is not sufficient`)
+  } else throw Error(`Can not add ${typeof i!=="number"?"index":"property"} to parent of type ${h.type}`)
+}
+
+function r_(T, R, a) {
+  if (!a.formattingOptions) return [R];
+  let e = EX(T, R),
+    t = R.offset,
+    r = R.offset + R.content.length;
+  if (R.length === 0 || R.content.length === 0) {
+    while (t > 0 && !ew(e, t - 1)) t--;
+    while (r < e.length && !ew(e, r)) r++
+  }
+  let h = JUR(e, {
+    offset: t,
+    length: r - t
+  }, {
+    ...a.formattingOptions,
+    keepLines: !1
+  });
+  for (let c = h.length - 1; c >= 0; c--) {
+    let s = h[c];
+    e = EX(e, s), t = Math.min(t, s.offset), r = Math.max(r, s.offset + s.length), r += s.content.length - s.length
+  }
+  let i = T.length - (e.length - r) - t;
+  return [{
+    offset: t,
+    length: i,
+    content: e.substring(t, r)
+  }]
+}
+
+function EX(T, R) {
+  return T.substring(0, R.offset) + R.content + T.substring(R.offset + R.length)
+}
+
+function QmT(T, R, a, e) {
+  return rHR(T, R, a, e)
+}
+
+function ZmT(T, R) {
+  let a = R.slice(0).sort((t, r) => {
+      let h = t.offset - r.offset;
+      if (h === 0) return t.length - r.length;
+      return h
+    }),
+    e = T.length;
+  for (let t = a.length - 1; t >= 0; t--) {
+    let r = a[t];
+    if (r.offset + r.length <= e) T = EX(T, r);
+    else throw Error("Overlapping edit");
+    e = r.offset
+  }
+  return T
+}
+class d5T {
+  options;
+  value;
+  lastError;
+  lastUpdated = 0;
+  pendingPromise;
+  eventsSubject = new W0;
+  events = this.eventsSubject;
+  constructor(T) {
+    this.options = T
+  }
+  async get() {
+    if (this.lastError) return this.recompute();
+    let T = Date.now() - this.lastUpdated;
+    if (this.value === void 0 || T >= this.options.hardTTL) return this.recompute();
+    if (T >= this.options.softTTL && !this.pendingPromise) this.recompute().catch(() => {});
+    return this.value
+  }
+  getCached() {
+    return this.value
+  }
+  async refresh() {
+    return this.recompute()
+  }
+  recompute() {
+    if (this.pendingPromise) return this.pendingPromise;
+    return this.pendingPromise = this.performRecomputation(), this.pendingPromise.finally(() => {
+      this.pendingPromise = void 0
+    }), this.pendingPromise
+  }
+  async performRecomputation() {
+    try {
+      let T = await this.options.compute(),
+        R = this.value;
+      this.lastError = void 0, this.value = T, this.lastUpdated = Date.now();
+      let a = this.options.changes(R, T);
+      if (a !== void 0) try {
+        this.eventsSubject.next(a)
+      }
+      catch (e) {
+        J.error("Uncaught error for GlobalCachedValue.events subscriber", e)
+      }
+      return T
+    } catch (T) {
+      let R = T instanceof Error ? T : Error(String(T));
+      this.lastError = R;
+      let a = this.value;
+      this.value = void 0;
+      let e = this.options.changes(a, void 0);
+      if (e !== void 0) try {
+        this.eventsSubject.next(e)
+      }
+      catch (t) {
+        J.error("Uncaught error for GlobalCachedValue.events subscriber", t)
+      }
+      throw R
+    }
+  }
+}
+
+function hHR(T) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(T)) throw Error(`Invalid compatibility date format "${T}". Expected format: YYYY-MM-DD (e.g., "2024-01-15")`);
+  let R = new Date(T + "T00:00:00.000Z");
+  if (Number.isNaN(R.getTime())) throw Error(`Invalid compatibility date "${T}". Date could not be parsed.`);
+  let a = T.split("-").map(Number),
+    [e, t, r] = a;
+  if (a.length !== 3 || e === void 0 || t === void 0 || r === void 0) throw Error(`Invalid compatibility date "${T}". Could not parse date components.`);
+  if (R.getUTCFullYear() !== e || R.getUTCMonth() !== t - 1 || R.getUTCDate() !== r) throw Error(`Invalid compatibility date "${T}". Date components are invalid.`);
+  return R
+}
+
+function iHR(T, R = {
+  fetch: () => JmT.get(),
+  changes: JmT.events
+}) {
+  return {
+    ...T,
+    async get(a, e) {
+      let t = await R.fetch();
+      if (e === "admin" || !e && a in t) return t[a];
+      return T.get(a, e)
+    },
+    async keys() {
+      let a = await T.keys(),
+        e = await R.fetch(),
+        t = Object.keys(e),
+        r = new Set([...a, ...t]);
+      return Array.from(r)
+    },
+    get changes() {
+      if (R.changes) return xj(T.changes, R.changes);
+      return T.changes
+    }
+  }
+}
+
+function cHR(T, R) {
+  let a = T ?? {},
+    e = R ?? {},
+    t = JSON.stringify(a, Object.keys(a).sort()),
+    r = JSON.stringify(e, Object.keys(e).sort());
+  if (t === r) return [];
+  let h = new Set([...Object.keys(a), ...Object.keys(e)]);
+  return Array.from(h)
+}
+
+function sHR() {
+  switch (QUR.platform()) {
+    case "darwin":
+      return "/Library/Application Support/ampcode/managed-settings.json";
+    case "linux":
+      return "/etc/ampcode/managed-settings.json";
+    case "win32":
+      return "C:\\ProgramData\\ampcode\\managed-settings.json";
+    default:
+      return null
+  }
+}
+async function oHR() {
+  let T = sHR();
+  if (!T) return "{}";
+  try {
+    return await YUR.promises.readFile(T, "utf-8")
+  } catch (R) {
+    if (R.code === "ENOENT") return "{}";
+    throw R
+  }
+}
+
+function Ms(T, R) {
+  let a = CX.getValue();
+  CX.next({
+    ...a,
+    [T]: R
+  })
+}
+
+function LX({
+  storage: T,
+  secretStorage: R,
+  workspaceRoot: a,
+  defaultAmpURL: e = Lr,
+  preferThreadEnv: t,
+  homeDir: r,
+  userConfigDir: h
+}) {
+  let i = Q9(async () => {
+      let o = await T.keys();
+      return Object.fromEntries(await Promise.all(o.map(async (n) => [n, await T.get(n)])))
+    }).pipe(L9((o) => sET(AR.of(o), T.changes.pipe(I2(async (n) => {
+      return await Promise.all(n.map(async (p) => {
+        let _ = await T.get(p);
+        o[p] = _
+      })), {
+        ...o
+      }
+    })))), JR((o) => {
+      let n = {
+        ...o,
+        url: o.url || e
+      };
+      if (n.permissions) n.permissions = I0T(n.permissions);
+      return n
+    }), f3(), E9()),
+    c = v3(R.changes.pipe(Y3(void 0)), i.pipe(JR(({
+      url: o
+    }) => o), E9())).pipe(I2(async ([, o]) => ({
+      getToken: async (n, p) => {
+        return R.get(n, p)
+      },
+      isSet: {
+        [o]: Object.fromEntries(await Promise.all(oCT.map(async (n) => [n, !!await R.get(n, o)])))
+      }
+    }))),
+    s = v3(i, c, CX).pipe(E9(([o, n, p], [_, m, b]) => o === _ && n === m && p === b), JR(([o, n, p]) => ({
+      settings: {
+        ...o,
+        ...p
+      },
+      secrets: n
+    })), f3()),
+    A = a.pipe(JR((o) => ({
+      workspaceFolders: o ? [d0(o)] : null,
+      isWindows: JS().os === "windows",
+      homeDir: typeof process === "object" && process.env.HOME ? d0(zR.file(process.env.HOME)) : void 0,
+      preferThreadEnv: t
+    }))),
+    l = A.subscribe((o) => {
+      AET(o)
+    });
+  return {
+    get(o, n) {
+      return T.get(o, n)
+    },
+    updateSettings(o, n, p) {
+      return T.set(o, n, p)
+    },
+    async appendSettings(o, n, p) {
+      let _ = await T.get(o, p);
+      if (_ === void 0) return T.set(o, n, p);
+      else if (!Array.isArray(_)) throw Error(`Cannot append to non-array setting: ${o}`);
+      else if (_.length === 0) return T.set(o, n, p);
+      else {
+        let m = [..._, ...n];
+        return T.set(o, m, p)
+      }
+    },
+    async prependSettings(o, n, p) {
+      let _ = await T.get(o, p);
+      if (_ === void 0) return T.set(o, n, p);
+      else if (!Array.isArray(_)) throw Error(`Cannot prepend to non-array setting: ${o}`);
+      else if (_.length === 0) return T.set(o, n, p);
+      else {
+        let m = [...n, ..._];
+        return T.set(o, m, p)
+      }
+    },
+    deleteSettings(o, n) {
+      return T.delete(o, n)
+    },
+    updateSecret(o, n, p) {
+      return R.set(o, n, p)
+    },
+    workspaceRoot: a,
+    displayPathEnvInfo: A,
+    homeDir: r,
+    userConfigDir: h,
+    config: s,
+    async getLatest(o) {
+      return m0(s, o)
+    },
+    unsubscribe() {
+      l.unsubscribe()
+    }
+  }
+}
+
+function nHR(T) {
+  return {
+    config: AR.of(T),
+    async getLatest() {
+      return T
+    }
+  }
+}
+
+function TuT(T) {
+  return T.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;")
+}
+
+function PHR(T) {
+  let R = T.lastIndexOf(":");
+  if (R === -1) return {
+    hostname: T,
+    port: void 0
+  };
+  let a = T.slice(R + 1),
+    e = parseInt(a, 10);
+  if (isNaN(e)) return {
+    hostname: T,
+    port: void 0
+  };
+  return {
+    hostname: T.slice(0, R),
+    port: e
+  }
+}
+
+function kHR(T) {
+  return bHR.has(T.toLowerCase())
+}
+
+function HI(T, R, a, e) {
+  T.writeHead(R, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Security-Policy": uHR
+  });
+  let t = yHR.replaceAll("{{title}}", TuT(a)).replaceAll("{{message}}", TuT(e));
+  T.end(t)
+}
+
+function Vu(T, R, a) {
+  T.writeHead(R, {
+    "Content-Type": "text/plain"
+  }), T.end(a)
+}
+class L5T {
+  server = null;
+  pendingFlows = new Map;
+  port;
+  expectedPath = "/oauth/callback";
+  startPromise = null;
+  constructor(T = C5T) {
+    this.port = T
+  }
+  async waitForCallback(T, R = pHR) {
+    if (this.pendingFlows.has(T)) throw Error(`OAuth flow with state ${T} is already pending`);
+    return await this.ensureServerRunning(), J.info("Registering OAuth flow with callback server", {
+      state: T.slice(0, 8) + "...",
+      pendingCount: this.pendingFlows.size + 1
+    }), new Promise((a, e) => {
+      let t = setTimeout(() => {
+        J.warn("OAuth flow timed out", {
+          state: T.slice(0, 8) + "..."
+        }), this.pendingFlows.delete(T), this.maybeStopServer(), e(new T4T)
+      }, R);
+      this.pendingFlows.set(T, {
+        resolve: a,
+        reject: e,
+        timeoutId: t
+      })
+    })
+  }
+  cancelFlow(T) {
+    let R = this.pendingFlows.get(T);
+    if (R) J.info("Cancelling OAuth flow", {
+      state: T.slice(0, 8) + "...",
+      remainingFlows: this.pendingFlows.size - 1
+    }), clearTimeout(R.timeoutId), this.pendingFlows.delete(T), R.reject(Error("OAuth flow was cancelled")), this.maybeStopServer()
+  }
+  getRedirectUrl() {
+    return `http://localhost:${this.port}${this.expectedPath}`
+  }
+  hasPendingFlow(T) {
+    return this.pendingFlows.has(T)
+  }
+  close() {
+    for (let [, T] of this.pendingFlows) clearTimeout(T.timeoutId), T.reject(Error("OAuth callback server was closed"));
+    if (this.pendingFlows.clear(), this.server) this.server.close(), this.server = null
+  }
+  async ensureServerRunning() {
+    if (this.server) return;
+    if (this.startPromise) return this.startPromise;
+    this.startPromise = this.startServer();
+    try {
+      await this.startPromise
+    } finally {
+      this.startPromise = null
+    }
+  }
+  async startServer() {
+    J.debug("Starting shared OAuth callback server", {
+      port: this.port
+    }), this.server = E5T.createServer((T, R) => this.handleSharedRequest(T, R)), await new Promise((T, R) => {
+      this.server.once("error", (a) => {
+        if (a.code === "EADDRINUSE") R(Error(`OAuth callback server failed to start - port ${this.port} is already in use.
 
 To fix this:
 1. Run: lsof -i :${this.port} | grep LISTEN
 2. Kill the process: kill <PID>
-3. Then retry the OAuth flow`));else R(a)}),this.server.listen(this.port,_HR,()=>{T()})}),this.server.on("clientError",(T,R)=>{J.debug("OAuth callback server client error",{error:T.message});try{R.end(`HTTP/1.1 400 Bad Request\r
+3. Then retry the OAuth flow`));
+        else R(a)
+      }), this.server.listen(this.port, _HR, () => {
+        T()
+      })
+    }), this.server.on("clientError", (T, R) => {
+      J.debug("OAuth callback server client error", {
+        error: T.message
+      });
+      try {
+        R.end(`HTTP/1.1 400 Bad Request\r
 \r
-`)}catch{}}),J.info("Shared OAuth callback server started",{port:this.port})}handleSharedRequest(T,R){try{if(T.method!=="GET"){Vu(R,Hi.METHOD_NOT_ALLOWED,"Method Not Allowed");return}let a=T.headers.host;if(!a){Vu(R,Hi.FORBIDDEN,"Forbidden");return}let{hostname:e,port:t}=PHR(a);if(!kHR(e)){Vu(R,Hi.FORBIDDEN,"Forbidden");return}if(t!==void 0&&t!==this.port){Vu(R,Hi.FORBIDDEN,"Forbidden");return}let r=new AHR(T.url,`http://${e}:${this.port}`);if(r.pathname!==this.expectedPath){Vu(R,Hi.NOT_FOUND,"Not Found");return}let h=r.searchParams.get("error");if(h){let A=r.searchParams.get("error_description")||"",l=r.searchParams.get("state");if(l&&this.pendingFlows.has(l)){let o=this.pendingFlows.get(l);clearTimeout(o.timeoutId),this.pendingFlows.delete(l);let n=h===mHR.ACCESS_DENIED,p=n?"User denied authorization":`OAuth error: ${h}${A?` - ${A}`:""}`;HI(R,Hi.BAD_REQUEST,"Authorization Failed",n?"Access was denied. You can close this window.":p),o.reject(Error(p)),this.maybeStopServer();return}HI(R,Hi.BAD_REQUEST,"Authorization Failed",h);return}let i=r.searchParams.get("code"),c=r.searchParams.get("state");if(!i||!c){HI(R,Hi.BAD_REQUEST,"Invalid Request","Missing code or state parameter");return}let s=this.pendingFlows.get(c);if(!s){let A=Array.from(this.pendingFlows.keys()).map((l)=>l.slice(0,8)+"...");J.error("OAuth callback received for unknown state",{receivedState:c.slice(0,8)+"...",pendingStates:A,pendingCount:this.pendingFlows.size}),HI(R,Hi.BAD_REQUEST,"Unknown Request","No pending OAuth flow for this state. The flow may have timed out.");return}clearTimeout(s.timeoutId),this.pendingFlows.delete(c),HI(R,Hi.OK,"Authorization Successful","Authorization successful! You can return to Amp."),s.resolve({code:i,state:c}),this.maybeStopServer()}catch(a){J.error("Error handling OAuth callback request",{error:a});try{Vu(R,Hi.INTERNAL_SERVER_ERROR,"Internal Server Error")}catch{}}}maybeStopServer(){if(this.pendingFlows.size===0&&this.server)J.debug("No pending OAuth flows, stopping shared callback server"),this.server.close(),this.server=null}}class M5T{storage;serverName;redirectUrlValue;clientMetadataValue;manualClientId;manualClientSecret;serverUrl;manualAuthUrl;manualTokenUrl;_onAuthStateChange;currentCodeVerifier;currentState;authInProgress=!1;authCodePromise;clientInfoSaved=!1;headlessAuthHandler;headlessAuthCode;shouldInitiateOAuth;pendingAuthorizationUrl;holdsLock=!1;waitingOnLockHolder;resetFlowState(){if(J.debug("Resetting OAuth flow state",{serverName:this.serverName}),this.currentCodeVerifier=void 0,this.currentState)hz.cancelFlow(this.currentState);this.currentState=void 0,this.authInProgress=!1,this.authCodePromise=void 0,this.headlessAuthCode=void 0,this.pendingAuthorizationUrl=void 0,this.waitingOnLockHolder=void 0}set onAuthStateChange(T){this._onAuthStateChange=T}get onAuthStateChange(){return this._onAuthStateChange}constructor(T){if(this.storage=T.storage,this.serverName=T.serverName,this.serverUrl=T.serverUrl,this.redirectUrlValue=T.redirectUrl||`http://localhost:${C5T}/oauth/callback`,this.manualClientId=T.clientId,this.manualClientSecret=T.clientSecret,this.manualAuthUrl=T.authUrl,this.manualTokenUrl=T.tokenUrl,this._onAuthStateChange=T.onAuthStateChange,this.headlessAuthHandler=T.headlessAuthHandler,this.shouldInitiateOAuth=T.shouldInitiateOAuth,J.debug("Created OAuth provider instance",{serverName:this.serverName,serverUrl:this.serverUrl,hasManualCredentials:!!T.clientId,headlessMode:!!T.headlessAuthHandler}),this.clientMetadataValue={client_name:T.clientMetadata?.client_name||`Amp MCP Client (${this.serverName})`,redirect_uris:[this.redirectUrlValue],token_endpoint_auth_method:"none",grant_types:["authorization_code","refresh_token"],response_types:["code"],...T.clientMetadata},T.scopes&&T.scopes.length>0)this.clientMetadataValue.scope=T.scopes.join(" ")}get redirectUrl(){return this.redirectUrlValue}get clientMetadata(){return this.clientMetadataValue}async state(){if(!this.currentState)this.currentState=lHR(32).toString("hex"),J.info("Generated new OAuth state",{serverName:this.serverName,state:this.currentState.slice(0,8)+"..."});return this.currentState}async clientInformation(){if(this.manualClientId){if(J.debug("Using manually provided client credentials",{serverName:this.serverName,hasSecret:!!this.manualClientSecret}),!this.clientInfoSaved)await this.storage.saveClientInfo(this.serverName,{clientId:this.manualClientId,clientSecret:this.manualClientSecret,redirectUrl:this.redirectUrlValue,authUrl:this.manualAuthUrl||"",tokenUrl:this.manualTokenUrl||"",serverUrl:this.serverUrl}),this.clientInfoSaved=!0,J.debug("Saved manual client credentials to storage",{serverName:this.serverName});return{client_id:this.manualClientId,client_secret:this.manualClientSecret}}let T=await this.storage.getClientInfo(this.serverName,this.serverUrl);if(T)return J.debug("Using stored client credentials",{serverName:this.serverName,hasSecret:!!T.clientSecret}),{client_id:T.clientId,client_secret:T.clientSecret};J.debug("No client credentials found - SDK will attempt DCR",{serverName:this.serverName});return}async saveClientInformation(T){await this.storage.saveClientInfo(this.serverName,{clientId:T.client_id,clientSecret:T.client_secret,redirectUrl:this.redirectUrlValue,authUrl:"",tokenUrl:"",serverUrl:this.serverUrl}),J.info("Saved client information from DCR",{serverName:this.serverName,clientId:T.client_id})}async tokens(){let T=await this.storage.getTokens(this.serverName,this.serverUrl);if(!T)return;if((T.expiresAt?T.expiresAt<Date.now():!1)&&(!T.refresh
+`)
+      } catch {}
+    }), J.info("Shared OAuth callback server started", {
+      port: this.port
+    })
+  }
+  handleSharedRequest(T, R) {
+    try {
+      if (T.method !== "GET") {
+        Vu(R, Hi.METHOD_NOT_ALLOWED, "Method Not Allowed");
+        return
+      }
+      let a = T.headers.host;
+      if (!a) {
+        Vu(R, Hi.FORBIDDEN, "Forbidden");
+        return
+      }
+      let {
+        hostname: e,
+        port: t
+      } = PHR(a);
+      if (!kHR(e)) {
+        Vu(R, Hi.FORBIDDEN, "Forbidden");
+        return
+      }
+      if (t !== void 0 && t !== this.port) {
+        Vu(R, Hi.FORBIDDEN, "Forbidden");
+        return
+      }
+      let r = new AHR(T.url, `http://${e}:${this.port}`);
+      if (r.pathname !== this.expectedPath) {
+        Vu(R, Hi.NOT_FOUND, "Not Found");
+        return
+      }
+      let h = r.searchParams.get("error");
+      if (h) {
+        let A = r.searchParams.get("error_description") || "",
+          l = r.searchParams.get("state");
+        if (l && this.pendingFlows.has(l)) {
+          let o = this.pendingFlows.get(l);
+          clearTimeout(o.timeoutId), this.pendingFlows.delete(l);
+          let n = h === mHR.ACCESS_DENIED,
+            p = n ? "User denied authorization" : `OAuth error: ${h}${A?` - ${A}`:""}`;
+          HI(R, Hi.BAD_REQUEST, "Authorization Failed", n ? "Access was denied. You can close this window." : p), o.reject(Error(p)), this.maybeStopServer();
+          return
+        }
+        HI(R, Hi.BAD_REQUEST, "Authorization Failed", h);
+        return
+      }
+      let i = r.searchParams.get("code"),
+        c = r.searchParams.get("state");
+      if (!i || !c) {
+        HI(R, Hi.BAD_REQUEST, "Invalid Request", "Missing code or state parameter");
+        return
+      }
+      let s = this.pendingFlows.get(c);
+      if (!s) {
+        let A = Array.from(this.pendingFlows.keys()).map((l) => l.slice(0, 8) + "...");
+        J.error("OAuth callback received for unknown state", {
+          receivedState: c.slice(0, 8) + "...",
+          pendingStates: A,
+          pendingCount: this.pendingFlows.size
+        }), HI(R, Hi.BAD_REQUEST, "Unknown Request", "No pending OAuth flow for this state. The flow may have timed out.");
+        return
+      }
+      clearTimeout(s.timeoutId), this.pendingFlows.delete(c), HI(R, Hi.OK, "Authorization Successful", "Authorization successful! You can return to Amp."), s.resolve({
+        code: i,
+        state: c
+      }), this.maybeStopServer()
+    } catch (a) {
+      J.error("Error handling OAuth callback request", {
+        error: a
+      });
+      try {
+        Vu(R, Hi.INTERNAL_SERVER_ERROR, "Internal Server Error")
+      } catch {}
+    }
+  }
+  maybeStopServer() {
+    if (this.pendingFlows.size === 0 && this.server) J.debug("No pending OAuth flows, stopping shared callback server"), this.server.close(), this.server = null
+  }
+}
+class M5T {
+  storage;
+  serverName;
+  redirectUrlValue;
+  clientMetadataValue;
+  manualClientId;
+  manualClientSecret;
+  serverUrl;
+  manualAuthUrl;
+  manualTokenUrl;
+  _onAuthStateChange;
+  currentCodeVerifier;
+  currentState;
+  authInProgress = !1;
+  authCodePromise;
+  clientInfoSaved = !1;
+  headlessAuthHandler;
+  headlessAuthCode;
+  shouldInitiateOAuth;
+  pendingAuthorizationUrl;
+  holdsLock = !1;
+  waitingOnLockHolder;
+  resetFlowState() {
+    if (J.debug("Resetting OAuth flow state", {
+        serverName: this.serverName
+      }), this.currentCodeVerifier = void 0, this.currentState) hz.cancelFlow(this.currentState);
+    this.currentState = void 0, this.authInProgress = !1, this.authCodePromise = void 0, this.headlessAuthCode = void 0, this.pendingAuthorizationUrl = void 0, this.waitingOnLockHolder = void 0
+  }
+  set onAuthStateChange(T) {
+    this._onAuthStateChange = T
+  }
+  get onAuthStateChange() {
+    return this._onAuthStateChange
+  }
+  constructor(T) {
+    if (this.storage = T.storage, this.serverName = T.serverName, this.serverUrl = T.serverUrl, this.redirectUrlValue = T.redirectUrl || `http://localhost:${C5T}/oauth/callback`, this.manualClientId = T.clientId, this.manualClientSecret = T.clientSecret, this.manualAuthUrl = T.authUrl, this.manualTokenUrl = T.tokenUrl, this._onAuthStateChange = T.onAuthStateChange, this.headlessAuthHandler = T.headlessAuthHandler, this.shouldInitiateOAuth = T.shouldInitiateOAuth, J.debug("Created OAuth provider instance", {
+        serverName: this.serverName,
+        serverUrl: this.serverUrl,
+        hasManualCredentials: !!T.clientId,
+        headlessMode: !!T.headlessAuthHandler
+      }), this.clientMetadataValue = {
+        client_name: T.clientMetadata?.client_name || `Amp MCP Client (${this.serverName})`,
+        redirect_uris: [this.redirectUrlValue],
+        token_endpoint_auth_method: "none",
+        grant_types: ["authorization_code", "refresh_token"],
+        response_types: ["code"],
+        ...T.clientMetadata
+      }, T.scopes && T.scopes.length > 0) this.clientMetadataValue.scope = T.scopes.join(" ")
+  }
+  get redirectUrl() {
+    return this.redirectUrlValue
+  }
+  get clientMetadata() {
+    return this.clientMetadataValue
+  }
+  async state() {
+    if (!this.currentState) this.currentState = lHR(32).toString("hex"), J.info("Generated new OAuth state", {
+      serverName: this.serverName,
+      state: this.currentState.slice(0, 8) + "..."
+    });
+    return this.currentState
+  }
+  async clientInformation() {
+    if (this.manualClientId) {
+      if (J.debug("Using manually provided client credentials", {
+          serverName: this.serverName,
+          hasSecret: !!this.manualClientSecret
+        }), !this.clientInfoSaved) await this.storage.saveClientInfo(this.serverName, {
+        clientId: this.manualClientId,
+        clientSecret: this.manualClientSecret,
+        redirectUrl: this.redirectUrlValue,
+        authUrl: this.manualAuthUrl || "",
+        tokenUrl: this.manualTokenUrl || "",
+        serverUrl: this.serverUrl
+      }), this.clientInfoSaved = !0, J.debug("Saved manual client credentials to storage", {
+        serverName: this.serverName
+      });
+      return {
+        client_id: this.manualClientId,
+        client_secret: this.manualClientSecret
+      }
+    }
+    let T = await this.storage.getClientInfo(this.serverName, this.serverUrl);
+    if (T) return J.debug("Using stored client credentials", {
+      serverName: this.serverName,
+      hasSecret: !!T.clientSecret
+    }), {
+      client_id: T.clientId,
+      client_secret: T.clientSecret
+    };
+    J.debug("No client credentials found - SDK will attempt DCR", {
+      serverName: this.serverName
+    });
+    return
+  }
+  async saveClientInformation(T) {
+    await this.storage.saveClientInfo(this.serverName, {
+      clientId: T.client_id,
+      clientSecret: T.client_secret,
+      redirectUrl: this.redirectUrlValue,
+      authUrl: "",
+      tokenUrl: "",
+      serverUrl: this.serverUrl
+    }), J.info("Saved client information from DCR", {
+      serverName: this.serverName,
+      clientId: T.client_id
+    })
+  }
+  async tokens() {
+      let T = await this.storage.getTokens(this.serverName, this.serverUrl);
+      if (!T) return;
+      if ((T.expiresAt ? T.expiresAt < Date.now() : !1) && (!T.refresh

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: IIR (ESM)
-()=>{s0(),rR(),t4T(),$c()}
+() => {
+  (s0(), rR(), t4T(), $c());
+};

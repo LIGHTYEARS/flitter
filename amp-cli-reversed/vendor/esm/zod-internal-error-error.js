@@ -5,4 +5,9 @@
 // Category: schema
 
 // Module: ZvT (ESM)
-()=>{LS(),X0(),VB=nR("$ZodError",DhT),lr=nR("$ZodError",DhT,{Parent:Error})}
+() => {
+  (LS(),
+    X0(),
+    (VB = nR("$ZodError", DhT)),
+    (lr = nR("$ZodError", DhT, { Parent: Error })));
+};

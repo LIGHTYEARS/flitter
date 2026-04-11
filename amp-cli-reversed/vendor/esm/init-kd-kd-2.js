@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Ge (ESM)
-()=>{kD(),kD()}
+() => {
+  (kD(), kD());
+};

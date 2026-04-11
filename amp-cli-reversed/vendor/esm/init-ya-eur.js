@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: huR (ESM)
-()=>{$9T(),YA(),euR()}
+() => {
+  ($9T(), YA(), euR());
+};

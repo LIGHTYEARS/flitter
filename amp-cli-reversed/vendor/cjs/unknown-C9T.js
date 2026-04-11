@@ -5,6 +5,8 @@
 // Category: unknown
 
 // Module: C9T (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0});
-var R=fMT();
-R.code='require("ajv/dist/runtime/equal").default',T.default=R}
+(T) => {
+  Object.defineProperty(T, "__esModule", { value: !0 });
+  var R = fMT();
+  ((R.code = 'require("ajv/dist/runtime/equal").default'), (T.default = R));
+};

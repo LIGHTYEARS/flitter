@@ -4,14 +4,92 @@
 // Exports: bDR, hWT, iWT, hmT, Pb, mWT, uWT, ODR, dDR, yWT, EDR, CDR, LDR, MDR, DDR, wDR, BDR, UDR, HDR, WDR
 // Category: cli
 
-",a.timeout);a.timeout=a.timeout??this.timeout;let l=a.httpAgent??this.httpAgent??BUT(A),o=a.timeout+1000;if(typeof l?.options?.timeout==="number"&&o>(l.options.timeout??0))l.options.timeout=o;if(this.idempotencyHeader&&e!=="get"){if(!T.idempotencyKey)T.idempotencyKey=this.defaultIdempotencyKey();i[this.idempotencyHeader]=T.idempotencyKey}let n=this.buildHeaders({options:a,headers:i,contentLength:s,retryCount:R});return{req:{method:e,...c&&{body:c},headers:n,...l&&{agent:l},signal:a.signal??null},url:A,timeout:a.timeout}}buildHeaders({options:T,headers:R,contentLength:a,retryCount:e}){let t={};if(a)t["content-length"]=a;let r=this.defaultHeaders(T);if(hmT(t,r),hmT(t,R),tmT(T.body)&&tv!=="node")delete t["content-type"];if(QC(r,"x-stainless-retry-count")===void 0&&QC(R,"x-stainless-retry-count")===void 0)t["x-stainless-retry-count"]=String(e);if(QC(r,"x-stainless-timeout")===void 0&&QC(R,"x-stainless-timeout")===void 0&&T.timeout)t["x-stainless-timeout"]=String(Math.trunc(T.timeout/1000));return this.validateHeaders(t,R),t}async prepareOptions(T){}async prepareRequest(T,{url:R,options:a}){}parseHeaders(T){return!T?{}:(Symbol.iterator in T)?Object.fromEntries(Array.from(T).map((R)=>[...R])):{...T}}makeStatusError(T,R,a,e){return vt.generate(T,R,a,e)}request(T,R=null){return new PX(this.makeRequest(T,R))}async makeRequest(T,R){let a=await T,e=a.maxRetries??this.maxRetries;if(R==null)R=e;await this.prepareOptions(a);let{req:t,url:r,timeout:h}=await this.buildRequest(a,{retryCount:e-R});if(await this.prepareRequest(t,{url:r,options:a}),Pb("request",r,a,t.headers),a.signal?.aborted)throw new J7;let i=new AbortController,c=await this.fetchWithTimeout(r,t,h,i).catch(kX);if(c instanceof Error){if(a.signal?.aborted)throw new J7;if(R)return this.retryRequest(a,R);if(c.name==="AbortError")throw new V3T;throw new sv({cause:c})}let s=uDR(c.headers);if(!c.ok){if(R&&this.shouldRetry(c)){let n=`retrying, ${R} attempts remaining`;return Pb(`response (error; ${n})`,c.status,r,s),this.retryRequest(a,R,s)}let A=await c.text().catch((n)=>kX(n).message),l=kDR(A),o=l?void 0:A;throw Pb(`response (error; ${R?"(error;
- no more retries left)":"(error;
- not retryable)"})`,c.status,r,s,o),this.makeStatusError(c.status,l,o,s)}return{response:c,options:a,controller:i}}requestAPIList(T,R){let a=this.makeRequest(R,null);return new oWT(this,a,T)}buildURL(T,R,a){let e=!sWT(this,hM,"f")&&a||this.baseURL,t=xDR(T)?new URL(T):new URL(e+(e.endsWith("/")&&T.startsWith("/")?T.slice(1):T)),r=this.defaultQuery();if(!hWT(r))R={...r,...R};if(typeof R==="object"&&R&&!Array.isArray(R))t.search=this.stringifyQuery(R);return t.toString()}stringifyQuery(T){return Object.entries(T).filter(([R,a])=>typeof a<"u").map(([R,a])=>{if(typeof a==="string"||typeof a==="number"||typeof a==="boolean")return`${encodeURIComponent(R)}=${encodeURIComponent(a)}`;if(a===null)return`${encodeURIComponent(R)}=`;throw new yi(`Cannot stringify type ${typeof a}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`)}).join("&")}async fetchWithTimeout(T,R,a,e){let{signal:t,...r}=R||{};if(t)t.addEventListener("abort",()=>e.abort());let h=setTimeout(()=>e.abort(),a),i={signal:e.signal,...r};if(i.method)i.method=i.method.toUpperCase();return this.fetch.call(void 0,T,i).finally(()=>{clearTimeout(h)})}shouldRetry(T){let R=T.headers.get("x-should-retry");if(R==="true")return!0;if(R==="false")return!1;if(T.status===408)return!0;if(T.status===409)return!0;if(T.status===429)return!0;if(T.status>=500)return!0;return!1}async retryRequest(T,R,a){let e,t=a?.["retry-after-ms"];if(t){let h=parseFloat(t);if(!Number.isNaN(h))e=h}let r=a?.["retry-after"];if(r&&!e){let h=parseFloat(r);if(!Number.isNaN(h))e=h*1000;else e=Date.parse(r)-Date.now()}if(!(e&&0<=e&&e<60000)){let h=T.maxRetries??this.maxRetries;e=this.calculateDefaultRetryTimeoutMillis(R,h)}return await fDR(e),this.makeRequest(T,R-1)}calculateDefaultRetryTimeoutMillis(T,R){let a=R-T,e=Math.min(0.5*Math.pow(2,a),8),t=1-Math.random()*0.25;return e*t*1000}getUserAgent(){return`${this.constructor.name}/JS ${Oy}`}}function bDR(){if(typeof navigator>"u"||!navigator)return null;let T=[{key:"edge",pattern:/Edge(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"ie",pattern:/MSIE(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"ie",pattern:/Trident(?:.*rv\:(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"chrome",pattern:/Chrome(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"firefox",pattern:/Firefox(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"safari",pattern:/(?:Version\W+(\d+)\.(\d+)(?:\.(\d+))?)?(?:\W+Mobile\S*)?\W+Safari/}];for(let{key:R,pattern:a}of T){let e=a.exec(navigator.userAgent);if(e){let t=e[1]||0,r=e[2]||0,h=e[3]||0;return{browser:R,version:`${t}.${r}.${h}`}}}return null}function hWT(T){if(!T)return!0;for(let R in T)return!1;return!0}function iWT(T,R){return Object.prototype.hasOwnProperty.call(T,R)}function hmT(T,R){for(let a in R){if(!iWT(R,a))continue;let e=a.toLowerCase();if(!e)continue;let t=R[a];if(t===null)delete T[e];else if(t!==void 0)T[e]=t}}function Pb(T,...R){if(typeof process<"u"&&process?.env?.DEBUG==="true")console.log(`Cerebras:DEBUG:${T}`,...R)}class EO{constructor(T){this._client=T}}function mWT(T){let R=[];if("error"in T)throw Error(`Cerebras error: ${T.error}`);else if("object"in T&&T.object==="chat.completion"){let a=T.choices[0];if(a?.message?.tool_calls){for(let e of a.message.tool_calls)if(e.id)R.push({id:e.id,name:e.function.name,input:e.function.arguments?JSON.parse(e.function.arguments):{}})}}else if("object"in T&&T.object==="chat.completion.chunk"){let a=T.choices?.[0];if(a?.delta?.tool_calls){for(let e of a.delta.tool_calls)if(e.id)R.push({id:e.id,name:e.function.name??"unknown",input:e.function.arguments?JSON.parse(e.function.arguments):{}})}}return R}function uWT(T){if("error"in T)throw Error(`Cerebras error: ${T.error}`);let R;if("object"in T&&T.object==="chat.completion"){let a=T.choices[0];if(a?.message)R={role:"assistant",content:a.message.content||"",tool_calls:a.message.tool_calls}}else if("object"in T&&T.object==="chat.completion.chunk"){let a=T.choices?.[0];if(a?.delta)R={role:"assistant",content:a.delta.content||"",tool_calls:a.delta.tool_calls?.filter((e)=>e.id)}}return R}function ODR(T){let R=new Set;return T.filter((a)=>{if(R.has(a.name))return!1;return R.add(a.name),!0}).map((a)=>({type:"function",function:{name:a.name,description:a.description??"",parameters:a.inputSchema}}))}function dDR(T,R){return{...Xs(),[yc]:"amp.chat",...Vs(T),...R!=null?{[zA]:String(R)}:{}}}async function yWT(T,R,a,e,t,r,h,i,c,s,A){let l=await CDR(h,i,s),o=[{role:"system",content:a},...T],n={model:t,messages:o,tools:ODR(R),temperature:r,stream:!1};return{message:await l.chat.completions.create(n,{signal:i,headers:{...dDR(e,c),...A??{}}})}}function EDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("apiKey",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("API key not found. You must provide an API key in settings.");return new bWT({apiKey:t,baseURL:new URL("/api/provider/cerebras",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function CDR(T,R,a){return m0(EDR(T.configService.config,a?.defaultHeaders),R)}function LDR(T){let R=dn(`cerebras/${T}`);return R.contextWindow-R.maxOutputTokens}class kWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h,logger:i}){let c=Ur(i),s=a.map((n)=>n.text).join(`
-`),A=R.id,l=MDR(R),o=e;c.debug("Starting Cerebras inference",{model:T,threadID:A,messageCount:l.length,toolCount:o.length});try{let n=Js(h),p=await yWT(l,o,s,R,T,0.7,{configService:t},r,void 0,n?{defaultHeaders:n}:void 0,n).catch((f)=>{throw BDR(f)}),_=p.message,m=mWT(_),b=uWT(_)?.content||null;c.debug("Cerebras response parsed",{threadID:A,assistantContent:b?b.slice(0,200)+"...":null,toolUsesCount:m.length,toolUses:m.map((f)=>({name:f.name,id:f.id}))});let y=[];if(b)y.push({type:"text",text:b});if(m.length>0){c.debug("Processing tool uses",{threadId:A,toolUseCount:m.length});for(let f of m)c.debug("Adding tool_use block to message content",{threadId:A,toolUseId:f.id,toolName:f.name,parsedArgs:typeof f.input==="object"&&f.input?Object.keys(f.input):[]}),y.push(iN(f.name,f.input,f.id))}else c.debug("No tool uses to process",{threadId:A});let u=p.message.usage||{},P=u?.prompt_tokens??0,k=u?.completion_tokens??0,x={inputTokens:P,outputTokens:k,cacheCreationInputTokens:0,cacheReadInputTokens:0,maxInputTokens:LDR(T),totalInputTokens:P,timestamp:new Date().toISOString()};return yield{role:"assistant",messageId:0,content:y,state:{type:"complete",stopReason:m.length>0?"tool_use":null},usage:x},{model:T,"~debugUsage":x}}catch(n){throw c.error("Cerebras inference error",{error:n,model:T,threadId:A}),n}}}function MDR(T){let R=y3T(T);return DDR(R)}function DDR(T){return T.map((R)=>{if(R.role==="user")return{role:"user",content:typeof R.content==="string"?R.content:R.content.map((a)=>a.type==="text"?a.text:"").join("")};else if(R.role==="assistant")return{role:"assistant",content:typeof R.content==="string"?R.content:Array.isArray(R.content)?R.content.map((a)=>a.type==="text"?a.text:"").join(""):null,tool_calls:R.tool_calls};else if(R.role==="tool")return{role:"tool",content:typeof R.content==="string"?R.content:R.content.map((a)=>a.text).join(""),tool_call_id:R.tool_call_id};throw Error(`Unsupported message role: ${R.role}`)})}function wDR(T){return typeof T==="object"&&T!==null&&"type"in T&&"message"in T&&typeof T.type==="string"&&typeof T.message==="string"}function BDR(T){if(wDR(T)){if(T.type==="invalid_request_error"&&T.message.toLowerCase().includes("prompt is too long"))return new rp}return T}function UDR(T){let R=new Set;return T.filter((a)=>{if(R.has(a.name))return!1;return R.add(a.name),!0}).map((a)=>({type:"function",function:{name:a.name,description:a.description??"",parameters:a.inputSchema}}))}function HDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("apiKey",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("API key not found. You must provide an API key in settings.");return new _9({apiKey:t,baseURL:new URL("/api/provider/groq",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function WDR(T,R,a){return m0(HDR(T.configService.config,a?.defaultHeaders),R)}function qDR(T,R){return{...Xs(),[yc]:"amp.chat",...Vs(T),...R!=null?{[zA]:String(R)}:{}}}function zDR(T){return`toolu_${T.replace(/[^a-zA-Z0-9_-]/g,"_")}`}class gX{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h}){let i=e,c=O8(y3T(R)),s=T==="kimi-k2-instruct-0905"?"moonshotai/kimi-k2-instruct-0905":T==="gpt-oss-120b"?"openai/gpt-oss-120b":T,A=Js(h),l=await WDR({configService:t},r,A?{defaultHeaders:A}:void 0),o=[{role:"system",content:a},...c],n={model:s,messages:o,tools:UDR(i),temperature:0.7,stream:!0},p=await l.chat.completions.create(n,{signal:r,headers:{...qDR(R,_m(R)?.messageId),...A??{}}}),_;for await(let m of p)if(_=SO(_,m),_)yield FDR(_)}}function FDR(T){let R=$k(T,((a)=>{let e=`${T.model.includes("/")?T.model.split("/")[0]:"anthropic"}/${a.replace(/^[^/]+\//,"")}`;return Ys(e)})(T.model));return{...R,content:R.content.map((a)=>{if(a.type==="tool_use")return{...a,id:zDR(a.id)};return a})}}async function*KDR(T,R,a,e,t,r,h,i,c,s){let A=await XDR(r,h,c),l=[{role:"system",content:a},...T],o={model:t,messages:l,tools:pUT(R),stream:!0,stream_options:{include_usage:!0}};try{yield*await A.chat.completions.create(o,{signal:h,headers:{...YDR(e,i),...s??{}}})}catch(n){if(xr(n))throw new DOMException("Aborted","AbortError");throw QDR(n)}}function VDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("apiKey",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("API key not found. You must provide an API key in settings.");return new _9({apiKey:t,baseURL:new URL("/api/provider/kimi",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function XDR(T,R,a){return m0(VDR(T.configService.config,a?.defaultHeaders),R)}function YDR(T,R){return{...Xs(),[yc]:"amp.chat",...R!=null?{[zA]:String(R)}:{},...Vs(T)}}function QDR(T){let R=T?.message;if(typeof R==="string"){if(R.includes("maximum context length")||R.includes("prompt is too long")||R.includes("too many tokens"))return new rp("Token limit exceeded.")}return T}function ZDR(T,R){let a=T.usage;if(!a)return;let e=a.cached_tokens??a.prompt_tokens_details?.cached_tokens??0;return{model:T.model,maxInputTokens:R,inputTokens:0,cacheReadInputTokens:e,cacheCreationInputTokens:a.prompt_tokens-e,outputTokens:a.completion_tokens,totalInputTokens:a.prompt_tokens,timestamp:new Date().toISOString()}}class xWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h}){let i=e,c=O8(x3T(R)),s=Js(h),A=KDR(c,i,a.map((n)=>n.text).join(`
+",a.timeout);a.timeout=a.timeout??this.timeout;let l=a.httpAgent??this.httpAgent??BUT(A),o=a.timeout+1000;if(typeof l?.options?.timeout==="
+number "&&o>(l.options.timeout??0))l.options.timeout=o;if(this.idempotencyHeader&&e!=="
+get "){if(!T.idempotencyKey)T.idempotencyKey=this.defaultIdempotencyKey();i[this.idempotencyHeader]=T.idempotencyKey}let n=this.buildHeaders({options:a,headers:i,contentLength:s,retryCount:R});return{req:{method:e,...c&&{body:c},headers:n,...l&&{agent:l},signal:a.signal??null},url:A,timeout:a.timeout}}buildHeaders({options:T,headers:R,contentLength:a,retryCount:e}){let t={};if(a)t["
+content - length "]=a;let r=this.defaultHeaders(T);if(hmT(t,r),hmT(t,R),tmT(T.body)&&tv!=="
+node ")delete t["
+content - type "];if(QC(r,"
+x - stainless - retry - count ")===void 0&&QC(R,"
+x - stainless - retry - count ")===void 0)t["
+x - stainless - retry - count "]=String(e);if(QC(r,"
+x - stainless - timeout ")===void 0&&QC(R,"
+x - stainless - timeout ")===void 0&&T.timeout)t["
+x - stainless - timeout "]=String(Math.trunc(T.timeout/1000));return this.validateHeaders(t,R),t}async prepareOptions(T){}async prepareRequest(T,{url:R,options:a}){}parseHeaders(T){return!T?{}:(Symbol.iterator in T)?Object.fromEntries(Array.from(T).map((R)=>[...R])):{...T}}makeStatusError(T,R,a,e){return vt.generate(T,R,a,e)}request(T,R=null){return new PX(this.makeRequest(T,R))}async makeRequest(T,R){let a=await T,e=a.maxRetries??this.maxRetries;if(R==null)R=e;await this.prepareOptions(a);let{req:t,url:r,timeout:h}=await this.buildRequest(a,{retryCount:e-R});if(await this.prepareRequest(t,{url:r,options:a}),Pb("
+request ",r,a,t.headers),a.signal?.aborted)throw new J7;let i=new AbortController,c=await this.fetchWithTimeout(r,t,h,i).catch(kX);if(c instanceof Error){if(a.signal?.aborted)throw new J7;if(R)return this.retryRequest(a,R);if(c.name==="
+AbortError ")throw new V3T;throw new sv({cause:c})}let s=uDR(c.headers);if(!c.ok){if(R&&this.shouldRetry(c)){let n=`retrying, ${R} attempts remaining`;return Pb(`response (error; ${n})`,c.status,r,s),this.retryRequest(a,R,s)}let A=await c.text().catch((n)=>kX(n).message),l=kDR(A),o=l?void 0:A;throw Pb(`response (error; ${R?"(error; no more retries left)
+":"(error; not retryable)
+"})`,c.status,r,s,o),this.makeStatusError(c.status,l,o,s)}return{response:c,options:a,controller:i}}requestAPIList(T,R){let a=this.makeRequest(R,null);return new oWT(this,a,T)}buildURL(T,R,a){let e=!sWT(this,hM,"
+f ")&&a||this.baseURL,t=xDR(T)?new URL(T):new URL(e+(e.endsWith(" / ")&&T.startsWith(" / ")?T.slice(1):T)),r=this.defaultQuery();if(!hWT(r))R={...r,...R};if(typeof R==="
+object "&&R&&!Array.isArray(R))t.search=this.stringifyQuery(R);return t.toString()}stringifyQuery(T){return Object.entries(T).filter(([R,a])=>typeof a<"
+u ").map(([R,a])=>{if(typeof a==="
+string "||typeof a==="
+number "||typeof a==="
+boolean ")return`${encodeURIComponent(R)}=${encodeURIComponent(a)}`;if(a===null)return`${encodeURIComponent(R)}=`;throw new yi(`Cannot stringify type ${typeof a}; Expected string, number, boolean, or null. If you need to pass nested query parameters, you can manually encode them, e.g. { query: { 'foo[key1]': value1, 'foo[key2]': value2 } }, and please open a GitHub issue requesting better support for your use case.`)}).join(" & ")}async fetchWithTimeout(T,R,a,e){let{signal:t,...r}=R||{};if(t)t.addEventListener("
+abort ",()=>e.abort());let h=setTimeout(()=>e.abort(),a),i={signal:e.signal,...r};if(i.method)i.method=i.method.toUpperCase();return this.fetch.call(void 0,T,i).finally(()=>{clearTimeout(h)})}shouldRetry(T){let R=T.headers.get("
+x - should - retry ");if(R==="
+true ")return!0;if(R==="
+false ")return!1;if(T.status===408)return!0;if(T.status===409)return!0;if(T.status===429)return!0;if(T.status>=500)return!0;return!1}async retryRequest(T,R,a){let e,t=a?.["
+retry - after - ms "];if(t){let h=parseFloat(t);if(!Number.isNaN(h))e=h}let r=a?.["
+retry - after "];if(r&&!e){let h=parseFloat(r);if(!Number.isNaN(h))e=h*1000;else e=Date.parse(r)-Date.now()}if(!(e&&0<=e&&e<60000)){let h=T.maxRetries??this.maxRetries;e=this.calculateDefaultRetryTimeoutMillis(R,h)}return await fDR(e),this.makeRequest(T,R-1)}calculateDefaultRetryTimeoutMillis(T,R){let a=R-T,e=Math.min(0.5*Math.pow(2,a),8),t=1-Math.random()*0.25;return e*t*1000}getUserAgent(){return`${this.constructor.name}/JS ${Oy}`}}function bDR(){if(typeof navigator>"
+u "||!navigator)return null;let T=[{key:"
+edge ",pattern:/Edge(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"
+ie ",pattern:/MSIE(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"
+ie ",pattern:/Trident(?:.*rv\:(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"
+chrome ",pattern:/Chrome(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"
+firefox ",pattern:/Firefox(?:\W+(\d+)\.(\d+)(?:\.(\d+))?)?/},{key:"
+safari ",pattern:/(?:Version\W+(\d+)\.(\d+)(?:\.(\d+))?)?(?:\W+Mobile\S*)?\W+Safari/}];for(let{key:R,pattern:a}of T){let e=a.exec(navigator.userAgent);if(e){let t=e[1]||0,r=e[2]||0,h=e[3]||0;return{browser:R,version:`${t}.${r}.${h}`}}}return null}function hWT(T){if(!T)return!0;for(let R in T)return!1;return!0}function iWT(T,R){return Object.prototype.hasOwnProperty.call(T,R)}function hmT(T,R){for(let a in R){if(!iWT(R,a))continue;let e=a.toLowerCase();if(!e)continue;let t=R[a];if(t===null)delete T[e];else if(t!==void 0)T[e]=t}}function Pb(T,...R){if(typeof process<"
+u "&&process?.env?.DEBUG==="
+true ")console.log(`Cerebras:DEBUG:${T}`,...R)}class EO{constructor(T){this._client=T}}function mWT(T){let R=[];if("
+error "in T)throw Error(`Cerebras error: ${T.error}`);else if("
+object "in T&&T.object==="
+chat.completion "){let a=T.choices[0];if(a?.message?.tool_calls){for(let e of a.message.tool_calls)if(e.id)R.push({id:e.id,name:e.function.name,input:e.function.arguments?JSON.parse(e.function.arguments):{}})}}else if("
+object "in T&&T.object==="
+chat.completion.chunk "){let a=T.choices?.[0];if(a?.delta?.tool_calls){for(let e of a.delta.tool_calls)if(e.id)R.push({id:e.id,name:e.function.name??"
+unknown ",input:e.function.arguments?JSON.parse(e.function.arguments):{}})}}return R}function uWT(T){if("
+error "in T)throw Error(`Cerebras error: ${T.error}`);let R;if("
+object "in T&&T.object==="
+chat.completion "){let a=T.choices[0];if(a?.message)R={role:"
+assistant ",content:a.message.content||"
+",tool_calls:a.message.tool_calls}}else if("
+object "in T&&T.object==="
+chat.completion.chunk "){let a=T.choices?.[0];if(a?.delta)R={role:"
+assistant ",content:a.delta.content||"
+",tool_calls:a.delta.tool_calls?.filter((e)=>e.id)}}return R}function ODR(T){let R=new Set;return T.filter((a)=>{if(R.has(a.name))return!1;return R.add(a.name),!0}).map((a)=>({type:"
+function ",function:{name:a.name,description:a.description??"
+",parameters:a.inputSchema}}))}function dDR(T,R){return{...Xs(),[yc]:"
+amp.chat ",...Vs(T),...R!=null?{[zA]:String(R)}:{}}}async function yWT(T,R,a,e,t,r,h,i,c,s,A){let l=await CDR(h,i,s),o=[{role:"
+system ",content:a},...T],n={model:t,messages:o,tools:ODR(R),temperature:r,stream:!1};return{message:await l.chat.completions.create(n,{signal:i,headers:{...dDR(e,c),...A??{}}})}}function EDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("
+apiKey ",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("
+API key not found.You must provide an API key in settings.
+");return new bWT({apiKey:t,baseURL:new URL(" / api / provider / cerebras ",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function CDR(T,R,a){return m0(EDR(T.configService.config,a?.defaultHeaders),R)}function LDR(T){let R=dn(`cerebras/${T}`);return R.contextWindow-R.maxOutputTokens}class kWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h,logger:i}){let c=Ur(i),s=a.map((n)=>n.text).join(`
+`),A=R.id,l=MDR(R),o=e;c.debug("Starting Cerebras inference",{model:T,threadID:A,messageCount:l.length,toolCount:o.length});try{let n=Js(h),p=await yWT(l,o,s,R,T,0.7,{configService:t},r,void 0,n?{defaultHeaders:n}:void 0,n).catch((f)=>{throw BDR(f)}),_=p.message,m=mWT(_),b=uWT(_)?.content||null;c.debug("Cerebras response parsed",{threadID:A,assistantContent:b?b.slice(0,200)+"...":null,toolUsesCount:m.length,toolUses:m.map((f)=>({name:f.name,id:f.id}))});let y=[];if(b)y.push({type:"text",text:b});if(m.length>0){c.debug("Processing tool uses",{threadId:A,toolUseCount:m.length});for(let f of m)c.debug("Adding tool_use block to message content",{threadId:A,toolUseId:f.id,toolName:f.name,parsedArgs:typeof f.input==="object"&&f.input?Object.keys(f.input):[]}),y.push(iN(f.name,f.input,f.id))}else c.debug("No tool uses to process",{threadId:A});let u=p.message.usage||{},P=u?.prompt_tokens??0,k=u?.completion_tokens??0,x={inputTokens:P,outputTokens:k,cacheCreationInputTokens:0,cacheReadInputTokens:0,maxInputTokens:LDR(T),totalInputTokens:P,timestamp:new Date().toISOString()};return yield{role:"assistant",messageId:0,content:y,state:{type:"complete",stopReason:m.length>0?"tool_use":null},usage:x},{model:T,"~debugUsage":x}}catch(n){throw c.error("Cerebras inference error",{error:n,model:T,threadId:A}),n}}}function MDR(T){let R=y3T(T);return DDR(R)}function DDR(T){return T.map((R)=>{if(R.role==="user")return{role:"user",content:typeof R.content==="string"?R.content:R.content.map((a)=>a.type==="text"?a.text:"").join("")};else if(R.role==="assistant")return{role:"assistant",content:typeof R.content==="string"?R.content:Array.isArray(R.content)?R.content.map((a)=>a.type==="text"?a.text:"").join(""):null,tool_calls:R.tool_calls};else if(R.role==="tool")return{role:"tool",content:typeof R.content==="string"?R.content:R.content.map((a)=>a.text).join(""),tool_call_id:R.tool_call_id};throw Error(`
+Unsupported message role: $ {
+  R.role
+}
+`)})}function wDR(T){return typeof T==="object"&&T!==null&&"type"in T&&"message"in T&&typeof T.type==="string"&&typeof T.message==="string"}function BDR(T){if(wDR(T)){if(T.type==="invalid_request_error"&&T.message.toLowerCase().includes("prompt is too long"))return new rp}return T}function UDR(T){let R=new Set;return T.filter((a)=>{if(R.has(a.name))return!1;return R.add(a.name),!0}).map((a)=>({type:"function",function:{name:a.name,description:a.description??"",parameters:a.inputSchema}}))}function HDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("apiKey",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("API key not found. You must provide an API key in settings.");return new _9({apiKey:t,baseURL:new URL("/api/provider/groq",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function WDR(T,R,a){return m0(HDR(T.configService.config,a?.defaultHeaders),R)}function qDR(T,R){return{...Xs(),[yc]:"amp.chat",...Vs(T),...R!=null?{[zA]:String(R)}:{}}}function zDR(T){return`
+toolu_$ {
+  T.replace(/[^a-zA-Z0-9_-]/g, "_")
+}
+`}class gX{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h}){let i=e,c=O8(y3T(R)),s=T==="kimi-k2-instruct-0905"?"moonshotai/kimi-k2-instruct-0905":T==="gpt-oss-120b"?"openai/gpt-oss-120b":T,A=Js(h),l=await WDR({configService:t},r,A?{defaultHeaders:A}:void 0),o=[{role:"system",content:a},...c],n={model:s,messages:o,tools:UDR(i),temperature:0.7,stream:!0},p=await l.chat.completions.create(n,{signal:r,headers:{...qDR(R,_m(R)?.messageId),...A??{}}}),_;for await(let m of p)if(_=SO(_,m),_)yield FDR(_)}}function FDR(T){let R=$k(T,((a)=>{let e=`
+$ {
+  T.model.includes("/") ? T.model.split("/")[0] : "anthropic"
+}
+/${a.replace(/ ^ [ ^ /]+\//, "")
+}
+`;return Ys(e)})(T.model));return{...R,content:R.content.map((a)=>{if(a.type==="tool_use")return{...a,id:zDR(a.id)};return a})}}async function*KDR(T,R,a,e,t,r,h,i,c,s){let A=await XDR(r,h,c),l=[{role:"system",content:a},...T],o={model:t,messages:l,tools:pUT(R),stream:!0,stream_options:{include_usage:!0}};try{yield*await A.chat.completions.create(o,{signal:h,headers:{...YDR(e,i),...s??{}}})}catch(n){if(xr(n))throw new DOMException("Aborted","AbortError");throw QDR(n)}}function VDR(T,R){let a=T.pipe(L9((e)=>gh((async()=>{let t=await e.secrets.getToken("apiKey",e.settings.url);return{url:e.settings.url,apiKey:t}})())),E9((e,t)=>e.url===t.url&&e.apiKey===t.apiKey),JR(({url:e,apiKey:t})=>{if(!t)throw Error("API key not found. You must provide an API key in settings.");return new _9({apiKey:t,baseURL:new URL("/api/provider/kimi",e).toString(),defaultHeaders:R})}));return R?a:a.pipe(f3({shouldCountRefs:!0}))}function XDR(T,R,a){return m0(VDR(T.configService.config,a?.defaultHeaders),R)}function YDR(T,R){return{...Xs(),[yc]:"amp.chat",...R!=null?{[zA]:String(R)}:{},...Vs(T)}}function QDR(T){let R=T?.message;if(typeof R==="string"){if(R.includes("maximum context length")||R.includes("prompt is too long")||R.includes("too many tokens"))return new rp("Token limit exceeded.")}return T}function ZDR(T,R){let a=T.usage;if(!a)return;let e=a.cached_tokens??a.prompt_tokens_details?.cached_tokens??0;return{model:T.model,maxInputTokens:R,inputTokens:0,cacheReadInputTokens:e,cacheCreationInputTokens:a.prompt_tokens-e,outputTokens:a.completion_tokens,totalInputTokens:a.prompt_tokens,timestamp:new Date().toISOString()}}class xWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r,serviceAuthToken:h}){let i=e,c=O8(x3T(R)),s=Js(h),A=KDR(c,i,a.map((n)=>n.text).join(`
 
-`),R,T,{configService:t},r,_m(R)?.messageId,s?{defaultHeaders:s}:void 0,s),l=Ys(`moonshotai/${T}`),o;for await(let n of A)if(o=SO(o,n),o){let p=$k(o,l),_=ZDR(o,l);yield _?{...p,usage:_}:p}}}function T7R(T){let R=T;if(T.startsWith("openrouter/"))R=T.slice(11);if(R==="sonoma-sky-alpha")R="openrouter/sonoma-sky-alpha";return R}async function R7R(T,R){let a=T.settings["openrouter.apiKey"];if(!a)a=process.env.OPENROUTER_API_KEY;if(!a)throw Error("OpenRouter API key not found. Please set amp.openrouter.apiKey setting or OPENROUTER_API_KEY environment variable.");return new _9({apiKey:a,baseURL:"https://openrouter.ai/api/v1",defaultHeaders:{...Xs(),...R?.threadID?{[VET]:R.threadID}:{},[yc]:"amp.chat"}})}class fWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r}){r?.throwIfAborted();let h=e,i=y3T(R),c=T==="sonoma-sky-alpha"?"openrouter/sonoma-sky-alpha":T,s=await m0(t.config,r),A=a7R(i,h,a.map((n)=>n.text).join(`
+`),R,T,{configService:t},r,_m(R)?.messageId,s?{defaultHeaders:s}:void 0,s),l=Ys(`
+moonshotai / $ {
+  T
+}
+`),o;for await(let n of A)if(o=SO(o,n),o){let p=$k(o,l),_=ZDR(o,l);yield _?{...p,usage:_}:p}}}function T7R(T){let R=T;if(T.startsWith("openrouter/"))R=T.slice(11);if(R==="sonoma-sky-alpha")R="openrouter/sonoma-sky-alpha";return R}async function R7R(T,R){let a=T.settings["openrouter.apiKey"];if(!a)a=process.env.OPENROUTER_API_KEY;if(!a)throw Error("OpenRouter API key not found. Please set amp.openrouter.apiKey setting or OPENROUTER_API_KEY environment variable.");return new _9({apiKey:a,baseURL:"https://openrouter.ai/api/v1",defaultHeaders:{...Xs(),...R?.threadID?{[VET]:R.threadID}:{},[yc]:"amp.chat"}})}class fWT{async*stream({model:T,thread:R,systemPrompt:a,tools:e,configService:t,signal:r}){r?.throwIfAborted();let h=e,i=y3T(R),c=T==="sonoma-sky-alpha"?"openrouter/sonoma-sky-alpha":T,s=await m0(t.config,r),A=a7R(i,h,a.map((n)=>n.text).join(`
 
-`),c,s,r,R.id,_m(R)?.messageId),l=Ys(`openrouter/${T}`),o;for await(let n of A)if(o=SO(o,n),o)yield $k(o,l)}}async function*a7R(T,R,a,e,t,r,h,i){r?.throwIfAborted();let c=await R7R(t),s=[{role:"system",content:a},...O8(T)],A={model:T7R(e),messages:s,tools:pUT(R),stream:!0};yield*await c.chat.completions.create(A,{signal:r})}function t7R(T,R,a){let[e,t]=T.includes("/")?T.split("/",2):["",T],r=a?xi(a)?.reasoningEffort:void 0,h=R["agent.deepReasoningEffort"]!==void 0;switch(e){case"anthropic":return R["anthropic.effort"]??r??"high";case"openai":return(t?.includes("codex")&&h?O2(R):void 0)??r??"medium";case"vertexai":return R["gemini.thinkingLevel"]??r??"medium";default:return r??"medium"}}function r7R(T,R){if(T==="openai"&&R?.includes("gpt-oss-120b"))return new gX;switch(T){case"vertexai":return new tNT;case"openai":return new _UT;case"openrouter":return new fWT;case"anthropic":return new OwT;case"xai":return new kUT;case"cerebras":return new kWT;case"fireworks":return new CUT;case"baseten":return new LUT;case"groq":return new gX;case"moonshotai":return new xWT;default:throw Error("Unknown provider: "+T)}}class IWT{diff(T,R,a={}){let e;if(typeof a==="function")e=a,a={};else if("callback"in a)e=a.callback;let t=this.castInput(T,a),r=this.castInput(R,a),h=this.removeEmpty(this.tokenize(t,a)),i=this.removeEmpty(this.tokenize(r,a));return this.diffWithOptionsObj(h,i,a,e)}diffWithOptionsObj(T,R,a,e){var t;let r=(b)=>{if(b=this.postProcess(b,a),e){setTimeout(function(){e(b)},0);return}else return b},h=R.length,i=T.length,c=1,s=h+i;if(a.maxEditLength!=null)s=Math.min(s,a.maxEditLength);let A=(t=a.timeout)!==null&&t!==void 0?t:1/0,l=Date.now()+A,o=[{oldPos:-1,lastComponent:void 0}],n=this.extractCommon(o[0],R,T,0,a);if(o[0].oldPos+1>=i&&n+1>=h)return r(this.buildValues(o[0].lastComponent,R,T));let p=-1/0,_=1/0,m=()=>{for(let b=Math.max(p,-c);b<=Math.min(_,c);b+=2){let y,u=o[b-1],P=o[b+1];if(u)o[b-1]=void 0;let k=!1;if(P){let f=P.oldPos-b;k=P&&0<=f&&f<h}let x=u&&u.oldPos+1<i;if(!k&&!x){o[b]=void 0;continue}if(!x||k&&u.oldPos<P.oldPos)y=this.addToPath(P,!0,!1,0,a);else y=this.addToPath(u,!1,!0,1,a);if(n=this.extractCommon(y,R,T,b,a),y.oldPos+1>=i&&n+1>=h)return r(this.buildValues(y.lastComponent,R,T))||!0;else{if(o[b]=y,y.oldPos+1>=i)_=Math.min(_,b-1);if(n+1>=h)p=Math.max(p,b+1)}}c++};if(e)(function b(){setTimeout(function(){if(c>s||Date.now()>l)return e(void 0);if(!m())b()},0)})();else while(c<=s&&Date.now()<=l){let b=m();if(b)return b}}addToPath(T,R,a,e,t){let r=T.lastComponent;if(r&&!t.oneChangePerToken&&r.added===R&&r.removed===a)return{oldPos:T.oldPos+e,lastComponent:{count:r.count+1,added:R,removed:a,previousComponent:r.previousComponent}};else return{oldPos:T.oldPos+e,lastComponent:{count:1,added:R,removed:a,previousComponent:r}}}extractCommon(T,R,a,e,t){let r=R.length,h=a.length,i=T.oldPos,c=i-e,s=0;while(c+1<r&&i+1<h&&this.equals(a[i+1],R[c+1],t))if(c++,i++,s++,t.oneChangePerToken)T.lastComponent={count:1,previousComponent:T.lastComponent,added:!1,removed:!1};if(s&&!t.oneChangePerToken)T.lastComponent={count:s,previousComponent:T.lastComponent,added:!1,removed:!1};return T.oldPos=i,c}equals(T,R,a){if(a.comparator)return a.comparator(T,R);else return T===R||!!a.ignoreCase&&T.toLowerCase()===R.toLowerCase()}removeEmpty(T){let R=[];for(let a=0;a<T.length;a++)if(T[a])R.push(T[a]);return R}castInput(T,R){return T}tokenize(T,R){return Array.from(T)}join(T){return T.join("")}postProcess(T,R){return T}get useLongestToken(){return!1}buildValues(T,R,a){let e=[],t;while(T)e.push(T),t=T.previousComponent,delete T.previousComponent,T=t;e.reverse();let r=e.length,h=0,i=0,c=0;for(;h<r;h++){let s=e[h];if(!s.removed){if(!s.added&&this.useLongestToken){let A=R.slice(i,i+s.count);A=A.map(function(l,o){let n=a[c+o];return n.length>l.length?n:l}),s.value=this.join(A)}else s.value=this.join(R.slice(i,i+s.count));if(i+=s.count,!s.added)c+=s.count}else s.value=this.join(a.slice(c,c+s.count)),c+=s.count}return e}}function Rw(T,R,a){return gWT.diff(T,R,a)}function i7R(T,R){if(R.stripTrailingCr)T=T.replace(/\r\n/g,`
+`),c,s,r,R.id,_m(R)?.messageId),l=Ys(`
+openrouter / $ {
+  T
+}
+`),o;for await(let n of A)if(o=SO(o,n),o)yield $k(o,l)}}async function*a7R(T,R,a,e,t,r,h,i){r?.throwIfAborted();let c=await R7R(t),s=[{role:"system",content:a},...O8(T)],A={model:T7R(e),messages:s,tools:pUT(R),stream:!0};yield*await c.chat.completions.create(A,{signal:r})}function t7R(T,R,a){let[e,t]=T.includes("/")?T.split("/",2):["",T],r=a?xi(a)?.reasoningEffort:void 0,h=R["agent.deepReasoningEffort"]!==void 0;switch(e){case"anthropic":return R["anthropic.effort"]??r??"high";case"openai":return(t?.includes("codex")&&h?O2(R):void 0)??r??"medium";case"vertexai":return R["gemini.thinkingLevel"]??r??"medium";default:return r??"medium"}}function r7R(T,R){if(T==="openai"&&R?.includes("gpt-oss-120b"))return new gX;switch(T){case"vertexai":return new tNT;case"openai":return new _UT;case"openrouter":return new fWT;case"anthropic":return new OwT;case"xai":return new kUT;case"cerebras":return new kWT;case"fireworks":return new CUT;case"baseten":return new LUT;case"groq":return new gX;case"moonshotai":return new xWT;default:throw Error("Unknown provider: "+T)}}class IWT{diff(T,R,a={}){let e;if(typeof a==="function")e=a,a={};else if("callback"in a)e=a.callback;let t=this.castInput(T,a),r=this.castInput(R,a),h=this.removeEmpty(this.tokenize(t,a)),i=this.removeEmpty(this.tokenize(r,a));return this.diffWithOptionsObj(h,i,a,e)}diffWithOptionsObj(T,R,a,e){var t;let r=(b)=>{if(b=this.postProcess(b,a),e){setTimeout(function(){e(b)},0);return}else return b},h=R.length,i=T.length,c=1,s=h+i;if(a.maxEditLength!=null)s=Math.min(s,a.maxEditLength);let A=(t=a.timeout)!==null&&t!==void 0?t:1/0,l=Date.now()+A,o=[{oldPos:-1,lastComponent:void 0}],n=this.extractCommon(o[0],R,T,0,a);if(o[0].oldPos+1>=i&&n+1>=h)return r(this.buildValues(o[0].lastComponent,R,T));let p=-1/0,_=1/0,m=()=>{for(let b=Math.max(p,-c);b<=Math.min(_,c);b+=2){let y,u=o[b-1],P=o[b+1];if(u)o[b-1]=void 0;let k=!1;if(P){let f=P.oldPos-b;k=P&&0<=f&&f<h}let x=u&&u.oldPos+1<i;if(!k&&!x){o[b]=void 0;continue}if(!x||k&&u.oldPos<P.oldPos)y=this.addToPath(P,!0,!1,0,a);else y=this.addToPath(u,!1,!0,1,a);if(n=this.extractCommon(y,R,T,b,a),y.oldPos+1>=i&&n+1>=h)return r(this.buildValues(y.lastComponent,R,T))||!0;else{if(o[b]=y,y.oldPos+1>=i)_=Math.min(_,b-1);if(n+1>=h)p=Math.max(p,b+1)}}c++};if(e)(function b(){setTimeout(function(){if(c>s||Date.now()>l)return e(void 0);if(!m())b()},0)})();else while(c<=s&&Date.now()<=l){let b=m();if(b)return b}}addToPath(T,R,a,e,t){let r=T.lastComponent;if(r&&!t.oneChangePerToken&&r.added===R&&r.removed===a)return{oldPos:T.oldPos+e,lastComponent:{count:r.count+1,added:R,removed:a,previousComponent:r.previousComponent}};else return{oldPos:T.oldPos+e,lastComponent:{count:1,added:R,removed:a,previousComponent:r}}}extractCommon(T,R,a,e,t){let r=R.length,h=a.length,i=T.oldPos,c=i-e,s=0;while(c+1<r&&i+1<h&&this.equals(a[i+1],R[c+1],t))if(c++,i++,s++,t.oneChangePerToken)T.lastComponent={count:1,previousComponent:T.lastComponent,added:!1,removed:!1};if(s&&!t.oneChangePerToken)T.lastComponent={count:s,previousComponent:T.lastComponent,added:!1,removed:!1};return T.oldPos=i,c}equals(T,R,a){if(a.comparator)return a.comparator(T,R);else return T===R||!!a.ignoreCase&&T.toLowerCase()===R.toLowerCase()}removeEmpty(T){let R=[];for(let a=0;a<T.length;a++)if(T[a])R.push(T[a]);return R}castInput(T,R){return T}tokenize(T,R){return Array.from(T)}join(T){return T.join("")}postProcess(T,R){return T}get useLongestToken(){return!1}buildValues(T,R,a){let e=[],t;while(T)e.push(T),t=T.previousComponent,delete T.previousComponent,T=t;e.reverse();let r=e.length,h=0,i=0,c=0;for(;h<r;h++){let s=e[h];if(!s.removed){if(!s.added&&this.useLongestToken){let A=R.slice(i,i+s.count);A=A.map(function(l,o){let n=a[c+o];return n.length>l.length?n:l}),s.value=this.join(A)}else s.value=this.join(R.slice(i,i+s.count));if(i+=s.count,!s.added)c+=s.count}else s.value=this.join(a.slice(c,c+s.count)),c+=s.count}return e}}function Rw(T,R,a){return gWT.diff(T,R,a)}function i7R(T,R){if(R.stripTrailingCr)T=T.replace(/\r\n/g,`
 `);let a=[],e=T.split(/(\n|\r\n)/);if(!e[e.length-1])e.pop();for(let t=0;t<e.length;t++){let r=e[t];if(t%2&&!R.newlineIsToken)a[a.length-1]+=r;else a.push(r)}return a}function bmT(T,R,a,e,t,r,h){let i;if(!h)i={};else if(typeof h==="function")i={callback:h};else i=h;if(typeof i.context>"u")i.context=4;let c=i.context;if(i.newlineIsToken)throw Error("newlineIsToken may not be used with patch-generation functions, only with diffing functions");if(!i.callback)return s(Rw(a,e,i));else{let{callback:A}=i;Rw(a,e,Object.assign(Object.assign({},i),{callback:(l)=>{let o=s(l);A(o)}}))}function s(A){if(!A)return;A.push({value:"",lines:[]});function l(y){return y.map(function(u){return" "+u})}let o=[],n=0,p=0,_=[],m=1,b=1;for(let y=0;y<A.length;y++){let u=A[y],P=u.lines||c7R(u.value);if(u.lines=P,u.added||u.removed){if(!n){let k=A[y-1];if(n=m,p=b,k)_=c>0?l(k.lines.slice(-c)):[],n-=_.length,p-=_.length}for(let k of P)_.push((u.added?"+":"-")+k);if(u.added)b+=P.length;else m+=P.length}else{if(n)if(P.length<=c*2&&y<A.length-2)for(let k of l(P))_.push(k);else{let k=Math.min(P.length,c);for(let f of l(P.slice(0,k)))_.push(f);let x={oldStart:n,oldLines:m-n+k,newStart:p,newLines:b-p+k,lines:_};o.push(x),n=0,p=0,_=[]}m+=P.length,b+=P.length}}for(let y of o)for(let u=0;u<y.lines.length;u++)if(y.lines[u].endsWith(`
 `))y.lines[u]=y.lines[u].slice(0,-1);else y.lines.splice(u+1,0,"\\ No newline at end of file"),u++;return{oldFileName:T,newFileName:R,oldHeader:t,newHeader:r,hunks:o}}}function $X(T,R){if(!R)R=vWT;if(Array.isArray(T)){if(T.length>1&&!R.includeFileHeaders)throw Error("Cannot omit file headers on a multi-file patch. (The result would be unparseable; how would a tool trying to apply the patch know which changes are to which file?)");return T.map((e)=>$X(e,R)).join(`
 `)}let a=[];if(R.includeIndex&&T.oldFileName==T.newFileName)a.push("Index: "+T.oldFileName);if(R.includeUnderline)a.push("===================================================================");if(R.includeFileHeaders)a.push("--- "+T.oldFileName+(typeof T.oldHeader>"u"?"":"\t"+T.oldHeader)),a.push("+++ "+T.newFileName+(typeof T.newHeader>"u"?"":"\t"+T.newHeader));for(let e=0;e<T.hunks.length;e++){let t=T.hunks[e];if(t.oldLines===0)t.oldStart-=1;if(t.newLines===0)t.newStart-=1;a.push("@@ -"+t.oldStart+","+t.oldLines+" +"+t.newStart+","+t.newLines+" @@");for(let r of t.lines)a.push(r)}return a.join(`
@@ -20,21 +98,621 @@
 `),a=T.split(`
 `).map((e)=>e+`
 `);if(R)a.pop();else a.push(a.pop().slice(0,-1));return a}class Cm{#T=!1;#R=[];async acquire(){return new Promise((T)=>{if(!this.#T)this.#T=!0,T();else this.#R.push(T)})}release(){if(this.#R.length>0)this.#R.shift()?.();else this.#T=!1}}function gA(T){let R=vX.get(T);if(!R)R=new Cm,vX.set(T,R);return R}function o7R(T){if(T=jX.parse(T),T.old_str===T.new_str)throw Error("old_str and new_str must be different from each other.")}function mmT(T){return T.replace(/\\\\n/g,"\\n").replace(/\\\\t/g,"\\t").replace(/\\\\/g,"\\").replace(/\\"/g,'"').replace(/\\'/g,"'").replace(/\\n/g,`
-`).replace(/\\t/g,"\t")}async function A7R(T,R,a,e,t=!1,r){if(/\[REDACTED:[a-zA-Z-]+\]/.test(a))throw Error("The edit string contains a redaction marker. Please identify a different edit location that does not contain redacted content.");R=N_(R);let h=R,i=N_(a),c=N_(e);if(t){if(!h.includes(i))throw Error("Could not find exact match for old_str");h=h.replaceAll(i,()=>c)}else{let n=h.indexOf(i);if(n!==-1){if(h.indexOf(i,n+i.length)!==-1)throw Error(`found multiple matches for edit ${JSON.stringify(a)}`);h=h.replace(i,()=>c)}else{let p=(m,b)=>{let y=m.split(`
+`).replace(/\\t/g,"\t")}async function A7R(T,R,a,e,t=!1,r){if(/\[REDACTED:[a-zA-Z-]+\]/.test(a))throw Error("The edit string contains a redaction marker. Please identify a different edit location that does not contain redacted content.");R=N_(R);let h=R,i=N_(a),c=N_(e);if(t){if(!h.includes(i))throw Error("Could not find exact match for old_str");h=h.replaceAll(i,()=>c)}else{let n=h.indexOf(i);if(n!==-1){if(h.indexOf(i,n+i.length)!==-1)throw Error(`
+found multiple matches
+for edit $ {
+  JSON.stringify(a)
+}
+`);h=h.replace(i,()=>c)}else{let p=(m,b)=>{let y=m.split(`
 `),u=h.split(`
 `);for(let P=0;P<=u.length-y.length;P++){let k=u.slice(P,P+y.length);if(y.every((x,f)=>{let v=k[f];return x.trim()===v.trim()})){let x=u[P].match(/^\s*/)?.[0]||"",f=(b.match(/^\s*/)||[""])[0],v=b.split(`
 `).map((g)=>{if(g==="")return g;let I=(g.match(/^\s*/)||[""])[0],S=I.startsWith(f)?I.slice(f.length):"",O=g.slice(I.length);return x+S+O});return u.splice(P,y.length,...v),h=u.join(`
 `),!0}}return!1},_=p(i,c);if(!_){let m=N_(mmT(a)),b=N_(mmT(e));h=R,_=p(m,b)}if(!_)throw Error("Could not find exact match for old_str")}}let s=$A(R,h,T),A=SWT(s),l=0,o=0;if(t)l=1,o=h.split(`
 `).length;else if(h.includes(c)){let n=h.indexOf(c);l=(h.substring(0,n).match(/\n/g)||[]).length+1;let p=(c.match(/\n/g)||[]).length;o=l+p}else o=h.split(`
 `).length;return{modifiedContent:h,formattedDiff:A,lineRange:[l,o]}}function $A(T,R,a="file"){let e=N_(T??""),t=N_(R);return iM(a.toString(),a.toString(),e,t,"original","modified",{ignoreWhitespace:!0})}function N_(T){return T.replace(/\r\n/g,`
-`)}function SWT(T){T=T.replace(/^\\ No newline at end of file(?:\r?\n|$)/gm,"");let R=3;while(T.includes("`".repeat(R)))R++;return`${"`".repeat(R)}diff
-${T}${"`".repeat(R)}`}function p7R(T){if(T.before===void 0&&T.after===void 0)throw Error("unreachable");if(T.before===null&&T.after===null)throw Error("unreachable")}function dWT(T,R,a){let e=new Map,t=(h)=>{let i;for(let[c,s]of e.entries())for(let[A,l]of s.entries()){if(!MR.equalURIs(A,h))continue;if(!i||l.timestamp<i.timestamp)i=l}return i},r=async({filesFilter:h,toolUsesToRevert:i,pruneRevertedToolUses:c})=>{let s=new xh,A=new Map;for(let[o,n]of e.entries()){let p=i?i.has(o):!0;for(let[_,m]of n.entries()){if(h&&!h(_))continue;if(m.reverted)continue;let b=s.get(_)||{changesAfterKeep:[]};if(!p){if(!b.latestKeepChange||m.timestamp>b.latestKeepChange.timestamp)b.latestKeepChange=m}else b.changesAfterKeep.push(m),A.set(m,o);s.set(_,b)}}let l=Array.from(s.entries()).filter(([,{changesAfterKeep:o}])=>o.length>0);if(await g7T(l,_7R,async([o,{latestKeepChange:n,changesAfterKeep:p}])=>{try{let _=p.reduce((b,y)=>y.timestamp<b.timestamp?y:b),m=n?n.after:_.isNewFile?null:_.before;await a(o,m),TG(o,R,Date.now());for(let b of p){b.reverted=!0;let y=A.get(b);if(y)try{let u={toolUseID:y,fileChangeID:b.id};await T.store(R,u,b)}catch(u){J.error(`Error updating backup for file ${o}:`,u)}}}catch(_){J.error(`Error reverting file ${o}:`,_)}}),c&&i)for(let o of i)e.delete(o)};return{async getAllRecords(){return e},async record(h){if(!h.toolUse)return;let i=e.get(h.toolUse);if(!i)i=new xh,e.set(h.toolUse,i);let c=i.get(h.uri),s=t(h.uri),A=c?.before??h.before??"",l=c?.isNewFile??h.before===null,o=s?$A(s.before??"",h.after??"",h.uri):$A(A,h.after??"",h.uri),n=c?.id??crypto.randomUUID(),p={id:n,uri:d0(h.uri),before:A,after:h.after??"",diff:o,isNewFile:l,reverted:!1,timestamp:Date.now()};TG(h.uri,R,p.timestamp),i.set(h.uri,p),await T.store(R,{toolUseID:h.toolUse,fileChangeID:n},p),J.debug("Recorded file change",{isNewFile:l,isUpdate:!!c,filePath:h.uri.toString(),toolUseID:h.toolUse})},async restoreFromBackups(){let h=await T.list(R)??[];e.clear();for(let i of h){let{toolUseID:c}=i,s=await T.load(R,i);if(!s)continue;if(!e.has(c))e.set(c,new xh);e.get(c).set(s.uri,s)}return{totalBackups:h.length}},async revertAll(h){let i=new Set;for(let[c]of e.entries())i.add(c);await r({filesFilter:h?(c)=>MR.equalURIs(c,h):void 0,toolUsesToRevert:i,pruneRevertedToolUses:!1})},async revertChanges(h){await r({toolUsesToRevert:h,pruneRevertedToolUses:!0})},getFilesForToolUses(h){let i=new xh;for(let[c,s]of e.entries()){if(!h.has(c))continue;for(let[A,l]of s.entries()){if(l.reverted)continue;i.set(A,!0)}}return Array.from(i.keys()).map(d0)},async cleanupBackups(){await T.cleanup(R)},async getLastEdit(h){let i,c,s=0;for(let[o,n]of e.entries()){let p=n.get(h);if(p&&!p.reverted&&p.timestamp>=s)i=p,c=o,s=p.timestamp}if(!i||!c)return;let A=i,l=c;return{oldContent:A.before,newContent:A.after,revert:async()=>{A.reverted=!0,await T.store(R,{toolUseID:l,fileChangeID:A.id},A)}}},dispose(){e.clear()}}}function CWT(T,R,a){async function e(t,r){let h={};h.before=await voT(T,t),await r(),h.after=await voT(T,t),p7R(h),await R.record({toolUse:a,uri:t,...h})}return{...T,async writeFile(t,r,h){await e(t,()=>T.writeFile(t,r,h))}}}function Q3T(T,R,a){async function e(r,h,i){if(h!==null)await R.writeFile(r,h,{signal:i});else await R.delete(r,{signal:i})}let t=dWT(T.fileChangeTrackerStorage,a,e);return{fileSystem:R,trackedFileSystem:(r)=>CWT(R,t,r),tracker:t}}function b7R(T){if(T.action.type==="redact-tool-input"&&T.on.event!=="tool:post-execute")return"redact-tool-input action can only be used with tool:post-execute event";if(T.action.type==="send-user-message"&&T.on.event!=="tool:pre-execute")return"send-user-message action can only be used with tool:pre-execute event";return null}function LWT(T){if(!T||!Array.isArray(T))return[];return T.filter((R)=>{if(R.compatibilityDate!=="2025-05-13")return!1;let a=b7R(R);if(a)return J.warn(`Hook "${R.id}" is invalid: ${a}`),!1;return!0})}function u7R(T,R){if(!T)return{action:null};T=LWT(T);for(let a of T){if(a.if===!1)continue;if(a.on.event==="tool:pre-execute"){if(!(Array.isArray(a.on.tool)?a.on.tool:[a.on.tool]).includes(R.toolUse.name))continue;let e=JSON.stringify(R.toolUse.input),t=Array.isArray(a.on["input.contains"])?a.on["input.contains"]:[a.on["input.contains"]];for(let r of t)if(e.includes(r)){if(J.debug(`Hook triggered: ${a.id}`,{hookID:a.id,threadID:R.threadID,toolName:R.toolUse.name,toolUseID:R.toolUse.id,matchString:r,action:a.action}),a.action.type==="send-user-message")return{hookID:a.id,action:a.action}}}}return{action:null}}function y7R(T,R){if(!T)return{action:null};T=LWT(T);for(let a of T){if(a.if===!1)continue;if(a.on.event==="tool:post-execute"){if(!(Array.isArray(a.on.tool)?a.on.tool:[a.on.tool]).includes(R.toolUse.name))continue;if(J.debug(`Post-execution hook triggered: ${a.id}`,{hookID:a.id,threadID:R.threadID,toolName:R.toolUse.name,toolUseID:R.toolUse.id,action:a.action}),a.action.type==="redact-tool-input")return{hookID:a.id,action:a.action}}}return{action:null}}function P7R(T,R){if(!T)return{action:null};try{return T(R.thread)}catch(a){return J.error("Error processing assistant end-turn hook",a),{action:null}}}function BI(T,R,a){if(!R.action)return{abortOp:!1};switch(R.action.type){case"send-user-message":{let e={type:"user:message",message:{messageId:0,content:[{type:"text",text:R.action.message}],source:{type:"hook",hook:R.hookID}}};return T.updateThread(e),T.onThreadDelta(e),{abortOp:!0}}case"redact-tool-input":{if(!a?.toolUseID)return J.warn("redact-tool-input action requires toolUseID in context"),{abortOp:!1};let e={type:"tool:processed",toolUse:a.toolUseID,newArgs:R.action.redactedInput};return T.updateThread(e),T.onThreadDelta(e),J.debug("Tool input redacted",{hookID:R.hookID,toolUseID:a.toolUseID}),{abortOp:!1}}case"handoff":return J.info("Handoff hook triggered",{hookID:R.hookID,goal:R.action.goal}),T.executeHandoff(R.action.goal),{abortOp:!1}}}function f7R(T){return"error"in T}async function I7R(T,R,a,e,t){let r=await T.getSkills(),h=r.find((A)=>A.name===R);if(!h){let A=r.map((l)=>l.name).join(", ");return{error:`Skill "${R}" not found. Available skills: ${A||"none"}`}}let i=h.content;if(a!==void 0){if(i.includes("{{arguments}}"))i=i.replace(/\{\{arguments\}\}/g,a);else if(a)i+=`
+`)}function SWT(T){T=T.replace(/^\\ No newline at end of file(?:\r?\n|$)/gm,"");let R=3;while(T.includes("`
+".repeat(R)))R++;return`${"
+`".repeat(R)}diff
+${T}${"`".repeat(R)}`}
+function p7R(T){
+if(T.before===void 0&&T.after===void 0)throw Error("unreachable");
+if(T.before===null&&T.after===null)throw Error("unreachable")}
+function dWT(T,R,a){
+let e=new Map,t=(h)=>{
+let i;
+for(let[c,s]of e.entries())for(let[A,l]of s.entries()){
+if(!MR.equalURIs(A,h))continue;
+if(!i||l.timestamp<i.timestamp)i=l}
+return i},r=async({
+filesFilter:h,toolUsesToRevert:i,pruneRevertedToolUses:c})=>{
+let s=new xh,A=new Map;
+for(let[o,n]of e.entries()){
+let p=i?i.has(o):!0;
+for(let[_,m]of n.entries()){
+if(h&&!h(_))continue;
+if(m.reverted)continue;
+let b=s.get(_)||{
+changesAfterKeep:[]};
+if(!p){
+if(!b.latestKeepChange||m.timestamp>b.latestKeepChange.timestamp)b.latestKeepChange=m}
+else b.changesAfterKeep.push(m),A.set(m,o);
+s.set(_,b)}
+}
+let l=Array.from(s.entries()).filter(([,{
+changesAfterKeep:o}
+])=>o.length>0);
+if(await g7T(l,_7R,async([o,{
+latestKeepChange:n,changesAfterKeep:p}
+])=>{
+try{
+let _=p.reduce((b,y)=>y.timestamp<b.timestamp?y:b),m=n?n.after:_.isNewFile?null:_.before;
+await a(o,m),TG(o,R,Date.now());
+for(let b of p){
+b.reverted=!0;
+let y=A.get(b);
+if(y)try{
+let u={
+toolUseID:y,fileChangeID:b.id};
+await T.store(R,u,b)}
+catch(u){
+J.error(`
+Error updating backup
+for file $ {
+  o
+}: `,u)}
+}
+}
+catch(_){
+J.error(`
+Error reverting file $ {
+  o
+}: `,_)}
+}),c&&i)for(let o of i)e.delete(o)};
+return{
+async getAllRecords(){
+return e},async record(h){
+if(!h.toolUse)return;
+let i=e.get(h.toolUse);
+if(!i)i=new xh,e.set(h.toolUse,i);
+let c=i.get(h.uri),s=t(h.uri),A=c?.before??h.before??"",l=c?.isNewFile??h.before===null,o=s?$A(s.before??"",h.after??"",h.uri):$A(A,h.after??"",h.uri),n=c?.id??crypto.randomUUID(),p={
+id:n,uri:d0(h.uri),before:A,after:h.after??"",diff:o,isNewFile:l,reverted:!1,timestamp:Date.now()};
+TG(h.uri,R,p.timestamp),i.set(h.uri,p),await T.store(R,{
+toolUseID:h.toolUse,fileChangeID:n},p),J.debug("Recorded file change",{
+isNewFile:l,isUpdate:!!c,filePath:h.uri.toString(),toolUseID:h.toolUse})},async restoreFromBackups(){
+let h=await T.list(R)??[];
+e.clear();
+for(let i of h){
+let{
+toolUseID:c}
+=i,s=await T.load(R,i);
+if(!s)continue;
+if(!e.has(c))e.set(c,new xh);
+e.get(c).set(s.uri,s)}
+return{
+totalBackups:h.length}
+},async revertAll(h){
+let i=new Set;
+for(let[c]of e.entries())i.add(c);
+await r({
+filesFilter:h?(c)=>MR.equalURIs(c,h):void 0,toolUsesToRevert:i,pruneRevertedToolUses:!1})},async revertChanges(h){
+await r({
+toolUsesToRevert:h,pruneRevertedToolUses:!0})},getFilesForToolUses(h){
+let i=new xh;
+for(let[c,s]of e.entries()){
+if(!h.has(c))continue;
+for(let[A,l]of s.entries()){
+if(l.reverted)continue;
+i.set(A,!0)}
+}
+return Array.from(i.keys()).map(d0)},async cleanupBackups(){
+await T.cleanup(R)},async getLastEdit(h){
+let i,c,s=0;
+for(let[o,n]of e.entries()){
+let p=n.get(h);
+if(p&&!p.reverted&&p.timestamp>=s)i=p,c=o,s=p.timestamp}
+if(!i||!c)return;
+let A=i,l=c;
+return{
+oldContent:A.before,newContent:A.after,revert:async()=>{
+A.reverted=!0,await T.store(R,{
+toolUseID:l,fileChangeID:A.id},A)}
+}
+},dispose(){
+e.clear()}
+}
+}
+function CWT(T,R,a){
+async function e(t,r){
+let h={
+};
+h.before=await voT(T,t),await r(),h.after=await voT(T,t),p7R(h),await R.record({
+toolUse:a,uri:t,...h})}
+return{
+...T,async writeFile(t,r,h){
+await e(t,()=>T.writeFile(t,r,h))}
+}
+}
+function Q3T(T,R,a){
+async function e(r,h,i){
+if(h!==null)await R.writeFile(r,h,{
+signal:i});
+else await R.delete(r,{
+signal:i})}
+let t=dWT(T.fileChangeTrackerStorage,a,e);
+return{
+fileSystem:R,trackedFileSystem:(r)=>CWT(R,t,r),tracker:t}
+}
+function b7R(T){
+if(T.action.type==="redact-tool-input"&&T.on.event!=="tool:post-execute")return"redact-tool-input action can only be used with tool:post-execute event";
+if(T.action.type==="send-user-message"&&T.on.event!=="tool:pre-execute")return"send-user-message action can only be used with tool:pre-execute event";
+return null}
+function LWT(T){
+if(!T||!Array.isArray(T))return[];
+return T.filter((R)=>{
+if(R.compatibilityDate!=="2025-05-13")return!1;
+let a=b7R(R);
+if(a)return J.warn(`
+Hook "${R.id}"
+is invalid: $ {
+  a
+}
+`),!1;
+return!0})}
+function u7R(T,R){
+if(!T)return{
+action:null};
+T=LWT(T);
+for(let a of T){
+if(a.if===!1)continue;
+if(a.on.event==="tool:pre-execute"){
+if(!(Array.isArray(a.on.tool)?a.on.tool:[a.on.tool]).includes(R.toolUse.name))continue;
+let e=JSON.stringify(R.toolUse.input),t=Array.isArray(a.on["input.contains"])?a.on["input.contains"]:[a.on["input.contains"]];
+for(let r of t)if(e.includes(r)){
+if(J.debug(`
+Hook triggered: $ {
+  a.id
+}
+`,{
+hookID:a.id,threadID:R.threadID,toolName:R.toolUse.name,toolUseID:R.toolUse.id,matchString:r,action:a.action}),a.action.type==="send-user-message")return{
+hookID:a.id,action:a.action}
+}
+}
+}
+return{
+action:null}
+}
+function y7R(T,R){
+if(!T)return{
+action:null};
+T=LWT(T);
+for(let a of T){
+if(a.if===!1)continue;
+if(a.on.event==="tool:post-execute"){
+if(!(Array.isArray(a.on.tool)?a.on.tool:[a.on.tool]).includes(R.toolUse.name))continue;
+if(J.debug(`
+Post - execution hook triggered: $ {
+  a.id
+}
+`,{
+hookID:a.id,threadID:R.threadID,toolName:R.toolUse.name,toolUseID:R.toolUse.id,action:a.action}),a.action.type==="redact-tool-input")return{
+hookID:a.id,action:a.action}
+}
+}
+return{
+action:null}
+}
+function P7R(T,R){
+if(!T)return{
+action:null};
+try{
+return T(R.thread)}
+catch(a){
+return J.error("Error processing assistant end-turn hook",a),{
+action:null}
+}
+}
+function BI(T,R,a){
+if(!R.action)return{
+abortOp:!1};
+switch(R.action.type){
+case"send-user-message":{
+let e={
+type:"user:message",message:{
+messageId:0,content:[{
+type:"text",text:R.action.message}
+],source:{
+type:"hook",hook:R.hookID}
+}
+};
+return T.updateThread(e),T.onThreadDelta(e),{
+abortOp:!0}
+}
+case"redact-tool-input":{
+if(!a?.toolUseID)return J.warn("redact-tool-input action requires toolUseID in context"),{
+abortOp:!1};
+let e={
+type:"tool:processed",toolUse:a.toolUseID,newArgs:R.action.redactedInput};
+return T.updateThread(e),T.onThreadDelta(e),J.debug("Tool input redacted",{
+hookID:R.hookID,toolUseID:a.toolUseID}),{
+abortOp:!1}
+}
+case"handoff":return J.info("Handoff hook triggered",{
+hookID:R.hookID,goal:R.action.goal}),T.executeHandoff(R.action.goal),{
+abortOp:!1}
+}
+}
+function f7R(T){
+return"error"in T}
+async function I7R(T,R,a,e,t){
+let r=await T.getSkills(),h=r.find((A)=>A.name===R);
+if(!h){
+let A=r.map((l)=>l.name).join(", ");
+return{
+error:`
+Skill "${R}"
+not found.Available skills: $ {
+  A || "none"
+}
+`}
+}
+let i=h.content;
+if(a!==void 0){
+if(i.includes("{{arguments}}"))i=i.replace(/\{\{arguments\}\}/g,a);
+else if(a)i+=`
 
-ARGUMENTS: ${a}`}let c=t?.agentMode==="deep",s=c?["<skill>",`<name>${h.name}</name>`,`<path>${h.baseDir}/SKILL.md</path>`,i]:[`<loaded_skill name="${h.name}">`,`# ${h.frontmatter.name} Skill`,"",i,"",`Base directory for this skill: ${h.baseDir}`,"Relative paths in this skill (e.g., scripts/, reference/) are relative to this base directory."];if(h.files&&h.files.length>0){s.push(""),s.push("<skill_files>");for(let A of h.files)s.push(`<file>${A}</file>`);s.push("</skill_files>")}if(h.mcpServers&&Object.keys(h.mcpServers).length>0&&e?.mcpService){let A=[];for(let[l,o]of Object.entries(h.mcpServers))try{let n=await e.mcpService.getToolsForServer(l);if(n&&n.length>0){let p=o.includeTools;for(let _ of n){if(p&&p.length>0){if(!p.some((b)=>Cj(_.spec.name,b)))continue}let m=PDT(l,_.spec.name);A.push({name:m,description:_.spec.description,inputSchema:_.spec.inputSchema})}}}catch(n){J.warn("Failed to get MCP tools for skill server",{skillName:h.name,serverName:l,error:n})}if(A.length>0)if(t?.agentMode==="deep")s.push(...v7R(A));else s.push(...g7R(A))}if(h.builtinTools&&h.builtinTools.length>0&&e?.toolService){let A=[];for(let l of h.builtinTools){let o=e.toolService.getToolSpec(l);if(o)A.push(o)}if(A.length>0){let l=["","---","","## Builtin Tools","","**IMPORTANT: The following builtin tools are now available and can be called directly by name.**","","<skill_tools>"];for(let o of A)l.push(`<tool name="${o.name}">`),l.push(`<description>${o.description||"No description provided."}</description>`),l.push(`<parameters>${JSON.stringify(o.inputSchema,null,2)}</parameters>`),l.push("</tool>"),l.push("");l.push("</skill_tools>"),s.push(...l)}}return s.push(c?"</skill>":"</loaded_skill>"),{content:s.join(`
-`).replace(/\{baseDir\}/g,h.baseDir),skill:h}}function g7R(T){let R=["","---","","## MCP Tools","","The following MCP tools are available with this skill. Use them by calling the tool with the specified name and parameters.","","<skill_tools>"];for(let a of T){if(R.push(`<tool name="${a.name}">`),a.description)R.push(`<description>${a.description}</description>`);let e=Tb(a.inputSchema);R.push("<parameters>"),R.push(...e.map((r)=>`  ${r}`)),R.push("</parameters>");let t=o$(a.inputSchema);R.push(`<example>${JSON.stringify(t)}</example>`),R.push("</tool>"),R.push("")}return R.push("</skill_tools>"),R}function o$(T,R){if(!T)return{};if(T.enum&&T.enum.length>0)return T.enum[0];if(T.default!==void 0)return T.default;if(T.anyOf&&T.anyOf.length>0)return o$(T.anyOf[0],R);if(T.oneOf&&T.oneOf.length>0)return o$(T.oneOf[0],R);switch(Array.isArray(T.type)?T.type[0]:T.type){case"string":return $7R(T.format,R);case"number":return 3.14;case"integer":return 42;case"boolean":return!0;case"null":return null;case"array":{if(T.items)return[o$(T.items)];return[]}case"object":{let a={};if(T.properties)for(let[e,t]of Object.entries(T.properties))a[e]=o$(t,e);return a}default:return{}}}function $7R(T,R){if(T)switch(T){case"date":return"2024-01-15";case"date-time":return"2024-01-15T10:30:00Z";case"time":return"10:30:00";case"email":return"user@example.com";case"uri":case"url":return"https://example.com";case"uuid":return"550e8400-e29b-41d4-a716-446655440000";case"ipv4":return"192.168.1.1";case"ipv6":return"2001:0db8:85a3:0000:0000:8a2e:0370:7334"}if(R){let a=R.toLowerCase();if(a.includes("date")||a.includes("time"))return"2024-01-15";if(a.includes("email"))return"user@example.com";if(a.includes("url")||a.includes("uri")||a.includes("link"))return"https://example.com";if(a.includes("id")||a.includes("key"))return"ABC-123";if(a.includes("name"))return"Example Name";if(a.includes("description")||a.includes("summary")||a.includes("comment"))return"Example text";if(a.includes("path")||a.includes("file"))return"/path/to/file"}return"example"}function v7R(T){return["","---","","# Tools","","## mcp","namespace mcp {",...j7R(T,"\t"),"} // namespace mcp","",'Example call: {"name":"mcp__server__tool","arguments":{}}']}function j7R(T,R){let a=[];for(let e of T){if(e.description)for(let r of e.description.split(`
-`).filter(Boolean))a.push(`${R}// ${r}`);let t=S7R(e.name,e.inputSchema,R);a.push(...t,"")}if(a.at(-1)==="")a.pop();return a}function S7R(T,R,a){if(!O7R(R))return[`${a}type ${T} = () => any;`];let e=Tb(R);if(e.length===1)return[`${a}type ${T} = (_: ${e[0]}) => any;`];let t=[`${a}type ${T} = (_: ${e[0]}`];for(let r=1;r<e.length;r+=1)if(r===e.length-1)t.push(`${a}${e[r]}) => any;`);else t.push(`${a}${e[r]}`);return t}function O7R(T){if(!T)return!1;if(T.type==="object"&&T.properties)return Object.keys(T.properties).length>0;return!0}function Tb(T){if(!T)return["unknown"];if(T.enum&&T.enum.length>0)return[T.enum.map(C7R).join(" | ")];if(T.anyOf&&T.anyOf.length>0)return[T.anyOf.map((R)=>Tb(R)[0]).join(" | ")];if(T.oneOf&&T.oneOf.length>0)return[T.oneOf.map((R)=>Tb(R)[0]).join(" | ")];if(Array.isArray(T.type))return[T.type.map((R)=>Tb({type:R})[0]).join(" | ")];switch(T.type){case"string":return["string"];case"number":case"integer":return["number"];case"boolean":return["boolean"];case"array":{let R=Tb(T.items);if(R.length===1)return[`${R[0]}[]`];let a=[`(${R[0]}`];for(let t=1;t<R.length;t+=1){let r=R[t];if(r!==void 0)a.push(r)}let e=a.at(-1)??"";return a[a.length-1]=`${e})[]`,a}case"object":return d7R(T);default:return["unknown"]}}function d7R(T){let R=Object.entries(T.properties??{});if(R.length===0)return["{}"];let a=new Set(T.required??[]),e=["{"];for(let[t,r]of R){if(r.description)for(let A of r.description.split(`
-`).filter(Boolean))e.push(`	// ${A}`);let h=a.has(t)?"":"?",i=E7R(t),c=Tb(r),s=`	${i}${h}: ${c[0]}`;if(r.default!==void 0)s+=` // default: ${L7R(r.default)}`;e.push(s);for(let A=1;A<c.length;A+=1)e.push(`	${c[A]}`)}return e.push("}"),e}function E7R(T){return/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(T)?T:JSON.stringify(T)}function C7R(T){if(T===null)return"null";switch(typeof T){case"string":case"number":case"boolean":return JSON.stringify(T);default:return"unknown"}}function L7R(T){return JSON.stringify(T)}function D7R(T,R){return{...T,description:T.description?.replace(B7R,R)}}async function w7R(T,R){if(T.name!==oc)return T;let a=await R.getSkills(),e=k7T(a)??"No skills available. Skills can be added to `.agents/skills/` in your workspace.";return D7R(T,e)}function N7R(T){let{interval:R,fn:a,cacheKey:e}=T,t=new Map,r=new Map;return(...h)=>{let i=e?e(...h):"default",c=Date.now(),s=r.get(i)||0;if(t.has(i)&&c-s<R)return t.get(i);r.set(i,c);let A=a(...h);return t.set(i,A),A}}async function U7R(T,R,a,e){let t=e?.testing?"":T.fsPath,r=[],h=await a.readdir(T),i=await Promise.all(h.filter((l)=>!I9T(MR.basename(l.uri))).map(async(l)=>{try{let o=await a.stat(l.uri);return{name:MR.basename(l.uri),isDirectory:o.isDirectory}}catch{return{name:MR.basename(l.uri),isDirectory:!1}}}));i.sort((l,o)=>{if(l.isDirectory===o.isDirectory)return l.name.localeCompare(o.name);return l.isDirectory?-1:1});let c=500,s=i.length>c,A=i.slice(0,c);for(let{name:l,isDirectory:o}of A){let n=t&&!t.endsWith("/")?"/":"",p=`${t}${n}${l}${o?"/":""}`;r.push(p)}if(s){let l=i.length-c;r.push(`... and ${l} more ${o9(l,"entry","entries")}`)}return r.join(`
-`)}function W7R(T){try{return NWT.parse(T)}catch(R){return J.error("Invalid scaffold customization data",{error:R,data:T}),null}}function q7R(T,{enableToolSpecs:R,disableTools:a}){let e=R?T.filter((t)=>R?.some((r)=>r.name===t.name)):[...T];if(a&&a.length>0)e=e.filter((t)=>!a.includes(t.name));if(R&&R.length>0)for(let t of R){let r=e.findIndex((i)=>i.name===t.name);if(r<0)throw Error(`Tool spec ${t.name} not found in original list`);let h={...e[r],...t};e[r]=h}return J.debug("Adjusted tool specs"),e}function G7R(){return UWT}function V7R(){return`You are Agg Man, Amp's platform control-plane assistant.
+ARGUMENTS: $ {
+  a
+}
+`}
+let c=t?.agentMode==="deep",s=c?["<skill>",` < name > $ {
+  h.name
+} < /name>`,`<path>${h.baseDir}/SKILL.md < /path>`,i]:[`<loaded_skill name="${h.name}">`,`# ${h.frontmatter.name} Skill`,"",i,"",`Base directory for this skill: ${h.baseDir}`,"Relative paths in this skill (e.g., scripts/, reference/) are relative to this base directory."];
+if (h.files && h.files.length > 0) {
+  s.push(""), s.push("<skill_files>");
+  for (let A of h.files) s.push(`<file>${A}</file>`);
+  s.push("</skill_files>")
+}
+if (h.mcpServers && Object.keys(h.mcpServers).length > 0 && e?.mcpService) {
+  let A = [];
+  for (let [l, o] of Object.entries(h.mcpServers)) try {
+    let n = await e.mcpService.getToolsForServer(l);
+    if (n && n.length > 0) {
+      let p = o.includeTools;
+      for (let _ of n) {
+        if (p && p.length > 0) {
+          if (!p.some((b) => Cj(_.spec.name, b))) continue
+        }
+        let m = PDT(l, _.spec.name);
+        A.push({
+          name: m,
+          description: _.spec.description,
+          inputSchema: _.spec.inputSchema
+        })
+      }
+    }
+  }
+  catch (n) {
+    J.warn("Failed to get MCP tools for skill server", {
+      skillName: h.name,
+      serverName: l,
+      error: n
+    })
+  }
+  if (A.length > 0)
+    if (t?.agentMode === "deep") s.push(...v7R(A));
+    else s.push(...g7R(A))
+}
+if (h.builtinTools && h.builtinTools.length > 0 && e?.toolService) {
+  let A = [];
+  for (let l of h.builtinTools) {
+    let o = e.toolService.getToolSpec(l);
+    if (o) A.push(o)
+  }
+  if (A.length > 0) {
+    let l = ["", "---", "", "## Builtin Tools", "", "**IMPORTANT: The following builtin tools are now available and can be called directly by name.**", "", "<skill_tools>"];
+    for (let o of A) l.push(`<tool name="${o.name}">`), l.push(`<description>${o.description||"No description provided."}</description>`), l.push(`<parameters>${JSON.stringify(o.inputSchema,null,2)}</parameters>`), l.push("</tool>"), l.push("");
+    l.push("</skill_tools>"), s.push(...l)
+  }
+}
+return s.push(c ? "</skill>" : "</loaded_skill>"), {
+  content: s.join(`
+`).replace(/\{baseDir\}/g, h.baseDir),
+  skill: h
+}
+}
+
+function g7R(T) {
+  let R = ["", "---", "", "## MCP Tools", "", "The following MCP tools are available with this skill. Use them by calling the tool with the specified name and parameters.", "", "<skill_tools>"];
+  for (let a of T) {
+    if (R.push(`<tool name="${a.name}">`), a.description) R.push(`<description>${a.description}</description>`);
+    let e = Tb(a.inputSchema);
+    R.push("<parameters>"), R.push(...e.map((r) => `  ${r}`)), R.push("</parameters>");
+    let t = o$(a.inputSchema);
+    R.push(`<example>${JSON.stringify(t)}</example>`), R.push("</tool>"), R.push("")
+  }
+  return R.push("</skill_tools>"), R
+}
+
+function o$(T, R) {
+  if (!T) return {};
+  if (T.enum && T.enum.length > 0) return T.enum[0];
+  if (T.default !== void 0) return T.default;
+  if (T.anyOf && T.anyOf.length > 0) return o$(T.anyOf[0], R);
+  if (T.oneOf && T.oneOf.length > 0) return o$(T.oneOf[0], R);
+  switch (Array.isArray(T.type) ? T.type[0] : T.type) {
+    case "string":
+      return $7R(T.format, R);
+    case "number":
+      return 3.14;
+    case "integer":
+      return 42;
+    case "boolean":
+      return !0;
+    case "null":
+      return null;
+    case "array": {
+      if (T.items) return [o$(T.items)];
+      return []
+    }
+    case "object": {
+      let a = {};
+      if (T.properties)
+        for (let [e, t] of Object.entries(T.properties)) a[e] = o$(t, e);
+      return a
+    }
+    default:
+      return {}
+  }
+}
+
+function $7R(T, R) {
+  if (T) switch (T) {
+    case "date":
+      return "2024-01-15";
+    case "date-time":
+      return "2024-01-15T10:30:00Z";
+    case "time":
+      return "10:30:00";
+    case "email":
+      return "user@example.com";
+    case "uri":
+    case "url":
+      return "https://example.com";
+    case "uuid":
+      return "550e8400-e29b-41d4-a716-446655440000";
+    case "ipv4":
+      return "192.168.1.1";
+    case "ipv6":
+      return "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+  }
+  if (R) {
+    let a = R.toLowerCase();
+    if (a.includes("date") || a.includes("time")) return "2024-01-15";
+    if (a.includes("email")) return "user@example.com";
+    if (a.includes("url") || a.includes("uri") || a.includes("link")) return "https://example.com";
+    if (a.includes("id") || a.includes("key")) return "ABC-123";
+    if (a.includes("name")) return "Example Name";
+    if (a.includes("description") || a.includes("summary") || a.includes("comment")) return "Example text";
+    if (a.includes("path") || a.includes("file")) return "/path/to/file"
+  }
+  return "example"
+}
+
+function v7R(T) {
+  return ["", "---", "", "# Tools", "", "## mcp", "namespace mcp {", ...j7R(T, "\t"), "} // namespace mcp", "", 'Example call: {"name":"mcp__server__tool","arguments":{}}']
+}
+
+function j7R(T, R) {
+  let a = [];
+  for (let e of T) {
+    if (e.description)
+      for (let r of e.description.split(`
+`).filter(Boolean)) a.push(`${R}// ${r}`);
+    let t = S7R(e.name, e.inputSchema, R);
+    a.push(...t, "")
+  }
+  if (a.at(-1) === "") a.pop();
+  return a
+}
+
+function S7R(T, R, a) {
+  if (!O7R(R)) return [`${a}type ${T} = () => any;`];
+  let e = Tb(R);
+  if (e.length === 1) return [`${a}type ${T} = (_: ${e[0]}) => any;`];
+  let t = [`${a}type ${T} = (_: ${e[0]}`];
+  for (let r = 1; r < e.length; r += 1)
+    if (r === e.length - 1) t.push(`${a}${e[r]}) => any;`);
+    else t.push(`${a}${e[r]}`);
+  return t
+}
+
+function O7R(T) {
+  if (!T) return !1;
+  if (T.type === "object" && T.properties) return Object.keys(T.properties).length > 0;
+  return !0
+}
+
+function Tb(T) {
+  if (!T) return ["unknown"];
+  if (T.enum && T.enum.length > 0) return [T.enum.map(C7R).join(" | ")];
+  if (T.anyOf && T.anyOf.length > 0) return [T.anyOf.map((R) => Tb(R)[0]).join(" | ")];
+  if (T.oneOf && T.oneOf.length > 0) return [T.oneOf.map((R) => Tb(R)[0]).join(" | ")];
+  if (Array.isArray(T.type)) return [T.type.map((R) => Tb({
+    type: R
+  })[0]).join(" | ")];
+  switch (T.type) {
+    case "string":
+      return ["string"];
+    case "number":
+    case "integer":
+      return ["number"];
+    case "boolean":
+      return ["boolean"];
+    case "array": {
+      let R = Tb(T.items);
+      if (R.length === 1) return [`${R[0]}[]`];
+      let a = [`(${R[0]}`];
+      for (let t = 1; t < R.length; t += 1) {
+        let r = R[t];
+        if (r !== void 0) a.push(r)
+      }
+      let e = a.at(-1) ?? "";
+      return a[a.length - 1] = `${e})[]`, a
+    }
+    case "object":
+      return d7R(T);
+    default:
+      return ["unknown"]
+  }
+}
+
+function d7R(T) {
+  let R = Object.entries(T.properties ?? {});
+  if (R.length === 0) return ["{}"];
+  let a = new Set(T.required ?? []),
+    e = ["{"];
+  for (let [t, r] of R) {
+    if (r.description)
+      for (let A of r.description.split(`
+`).filter(Boolean)) e.push(`	// ${A}`);
+    let h = a.has(t) ? "" : "?",
+      i = E7R(t),
+      c = Tb(r),
+      s = `	${i}${h}: ${c[0]}`;
+    if (r.default !== void 0) s += ` // default: ${L7R(r.default)}`;
+    e.push(s);
+    for (let A = 1; A < c.length; A += 1) e.push(`	${c[A]}`)
+  }
+  return e.push("}"), e
+}
+
+function E7R(T) {
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(T) ? T : JSON.stringify(T)
+}
+
+function C7R(T) {
+  if (T === null) return "null";
+  switch (typeof T) {
+    case "string":
+    case "number":
+    case "boolean":
+      return JSON.stringify(T);
+    default:
+      return "unknown"
+  }
+}
+
+function L7R(T) {
+  return JSON.stringify(T)
+}
+
+function D7R(T, R) {
+  return {
+    ...T,
+    description: T.description?.replace(B7R, R)
+  }
+}
+async function w7R(T, R) {
+  if (T.name !== oc) return T;
+  let a = await R.getSkills(),
+    e = k7T(a) ?? "No skills available. Skills can be added to `.agents/skills/` in your workspace.";
+  return D7R(T, e)
+}
+
+function N7R(T) {
+  let {
+    interval: R,
+    fn: a,
+    cacheKey: e
+  } = T, t = new Map, r = new Map;
+  return (...h) => {
+    let i = e ? e(...h) : "default",
+      c = Date.now(),
+      s = r.get(i) || 0;
+    if (t.has(i) && c - s < R) return t.get(i);
+    r.set(i, c);
+    let A = a(...h);
+    return t.set(i, A), A
+  }
+}
+async function U7R(T, R, a, e) {
+  let t = e?.testing ? "" : T.fsPath,
+    r = [],
+    h = await a.readdir(T),
+    i = await Promise.all(h.filter((l) => !I9T(MR.basename(l.uri))).map(async (l) => {
+      try {
+        let o = await a.stat(l.uri);
+        return {
+          name: MR.basename(l.uri),
+          isDirectory: o.isDirectory
+        }
+      } catch {
+        return {
+          name: MR.basename(l.uri),
+          isDirectory: !1
+        }
+      }
+    }));
+  i.sort((l, o) => {
+    if (l.isDirectory === o.isDirectory) return l.name.localeCompare(o.name);
+    return l.isDirectory ? -1 : 1
+  });
+  let c = 500,
+    s = i.length > c,
+    A = i.slice(0, c);
+  for (let {
+      name: l,
+      isDirectory: o
+    }
+    of A) {
+    let n = t && !t.endsWith("/") ? "/" : "",
+      p = `${t}${n}${l}${o?"/":""}`;
+    r.push(p)
+  }
+  if (s) {
+    let l = i.length - c;
+    r.push(`... and ${l} more ${o9(l,"entry","entries")}`)
+  }
+  return r.join(`
+`)
+}
+
+function W7R(T) {
+  try {
+    return NWT.parse(T)
+  } catch (R) {
+    return J.error("Invalid scaffold customization data", {
+      error: R,
+      data: T
+    }), null
+  }
+}
+
+function q7R(T, {
+  enableToolSpecs: R,
+  disableTools: a
+}) {
+  let e = R ? T.filter((t) => R?.some((r) => r.name === t.name)) : [...T];
+  if (a && a.length > 0) e = e.filter((t) => !a.includes(t.name));
+  if (R && R.length > 0)
+    for (let t of R) {
+      let r = e.findIndex((i) => i.name === t.name);
+      if (r < 0) throw Error(`Tool spec ${t.name} not found in original list`);
+      let h = {
+        ...e[r],
+        ...t
+      };
+      e[r] = h
+    }
+  return J.debug("Adjusted tool specs"), e
+}
+
+function G7R() {
+  return UWT
+}
+
+function V7R() {
+  return `You are Agg Man, Amp's platform control-plane assistant.
 
 # Role and Agency
 

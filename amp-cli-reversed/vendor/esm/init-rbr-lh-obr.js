@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Ei (ESM)
-()=>{rbR(),Lh(),N3=obR()}
+() => {
+  (rbR(), Lh(), (N3 = obR()));
+};

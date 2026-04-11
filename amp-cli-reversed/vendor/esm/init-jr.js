@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: $x (ESM)
-()=>{jR(),na(),rR(),Qt(),F0T(),gx(),K0T(),MCT(),Us=new ZCT}
+() => {
+  (jR(), na(), rR(), Qt(), F0T(), gx(), K0T(), MCT(), (Us = new ZCT()));
+};

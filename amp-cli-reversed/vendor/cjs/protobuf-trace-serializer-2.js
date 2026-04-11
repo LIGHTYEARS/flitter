@@ -5,6 +5,14 @@
 // Category: util
 
 // Module: urR (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.ProtobufTraceSerializer=void 0;
-var R=mrR();
-Object.defineProperty(T,"ProtobufTraceSerializer",{enumerable:!0,get:function(){return R.ProtobufTraceSerializer}})}
+(T) => {
+  (Object.defineProperty(T, "__esModule", { value: !0 }),
+    (T.ProtobufTraceSerializer = void 0));
+  var R = mrR();
+  Object.defineProperty(T, "ProtobufTraceSerializer", {
+    enumerable: !0,
+    get: function () {
+      return R.ProtobufTraceSerializer;
+    },
+  });
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: xfR (ESM)
-()=>{s0()}
+() => {
+  s0();
+};

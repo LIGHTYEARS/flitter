@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: jcR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

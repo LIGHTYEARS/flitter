@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: v9T (ESM)
-()=>{JmR=Symbol("Let zodToJsonSchema decide on which parser to use")}
+() => {
+  JmR = Symbol("Let zodToJsonSchema decide on which parser to use");
+};

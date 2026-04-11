@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: uO (ESM)
-()=>{Jt(),rR(),MfR(),O0()}
+() => {
+  (Jt(), rR(), MfR(), O0());
+};

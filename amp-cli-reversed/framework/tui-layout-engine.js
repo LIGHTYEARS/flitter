@@ -4,5 +4,1191 @@
 // Exports: JxT, Uk0, Wk0, Yh, k8, YXT, QXT, ZXT, BM, JXT, d9
 // Category: framework
 
-ce(R,1)}onMouse(T){this.mouseHandlers.push(T)}offMouse(T){let R=this.mouseHandlers.indexOf(T);if(R!==-1)this.mouseHandlers.splice(R,1)}onResize(T){this.resizeHandlers.push(T)}offResize(T){let R=this.resizeHandlers.indexOf(T);if(R!==-1)this.resizeHandlers.splice(R,1)}onFocus(T){this.focusHandlers.push(T)}offFocus(T){let R=this.focusHandlers.indexOf(T);if(R!==-1)this.focusHandlers.splice(R,1)}onPaste(T){this.pasteHandlers.push(T)}offPaste(T){let R=this.pasteHandlers.indexOf(T);if(R!==-1)this.pasteHandlers.splice(R,1)}onCapabilities(T){this.capabilityHandlers.push(T)}offCapabilities(T){let R=this.capabilityHandlers.indexOf(T);if(R!==-1)this.capabilityHandlers.splice(R,1)}isInitialized(){return this.initialized}getCapabilities(){return this.capabilities}getQueryParser(){return this.queryParser}async waitForCapabilities(T=1000){if(!this.initialized)throw Error("TUI is not initialized");if(this.capabilities)return this.capabilities;if(!this.capabilityPromise)throw Error("Capability detection not started");return this.capabilityPromise}getSize(){return{...this.terminalSize}}getScreen(){return this.screen}getLastRenderDiffStats(){return this.lastRenderDiffStats}render(){if(!this.initialized)throw Error("TUI not initialized");if(this.suspended)return;let T=this.screen.getDiff(),R=this.screen.getSize(),a=R.width*R.height,e=T.length,t=a>0?e/a*100:0;this.lastRenderDiffStats={repaintedCellCount:e,totalCellCount:a,repaintedPercent:t,bytesWritten:0};let r=this.screen.getCursor();if(T.length>0||r!==null){let h=new ytT;h.append(this.renderer.startSync()),h.append(this.renderer.hideCursor()),h.append(this.renderer.reset()),h.append(this.renderer.moveTo(0,0));let i=this.renderer.render(T);if(h.append(i),r)if(h.append(this.renderer.moveTo(r.x,r.y)),this.screen.isCursorVisible())h.append(this.renderer.setCursorShape(this.screen.getCursorShape())),h.append(this.renderer.showCursor());else h.append(this.renderer.hideCursor());else h.append(this.renderer.hideCursor());h.append(this.renderer.endSync());let c=h.toString();this.lastRenderDiffStats={...this.lastRenderDiffStats,bytesWritten:Buffer.byteLength(c,"utf8")},process.stdout.write(c),this.screen.present()}}clearScreen(){let T=this.renderer.clearScreen()+this.renderer.hideCursor();process.stdout.write(T),this.renderer.resetState()}showCursor(){process.stdout.write(this.renderer.showCursor())}hideCursor(){process.stdout.write(this.renderer.hideCursor())}setCursor(T,R){this.screen.setCursor(T,R)}clearCursor(){this.screen.clearCursor()}setCursorShape(T){this.screen.setCursorShape(T)}setMouseCursor(T){let R=`\x1B]22;
-${T}\x07`;process.stdout.write(R)}resetMouseCursor(){this.setMouseCursor(B3.DEFAULT)}enableBracketedPaste(){process.stdout.write(this.renderer.enableBracketedPaste())}disableBracketedPaste(){process.stdout.write(this.renderer.disableBracketedPaste())}enableKittyKeyboard(){process.stdout.write(this.renderer.enableKittyKeyboard())}disableKittyKeyboard(){process.stdout.write(this.renderer.disableKittyKeyboard())}enableModifyOtherKeys(){process.stdout.write(this.renderer.enableModifyOtherKeys())}disableModifyOtherKeys(){process.stdout.write(this.renderer.disableModifyOtherKeys())}async writeClipboard(T){return eA.writeText(T)}get clipboard(){return eA}enterAltScreen(){if(!this.initialized)throw Error("TUI not initialized");if(!this.inAltScreen)process.stdout.write(this.renderer.enterAltScreen()),this.inAltScreen=!0}exitAltScreen(){if(this.inAltScreen)process.stdout.write(this.renderer.exitAltScreen()),this.inAltScreen=!1}isInAltScreen(){return this.inAltScreen}enableMouse(){if(this.initialized){let T=this.queryParser?.shouldUsePixelMouse()??!1,R=this.renderer.enableMouse(T);process.stdout.write(R)}}disableMouse(){if(this.initialized)process.stdout.write(this.renderer.disableMouse())}enableEmojiWidth(){if(this.initialized){let T=this.renderer.enableEmojiWidth();process.stdout.write(T)}}disableEmojiWidth(){if(this.initialized)process.stdout.write(this.renderer.disableEmojiWidth())}enableInBandResize(){if(this.initialized){let T=this.renderer.enableInBandResize();process.stdout.write(T)}}disableInBandResize(){if(this.initialized)process.stdout.write(this.renderer.disableInBandResize())}enableColorPaletteNotifications(){if(this.initialized)J.info("Enabling mode 2031 (color palette change notifications)"),process.stdout.write("\x1B[?2031h")}disableColorPaletteNotifications(){if(this.initialized)process.stdout.write("\x1B[?2031l")}setMouseShape(T){if(this.initialized)process.stdout.write(this.renderer.setMouseShape(T))}suspend(){if(!this.initialized||this.suspended)return;let T="";if(T+=this.renderer.reset()+this.renderer.disableMouse()+this.renderer.disableEmojiWidth()+this.renderer.disableInBandResize()+this.renderer.disableBracketedPaste()+this.renderer.disableKittyKeyboard()+this.renderer.disableModifyOtherKeys()+this.renderer.setCursorShape(0)+this.renderer.showCursor(),this.capabilities?.colorPaletteNotifications)T+="\x1B[?2031l";if(this.capabilities?.xtversion?.startsWith("ghostty"))T+=this.renderer.setProgressBarOff();if(this.inAltScreen)T+=this.renderer.exitAltScreen(),this.inAltScreen=!1;if(process.stdout.write(T),this.tty.pause(),this.suspended=!0,process.stdout.isTTY)process.stdout.uncork()}resume(){if(!this.initialized||!this.suspended)return;if(this.tty.resume(),this.parser)this.parser.reset();if(this.enterAltScreen(),this.hideCursor(),this.enableMouse(),this.enableBracketedPaste(),this.capabilities?.emojiWidth)this.enableEmojiWidth();if(this.capabilities?.kittyKeyboard)this.enableKittyKeyboard();this.enableModifyOtherKeys(),this.enableInBandResize(),this.screen.markForRefresh(),this.suspended=!1}isSuspended(){return this.suspended}handleSuspend(){if(!this.initialized||this.suspended)return;this.suspend();try{process.kill(0,"SIGTSTP"),J.debug(`Successfully suspended process ${process.pid}`)}catch(T){J.debug(`Failed to suspend process ${process.pid}: ${T}`)}}handleResume(){if(!this.initialized||!this.suspended)return;this.resume(),setImmediate(()=>{if(this.initialized&&!this.suspended)this.render()})}updateTerminalSize(){if(!this.tty.stdin||!JxT(this.tty.stdin)){this.terminalSize={width:80,height:24};return}let T=Uk0(process.stdout);if(T)this.terminalSize=T}handleKeyEvent(T){for(let R of this.keyHandlers)R(T)}handlePasteEvent(T){this.dispatchSyntheticPaste(T.text)}dispatchSyntheticPaste(T){let R={type:"paste",text:wk0(T)};for(let a of this.pasteHandlers)a(R)}handleOscEvent(T){if(T.data.startsWith("10;")&&this.queryParser){this.queryParser.processOsc10(T.data);return}if(T.data.startsWith("11;")&&this.queryParser){this.queryParser.processOsc11(T.data);return}if(T.data.startsWith("12;")&&this.queryParser){this.queryParser.processOsc12(T.data);return}if(T.data.startsWith("4;")&&this.queryParser){this.queryParser.processOsc4(T.data);return}if(T.data.startsWith("52;c;")){let R=T.data.slice(5);if(R&&R!=="?")eA.handleOSC52Response(R)}}createCapabilityPromise(){this.capabilityPromise=new Promise((T)=>{this.capabilityResolve=T})}startCapabilityDetection(){if(!this.tty.stdin||!JxT(this.tty.stdin)){if(this.capabilityResolve)this.capabilityResolve(null);return}if(this.queryParser=new dY(this.options.queryOptions),process.env.TERM_PROGRAM==="Apple_Terminal"){let T=OY({canRgb:!1});this.capabilities=T;let R={type:"capability",capabilities:this.capabilities};this.renderer.updateCapabilities(this.capabilities);for(let a of this.capabilityHandlers)a(R);if(this.capabilityResolve)this.capabilityResolve(T),this.capabilityResolve=null;return}for(let T of Sk0){if(T.shouldSend&&!T.shouldSend())continue;if(process.stdout.write(T.sequence),T.description==="Query Kitty explicit width support")this.queryParser.markKittyWidthQuerySent()}this.capabilityTimeout=setTimeout(()=>{if(!this.capabilities&&this.capabilityResolve&&this.queryParser)this.finishInitialization()},2000)}finishInitialization(){if(!this.initialized||!this.queryParser||this.capabilities)return;if(this.capabilities=this.queryParser.getCapabilities(),this.capabilityTimeout)clearTimeout(this.capabilityTimeout),this.capabilityTimeout=null;let T={type:"capability",capabilities:this.capabilities};this.renderer.updateCapabilities(this.capabilities),XVT(this.capabilities.background);for(let R of this.capabilityHandlers)R(T);if(this.capabilityResolve)J.info("Terminal capabilities detected:",this.capabilities),this.capabilityResolve(this.capabilities),this.capabilityResolve=null;if(this.queryParser.shouldUsePixelMouse()){let R=this.queryParser.getPixelDimensions();if(R){let a=R.pixelWidth/R.columns,e=R.pixelHeight/R.rows;this.parser?.setSgrToMouseConverter((t)=>AY(t,!0,a,e))}}if(this.capabilities.emojiWidth)this.enableEmojiWidth();if(this.capabilities.kittyKeyboard)this.enableKittyKeyboard();if(this.enableModifyOtherKeys(),this.enableInBandResize(),this.capabilities.colorPaletteNotifications)this.enableColorPaletteNotifications();eA.setCapabilities(this.capabilities)}parseXtgettcapResponse(T){if(!this.queryParser)return;let R=T.indexOf("=");if(R!==-1){let a=T.slice(0,R),e=T.slice(R+1);if(this.queryParser.processXtgettcap(a,e))this.finishInitialization()}}handleResize(){if(this.pendingResize=!0,this.resizeDebounceTimer)clearTimeout(this.resizeDebounceTimer);this.resizeDebounceTimer=setTimeout(()=>{this.processResize()},10)}handleInbandResize(T){if(this.terminalSize={width:T.width,height:T.height},this.queryParser&&T.pixelWidth&&T.pixelHeight){let R=this.queryParser.shouldUsePixelMouse();this.queryParser.updateInbandPixelData(T.width,T.height,T.pixelWidth,T.pixelHeight);let a=this.queryParser.shouldUsePixelMouse();if(!R&&a)this.disableMouse(),this.enableMouse();if(a){let e=T.pixelWidth/T.width,t=T.pixelHeight/T.height;this.parser?.setSgrToMouseConverter((r)=>AY(r,!0,e,t))}}this.screen.resize(T.width,T.height),setImmediate(()=>{for(let R of this.resizeHandlers)try{R(T)}catch(a){J.error("Error in resize handler:",a)}})}processResize(){if(!this.pendingResize||!this.initialized)return;let T={...this.terminalSize};if(this.updateTerminalSize(),T.width===this.terminalSize.width&&T.height===this.terminalSize.height){this.pendingResize=!1;return}this.finishResize(),this.pendingResize=!1}finishResize(){this.screen.resize(this.terminalSize.width,this.terminalSize.height);let T={type:"resize",width:this.terminalSize.width,height:this.terminalSize.height};setImmediate(()=>{for(let R of this.resizeHandlers)try{R(T)}catch(a){J.error("Error in resize handler:",a)}})}setupCleanupHandlers(){process.setMaxListeners(0),process.on("SIGINT",this.boundCleanup),process.on("SIGTERM",this.boundCleanup),process.on("exit",this.boundCleanup),process.on("SIGCONT",this.boundHandleResume)}cleanup(){try{this.deinit()}catch{}}}function JxT(T){return"isTTY"in T&&T.isTTY===!0&&typeof T.setRawMode==="function"}function Uk0(T){try{if(T._refreshSize?.(),T.isTTY&&T.columns&&T.rows)return{width:T.columns,height:T.rows};let R=T.getWindowSize?.();if(R&&R[0]>0&&R[1]>0)return{width:R[0],height:R[1]}}catch{}return null}function Wk0(){if(typeof process>"u")return!1;return process.env.BUN_TEST==="1"||process.env.VITEST==="true"||process.env.NODE_TEST_CONTEXT==="1"}class k8{static _instance;_frameCallbacks=new Map;_postFrameCallbacks=[];_frameScheduled=!1;_frameInProgress=!1;_executingPostFrameCallbacks=!1;_pendingFrameTimer=null;_lastFrameTimestamp=0;_useFramePacing=!Wk0();_stats={lastFrameTime:0,phaseStats:{["build"]:{lastTime:0},["layout"]:{lastTime:0},["paint"]:{lastTime:0},["render"]:{lastTime:0}}};_lastCompletedStats=this.deepCopyStats(this._stats);static get instance(){return k8._instance??=new k8}requestFrame(){if(this._frameScheduled)return;if(this._frameInProgress){this._frameScheduled=!0;return}if(!this._useFramePacing){this._frameScheduled=!0,this.scheduleFrameExecution(0);return}let T=performance.now(),R=this._lastFrameTimestamp,a=T-R;if(R===0||a>=cP){this._frameScheduled=!0,this.scheduleFrameExecution(0);return}let e=Math.max(0,cP-a);this._frameScheduled=!0,this.scheduleFrameExecution(e)}scheduleFrameExecution(T){if(T<=0){setImmediate(()=>this.runScheduledFrame());return}this._pendingFrameTimer=setTimeout(()=>this.runScheduledFrame(),T)}runScheduledFrame(){if(this._pendingFrameTimer)clearTimeout(this._pendingFrameTimer),this._pendingFrameTimer=null;if(this._frameInProgress)return;this.executeFrame()}addFrameCallback(T,R,a,e=0,t){this._frameCallbacks.set(T,{callback:R,phase:a,priority:e,name:t||T})}removeFrameCallback(T){this._frameCallbacks.delete(T)}addPostFrameCallback(T,R){if(this._postFrameCallbacks.push({callback:T,name:R}),!this._frameScheduled&&(!this._frameInProgress||this._executingPostFrameCallbacks))this.requestFrame()}executeFrame(){if(this._frameInProgress)return;let T=performance.now();this._frameScheduled=!1,this._frameInProgress=!0;try{for(let R of["build","layout","paint","render"])this.executePhase(R);this.executePostFrameCallbacks()}catch(R){J.error("Frame execution error:",R instanceof Error?R.message:String(R))}finally{if(this.recordFrameStats(performance.now()-T),this._lastFrameTimestamp=T,this._lastCompletedStats=this.deepCopyStats(this._stats),this._frameInProgress=!1,this._frameScheduled){let R=performance.now()-this._lastFrameTimestamp,a=R>=cP?0:Math.max(0,cP-R);this.scheduleFrameExecution(a)}}}executePhase(T){let R=performance.now();try{let a=Array.from(this._frameCallbacks.values()).filter((e)=>e.phase===T).sort((e,t)=>e.priority-t.priority);for(let e of a)try{e.callback()}catch(t){J.error(`Frame callback error in ${T} phase (${e.name})`,{errorMessage:t instanceof Error?t.message:String(t),errorType:t?.constructor?.name,stackTrace:t instanceof Error?t.stack:void 0}),e8(!1,`FATAL: ${T} error in ${e.name}: ${t}`)}}finally{let a=performance.now()-R;this.recordPhaseStats(T,a)}}executePostFrameCallbacks(){if(this._postFrameCallbacks.length===0)return;let T=this._postFrameCallbacks.splice(0);this._executingPostFrameCallbacks=!0;try{for(let{callback:R,name:a}of T)try{R()}catch(e){J.error(`Post-frame callback error (${a||"anonymous"}):`,e instanceof Error?e.message:String(e))}}finally{this._executingPostFrameCallbacks=!1}}recordFrameStats(T){this._stats.lastFrameTime=T}recordPhaseStats(T,R){this._stats.phaseStats[T].lastTime=R}get isFrameScheduled(){return this._frameScheduled||this._frameInProgress}get isFrameInProgress(){return this._frameInProgress}get frameStats(){return this.deepCopyStats(this._lastCompletedStats)}deepCopyStats(T){return{...T,phaseStats:{["build"]:{...T.phaseStats.build},["layout"]:{...T.phaseStats.layout},["paint"]:{...T.phaseStats.paint},["render"]:{...T.phaseStats.render}}}}resetStats(){this._stats={lastFrameTime:0,phaseStats:{["build"]:{lastTime:0},["layout"]:{lastTime:0},["paint"]:{lastTime:0},["render"]:{lastTime:0}}}}get pendingPostFrameCallbacks(){return this._postFrameCallbacks.length}dispose(){if(this._pendingFrameTimer)clearTimeout(this._pendingFrameTimer),this._pendingFrameTimer=null;this._frameCallbacks.clear(),this._postFrameCallbacks.length=0,this._frameScheduled=!1,this._frameInProgress=!1,this._lastFrameTimestamp=0,this.resetStats()}}class YXT{_dirtyElements=new Set;_stats={totalRebuilds:0,elementsRebuiltThisFrame:0,maxElementsPerFrame:0,averageElementsPerFrame:0,lastBuildTime:0,averageBuildTime:0,maxBuildTime:0};_buildTimes=[];_elementsPerFrame=[];constructor(){}scheduleBuildFor(T){if(this._dirtyElements.has(T))return;this._dirtyElements.add(T),k8.instance.requestFrame()}buildScopes(){if(this._dirtyElements.size===0)return;let T=performance.now(),R=0;try{while(this._dirtyElements.size>0){let a=Array.from(this._dirtyElements);this._dirtyElements.clear(),a.sort((e,t)=>e.depth-t.depth);for(let e of a)if(e.dirty)try{e.performRebuild(),e._dirty=!1,R++}catch(t){J.error("Element rebuild error:",{error:t instanceof Error?t.message:String(t),stack:t instanceof Error?t.stack:void 0,elementType:e.widget.constructor.name,elementDebugLabel:e.widget.debugLabel}),e._dirty=!1}}}finally{this.recordBuildStats(performance.now()-T,R)}}recordBuildStats(T,R){if(this._stats.totalRebuilds+=R,this._stats.elementsRebuiltThisFrame=R,this._stats.lastBuildTime=T,this._stats.maxElementsPerFrame=Math.max(this._stats.maxElementsPerFrame,R),this._stats.maxBuildTime=Math.max(this._stats.maxBuildTime,T),this._buildTimes.push(T),this._elementsPerFrame.push(R),this._buildTimes.length>60)this._buildTimes.shift(),this._elementsPerFrame.shift();this._stats.averageBuildTime=this._buildTimes.reduce((a,e)=>a+e,0)/this._buildTimes.length,this._stats.averageElementsPerFrame=this._elementsPerFrame.reduce((a,e)=>a+e,0)/this._elementsPerFrame.length}get dirtyElements(){return Array.from(this._dirtyElements)}get hasDirtyElements(){return this._dirtyElements.size>0}get buildStats(){return{...this._stats}}resetBuildStats(){this._stats={totalRebuilds:0,elementsRebuiltThisFrame:0,maxElementsPerFrame:0,averageElementsPerFrame:0,lastBuildTime:0,averageBuildTime:0,maxBuildTime:0},this._buildTimes.length=0,this._elementsPerFrame.length=0}dispose(){this._dirtyElements.clear()}}function Yh(T,R){if(T.length===0)return 0;let a=[...T].sort((r,h)=>r-h),e=Math.max(0,Math.min(R,1)),t=Math.ceil(a.length*e)-1;return a[Math.max(0,t)]||0}class QXT{frameTimes=[];phaseTimes={build:[],layout:[],paint:[],render:[]};keyEventTimes=[];mouseEventTimes=[];repaintPercents=[];bytesWritten=[];lastKeyEventTime=0;lastMouseEventTime=0;lastRepaintPercent=0;lastBytesWritten=0;MAX_SAMPLES=1024;recordFrame(T){if(this.frameTimes.push(T),this.frameTimes.length>this.MAX_SAMPLES)this.frameTimes.shift()}recordPhase(T,R){let a=this.phaseTimes[T];if(a.push(R),a.length>this.MAX_SAMPLES)a.shift()}recordKeyEvent(T){if(this.lastKeyEventTime=T,this.keyEventTimes.push(T),this.keyEventTimes.length>this.MAX_SAMPLES)this.keyEventTimes.shift()}recordMouseEvent(T){if(this.lastMouseEventTime=T,this.mouseEventTimes.push(T),this.mouseEventTimes.length>this.MAX_SAMPLES)this.mouseEventTimes.shift()}recordRepaintPercent(T){if(this.lastRepaintPercent=T,this.repaintPercents.push(T),this.repaintPercents.length>this.MAX_SAMPLES)this.repaintPercents.shift()}recordBytesWritten(T){if(this.lastBytesWritten=T,this.bytesWritten.push(T),this.bytesWritten.length>this.MAX_SAMPLES)this.bytesWritten.shift()}getFrameP99(){return Yh(this.frameTimes,0.99)}getFrameP95(){return Yh(this.frameTimes,0.95)}getPhaseP99(T){return Yh(this.phaseTimes[T],0.99)}getPhaseP95(T){return Yh(this.phaseTimes[T],0.95)}getLastKeyEventTime(){return this.lastKeyEventTime}getKeyEventP99(){return Yh(this.keyEventTimes,0.99)}getKeyEventP95(){return Yh(this.keyEventTimes,0.95)}getLastMouseEventTime(){return this.lastMouseEventTime}getMouseEventP99(){return Yh(this.mouseEventTimes,0.99)}getMouseEventP95(){return Yh(this.mouseEventTimes,0.95)}getLastRepaintPercent(){return this.lastRepaintPercent}getRepaintPercentP99(){return Yh(this.repaintPercents,0.99)}getRepaintPercentP95(){return Yh(this.repaintPercents,0.95)}getLastBytesWritten(){return this.lastBytesWritten}getBytesWrittenP99(){return Yh(this.bytesWritten,0.99)}getBytesWrittenP95(){return Yh(this.bytesWritten,0.95)}reset(){this.frameTimes=[];for(let T of Object.values(LtT))this.phaseTimes[T]=[];this.keyEventTimes=[],this.mouseEventTimes=[],this.repaintPercents=[],this.bytesWritten=[],this.lastKeyEventTime=0,this.lastMouseEventTime=0,this.lastRepaintPercent=0,this.lastBytesWritten=0}}class ZXT{enabled=!1;tracker=new QXT;setEnabled(T){this.enabled=T}isEnabled(){return this.enabled}recordKeyEvent(T){this.tracker.recordKeyEvent(T)}recordMouseEvent(T){this.tracker.recordMouseEvent(T)}recordStats(T,R){this.tracker.recordFrame(T.lastFrameTime);for(let a of Object.values(LtT))this.tracker.recordPhase(a,T.phaseStats[a].lastTime);if(R)this.tracker.recordRepaintPercent(R.repaintedPercent),this.tracker.recordBytesWritten(R.bytesWritten)}draw(T,R){if(!this.enabled)return;let{width:a,height:e}=T.getSize(),t=34,r=14,h=a-t-2,i=1;if(h<0||i+r>=e)return;let c=Gt.default().colorScheme,s=c.border,A=c.foreground,l=c.warning,o=" Gotta Go Fast ",n=Math.floor((t-o.length)/2);T.setCell(h,i,a9("\u256D",{fg:A}));for(let hT=1;hT<t-1;hT++)if(hT>=n&&hT<n+o.length)T.setCell(h+hT,i,a9(o[hT-n]||"\u2500",{fg:l}));else T.setCell(h+hT,i,a9("\u2500",{fg:A}));T.setCell(h+t-1,i,a9("\u256E",{fg:A}));for(let hT=1;hT<r-1;hT++){T.setCell(h,i+hT,a9("\u2502",{fg:A})),T.setCell(h+t-1,i+hT,a9("\u2502",{fg:A}));for(let pT=1;pT<t-1;pT++)T.setCell(h+pT,i+hT,a9(" ",{fg:A}))}T.setCell(h,i+r-1,a9("\u2570",{fg:A}));for(let hT=1;hT<t-1;hT++)T.setCell(h+hT,i+r-1,a9("\u2500",{fg:A}));T.setCell(h+t-1,i+r-1,a9("\u256F",{fg:A}));let p=h+1,_=i+1;this.drawText(T,p,_++,"          Last    P95    P99",s);let m=this.tracker.getLastKeyEventTime(),b=this.tracker.getKeyEventP95(),y=this.tracker.getKeyEventP99(),u=m.toFixed(2).padStart(5," "),P=b.toFixed(2).padStart(5," "),k=y.toFixed(2).padStart(5," "),x=this.getTimingColor(m),f=this.getTimingColor(b),v=this.getTimingColor(y);this.drawLastP95P99Row(T,p,_++,{label:"Key",labelColor:s,last:{text:u,color:x},p95:{text:P,color:f},p99:{text:k,color:v}});let g=this.tracker.getLastMouseEventTime(),I=this.tracker.getMouseEventP95(),S=this.tracker.getMouseEventP99(),O=g.toFixed(2).padStart(5," "),j=I.toFixed(2).padStart(5," "),d=S.toFixed(2).padStart(5," "),C=this.getTimingColor(g),L=this.getTimingColor(I),w=this.getTimingColor(S);this.drawLastP95P99Row(T,p,_++,{label:"Mouse",labelColor:s,last:{text:O,color:C},p95:{text:j,color:L},p99:{text:d,color:w}}),_++;for(let hT of["build","layout","paint","render"]){let pT=R.phaseStats[hT].lastTime,mT=this.tracker.getPhaseP95(hT),yT=this.tracker.getPhaseP99(hT),uT=pT.toFixed(2).padStart(5," "),bT=mT.toFixed(2).padStart(5," "),jT=yT.toFixed(2).padStart(5," "),fT=this.getTimingColor(pT),MT=this.getTimingColor(mT),UT=this.getTimingColor(yT),QT=hT.charAt(0).toUpperCase()+hT.slice(1);this.drawLastP95P99Row(T,p,_++,{label:QT,labelColor:s,last:{text:uT,color:fT},p95:{text:bT,color:MT},p99:{text:jT,color:UT}})}_++;let D=R.lastFrameTime,B=this.tracker.getFrameP95(),M=this.tracker.getFrameP99(),V=D.toFixed(2).padStart(5," "),Q=B.toFixed(2).padStart(5," "),W=M.toFixed(2).padStart(5," "),eT=this.getTimingColor(D),iT=this.getTimingColor(B),aT=this.getTimingColor(M);this.drawLastP95P99Row(T,p,_++,{label:"Frame",labelColor:A,last:{text:V,color:eT},p95:{text:Q,color:iT},p99:{text:W,color:aT}});let oT=this.tracker.getLastRepaintPercent(),TT=this.tracker.getRepaintPercentP95(),tT=this.tracker.getRepaintPercentP99(),lT=`${oT.toFixed(1)}%`.padStart(5," "),N=`${TT.toFixed(1)}%`.padStart(5," "),q=`${tT.toFixed(1)}%`.padStart(5," "),F=this.getPercentColor(oT),E=this.getPercentColor(TT),U=this.getPercentColor(tT);this.drawLastP95P99Row(T,p,_++,{label:"Repaint",labelColor:A,last:{text:lT,color:F},p95:{text:N,color:E},p99:{text:q,color:U}});let Z=this.formatBytes(this.tracker.getLastBytesWritten()).padStart(5," "),X=this.formatBytes(this.tracker.getBytesWrittenP95()).padStart(5," "),rT=this.formatBytes(this.tracker.getBytesWrittenP99()).padStart(5," ");this.drawLastP95P99Row(T,p,_,{label:"Bytes",labelColor:A,last:{text:Z,color:A},p95:{text:X,color:A},p99:{text:rT,color:A}})}drawLastP95P99Row(T,R,a,e){let t=` ${e.label.padStart(7," ")} `,r=R;this.drawText(T,r,a,t,e.labelColor),r+=t.length,this.drawText(T,r,a,e.last.text,e.last.color),r+=e.last.text.length,this.drawText(T,r,a,"   ",e.labelColor),r+=3,this.drawText(T,r,a,e.p95.text,e.p95.color),r+=e.p95.text.length,this.drawText(T,r,a,"   ",e.labelColor),r+=3,this.drawText(T,r,a,e.p99.text,e.p99.color)}getTimingColor(T){let R=Gt.default().colorScheme,a=cP,e=cP*0.7;if(T>=a)return R.destructive;if(T>=e)return R.warning;return R.foreground}getPercentColor(T){let R=Gt.default().colorScheme;if(T>=50)return R.destructive;if(T>=20)return R.warning;return R.foreground}drawText(T,R,a,e,t){for(let r=0;r<e.length;r++)T.setCell(R+r,a,a9(e[r]||" ",{fg:t}))}formatBytes(T){if(T>=1e4)return`${Math.round(T/1000)}k`;if(T>=1000)return`${(T/1000).toFixed(1)}k`;return`${Math.round(T)}`}}class BM{size;capabilities;constructor(T,R){this.size=T,this.capabilities=R}get supportsEmojiWidth(){return this.capabilities.emojiWidth}get supportsSyncOutput(){return this.capabilities.syncOutput}}class JXT{_nodesNeedingPaint=new Set;_rootRenderObject=null;_rootConstraints=null;constructor(){}requestLayout(T){if(!k8.instance.isFrameInProgress)k8.instance.requestFrame()}requestPaint(T){if(this._nodesNeedingPaint.has(T))return;if(this._nodesNeedingPaint.add(T),!k8.instance.isFrameInProgress)k8.instance.requestFrame()}setRootRenderObject(T){this._rootRenderObject=T}updateRootConstraints(T){let R=new o0(0,T.width,0,T.height),a=!this._rootConstraints||this._rootConstraints.maxWidth!==R.maxWidth||this._rootConstraints.maxHeight!==R.maxHeight;if(this._rootConstraints=R,a&&this._rootRenderObject&&"markNeedsLayout"in this._rootRenderObject)this._rootRenderObject.markNeedsLayout()}flushLayout(){let T=!1;if(this._rootRenderObject&&this._rootConstraints&&"needsLayout"in this._rootRenderObject&&this._rootRenderObject.needsLayout){if("layout"in this._rootRenderObject&&typeof this._rootRenderObject.layout==="function")this._rootRenderObject.layout(this._rootConstraints),T=!0}return T}flushPaint(){if(this._nodesNeedingPaint.size===0)return;try{for(let T of this._nodesNeedingPaint)if(T.needsPaint)T._needsPaint=!1}finally{this._nodesNeedingPaint.clear()}}get nodesNeedingLayout(){return[]}get nodesNeedingPaint(){return Array.from(this._nodesNeedingPaint)}get hasNodesNeedingLayout(){return Boolean(this._rootRenderObject&&this._rootRenderObject.needsLayout)}get hasNodesNeedingPaint(){return this._nodesNeedingPaint.size>0}dispose(){this._nodesNeedingPaint.clear()}removeFromQueues(T){this._nodesNeedingPaint.delete(T)}}class d9{static _instance;frameScheduler=k8.instance;buildOwner;pipelineOwner;focusManager=ic.instance;mouseManager=ha.instance;frameStatsOverlay=new ZXT;tui=new XXT;rootElement;isRunning=!1;rootElementMountedCallback;forcePaintOnNextFrame=!1;shouldPaintCurrentFrame=!1;didPaintCurrentFrame=!1;eventCallbacks={key:[],mouse:[],paste:[]};keyInterceptors=[];rgbColorChangeCallbacks=[];cachedRgbColors=null;static get instance(){return d9._instance??=new d9}pendingResizeEvent=null;constructor(){this.buildOwner=new YXT,this.pipelineOwner=new JXT,this.frameScheduler.addFrameCallback("frame-start",()=>this.beginFrame(),"build",-2000,"WidgetsBinding.beginFrame"),this.frameScheduler.addFrameCallback("resize",()=>this.processResizeIfPending(),"build",-1000,"WidgetsBinding.processResizeIfPending"),this.frameScheduler.addFrameCallback("build",()=>{this.buildOwner.buildScopes(),this.updateRootRenderObject()},"build",0,"BuildOwner.buildScopes"),this.frameScheduler.addFrameCallback("layout",()=>{if(this.updateRootConstraints(),this.pipelineOwner.flushLayout())this.shouldPaintCurrentFrame=!0},"layout",0,"PipelineOwner.flushLayout"),this.frameScheduler.addFrameCallback("paint",()=>this.paint(),"paint",0,"WidgetsBinding.paint"),this.frameScheduler.addFrameCallback("render",()=>this.render(),"render",0,"WidgetsBinding.render"),Ly0({scheduleBuildFor:(T)=>this.buildOwner.scheduleBuildFor(T)},{requestLayout:(T)=>this.pipelineOwner.requestLayout(T),requestPaint:(T)=>this.pipelineOwner.requestPaint(T),removeFromQueues:(T)=>this.pipelineOwner.removeFromQueues(T)}),this.setupErrorHandler()}setupErrorHandler(){process.on("uncaughtException",(T)=>{J.error("Framework uncaught exception",T)})}getRgbColors(){return this.cachedRgbColors}onRgbColorsChanged(T){return this.rgbColorChangeCallbacks.push(T),()=>{let R=this.rgbColorChangeCallbacks.indexOf(T);if(R!==-1)this.rgbColorChangeCallbacks.splice(R,1)}}notifyRgbColorsChanged(){for(let T of this.rgbColorChangeCallbacks)T()}updateRgbColors(T){this.cachedRgbColors=T;let R=this.tui.getScreen();R.setDefaultColors({type:"rgb",value:T.bg},{type:"rgb",value:T.fg}),R.setIndexRgbMapping(T.indices),XVT(IH(),T.bg),this.notifyRgbColorsChanged(),this.requestForcedPaintFrame()}async runApp(T){if(this.isRunning)throw Error("App is already running");try{this.isRunning=!0,this.tui.init(),this.tui.enterAltScreen();let{initFocusTracking:R}=await Promise.resolve().then(()=>QqT);R(this.tui);let{initIdleTracking:a}=await Promise.resolve().then(()=>(a5T(),JqT));a(this.tui),await this.tui.waitForCapabilities(1000);let e=thi
+ce(R, 1)
+}
+onMouse(T) {
+  this.mouseHandlers.push(T)
+}
+offMouse(T) {
+  let R = this.mouseHandlers.indexOf(T);
+  if (R !== -1) this.mouseHandlers.splice(R, 1)
+}
+onResize(T) {
+  this.resizeHandlers.push(T)
+}
+offResize(T) {
+  let R = this.resizeHandlers.indexOf(T);
+  if (R !== -1) this.resizeHandlers.splice(R, 1)
+}
+onFocus(T) {
+  this.focusHandlers.push(T)
+}
+offFocus(T) {
+  let R = this.focusHandlers.indexOf(T);
+  if (R !== -1) this.focusHandlers.splice(R, 1)
+}
+onPaste(T) {
+  this.pasteHandlers.push(T)
+}
+offPaste(T) {
+  let R = this.pasteHandlers.indexOf(T);
+  if (R !== -1) this.pasteHandlers.splice(R, 1)
+}
+onCapabilities(T) {
+  this.capabilityHandlers.push(T)
+}
+offCapabilities(T) {
+  let R = this.capabilityHandlers.indexOf(T);
+  if (R !== -1) this.capabilityHandlers.splice(R, 1)
+}
+isInitialized() {
+  return this.initialized
+}
+getCapabilities() {
+  return this.capabilities
+}
+getQueryParser() {
+  return this.queryParser
+}
+async waitForCapabilities(T = 1000) {
+  if (!this.initialized) throw Error("TUI is not initialized");
+  if (this.capabilities) return this.capabilities;
+  if (!this.capabilityPromise) throw Error("Capability detection not started");
+  return this.capabilityPromise
+}
+getSize() {
+  return {
+    ...this.terminalSize
+  }
+}
+getScreen() {
+  return this.screen
+}
+getLastRenderDiffStats() {
+  return this.lastRenderDiffStats
+}
+render() {
+  if (!this.initialized) throw Error("TUI not initialized");
+  if (this.suspended) return;
+  let T = this.screen.getDiff(),
+    R = this.screen.getSize(),
+    a = R.width * R.height,
+    e = T.length,
+    t = a > 0 ? e / a * 100 : 0;
+  this.lastRenderDiffStats = {
+    repaintedCellCount: e,
+    totalCellCount: a,
+    repaintedPercent: t,
+    bytesWritten: 0
+  };
+  let r = this.screen.getCursor();
+  if (T.length > 0 || r !== null) {
+    let h = new ytT;
+    h.append(this.renderer.startSync()), h.append(this.renderer.hideCursor()), h.append(this.renderer.reset()), h.append(this.renderer.moveTo(0, 0));
+    let i = this.renderer.render(T);
+    if (h.append(i), r)
+      if (h.append(this.renderer.moveTo(r.x, r.y)), this.screen.isCursorVisible()) h.append(this.renderer.setCursorShape(this.screen.getCursorShape())), h.append(this.renderer.showCursor());
+      else h.append(this.renderer.hideCursor());
+    else h.append(this.renderer.hideCursor());
+    h.append(this.renderer.endSync());
+    let c = h.toString();
+    this.lastRenderDiffStats = {
+      ...this.lastRenderDiffStats,
+      bytesWritten: Buffer.byteLength(c, "utf8")
+    }, process.stdout.write(c), this.screen.present()
+  }
+}
+clearScreen() {
+  let T = this.renderer.clearScreen() + this.renderer.hideCursor();
+  process.stdout.write(T), this.renderer.resetState()
+}
+showCursor() {
+  process.stdout.write(this.renderer.showCursor())
+}
+hideCursor() {
+  process.stdout.write(this.renderer.hideCursor())
+}
+setCursor(T, R) {
+  this.screen.setCursor(T, R)
+}
+clearCursor() {
+  this.screen.clearCursor()
+}
+setCursorShape(T) {
+  this.screen.setCursorShape(T)
+}
+setMouseCursor(T) {
+  let R = `\x1B]22;
+${T}\x07`;
+  process.stdout.write(R)
+}
+resetMouseCursor() {
+  this.setMouseCursor(B3.DEFAULT)
+}
+enableBracketedPaste() {
+  process.stdout.write(this.renderer.enableBracketedPaste())
+}
+disableBracketedPaste() {
+  process.stdout.write(this.renderer.disableBracketedPaste())
+}
+enableKittyKeyboard() {
+  process.stdout.write(this.renderer.enableKittyKeyboard())
+}
+disableKittyKeyboard() {
+  process.stdout.write(this.renderer.disableKittyKeyboard())
+}
+enableModifyOtherKeys() {
+  process.stdout.write(this.renderer.enableModifyOtherKeys())
+}
+disableModifyOtherKeys() {
+  process.stdout.write(this.renderer.disableModifyOtherKeys())
+}
+async writeClipboard(T) {
+  return eA.writeText(T)
+}
+get clipboard() {
+  return eA
+}
+enterAltScreen() {
+  if (!this.initialized) throw Error("TUI not initialized");
+  if (!this.inAltScreen) process.stdout.write(this.renderer.enterAltScreen()), this.inAltScreen = !0
+}
+exitAltScreen() {
+  if (this.inAltScreen) process.stdout.write(this.renderer.exitAltScreen()), this.inAltScreen = !1
+}
+isInAltScreen() {
+  return this.inAltScreen
+}
+enableMouse() {
+  if (this.initialized) {
+    let T = this.queryParser?.shouldUsePixelMouse() ?? !1,
+      R = this.renderer.enableMouse(T);
+    process.stdout.write(R)
+  }
+}
+disableMouse() {
+  if (this.initialized) process.stdout.write(this.renderer.disableMouse())
+}
+enableEmojiWidth() {
+  if (this.initialized) {
+    let T = this.renderer.enableEmojiWidth();
+    process.stdout.write(T)
+  }
+}
+disableEmojiWidth() {
+  if (this.initialized) process.stdout.write(this.renderer.disableEmojiWidth())
+}
+enableInBandResize() {
+  if (this.initialized) {
+    let T = this.renderer.enableInBandResize();
+    process.stdout.write(T)
+  }
+}
+disableInBandResize() {
+  if (this.initialized) process.stdout.write(this.renderer.disableInBandResize())
+}
+enableColorPaletteNotifications() {
+  if (this.initialized) J.info("Enabling mode 2031 (color palette change notifications)"), process.stdout.write("\x1B[?2031h")
+}
+disableColorPaletteNotifications() {
+  if (this.initialized) process.stdout.write("\x1B[?2031l")
+}
+setMouseShape(T) {
+  if (this.initialized) process.stdout.write(this.renderer.setMouseShape(T))
+}
+suspend() {
+  if (!this.initialized || this.suspended) return;
+  let T = "";
+  if (T += this.renderer.reset() + this.renderer.disableMouse() + this.renderer.disableEmojiWidth() + this.renderer.disableInBandResize() + this.renderer.disableBracketedPaste() + this.renderer.disableKittyKeyboard() + this.renderer.disableModifyOtherKeys() + this.renderer.setCursorShape(0) + this.renderer.showCursor(), this.capabilities?.colorPaletteNotifications) T += "\x1B[?2031l";
+  if (this.capabilities?.xtversion?.startsWith("ghostty")) T += this.renderer.setProgressBarOff();
+  if (this.inAltScreen) T += this.renderer.exitAltScreen(), this.inAltScreen = !1;
+  if (process.stdout.write(T), this.tty.pause(), this.suspended = !0, process.stdout.isTTY) process.stdout.uncork()
+}
+resume() {
+  if (!this.initialized || !this.suspended) return;
+  if (this.tty.resume(), this.parser) this.parser.reset();
+  if (this.enterAltScreen(), this.hideCursor(), this.enableMouse(), this.enableBracketedPaste(), this.capabilities?.emojiWidth) this.enableEmojiWidth();
+  if (this.capabilities?.kittyKeyboard) this.enableKittyKeyboard();
+  this.enableModifyOtherKeys(), this.enableInBandResize(), this.screen.markForRefresh(), this.suspended = !1
+}
+isSuspended() {
+  return this.suspended
+}
+handleSuspend() {
+  if (!this.initialized || this.suspended) return;
+  this.suspend();
+  try {
+    process.kill(0, "SIGTSTP"), J.debug(`Successfully suspended process ${process.pid}`)
+  } catch (T) {
+    J.debug(`Failed to suspend process ${process.pid}: ${T}`)
+  }
+}
+handleResume() {
+  if (!this.initialized || !this.suspended) return;
+  this.resume(), setImmediate(() => {
+    if (this.initialized && !this.suspended) this.render()
+  })
+}
+updateTerminalSize() {
+  if (!this.tty.stdin || !JxT(this.tty.stdin)) {
+    this.terminalSize = {
+      width: 80,
+      height: 24
+    };
+    return
+  }
+  let T = Uk0(process.stdout);
+  if (T) this.terminalSize = T
+}
+handleKeyEvent(T) {
+  for (let R of this.keyHandlers) R(T)
+}
+handlePasteEvent(T) {
+  this.dispatchSyntheticPaste(T.text)
+}
+dispatchSyntheticPaste(T) {
+  let R = {
+    type: "paste",
+    text: wk0(T)
+  };
+  for (let a of this.pasteHandlers) a(R)
+}
+handleOscEvent(T) {
+  if (T.data.startsWith("10;") && this.queryParser) {
+    this.queryParser.processOsc10(T.data);
+    return
+  }
+  if (T.data.startsWith("11;") && this.queryParser) {
+    this.queryParser.processOsc11(T.data);
+    return
+  }
+  if (T.data.startsWith("12;") && this.queryParser) {
+    this.queryParser.processOsc12(T.data);
+    return
+  }
+  if (T.data.startsWith("4;") && this.queryParser) {
+    this.queryParser.processOsc4(T.data);
+    return
+  }
+  if (T.data.startsWith("52;c;")) {
+    let R = T.data.slice(5);
+    if (R && R !== "?") eA.handleOSC52Response(R)
+  }
+}
+createCapabilityPromise() {
+  this.capabilityPromise = new Promise((T) => {
+    this.capabilityResolve = T
+  })
+}
+startCapabilityDetection() {
+  if (!this.tty.stdin || !JxT(this.tty.stdin)) {
+    if (this.capabilityResolve) this.capabilityResolve(null);
+    return
+  }
+  if (this.queryParser = new dY(this.options.queryOptions), process.env.TERM_PROGRAM === "Apple_Terminal") {
+    let T = OY({
+      canRgb: !1
+    });
+    this.capabilities = T;
+    let R = {
+      type: "capability",
+      capabilities: this.capabilities
+    };
+    this.renderer.updateCapabilities(this.capabilities);
+    for (let a of this.capabilityHandlers) a(R);
+    if (this.capabilityResolve) this.capabilityResolve(T), this.capabilityResolve = null;
+    return
+  }
+  for (let T of Sk0) {
+    if (T.shouldSend && !T.shouldSend()) continue;
+    if (process.stdout.write(T.sequence), T.description === "Query Kitty explicit width support") this.queryParser.markKittyWidthQuerySent()
+  }
+  this.capabilityTimeout = setTimeout(() => {
+    if (!this.capabilities && this.capabilityResolve && this.queryParser) this.finishInitialization()
+  }, 2000)
+}
+finishInitialization() {
+  if (!this.initialized || !this.queryParser || this.capabilities) return;
+  if (this.capabilities = this.queryParser.getCapabilities(), this.capabilityTimeout) clearTimeout(this.capabilityTimeout), this.capabilityTimeout = null;
+  let T = {
+    type: "capability",
+    capabilities: this.capabilities
+  };
+  this.renderer.updateCapabilities(this.capabilities), XVT(this.capabilities.background);
+  for (let R of this.capabilityHandlers) R(T);
+  if (this.capabilityResolve) J.info("Terminal capabilities detected:", this.capabilities), this.capabilityResolve(this.capabilities), this.capabilityResolve = null;
+  if (this.queryParser.shouldUsePixelMouse()) {
+    let R = this.queryParser.getPixelDimensions();
+    if (R) {
+      let a = R.pixelWidth / R.columns,
+        e = R.pixelHeight / R.rows;
+      this.parser?.setSgrToMouseConverter((t) => AY(t, !0, a, e))
+    }
+  }
+  if (this.capabilities.emojiWidth) this.enableEmojiWidth();
+  if (this.capabilities.kittyKeyboard) this.enableKittyKeyboard();
+  if (this.enableModifyOtherKeys(), this.enableInBandResize(), this.capabilities.colorPaletteNotifications) this.enableColorPaletteNotifications();
+  eA.setCapabilities(this.capabilities)
+}
+parseXtgettcapResponse(T) {
+  if (!this.queryParser) return;
+  let R = T.indexOf("=");
+  if (R !== -1) {
+    let a = T.slice(0, R),
+      e = T.slice(R + 1);
+    if (this.queryParser.processXtgettcap(a, e)) this.finishInitialization()
+  }
+}
+handleResize() {
+  if (this.pendingResize = !0, this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
+  this.resizeDebounceTimer = setTimeout(() => {
+    this.processResize()
+  }, 10)
+}
+handleInbandResize(T) {
+  if (this.terminalSize = {
+      width: T.width,
+      height: T.height
+    }, this.queryParser && T.pixelWidth && T.pixelHeight) {
+    let R = this.queryParser.shouldUsePixelMouse();
+    this.queryParser.updateInbandPixelData(T.width, T.height, T.pixelWidth, T.pixelHeight);
+    let a = this.queryParser.shouldUsePixelMouse();
+    if (!R && a) this.disableMouse(), this.enableMouse();
+    if (a) {
+      let e = T.pixelWidth / T.width,
+        t = T.pixelHeight / T.height;
+      this.parser?.setSgrToMouseConverter((r) => AY(r, !0, e, t))
+    }
+  }
+  this.screen.resize(T.width, T.height), setImmediate(() => {
+    for (let R of this.resizeHandlers) try {
+      R(T)
+    }
+    catch (a) {
+      J.error("Error in resize handler:", a)
+    }
+  })
+}
+processResize() {
+  if (!this.pendingResize || !this.initialized) return;
+  let T = {
+    ...this.terminalSize
+  };
+  if (this.updateTerminalSize(), T.width === this.terminalSize.width && T.height === this.terminalSize.height) {
+    this.pendingResize = !1;
+    return
+  }
+  this.finishResize(), this.pendingResize = !1
+}
+finishResize() {
+  this.screen.resize(this.terminalSize.width, this.terminalSize.height);
+  let T = {
+    type: "resize",
+    width: this.terminalSize.width,
+    height: this.terminalSize.height
+  };
+  setImmediate(() => {
+    for (let R of this.resizeHandlers) try {
+      R(T)
+    }
+    catch (a) {
+      J.error("Error in resize handler:", a)
+    }
+  })
+}
+setupCleanupHandlers() {
+  process.setMaxListeners(0), process.on("SIGINT", this.boundCleanup), process.on("SIGTERM", this.boundCleanup), process.on("exit", this.boundCleanup), process.on("SIGCONT", this.boundHandleResume)
+}
+cleanup() {
+  try {
+    this.deinit()
+  } catch {}
+}
+}
+
+function JxT(T) {
+  return "isTTY" in T && T.isTTY === !0 && typeof T.setRawMode === "function"
+}
+
+function Uk0(T) {
+  try {
+    if (T._refreshSize?.(), T.isTTY && T.columns && T.rows) return {
+      width: T.columns,
+      height: T.rows
+    };
+    let R = T.getWindowSize?.();
+    if (R && R[0] > 0 && R[1] > 0) return {
+      width: R[0],
+      height: R[1]
+    }
+  } catch {}
+  return null
+}
+
+function Wk0() {
+  if (typeof process > "u") return !1;
+  return process.env.BUN_TEST === "1" || process.env.VITEST === "true" || process.env.NODE_TEST_CONTEXT === "1"
+}
+class k8 {
+  static _instance;
+  _frameCallbacks = new Map;
+  _postFrameCallbacks = [];
+  _frameScheduled = !1;
+  _frameInProgress = !1;
+  _executingPostFrameCallbacks = !1;
+  _pendingFrameTimer = null;
+  _lastFrameTimestamp = 0;
+  _useFramePacing = !Wk0();
+  _stats = {
+    lastFrameTime: 0,
+    phaseStats: {
+      ["build"]: {
+        lastTime: 0
+      },
+      ["layout"]: {
+        lastTime: 0
+      },
+      ["paint"]: {
+        lastTime: 0
+      },
+      ["render"]: {
+        lastTime: 0
+      }
+    }
+  };
+  _lastCompletedStats = this.deepCopyStats(this._stats);
+  static get instance() {
+    return k8._instance ??= new k8
+  }
+  requestFrame() {
+    if (this._frameScheduled) return;
+    if (this._frameInProgress) {
+      this._frameScheduled = !0;
+      return
+    }
+    if (!this._useFramePacing) {
+      this._frameScheduled = !0, this.scheduleFrameExecution(0);
+      return
+    }
+    let T = performance.now(),
+      R = this._lastFrameTimestamp,
+      a = T - R;
+    if (R === 0 || a >= cP) {
+      this._frameScheduled = !0, this.scheduleFrameExecution(0);
+      return
+    }
+    let e = Math.max(0, cP - a);
+    this._frameScheduled = !0, this.scheduleFrameExecution(e)
+  }
+  scheduleFrameExecution(T) {
+    if (T <= 0) {
+      setImmediate(() => this.runScheduledFrame());
+      return
+    }
+    this._pendingFrameTimer = setTimeout(() => this.runScheduledFrame(), T)
+  }
+  runScheduledFrame() {
+    if (this._pendingFrameTimer) clearTimeout(this._pendingFrameTimer), this._pendingFrameTimer = null;
+    if (this._frameInProgress) return;
+    this.executeFrame()
+  }
+  addFrameCallback(T, R, a, e = 0, t) {
+    this._frameCallbacks.set(T, {
+      callback: R,
+      phase: a,
+      priority: e,
+      name: t || T
+    })
+  }
+  removeFrameCallback(T) {
+    this._frameCallbacks.delete(T)
+  }
+  addPostFrameCallback(T, R) {
+    if (this._postFrameCallbacks.push({
+        callback: T,
+        name: R
+      }), !this._frameScheduled && (!this._frameInProgress || this._executingPostFrameCallbacks)) this.requestFrame()
+  }
+  executeFrame() {
+    if (this._frameInProgress) return;
+    let T = performance.now();
+    this._frameScheduled = !1, this._frameInProgress = !0;
+    try {
+      for (let R of ["build", "layout", "paint", "render"]) this.executePhase(R);
+      this.executePostFrameCallbacks()
+    } catch (R) {
+      J.error("Frame execution error:", R instanceof Error ? R.message : String(R))
+    } finally {
+      if (this.recordFrameStats(performance.now() - T), this._lastFrameTimestamp = T, this._lastCompletedStats = this.deepCopyStats(this._stats), this._frameInProgress = !1, this._frameScheduled) {
+        let R = performance.now() - this._lastFrameTimestamp,
+          a = R >= cP ? 0 : Math.max(0, cP - R);
+        this.scheduleFrameExecution(a)
+      }
+    }
+  }
+  executePhase(T) {
+    let R = performance.now();
+    try {
+      let a = Array.from(this._frameCallbacks.values()).filter((e) => e.phase === T).sort((e, t) => e.priority - t.priority);
+      for (let e of a) try {
+        e.callback()
+      }
+      catch (t) {
+        J.error(`Frame callback error in ${T} phase (${e.name})`, {
+          errorMessage: t instanceof Error ? t.message : String(t),
+          errorType: t?.constructor?.name,
+          stackTrace: t instanceof Error ? t.stack : void 0
+        }), e8(!1, `FATAL: ${T} error in ${e.name}: ${t}`)
+      }
+    } finally {
+      let a = performance.now() - R;
+      this.recordPhaseStats(T, a)
+    }
+  }
+  executePostFrameCallbacks() {
+    if (this._postFrameCallbacks.length === 0) return;
+    let T = this._postFrameCallbacks.splice(0);
+    this._executingPostFrameCallbacks = !0;
+    try {
+      for (let {
+          callback: R,
+          name: a
+        }
+        of T) try {
+        R()
+      }
+      catch (e) {
+        J.error(`Post-frame callback error (${a||"anonymous"}):`, e instanceof Error ? e.message : String(e))
+      }
+    } finally {
+      this._executingPostFrameCallbacks = !1
+    }
+  }
+  recordFrameStats(T) {
+    this._stats.lastFrameTime = T
+  }
+  recordPhaseStats(T, R) {
+    this._stats.phaseStats[T].lastTime = R
+  }
+  get isFrameScheduled() {
+    return this._frameScheduled || this._frameInProgress
+  }
+  get isFrameInProgress() {
+    return this._frameInProgress
+  }
+  get frameStats() {
+    return this.deepCopyStats(this._lastCompletedStats)
+  }
+  deepCopyStats(T) {
+    return {
+      ...T,
+      phaseStats: {
+        ["build"]: {
+          ...T.phaseStats.build
+        },
+        ["layout"]: {
+          ...T.phaseStats.layout
+        },
+        ["paint"]: {
+          ...T.phaseStats.paint
+        },
+        ["render"]: {
+          ...T.phaseStats.render
+        }
+      }
+    }
+  }
+  resetStats() {
+    this._stats = {
+      lastFrameTime: 0,
+      phaseStats: {
+        ["build"]: {
+          lastTime: 0
+        },
+        ["layout"]: {
+          lastTime: 0
+        },
+        ["paint"]: {
+          lastTime: 0
+        },
+        ["render"]: {
+          lastTime: 0
+        }
+      }
+    }
+  }
+  get pendingPostFrameCallbacks() {
+    return this._postFrameCallbacks.length
+  }
+  dispose() {
+    if (this._pendingFrameTimer) clearTimeout(this._pendingFrameTimer), this._pendingFrameTimer = null;
+    this._frameCallbacks.clear(), this._postFrameCallbacks.length = 0, this._frameScheduled = !1, this._frameInProgress = !1, this._lastFrameTimestamp = 0, this.resetStats()
+  }
+}
+class YXT {
+  _dirtyElements = new Set;
+  _stats = {
+    totalRebuilds: 0,
+    elementsRebuiltThisFrame: 0,
+    maxElementsPerFrame: 0,
+    averageElementsPerFrame: 0,
+    lastBuildTime: 0,
+    averageBuildTime: 0,
+    maxBuildTime: 0
+  };
+  _buildTimes = [];
+  _elementsPerFrame = [];
+  constructor() {}
+  scheduleBuildFor(T) {
+    if (this._dirtyElements.has(T)) return;
+    this._dirtyElements.add(T), k8.instance.requestFrame()
+  }
+  buildScopes() {
+    if (this._dirtyElements.size === 0) return;
+    let T = performance.now(),
+      R = 0;
+    try {
+      while (this._dirtyElements.size > 0) {
+        let a = Array.from(this._dirtyElements);
+        this._dirtyElements.clear(), a.sort((e, t) => e.depth - t.depth);
+        for (let e of a)
+          if (e.dirty) try {
+            e.performRebuild(), e._dirty = !1, R++
+          }
+        catch (t) {
+          J.error("Element rebuild error:", {
+            error: t instanceof Error ? t.message : String(t),
+            stack: t instanceof Error ? t.stack : void 0,
+            elementType: e.widget.constructor.name,
+            elementDebugLabel: e.widget.debugLabel
+          }), e._dirty = !1
+        }
+      }
+    } finally {
+      this.recordBuildStats(performance.now() - T, R)
+    }
+  }
+  recordBuildStats(T, R) {
+    if (this._stats.totalRebuilds += R, this._stats.elementsRebuiltThisFrame = R, this._stats.lastBuildTime = T, this._stats.maxElementsPerFrame = Math.max(this._stats.maxElementsPerFrame, R), this._stats.maxBuildTime = Math.max(this._stats.maxBuildTime, T), this._buildTimes.push(T), this._elementsPerFrame.push(R), this._buildTimes.length > 60) this._buildTimes.shift(), this._elementsPerFrame.shift();
+    this._stats.averageBuildTime = this._buildTimes.reduce((a, e) => a + e, 0) / this._buildTimes.length, this._stats.averageElementsPerFrame = this._elementsPerFrame.reduce((a, e) => a + e, 0) / this._elementsPerFrame.length
+  }
+  get dirtyElements() {
+    return Array.from(this._dirtyElements)
+  }
+  get hasDirtyElements() {
+    return this._dirtyElements.size > 0
+  }
+  get buildStats() {
+    return {
+      ...this._stats
+    }
+  }
+  resetBuildStats() {
+    this._stats = {
+      totalRebuilds: 0,
+      elementsRebuiltThisFrame: 0,
+      maxElementsPerFrame: 0,
+      averageElementsPerFrame: 0,
+      lastBuildTime: 0,
+      averageBuildTime: 0,
+      maxBuildTime: 0
+    }, this._buildTimes.length = 0, this._elementsPerFrame.length = 0
+  }
+  dispose() {
+    this._dirtyElements.clear()
+  }
+}
+
+function Yh(T, R) {
+  if (T.length === 0) return 0;
+  let a = [...T].sort((r, h) => r - h),
+    e = Math.max(0, Math.min(R, 1)),
+    t = Math.ceil(a.length * e) - 1;
+  return a[Math.max(0, t)] || 0
+}
+class QXT {
+  frameTimes = [];
+  phaseTimes = {
+    build: [],
+    layout: [],
+    paint: [],
+    render: []
+  };
+  keyEventTimes = [];
+  mouseEventTimes = [];
+  repaintPercents = [];
+  bytesWritten = [];
+  lastKeyEventTime = 0;
+  lastMouseEventTime = 0;
+  lastRepaintPercent = 0;
+  lastBytesWritten = 0;
+  MAX_SAMPLES = 1024;
+  recordFrame(T) {
+    if (this.frameTimes.push(T), this.frameTimes.length > this.MAX_SAMPLES) this.frameTimes.shift()
+  }
+  recordPhase(T, R) {
+    let a = this.phaseTimes[T];
+    if (a.push(R), a.length > this.MAX_SAMPLES) a.shift()
+  }
+  recordKeyEvent(T) {
+    if (this.lastKeyEventTime = T, this.keyEventTimes.push(T), this.keyEventTimes.length > this.MAX_SAMPLES) this.keyEventTimes.shift()
+  }
+  recordMouseEvent(T) {
+    if (this.lastMouseEventTime = T, this.mouseEventTimes.push(T), this.mouseEventTimes.length > this.MAX_SAMPLES) this.mouseEventTimes.shift()
+  }
+  recordRepaintPercent(T) {
+    if (this.lastRepaintPercent = T, this.repaintPercents.push(T), this.repaintPercents.length > this.MAX_SAMPLES) this.repaintPercents.shift()
+  }
+  recordBytesWritten(T) {
+    if (this.lastBytesWritten = T, this.bytesWritten.push(T), this.bytesWritten.length > this.MAX_SAMPLES) this.bytesWritten.shift()
+  }
+  getFrameP99() {
+    return Yh(this.frameTimes, 0.99)
+  }
+  getFrameP95() {
+    return Yh(this.frameTimes, 0.95)
+  }
+  getPhaseP99(T) {
+    return Yh(this.phaseTimes[T], 0.99)
+  }
+  getPhaseP95(T) {
+    return Yh(this.phaseTimes[T], 0.95)
+  }
+  getLastKeyEventTime() {
+    return this.lastKeyEventTime
+  }
+  getKeyEventP99() {
+    return Yh(this.keyEventTimes, 0.99)
+  }
+  getKeyEventP95() {
+    return Yh(this.keyEventTimes, 0.95)
+  }
+  getLastMouseEventTime() {
+    return this.lastMouseEventTime
+  }
+  getMouseEventP99() {
+    return Yh(this.mouseEventTimes, 0.99)
+  }
+  getMouseEventP95() {
+    return Yh(this.mouseEventTimes, 0.95)
+  }
+  getLastRepaintPercent() {
+    return this.lastRepaintPercent
+  }
+  getRepaintPercentP99() {
+    return Yh(this.repaintPercents, 0.99)
+  }
+  getRepaintPercentP95() {
+    return Yh(this.repaintPercents, 0.95)
+  }
+  getLastBytesWritten() {
+    return this.lastBytesWritten
+  }
+  getBytesWrittenP99() {
+    return Yh(this.bytesWritten, 0.99)
+  }
+  getBytesWrittenP95() {
+    return Yh(this.bytesWritten, 0.95)
+  }
+  reset() {
+    this.frameTimes = [];
+    for (let T of Object.values(LtT)) this.phaseTimes[T] = [];
+    this.keyEventTimes = [], this.mouseEventTimes = [], this.repaintPercents = [], this.bytesWritten = [], this.lastKeyEventTime = 0, this.lastMouseEventTime = 0, this.lastRepaintPercent = 0, this.lastBytesWritten = 0
+  }
+}
+class ZXT {
+  enabled = !1;
+  tracker = new QXT;
+  setEnabled(T) {
+    this.enabled = T
+  }
+  isEnabled() {
+    return this.enabled
+  }
+  recordKeyEvent(T) {
+    this.tracker.recordKeyEvent(T)
+  }
+  recordMouseEvent(T) {
+    this.tracker.recordMouseEvent(T)
+  }
+  recordStats(T, R) {
+    this.tracker.recordFrame(T.lastFrameTime);
+    for (let a of Object.values(LtT)) this.tracker.recordPhase(a, T.phaseStats[a].lastTime);
+    if (R) this.tracker.recordRepaintPercent(R.repaintedPercent), this.tracker.recordBytesWritten(R.bytesWritten)
+  }
+  draw(T, R) {
+    if (!this.enabled) return;
+    let {
+      width: a,
+      height: e
+    } = T.getSize(), t = 34, r = 14, h = a - t - 2, i = 1;
+    if (h < 0 || i + r >= e) return;
+    let c = Gt.default().colorScheme,
+      s = c.border,
+      A = c.foreground,
+      l = c.warning,
+      o = " Gotta Go Fast ",
+      n = Math.floor((t - o.length) / 2);
+    T.setCell(h, i, a9("\u256D", {
+      fg: A
+    }));
+    for (let hT = 1; hT < t - 1; hT++)
+      if (hT >= n && hT < n + o.length) T.setCell(h + hT, i, a9(o[hT - n] || "\u2500", {
+        fg: l
+      }));
+      else T.setCell(h + hT, i, a9("\u2500", {
+        fg: A
+      }));
+    T.setCell(h + t - 1, i, a9("\u256E", {
+      fg: A
+    }));
+    for (let hT = 1; hT < r - 1; hT++) {
+      T.setCell(h, i + hT, a9("\u2502", {
+        fg: A
+      })), T.setCell(h + t - 1, i + hT, a9("\u2502", {
+        fg: A
+      }));
+      for (let pT = 1; pT < t - 1; pT++) T.setCell(h + pT, i + hT, a9(" ", {
+        fg: A
+      }))
+    }
+    T.setCell(h, i + r - 1, a9("\u2570", {
+      fg: A
+    }));
+    for (let hT = 1; hT < t - 1; hT++) T.setCell(h + hT, i + r - 1, a9("\u2500", {
+      fg: A
+    }));
+    T.setCell(h + t - 1, i + r - 1, a9("\u256F", {
+      fg: A
+    }));
+    let p = h + 1,
+      _ = i + 1;
+    this.drawText(T, p, _++, "          Last    P95    P99", s);
+    let m = this.tracker.getLastKeyEventTime(),
+      b = this.tracker.getKeyEventP95(),
+      y = this.tracker.getKeyEventP99(),
+      u = m.toFixed(2).padStart(5, " "),
+      P = b.toFixed(2).padStart(5, " "),
+      k = y.toFixed(2).padStart(5, " "),
+      x = this.getTimingColor(m),
+      f = this.getTimingColor(b),
+      v = this.getTimingColor(y);
+    this.drawLastP95P99Row(T, p, _++, {
+      label: "Key",
+      labelColor: s,
+      last: {
+        text: u,
+        color: x
+      },
+      p95: {
+        text: P,
+        color: f
+      },
+      p99: {
+        text: k,
+        color: v
+      }
+    });
+    let g = this.tracker.getLastMouseEventTime(),
+      I = this.tracker.getMouseEventP95(),
+      S = this.tracker.getMouseEventP99(),
+      O = g.toFixed(2).padStart(5, " "),
+      j = I.toFixed(2).padStart(5, " "),
+      d = S.toFixed(2).padStart(5, " "),
+      C = this.getTimingColor(g),
+      L = this.getTimingColor(I),
+      w = this.getTimingColor(S);
+    this.drawLastP95P99Row(T, p, _++, {
+      label: "Mouse",
+      labelColor: s,
+      last: {
+        text: O,
+        color: C
+      },
+      p95: {
+        text: j,
+        color: L
+      },
+      p99: {
+        text: d,
+        color: w
+      }
+    }), _++;
+    for (let hT of ["build", "layout", "paint", "render"]) {
+      let pT = R.phaseStats[hT].lastTime,
+        mT = this.tracker.getPhaseP95(hT),
+        yT = this.tracker.getPhaseP99(hT),
+        uT = pT.toFixed(2).padStart(5, " "),
+        bT = mT.toFixed(2).padStart(5, " "),
+        jT = yT.toFixed(2).padStart(5, " "),
+        fT = this.getTimingColor(pT),
+        MT = this.getTimingColor(mT),
+        UT = this.getTimingColor(yT),
+        QT = hT.charAt(0).toUpperCase() + hT.slice(1);
+      this.drawLastP95P99Row(T, p, _++, {
+        label: QT,
+        labelColor: s,
+        last: {
+          text: uT,
+          color: fT
+        },
+        p95: {
+          text: bT,
+          color: MT
+        },
+        p99: {
+          text: jT,
+          color: UT
+        }
+      })
+    }
+    _++;
+    let D = R.lastFrameTime,
+      B = this.tracker.getFrameP95(),
+      M = this.tracker.getFrameP99(),
+      V = D.toFixed(2).padStart(5, " "),
+      Q = B.toFixed(2).padStart(5, " "),
+      W = M.toFixed(2).padStart(5, " "),
+      eT = this.getTimingColor(D),
+      iT = this.getTimingColor(B),
+      aT = this.getTimingColor(M);
+    this.drawLastP95P99Row(T, p, _++, {
+      label: "Frame",
+      labelColor: A,
+      last: {
+        text: V,
+        color: eT
+      },
+      p95: {
+        text: Q,
+        color: iT
+      },
+      p99: {
+        text: W,
+        color: aT
+      }
+    });
+    let oT = this.tracker.getLastRepaintPercent(),
+      TT = this.tracker.getRepaintPercentP95(),
+      tT = this.tracker.getRepaintPercentP99(),
+      lT = `${oT.toFixed(1)}%`.padStart(5, " "),
+      N = `${TT.toFixed(1)}%`.padStart(5, " "),
+      q = `${tT.toFixed(1)}%`.padStart(5, " "),
+      F = this.getPercentColor(oT),
+      E = this.getPercentColor(TT),
+      U = this.getPercentColor(tT);
+    this.drawLastP95P99Row(T, p, _++, {
+      label: "Repaint",
+      labelColor: A,
+      last: {
+        text: lT,
+        color: F
+      },
+      p95: {
+        text: N,
+        color: E
+      },
+      p99: {
+        text: q,
+        color: U
+      }
+    });
+    let Z = this.formatBytes(this.tracker.getLastBytesWritten()).padStart(5, " "),
+      X = this.formatBytes(this.tracker.getBytesWrittenP95()).padStart(5, " "),
+      rT = this.formatBytes(this.tracker.getBytesWrittenP99()).padStart(5, " ");
+    this.drawLastP95P99Row(T, p, _, {
+      label: "Bytes",
+      labelColor: A,
+      last: {
+        text: Z,
+        color: A
+      },
+      p95: {
+        text: X,
+        color: A
+      },
+      p99: {
+        text: rT,
+        color: A
+      }
+    })
+  }
+  drawLastP95P99Row(T, R, a, e) {
+    let t = ` ${e.label.padStart(7," ")} `,
+      r = R;
+    this.drawText(T, r, a, t, e.labelColor), r += t.length, this.drawText(T, r, a, e.last.text, e.last.color), r += e.last.text.length, this.drawText(T, r, a, "   ", e.labelColor), r += 3, this.drawText(T, r, a, e.p95.text, e.p95.color), r += e.p95.text.length, this.drawText(T, r, a, "   ", e.labelColor), r += 3, this.drawText(T, r, a, e.p99.text, e.p99.color)
+  }
+  getTimingColor(T) {
+    let R = Gt.default().colorScheme,
+      a = cP,
+      e = cP * 0.7;
+    if (T >= a) return R.destructive;
+    if (T >= e) return R.warning;
+    return R.foreground
+  }
+  getPercentColor(T) {
+    let R = Gt.default().colorScheme;
+    if (T >= 50) return R.destructive;
+    if (T >= 20) return R.warning;
+    return R.foreground
+  }
+  drawText(T, R, a, e, t) {
+    for (let r = 0; r < e.length; r++) T.setCell(R + r, a, a9(e[r] || " ", {
+      fg: t
+    }))
+  }
+  formatBytes(T) {
+    if (T >= 1e4) return `${Math.round(T/1000)}k`;
+    if (T >= 1000) return `${(T/1000).toFixed(1)}k`;
+    return `${Math.round(T)}`
+  }
+}
+class BM {
+  size;
+  capabilities;
+  constructor(T, R) {
+    this.size = T, this.capabilities = R
+  }
+  get supportsEmojiWidth() {
+    return this.capabilities.emojiWidth
+  }
+  get supportsSyncOutput() {
+    return this.capabilities.syncOutput
+  }
+}
+class JXT {
+  _nodesNeedingPaint = new Set;
+  _rootRenderObject = null;
+  _rootConstraints = null;
+  constructor() {}
+  requestLayout(T) {
+    if (!k8.instance.isFrameInProgress) k8.instance.requestFrame()
+  }
+  requestPaint(T) {
+    if (this._nodesNeedingPaint.has(T)) return;
+    if (this._nodesNeedingPaint.add(T), !k8.instance.isFrameInProgress) k8.instance.requestFrame()
+  }
+  setRootRenderObject(T) {
+    this._rootRenderObject = T
+  }
+  updateRootConstraints(T) {
+    let R = new o0(0, T.width, 0, T.height),
+      a = !this._rootConstraints || this._rootConstraints.maxWidth !== R.maxWidth || this._rootConstraints.maxHeight !== R.maxHeight;
+    if (this._rootConstraints = R, a && this._rootRenderObject && "markNeedsLayout" in this._rootRenderObject) this._rootRenderObject.markNeedsLayout()
+  }
+  flushLayout() {
+    let T = !1;
+    if (this._rootRenderObject && this._rootConstraints && "needsLayout" in this._rootRenderObject && this._rootRenderObject.needsLayout) {
+      if ("layout" in this._rootRenderObject && typeof this._rootRenderObject.layout === "function") this._rootRenderObject.layout(this._rootConstraints), T = !0
+    }
+    return T
+  }
+  flushPaint() {
+    if (this._nodesNeedingPaint.size === 0) return;
+    try {
+      for (let T of this._nodesNeedingPaint)
+        if (T.needsPaint) T._needsPaint = !1
+    } finally {
+      this._nodesNeedingPaint.clear()
+    }
+  }
+  get nodesNeedingLayout() {
+    return []
+  }
+  get nodesNeedingPaint() {
+    return Array.from(this._nodesNeedingPaint)
+  }
+  get hasNodesNeedingLayout() {
+    return Boolean(this._rootRenderObject && this._rootRenderObject.needsLayout)
+  }
+  get hasNodesNeedingPaint() {
+    return this._nodesNeedingPaint.size > 0
+  }
+  dispose() {
+    this._nodesNeedingPaint.clear()
+  }
+  removeFromQueues(T) {
+    this._nodesNeedingPaint.delete(T)
+  }
+}
+class d9 {
+  static _instance;
+  frameScheduler = k8.instance;
+  buildOwner;
+  pipelineOwner;
+  focusManager = ic.instance;
+  mouseManager = ha.instance;
+  frameStatsOverlay = new ZXT;
+  tui = new XXT;
+  rootElement;
+  isRunning = !1;
+  rootElementMountedCallback;
+  forcePaintOnNextFrame = !1;
+  shouldPaintCurrentFrame = !1;
+  didPaintCurrentFrame = !1;
+  eventCallbacks = {
+    key: [],
+    mouse: [],
+    paste: []
+  };
+  keyInterceptors = [];
+  rgbColorChangeCallbacks = [];
+  cachedRgbColors = null;
+  static get instance() {
+    return d9._instance ??= new d9
+  }
+  pendingResizeEvent = null;
+  constructor() {
+    this.buildOwner = new YXT, this.pipelineOwner = new JXT, this.frameScheduler.addFrameCallback("frame-start", () => this.beginFrame(), "build", -2000, "WidgetsBinding.beginFrame"), this.frameScheduler.addFrameCallback("resize", () => this.processResizeIfPending(), "build", -1000, "WidgetsBinding.processResizeIfPending"), this.frameScheduler.addFrameCallback("build", () => {
+      this.buildOwner.buildScopes(), this.updateRootRenderObject()
+    }, "build", 0, "BuildOwner.buildScopes"), this.frameScheduler.addFrameCallback("layout", () => {
+      if (this.updateRootConstraints(), this.pipelineOwner.flushLayout()) this.shouldPaintCurrentFrame = !0
+    }, "layout", 0, "PipelineOwner.flushLayout"), this.frameScheduler.addFrameCallback("paint", () => this.paint(), "paint", 0, "WidgetsBinding.paint"), this.frameScheduler.addFrameCallback("render", () => this.render(), "render", 0, "WidgetsBinding.render"), Ly0({
+      scheduleBuildFor: (T) => this.buildOwner.scheduleBuildFor(T)
+    }, {
+      requestLayout: (T) => this.pipelineOwner.requestLayout(T),
+      requestPaint: (T) => this.pipelineOwner.requestPaint(T),
+      removeFromQueues: (T) => this.pipelineOwner.removeFromQueues(T)
+    }), this.setupErrorHandler()
+  }
+  setupErrorHandler() {
+    process.on("uncaughtException", (T) => {
+      J.error("Framework uncaught exception", T)
+    })
+  }
+  getRgbColors() {
+    return this.cachedRgbColors
+  }
+  onRgbColorsChanged(T) {
+    return this.rgbColorChangeCallbacks.push(T), () => {
+      let R = this.rgbColorChangeCallbacks.indexOf(T);
+      if (R !== -1) this.rgbColorChangeCallbacks.splice(R, 1)
+    }
+  }
+  notifyRgbColorsChanged() {
+    for (let T of this.rgbColorChangeCallbacks) T()
+  }
+  updateRgbColors(T) {
+    this.cachedRgbColors = T;
+    let R = this.tui.getScreen();
+    R.setDefaultColors({
+      type: "rgb",
+      value: T.bg
+    }, {
+      type: "rgb",
+      value: T.fg
+    }), R.setIndexRgbMapping(T.indices), XVT(IH(), T.bg), this.notifyRgbColorsChanged(), this.requestForcedPaintFrame()
+  }
+  async runApp(T) {
+      if (this.isRunning) throw Error("App is already running");
+      try {
+        this.isRunning = !0, this.tui.init(), this.tui.enterAltScreen();
+        let {
+          initFocusTracking: R
+        } = await Promise.resolve().then(() => QqT);
+        R(this.tui);
+        let {
+          initIdleTracking: a
+        } = await Promise.resolve().then(() => (a5T(), JqT));
+        a(this.tui), await this.tui.waitForCapabilities(1000);
+        let e = thi

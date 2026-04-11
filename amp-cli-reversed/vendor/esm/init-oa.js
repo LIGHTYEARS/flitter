@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: pIR (ESM)
-()=>{oa(),MwT=c0(QA(),1)}
+() => {
+  (oa(), (MwT = c0(QA(), 1)));
+};

@@ -5,5 +5,7 @@
 // Category: unknown
 
 // Module: $IR (CJS)
-(T,R)=>{var a=gIR();
-R.exports={pkg:a}}
+(T, R) => {
+  var a = gIR();
+  R.exports = { pkg: a };
+};

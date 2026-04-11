@@ -5,6 +5,11 @@
 // Category: util
 
 // Module: vvT (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.getNextCallNumber=a;
-var R=0;
-function a(){return R++}}
+(T) => {
+  (Object.defineProperty(T, "__esModule", { value: !0 }),
+    (T.getNextCallNumber = a));
+  var R = 0;
+  function a() {
+    return R++;
+  }
+};

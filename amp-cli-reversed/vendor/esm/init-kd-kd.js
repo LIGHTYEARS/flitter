@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: EiT (ESM)
-()=>{kD(),kD(),nCT=K}
+() => {
+  (kD(), kD(), (nCT = K));
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: s0 (ESM)
-()=>{qS(),KdT(),om()}
+() => {
+  (qS(), KdT(), om());
+};

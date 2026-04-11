@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: ykR (ESM)
-()=>{s0(),rR(),jc(),Zt(),ZDT(),L8(),mkR()}
+() => {
+  (s0(), rR(), jc(), Zt(), ZDT(), L8(), mkR());
+};

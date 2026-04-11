@@ -5,4 +5,15 @@
 // Category: unknown
 
 // Module: N9T (ESM)
-()=>{oyR(),YA(),llT(),llT(),_yR(),_h=class extends Error{constructor(R){super(R??"Unauthorized")}}}
+() => {
+  (oyR(),
+    YA(),
+    llT(),
+    llT(),
+    _yR(),
+    (_h = class extends Error {
+      constructor(R) {
+        super(R ?? "Unauthorized");
+      }
+    }));
+};

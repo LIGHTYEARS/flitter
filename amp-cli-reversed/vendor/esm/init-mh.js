@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: zfR (ESM)
-()=>{Mh()}
+() => {
+  Mh();
+};

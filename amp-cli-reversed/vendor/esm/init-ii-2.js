@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: mO (ESM)
-()=>{Ii()}
+() => {
+  Ii();
+};

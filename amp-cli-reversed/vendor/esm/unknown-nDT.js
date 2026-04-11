@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: nDT (ESM)
-()=>{U9T=new sDT}
+() => {
+  U9T = new sDT();
+};

@@ -5,5 +5,12 @@
 // Category: util
 
 // Module: Zt (ESM)
-()=>{ur=class extends Error{constructor(R){let a=typeof R==="string"?R:R.toString();
-super(`File not found: ${a}`);this.name="FileNotExistError"}}}
+() => {
+  ur = class extends Error {
+    constructor(R) {
+      let a = typeof R === "string" ? R : R.toString();
+      super(`File not found: ${a}`);
+      this.name = "FileNotExistError";
+    }
+  };
+};

@@ -5,6 +5,8 @@
 // Category: unknown
 
 // Module: muR (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0});
-var R=buR();
-R.code='require("ajv/dist/runtime/uri").default',T.default=R}
+(T) => {
+  Object.defineProperty(T, "__esModule", { value: !0 });
+  var R = buR();
+  ((R.code = 'require("ajv/dist/runtime/uri").default'), (T.default = R));
+};

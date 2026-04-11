@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: mMT (ESM)
-()=>{Sc()}
+() => {
+  Sc();
+};

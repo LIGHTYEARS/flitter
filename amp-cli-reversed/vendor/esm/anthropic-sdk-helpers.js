@@ -5,4 +5,6 @@
 // Category: npm-pkg
 
 // Module: XN (ESM)
-()=>{dP=Symbol("anthropic.sdk.stainlessHelper")}
+() => {
+  dP = Symbol("anthropic.sdk.stainlessHelper");
+};

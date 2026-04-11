@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: QuR (ESM)
-()=>{YA()}
+() => {
+  YA();
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: F8 (ESM)
-()=>{de(),Ke()}
+() => {
+  (de(), Ke());
+};

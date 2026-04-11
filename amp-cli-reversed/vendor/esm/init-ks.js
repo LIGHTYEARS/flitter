@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: e4T (ESM)
-()=>{Ks(),rR(),R9T=T9T.join(RN,"oauth","locks")}
+() => {
+  (Ks(), rR(), (R9T = T9T.join(RN, "oauth", "locks")));
+};

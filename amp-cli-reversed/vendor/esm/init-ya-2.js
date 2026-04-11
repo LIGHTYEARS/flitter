@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: JLT (ESM)
-()=>{Ya()}
+() => {
+  Ya();
+};

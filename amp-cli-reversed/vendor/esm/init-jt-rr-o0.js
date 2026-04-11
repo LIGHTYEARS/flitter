@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: bIR (ESM)
-()=>{Jt(),rR(),O0()}
+() => {
+  (Jt(), rR(), O0());
+};

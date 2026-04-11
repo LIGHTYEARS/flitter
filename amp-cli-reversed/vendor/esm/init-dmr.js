@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: wmR (ESM)
-()=>{DmR()}
+() => {
+  DmR();
+};

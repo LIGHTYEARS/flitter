@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: RlR (ESM)
-()=>{YnR(),ZnR(),pL={},VS=JnR}
+() => {
+  (YnR(), ZnR(), (pL = {}), (VS = JnR));
+};

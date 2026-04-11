@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: _bR (ESM)
-()=>{jR()}
+() => {
+  jR();
+};

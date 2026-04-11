@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: zoR (ESM)
-()=>{b6(),_6()}
+() => {
+  (b6(), _6());
+};

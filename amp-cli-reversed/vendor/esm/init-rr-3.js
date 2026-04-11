@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: yO (ESM)
-()=>{rR()}
+() => {
+  rR();
+};

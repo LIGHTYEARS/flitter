@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: fLT (ESM)
-()=>{jc(),kL=new xh}
+() => {
+  (jc(), (kL = new xh()));
+};

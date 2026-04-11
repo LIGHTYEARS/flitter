@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: hMT (ESM)
-()=>{Ya(),O9T(),Sc()}
+() => {
+  (Ya(), O9T(), Sc());
+};

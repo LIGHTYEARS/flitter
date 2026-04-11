@@ -5,4 +5,6 @@
 // Category: npm-pkg
 
 // Module: ZLT (ESM)
-()=>{v9T()}
+() => {
+  v9T();
+};

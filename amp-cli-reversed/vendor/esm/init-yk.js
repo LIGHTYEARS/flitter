@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Mi (ESM)
-()=>{yk(),p8T=Symbol.for("brand.privateNullableHeaders")}
+() => {
+  (yk(), (p8T = Symbol.for("brand.privateNullableHeaders")));
+};

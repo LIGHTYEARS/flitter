@@ -5,4 +5,10 @@
 // Category: unknown
 
 // Module: R6 (ESM)
-()=>{lRT=Symbol("ZodOutput"),ART=Symbol("ZodInput"),(RiT=globalThis).__zod_globalRegistry??(RiT.__zod_globalRegistry=nRT()),Ph=globalThis.__zod_globalRegistry}
+() => {
+  ((lRT = Symbol("ZodOutput")),
+    (ART = Symbol("ZodInput")),
+    (RiT = globalThis).__zod_globalRegistry ??
+      (RiT.__zod_globalRegistry = nRT()),
+    (Ph = globalThis.__zod_globalRegistry));
+};

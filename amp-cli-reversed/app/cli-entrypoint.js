@@ -4,19 +4,226 @@
 // Exports: r, OS, o$T, Qz0, Zz0, Jz0, SB, S8, TF0, RF0, aF0, eF0, tF0, rF0, hF0, iF0, cF0, sF0, oF0, nF0
 // Category: cli
 
-):AA.join(v5T.tmpdir(),`amp-${k}-${Date.now()}.sqlite`);await g5T(AA.dirname(w),{recursive:!0});let D=await fetch(`${L}/threads/${k}/sql`,{method:"GET",headers:{Authorization:`Bearer ${O}`}});if(!D.ok){let aT=await D.text();throw new GR(`Dump request failed (${D.status}): ${aT}`,1)}if(!D.body)throw new GR("Dump response did not include a body",1);let B=qmT("sqlite3",[w],{stdio:["pipe","ignore","pipe"]}),M=[];B.stderr.on("data",(aT)=>{M.push(Buffer.from(aT))});let V=new Promise((aT,oT)=>{B.once("error",oT),B.once("close",(TT)=>{if(TT===0){aT();return}let tT=Buffer.concat(M).toString("utf8");oT(Error(tT.trim().length>0?tT.trim():`sqlite3 exited with code ${TT}`))})});await GUR(FUR.fromWeb(D.body),B.stdin),await V;let Q=qmT("sqlite3",[w,"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"],{stdio:["ignore","pipe","pipe"]}),W=[],eT=[];if(Q.stdout.on("data",(aT)=>{W.push(Buffer.from(aT))}),Q.stderr.on("data",(aT)=>{eT.push(Buffer.from(aT))}),await new Promise((aT,oT)=>{Q.once("error",oT),Q.once("close",(TT)=>aT(TT??1))})!==0)throw new GR(`Failed to verify dump: ${Buffer.concat(eT).toString("utf8").trim()}`,1);let iT=Number.parseInt(Buffer.concat(W).toString("utf8").trim(),10);if(!Number.isFinite(iT)||iT<=0)throw new GR(`Dump completed but produced 0 tables in ${w}. Try restarting your workers dev server and rerunning.`,1);C9.write(`Dumped sqlite database to ${w}
-`),I=!0}else if(P==="durable-object-id"){if(!k)throw new GR("Thread ID is required for durable-object-id",1);let L=b.workerUrl??process.env.AMP_WORKER_URL??Pi(v.ampURL),w=await Kz0({apiKey:O,threadID:k,workerURL:L});await h$T(`${w}
-`),I=!0}else Be.write(`Unknown action: ${P}
+): AA.join(v5T.tmpdir(), `amp-${k}-${Date.now()}.sqlite`);
+await g5T(AA.dirname(w), {
+  recursive: !0
+});
+let D = await fetch(`${L}/threads/${k}/sql`, {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${O}`
+  }
+});
+if (!D.ok) {
+  let aT = await D.text();
+  throw new GR(`Dump request failed (${D.status}): ${aT}`, 1)
+}
+if (!D.body) throw new GR("Dump response did not include a body", 1);
+let B = qmT("sqlite3", [w], {
+    stdio: ["pipe", "ignore", "pipe"]
+  }),
+  M = [];
+B.stderr.on("data", (aT) => {
+  M.push(Buffer.from(aT))
+});
+let V = new Promise((aT, oT) => {
+  B.once("error", oT), B.once("close", (TT) => {
+    if (TT === 0) {
+      aT();
+      return
+    }
+    let tT = Buffer.concat(M).toString("utf8");
+    oT(Error(tT.trim().length > 0 ? tT.trim() : `sqlite3 exited with code ${TT}`))
+  })
+});
+await GUR(FUR.fromWeb(D.body), B.stdin), await V;
+let Q = qmT("sqlite3", [w, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"], {
+    stdio: ["ignore", "pipe", "pipe"]
+  }),
+  W = [],
+  eT = [];
+if (Q.stdout.on("data", (aT) => {
+    W.push(Buffer.from(aT))
+  }), Q.stderr.on("data", (aT) => {
+    eT.push(Buffer.from(aT))
+  }), await new Promise((aT, oT) => {
+    Q.once("error", oT), Q.once("close", (TT) => aT(TT ?? 1))
+  }) !== 0) throw new GR(`Failed to verify dump: ${Buffer.concat(eT).toString("utf8").trim()}`, 1);
+let iT = Number.parseInt(Buffer.concat(W).toString("utf8").trim(), 10);
+if (!Number.isFinite(iT) || iT <= 0) throw new GR(`Dump completed but produced 0 tables in ${w}. Try restarting your workers dev server and rerunning.`, 1);
+C9.write(`Dumped sqlite database to ${w}
+`), I = !0
+}
+else if (P === "durable-object-id") {
+  if (!k) throw new GR("Thread ID is required for durable-object-id", 1);
+  let L = b.workerUrl ?? process.env.AMP_WORKER_URL ?? Pi(v.ampURL),
+    w = await Kz0({
+      apiKey: O,
+      threadID: k,
+      workerURL: L
+    });
+  await h$T(`${w}
+`), I = !0
+} else Be.write(`Unknown action: ${P}
 
-`),y.outputHelp(),process.exit(1)}finally{if(await g.asyncDispose(),I)process.exit(0)}}),R.command("keyboard-tester",{hidden:!0}).summary("Keyboard input tester").description("Internal: stream parsed terminal input events as JSONL.").option("--raw","Log raw incoming terminal bytes before parsing").action(async(p)=>{await sy0({raw:p.raw===!0}),process.exit(process.exitCode??0)}),R.command("thread-pool-harness [threadId]",{hidden:!0}).summary("Thread pool harness").description("Internal: interactive thread pool harness (no TUI).").option("--list-tools","List tools with descriptions and arguments, then exit").option("--pool-mode <mode>","Thread pool mode (worker or dtw). Defaults to worker.","worker").option("--commands <commands>","Sequence of commands (semicolon or newline separated) to run and exit").option("--worker-url <url>","Override DTW worker URL").action(async(p,_,m)=>{let b=m.optsWithGlobals(),y=await S8(b);ua(m,b);let u=await X3(y,b),P=!1;try{if(oA(u.serverStatus)){let v=$v(Error(u.serverStatus.error.message));if(v.message===V3.networkOffline||v.message===V3.networkTimeout)throw eD(y.ampURL);throw new GR(V3.invalidAPIKey,1)}let k=X9(u.serverStatus)?u.serverStatus.user.email:void 0,x=Boolean(k&&Ns(k));await RZ(m,b,u.serverStatus);let f=_.poolMode??"worker";if(f!=="worker"&&f!=="dtw")throw new GR(`Invalid pool mode: ${f}`,1);if(f==="dtw"&&!x)throw new GR("thread-pool-harness (dtw) is only available for Amp employees",1);if(p&&!Vt(p))throw new GR(`Invalid thread ID: ${p}`,1);await jD0({ampURL:y.ampURL,apiKey:b.apiKey??process.env.AMP_API_KEY,configService:u.configService,toolService:u.toolService,skillService:u.skillService,mcpService:u.mcpService,toolboxService:u.toolboxService,pluginService:u.pluginService,threadService:u.threadService,fileSystem:u.fileSystem,isInternalUser:x,getThreadEnvironment:Hs,threadId:p,commands:_.commands,systemPromptOverride:R3R(m,b),listTools:_.listTools===!0,workerUrl:_.workerUrl??process.env.AMP_WORKER_URL,mode:f}),P=!0}finally{if(await u.asyncDispose(),P)process.exit(0)}}),R.command("live-sync [threadIDOrURL]",{hidden:!0}).summary("Mirror live DTW thread changes into the current checkout").description("Experimental: watch a v2 thread URL or ID and mirror its live working-tree changes into your local checkout, or apply the current snapshot once and exit.").addHelpText("after",["","Examples:","  amp live-sync T-5928a90d-d53b-488f-a829-4e36442142ee","  amp live-sync --apply T-5928a90d-d53b-488f-a829-4e36442142ee","  amp live-sync https://ampcode.com/threads/T-5928a90d-d53b-488f-a829-4e36442142ee"].join(`
-`)).option("--apply <threadIDOrURL>","Apply the current DTW thread snapshot once and exit").option("--checkout","Automatically check out the thread commit when it differs").option("--skip-checkout","Skip the startup checkout prompt when commits differ").option("--worker-url <url>","Override DTW worker URL").action(async(p,_,m)=>{if(p&&_.apply)throw new GR("Choose either a positional thread ID/URL or --apply <thread-id>, not both.",1);let b=_.apply??p;if(!b||b.trim().length===0)C9.write(`live-sync watches a v2 thread and mirrors its live changes locally. Use --apply <thread-id> to materialize the current snapshot once and exit.
+`), y.outputHelp(), process.exit(1)
+}
+finally {
+  if (await g.asyncDispose(), I) process.exit(0)
+}
+}), R.command("keyboard-tester", {
+  hidden: !0
+}).summary("Keyboard input tester").description("Internal: stream parsed terminal input events as JSONL.").option("--raw", "Log raw incoming terminal bytes before parsing").action(async (p) => {
+  await sy0({
+    raw: p.raw === !0
+  }), process.exit(process.exitCode ?? 0)
+}), R.command("thread-pool-harness [threadId]", {
+  hidden: !0
+}).summary("Thread pool harness").description("Internal: interactive thread pool harness (no TUI).").option("--list-tools", "List tools with descriptions and arguments, then exit").option("--pool-mode <mode>", "Thread pool mode (worker or dtw). Defaults to worker.", "worker").option("--commands <commands>", "Sequence of commands (semicolon or newline separated) to run and exit").option("--worker-url <url>", "Override DTW worker URL").action(async (p, _, m) => {
+  let b = m.optsWithGlobals(),
+    y = await S8(b);
+  ua(m, b);
+  let u = await X3(y, b),
+    P = !1;
+  try {
+    if (oA(u.serverStatus)) {
+      let v = $v(Error(u.serverStatus.error.message));
+      if (v.message === V3.networkOffline || v.message === V3.networkTimeout) throw eD(y.ampURL);
+      throw new GR(V3.invalidAPIKey, 1)
+    }
+    let k = X9(u.serverStatus) ? u.serverStatus.user.email : void 0,
+      x = Boolean(k && Ns(k));
+    await RZ(m, b, u.serverStatus);
+    let f = _.poolMode ?? "worker";
+    if (f !== "worker" && f !== "dtw") throw new GR(`Invalid pool mode: ${f}`, 1);
+    if (f === "dtw" && !x) throw new GR("thread-pool-harness (dtw) is only available for Amp employees", 1);
+    if (p && !Vt(p)) throw new GR(`Invalid thread ID: ${p}`, 1);
+    await jD0({
+      ampURL: y.ampURL,
+      apiKey: b.apiKey ?? process.env.AMP_API_KEY,
+      configService: u.configService,
+      toolService: u.toolService,
+      skillService: u.skillService,
+      mcpService: u.mcpService,
+      toolboxService: u.toolboxService,
+      pluginService: u.pluginService,
+      threadService: u.threadService,
+      fileSystem: u.fileSystem,
+      isInternalUser: x,
+      getThreadEnvironment: Hs,
+      threadId: p,
+      commands: _.commands,
+      systemPromptOverride: R3R(m, b),
+      listTools: _.listTools === !0,
+      workerUrl: _.workerUrl ?? process.env.AMP_WORKER_URL,
+      mode: f
+    }), P = !0
+  } finally {
+    if (await u.asyncDispose(), P) process.exit(0)
+  }
+}), R.command("live-sync [threadIDOrURL]", {
+  hidden: !0
+}).summary("Mirror live DTW thread changes into the current checkout").description("Experimental: watch a v2 thread URL or ID and mirror its live working-tree changes into your local checkout, or apply the current snapshot once and exit.").addHelpText("after", ["", "Examples:", "  amp live-sync T-5928a90d-d53b-488f-a829-4e36442142ee", "  amp live-sync --apply T-5928a90d-d53b-488f-a829-4e36442142ee", "  amp live-sync https://ampcode.com/threads/T-5928a90d-d53b-488f-a829-4e36442142ee"].join(`
+`)).option("--apply <threadIDOrURL>", "Apply the current DTW thread snapshot once and exit").option("--checkout", "Automatically check out the thread commit when it differs").option("--skip-checkout", "Skip the startup checkout prompt when commits differ").option("--worker-url <url>", "Override DTW worker URL").action(async (p, _, m) => {
+  if (p && _.apply) throw new GR("Choose either a positional thread ID/URL or --apply <thread-id>, not both.", 1);
+  let b = _.apply ?? p;
+  if (!b || b.trim().length === 0) C9.write(`live-sync watches a v2 thread and mirrors its live changes locally. Use --apply <thread-id> to materialize the current snapshot once and exit.
 
-`),m.outputHelp(),process.exit(0);let y=mr(b)??Zi(b),u=m.optsWithGlobals(),P=await S8(u);ua(m,u);let k=await X3(P,u),x=!1;try{if(_.checkout&&_.skipCheckout)throw new GR("Choose either --checkout or --skip-checkout, not both.",1);if(oA(k.serverStatus)){let v=$v(Error(k.serverStatus.error.message));if(v.message===V3.networkOffline||v.message===V3.networkTimeout)throw eD(P.ampURL);throw new GR(V3.invalidAPIKey,1)}let f=X9(k.serverStatus)?k.serverStatus.features:void 0;if(!SS(f,dr.V2))throw new GR("live-sync is not enabled for your user",1);await lP0({ampURL:P.ampURL,threadId:y,configService:k.configService,threadService:k.threadService,apiKey:u.apiKey??process.env.AMP_API_KEY,applyOnce:typeof _.apply==="string",workerURL:_.workerUrl??process.env.AMP_WORKER_URL,checkoutMode:_.checkout?"always":_.skipCheckout?"never":"prompt",promptForYesNo:OtT}),x=!0}finally{if(await k.asyncDispose(),x)process.exit(0)}});let a=async(p,_,m)=>{LX({storage:_.settings,secretStorage:_.secrets,workspaceRoot:AR.of(zR.file(process.cwd())),defaultAmpURL:_.ampURL,homeDir:jB,userConfigDir:tZ});let b={..._,executeMode:!1};await SB(b,{...p,openThreadSwitcher:!0},m,T)},e=R.command("threads").alias("t").alias("thread").summary("Manage threads").description("Thread management commands. When no subcommand is provided, defaults to listing threads.").option("--include-archived","Include archived threads in the list").action(async(p,_)=>{let m=_.optsWithGlobals(),b=await S8(m);await l$T(m,b,_)});e.command("new").alias("n").summary("Create a new thread").description("Create a new thread and print its ID. The thread will be empty. You can set the visibility using the --visibility option.").option("--visibility <visibility>","Set thread visibility (private, public, workspace, group)").action(async(p,_)=>{let m=_.optsWithGlobals(),b=await S8(m);await _F0(m,b,_)}),e.command("continue [threadIDOrURL]").alias("c").summary("Continue an existing thread").description("Continue an existing thread by resuming the conversation. By default, interactive mode shows a picker. Use --last to continue the last thread for the current mode directly.").option("--last","Continue the last thread for the current mode directly").option("--pick","Pick a thread interactively from a list (DEPRECATED: picker is now the default)").action(async(p,_,m)=>{let b=m.optsWithGlobals(),y=await S8(b);if(_.pick)Be.write(`${oR.yellow("Warning:")} The --pick flag is deprecated. The picker is now shown by default.
-`);if(_.last||p||y.executeMode){let u;try{u=await n$T(p??null,y.executeMode?"execute":"interactive")}catch(P){await Jl(P,p||void 0);return}await pF0(b,y,u,m,T)}else await a(b,y,m)});let t=new eS("fork").argument("[threadId]").alias("f").action(async()=>{Be.write(`\x1B[31mThe fork command has been deprecated.\x1B[0m
+`), m.outputHelp(), process.exit(0);
+  let y = mr(b) ?? Zi(b),
+    u = m.optsWithGlobals(),
+    P = await S8(u);
+  ua(m, u);
+  let k = await X3(P, u),
+    x = !1;
+  try {
+    if (_.checkout && _.skipCheckout) throw new GR("Choose either --checkout or --skip-checkout, not both.", 1);
+    if (oA(k.serverStatus)) {
+      let v = $v(Error(k.serverStatus.error.message));
+      if (v.message === V3.networkOffline || v.message === V3.networkTimeout) throw eD(P.ampURL);
+      throw new GR(V3.invalidAPIKey, 1)
+    }
+    let f = X9(k.serverStatus) ? k.serverStatus.features : void 0;
+    if (!SS(f, dr.V2)) throw new GR("live-sync is not enabled for your user", 1);
+    await lP0({
+      ampURL: P.ampURL,
+      threadId: y,
+      configService: k.configService,
+      threadService: k.threadService,
+      apiKey: u.apiKey ?? process.env.AMP_API_KEY,
+      applyOnce: typeof _.apply === "string",
+      workerURL: _.workerUrl ?? process.env.AMP_WORKER_URL,
+      checkoutMode: _.checkout ? "always" : _.skipCheckout ? "never" : "prompt",
+      promptForYesNo: OtT
+    }), x = !0
+  } finally {
+    if (await k.asyncDispose(), x) process.exit(0)
+  }
+});
+let a = async (p, _, m) => {
+  LX({
+    storage: _.settings,
+    secretStorage: _.secrets,
+    workspaceRoot: AR.of(zR.file(process.cwd())),
+    defaultAmpURL: _.ampURL,
+    homeDir: jB,
+    userConfigDir: tZ
+  });
+  let b = {
+    ..._,
+    executeMode: !1
+  };
+  await SB(b, {
+    ...p,
+    openThreadSwitcher: !0
+  }, m, T)
+}, e = R.command("threads").alias("t").alias("thread").summary("Manage threads").description("Thread management commands. When no subcommand is provided, defaults to listing threads.").option("--include-archived", "Include archived threads in the list").action(async (p, _) => {
+  let m = _.optsWithGlobals(),
+    b = await S8(m);
+  await l$T(m, b, _)
+});
+e.command("new").alias("n").summary("Create a new thread").description("Create a new thread and print its ID. The thread will be empty. You can set the visibility using the --visibility option.").option("--visibility <visibility>", "Set thread visibility (private, public, workspace, group)").action(async (p, _) => {
+  let m = _.optsWithGlobals(),
+    b = await S8(m);
+  await _F0(m, b, _)
+}), e.command("continue [threadIDOrURL]").alias("c").summary("Continue an existing thread").description("Continue an existing thread by resuming the conversation. By default, interactive mode shows a picker. Use --last to continue the last thread for the current mode directly.").option("--last", "Continue the last thread for the current mode directly").option("--pick", "Pick a thread interactively from a list (DEPRECATED: picker is now the default)").action(async (p, _, m) => {
+  let b = m.optsWithGlobals(),
+    y = await S8(b);
+  if (_.pick) Be.write(`${oR.yellow("Warning:")} The --pick flag is deprecated. The picker is now shown by default.
+`);
+  if (_.last || p || y.executeMode) {
+    let u;
+    try {
+      u = await n$T(p ?? null, y.executeMode ? "execute" : "interactive")
+    } catch (P) {
+      await Jl(P, p || void 0);
+      return
+    }
+    await pF0(b, y, u, m, T)
+  } else await a(b, y, m)
+});
+let t = new eS("fork").argument("[threadId]").alias("f").action(async () => {
+  Be.write(`\x1B[31mThe fork command has been deprecated.\x1B[0m
 
 Fork has been replaced by handoff and thread mentions.
 See: https://ampcode.com/news/stick-a-fork-in-it
-`),process.exit(1)});e.addCommand(t,{hidden:!0}),e.command("list").alias("l").alias("ls").summary("List all threads").description("List all your threads with their IDs, names, and last modified times.").option("--include-archived","Include archived threads in the list").action(async(p,_)=>{let m=_.optsWithGlobals(),b=await S8(m);await l$T(m,b,_)}),dL0(e,S8,{initializeCLIOverrides:ua,createThreadDependencies:X3,printErrorExit:d8}),e.command("visibility [visibility]").alias("v").summary("Show or set default visibility for this repository").description("Print the effective default visibility for this repository, or set a new default (private, public, workspace, group).").action(async(p,_,m)=>{let b=m.optsWithGlobals(),y=await S8(b);await bF0(b,y,m,p)}),e.command("search <query>").alias("find").summary("Search threads").description(`Search for threads using a query DSL.
+`), process.exit(1)
+});
+e.addCommand(t, {
+  hidden: !0
+}), e.command("list").alias("l").alias("ls").summary("List all threads").description("List all your threads with their IDs, names, and last modified times.").option("--include-archived", "Include archived threads in the list").action(async (p, _) => {
+  let m = _.optsWithGlobals(),
+    b = await S8(m);
+  await l$T(m, b, _)
+}), dL0(e, S8, {
+  initializeCLIOverrides: ua,
+  createThreadDependencies: X3,
+  printErrorExit: d8
+}), e.command("visibility [visibility]").alias("v").summary("Show or set default visibility for this repository").description("Print the effective default visibility for this repository, or set a new default (private, public, workspace, group).").action(async (p, _, m) => {
+  let b = m.optsWithGlobals(),
+    y = await S8(b);
+  await bF0(b, y, m, p)
+}), e.command("search <query>").alias("find").summary("Search threads").description(`Search for threads using a query DSL.
 
 			Query syntax:
 			- Keywords: Bare words or quoted phrases for text search: auth or "race condition"
@@ -24,7 +231,36 @@ See: https://ampcode.com/news/stick-a-fork-in-it
 			- Repo filter: repo:url to scope to a repository: repo:github.com/owner/repo
 			- Combine filters: Use implicit AND: auth file:src/foo.ts repo:amp
 
-			All matching is case-insensitive. File paths use partial matching.`).option("-n, --limit <number>","Maximum number of threads to return","20").option("--offset <number>","Number of results to skip (for pagination)","0").option("--json","Output as JSON").action(async(p,_,m)=>{let b=m.optsWithGlobals(),y=await S8(b);await uF0(b,y,p,_.limit?parseInt(_.limit,10):20,_.offset?parseInt(_.offset,10):0,_.json??!1)}),e.command("label <threadIDOrURL> <labels...>").summary("Add labels to a thread").description("Add one or more labels to an existing thread without removing the labels it already has.").action(async(p,_,m,b)=>{let y=mr(p)??Zi(p),u=b.optsWithGlobals(),P=await S8(u);await nF0(u,P,y,_,b)}),e.command("share <threadIDOrURL>").summary("Share a thread").description("Change thread visibility (private, public, unlisted, workspace, group) or share with Amp support for debugging. Use --visibility to change who can access the thread, or --support to share with the Amp team for troubleshooting.").alias("s").option("--visibility <visibility>","Set thread visibility (private, public, unlisted, workspace, group)").option("--support [message]","Share thread with Amp support for debugging").action(async(p,_,m)=>{let b=mr(p)??Zi(p),y=m.optsWithGlobals(),u=await S8(y);await oF0(y,u,b,m,_.support)}),e.command("rename <threadIDOrURL> <newName>").alias("r").summary("Rename a thread").description('Change the title of a thread. Quote names with spaces: amp threads rename T-123 "New thread name"').action(async(p,_,m,b)=>{let y=mr(p)??Zi(p),u=b.optsWithGlobals(),P=await S8(u);await rF0(u,P,y,_,b)}),e.command("archive <threadIDOrURL>").summary("Archive a thread").description("Archive a thread to hide it from the thread switcher and navigation. Use --unarchive to restore.").option("--unarchive","Unarchive the thread instead of archiving").action(async(p,_,m)=>{let b=mr(p)??Zi(p),y=m.optsWithGlobals(),u=await S8(y);await hF0(y,u,b,!_.unarchive)}),e.command("delete <threadIDOrURL>").summary("Delete a thread").description("Permanently delete a thread from both the local client and the server.").action(async(p,_,m)=>{let b=mr(p)??Zi(p),y=m.optsWithGlobals(),u=await S8(y);await iF0(y,u,b)}),e.command("handoff [threadIDOrURL]").alias("h").summary("Create a handoff thread from an existing thread").description(`Create a new thread by handing off from an existing thread with a goal/prompt.
+			All matching is case-insensitive. File paths use partial matching.`).option("-n, --limit <number>", "Maximum number of threads to return", "20").option("--offset <number>", "Number of results to skip (for pagination)", "0").option("--json", "Output as JSON").action(async (p, _, m) => {
+  let b = m.optsWithGlobals(),
+    y = await S8(b);
+  await uF0(b, y, p, _.limit ? parseInt(_.limit, 10) : 20, _.offset ? parseInt(_.offset, 10) : 0, _.json ?? !1)
+}), e.command("label <threadIDOrURL> <labels...>").summary("Add labels to a thread").description("Add one or more labels to an existing thread without removing the labels it already has.").action(async (p, _, m, b) => {
+  let y = mr(p) ?? Zi(p),
+    u = b.optsWithGlobals(),
+    P = await S8(u);
+  await nF0(u, P, y, _, b)
+}), e.command("share <threadIDOrURL>").summary("Share a thread").description("Change thread visibility (private, public, unlisted, workspace, group) or share with Amp support for debugging. Use --visibility to change who can access the thread, or --support to share with the Amp team for troubleshooting.").alias("s").option("--visibility <visibility>", "Set thread visibility (private, public, unlisted, workspace, group)").option("--support [message]", "Share thread with Amp support for debugging").action(async (p, _, m) => {
+  let b = mr(p) ?? Zi(p),
+    y = m.optsWithGlobals(),
+    u = await S8(y);
+  await oF0(y, u, b, m, _.support)
+}), e.command("rename <threadIDOrURL> <newName>").alias("r").summary("Rename a thread").description('Change the title of a thread. Quote names with spaces: amp threads rename T-123 "New thread name"').action(async (p, _, m, b) => {
+  let y = mr(p) ?? Zi(p),
+    u = b.optsWithGlobals(),
+    P = await S8(u);
+  await rF0(u, P, y, _, b)
+}), e.command("archive <threadIDOrURL>").summary("Archive a thread").description("Archive a thread to hide it from the thread switcher and navigation. Use --unarchive to restore.").option("--unarchive", "Unarchive the thread instead of archiving").action(async (p, _, m) => {
+  let b = mr(p) ?? Zi(p),
+    y = m.optsWithGlobals(),
+    u = await S8(y);
+  await hF0(y, u, b, !_.unarchive)
+}), e.command("delete <threadIDOrURL>").summary("Delete a thread").description("Permanently delete a thread from both the local client and the server.").action(async (p, _, m) => {
+  let b = mr(p) ?? Zi(p),
+    y = m.optsWithGlobals(),
+    u = await S8(y);
+  await iF0(y, u, b)
+}), e.command("handoff [threadIDOrURL]").alias("h").summary("Create a handoff thread from an existing thread").description(`Create a new thread by handing off from an existing thread with a goal/prompt.
 
 			The goal can be provided via stdin (piped) or as an argument with --goal.
 
@@ -33,71 +269,1227 @@ See: https://ampcode.com/news/stick-a-fork-in-it
 			amp threads handoff T-xxx --goal "Continue working on the auth feature"
 			amp threads handoff --goal "Fix the remaining tests"  # Uses last thread
 
-			By default, opens the new thread in the TUI. Use --print to just print the thread ID.`).option("-g, --goal <goal>","Goal/prompt for the handoff (alternative to stdin)").option("-p, --print","Print the thread ID instead of opening the TUI").action(async(p,_,m)=>{let b;try{b=await n$T(p??null)}catch(P){await Jl(P,p||void 0);return}let y=m.optsWithGlobals(),u=await S8(y);await lF0(y,u,b,_.goal,!_.print,m,T)}),e.command("markdown <threadIDOrURL>").alias("md").summary("Render thread as markdown").description("Render a thread as markdown. This outputs the entire conversation history in a readable markdown format.").action(async(p,_,m)=>{let b=mr(p)??Zi(p),y=m.optsWithGlobals(),u=await S8(y);await cF0(y,u,b,m)}),e.command("export <threadIDOrURL>").summary("Export a thread as JSON").description("Export a thread as JSON. This outputs the full thread payload.").action(async(p,_,m)=>{let b=mr(p)??Zi(p),y=m.optsWithGlobals(),u=await S8(y);await sF0(y,u,b,m)}),lc0(e,S8,ua,X3,Zi,NA,d8),nM0(R,async(p,_)=>{let m=await S8(_);ua(p,_);let b=await X3(m,_);return{context:m,mcpService:b.mcpService,toolService:b.toolService,toolServices:b.toolService,skillService:b.skillService,threadService:b.threadService,fileSystem:b.fileSystem,getThreadEnvironment:Hs,serverStatus:b.serverStatus,toolboxService:b.toolboxService,configService:b.configService,cleanupTerminal:WP,asyncDispose:b.asyncDispose.bind(b)}}),t40(R,async(p)=>{let _=p.optsWithGlobals(),m=await S8(_);ua(p,_);let b=LX({storage:m.settings,secretStorage:m.secrets,workspaceRoot:AR.of(zR.file(process.cwd())),defaultAmpURL:m.ampURL,homeDir:jB,userConfigDir:tZ});return{pluginService:X5T({configService:b,fileSystem:He,platform:{pluginExecutorKind:"unknown",async notify(y){J.debug("plugin notification (TUI not loaded): %s",y)},async open(y){Be.write(`
+			By default, opens the new thread in the TUI. Use --print to just print the thread ID.`).option("-g, --goal <goal>", "Goal/prompt for the handoff (alternative to stdin)").option("-p, --print", "Print the thread ID instead of opening the TUI").action(async (p, _, m) => {
+  let b;
+  try {
+    b = await n$T(p ?? null)
+  } catch (P) {
+    await Jl(P, p || void 0);
+    return
+  }
+  let y = m.optsWithGlobals(),
+    u = await S8(y);
+  await lF0(y, u, b, _.goal, !_.print, m, T)
+}), e.command("markdown <threadIDOrURL>").alias("md").summary("Render thread as markdown").description("Render a thread as markdown. This outputs the entire conversation history in a readable markdown format.").action(async (p, _, m) => {
+  let b = mr(p) ?? Zi(p),
+    y = m.optsWithGlobals(),
+    u = await S8(y);
+  await cF0(y, u, b, m)
+}), e.command("export <threadIDOrURL>").summary("Export a thread as JSON").description("Export a thread as JSON. This outputs the full thread payload.").action(async (p, _, m) => {
+  let b = mr(p) ?? Zi(p),
+    y = m.optsWithGlobals(),
+    u = await S8(y);
+  await sF0(y, u, b, m)
+}), lc0(e, S8, ua, X3, Zi, NA, d8), nM0(R, async (p, _) => {
+  let m = await S8(_);
+  ua(p, _);
+  let b = await X3(m, _);
+  return {
+    context: m,
+    mcpService: b.mcpService,
+    toolService: b.toolService,
+    toolServices: b.toolService,
+    skillService: b.skillService,
+    threadService: b.threadService,
+    fileSystem: b.fileSystem,
+    getThreadEnvironment: Hs,
+    serverStatus: b.serverStatus,
+    toolboxService: b.toolboxService,
+    configService: b.configService,
+    cleanupTerminal: WP,
+    asyncDispose: b.asyncDispose.bind(b)
+  }
+}), t40(R, async (p) => {
+  let _ = p.optsWithGlobals(),
+    m = await S8(_);
+  ua(p, _);
+  let b = LX({
+    storage: m.settings,
+    secretStorage: m.secrets,
+    workspaceRoot: AR.of(zR.file(process.cwd())),
+    defaultAmpURL: m.ampURL,
+    homeDir: jB,
+    userConfigDir: tZ
+  });
+  return {
+    pluginService: X5T({
+      configService: b,
+      fileSystem: He,
+      platform: {
+        pluginExecutorKind: "unknown",
+        async notify(y) {
+          J.debug("plugin notification (TUI not loaded): %s", y)
+        },
+        async open(y) {
+          Be.write(`
 ${y}
 
-`)},async input(){return},async confirm(){return!1},async ask(){return{result:"uncertain",probability:0.5,reason:"AI not available"}}},internalPlugins:e3R,emitSessionStart:!1,pluginFilter:process.env.PLUGINS??"off"}),asyncDispose:async()=>{}}}),p40(R,async(p)=>{let _=p.optsWithGlobals(),m=await S8(_);ua(p,_);let b=await X3(m,_);return{toolService:b.toolService,mcpService:b.mcpService,configService:b.configService,skillService:b.skillService,cleanupTerminal:WP,asyncDispose:b.asyncDispose.bind(b)}}),g40(R,async(p)=>{let _=p.optsWithGlobals(),m=await S8(_);ua(p,_);let b=await X3(m,_);return{settings:m.settings,configService:b.configService,skillService:b.skillService,asyncDispose:b.asyncDispose.bind(b)}}),FC0(R,async(p)=>{let _=p.optsWithGlobals();return await S8(_)}),yC0(R,async(p)=>{let _=await S8(p);return{settings:_.settings,secretStorage:_.secrets,getThreadDeps:async(m)=>{ua(m,p);let b=await X3(_,p);return{mcpService:b.mcpService,settings:_.settings,asyncDispose:b.asyncDispose.bind(b)}}}}),jz0(R,S8);function r(p,_,m){let b=typeof p.description==="string"?p.description:m===void 0?p.description(!0):p.description(m),y=new Jc(_,b),u=Hz0(p);if(u)y.default(u);if(y.hidden=Nz0(p)||c$T(p),"choices"in p)y.choices([...p.choices]);return y}for(let p of i$T){switch(p.type){case"flag":{R.addOption(r(p,`--${p.long}`)),R.addOption(r(p,`--no-${p.long}`,!1));break}case"switch":{R.addOption(r(p,`--${p.long}`,!0));break}case"optional-option":{R.addOption(r(p,`${"short"in p?`-${p.short}, `:""}--${p.long} [value]`));break}default:{R.addOption(r(p,`${"short"in p?`-${p.short}, `:""}--${p.long} <value>`));break}}if("aliases"in p&&Array.isArray(p.aliases))for(let _ of p.aliases){let m=new Jc(`--${_}`,p.description);m.hidden=!0,m.implies({[p.name]:!0}),R.addOption(m)}}let h=new Jc("-x, --execute [message]","Use execute mode, optionally with user message. In execute mode, agent will execute provided prompt (either as argument, or via stdin). Only last assistant message is printed. Enabled automatically when redirecting stdout.").default(!1);R.addOption(h);let i=new Jc("-r, --remote","When used with -x/--execute, execute in an async agent on the Amp server.").default(!1).hideHelp(!0);R.addOption(i);let c=new Jc("--stream-json","When used with --execute, output in Claude Code-compatible stream JSON format instead of plain text.").default(!1);R.addOption(c);let s=new Jc("--stream-json-thinking","Include thinking blocks in stream JSON output (non-Claude Code extension). Implies --stream-json.").default(!1);R.addOption(s);let A=new Jc("--stream-json-input","Read JSON Lines user messages from stdin. Requires both --execute and --stream-json.").default(!1);R.addOption(A);let l=new Jc("--stats","When used with --execute, output JSON with both result and token usage data (for /evals).").default(!1).hideHelp(!0);R.addOption(l);let o=new Jc("--archive","When used with --execute, archive the thread after the command finishes.").default(!1);R.addOption(o);let n=new Jc("-l, --label <label>","When used with --execute, add a label to the thread. Repeat the flag for multiple labels.").argParser((p,_)=>{if(_===void 0)return[p];return[..._,p]});return R.addOption(n),R.action(async(p,_)=>{let m=p,b=await S8(m);if(Object.keys(m).forEach((y)=>{let u=i$T.find((P)=>P.name===y);if(u&&c$T(u)&&!Uz0(u))Be.write(oR.yellow(`Warning: '--${y}' flag is deprecated
-`))}),_.args.length>0)Wz0(b,_);await SB(b,m,_,T)}),_m0(R),R}async function OS(T,R){await iB((a)=>k40(a,T,R))}async function o$T(T,R,a){let e=Date.now(),[t,r]=await Promise.all([N3.getThreadLinkInfo({thread:T},{config:R}),a]);if(J.info(`[fetchAndStartThread] Ownership check in ${Date.now()-e}ms`),t.ok){let h=t.result.creatorUserID;if(h&&h!==r&&!process.env.AMP_RESUME_OTHER_USER_THREADS_INSECURE)throw new GR(`Cannot resume thread created by another user.
+`)
+        },
+        async input() {
+          return
+        },
+        async confirm() {
+          return !1
+        },
+        async ask() {
+          return {
+            result: "uncertain",
+            probability: 0.5,
+            reason: "AI not available"
+          }
+        }
+      },
+      internalPlugins: e3R,
+      emitSessionStart: !1,
+      pluginFilter: process.env.PLUGINS ?? "off"
+    }),
+    asyncDispose: async () => {}
+  }
+}), p40(R, async (p) => {
+  let _ = p.optsWithGlobals(),
+    m = await S8(_);
+  ua(p, _);
+  let b = await X3(m, _);
+  return {
+    toolService: b.toolService,
+    mcpService: b.mcpService,
+    configService: b.configService,
+    skillService: b.skillService,
+    cleanupTerminal: WP,
+    asyncDispose: b.asyncDispose.bind(b)
+  }
+}), g40(R, async (p) => {
+  let _ = p.optsWithGlobals(),
+    m = await S8(_);
+  ua(p, _);
+  let b = await X3(m, _);
+  return {
+    settings: m.settings,
+    configService: b.configService,
+    skillService: b.skillService,
+    asyncDispose: b.asyncDispose.bind(b)
+  }
+}), FC0(R, async (p) => {
+  let _ = p.optsWithGlobals();
+  return await S8(_)
+}), yC0(R, async (p) => {
+  let _ = await S8(p);
+  return {
+    settings: _.settings,
+    secretStorage: _.secrets,
+    getThreadDeps: async (m) => {
+      ua(m, p);
+      let b = await X3(_, p);
+      return {
+        mcpService: b.mcpService,
+        settings: _.settings,
+        asyncDispose: b.asyncDispose.bind(b)
+      }
+    }
+  }
+}), jz0(R, S8);
 
-This thread belongs to a different user and cannot be continued for security reasons. Set AMP_RESUME_OTHER_USER_THREADS_INSECURE=1 to bypass this check.`)}}async function Qz0(T){J.info("[createDTWThreadPool] Creating DTW thread pool",{threadId:T.threadId,ampURL:T.ampURL,workerUrl:process.env.AMP_WORKER_URL});try{let R=new jrT({threadService:T.threadService,configService:T.configService,mcpService:T.mcpService,clientID:T.clientID,initialToolDiscovery:Promise.all([T.mcpService.initialized,T.toolboxService.initialized]).then(()=>{return}),toolService:T.toolService,skillService:T.skillService,getThreadEnvironment:Hs,osFileSystem:T.fileSystem,fileChangeTrackerStorage:new Im(T.fileSystem),ampURL:T.ampURL,useThreadActors:T.useThreadActors});if(T.threadId)await R.switchThread(T.threadId);else await R.createThread();return R}catch(R){throw J.error("[createDTWThreadPool] Failed to create DTW thread pool",{threadId:T.threadId,error:R}),R}}async function Zz0(T){if(T.streamJsonInput)return{userInput:"",stdinInput:null};if(typeof T.execute==="string"){let R=(await fS()).trimEnd();return{userInput:T.execute,stdinInput:R||null}}return{userInput:(await fS()).trimEnd(),stdinInput:null}}function Jz0(T,R,a){if(T.remote&&!R)throw new GR("The -r/--remote flag requires --execute mode",1,'Use: amp --remote --execute "your message"');if(T.streamJson&&!R)throw new GR("The --stream-json flag requires --execute mode",1,'Use: amp --execute "your message" --stream-json');if(T.streamJsonInput&&!R)throw new GR("The --stream-json-input flag requires --execute mode",1,"Use: amp --execute --stream-json --stream-json-input");if(T.streamJsonInput&&!T.streamJson)throw new GR("The --stream-json-input flag requires --stream-json",1,"Use: amp --execute --stream-json --stream-json-input");if(T.stats&&!R)throw new GR("The --stats flag requires --execute mode",1,'Use: amp --execute "your message" --stats');if(T.archive&&!R)throw new GR("The --archive flag requires --execute mode",1,'Use: amp --execute "your message" --archive');if(T.streamJsonInput&&typeof T.execute==="string"&&T.execute.trim()!=="")throw new GR("Do not provide a message argument when using --stream-json-input",1,`Supply messages via stdin JSONL instead: echo '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"your message"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}]}}' | amp --execute --stream-json --stream-json-input`);if(R&&a===""&&!T.streamJsonInput&&!T.headless)throw new GR("User message must be provided through stdin or as argument when using execute mode",1,`Either pass a message as an argument: amp --execute "your message"
-Or pipe via stdin: echo "your message" | amp --execute`)}async function SB(T,R,a,e){let t=process.hrtime.bigint(),r=(aT,oT)=>{let TT=Number(process.hrtime.bigint()-oT)/1e6,tT=_c0();J.info("Startup phase",{phase:aT,phaseMs:Math.round(TT),sinceMainMs:tT===null?void 0:Math.round(tT)})},{userInput:h,stdinInput:i}=await Zz0(R),c=!!R.streamJson||!!R.streamJsonThinking;Jz0({...R,streamJson:c},T.executeMode,h),ua(a,R);let s=process.hrtime.bigint(),A=Boolean(await T.secrets.get("apiKey",T.ampURL)),l=!T.executeMode&&!R.headless&&!R.threadActors&&A;J.info("Interactive auth startup mode",{deferInteractiveAuth:l,hasAPIKeyAtStartup:A,executeMode:T.executeMode,headless:Boolean(R.headless)});let o=await X3(T,R,{deferAuth:l});r("runMainThread:createThreadDependencies",s),s=process.hrtime.bigint();let n=await yhT(o);r("runMainThread:createWorkerDeps",s);let{serverStatus:p}=o;if(!l&&oA(p)){let aT=$v(Error(p.error.message));if(aT.message===V3.networkOffline||aT.message===V3.networkTimeout)throw eD(T.ampURL);throw new GR(V3.invalidAPIKey,1)}let _=X9(p)?p:null,m=_?.user.email,b=a3R(m),y=aZ({userEmail:m,features:_?.features}),u=R.takeMeBack?!1:void 0,P=_!==null&&eZ(u,_);if(!l)await RZ(a,R,p);let k=hx(p),x=k?.features??[],f=k?.team??null,v=urT(R,k);if(v instanceof Error)d8(v.message);if((T.executeMode||c)&&qt(R.mode)&&!b)throw new GR(`Execute mode is not permitted with --mode '${R.mode}'`,1);if(_&&!nN(R.mode,m))throw new GR(`Agent mode '${R.mode}' is only available for Amp employees`,1);if(T.executeMode&&R.remote)await r40(h,i,o.configService),await o.asyncDispose(),process.exit(0);if(R.headless){if(process.env.AMP_EXECUTOR!=="1"&&(!m||!Ns(m)))throw new GR("Headless DTW mode is only available for Amp employees",1);let aT=await o.secretStorage.get("apiKey",T.ampURL);if(!aT)throw new GR("API key required for headless mode. Please run `amp login` first.",1);let oT=typeof R.headless==="string"&&R.headless!=="true"?R.headless:void 0;if(oT&&!Vt(oT))throw new GR(`Invalid thread ID: ${oT}`,1);let TT=oT?void 0:await AF0({dependencies:o,visibility:v??void 0,usesThreadActors:R.threadActors?!0:void 0}),tT=oT??TT?.threadId;if(!tT)throw new GR("Failed to resolve headless thread ID",1);let lT=await y_0(tT);if(lT.status==="already-running")await o.asyncDispose(),await xb(),process.exit(0);try{await T_0({ampURL:T.ampURL,apiKey:aT,workerUrl:process.env.AMP_WORKER_URL,workspaceRoot:process.cwd(),threadId:tT,ownerUserId:TT?.ownerUserId,threadVersion:TT?.threadVersion,agentMode:TT?.agentMode,initialToolDiscovery:Promise.all([o.mcpService.initialized,o.toolboxService.initialized]).then(()=>{return}),configService:o.configService,mcpService:o.mcpService,toolService:o.toolService,skillService:o.skillService,fileSystem:o.fileSystem,pluginService:o.pluginService,pluginPlatform:o.headlessPluginPlatform,useThreadActors:R.threadActors?!0:void 0})}finally{await lT.release(),await o.asyncDispose()}await xb(),process.exit(0)}let g=T.executeMode?void 0:async(aT)=>OS(aT,"interactive"),I={threadService:o.threadService,workerDeps:n,createThread:async()=>{let aT=l?await o.serverStatusPromise:p,oT=await UeT(T.settings,process.cwd(),hx(aT),v);if(oT instanceof Error)d8(oT.message);return SJT(n,{threadMeta:oT?MA(oT):void 0,agentMode:R.mode,onFirstAssistantMessage:g})},validateThreadOwnership:async(aT,oT)=>{if(oT?.nonBlockingOwnershipCheck){o$T(aT,o.configService,o.viewerUserIDPromise).catch((TT)=>{if(TT instanceof GR){if(oT.onOwnershipError){oT.onOwnershipError(TT,aT);return}Jl(TT,aT);return}J.warn("Failed to validate thread ownership in CLI, allowing to open",{error:TT})});return}try{await o$T(aT,o.configService,o.viewerUserIDPromise)}catch(TT){if(TT instanceof GR)throw TT;J.warn("Failed to validate thread ownership in CLI, allowing to open",{error:TT})}},switchThreadVisibility:v,switchThreadAgentMode:R.mode,onFirstAssistantMessage:g,handleError:Jl},S=async(aT)=>{try{if(aT==="dtw")return Qz0({ampURL:T.ampURL,configService:o.configService,threadService:o.threadService,mcpService:o.mcpService,clientID:t$T,toolboxService:o.toolboxService,toolService:o.toolService,skillService:o.skillService,fileSystem:o.fileSystem,threadId:R.threadId,useThreadActors:R.threadActors?!0:void 0});return pD0(I,R.threadId,{nonBlockingOwnershipCheck:R.nonBlockingThreadOwnershipCheck})}catch(oT){if(oT instanceof GR)throw oT;throw await Jl(oT,R.threadId),Error("handleError should have called process.exit()")}};if(R.format==="jsonl")Be.write(`jsonl format is deprecated. Version "0.0.1752148945-gd8844f" or earlier is required to use jsonl format.
-`),await xb(),process.exit(1);let O=(async()=>{if(l){J.info("Skipping initial free tier status fetch until auth is complete");return}try{let aT=await o.configService.getLatest(),oT=k2(aT),TT=await N3.getUserFreeTierStatus({},{config:o.configService,signal:AbortSignal.timeout(oT)});if(TT.ok)return J.info("User free tier status:",TT),TT.result;return}catch(aT){J.error("Failed to fetch free tier status:",aT);return}})(),j=!T.executeMode?new IJT:null,d,C=null;if(j)d=j,C=(async()=>{let aT=l?await o.serverStatusPromise:o.serverStatus;await RZ(a,R,aT);let oT=process.hrtime.bigint(),TT=eZ(u,aT),tT=X9(aT)?aZ({userEmail:aT.user.email,features:aT.features}):!1;r$T({dtwEnabled:TT,hasV2TUIAccess:tT});let lT=await S(TT?"dtw":"worker");if(r("runMainThread:createThreadPool",oT),j.attach(lT),h){let N=await m0(lT.threadHandles$);if(!N)throw new GR("No active thread is available yet.",1);await N.sendMessage({content:[{type:"text",text:h}]})}})(),C.catch(async(aT)=>{let oT=aT instanceof Error?aT:Error(String(aT));j.setInitError(oT),await Jl(aT,R.threadId)});else s=process.hrtime.bigint(),r$T({dtwEnabled:P,hasV2TUIAccess:y}),d=await S(P?"dtw":"worker"),r("runMainThread:createThreadPool",s);let L=R.notifications!==void 0?R.notifications:!T.executeMode,w=_!==null&&SS(_.features,dr.TUI_VOICE_NOTIF);if(l)o.serverStatusPromise.then((aT)=>{w=X9(aT)&&SS(aT.features,dr.TUI_VOICE_NOTIF)}).catch((aT)=>{J.debug("Failed to resolve TUI voice notification feature flag",{error:aT})});s=process.hrtime.bigint();let D=await o.configService.getLatest();if(r("runMainThread:configService.getLatest",s),s=process.hrtime.bigint(),qz0({configService:o.configService,threadService:o.threadService,config:D,useNotificationsForService:L,isTUIVoiceNotifEnabled:()=>w,threadViewStates$:()=>d.threadHandles$.pipe(L9((aT)=>{if(!aT)return AR.of({});return v3(aT.thread$,aT.threadViewState$).pipe(JR(([oT,TT])=>({[oT.id]:TT})))}))}),r("runMainThread:createCliNotificationService",s),T.executeMode){MC0(o.mcpService,T.settings);let aT={userInput:h,stdinInput:i,dependencies:o,streamJson:c,streamJsonInput:!!R.streamJsonInput,streamJsonThinking:!!R.streamJsonThinking,stats:!!R.stats,ampURL:T.ampURL,isDogfooding:b,agentMode:R.mode,labels:R.label},oT=await Yl0({threadPool:d,...aT});if(await OS(oT,"execute"),R.archive)await o.threadService.archive(oT,!0),await dS(o.threadService,oT);await o.asyncDispose(),process.exit(0)}let B=!1,M=!1;if(R.jetbrains||R.ide){await opR();let aT=await OD({jetbrainsOnly:R.jetbrains});if(aT.length===0){if(R.jetbrains)B=!await o.configService.get("jetbrains.skipInstall")}else if(aT.length===1){let oT=aT[0];if(oT)Us.selectConfig(oT)}else M=!0}s=process.hrtime.bigint();let V=pm0("0.0.1775894934-g5bb49b",o.settingsStorage,{startDelayMs:3000});r("runMainThread:createUpdateService",s),s=process.hrtime.bigint();let Q=new ZZT(o.mcpService,T.settings.getWorkspaceRootPath());if(r("runMainThread:createMcpTrustHandler",s),h&&T.executeMode){let aT=await m0(d.threadHandles$);if(!aT)throw new GR("No active thread is available yet.",1);await aT.sendMessage({content:[{type:"text",text:h}]})}s=process.hrtime.bigint();let W=await PrT();r("runMainThread:loadSessionState",s),J.info("Loaded session state:",W);let eT={...W,launchCount:W.launchCount+1};iB((aT)=>({...aT,launchCount:aT.launchCount+1}));let iT=R.threadId&&Vt(R.threadId)?R.threadId:void 0;try{if(s=process.hrtime.bigint(),await _70({history:new qKT,fuzzyServer:o.fuzzyServer,settingsStorage:o.settingsStorage,threadService:o.threadService,skillService:o.skillService,configService:o.configService,secretStorage:o.secretStorage,internalAPIClient:N3,threadPool:d,createSystemPromptDeps:async()=>t3R(o),ideClient:Us,mcpService:o.mcpService,toolboxService:o.toolboxService,mcpTrustHandler:Q,updateService:V,pluginPlatform:o.pluginPlatform,pluginService:o.pluginService},{initialServerStatus:o.serverStatus,stdout:process.stdout,hasAPIKeyAtStartup:o.hasAPIKeyAtStartup,ampURL:T.ampURL,startupThreadID:iT,showJetBrainsInstaller:B,showIdePickerHint:M,openThreadSwitcher:R.openThreadSwitcher,inspector:R.inspector,inspectorPort:R.inspectorPort,jetbrainsMode:R.jetbrains,clientId:t$T,logFile:{path:e},sessionState:eT,freeTierStatusPromise:O,workspace:f??null,features:x,isDogfooding:b,initialAgentMode:a.getOptionValueSourceWithGlobals("mode")==="cli"?R.mode:void 0,buildTimestamp:"2026-04-11T08:12:39.144Z"},(aT)=>new QJT({...aT,threadPool:aT.threadPool},(oT)=>new Z8R({...oT,threadState:oT.threadState}))),r("runMainThread:mountApp-returned",s),C)await C}finally{await d.dispose().catch((aT)=>{J.error("Failed to dispose thread pool during shutdown",aT)})}await o.asyncDispose(),r("runMainThread:dependencies.asyncDispose",t),process.exit(0)}async function S8(T){if(J.info("Initializing CLI context",{argv:process.argv,nodeEnv:"production",hasAmpURL:Boolean(process.env.AMP_URL),hasAmpAPIKey:Boolean(process.env.AMP_API_KEY),hasSettingsFile:Boolean(process.env.AMP_SETTINGS_FILE)}),T.interactive)Be.write(`Warning: --interactive flag is deprecated. Interactive mode is now the default unless --execute is used or output is redirected.
-`);let R=!!T.execute||!process.stdout.isTTY&&!T.streamJson,a=process.stdout.isTTY&&process.stderr.isTTY;J.info("Execution mode resolved",{executeMode:R,stdoutTTY:process.stdout.isTTY,stderrTTY:process.stderr.isTTY,streamJson:T.streamJson,executeFlag:T.execute});let e=await OHR({get:async(i)=>{if(i!==tw)return;try{let c=await $5T(c2,"utf-8");return JSON.parse(c).installationID}catch{return}},set:async(i,c)=>{if(i!==tw)return;await g5T(AA.dirname(c2),{recursive:!0}),await zUR(c2,JSON.stringify({installationID:c},null,2),{mode:384})}},{clientType:"cli",platform:JS()});ZlR(e);let t=await IVT({...T,workspaceTrust:{current:!0,changes:P0T},getHook:process.env.AMP_URL?(i,c)=>{if(i==="url")return Promise.resolve(process.env.AMP_URL);return c()}:void 0});if(T.mcpConfig){let i=await EC0(T.mcpConfig);t=CC0(t,i)}let r=AA.dirname(t.getSettingsFilePath());DXR(stT,r);let h=await t.get("url","global");if(!h)h=Lr;if(J.info("Resolved Amp URL",{ampURL:h,settingsFile:t.getSettingsFilePath(),workspaceRoot:t.getWorkspaceRootPath()}),!Ob(h))J.info("Targeting custom Amp server",{ampURL:h});return t=iHR(t),{executeMode:R,isTTY:a,ampURL:h,settings:t,secrets:BXT(await otT(T,t))}}function TF0(T){let R={};for(let a=0;a<T.length;a++){let e=T[a];if(e?.startsWith("--")){let t=e.slice(2).replace(/-([a-z])/g,(h,i)=>i.toUpperCase()),r=T[a+1];if(r&&!r.startsWith("--"))R[t]=r,a++}}return R}function RF0(T,R){let a=T.includes("--headless")||T.some((t)=>t.startsWith("--headless=")),e=AA.resolve(R.logFile??process.env.AMP_LOG_FILE??(a?Ez0:aKT));return{logLevel:R.logLevel??process.env.AMP_LOG_LEVEL??"info",logFile:e}}async function aF0(){pc0();let T=TF0(process.argv),R=RF0(process.argv,T),a=xc0(R),e=process.argv.includes("--no-color"),t=process.argv.includes("--color"),r=process.stdout.isTTY&&process.stderr.isTTY;if(e||!t&&!r)oR.level=0;if(Lz0(J),J.info("Starting Amp CLI.",{version:"0.0.1775894934-g5bb49b",buildTimestamp:"2026-04-11T08:12:39.144Z"}),parseInt(process.version.slice(1).split(".")[0]??"")<20)throw new GR(V3.nodeVersion(process.version),1,"Please upgrade your Node.js installation from https://nodejs.org");if(process.argv.includes("--neo")){await mC0();return}await Yz0(a).parseAsync(process.argv)}async function eF0(T,R){let a=T.ampURL.includes("localhost")||T.ampURL.includes("127.0.0.1");if(process.env.AMP_URL&&!a)await T.settings.set("url",process.env.AMP_URL,"global"),C9.write(`Saving custom server URL to settings: ${process.env.AMP_URL}
-`);else if(!Ob(T.ampURL))C9.write(`Logging in to ${new URL(T.ampURL).hostname}
-`);let e=process.env.AMP_API_KEY;if(e)C9.write(`API key found in environment variable, storing...
-`),await R.set("apiKey",e,T.ampURL),C9.write(`API key successfully stored.
-`),process.exit(0);let t=await T.secrets.get("apiKey",T.ampURL);if(t){if(C9.write(`API key already configured: ${t.slice(0,10)}...
-`),!await OtT("Do you want to log in again? [(y)es, (n)o]: "))process.exit(0);C9.write(`
-`)}let r=await r3R(T);process.exit(r?0:1)}async function tF0(T){if(process.env.AMP_API_KEY)C9.write(`API key found in environment variable AMP_API_KEY, unset first before running 'amp logout'
-`),process.exit(0);if(!await T.secrets.get("apiKey",T.ampURL)){if(Ob(T.ampURL))C9.write(`Already logged out.
-`);else C9.write(`Already logged out from ${new URL(T.ampURL).hostname}.
-`);process.exit(0)}if(await T.secrets.set("apiKey","",T.ampURL),!process.env.AMP_URL)await T.settings.delete("url","global");if(Ob(T.ampURL))C9.write(`Successfully logged out.
-`);else C9.write(`Successfully logged out from ${new URL(T.ampURL).hostname}.
-`);process.exit(0)}async function rF0(T,R,a,e,t){ua(t,T);let r=await X3(R,T);try{let h=e.trim();if(h.length===0)d8("Thread name cannot be empty");if(h.length>256)d8("Thread name cannot exceed 256 characters");if(!(await NA(a,r)).messages.length)d8("Cannot rename an empty thread.");let i=await yhT(r),c=await ct.getOrCreateForThread(i,a);await c.handle({type:"title",value:h}),await r.threadService.flushVersion(a,c.thread.v),C9.write(oR.green(`\u2713 Thread ${a} renamed to "${h}"
-`)),await r.asyncDispose(),process.exit(0)}catch(h){await r.asyncDispose();let i=`Failed to rename thread: ${h instanceof Error?h.message:String(h)}`;d8(i)}}async function hF0(T,R,a,e){let t=await X3(R,T);try{await t.threadService.archive(a,e),await dS(t.threadService,a),C9.write(oR.green(`\u2713 Thread ${e?"archived":"unarchived"} successfully
-`)),await t.asyncDispose(),process.exit(0)}catch(r){await t.asyncDispose(),d8(`Failed to ${e?"archive":"unarchive"} thread: ${r instanceof Error?r.message:String(r)}`)}}async function iF0(T,R,a){let e=await X3(R,T);try{await e.threadService.delete(a),C9.write(oR.green(`\u2713 Thread ${a} deleted
-`)),await e.asyncDispose(),process.exit(0)}catch(t){await e.asyncDispose(),d8(`Failed to delete thread: ${t instanceof Error?t.message:String(t)}`)}}async function cF0(T,R,a,e){ua(e,T);let t=await X3(R,T);try{let r=await NA(a,t),h=KN(r);C9.write(h+`
-`),await t.asyncDispose(),process.exit(0)}catch(r){await t.asyncDispose();let h=`Failed to render thread as markdown: ${r instanceof Error?r.message:String(r)}`;d8(h)}}async function sF0(T,R,a,e){ua(e,T);let t=await X3(R,T);try{let r=await NA(a,t),h=JSON.stringify(r,null,2);C9.write(h+`
-`),await t.asyncDispose(),process.exit(0)}catch(r){await t.asyncDispose();let h=`Failed to export thread: ${r instanceof Error?r.message:String(r)}`;d8(h)}}async function oF0(T,R,a,e,t){ua(e,T);let r=await X3(R,T);try{let h=hx(r.serverStatus),i=urT(T,h);if(!i&&!t)d8("Must specify either --visibility or --support");if(i&&t)d8("Cannot specify both --visibility and --support at the same time");if(i instanceof Error)d8(i.message);if(i)await r.threadService.updateThreadMeta(a,MA(i)),C9.write(oR.green(`\u2713 Thread ${a} visibility changed to ${i}.
-`));if(t){await NA(a,r);let c=typeof t==="string"?t:void 0;await cbR(r.threadService,a,r.configService,c),C9.write(oR.green(`\u2713 Thread ${a} has been shared with Amp support. These thread reports will be aggregated and analysed.
-`))}await r.asyncDispose(),process.exit(0)}catch(h){await r.asyncDispose(),d8(`Failed to update thread: ${h instanceof Error?h.message:String(h)}`)}}async function nF0(T,R,a,e,t){ua(t,T);let r=await X3(R,T);try{let h=await BKT(a,e,r.configService);C9.write(oR.green(`\u2713 Thread ${a} labels: ${h.join(", ")}
-`)),await r.asyncDispose(),process.exit(0)}catch(h){if(await r.asyncDispose(),h instanceof GR)d8(h.userMessage);d8(`Failed to label thread: ${h instanceof Error?h.message:String(h)}`)}}async function lF0(T,R,a,e,t,r,h){ua(r,T);let i=await X3(R,T);try{await NA(a,i);let c=e;if(!c){let p=(await fS()).trimEnd();if(p)c=p}if(!c)d8(`Goal must be provided via stdin or --goal argument.
+function r(p, _, m) {
+  let b = typeof p.description === "string" ? p.description : m === void 0 ? p.description(!0) : p.description(m),
+    y = new Jc(_, b),
+    u = Hz0(p);
+  if (u) y.default(u);
+  if (y.hidden = Nz0(p) || c$T(p), "choices" in p) y.choices([...p.choices]);
+  return y
+}
+for (let p of i$T) {
+  switch (p.type) {
+    case "flag": {
+      R.addOption(r(p, `--${p.long}`)), R.addOption(r(p, `--no-${p.long}`, !1));
+      break
+    }
+    case "switch": {
+      R.addOption(r(p, `--${p.long}`, !0));
+      break
+    }
+    case "optional-option": {
+      R.addOption(r(p, `${"short"in p?`-${p.short}, `:""}--${p.long} [value]`));
+      break
+    }
+    default: {
+      R.addOption(r(p, `${"short"in p?`-${p.short}, `:""}--${p.long} <value>`));
+      break
+    }
+  }
+  if ("aliases" in p && Array.isArray(p.aliases))
+    for (let _ of p.aliases) {
+      let m = new Jc(`--${_}`, p.description);
+      m.hidden = !0, m.implies({
+        [p.name]: !0
+      }), R.addOption(m)
+    }
+}
+let h = new Jc("-x, --execute [message]", "Use execute mode, optionally with user message. In execute mode, agent will execute provided prompt (either as argument, or via stdin). Only last assistant message is printed. Enabled automatically when redirecting stdout.").default(!1);
+R.addOption(h);
+let i = new Jc("-r, --remote", "When used with -x/--execute, execute in an async agent on the Amp server.").default(!1).hideHelp(!0);
+R.addOption(i);
+let c = new Jc("--stream-json", "When used with --execute, output in Claude Code-compatible stream JSON format instead of plain text.").default(!1);
+R.addOption(c);
+let s = new Jc("--stream-json-thinking", "Include thinking blocks in stream JSON output (non-Claude Code extension). Implies --stream-json.").default(!1);
+R.addOption(s);
+let A = new Jc("--stream-json-input", "Read JSON Lines user messages from stdin. Requires both --execute and --stream-json.").default(!1);
+R.addOption(A);
+let l = new Jc("--stats", "When used with --execute, output JSON with both result and token usage data (for /evals).").default(!1).hideHelp(!0);
+R.addOption(l);
+let o = new Jc("--archive", "When used with --execute, archive the thread after the command finishes.").default(!1);
+R.addOption(o);
+let n = new Jc("-l, --label <label>", "When used with --execute, add a label to the thread. Repeat the flag for multiple labels.").argParser((p, _) => {
+  if (_ === void 0) return [p];
+  return [..._, p]
+});
+return R.addOption(n), R.action(async (p, _) => {
+  let m = p,
+    b = await S8(m);
+  if (Object.keys(m).forEach((y) => {
+      let u = i$T.find((P) => P.name === y);
+      if (u && c$T(u) && !Uz0(u)) Be.write(oR.yellow(`Warning: '--${y}' flag is deprecated
+`))
+    }), _.args.length > 0) Wz0(b, _);
+  await SB(b, m, _, T)
+}), _m0(R), R
+}
+async function OS(T, R) {
+  await iB((a) => k40(a, T, R))
+}
+async function o$T(T, R, a) {
+  let e = Date.now(),
+    [t, r] = await Promise.all([N3.getThreadLinkInfo({
+      thread: T
+    }, {
+      config: R
+    }), a]);
+  if (J.info(`[fetchAndStartThread] Ownership check in ${Date.now()-e}ms`), t.ok) {
+    let h = t.result.creatorUserID;
+    if (h && h !== r && !process.env.AMP_RESUME_OTHER_USER_THREADS_INSECURE) throw new GR(`Cannot resume thread created by another user.
+
+This thread belongs to a different user and cannot be continued for security reasons. Set AMP_RESUME_OTHER_USER_THREADS_INSECURE=1 to bypass this check.`)
+  }
+}
+async function Qz0(T) {
+  J.info("[createDTWThreadPool] Creating DTW thread pool", {
+    threadId: T.threadId,
+    ampURL: T.ampURL,
+    workerUrl: process.env.AMP_WORKER_URL
+  });
+  try {
+    let R = new jrT({
+      threadService: T.threadService,
+      configService: T.configService,
+      mcpService: T.mcpService,
+      clientID: T.clientID,
+      initialToolDiscovery: Promise.all([T.mcpService.initialized, T.toolboxService.initialized]).then(() => {
+        return
+      }),
+      toolService: T.toolService,
+      skillService: T.skillService,
+      getThreadEnvironment: Hs,
+      osFileSystem: T.fileSystem,
+      fileChangeTrackerStorage: new Im(T.fileSystem),
+      ampURL: T.ampURL,
+      useThreadActors: T.useThreadActors
+    });
+    if (T.threadId) await R.switchThread(T.threadId);
+    else await R.createThread();
+    return R
+  } catch (R) {
+    throw J.error("[createDTWThreadPool] Failed to create DTW thread pool", {
+      threadId: T.threadId,
+      error: R
+    }), R
+  }
+}
+async function Zz0(T) {
+  if (T.streamJsonInput) return {
+    userInput: "",
+    stdinInput: null
+  };
+  if (typeof T.execute === "string") {
+    let R = (await fS()).trimEnd();
+    return {
+      userInput: T.execute,
+      stdinInput: R || null
+    }
+  }
+  return {
+    userInput: (await fS()).trimEnd(),
+    stdinInput: null
+  }
+}
+
+function Jz0(T, R, a) {
+  if (T.remote && !R) throw new GR("The -r/--remote flag requires --execute mode", 1, 'Use: amp --remote --execute "your message"');
+  if (T.streamJson && !R) throw new GR("The --stream-json flag requires --execute mode", 1, 'Use: amp --execute "your message" --stream-json');
+  if (T.streamJsonInput && !R) throw new GR("The --stream-json-input flag requires --execute mode", 1, "Use: amp --execute --stream-json --stream-json-input");
+  if (T.streamJsonInput && !T.streamJson) throw new GR("The --stream-json-input flag requires --stream-json", 1, "Use: amp --execute --stream-json --stream-json-input");
+  if (T.stats && !R) throw new GR("The --stats flag requires --execute mode", 1, 'Use: amp --execute "your message" --stats');
+  if (T.archive && !R) throw new GR("The --archive flag requires --execute mode", 1, 'Use: amp --execute "your message" --archive');
+  if (T.streamJsonInput && typeof T.execute === "string" && T.execute.trim() !== "") throw new GR("Do not provide a message argument when using --stream-json-input", 1, `Supply messages via stdin JSONL instead: echo '{"type":"user","message":{"role":"user","content":[{"type":"text","text":"your message"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}]}}' | amp --execute --stream-json --stream-json-input`);
+  if (R && a === "" && !T.streamJsonInput && !T.headless) throw new GR("User message must be provided through stdin or as argument when using execute mode", 1, `Either pass a message as an argument: amp --execute "your message"
+Or pipe via stdin: echo "your message" | amp --execute`)
+}
+async function SB(T, R, a, e) {
+  let t = process.hrtime.bigint(),
+    r = (aT, oT) => {
+      let TT = Number(process.hrtime.bigint() - oT) / 1e6,
+        tT = _c0();
+      J.info("Startup phase", {
+        phase: aT,
+        phaseMs: Math.round(TT),
+        sinceMainMs: tT === null ? void 0 : Math.round(tT)
+      })
+    },
+    {
+      userInput: h,
+      stdinInput: i
+    } = await Zz0(R),
+    c = !!R.streamJson || !!R.streamJsonThinking;
+  Jz0({
+    ...R,
+    streamJson: c
+  }, T.executeMode, h), ua(a, R);
+  let s = process.hrtime.bigint(),
+    A = Boolean(await T.secrets.get("apiKey", T.ampURL)),
+    l = !T.executeMode && !R.headless && !R.threadActors && A;
+  J.info("Interactive auth startup mode", {
+    deferInteractiveAuth: l,
+    hasAPIKeyAtStartup: A,
+    executeMode: T.executeMode,
+    headless: Boolean(R.headless)
+  });
+  let o = await X3(T, R, {
+    deferAuth: l
+  });
+  r("runMainThread:createThreadDependencies", s), s = process.hrtime.bigint();
+  let n = await yhT(o);
+  r("runMainThread:createWorkerDeps", s);
+  let {
+    serverStatus: p
+  } = o;
+  if (!l && oA(p)) {
+    let aT = $v(Error(p.error.message));
+    if (aT.message === V3.networkOffline || aT.message === V3.networkTimeout) throw eD(T.ampURL);
+    throw new GR(V3.invalidAPIKey, 1)
+  }
+  let _ = X9(p) ? p : null,
+    m = _?.user.email,
+    b = a3R(m),
+    y = aZ({
+      userEmail: m,
+      features: _?.features
+    }),
+    u = R.takeMeBack ? !1 : void 0,
+    P = _ !== null && eZ(u, _);
+  if (!l) await RZ(a, R, p);
+  let k = hx(p),
+    x = k?.features ?? [],
+    f = k?.team ?? null,
+    v = urT(R, k);
+  if (v instanceof Error) d8(v.message);
+  if ((T.executeMode || c) && qt(R.mode) && !b) throw new GR(`Execute mode is not permitted with --mode '${R.mode}'`, 1);
+  if (_ && !nN(R.mode, m)) throw new GR(`Agent mode '${R.mode}' is only available for Amp employees`, 1);
+  if (T.executeMode && R.remote) await r40(h, i, o.configService), await o.asyncDispose(), process.exit(0);
+  if (R.headless) {
+    if (process.env.AMP_EXECUTOR !== "1" && (!m || !Ns(m))) throw new GR("Headless DTW mode is only available for Amp employees", 1);
+    let aT = await o.secretStorage.get("apiKey", T.ampURL);
+    if (!aT) throw new GR("API key required for headless mode. Please run `amp login` first.", 1);
+    let oT = typeof R.headless === "string" && R.headless !== "true" ? R.headless : void 0;
+    if (oT && !Vt(oT)) throw new GR(`Invalid thread ID: ${oT}`, 1);
+    let TT = oT ? void 0 : await AF0({
+        dependencies: o,
+        visibility: v ?? void 0,
+        usesThreadActors: R.threadActors ? !0 : void 0
+      }),
+      tT = oT ?? TT?.threadId;
+    if (!tT) throw new GR("Failed to resolve headless thread ID", 1);
+    let lT = await y_0(tT);
+    if (lT.status === "already-running") await o.asyncDispose(), await xb(), process.exit(0);
+    try {
+      await T_0({
+        ampURL: T.ampURL,
+        apiKey: aT,
+        workerUrl: process.env.AMP_WORKER_URL,
+        workspaceRoot: process.cwd(),
+        threadId: tT,
+        ownerUserId: TT?.ownerUserId,
+        threadVersion: TT?.threadVersion,
+        agentMode: TT?.agentMode,
+        initialToolDiscovery: Promise.all([o.mcpService.initialized, o.toolboxService.initialized]).then(() => {
+          return
+        }),
+        configService: o.configService,
+        mcpService: o.mcpService,
+        toolService: o.toolService,
+        skillService: o.skillService,
+        fileSystem: o.fileSystem,
+        pluginService: o.pluginService,
+        pluginPlatform: o.headlessPluginPlatform,
+        useThreadActors: R.threadActors ? !0 : void 0
+      })
+    } finally {
+      await lT.release(), await o.asyncDispose()
+    }
+    await xb(), process.exit(0)
+  }
+  let g = T.executeMode ? void 0 : async (aT) => OS(aT, "interactive"), I = {
+    threadService: o.threadService,
+    workerDeps: n,
+    createThread: async () => {
+      let aT = l ? await o.serverStatusPromise : p,
+        oT = await UeT(T.settings, process.cwd(), hx(aT), v);
+      if (oT instanceof Error) d8(oT.message);
+      return SJT(n, {
+        threadMeta: oT ? MA(oT) : void 0,
+        agentMode: R.mode,
+        onFirstAssistantMessage: g
+      })
+    },
+    validateThreadOwnership: async (aT, oT) => {
+      if (oT?.nonBlockingOwnershipCheck) {
+        o$T(aT, o.configService, o.viewerUserIDPromise).catch((TT) => {
+          if (TT instanceof GR) {
+            if (oT.onOwnershipError) {
+              oT.onOwnershipError(TT, aT);
+              return
+            }
+            Jl(TT, aT);
+            return
+          }
+          J.warn("Failed to validate thread ownership in CLI, allowing to open", {
+            error: TT
+          })
+        });
+        return
+      }
+      try {
+        await o$T(aT, o.configService, o.viewerUserIDPromise)
+      } catch (TT) {
+        if (TT instanceof GR) throw TT;
+        J.warn("Failed to validate thread ownership in CLI, allowing to open", {
+          error: TT
+        })
+      }
+    },
+    switchThreadVisibility: v,
+    switchThreadAgentMode: R.mode,
+    onFirstAssistantMessage: g,
+    handleError: Jl
+  }, S = async (aT) => {
+    try {
+      if (aT === "dtw") return Qz0({
+        ampURL: T.ampURL,
+        configService: o.configService,
+        threadService: o.threadService,
+        mcpService: o.mcpService,
+        clientID: t$T,
+        toolboxService: o.toolboxService,
+        toolService: o.toolService,
+        skillService: o.skillService,
+        fileSystem: o.fileSystem,
+        threadId: R.threadId,
+        useThreadActors: R.threadActors ? !0 : void 0
+      });
+      return pD0(I, R.threadId, {
+        nonBlockingOwnershipCheck: R.nonBlockingThreadOwnershipCheck
+      })
+    } catch (oT) {
+      if (oT instanceof GR) throw oT;
+      throw await Jl(oT, R.threadId), Error("handleError should have called process.exit()")
+    }
+  };
+  if (R.format === "jsonl") Be.write(`jsonl format is deprecated. Version "0.0.1752148945-gd8844f" or earlier is required to use jsonl format.
+`), await xb(), process.exit(1);
+  let O = (async () => {
+      if (l) {
+        J.info("Skipping initial free tier status fetch until auth is complete");
+        return
+      }
+      try {
+        let aT = await o.configService.getLatest(),
+          oT = k2(aT),
+          TT = await N3.getUserFreeTierStatus({}, {
+            config: o.configService,
+            signal: AbortSignal.timeout(oT)
+          });
+        if (TT.ok) return J.info("User free tier status:", TT), TT.result;
+        return
+      } catch (aT) {
+        J.error("Failed to fetch free tier status:", aT);
+        return
+      }
+    })(),
+    j = !T.executeMode ? new IJT : null,
+    d, C = null;
+  if (j) d = j, C = (async () => {
+    let aT = l ? await o.serverStatusPromise : o.serverStatus;
+    await RZ(a, R, aT);
+    let oT = process.hrtime.bigint(),
+      TT = eZ(u, aT),
+      tT = X9(aT) ? aZ({
+        userEmail: aT.user.email,
+        features: aT.features
+      }) : !1;
+    r$T({
+      dtwEnabled: TT,
+      hasV2TUIAccess: tT
+    });
+    let lT = await S(TT ? "dtw" : "worker");
+    if (r("runMainThread:createThreadPool", oT), j.attach(lT), h) {
+      let N = await m0(lT.threadHandles$);
+      if (!N) throw new GR("No active thread is available yet.", 1);
+      await N.sendMessage({
+        content: [{
+          type: "text",
+          text: h
+        }]
+      })
+    }
+  })(), C.catch(async (aT) => {
+    let oT = aT instanceof Error ? aT : Error(String(aT));
+    j.setInitError(oT), await Jl(aT, R.threadId)
+  });
+  else s = process.hrtime.bigint(), r$T({
+    dtwEnabled: P,
+    hasV2TUIAccess: y
+  }), d = await S(P ? "dtw" : "worker"), r("runMainThread:createThreadPool", s);
+  let L = R.notifications !== void 0 ? R.notifications : !T.executeMode,
+    w = _ !== null && SS(_.features, dr.TUI_VOICE_NOTIF);
+  if (l) o.serverStatusPromise.then((aT) => {
+    w = X9(aT) && SS(aT.features, dr.TUI_VOICE_NOTIF)
+  }).catch((aT) => {
+    J.debug("Failed to resolve TUI voice notification feature flag", {
+      error: aT
+    })
+  });
+  s = process.hrtime.bigint();
+  let D = await o.configService.getLatest();
+  if (r("runMainThread:configService.getLatest", s), s = process.hrtime.bigint(), qz0({
+      configService: o.configService,
+      threadService: o.threadService,
+      config: D,
+      useNotificationsForService: L,
+      isTUIVoiceNotifEnabled: () => w,
+      threadViewStates$: () => d.threadHandles$.pipe(L9((aT) => {
+        if (!aT) return AR.of({});
+        return v3(aT.thread$, aT.threadViewState$).pipe(JR(([oT, TT]) => ({
+          [oT.id]: TT
+        })))
+      }))
+    }), r("runMainThread:createCliNotificationService", s), T.executeMode) {
+    MC0(o.mcpService, T.settings);
+    let aT = {
+        userInput: h,
+        stdinInput: i,
+        dependencies: o,
+        streamJson: c,
+        streamJsonInput: !!R.streamJsonInput,
+        streamJsonThinking: !!R.streamJsonThinking,
+        stats: !!R.stats,
+        ampURL: T.ampURL,
+        isDogfooding: b,
+        agentMode: R.mode,
+        labels: R.label
+      },
+      oT = await Yl0({
+        threadPool: d,
+        ...aT
+      });
+    if (await OS(oT, "execute"), R.archive) await o.threadService.archive(oT, !0), await dS(o.threadService, oT);
+    await o.asyncDispose(), process.exit(0)
+  }
+  let B = !1,
+    M = !1;
+  if (R.jetbrains || R.ide) {
+    await opR();
+    let aT = await OD({
+      jetbrainsOnly: R.jetbrains
+    });
+    if (aT.length === 0) {
+      if (R.jetbrains) B = !await o.configService.get("jetbrains.skipInstall")
+    } else if (aT.length === 1) {
+      let oT = aT[0];
+      if (oT) Us.selectConfig(oT)
+    } else M = !0
+  }
+  s = process.hrtime.bigint();
+  let V = pm0("0.0.1775894934-g5bb49b", o.settingsStorage, {
+    startDelayMs: 3000
+  });
+  r("runMainThread:createUpdateService", s), s = process.hrtime.bigint();
+  let Q = new ZZT(o.mcpService, T.settings.getWorkspaceRootPath());
+  if (r("runMainThread:createMcpTrustHandler", s), h && T.executeMode) {
+    let aT = await m0(d.threadHandles$);
+    if (!aT) throw new GR("No active thread is available yet.", 1);
+    await aT.sendMessage({
+      content: [{
+        type: "text",
+        text: h
+      }]
+    })
+  }
+  s = process.hrtime.bigint();
+  let W = await PrT();
+  r("runMainThread:loadSessionState", s), J.info("Loaded session state:", W);
+  let eT = {
+    ...W,
+    launchCount: W.launchCount + 1
+  };
+  iB((aT) => ({
+    ...aT,
+    launchCount: aT.launchCount + 1
+  }));
+  let iT = R.threadId && Vt(R.threadId) ? R.threadId : void 0;
+  try {
+    if (s = process.hrtime.bigint(), await _70({
+        history: new qKT,
+        fuzzyServer: o.fuzzyServer,
+        settingsStorage: o.settingsStorage,
+        threadService: o.threadService,
+        skillService: o.skillService,
+        configService: o.configService,
+        secretStorage: o.secretStorage,
+        internalAPIClient: N3,
+        threadPool: d,
+        createSystemPromptDeps: async () => t3R(o),
+        ideClient: Us,
+        mcpService: o.mcpService,
+        toolboxService: o.toolboxService,
+        mcpTrustHandler: Q,
+        updateService: V,
+        pluginPlatform: o.pluginPlatform,
+        pluginService: o.pluginService
+      }, {
+        initialServerStatus: o.serverStatus,
+        stdout: process.stdout,
+        hasAPIKeyAtStartup: o.hasAPIKeyAtStartup,
+        ampURL: T.ampURL,
+        startupThreadID: iT,
+        showJetBrainsInstaller: B,
+        showIdePickerHint: M,
+        openThreadSwitcher: R.openThreadSwitcher,
+        inspector: R.inspector,
+        inspectorPort: R.inspectorPort,
+        jetbrainsMode: R.jetbrains,
+        clientId: t$T,
+        logFile: {
+          path: e
+        },
+        sessionState: eT,
+        freeTierStatusPromise: O,
+        workspace: f ?? null,
+        features: x,
+        isDogfooding: b,
+        initialAgentMode: a.getOptionValueSourceWithGlobals("mode") === "cli" ? R.mode : void 0,
+        buildTimestamp: "2026-04-11T08:12:39.144Z"
+      }, (aT) => new QJT({
+        ...aT,
+        threadPool: aT.threadPool
+      }, (oT) => new Z8R({
+        ...oT,
+        threadState: oT.threadState
+      }))), r("runMainThread:mountApp-returned", s), C) await C
+  } finally {
+    await d.dispose().catch((aT) => {
+      J.error("Failed to dispose thread pool during shutdown", aT)
+    })
+  }
+  await o.asyncDispose(), r("runMainThread:dependencies.asyncDispose", t), process.exit(0)
+}
+async function S8(T) {
+  if (J.info("Initializing CLI context", {
+      argv: process.argv,
+      nodeEnv: "production",
+      hasAmpURL: Boolean(process.env.AMP_URL),
+      hasAmpAPIKey: Boolean(process.env.AMP_API_KEY),
+      hasSettingsFile: Boolean(process.env.AMP_SETTINGS_FILE)
+    }), T.interactive) Be.write(`Warning: --interactive flag is deprecated. Interactive mode is now the default unless --execute is used or output is redirected.
+`);
+  let R = !!T.execute || !process.stdout.isTTY && !T.streamJson,
+    a = process.stdout.isTTY && process.stderr.isTTY;
+  J.info("Execution mode resolved", {
+    executeMode: R,
+    stdoutTTY: process.stdout.isTTY,
+    stderrTTY: process.stderr.isTTY,
+    streamJson: T.streamJson,
+    executeFlag: T.execute
+  });
+  let e = await OHR({
+    get: async (i) => {
+      if (i !== tw) return;
+      try {
+        let c = await $5T(c2, "utf-8");
+        return JSON.parse(c).installationID
+      } catch {
+        return
+      }
+    },
+    set: async (i, c) => {
+      if (i !== tw) return;
+      await g5T(AA.dirname(c2), {
+        recursive: !0
+      }), await zUR(c2, JSON.stringify({
+        installationID: c
+      }, null, 2), {
+        mode: 384
+      })
+    }
+  }, {
+    clientType: "cli",
+    platform: JS()
+  });
+  ZlR(e);
+  let t = await IVT({
+    ...T,
+    workspaceTrust: {
+      current: !0,
+      changes: P0T
+    },
+    getHook: process.env.AMP_URL ? (i, c) => {
+        if (i === "url") return Promise.resolve(process.env.AMP_URL);
+        return c()
+      } :
+      void 0
+  });
+  if (T.mcpConfig) {
+    let i = await EC0(T.mcpConfig);
+    t = CC0(t, i)
+  }
+  let r = AA.dirname(t.getSettingsFilePath());
+  DXR(stT, r);
+  let h = await t.get("url", "global");
+  if (!h) h = Lr;
+  if (J.info("Resolved Amp URL", {
+      ampURL: h,
+      settingsFile: t.getSettingsFilePath(),
+      workspaceRoot: t.getWorkspaceRootPath()
+    }), !Ob(h)) J.info("Targeting custom Amp server", {
+    ampURL: h
+  });
+  return t = iHR(t), {
+    executeMode: R,
+    isTTY: a,
+    ampURL: h,
+    settings: t,
+    secrets: BXT(await otT(T, t))
+  }
+}
+
+function TF0(T) {
+  let R = {};
+  for (let a = 0; a < T.length; a++) {
+    let e = T[a];
+    if (e?.startsWith("--")) {
+      let t = e.slice(2).replace(/-([a-z])/g, (h, i) => i.toUpperCase()),
+        r = T[a + 1];
+      if (r && !r.startsWith("--")) R[t] = r, a++
+    }
+  }
+  return R
+}
+
+function RF0(T, R) {
+  let a = T.includes("--headless") || T.some((t) => t.startsWith("--headless=")),
+    e = AA.resolve(R.logFile ?? process.env.AMP_LOG_FILE ?? (a ? Ez0 : aKT));
+  return {
+    logLevel: R.logLevel ?? process.env.AMP_LOG_LEVEL ?? "info",
+    logFile: e
+  }
+}
+async function aF0() {
+  pc0();
+  let T = TF0(process.argv),
+    R = RF0(process.argv, T),
+    a = xc0(R),
+    e = process.argv.includes("--no-color"),
+    t = process.argv.includes("--color"),
+    r = process.stdout.isTTY && process.stderr.isTTY;
+  if (e || !t && !r) oR.level = 0;
+  if (Lz0(J), J.info("Starting Amp CLI.", {
+      version: "0.0.1775894934-g5bb49b",
+      buildTimestamp: "2026-04-11T08:12:39.144Z"
+    }), parseInt(process.version.slice(1).split(".")[0] ?? "") < 20) throw new GR(V3.nodeVersion(process.version), 1, "Please upgrade your Node.js installation from https://nodejs.org");
+  if (process.argv.includes("--neo")) {
+    await mC0();
+    return
+  }
+  await Yz0(a).parseAsync(process.argv)
+}
+async function eF0(T, R) {
+  let a = T.ampURL.includes("localhost") || T.ampURL.includes("127.0.0.1");
+  if (process.env.AMP_URL && !a) await T.settings.set("url", process.env.AMP_URL, "global"), C9.write(`Saving custom server URL to settings: ${process.env.AMP_URL}
+`);
+  else if (!Ob(T.ampURL)) C9.write(`Logging in to ${new URL(T.ampURL).hostname}
+`);
+  let e = process.env.AMP_API_KEY;
+  if (e) C9.write(`API key found in environment variable, storing...
+`), await R.set("apiKey", e, T.ampURL), C9.write(`API key successfully stored.
+`), process.exit(0);
+  let t = await T.secrets.get("apiKey", T.ampURL);
+  if (t) {
+    if (C9.write(`API key already configured: ${t.slice(0,10)}...
+`), !await OtT("Do you want to log in again? [(y)es, (n)o]: ")) process.exit(0);
+    C9.write(`
+`)
+  }
+  let r = await r3R(T);
+  process.exit(r ? 0 : 1)
+}
+async function tF0(T) {
+  if (process.env.AMP_API_KEY) C9.write(`API key found in environment variable AMP_API_KEY, unset first before running 'amp logout'
+`), process.exit(0);
+  if (!await T.secrets.get("apiKey", T.ampURL)) {
+    if (Ob(T.ampURL)) C9.write(`Already logged out.
+`);
+    else C9.write(`Already logged out from ${new URL(T.ampURL).hostname}.
+`);
+    process.exit(0)
+  }
+  if (await T.secrets.set("apiKey", "", T.ampURL), !process.env.AMP_URL) await T.settings.delete("url", "global");
+  if (Ob(T.ampURL)) C9.write(`Successfully logged out.
+`);
+  else C9.write(`Successfully logged out from ${new URL(T.ampURL).hostname}.
+`);
+  process.exit(0)
+}
+async function rF0(T, R, a, e, t) {
+  ua(t, T);
+  let r = await X3(R, T);
+  try {
+    let h = e.trim();
+    if (h.length === 0) d8("Thread name cannot be empty");
+    if (h.length > 256) d8("Thread name cannot exceed 256 characters");
+    if (!(await NA(a, r)).messages.length) d8("Cannot rename an empty thread.");
+    let i = await yhT(r),
+      c = await ct.getOrCreateForThread(i, a);
+    await c.handle({
+      type: "title",
+      value: h
+    }), await r.threadService.flushVersion(a, c.thread.v), C9.write(oR.green(`\u2713 Thread ${a} renamed to "${h}"
+`)), await r.asyncDispose(), process.exit(0)
+  } catch (h) {
+    await r.asyncDispose();
+    let i = `Failed to rename thread: ${h instanceof Error?h.message:String(h)}`;
+    d8(i)
+  }
+}
+async function hF0(T, R, a, e) {
+  let t = await X3(R, T);
+  try {
+    await t.threadService.archive(a, e), await dS(t.threadService, a), C9.write(oR.green(`\u2713 Thread ${e?"archived":"unarchived"} successfully
+`)), await t.asyncDispose(), process.exit(0)
+  } catch (r) {
+    await t.asyncDispose(), d8(`Failed to ${e?"archive":"unarchive"} thread: ${r instanceof Error?r.message:String(r)}`)
+  }
+}
+async function iF0(T, R, a) {
+  let e = await X3(R, T);
+  try {
+    await e.threadService.delete(a), C9.write(oR.green(`\u2713 Thread ${a} deleted
+`)), await e.asyncDispose(), process.exit(0)
+  } catch (t) {
+    await e.asyncDispose(), d8(`Failed to delete thread: ${t instanceof Error?t.message:String(t)}`)
+  }
+}
+async function cF0(T, R, a, e) {
+  ua(e, T);
+  let t = await X3(R, T);
+  try {
+    let r = await NA(a, t),
+      h = KN(r);
+    C9.write(h + `
+`), await t.asyncDispose(), process.exit(0)
+  } catch (r) {
+    await t.asyncDispose();
+    let h = `Failed to render thread as markdown: ${r instanceof Error?r.message:String(r)}`;
+    d8(h)
+  }
+}
+async function sF0(T, R, a, e) {
+  ua(e, T);
+  let t = await X3(R, T);
+  try {
+    let r = await NA(a, t),
+      h = JSON.stringify(r, null, 2);
+    C9.write(h + `
+`), await t.asyncDispose(), process.exit(0)
+  } catch (r) {
+    await t.asyncDispose();
+    let h = `Failed to export thread: ${r instanceof Error?r.message:String(r)}`;
+    d8(h)
+  }
+}
+async function oF0(T, R, a, e, t) {
+  ua(e, T);
+  let r = await X3(R, T);
+  try {
+    let h = hx(r.serverStatus),
+      i = urT(T, h);
+    if (!i && !t) d8("Must specify either --visibility or --support");
+    if (i && t) d8("Cannot specify both --visibility and --support at the same time");
+    if (i instanceof Error) d8(i.message);
+    if (i) await r.threadService.updateThreadMeta(a, MA(i)), C9.write(oR.green(`\u2713 Thread ${a} visibility changed to ${i}.
+`));
+    if (t) {
+      await NA(a, r);
+      let c = typeof t === "string" ? t : void 0;
+      await cbR(r.threadService, a, r.configService, c), C9.write(oR.green(`\u2713 Thread ${a} has been shared with Amp support. These thread reports will be aggregated and analysed.
+`))
+    }
+    await r.asyncDispose(), process.exit(0)
+  } catch (h) {
+    await r.asyncDispose(), d8(`Failed to update thread: ${h instanceof Error?h.message:String(h)}`)
+  }
+}
+async function nF0(T, R, a, e, t) {
+  ua(t, T);
+  let r = await X3(R, T);
+  try {
+    let h = await BKT(a, e, r.configService);
+    C9.write(oR.green(`\u2713 Thread ${a} labels: ${h.join(", ")}
+`)), await r.asyncDispose(), process.exit(0)
+  } catch (h) {
+    if (await r.asyncDispose(), h instanceof GR) d8(h.userMessage);
+    d8(`Failed to label thread: ${h instanceof Error?h.message:String(h)}`)
+  }
+}
+async function lF0(T, R, a, e, t, r, h) {
+  ua(r, T);
+  let i = await X3(R, T);
+  try {
+    await NA(a, i);
+    let c = e;
+    if (!c) {
+      let p = (await fS()).trimEnd();
+      if (p) c = p
+    }
+    if (!c) d8(`Goal must be provided via stdin or --goal argument.
 Example: echo "Continue the auth work" | amp threads handoff T-xxx
-Or: amp threads handoff T-xxx --goal "Continue the auth work"`);let s=new AbortController,A=await i.threadService.get(a);if(!A)d8(`Thread ${a} not found`);let l=await yhT(i),o=t3R(i),{threadID:n}=await ct.handoff(l,{threadID:a,goal:c,mode:"initial",navigate:!1,agentMode:A.agentMode,buildSystemPromptDeps:o,signal:s.signal,filesystem:He});if(await Promise.all([dS(i.threadService,a),dS(i.threadService,n)]),await OS(n,"interactive"),t)await i.asyncDispose(),await SB(R,{...T,threadId:n},r,h);else C9.write(`${n}
-`),await i.asyncDispose(),process.exit(0)}catch(c){Be.write(`Error creating handoff thread: ${c instanceof Error?c.message:String(c)}
-`),await i.asyncDispose(),process.exit(1)}}async function NA(T,R){let a=await R.threadService.get(T);if(!a)Be.write(`Thread ${T} does not exist.
-`),process.exit(1);return a}async function dS(T,R){let a=await T.getPrimitiveProperty(R,"v");if(a===null)throw Error(`Thread ${R} not found`);await T.flushVersion(R,a)}async function n$T(T,R="interactive"){if(T)return mr(T)??Zi(T);let a=await PrT(),e=P40(a,R)??null;if(!e)throw new GR("No thread ID provided and no previously used thread found.",1,"Provide a thread ID as an argument or run a thread first.");if(!Vt(e))throw new GR(V3.invalidThreadId);return e}async function AF0(T){let{dependencies:R,visibility:a}=T,e=(await Hs()).trees?.[0]?.repository?.url,t=await fi("/api/durable-thread-workers",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...e?{repositoryURL:e}:{},...T.usesThreadActors?{usesThreadActors:!0}:{}})},R.configService);if(!t.ok){let i=await t.text().catch(()=>"");throw new GR(`Failed to create DTW thread: ${t.status}${i?` ${i}`:""}`,1)}let r=await t.json();
-if(!r.threadId||!Vt(r.threadId))throw new GR("DTW thread creation response missing valid threadId",1);
-if(!r.ownerUserId||typeof r.threadVersion!=="number")throw new GR("DTW thread creation response missing ownerUserId or threadVersion",1);
-let h=r.threadId;
-if(await OS(h,"interactive"),a)await R.threadService.updateThreadMeta(h,MA(a));
-return{threadId:h,ownerUserId:r.ownerUserId,threadVersion:r.threadVersion,...r.agentMode?{agentMode:r.agentMode}:{}}}async function pF0(T,R,a,e,t){ua(e,T);
-let r=await X3(R,T);
-try{await NA(a,r),await r.asyncDispose(),await SB(R,{...T,threadId:a,nonBlockingThreadOwnershipCheck:!0},e,t)}catch(h){await r.asyncDispose(),await Jl(h,a)}}async function _F0(T,R,a){ua(a,T);
-let e=await X3(R,T),t=hx(e.serverStatus),r=urT(T,t);
-if(r instanceof Error)d8(r.message);
-try{let h=Eh();
-await(await e.threadService.exclusiveSyncReadWriter(h)).asyncDispose(),await dS(e.threadService,h),await OS(h,"interactive");
-let i=await UeT(R.settings,process.cwd(),t,r);
-if(i instanceof Error)d8(i.message);
-if(i)await e.threadService.updateThreadMeta(h,MA(i));
-C9.write(`${h}
-`),await e.asyncDispose(),process.exit(0)}catch(h){Be.write(`Error creating thread: ${h instanceof Error?h.message:String(h)}
-`),await e.asyncDispose(),process.exit(1)}}async function l$T(T,R,a){ua(a,T);let e=await X3(R,T);try{let t=a.optsWithGlobals(),r=await m0(e.threadService.observeThreadList({includeArchived:t.includeArchived??!1})),h=(s)=>{let A=s.meta?.visibility,l=s.meta?.sharedGroupIDs??[];switch(A){case"public_discoverable":return"Public";case"public_unlisted":return"Unlisted";case"thread_workspace_shared":return"Workspace";case"private":default:return l.length>0?o9(l.length,"Group"):"Private"}};if(r.length===0)C9.write(`No threads found.
-`),process.exit(0);let i=["Title","Last Updated","Visibility","Messages","Thread ID"],c=r.map((s)=>{let A=s.title||"Untitled",l=h3R(new Date(s.userLastInteractedAt)),o=s.messageCount??s.summaryStats?.messageCount??0;return[A,l,h(s),o.toString(),s.id]});i3R(i,c,{columnFormatters:[(s,A)=>{return(s.length>A?s.substring(0,A-3)+"...":s).padEnd(A)},void 0,void 0,void 0,(s,A)=>oR.green(s.padEnd(A))],truncateColumnIndex:0}),await e.asyncDispose(),process.exit(0)}catch(t){await e.asyncDispose(),d8(`Error listing threads: ${t instanceof Error?t.message:String(t)}
-`)}}async function bF0(T,R,a,e){ua(a,T);let t=await X3(R,T);try{let r=hx(t.serverStatus);if(!(r?.team?.billingMode==="enterprise"||r?.team?.billingMode==="enterprise.selfserve"))d8(`Default visibility is only configurable in enterprise workspaces.
-`);if(e){let c=Cc0(e,r);if(c instanceof Error)d8(c.message);if(!c)d8(`Visibility value must be provided.
-`);if(c==="private"&&r?.team?.disablePrivateThreads)d8(`Private thread visibility is disabled for this workspace.
-`);let s=await Lc0(t.settingsStorage,process.cwd(),c);if(s instanceof Error)d8(s.message)}let h=await UeT(t.settingsStorage,process.cwd(),r);if(h instanceof Error)d8(h.message);let i=h??"private";C9.write(`${i}
-`),await t.asyncDispose(),process.exit(0)}catch(r){await t.asyncDispose(),d8(`Error updating visibility defaults: ${r instanceof Error?r.message:String(r)}
-`)}}function mF0(T){let R=["\u280B","\u2819","\u2839","\u2838","\u283C","\u2834","\u2826","\u2827","\u2807","\u280F"],a=0,e=setInterval(()=>{Be.write(`\r${oR.cyan(R[a])} ${oR.dim(T)}`),a=(a+1)%R.length},80);return{stop:()=>{clearInterval(e),Be.write("\r"+" ".repeat(T.length+3)+"\r")}}}async function uF0(T,R,a,e,t,r){let h=await X3(R,T),i=r?null:mF0("Searching threads...");try{let c=new URLSearchParams;if(c.set("q",a),c.set("limit",String(e)),t>0)c.set("offset",String(t));let s=await fi(`/api/threads/find?${c.toString()}`,void 0,h.configService);if(i?.stop(),!s.ok){let n=await s.text();Be.write(`Search failed: ${s.status} ${n}
-`),process.exit(1)}let A=await s.json();if(r){let n=A.threads.map((p)=>({id:p.id,title:p.title||null,updatedAt:p.updatedAt}));C9.write(JSON.stringify(n,null,2)+`
-`),await h.asyncDispose(),process.exit(0)}if(A.threads.length===0)C9.write(`No threads found matching your query.
-`),process.exit(0);let l=["Title","Last Updated","Thread ID"],o=A.threads.map((n)=>{let p=n.title||"Untitled",_=h3R(new Date(n.updatedAt));return[p,_,n.id]});if(i3R(l,o,{columnFormatters:[(n,p)=>{return(n.length>p?n.substring(0,p-3)+"...":n).padEnd(p)},void 0,(n,p)=>oR.green(n.padEnd(p))],truncateColumnIndex:0}),A.hasMore)C9.write(oR.dim(`
+Or: amp threads handoff T-xxx --goal "Continue the auth work"`);
+    let s = new AbortController,
+      A = await i.threadService.get(a);
+    if (!A) d8(`Thread ${a} not found`);
+    let l = await yhT(i),
+      o = t3R(i),
+      {
+        threadID: n
+      } = await ct.handoff(l, {
+        threadID: a,
+        goal: c,
+        mode: "initial",
+        navigate: !1,
+        agentMode: A.agentMode,
+        buildSystemPromptDeps: o,
+        signal: s.signal,
+        filesystem: He
+      });
+    if (await Promise.all([dS(i.threadService, a), dS(i.threadService, n)]), await OS(n, "interactive"), t) await i.asyncDispose(), await SB(R, {
+      ...T,
+      threadId: n
+    }, r, h);
+    else C9.write(`${n}
+`), await i.asyncDispose(), process.exit(0)
+  } catch (c) {
+    Be.write(`Error creating handoff thread: ${c instanceof Error?c.message:String(c)}
+`), await i.asyncDispose(), process.exit(1)
+  }
+}
+async function NA(T, R) {
+  let a = await R.threadService.get(T);
+  if (!a) Be.write(`Thread ${T} does not exist.
+`), process.exit(1);
+  return a
+}
+async function dS(T, R) {
+  let a = await T.getPrimitiveProperty(R, "v");
+  if (a === null) throw Error(`Thread ${R} not found`);
+  await T.flushVersion(R, a)
+}
+async function n$T(T, R = "interactive") {
+  if (T) return mr(T) ?? Zi(T);
+  let a = await PrT(),
+    e = P40(a, R) ?? null;
+  if (!e) throw new GR("No thread ID provided and no previously used thread found.", 1, "Provide a thread ID as an argument or run a thread first.");
+  if (!Vt(e)) throw new GR(V3.invalidThreadId);
+  return e
+}
+async function AF0(T) {
+  let {
+    dependencies: R,
+    visibility: a
+  } = T, e = (await Hs()).trees?.[0]?.repository?.url, t = await fi("/api/durable-thread-workers", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      ...e ? {
+        repositoryURL: e
+      } :
+      {},
+      ...T.usesThreadActors ? {
+        usesThreadActors: !0
+      } :
+      {}
+    })
+  }, R.configService);
+  if (!t.ok) {
+    let i = await t.text().catch(() => "");
+    throw new GR(`Failed to create DTW thread: ${t.status}${i?` ${i}`:""}`, 1)
+  }
+  let r = await t.json();
+  if (!r.threadId || !Vt(r.threadId)) throw new GR("DTW thread creation response missing valid threadId", 1);
+  if (!r.ownerUserId || typeof r.threadVersion !== "number") throw new GR("DTW thread creation response missing ownerUserId or threadVersion", 1);
+  let h = r.threadId;
+  if (await OS(h, "interactive"), a) await R.threadService.updateThreadMeta(h, MA(a));
+  return {
+    threadId: h,
+    ownerUserId: r.ownerUserId,
+    threadVersion: r.threadVersion,
+    ...r.agentMode ? {
+      agentMode: r.agentMode
+    } :
+    {}
+  }
+}
+async function pF0(T, R, a, e, t) {
+  ua(e, T);
+  let r = await X3(R, T);
+  try {
+    await NA(a, r), await r.asyncDispose(), await SB(R, {
+      ...T,
+      threadId: a,
+      nonBlockingThreadOwnershipCheck: !0
+    }, e, t)
+  } catch (h) {
+    await r.asyncDispose(), await Jl(h, a)
+  }
+}
+async function _F0(T, R, a) {
+  ua(a, T);
+  let e = await X3(R, T),
+    t = hx(e.serverStatus),
+    r = urT(T, t);
+  if (r instanceof Error) d8(r.message);
+  try {
+    let h = Eh();
+    await (await e.threadService.exclusiveSyncReadWriter(h)).asyncDispose(), await dS(e.threadService, h), await OS(h, "interactive");
+    let i = await UeT(R.settings, process.cwd(), t, r);
+    if (i instanceof Error) d8(i.message);
+    if (i) await e.threadService.updateThreadMeta(h, MA(i));
+    C9.write(`${h}
+`), await e.asyncDispose(), process.exit(0)
+  } catch (h) {
+    Be.write(`Error creating thread: ${h instanceof Error?h.message:String(h)}
+`), await e.asyncDispose(), process.exit(1)
+  }
+}
+async function l$T(T, R, a) {
+  ua(a, T);
+  let e = await X3(R, T);
+  try {
+    let t = a.optsWithGlobals(),
+      r = await m0(e.threadService.observeThreadList({
+        includeArchived: t.includeArchived ?? !1
+      })),
+      h = (s) => {
+        let A = s.meta?.visibility,
+          l = s.meta?.sharedGroupIDs ?? [];
+        switch (A) {
+          case "public_discoverable":
+            return "Public";
+          case "public_unlisted":
+            return "Unlisted";
+          case "thread_workspace_shared":
+            return "Workspace";
+          case "private":
+          default:
+            return l.length > 0 ? o9(l.length, "Group") : "Private"
+        }
+      };
+    if (r.length === 0) C9.write(`No threads found.
+`), process.exit(0);
+    let i = ["Title", "Last Updated", "Visibility", "Messages", "Thread ID"],
+      c = r.map((s) => {
+        let A = s.title || "Untitled",
+          l = h3R(new Date(s.userLastInteractedAt)),
+          o = s.messageCount ?? s.summaryStats?.messageCount ?? 0;
+        return [A, l, h(s), o.toString(), s.id]
+      });
+    i3R(i, c, {
+      columnFormatters: [(s, A) => {
+        return (s.length > A ? s.substring(0, A - 3) + "..." : s).padEnd(A)
+      }, void 0, void 0, void 0, (s, A) => oR.green(s.padEnd(A))],
+      truncateColumnIndex: 0
+    }), await e.asyncDispose(), process.exit(0)
+  } catch (t) {
+    await e.asyncDispose(), d8(`Error listing threads: ${t instanceof Error?t.message:String(t)}
+`)
+  }
+}
+async function bF0(T, R, a, e) {
+  ua(a, T);
+  let t = await X3(R, T);
+  try {
+    let r = hx(t.serverStatus);
+    if (!(r?.team?.billingMode === "enterprise" || r?.team?.billingMode === "enterprise.selfserve")) d8(`Default visibility is only configurable in enterprise workspaces.
+`);
+    if (e) {
+      let c = Cc0(e, r);
+      if (c instanceof Error) d8(c.message);
+      if (!c) d8(`Visibility value must be provided.
+`);
+      if (c === "private" && r?.team?.disablePrivateThreads) d8(`Private thread visibility is disabled for this workspace.
+`);
+      let s = await Lc0(t.settingsStorage, process.cwd(), c);
+      if (s instanceof Error) d8(s.message)
+    }
+    let h = await UeT(t.settingsStorage, process.cwd(), r);
+    if (h instanceof Error) d8(h.message);
+    let i = h ?? "private";
+    C9.write(`${i}
+`), await t.asyncDispose(), process.exit(0)
+  } catch (r) {
+    await t.asyncDispose(), d8(`Error updating visibility defaults: ${r instanceof Error?r.message:String(r)}
+`)
+  }
+}
+
+function mF0(T) {
+  let R = ["\u280B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u2807", "\u280F"],
+    a = 0,
+    e = setInterval(() => {
+      Be.write(`\r${oR.cyan(R[a])} ${oR.dim(T)}`), a = (a + 1) % R.length
+    }, 80);
+  return {
+    stop: () => {
+      clearInterval(e), Be.write("\r" + " ".repeat(T.length + 3) + "\r")
+    }
+  }
+}
+async function uF0(T, R, a, e, t, r) {
+  let h = await X3(R, T),
+    i = r ? null : mF0("Searching threads...");
+  try {
+    let c = new URLSearchParams;
+    if (c.set("q", a), c.set("limit", String(e)), t > 0) c.set("offset", String(t));
+    let s = await fi(`/api/threads/find?${c.toString()}`, void 0, h.configService);
+    if (i?.stop(), !s.ok) {
+      let n = await s.text();
+      Be.write(`Search failed: ${s.status} ${n}
+`), process.exit(1)
+    }
+    let A = await s.json();
+    if (r) {
+      let n = A.threads.map((p) => ({
+        id: p.id,
+        title: p.title || null,
+        updatedAt: p.updatedAt
+      }));
+      C9.write(JSON.stringify(n, null, 2) + `
+`), await h.asyncDispose(), process.exit(0)
+    }
+    if (A.threads.length === 0) C9.write(`No threads found matching your query.
+`), process.exit(0);
+    let l = ["Title", "Last Updated", "Thread ID"],
+      o = A.threads.map((n) => {
+        let p = n.title || "Untitled",
+          _ = h3R(new Date(n.updatedAt));
+        return [p, _, n.id]
+      });
+    if (i3R(l, o, {
+        columnFormatters: [(n, p) => {
+          return (n.length > p ? n.substring(0, p - 3) + "..." : n).padEnd(p)
+        }, void 0, (n, p) => oR.green(n.padEnd(p))],
+        truncateColumnIndex: 0
+      }), A.hasMore) C9.write(oR.dim(`
 More results available. Use --limit to see more.
-`));await h.asyncDispose(),process.exit(0)}catch(c){i?.stop(),await h.asyncDispose(),d8(`Error searching threads: ${c instanceof Error?c.message:String(c)}
-`)}}function h3R(T){let R=new Date().getTime()-T.getTime(),a=Math.floor(R/1000),e=Math.floor(a/60),t=Math.floor(e/60),r=Math.floor(t/24),h=Math.floor(r/7),i=Math.floor(r/30),c=Math.floor(r/365);if(a<60)return a<=1?"now":`${a}s ago`;else if(e<60)return`${e}m ago`;else if(t<24)return`${t}h ago`;else if(r<7)return`${r}d ago`;else if(h<4)return`${h}w ago`;else if(i<12)return`${i}mo ago`;else return`${c}y ago`}function i3R(T,R,a={}){let{columnFormatters:e=[],minimumTruncatedColumnWidth:t=20,truncateColumnIndex:r,maxTruncatedColumnWidth:h}=a;for(let y=0;y<R.length;y++)if(R[y].length!==T.length)throw Error(`Row ${y} has ${R[y].length} columns, but headers have ${T.length} columns`);let i=C9.columns||120,c="  ",s=T.length-1,A=r??T.length-1,l=[];for(let y=0;y<T.length;y++)if(y===A)l.push(0);else l.push(Math.max(T[y].length,...R.map((u)=>u[y].length)));let o=Math.max(T[A].length,...R.map((y)=>y[A].length)),n=l.reduce((y,u)=>y+u,0)+s*c.length,p=Math.max(t,i-n);if(h!==void 0)p=Math.min(p,Math.min(h,o));l[A]=p;let _=l,m=T.map((y,u)=>y.padEnd(_[u])).join(c);C9.write(m+`
-`);let b=_.map((y)=>"\u2500".repeat(y)).join(c);C9.write(b+`
-`);for(let y of R){let u=y.map((P,k)=>{let x=_[k],f=e[k];if(f)return f(P,x);return(P.length>x?P.substring(0,x-3)+"...":P).padEnd(x)});C9.write(u.join(c)+`
-`)}}function d8(T){Be.write(oR.red.bold("Error: ")+T+`
-`),process.exit(1)}function yF0(T){return parseInt(process.version.slice(1).split(".")[0]??"")>=T}
+`));
+    await h.asyncDispose(), process.exit(0)
+  } catch (c) {
+    i?.stop(), await h.asyncDispose(), d8(`Error searching threads: ${c instanceof Error?c.message:String(c)}
+`)
+  }
+}
+
+function h3R(T) {
+  let R = new Date().getTime() - T.getTime(),
+    a = Math.floor(R / 1000),
+    e = Math.floor(a / 60),
+    t = Math.floor(e / 60),
+    r = Math.floor(t / 24),
+    h = Math.floor(r / 7),
+    i = Math.floor(r / 30),
+    c = Math.floor(r / 365);
+  if (a < 60) return a <= 1 ? "now" : `${a}s ago`;
+  else if (e < 60) return `${e}m ago`;
+  else if (t < 24) return `${t}h ago`;
+  else if (r < 7) return `${r}d ago`;
+  else if (h < 4) return `${h}w ago`;
+  else if (i < 12) return `${i}mo ago`;
+  else return `${c}y ago`
+}
+
+function i3R(T, R, a = {}) {
+  let {
+    columnFormatters: e = [],
+    minimumTruncatedColumnWidth: t = 20,
+    truncateColumnIndex: r,
+    maxTruncatedColumnWidth: h
+  } = a;
+  for (let y = 0; y < R.length; y++)
+    if (R[y].length !== T.length) throw Error(`Row ${y} has ${R[y].length} columns, but headers have ${T.length} columns`);
+  let i = C9.columns || 120,
+    c = "  ",
+    s = T.length - 1,
+    A = r ?? T.length - 1,
+    l = [];
+  for (let y = 0; y < T.length; y++)
+    if (y === A) l.push(0);
+    else l.push(Math.max(T[y].length, ...R.map((u) => u[y].length)));
+  let o = Math.max(T[A].length, ...R.map((y) => y[A].length)),
+    n = l.reduce((y, u) => y + u, 0) + s * c.length,
+    p = Math.max(t, i - n);
+  if (h !== void 0) p = Math.min(p, Math.min(h, o));
+  l[A] = p;
+  let _ = l,
+    m = T.map((y, u) => y.padEnd(_[u])).join(c);
+  C9.write(m + `
+`);
+  let b = _.map((y) => "\u2500".repeat(y)).join(c);
+  C9.write(b + `
+`);
+  for (let y of R) {
+    let u = y.map((P, k) => {
+      let x = _[k],
+        f = e[k];
+      if (f) return f(P, x);
+      return (P.length > x ? P.substring(0, x - 3) + "..." : P).padEnd(x)
+    });
+    C9.write(u.join(c) + `
+`)
+  }
+}
+
+function d8(T) {
+  Be.write(oR.red.bold("Error: ") + T + `
+`), process.exit(1)
+}
+
+function yF0(T) {
+  return parseInt(process.version.slice(1).split(".")[0] ?? "") >= T
+}

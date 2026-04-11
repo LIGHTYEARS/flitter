@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: VN (ESM)
-()=>{O0(),t8T()}
+() => {
+  (O0(), t8T());
+};

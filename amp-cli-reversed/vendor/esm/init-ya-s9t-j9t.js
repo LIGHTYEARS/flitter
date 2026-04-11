@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: O9T (ESM)
-()=>{Ya(),S9T(),j9T(),Sc()}
+() => {
+  (Ya(), S9T(), j9T(), Sc());
+};

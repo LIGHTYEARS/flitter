@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: RMT (ESM)
-()=>{Ya()}
+() => {
+  Ya();
+};

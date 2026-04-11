@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: wcR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

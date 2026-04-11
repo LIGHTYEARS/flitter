@@ -5,5 +5,12 @@
 // Category: unknown
 
 // Module: rET (ESM)
-()=>{aN={now:()=>Date.now(),schedule:(T,R)=>{let a=setTimeout(T,R);
-return()=>clearTimeout(a)}}}
+() => {
+  aN = {
+    now: () => Date.now(),
+    schedule: (T, R) => {
+      let a = setTimeout(T, R);
+      return () => clearTimeout(a);
+    },
+  };
+};

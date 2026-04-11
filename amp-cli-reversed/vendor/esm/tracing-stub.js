@@ -5,4 +5,10 @@
 // Category: util
 
 // Module: gDT (ESM)
-()=>{Yo={startActiveSpan:async(T,R,a)=>{return a({id:"",addEvent:()=>{},setAttributes:()=>{}},Yo)}}}
+() => {
+  Yo = {
+    startActiveSpan: async (T, R, a) => {
+      return a({ id: "", addEvent: () => {}, setAttributes: () => {} }, Yo);
+    },
+  };
+};

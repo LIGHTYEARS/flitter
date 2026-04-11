@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: rO (ESM)
-()=>{e9T(),Qs(),s4T=c0(KA(),1),LD=Ej}
+() => {
+  (e9T(), Qs(), (s4T = c0(KA(), 1)), (LD = Ej));
+};

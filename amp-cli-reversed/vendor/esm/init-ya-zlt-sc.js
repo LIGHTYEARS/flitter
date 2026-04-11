@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: alT (ESM)
-()=>{Ya(),ZLT(),Sc()}
+() => {
+  (Ya(), ZLT(), Sc());
+};

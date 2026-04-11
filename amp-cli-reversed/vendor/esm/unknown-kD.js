@@ -5,4 +5,21 @@
 // Category: unknown
 
 // Module: kD (ESM)
-()=>{Or(),Or(),GjT(),Or(),b6(),JoR(),sRT(),bD(),bD(),rnR(),TN(),URT(),OOT(),dOT(),XoR(),st(FjT())}
+() => {
+  (Or(),
+    Or(),
+    GjT(),
+    Or(),
+    b6(),
+    JoR(),
+    sRT(),
+    bD(),
+    bD(),
+    rnR(),
+    TN(),
+    URT(),
+    OOT(),
+    dOT(),
+    XoR(),
+    st(FjT()));
+};

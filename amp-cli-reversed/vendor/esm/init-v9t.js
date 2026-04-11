@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: ZLT (ESM)
-()=>{v9T()}
+() => {
+  v9T();
+};

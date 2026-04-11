@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: CIR (ESM)
-()=>{NwT=EIR}
+() => {
+  NwT = EIR;
+};

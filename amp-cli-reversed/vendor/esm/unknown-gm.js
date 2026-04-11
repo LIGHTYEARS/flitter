@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: gm (ESM)
-()=>{Ii(),eK=Object.freeze(Object.create(null)),xe=tfR(TwT)}
+() => {
+  (Ii(), (eK = Object.freeze(Object.create(null))), (xe = tfR(TwT)));
+};

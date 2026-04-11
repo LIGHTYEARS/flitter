@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: vm (ESM)
-()=>{FA(),F8(),O0()}
+() => {
+  (FA(), F8(), O0());
+};

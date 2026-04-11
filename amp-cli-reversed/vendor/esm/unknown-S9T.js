@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: S9T (ESM)
-()=>{TuR=new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789")}
+() => {
+  TuR = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
+};

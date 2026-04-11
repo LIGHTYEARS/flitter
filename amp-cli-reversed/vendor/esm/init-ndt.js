@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: cPR (ESM)
-()=>{nDT()}
+() => {
+  nDT();
+};

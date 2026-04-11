@@ -5,4 +5,18 @@
 // Category: util
 
 // Module: Ks (ESM)
-()=>{m0T(),siT=Np.join(LW(),".local/share"),oiT=siT,niT=Np.join(LW(),".config"),liT=niT,RN=Np.join(oiT,"amp"),AiT=Np.join(liT,"amp"),kj=Np.join(AiT,"tools"),piT=Np.join(process.env.XDG_CACHE_HOME??Np.join(LW(),".cache"),"amp"),cA=piT}
+() => {
+  (m0T(),
+    (siT = Np.join(LW(), ".local/share")),
+    (oiT = siT),
+    (niT = Np.join(LW(), ".config")),
+    (liT = niT),
+    (RN = Np.join(oiT, "amp")),
+    (AiT = Np.join(liT, "amp")),
+    (kj = Np.join(AiT, "tools")),
+    (piT = Np.join(
+      process.env.XDG_CACHE_HOME ?? Np.join(LW(), ".cache"),
+      "amp",
+    )),
+    (cA = piT));
+};

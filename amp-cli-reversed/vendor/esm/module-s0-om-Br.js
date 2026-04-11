@@ -5,4 +5,44 @@
 // Category: util
 
 // Module: Br (ESM)
-()=>{s0(),om(),Zs(),oa(),P9T(),mm(),fLT(),Mh(),P0(),f9T(),qLT=["py","js","ts","tsx","jsx","go","rs","cpp","c","cc","cxx","cs","java","scala","rb","php","swift","kt","dart","pl","r","m","mm","h","hpp","lua","zig"]}
+() => {
+  (s0(),
+    om(),
+    Zs(),
+    oa(),
+    P9T(),
+    mm(),
+    fLT(),
+    Mh(),
+    P0(),
+    f9T(),
+    (qLT = [
+      "py",
+      "js",
+      "ts",
+      "tsx",
+      "jsx",
+      "go",
+      "rs",
+      "cpp",
+      "c",
+      "cc",
+      "cxx",
+      "cs",
+      "java",
+      "scala",
+      "rb",
+      "php",
+      "swift",
+      "kt",
+      "dart",
+      "pl",
+      "r",
+      "m",
+      "mm",
+      "h",
+      "hpp",
+      "lua",
+      "zig",
+    ]));
+};

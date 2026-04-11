@@ -5,7 +5,17 @@
 // Category: util
 
 // Module: gkR (ESM)
-()=>{t7T={name:"building-skills",description:"Use when creating any skill/agent skill/amp skill. Load FIRST\u2014before researching existing skills or writing SKILL.md. Provides required structure, naming conventions, and frontmatter format.",frontmatter:{name:"building-skills",description:"Use when creating any skill/agent skill/amp skill. Load FIRST\u2014before researching existing skills or writing SKILL.md. Provides required structure, naming conventions, and frontmatter format."},content:`# Building Skills
+() => {
+  t7T = {
+    name: "building-skills",
+    description:
+      "Use when creating any skill/agent skill/amp skill. Load FIRST\u2014before researching existing skills or writing SKILL.md. Provides required structure, naming conventions, and frontmatter format.",
+    frontmatter: {
+      name: "building-skills",
+      description:
+        "Use when creating any skill/agent skill/amp skill. Load FIRST\u2014before researching existing skills or writing SKILL.md. Provides required structure, naming conventions, and frontmatter format.",
+    },
+    content: `# Building Skills
 
 Creates well-structured Agent Skills following best practices.
 
@@ -192,4 +202,7 @@ This reduces token cost by 90%+ and keeps the skill focused.
 Skills are discovered from:
 - \`.agents/skills/\` in the workspace (project-specific)
 - \`~/.config/agents/skills/\` globally (user-wide)
-`,baseDir:"builtin:///skills"}}
+`,
+    baseDir: "builtin:///skills",
+  };
+};

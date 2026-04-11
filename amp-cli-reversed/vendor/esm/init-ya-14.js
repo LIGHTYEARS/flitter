@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: uMT (ESM)
-()=>{Ya()}
+() => {
+  Ya();
+};

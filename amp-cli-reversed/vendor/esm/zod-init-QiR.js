@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: QiR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

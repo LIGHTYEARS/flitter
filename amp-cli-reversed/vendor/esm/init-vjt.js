@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: tsR (ESM)
-()=>{VjT()}
+() => {
+  VjT();
+};

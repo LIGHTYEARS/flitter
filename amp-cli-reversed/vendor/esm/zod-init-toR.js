@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: toR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

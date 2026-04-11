@@ -5,4 +5,20 @@
 // Category: schema
 
 // Module: ijT (ESM)
-()=>{LS(),ZvT(),X0(),hD=MS(lr),iD=DS(lr),XB=wS(lr),JZ=BS(lr),JvT=TJ(lr),TjT=RJ(lr),RjT=aJ(lr),ajT=eJ(lr),ejT=tJ(lr),tjT=rJ(lr),rjT=hJ(lr),hjT=iJ(lr)}
+() => {
+  (LS(),
+    ZvT(),
+    X0(),
+    (hD = MS(lr)),
+    (iD = DS(lr)),
+    (XB = wS(lr)),
+    (JZ = BS(lr)),
+    (JvT = TJ(lr)),
+    (TjT = RJ(lr)),
+    (RjT = aJ(lr)),
+    (ajT = eJ(lr)),
+    (ejT = tJ(lr)),
+    (tjT = rJ(lr)),
+    (rjT = hJ(lr)),
+    (hjT = iJ(lr)));
+};

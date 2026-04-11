@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: _fR (ESM)
-()=>{cwT(),swT(),pwT(),_wT(),RfR()}
+() => {
+  (cwT(), swT(), pwT(), _wT(), RfR());
+};

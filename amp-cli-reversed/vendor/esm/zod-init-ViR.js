@@ -5,4 +5,6 @@
 // Category: schema
 
 // Module: ViR (ESM)
-()=>{X0()}
+() => {
+  X0();
+};

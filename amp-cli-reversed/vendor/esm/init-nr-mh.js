@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: Ex (ESM)
-()=>{Nr(),Mh()}
+() => {
+  (Nr(), Mh());
+};

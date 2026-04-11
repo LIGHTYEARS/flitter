@@ -5,5 +5,9 @@
 // Category: util
 
 // Module: _Z (CJS)
-(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.MappingError=void 0;
-class R extends Error{}T.MappingError=R}
+(T) => {
+  (Object.defineProperty(T, "__esModule", { value: !0 }),
+    (T.MappingError = void 0));
+  class R extends Error {}
+  T.MappingError = R;
+};

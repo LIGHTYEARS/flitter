@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: uMT (ESM)
-()=>{Ya()}
+() => {
+  Ya();
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: ufR (ESM)
-()=>{lAT(),Q7T(),n8T(),lAT(),En(),Ii()}
+() => {
+  (lAT(), Q7T(), n8T(), lAT(), En(), Ii());
+};

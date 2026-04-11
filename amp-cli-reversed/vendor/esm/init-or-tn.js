@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: rnR (ESM)
-()=>{Or(),TN()}
+() => {
+  (Or(), TN());
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: dmR (ESM)
-()=>{Or()}
+() => {
+  Or();
+};

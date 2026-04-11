@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: lm (ESM)
-()=>{EET=c0(ClR(),1)}
+() => {
+  EET = c0(ClR(), 1);
+};

@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: cDT (ESM)
-()=>{jR(),iDT=process.env}
+() => {
+  (jR(), (iDT = process.env));
+};

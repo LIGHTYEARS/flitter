@@ -5,4 +5,10 @@
 // Category: schema
 
 // Module: OOT (ESM)
-()=>{Or(),Or(),X0(),SOT=nR("ZodError",aiT),Ar=nR("ZodError",aiT,{Parent:Error})}
+() => {
+  (Or(),
+    Or(),
+    X0(),
+    (SOT = nR("ZodError", aiT)),
+    (Ar = nR("ZodError", aiT, { Parent: Error })));
+};

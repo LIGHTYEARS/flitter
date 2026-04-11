@@ -1,6 +1,0 @@
-{
-  "description": "Empty session for baseline tests",
-  "turns": 0,
-  "includeToolCalls": false,
-  "contextUsage": 0
-}

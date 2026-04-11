@@ -5,4 +5,6 @@
 // Category: unknown
 
 // Module: HjT (ESM)
-()=>{ZJ={major:4,minor:3,patch:6}}
+() => {
+  ZJ = { major: 4, minor: 3, patch: 6 };
+};

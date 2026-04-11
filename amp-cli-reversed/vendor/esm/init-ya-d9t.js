@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: cMT (ESM)
-()=>{Ya(),d9T()}
+() => {
+  (Ya(), d9T());
+};

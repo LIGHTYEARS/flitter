@@ -5,4 +5,6 @@
 // Category: util
 
 // Module: F0T (ESM)
-()=>{LAR(),apR(),jj=[yCT,PCT,kCT,xCT,dCT]}
+() => {
+  (LAR(), apR(), (jj = [yCT, PCT, kCT, xCT, dCT]));
+};

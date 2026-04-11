@@ -41,6 +41,8 @@ export interface StatusBarProps {
   isShowingShortcutsHelp?: boolean;
   /** 是否有正在运行或等待显示的 bash invocations（bashInvocations.length > 0 || pendingBashInvocations.size > 0）。 */
   runningBashInvocations?: boolean;
+  /** Shell mode status ('shell', 'hidden', or null). When active, statusline stays visible. */
+  shellModeStatus?: 'shell' | 'hidden' | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,6 +62,8 @@ export function getFooterText(props: {
   hasStartedResponse: boolean;
   /** 是否有正在运行或等待显示的 bash invocations。 */
   runningBashInvocations?: boolean;
+  /** Shell mode status — when active, shows "shell mode" in statusline. */
+  shellModeStatus?: 'shell' | 'hidden' | null;
 }): string {
   if (props.isInterrupted) return 'Stream interrupted';
   if (props.isExecutingCommand) return 'Executing command...';
@@ -75,6 +79,10 @@ export function getFooterText(props: {
   if (props.isStreaming && props.hasStartedResponse) return 'Streaming response...';
   if (props.isStreaming && !props.hasStartedResponse) return 'Waiting for response...';
   if (props.isProcessing) return 'Running tools...';
+  // Shell mode active but idle — show shell mode indicator
+  if (props.shellModeStatus) {
+    return props.shellModeStatus === 'hidden' ? 'shell mode (incognito)' : 'shell mode';
+  }
   return '';
 }
 
@@ -101,6 +109,7 @@ export class StatusBar extends StatelessWidget {
   private readonly inputText: string;
   private readonly isShowingShortcutsHelp: boolean;
   private readonly runningBashInvocations: boolean;
+  private readonly shellModeStatus: 'shell' | 'hidden' | null;
 
   constructor(props: StatusBarProps) {
     super({});
@@ -126,6 +135,7 @@ export class StatusBar extends StatelessWidget {
     this.inputText = props.inputText ?? '';
     this.isShowingShortcutsHelp = props.isShowingShortcutsHelp ?? false;
     this.runningBashInvocations = props.runningBashInvocations ?? false;
+    this.shellModeStatus = props.shellModeStatus ?? null;
   }
 
   build(context: BuildContext): Widget {
@@ -142,6 +152,7 @@ export class StatusBar extends StatelessWidget {
       hasRunningTools: this.hasRunningTools,
       hasStartedResponse: this.hasStartedResponse,
       runningBashInvocations: this.runningBashInvocations,
+      shellModeStatus: this.shellModeStatus,
     });
 
     if (!footerText) {
@@ -178,13 +189,15 @@ export class StatusBar extends StatelessWidget {
     }
 
     const mutedColor = theme?.base.mutedForeground ?? Color.brightBlack;
+    const shellColor = theme?.app.shellMode ?? Color.cyan;
+    const isShellMode = footerText === 'shell mode' || footerText === 'shell mode (incognito)';
     const waveChar = getWavePrefix(footerText);
     const leftText = waveChar ? `${waveChar} ${footerText}` : ` ${footerText}`;
 
     const left = new Text({
       text: new TextSpan({
         text: leftText,
-        style: new TextStyle({ foreground: mutedColor, dim: true }),
+        style: new TextStyle({ foreground: isShellMode ? shellColor : mutedColor, dim: !isShellMode }),
       }),
     });
 

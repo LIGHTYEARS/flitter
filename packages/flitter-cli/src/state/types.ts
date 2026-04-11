@@ -282,6 +282,8 @@ export interface ToolCallItem {
   readonly isStreaming?: boolean;
   /** Associated terminal ID for client-side polling (Bash tools). */
   readonly terminalId?: string;
+  /** True when this tool call was initiated by shell mode ($/$$ prefix), not by the LLM. */
+  readonly isShellMode?: boolean;
 }
 
 /** An extended-thinking block produced by the model. */
@@ -697,6 +699,11 @@ export interface BashInvocation {
   /** 是否隐藏（由 $$ 前缀触发），不在 UI 中显示。 */
   hidden: boolean;
 }
+
+/** Events emitted by BashExecutor.subscribe() observer callbacks. */
+export type BashStreamEvent =
+  | { type: 'output'; content: string }
+  | { type: 'result'; content: string; isError: boolean };
 
 /** Shell mode status matching AMP's currentShellModeStatus. */
 export type ShellModeStatus = 'shell' | 'hidden' | null;

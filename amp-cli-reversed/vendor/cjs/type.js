@@ -1,0 +1,20 @@
+// Module: type
+// Original: a8
+// Type: CJS (RT wrapper)
+// Exports: Type, alwaysValidSchema, checkStrictMode, checkUnknownRules, eachItem, escapeFragment, escapeJsonPointer, evaluatedPropsToName, getErrorPath, mergeEvaluated, schemaHasRules, schemaHasRulesButRef, schemaRefOrVal, setEvaluated, toHash, unescapeFragment, unescapeJsonPointer, useFunc
+// Category: util
+
+// Module: a8 (CJS)
+(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.checkStrictMode=T.getErrorPath=T.Type=T.useFunc=T.setEvaluated=T.evaluatedPropsToName=T.mergeEvaluated=T.eachItem=T.unescapeJsonPointer=T.escapeJsonPointer=T.escapeFragment=T.unescapeFragment=T.schemaRefOrVal=T.schemaHasRulesButRef=T.schemaHasRules=T.checkUnknownRules=T.alwaysValidSchema=T.toHash=void 0;
+var R=M9(),a=XD();
+function e(x){let f={};
+for(let v of x)f[v]=!0;
+return f}T.toHash=e;
+function t(x,f){if(typeof f=="boolean")return f;
+if(Object.keys(f).length===0)return!0;
+return r(x,f),!h(f,x.self.RULES.all)}T.alwaysValidSchema=t;
+function r(x,f=x.schema){let{opts:v,self:g}=x;
+if(!v.strictSchema)return;
+if(typeof f==="boolean")return;
+let I=g.RULES.keywords;
+for(let S in f)if(!I[S])k(x,`unknown keyword: "${S}"`)}T.checkUnknownRules=r;function h(x,f){if(typeof x=="boolean")return!x;for(let v in x)if(f[v])return!0;return!1}T.schemaHasRules=h;function i(x,f){if(typeof x=="boolean")return!x;for(let v in x)if(v!=="$ref"&&f.all[v])return!0;return!1}T.schemaHasRulesButRef=i;function c({topSchemaRef:x,schemaPath:f},v,g,I){if(!I){if(typeof v=="number"||typeof v=="boolean")return v;if(typeof v=="string")return R._`${v}`}return R._`${x}${f}${(0,R.getProperty)(g)}`}T.schemaRefOrVal=c;function s(x){return o(decodeURIComponent(x))}T.unescapeFragment=s;function A(x){return encodeURIComponent(l(x))}T.escapeFragment=A;function l(x){if(typeof x=="number")return`${x}`;return x.replace(/~/g,"~0").replace(/\//g,"~1")}T.escapeJsonPointer=l;function o(x){return x.replace(/~1/g,"/").replace(/~0/g,"~")}T.unescapeJsonPointer=o;function n(x,f){if(Array.isArray(x))for(let v of x)f(v);else f(x)}T.eachItem=n;function p({mergeNames:x,mergeToName:f,mergeValues:v,resultToName:g}){return(I,S,O,j)=>{let d=O===void 0?S:O instanceof R.Name?(S instanceof R.Name?x(I,S,O):f(I,S,O),O):S instanceof R.Name?(f(I,O,S),S):v(S,O);return j===R.Name&&!(d instanceof R.Name)?g(I,d):d}}T.mergeEvaluated={props:p({mergeNames:(x,f,v)=>x.if(R._`${v} !== true && ${f} !== undefined`,()=>{x.if(R._`${f} === true`,()=>x.assign(v,!0),()=>x.assign(v,R._`${v} || {}`).code(R._`Object.assign(${v}, ${f})`))}),mergeToName:(x,f,v)=>x.if(R._`${v} !== true`,()=>{if(f===!0)x.assign(v,!0);else x.assign(v,R._`${v} || {}`),m(x,v,f)}),mergeValues:(x,f)=>x===!0?!0:{...x,...f},resultToName:_}),items:p({mergeNames:(x,f,v)=>x.if(R._`${v} !== true && ${f} !== undefined`,()=>x.assign(v,R._`${f} === true ? true : ${v} > ${f} ? ${v} : ${f}`)),mergeToName:(x,f,v)=>x.if(R._`${v} !== true`,()=>x.assign(v,f===!0?!0:R._`${v} > ${f} ? ${v} : ${f}`)),mergeValues:(x,f)=>x===!0?!0:Math.max(x,f),resultToName:(x,f)=>x.var("items",f)})};function _(x,f){if(f===!0)return x.var("props",!0);let v=x.var("props",R._`{}`);if(f!==void 0)m(x,v,f);return v}T.evaluatedPropsToName=_;function m(x,f,v){Object.keys(v).forEach((g)=>x.assign(R._`${f}${(0,R.getProperty)(g)}`,!0))}T.setEvaluated=m;var b={};function y(x,f){return x.scopeValue("func",{ref:f,code:b[f.code]||(b[f.code]=new a._Code(f.code))})}T.useFunc=y;var u;(function(x){x[x.Num=0]="Num",x[x.Str=1]="Str"})(u||(T.Type=u={}));function P(x,f,v){if(x instanceof R.Name){let g=f===u.Num;return v?g?R._`"[" + ${x} + "]"`:R._`"['" + ${x} + "']"`:g?R._`"/" + ${x}`:R._`"/" + ${x}.replace(/~/g, "~0").replace(/\\//g, "~1")`}return v?(0,R.getProperty)(x).toString():"/"+l(x)}T.getErrorPath=P;function k(x,f,v=x.opts.strictSchema){if(!v)return;if(f=`strict mode: ${f}`,v===!0)throw Error(f);x.self.logger.warn(f)}T.checkStrictMode=k}

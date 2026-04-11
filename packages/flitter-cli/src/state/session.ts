@@ -526,6 +526,7 @@ export class SessionState {
     status: ToolCallItem['status'],
     locations?: Array<{ path: string }>,
     rawInput?: Record<string, unknown>,
+    isShellMode?: boolean,
   ): void {
     this.finalizeAssistantMessage();
 
@@ -544,6 +545,7 @@ export class SessionState {
       rawInput,
       collapsed: !this._toolCallsExpanded,
       parentToolCallId,
+      isShellMode: isShellMode ?? false,
     };
     this._items = append(this._items, item);
     this._toolCallIndex.set(toolCallId, this._items.length - 1);

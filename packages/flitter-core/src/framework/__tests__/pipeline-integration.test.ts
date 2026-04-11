@@ -603,4 +603,145 @@ describe('Pipeline Integration: setState → ScreenBuffer', () => {
       expect(readScreenRow(binding, 0, 10)).toContain('count:3');
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Test: Render object swap when ComponentElement child type changes
+  //
+  // Reproduces the shell-mode BashTool bug: a StatelessWidget first returns
+  // a single leaf widget (header only), then on rebuild returns a Column
+  // (header + body).  The child type change causes StatelessElement.rebuild()
+  // to replace the child element.  The new Column's render object must be
+  // linked into the ancestor render object tree, otherwise it paints nothing.
+  // -----------------------------------------------------------------------
+  describe('render object swap on child type change', () => {
+    /**
+     * A StatefulWidget that toggles between returning a TextLeafWidget
+     * (single render object) and a Column with two TextLeafWidgets.
+     * Simulates BashTool switching from header-only to header+body.
+     */
+    class SwitchingWidget extends StatefulWidget {
+      createState(): State<StatefulWidget> {
+        return new SwitchingState();
+      }
+    }
+
+    class SwitchingState extends State<SwitchingWidget> {
+      showBody = false;
+
+      build(_context: BuildContext): Widget {
+        if (!this.showBody) {
+          return new TextLeafWidget('header');
+        }
+        // Import Column at test time
+        const { Column } = require('../../widgets/flex');
+        return new Column({
+          children: [
+            new TextLeafWidget('header'),
+            new TextLeafWidget('body01'),
+          ],
+        });
+      }
+
+      expand(): void {
+        this.setState(() => {
+          this.showBody = true;
+        });
+      }
+    }
+
+    /**
+     * A StatelessWidget wrapper that mimics the ToolCallWidget → BashTool
+     * nesting (two layers of StatelessWidget around the actual render widget).
+     */
+    class OuterWrapper extends StatelessWidget {
+      readonly child: Widget;
+      constructor(child: Widget) {
+        super();
+        this.child = child;
+      }
+      build(_context: BuildContext): Widget {
+        return new InnerWrapper(this.child);
+      }
+    }
+
+    class InnerWrapper extends StatelessWidget {
+      readonly child: Widget;
+      constructor(child: Widget) {
+        super();
+        this.child = child;
+      }
+      build(_context: BuildContext): Widget {
+        return this.child;
+      }
+    }
+
+    /**
+     * A top-level StatefulWidget that wraps SwitchingWidget in two
+     * StatelessWidget layers inside a Column — matching the real
+     * widget tree: Column > [StatelessWidget > StatelessWidget > BashTool].
+     */
+    class HostWidget extends StatefulWidget {
+      createState(): State<StatefulWidget> {
+        return new HostState();
+      }
+    }
+
+    class HostState extends State<HostWidget> {
+      switcher: SwitchingWidget = new SwitchingWidget();
+
+      build(_context: BuildContext): Widget {
+        const { Column } = require('../../widgets/flex');
+        return new Column({
+          children: [
+            new TextLeafWidget('above-'),
+            new OuterWrapper(this.switcher),
+          ],
+        });
+      }
+    }
+
+    it('new render object is visible after child type changes through StatelessWidget layers', () => {
+      const binding = WidgetsBinding.instance;
+      const host = new HostWidget();
+      binding.attachRootWidget(host);
+
+      binding.requestForcedPaintFrame();
+      binding.drawFrameSync();
+
+      // Should see "above-" and "header" painted
+      const row0 = readScreenRow(binding, 0, 30);
+      expect(row0).toContain('above-');
+
+      const row1 = readScreenRow(binding, 1, 30);
+      expect(row1).toContain('header');
+
+      // "body01" should NOT be visible yet
+      const allRows = Array.from({ length: 5 }, (_, i) => readScreenRow(binding, i, 30)).join('');
+      expect(allRows).not.toContain('body01');
+
+      // Find the SwitchingState and expand it
+      let switchState: SwitchingState | null = null;
+      function findState(element: any): void {
+        if (element._state instanceof SwitchingState) {
+          switchState = element._state;
+          return;
+        }
+        for (const child of element.children || []) {
+          if (child) findState(child);
+        }
+        if (element._child) findState(element._child);
+      }
+      findState(binding.rootElement!);
+      expect(switchState).not.toBeNull();
+
+      // Expand — switches from TextLeafWidget to Column([header, body])
+      switchState!.expand();
+      binding.drawFrameSync();
+
+      // After expansion, "body01" must be visible
+      const allRowsAfter = Array.from({ length: 5 }, (_, i) => readScreenRow(binding, i, 30)).join('');
+      expect(allRowsAfter).toContain('header');
+      expect(allRowsAfter).toContain('body01');
+    });
+  });
 });

@@ -470,7 +470,7 @@ export class AppState {
         log.info('AppState.submitPrompt: shell mode blocked while agent is active');
         return;
       }
-      await this.invokeBashCommand(shellCmd.cmd, { visibility: shellCmd.visibility });
+      this.invokeBashCommand(shellCmd.cmd, { visibility: shellCmd.visibility });
       return;
     }
     return this.promptController.submitPrompt(text);
@@ -1191,13 +1191,17 @@ export class AppState {
   }
 
   /**
-   * 移除 bash invocation。严格参照 AMP 的 removeBashInvocation 实现：
+   * 移除 bash invocation。精确对齐 AMP 的 removeBashInvocation（chunk-044.js）：
    * - 如果还在 pending 中，取消 showTimer 并直接删除
    * - 如果已显示但不足 500ms，设置延迟移除定时器（G2: 500ms 最小显示时间）
    * - 否则立即通过 doRemoveBashInvocation 移除
+   *
+   * AMP 中 pending 直接删除不做提升——因为 Observable complete 天然晚于 75ms showTimer。
+   * Flitter 通过 BashExecutor._run 中的 MIN_COMPLETE_DELAY_MS (80ms) 保证同样的时序，
+   * 使得 complete 调用此方法时 invocation 已被 showTimer 推入 bashInvocations[]。
    */
   removeBashInvocation(id: string): void {
-    // 先检查 pending——如果还在 pending 中，取消 showTimer 并直接移除
+    // 先检查 pending——如果还在 pending 中，取消 showTimer 并直接删除（匹配 AMP 原版）
     const pendingEntry = this.pendingBashInvocations.get(id);
     if (pendingEntry) {
       clearTimeout(pendingEntry.showTimer);
@@ -1310,12 +1314,15 @@ export class AppState {
 
   /**
    * 直接执行 shell 模式的 bash 命令（`$`/`$$` 前缀）。
-   * 严格参照 AMP 的 invokeBashCommand 实现：
-   * - G1: 75ms pending→shown 延迟（先放入 pendingBashInvocations，75ms 后才加入 bashInvocations[]）
-   * - G2: 完成后通过 removeBashInvocation 实现 500ms 最小显示时间
-   * - 使用 AbortController 支持取消
+   * Non-blocking, callback-driven bash command execution aligned with AMP:
+   * - G1: 75ms pending→shown delay (pendingBashInvocations → bashInvocations[])
+   * - G2: 500ms minimum display time via removeBashInvocation
+   * - AbortController for cancellation
+   * - subscribe({ next, error, complete }) aligns with AMP's Observable model
+   * - Persists command+result to conversation items (aligns with AMP's
+   *   invokeBashTool writing thread items via activeThreadHandle)
    */
-  async invokeBashCommand(command: string, opts: { visibility: 'shell' | 'hidden' }): Promise<void> {
+  invokeBashCommand(command: string, opts: { visibility: 'shell' | 'hidden' }): void {
     const id = `bash-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     const abortController = new AbortController();
     const invocation: BashInvocation = {
@@ -1340,47 +1347,63 @@ export class AppState {
 
     this.pendingBashInvocations.set(id, { invocation, showTimer });
 
+    // Persist to conversation items — aligns with AMP's invokeBashTool writing thread items.
+    // Title format: "Bash $ {command}" so resolveToolName returns "Bash" for BashTool dispatch.
+    if (opts.visibility !== 'hidden') {
+      this.session.addToolCall(id, `Bash $ ${command}`, 'bash', 'in_progress', undefined, { command }, true);
+      // Shell-mode tool calls always render expanded (show output), regardless of
+      // the global defaultToolExpanded config. Force collapsed=false on the new item.
+      this.session.setItemCollapsed(this.session.items.length - 1, false);
+    }
+
     log.info(`AppState.invokeBashCommand: id=${id} cmd=${command.slice(0, 200)} visibility=${opts.visibility}`);
 
+    // Non-blocking subscribe — aligns with AMP invokeBashTool().subscribe({ next, error, complete })
     const executor = new BashExecutor();
-    try {
-      const result = await executor.execute(
-        { command },
-        { cwd: this.metadata.cwd, abortSignal: abortController.signal },
-      );
+    executor.subscribe(
+      { command },
+      { cwd: this.metadata.cwd, abortSignal: abortController.signal },
+      {
+        next: (event) => {
+          if (event.type !== 'result') return;
+          const finalStatus: BashInvocation['status'] = event.isError ? 'failed' : 'completed';
 
-      const finalStatus = result.isError ? 'failed' : 'completed';
+          // Update temporary UI overlay (bashInvocations[])
+          const pendingEntry = this.pendingBashInvocations.get(id);
+          if (pendingEntry) {
+            pendingEntry.invocation = { ...pendingEntry.invocation, status: finalStatus, output: event.content };
+          } else {
+            this.bashInvocations = this.bashInvocations.map(inv =>
+              inv.id === id ? { ...inv, status: finalStatus, output: event.content } : inv,
+            );
+          }
 
-      // 更新 pending 和 shown 中的 invocation 状态和输出
-      const pendingEntry = this.pendingBashInvocations.get(id);
-      if (pendingEntry) {
-        pendingEntry.invocation.status = finalStatus as BashInvocation['status'];
-        pendingEntry.invocation.output = result.content;
-      }
-      this.bashInvocations = this.bashInvocations.map(inv =>
-        inv.id === id
-          ? { ...inv, status: finalStatus as BashInvocation['status'], output: result.content }
-          : inv,
-      );
+          // Persist result to conversation items (permanent)
+          if (opts.visibility !== 'hidden') {
+            this.session.updateToolCall(
+              id,
+              finalStatus === 'failed' ? 'failed' : 'completed',
+              [{ type: 'text', content: { type: 'text', text: event.content } }],
+            );
+          }
 
-      this._notifyListeners();
-      this.removeBashInvocation(id);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-
-      const pendingEntry = this.pendingBashInvocations.get(id);
-      if (pendingEntry) {
-        pendingEntry.invocation.status = 'failed';
-        pendingEntry.invocation.output = `Error: ${errMsg}`;
-      }
-      this.bashInvocations = this.bashInvocations.map(inv =>
-        inv.id === id ? { ...inv, status: 'failed' as const, output: `Error: ${errMsg}` } : inv,
-      );
-
-      log.error(`AppState.invokeBashCommand: error: ${errMsg}`);
-      this._notifyListeners();
-      this.removeBashInvocation(id);
-    }
+          if (!pendingEntry) {
+            this._notifyListeners();
+          }
+        },
+        error: (err) => {
+          log.info(`invokeBashCommand.error: id=${id} err=${err.message}`);
+          if (opts.visibility !== 'hidden') {
+            this.session.updateToolCall(id, 'failed', [{ type: 'text', content: { type: 'text', text: err.message } }]);
+          }
+          this.removeBashInvocation(id);
+        },
+        complete: () => {
+          log.info(`invokeBashCommand.complete: id=${id}`);
+          this.removeBashInvocation(id);
+        },
+      },
+    );
   }
 
   // ---------------------------------------------------------------------------

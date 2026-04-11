@@ -1110,6 +1110,7 @@ class AppShellState extends State<AppShell> {
           inputText: this.textController.text,
           isShowingShortcutsHelp: this._isShowingShortcutsHelp,
           runningBashInvocations: this.widget.appState.bashInvocations.length > 0 || this.widget.appState.pendingBashInvocations.size > 0,
+          shellModeStatus: this.widget.appState.currentShellModeStatus,
         }),
       ],
     });

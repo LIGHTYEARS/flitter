@@ -1,1 +1,0 @@
-G1R=class G1R extends FT{props;constructor(R){super();this.props=R}createState(){return new z1R}}

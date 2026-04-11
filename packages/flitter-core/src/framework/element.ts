@@ -167,6 +167,67 @@ export class Element {
     this._children.length = 0;
   }
 
+  // --- Render object swap for ComponentElement child replacement ---
+  //
+  // When a StatelessElement or StatefulElement replaces its child with a
+  // widget of a different type (canUpdate fails), the effective renderObject
+  // changes.  The nearest ancestor RenderObjectElement still holds a
+  // reference to the old render object; we must swap it for the new one.
+  //
+  // Flutter handles this via attachRenderObject/detachRenderObject and
+  // insertRenderObjectChild/removeRenderObjectChild.  Flitter-core does
+  // render-object wiring at mount time only, so this helper patches the
+  // gap for the update path.
+  _swapChildRenderObject(
+    oldRO: RenderObject | undefined,
+    newRO: RenderObject | undefined,
+  ): void {
+    if (oldRO === newRO) return;   // nothing changed
+
+    // Walk up to find the nearest ancestor RenderObjectElement.
+    let ancestor: Element | undefined = this.parent;
+    while (ancestor && !(ancestor instanceof RenderObjectElement)) {
+      ancestor = ancestor.parent;
+    }
+    if (!ancestor) return;
+    const ancestorRO = (ancestor as RenderObjectElement).renderObject;
+    if (!ancestorRO) return;
+
+    if (isContainerRenderObject(ancestorRO)) {
+      // Container (Column, Row, Stack, etc.): swap old for new in-place.
+      // Access the internal _children array to splice at the exact position
+      // so sibling order is preserved.
+      const kids = (ancestorRO as unknown as { _children: RenderObject[] })._children;
+      const idx = oldRO ? kids.indexOf(oldRO) : -1;
+
+      if (oldRO && idx >= 0) {
+        // Drop old child (clears parent, parentData)
+        (ancestorRO as RenderObject).dropChild(oldRO);
+        if (newRO) {
+          // Set up new child at the same slot
+          (ancestorRO as { setupParentData(child: RenderObject): void }).setupParentData(newRO);
+          (ancestorRO as RenderObject).adoptChild(newRO);
+          kids[idx] = newRO;
+        } else {
+          kids.splice(idx, 1);
+        }
+      } else if (!oldRO && newRO) {
+        // No old RO — just append
+        ancestorRO.insert(newRO);
+      }
+    } else if (isSingleChildRenderObject(ancestorRO)) {
+      // SingleChild (Padding, DecoratedBox, etc.): swap .child
+      if (oldRO) {
+        (ancestorRO as RenderObject).dropChild(oldRO);
+      }
+      if (newRO) {
+        ancestorRO.child = newRO;
+      } else {
+        ancestorRO.child = null;
+      }
+    }
+  }
+
   // --- Lifecycle: mount ---
   // Amp ref: T$.markMounted()
   // Extended: Also registers GlobalKey association.
@@ -466,12 +527,17 @@ export class StatelessElement extends Element {
       if (this._child.widget.canUpdate(newWidget)) {
         this._child.update(newWidget);
       } else {
-        // Replace child: unmount old, inflate new
+        // Replace child: unmount old, inflate new.
+        // Capture old render object before unmounting so we can swap it
+        // in the ancestor RenderObjectElement's render object tree.
+        const oldRO = this._child.renderObject;
         this._child.unmount();
         this.removeChild(this._child);
         this._child = newWidget.createElement() as Element;
         this.addChild(this._child!);
         this._mountChild(this._child!);
+        // Swap render object in ancestor (no-op if unchanged)
+        this._swapChildRenderObject(oldRO, this._child.renderObject);
       }
     } else {
       // First build: inflate
@@ -643,12 +709,14 @@ export class StatefulElement extends Element {
       if (this._child.widget.canUpdate(newWidget)) {
         this._child.update(newWidget);
       } else {
-        // Replace child
+        // Replace child — swap render object in ancestor tree
+        const oldRO = this._child.renderObject;
         this._child.unmount();
         this.removeChild(this._child);
         this._child = newWidget.createElement() as Element;
         this.addChild(this._child!);
         this._mountChild(this._child!);
+        this._swapChildRenderObject(oldRO, this._child.renderObject);
       }
     } else {
       // First build: inflate
@@ -737,6 +805,7 @@ export abstract class ProxyElement extends Element {
     if (this._child && this._child.widget.canUpdate(newChildWidget)) {
       this._child.update(newChildWidget);
     } else {
+      const oldRO = this._child?.renderObject;
       if (this._child) {
         this._child.unmount();
         this.removeChild(this._child);
@@ -744,6 +813,9 @@ export abstract class ProxyElement extends Element {
       this._child = newChildWidget.createElement() as Element;
       this.addChild(this._child!);
       this._mountChild(this._child!);
+      if (oldRO !== undefined) {
+        this._swapChildRenderObject(oldRO, this._child.renderObject);
+      }
     }
   }
 

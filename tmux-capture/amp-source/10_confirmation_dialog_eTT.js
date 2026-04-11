@@ -1,1 +1,0 @@
-eTT=class eTT extends FT{options;onSelect;content;borderColor;autofocus;onShowCommand;constructor({key:R,options:T,onSelect:a,content:e,borderColor:r,autofocus:h=!0,onShowCommand:t}){super({key:R});this.options=T,this.onSelect=a,this.content=e,this.borderColor=r??zr.default().colorScheme.warning,this.autofocus=h,this.onShowCommand=t}createState(){return new rTT}}

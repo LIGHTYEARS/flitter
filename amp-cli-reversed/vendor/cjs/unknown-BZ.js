@@ -1,0 +1,12 @@
+// Module: unknown-BZ
+// Original: BZ
+// Type: CJS (RT wrapper)
+// Exports: (none)
+// Category: unknown
+
+// Module: bZ (CJS)
+(T)=>{Object.defineProperty(T,"__esModule",{value:!0}),T.isObservableInstrument=T.ObservableUpDownCounterInstrument=T.ObservableGaugeInstrument=T.ObservableCounterInstrument=T.ObservableInstrument=T.HistogramInstrument=T.GaugeInstrument=T.CounterInstrument=T.UpDownCounterInstrument=T.SyncInstrument=void 0;
+var R=n0(),a=$9();
+class e{_writableMetricStorage;
+_descriptor;
+constructor(n,p){this._writableMetricStorage=n,this._descriptor=p}_record(n,p={},_=R.context.active()){if(typeof n!=="number"){R.diag.warn(`non-number value provided to metric ${this._descriptor.name}: ${n}`);return}if(this._descriptor.valueType===R.ValueType.INT&&!Number.isInteger(n)){if(R.diag.warn(`INT value type cannot accept a floating-point value for ${this._descriptor.name}, ignoring the fractional digits.`),n=Math.trunc(n),!Number.isInteger(n))return}this._writableMetricStorage.record(n,p,_,(0,a.millisToHrTime)(Date.now()))}}T.SyncInstrument=e;class t extends e{add(n,p,_){this._record(n,p,_)}}T.UpDownCounterInstrument=t;class r extends e{add(n,p,_){if(n<0){R.diag.warn(`negative value provided to counter ${this._descriptor.name}: ${n}`);return}this._record(n,p,_)}}T.CounterInstrument=r;class h extends e{record(n,p,_){this._record(n,p,_)}}T.GaugeInstrument=h;class i extends e{record(n,p,_){if(n<0){R.diag.warn(`negative value provided to histogram ${this._descriptor.name}: ${n}`);return}this._record(n,p,_)}}T.HistogramInstrument=i;class c{_observableRegistry;_metricStorages;_descriptor;constructor(n,p,_){this._observableRegistry=_,this._descriptor=n,this._metricStorages=p}addCallback(n){this._observableRegistry.addCallback(n,this)}removeCallback(n){this._observableRegistry.removeCallback(n,this)}}T.ObservableInstrument=c;class s extends c{}T.ObservableCounterInstrument=s;class A extends c{}T.ObservableGaugeInstrument=A;class l extends c{}T.ObservableUpDownCounterInstrument=l;function o(n){return n instanceof c}T.isObservableInstrument=o}

@@ -18,6 +18,7 @@ import {
 import type { ToolCallItem } from '../../state/types';
 import { GenericToolCard } from './generic-tool-card';
 import { BashTool } from './bash-tool';
+import { ShellModeOutputWidget } from './shell-mode-output';
 import { ReadTool } from './read-tool';
 import { GrepTool } from './grep-tool';
 import { EditFileTool } from './edit-file-tool';
@@ -72,6 +73,12 @@ export class ToolCallWidget extends StatelessWidget {
     const name = TOOL_NAME_MAP[rawName] ?? rawName;
     const expanded = this.isExpanded;
     const toggle = this.onToggle;
+
+    // Shell mode commands ($/$$ prefix) use a dedicated renderer
+    // that matches AMP's BJR widget style (no ToolHeader, cyan $ prefix)
+    if (this.toolCall.isShellMode) {
+      return new ShellModeOutputWidget({ toolCall: this.toolCall });
+    }
 
     // --- Prefix-based routing for sub-agent / toolbox tools ---
     if (name.startsWith('sa__') || name.startsWith('tb__')) {

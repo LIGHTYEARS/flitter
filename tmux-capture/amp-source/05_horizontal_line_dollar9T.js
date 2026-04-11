@@ -1,1 +1,0 @@
-$9T=class $9T extends Ln{color;constructor({color:R,key:T}){super({key:T});this.color=R}createRenderObject(){return new j9T(this.color)}updateRenderObject(R){R.color=this.color}}

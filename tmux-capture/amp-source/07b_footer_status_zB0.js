@@ -1,1 +1,0 @@
-function zB0(R){let T=yB(R);switch(T.type){case"none":return null;case"simple":return T.message;case"executing":return`Executing /${T.command}...`;case"executing-message":return T.message;case"context-warning":return`${T.prefix} Use thread:handoff or thread:new to continue in a new thread.`}}

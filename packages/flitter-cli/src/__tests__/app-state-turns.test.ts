@@ -284,3 +284,87 @@ describe('AppState turn and screen state integration', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Shell mode (invokeBashCommand) integration tests
+// ---------------------------------------------------------------------------
+
+describe('Shell mode integration', () => {
+  let appState: AppState;
+  let session: SessionState;
+
+  beforeEach(() => {
+    const result = createTestAppState();
+    appState = result.appState;
+    session = result.session;
+  });
+
+  test('$command persists tool call to conversation items', async () => {
+    // Screen starts as welcome
+    expect(appState.screenState.kind).toBe('welcome');
+
+    // Invoke shell command via submitPrompt
+    await appState.submitPrompt('$echo hello-shell');
+
+    // Wait for command execution + subscribe completion (80ms MIN_COMPLETE_DELAY + some buffer)
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Conversation should now have items (tool call persisted)
+    expect(session.items.length).toBeGreaterThan(0);
+    expect(appState.conversation.isEmpty).toBe(false);
+
+    // Screen should transition away from welcome
+    expect(appState.screenState.kind).not.toBe('welcome');
+
+    // The tool call item should be findable
+    const toolCallItem = session.items.find(
+      item => item.type === 'tool_call' && (item as any).kind === 'bash',
+    );
+    expect(toolCallItem).toBeDefined();
+  });
+
+  test('$command tool call has correct title for BashTool dispatch', async () => {
+    await appState.submitPrompt('$ls /tmp');
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    const toolCallItem = session.items.find(item => item.type === 'tool_call') as any;
+    expect(toolCallItem).toBeDefined();
+    // Title starts with "Bash" so resolveToolName returns "Bash"
+    expect(toolCallItem.title.startsWith('Bash')).toBe(true);
+    // Title includes the command
+    expect(toolCallItem.title).toContain('ls /tmp');
+  });
+
+  test('$command tool call gets result after execution', async () => {
+    await appState.submitPrompt('$echo persistent-output');
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    const toolCallItem = session.items.find(item => item.type === 'tool_call') as any;
+    expect(toolCallItem).toBeDefined();
+    // Should have result (completed or failed depending on cwd availability)
+    expect(toolCallItem.result).toBeDefined();
+    expect(['completed', 'failed']).toContain(toolCallItem.result.status);
+  });
+
+  test('$$command does NOT persist to conversation items (hidden)', async () => {
+    await appState.submitPrompt('$$echo hidden');
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // No items should be added for hidden commands
+    expect(session.items.length).toBe(0);
+    expect(appState.conversation.isEmpty).toBe(true);
+    expect(appState.screenState.kind).toBe('welcome');
+  });
+
+  test('screen stays on ready after shell command completes (no flash back to welcome)', async () => {
+    await appState.submitPrompt('$echo stability-test');
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // After command completes, screen should be ready (not welcome)
+    expect(appState.screenState.kind).toBe('ready');
+
+    // Wait additional time to make sure it doesn't flash back
+    await new Promise(resolve => setTimeout(resolve, 600));
+    expect(appState.screenState.kind).toBe('ready');
+  });
+});

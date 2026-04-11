@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, readFileSync, rmSync, existsSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { BashExecutor } from '../tools/bash-executor';
+import type { BashStreamEvent } from '../state/types';
 import { ReadExecutor } from '../tools/read-executor';
 import { WriteExecutor } from '../tools/write-executor';
 import { EditExecutor } from '../tools/edit-executor';
@@ -62,6 +63,102 @@ describe('BashExecutor', () => {
   test('captures stderr', async () => {
     const result = await bash.execute({ command: 'echo err >&2' }, ctx());
     expect(result.content).toContain('err');
+  });
+
+  test('respects abort signal', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const result = await bash.execute(
+      { command: 'sleep 10' },
+      { ...ctx(), abortSignal: ac.signal },
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain('aborted');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BashExecutor.subscribe (Observable-style API matching AMP)
+// ---------------------------------------------------------------------------
+
+describe('BashExecutor.subscribe', () => {
+  const bash = new BashExecutor();
+
+  function subscribeCollect(
+    input: { command?: string; timeout?: number },
+    context: ToolContext,
+  ): Promise<{ events: BashStreamEvent[]; completed: boolean; error?: Error }> {
+    return new Promise((resolve) => {
+      const events: BashStreamEvent[] = [];
+      let completed = false;
+      bash.subscribe(
+        input as { command: string },
+        context,
+        {
+          next: (event) => { events.push(event); },
+          error: (err) => { resolve({ events, completed, error: err }); },
+          complete: () => { completed = true; resolve({ events, completed }); },
+        },
+      );
+    });
+  }
+
+  test('calls next with result then complete for a simple command', async () => {
+    const { events, completed } = await subscribeCollect({ command: 'echo hello' }, ctx());
+    expect(completed).toBe(true);
+    expect(events.length).toBeGreaterThanOrEqual(1);
+    const result = events.find(e => e.type === 'result');
+    expect(result).toBeDefined();
+    expect(result!.type === 'result' && result!.content.trim()).toBe('hello');
+    expect(result!.type === 'result' && result!.isError).toBe(false);
+  });
+
+  test('calls next with error result for failing command', async () => {
+    const { events, completed } = await subscribeCollect({ command: 'exit 42' }, ctx());
+    expect(completed).toBe(true);
+    const result = events.find(e => e.type === 'result');
+    expect(result).toBeDefined();
+    expect(result!.type === 'result' && result!.isError).toBe(true);
+    expect(result!.type === 'result' && result!.content).toContain('42');
+  });
+
+  test('calls next with error for missing command then complete', async () => {
+    const { events, completed } = await subscribeCollect({}, ctx());
+    expect(completed).toBe(true);
+    const result = events.find(e => e.type === 'result');
+    expect(result).toBeDefined();
+    expect(result!.type === 'result' && result!.isError).toBe(true);
+    expect(result!.type === 'result' && result!.content).toContain('command parameter');
+  });
+
+  test('respects abort signal', async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const { events, completed } = await subscribeCollect(
+      { command: 'sleep 10' },
+      { ...ctx(), abortSignal: ac.signal },
+    );
+    expect(completed).toBe(true);
+    const result = events.find(e => e.type === 'result');
+    expect(result).toBeDefined();
+    expect(result!.type === 'result' && result!.isError).toBe(true);
+    expect(result!.type === 'result' && result!.content).toContain('aborted');
+  });
+
+  test('is non-blocking — returns void immediately', () => {
+    let nextCalled = false;
+    // subscribe should return synchronously without waiting for the command
+    bash.subscribe(
+      { command: 'echo test' },
+      ctx(),
+      {
+        next: () => { nextCalled = true; },
+        error: () => {},
+        complete: () => {},
+      },
+    );
+    // At this point the command hasn't completed yet — subscribe is fire-and-forget
+    expect(nextCalled).toBe(false);
   });
 });
 

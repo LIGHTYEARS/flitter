@@ -6,3 +6,4 @@ export * from "./scroll/index.js";
 export * from "./editing/index.js";
 export * from "./markdown/index.js";
 export * from "./perf/index.js";
+export * from "./overlay/index.js";

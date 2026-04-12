@@ -13,10 +13,10 @@
 |-------|-------|
 | Phase | 4 — TUI 三棵树引擎 |
 | Package | `@flitter/tui` |
-| Status | planned |
+| Status | complete |
 | Requirements | TUI-03..06 |
 | Plans created | 8/8 |
-| Plans completed | 7/8 |
+| Plans completed | 8/8 |
 
 ---
 
@@ -27,7 +27,7 @@
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
-| 4 | TUI 三棵树引擎 | in_progress | 8/8 (7 done) | TUI-03..06 (4) |
+| 4 | TUI 三棵树引擎 | complete | 8/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
@@ -42,7 +42,7 @@
 
 | Milestone | Description | Status | Phase Gate |
 |-----------|-------------|--------|------------|
-| M1 | Hello TUI | pending | Phase 4 |
+| M1 | Hello TUI | complete | Phase 4 |
 | M2 | Widget 树 | pending | Phase 5 |
 | M3 | 流式对话 | pending | Phase 7 |
 | M4 | 工具调用 | pending | Phase 10 |
@@ -106,12 +106,14 @@
 - Phase 3 零外部依赖验证通过: VT 解析器 + Screen 缓冲区 + ANSI 渲染全部自实现
 - 总测试数: 812 (Phase 1: 315 + Phase 2: 227 + Phase 3: 270)
 
-- Phase 4 规划完成: 8 个 plan (4 waves), 预计 ≥162 个测试
-  - Wave 1: BoxConstraints (04-01) + RenderObject/types (04-02) + RenderBox (04-03) — 基础渲染层
-  - Wave 2: Element 生命周期 (04-04) + Widget/Key (04-05) — 元素与组件层
-  - Wave 3: ComponentElement/RenderObjectElement 协调 (04-06) + StatefulWidget/State (04-07) — 组合与状态层
-  - Wave 4: FrameScheduler + BuildOwner + PipelineOwner (04-08) — 帧调度引擎
+- Phase 4 完成: 8 个 plan 全部实现 — 226 个测试全部通过
+  - Wave 1: BoxConstraints (57 tests) + RenderObject/types (27 tests) + RenderBox (28 tests) = 112 tests
+  - Wave 2: Element (30 tests) + Widget/Key/GlobalKey (20 tests) = 50 tests
+  - Wave 3: ComponentElement+RenderObjectElement 协调 (18 tests) + StatefulWidget/StatelessWidget/State (21 tests) = 39 tests
+  - Wave 4: BuildOwner + PipelineOwner + FrameScheduler (25 tests)
+- @flitter/tui 导出 tree/ 全部公共 API: constraints, types, render-object, render-box, element, widget, component-element, render-object-element, stateless-widget, stateful-widget, build-owner, pipeline-owner, frame-scheduler
 - Phase 4 核心类映射 (逆向→TypeScript): Mn→Widget, qm→Element, wR→State, vH→RenderObject, o0→BoxConstraints, k8→FrameScheduler, YXT→BuildOwner, JXT→PipelineOwner
+- 总测试数: 1087 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226)
 
 ---
 
@@ -122,4 +124,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 4 Wave 3 complete — 7/8 plans, 201 total tree tests)*
+*Last updated: 2026-04-12 (Phase 4 complete — 8/8 plans, 226 tree tests, 1087 total)*

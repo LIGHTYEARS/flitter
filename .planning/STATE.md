@@ -16,7 +16,7 @@
 | Status | planned |
 | Requirements | TUI-03..06 |
 | Plans created | 8/8 |
-| Plans completed | 3/8 |
+| Plans completed | 5/8 |
 
 ---
 
@@ -27,7 +27,7 @@
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
-| 4 | TUI 三棵树引擎 | in_progress | 8/8 (3 done) | TUI-03..06 (4) |
+| 4 | TUI 三棵树引擎 | in_progress | 8/8 (5 done) | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
@@ -122,4 +122,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 4 Wave 1 complete — 3/8 plans, 112 new tests)*
+*Last updated: 2026-04-12 (Phase 4 Wave 2 complete — 5/8 plans, 162 total tree tests)*

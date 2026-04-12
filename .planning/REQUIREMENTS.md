@@ -115,15 +115,72 @@ Deferred to future release. Tracked but not in current roadmap.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| (Populated by roadmapper) | | |
+| Requirement | Phase | Phase Name | Status |
+|-------------|-------|------------|--------|
+| SCHM-01 | 1 | Schema 类型地基 | not_started |
+| SCHM-02 | 1 | Schema 类型地基 | not_started |
+| SCHM-03 | 1 | Schema 类型地基 | not_started |
+| SCHM-04 | 1 | Schema 类型地基 | not_started |
+| SCHM-05 | 1 | Schema 类型地基 | not_started |
+| INFR-01 | 2 | 基础设施工具层 | not_started |
+| INFR-02 | 2 | 基础设施工具层 | not_started |
+| INFR-03 | 2 | 基础设施工具层 | not_started |
+| INFR-04 | 2 | 基础设施工具层 | not_started |
+| INFR-05 | 2 | 基础设施工具层 | not_started |
+| INFR-06 | 2 | 基础设施工具层 | not_started |
+| TUI-01 | 3 | TUI 底层渲染基础 | not_started |
+| TUI-02 | 3 | TUI 底层渲染基础 | not_started |
+| TUI-03 | 4 | TUI 三棵树引擎 | not_started |
+| TUI-04 | 4 | TUI 三棵树引擎 | not_started |
+| TUI-05 | 4 | TUI 三棵树引擎 | not_started |
+| TUI-06 | 4 | TUI 三棵树引擎 | not_started |
+| TUI-07 | 5 | TUI Widget 库与主题 | not_started |
+| TUI-08 | 5 | TUI Widget 库与主题 | not_started |
+| TUI-11 | 5 | TUI Widget 库与主题 | not_started |
+| TUI-09 | 6 | TUI 高级交互组件 | not_started |
+| TUI-10 | 6 | TUI 高级交互组件 | not_started |
+| TUI-12 | 6 | TUI 高级交互组件 | not_started |
+| TUI-13 | 6 | TUI 高级交互组件 | not_started |
+| TUI-14 | 6 | TUI 高级交互组件 | not_started |
+| TUI-15 | 6 | TUI 高级交互组件 | not_started |
+| LLM-01 | 7 | LLM Provider 核心层 | not_started |
+| LLM-02 | 7 | LLM Provider 核心层 | not_started |
+| LLM-03 | 7 | LLM Provider 核心层 | not_started |
+| LLM-04 | 7 | LLM Provider 核心层 | not_started |
+| LLM-05 | 7 | LLM Provider 核心层 | not_started |
+| LLM-06 | 7 | LLM Provider 核心层 | not_started |
+| LLM-07 | 8 | MCP 协议集成 | not_started |
+| LLM-08 | 8 | MCP 协议集成 | not_started |
+| LLM-09 | 8 | MCP 协议集成 | not_started |
+| LLM-10 | 8 | MCP 协议集成 | not_started |
+| DATA-01 | 9 | 数据持久化层 | not_started |
+| DATA-02 | 9 | 数据持久化层 | not_started |
+| DATA-03 | 9 | 数据持久化层 | not_started |
+| DATA-04 | 9 | 数据持久化层 | not_started |
+| DATA-05 | 9 | 数据持久化层 | not_started |
+| AGNT-01 | 10 | Agent 核心引擎 | not_started |
+| AGNT-02 | 10 | Agent 核心引擎 | not_started |
+| AGNT-03 | 10 | Agent 核心引擎 | not_started |
+| AGNT-04 | 10 | Agent 核心引擎 | not_started |
+| AGNT-05 | 10 | Agent 核心引擎 | not_started |
+| AGNT-06 | 10 | Agent 核心引擎 | not_started |
+| AGNT-07 | 10 | Agent 核心引擎 | not_started |
+| AGNT-08 | 10 | Agent 核心引擎 | not_started |
+| AGNT-09 | 10 | Agent 核心引擎 | not_started |
+| AGNT-10 | 10 | Agent 核心引擎 | not_started |
+| AGNT-11 | 10 | Agent 核心引擎 | not_started |
+| CLI-01 | 11 | CLI 入口与端到端集成 | not_started |
+| CLI-02 | 11 | CLI 入口与端到端集成 | not_started |
+| CLI-03 | 11 | CLI 入口与端到端集成 | not_started |
+| CLI-04 | 11 | CLI 入口与端到端集成 | not_started |
+| CLI-05 | 11 | CLI 入口与端到端集成 | not_started |
 
 **Coverage:**
 - v1 requirements: 53 total
-- Mapped to phases: 0
-- Unmapped: 53 ⚠️
+- Mapped to phases: 53
+- Unmapped: 0
+- **Coverage: 100%**
 
 ---
 *Requirements defined: 2026-04-12*
-*Last updated: 2026-04-12 after initial definition*
+*Last updated: 2026-04-12 — traceability populated by roadmapper*

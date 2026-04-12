@@ -2,8 +2,8 @@
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 5 (TUI Widget 库与主题)
-**Status:** in_progress
+**Current phase:** 6 (TUI 高级交互组件)
+**Status:** not_started
 
 ---
 
@@ -13,10 +13,10 @@
 |-------|-------|
 | Phase | 5 — TUI Widget 库与主题 |
 | Package | `@flitter/tui` |
-| Status | planning_complete |
+| Status | complete |
 | Requirements | TUI-07, TUI-08, TUI-11 |
 | Plans created | 8/8 |
-| Plans completed | 0/8 |
+| Plans completed | 8/8 |
 
 ---
 
@@ -28,7 +28,7 @@
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | complete | 8/8 | TUI-03..06 (4) |
-| 5 | TUI Widget 库与主题 | in_progress | 8/8 | TUI-07,08,11 (3) |
+| 5 | TUI Widget 库与主题 | complete | 8/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
 | 8 | MCP 协议集成 | not_started | 0/6 | LLM-07..10 (4) |
@@ -43,7 +43,7 @@
 | Milestone | Description | Status | Phase Gate |
 |-----------|-------------|--------|------------|
 | M1 | Hello TUI | complete | Phase 4 |
-| M2 | Widget 树 | pending | Phase 5 |
+| M2 | Widget 树 | complete | Phase 5 |
 | M3 | 流式对话 | pending | Phase 7 |
 | M4 | 工具调用 | pending | Phase 10 |
 | M5 | MCP 集成 | pending | Phase 8 |
@@ -124,7 +124,15 @@
 
 _(none)_
 
+- Phase 5 完成: 8 个 plan 全部实现 — 133 个新测试 (Wave 1: 89 + Wave 2: 90 + Wave 3: 43), 741 总 TUI 测试全部通过
+  - Wave 1: RenderFlex 弹性布局引擎 (34 tests) + CJK/零宽字符宽度 (33 tests) + AppColorScheme/Theme 主题系统 (22 tests)
+  - Wave 2: Row/Column/Flexible/Expanded (32 tests) + EdgeInsets/Padding/SizedBox/Container (28 tests) + Emoji 宽度处理 (30 tests)
+  - Wave 3: Stack/Positioned 层叠布局 (20 tests) + TextSpan/RenderParagraph/RichText/Text 文本渲染 (23 tests)
+- @flitter/tui 新增 widgets/ + text/ 子目录: flex, row, column, flexible, stack, edge-insets, padding, sized-box, container, color-scheme, theme, text-span, rich-text, text, char-width, emoji
+- Phase 5 零外部依赖: Flex 布局引擎 + CJK/Emoji 宽度计算 + 主题系统 + 全部 Widget 自实现
+- 总测试数: 1220 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133)
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 4 complete — 8/8 plans, 226 tree tests, 1087 total)*
+*Last updated: 2026-04-12 (Phase 5 complete — 8/8 plans, 133 widget tests, 741 TUI tests, 1220 total)*

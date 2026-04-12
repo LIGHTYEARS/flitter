@@ -3,7 +3,7 @@
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
 **Current phase:** 4 (TUI 三棵树引擎)
-**Status:** not_started
+**Status:** planned
 
 ---
 
@@ -13,9 +13,9 @@
 |-------|-------|
 | Phase | 4 — TUI 三棵树引擎 |
 | Package | `@flitter/tui` |
-| Status | not_started |
+| Status | planned |
 | Requirements | TUI-03..06 |
-| Plans created | 0/8 |
+| Plans created | 8/8 |
 | Plans completed | 0/8 |
 
 ---
@@ -27,7 +27,7 @@
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
-| 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
+| 4 | TUI 三棵树引擎 | planned | 8/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
@@ -74,6 +74,7 @@
 | KD-08 | Phase 2 三波执行: Wave 1 (Reactive+工具) → Wave 2 (URI+Git+Keyring) → Wave 3 (Scanner+FuzzySearch) | Phase 2 | 2026-04-12 |
 | KD-09 | Phase 3 零外部依赖: VT 解析器 + Screen 缓冲区全部自实现 (不用 xterm.js) | Phase 3 | 2026-04-12 |
 | KD-10 | Phase 3 三波执行: Wave 1 (Cell/Color/TextStyle 数据结构 + VT 类型) → Wave 2 (VT 状态机 + Input 解析器) → Wave 3 (Screen 双缓冲 + ANSI 差分渲染) | Phase 3 | 2026-04-12 |
+| KD-11 | Phase 4 四波执行: Wave 1 (BoxConstraints+RenderObject+RenderBox) → Wave 2 (Element+Widget) → Wave 3 (ComponentElement+StatefulWidget) → Wave 4 (FrameScheduler+BuildOwner+PipelineOwner) | Phase 4 | 2026-04-12 |
 
 ---
 
@@ -105,6 +106,13 @@
 - Phase 3 零外部依赖验证通过: VT 解析器 + Screen 缓冲区 + ANSI 渲染全部自实现
 - 总测试数: 812 (Phase 1: 315 + Phase 2: 227 + Phase 3: 270)
 
+- Phase 4 规划完成: 8 个 plan (4 waves), 预计 ≥162 个测试
+  - Wave 1: BoxConstraints (04-01) + RenderObject/types (04-02) + RenderBox (04-03) — 基础渲染层
+  - Wave 2: Element 生命周期 (04-04) + Widget/Key (04-05) — 元素与组件层
+  - Wave 3: ComponentElement/RenderObjectElement 协调 (04-06) + StatefulWidget/State (04-07) — 组合与状态层
+  - Wave 4: FrameScheduler + BuildOwner + PipelineOwner (04-08) — 帧调度引擎
+- Phase 4 核心类映射 (逆向→TypeScript): Mn→Widget, qm→Element, wR→State, vH→RenderObject, o0→BoxConstraints, k8→FrameScheduler, YXT→BuildOwner, JXT→PipelineOwner
+
 ---
 
 ## Blockers
@@ -114,4 +122,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 3 complete — 6 plans, 270 tests, 3 waves)*
+*Last updated: 2026-04-12 (Phase 4 planned — 8 plans, 4 waves, ≥162 tests planned)*

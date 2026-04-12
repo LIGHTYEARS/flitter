@@ -3,7 +3,7 @@
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
 **Current phase:** 2 (基础设施工具层)
-**Status:** not_started
+**Status:** planning
 
 ---
 
@@ -11,12 +11,12 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 1 — Schema 类型地基 |
-| Package | `@flitter/schemas` |
-| Status | complete |
-| Requirements | SCHM-01, SCHM-02, SCHM-03, SCHM-04, SCHM-05 |
-| Plans created | 5/5 |
-| Plans completed | 5/5 |
+| Phase | 2 — 基础设施工具层 |
+| Package | `@flitter/util` |
+| Status | planning |
+| Requirements | INFR-01, INFR-02, INFR-03, INFR-04, INFR-05, INFR-06 |
+| Plans created | 7/7 |
+| Plans completed | 0/7 |
 
 ---
 
@@ -25,7 +25,7 @@
 | Phase | Name | Status | Plans | Requirements |
 |-------|------|--------|-------|-------------|
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
-| 2 | 基础设施工具层 | not_started | 0/7 | INFR-01..06 (6) |
+| 2 | 基础设施工具层 | planning | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | not_started | 0/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
@@ -70,6 +70,8 @@
 | KD-04 | TUI 和 LLM 可并行推进（Phase 1 完成后） | Roadmap | 2026-04-12 |
 | KD-05 | Zod v4 (非 v3) 用于 schemas，z.lazy() + interface 规避 TS2456 递归 | Phase 1 | 2026-04-12 |
 | KD-06 | 沙箱无 bun，使用 npx pnpm@10 + npx tsx 替代 | Phase 1 | 2026-04-12 |
+| KD-07 | Phase 2 零外部重量级依赖: Reactive/URI/Git/Scanner/FuzzySearch 全部自实现 | Phase 2 | 2026-04-12 |
+| KD-08 | Phase 2 三波执行: Wave 1 (Reactive+工具) → Wave 2 (URI+Git+Keyring) → Wave 3 (Scanner+FuzzySearch) | Phase 2 | 2026-04-12 |
 
 ---
 
@@ -86,6 +88,8 @@
 - Phase 1 完成: 5 个 schema 模块 + 315 个测试全部通过
 - 注释规范: JSDoc 中文，含功能说明 + 使用示例
 
+- Phase 2 规划完成: 7 个 plan 覆盖 Reactive/URI/Git/Scanner/Keyring/FuzzySearch/通用工具
+
 ---
 
 ## Blockers
@@ -95,4 +99,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 1 execution complete — all 5 plans done)*
+*Last updated: 2026-04-12 (Phase 2 planning complete — 7/7 plans created)*

@@ -3,7 +3,7 @@
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
 **Current phase:** 2 (基础设施工具层)
-**Status:** planning
+**Status:** complete
 
 ---
 
@@ -13,10 +13,10 @@
 |-------|-------|
 | Phase | 2 — 基础设施工具层 |
 | Package | `@flitter/util` |
-| Status | planning |
+| Status | complete |
 | Requirements | INFR-01, INFR-02, INFR-03, INFR-04, INFR-05, INFR-06 |
 | Plans created | 7/7 |
-| Plans completed | 0/7 |
+| Plans completed | 7/7 |
 
 ---
 
@@ -25,7 +25,7 @@
 | Phase | Name | Status | Plans | Requirements |
 |-------|------|--------|-------|-------------|
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
-| 2 | 基础设施工具层 | planning | 7/7 | INFR-01..06 (6) |
+| 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | not_started | 0/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
@@ -88,7 +88,12 @@
 - Phase 1 完成: 5 个 schema 模块 + 315 个测试全部通过
 - 注释规范: JSDoc 中文，含功能说明 + 使用示例
 
-- Phase 2 规划完成: 7 个 plan 覆盖 Reactive/URI/Git/Scanner/Keyring/FuzzySearch/通用工具
+- Phase 2 完成: 7 个 plan 全部实现 — 276 个测试全部通过
+  - Wave 1: error.ts + logger.ts + assert.ts + process.ts (49 tests) + reactive/ (74 tests)
+  - Wave 2: uri/ (48 tests) + git/ (32 tests) + keyring/ (21 tests)
+  - Wave 3: scanner/ (19 tests) + search/ (33 tests)
+- @flitter/util 导出 10 个模块: error, logger, assert, process, reactive, uri, git, keyring, scanner, search
+- Phase 2 零外部依赖验证通过: Reactive/URI/Git/Scanner/FuzzySearch 全部自实现
 
 ---
 
@@ -99,4 +104,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 2 planning complete — 7/7 plans created)*
+*Last updated: 2026-04-12 (Phase 2 complete — 7/7 plans executed, 276 tests passing)*

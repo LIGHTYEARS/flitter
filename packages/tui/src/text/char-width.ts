@@ -1,11 +1,14 @@
 /**
- * CJK 双宽字符处理模块
+ * CJK 双宽字符及 Emoji 处理模块
  *
  * 提供 Unicode 字符宽度计算功能，支持 CJK 统一汉字、韩文音节、
- * 日文假名、全角字符等双宽字符的正确宽度判定，以及零宽字符的识别。
+ * 日文假名、全角字符等双宽字符的正确宽度判定，Emoji 字符（含 ZWJ
+ * 序列、肤色修饰、旗帜序列、变体选择符）的宽度计算，以及零宽字符的识别。
  *
  * @module char-width
  */
+
+import { isEmoji, isEmojiPresentation } from "./emoji.js";
 
 /**
  * 判断给定码点是否为 CJK 双宽字符
@@ -136,6 +139,8 @@ export function isZeroWidth(codePoint: number): boolean {
  *
  * - 零宽字符 -> 0
  * - CJK 双宽字符 -> 2
+ * - 默认 Emoji 呈现的码点 -> 2
+ * - Emoji 但默认文本呈现的码点 -> 1（需 VS16 才变为 2）
  * - 其他字符 -> 1
  *
  * @param codePoint - Unicode 码点
@@ -143,14 +148,18 @@ export function isZeroWidth(codePoint: number): boolean {
  *
  * @example
  * ```ts
- * codePointWidth(0x41);   // 1 — 'A'
- * codePointWidth(0x4E2D); // 2 — '中'
- * codePointWidth(0x200D); // 0 — ZWJ
+ * codePointWidth(0x41);    // 1 — 'A'
+ * codePointWidth(0x4E2D);  // 2 — '中'
+ * codePointWidth(0x200D);  // 0 — ZWJ
+ * codePointWidth(0x1F600); // 2 — 😀（默认 Emoji 呈现）
+ * codePointWidth(0x2600);  // 1 — ☀（默认文本呈现）
  * ```
  */
 export function codePointWidth(codePoint: number): number {
   if (isZeroWidth(codePoint)) return 0;
   if (isCjk(codePoint)) return 2;
+  if (isEmojiPresentation(codePoint)) return 2;
+  if (isEmoji(codePoint)) return 1; // 需 VS16 才变为宽度 2
   return 1;
 }
 
@@ -184,8 +193,13 @@ const widthCache = new Map<string, number>();
  * 计算单个字素簇的显示宽度（带缓存）
  *
  * 对于单码点字素簇直接调用 codePointWidth；
- * 对于多码点字素簇（如 Emoji ZWJ 序列），取所有非零宽码点宽度的最大值，
- * 若存在非零宽码点则最小返回 1。
+ * 对于多码点字素簇，按以下优先级判定宽度：
+ * - 包含 VS15 (U+FE0E) → 1（强制文本呈现）
+ * - 包含 VS16 (U+FE0F) → 2（强制 Emoji 呈现）
+ * - 包含 ZWJ (U+200D) → 2（ZWJ 序列）
+ * - 包含肤色修饰符 (U+1F3FB-1F3FF) → 2
+ * - 首码点为区域指示符 → 2（旗帜序列）
+ * - 否则取各码点宽度最大值
  *
  * @param grapheme - 单个字素簇字符串
  * @returns 显示宽度
@@ -194,7 +208,9 @@ const widthCache = new Map<string, number>();
  * ```ts
  * charWidth("A");  // 1
  * charWidth("中"); // 2
- * charWidth("测"); // 2（会被缓存）
+ * charWidth("😀"); // 2
+ * charWidth("🇯🇵"); // 2 — 旗帜序列
+ * charWidth("👨‍👩‍👧"); // 2 — ZWJ 家庭序列
  * ```
  */
 export function charWidth(grapheme: string): number {
@@ -210,18 +226,42 @@ export function charWidth(grapheme: string): number {
   if (grapheme.length === firstLen) {
     width = codePointWidth(firstCodePoint);
   } else {
-    // 多码点字素簇
+    // 多码点字素簇：检测 Emoji 相关修饰符与序列标记
+    let hasVS15 = false;
+    let hasVS16 = false;
+    let hasZWJ = false;
+    let hasSkinTone = false;
+    let hasEmojiBase = false;
     let maxWidth = 0;
     let hasNonZero = false;
+
     for (const char of grapheme) {
       const cp = char.codePointAt(0)!;
+      if (cp === 0xfe0e) hasVS15 = true;
+      if (cp === 0xfe0f) hasVS16 = true;
+      if (cp === 0x200d) hasZWJ = true;
+      if (cp >= 0x1f3fb && cp <= 0x1f3ff) hasSkinTone = true;
+      if (isEmoji(cp) || isEmojiPresentation(cp)) hasEmojiBase = true;
       const w = codePointWidth(cp);
       if (w > 0) {
         hasNonZero = true;
         if (w > maxWidth) maxWidth = w;
       }
     }
-    width = hasNonZero ? Math.max(maxWidth, 1) : 0;
+
+    if (hasVS15) {
+      width = 1;
+    } else if (hasEmojiBase && (hasVS16 || hasZWJ || hasSkinTone)) {
+      width = 2;
+    } else if (firstCodePoint >= 0x1f1e6 && firstCodePoint <= 0x1f1ff) {
+      // 旗帜序列（区域指示符对）
+      width = 2;
+    } else if (!hasEmojiBase && hasVS16) {
+      // 非 Emoji 码点 + VS16 的情况：按原始宽度处理
+      width = hasNonZero ? Math.max(maxWidth, 1) : 0;
+    } else {
+      width = hasNonZero ? Math.max(maxWidth, 1) : 0;
+    }
   }
 
   widthCache.set(grapheme, width);
@@ -232,7 +272,7 @@ export function charWidth(grapheme: string): number {
  * 计算文本的总显示宽度
  *
  * 将文本按字素簇分割后，累加每个字素簇的显示宽度。
- * CJK 字符占 2 列，ASCII 字符占 1 列，零宽字符占 0 列。
+ * CJK 字符占 2 列，Emoji 字符占 2 列，ASCII 字符占 1 列，零宽字符占 0 列。
  *
  * @param text - 待计算的文本
  * @returns 总显示宽度（列数）
@@ -242,6 +282,7 @@ export function charWidth(grapheme: string): number {
  * textWidth("hello");     // 5
  * textWidth("你好");       // 4
  * textWidth("hello你好");  // 9
+ * textWidth("😀🚀");      // 4
  * textWidth("");           // 0
  * ```
  */

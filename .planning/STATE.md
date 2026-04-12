@@ -2,7 +2,7 @@
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 4 (TUI 三棵树引擎)
+**Current phase:** 5 (TUI Widget 库与主题)
 **Status:** in_progress
 
 ---
@@ -11,12 +11,12 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 4 — TUI 三棵树引擎 |
+| Phase | 5 — TUI Widget 库与主题 |
 | Package | `@flitter/tui` |
-| Status | complete |
-| Requirements | TUI-03..06 |
+| Status | planning_complete |
+| Requirements | TUI-07, TUI-08, TUI-11 |
 | Plans created | 8/8 |
-| Plans completed | 8/8 |
+| Plans completed | 0/8 |
 
 ---
 
@@ -28,7 +28,7 @@
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | complete | 8/8 | TUI-03..06 (4) |
-| 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
+| 5 | TUI Widget 库与主题 | in_progress | 8/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
 | 8 | MCP 协议集成 | not_started | 0/6 | LLM-07..10 (4) |
@@ -74,7 +74,10 @@
 | KD-08 | Phase 2 三波执行: Wave 1 (Reactive+工具) → Wave 2 (URI+Git+Keyring) → Wave 3 (Scanner+FuzzySearch) | Phase 2 | 2026-04-12 |
 | KD-09 | Phase 3 零外部依赖: VT 解析器 + Screen 缓冲区全部自实现 (不用 xterm.js) | Phase 3 | 2026-04-12 |
 | KD-10 | Phase 3 三波执行: Wave 1 (Cell/Color/TextStyle 数据结构 + VT 类型) → Wave 2 (VT 状态机 + Input 解析器) → Wave 3 (Screen 双缓冲 + ANSI 差分渲染) | Phase 3 | 2026-04-12 |
-| KD-11 | Phase 4 四波执行: Wave 1 (BoxConstraints+RenderObject+RenderBox) → Wave 2 (Element+Widget) → Wave 3 (ComponentElement+StatefulWidget) → Wave 4 (FrameScheduler+BuildOwner+PipelineOwner) | Phase 4 | 2026-04-12 |
+| KD-12 | Phase 5 三波执行: Wave 1 (Flex引擎+CJK宽度+主题系统) → Wave 2 (Row/Column+Padding/SizedBox+Emoji宽度) → Wave 3 (Stack/Positioned+RichText/TextSpan) | Phase 5 | 2026-04-12 |
+| KD-13 | Phase 5 逆向类映射: T0→Row, Ta/xR→Column, uR→Padding, XT→SizedBox, TR→EdgeInsets, G→TextSpan, cT→TextStyle(widget), Vk→AppColorScheme, Gt→Theme, J8→charWidth, B9→graphemeSegments, Hm0→isCjk | Phase 5 | 2026-04-12 |
+| KD-14 | CJK/Emoji 宽度函数放在 text/ 子目录 (packages/tui/src/text/)，Widget 放在 widgets/ 子目录 | Phase 5 | 2026-04-12 |
+| KD-15 | Theme.of() 在 Phase 5 使用简化全局引用方案，InheritedWidget 机制延后到 Phase 6 | Phase 5 | 2026-04-12 |
 
 ---
 

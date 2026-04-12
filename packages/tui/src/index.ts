@@ -4,3 +4,4 @@ export * from "./screen/index.js";
 export * from "./tree/index.js";
 export * from "./scroll/index.js";
 export * from "./editing/index.js";
+export * from "./markdown/index.js";

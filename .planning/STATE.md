@@ -3,7 +3,7 @@
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
 **Current phase:** 1 (Schema 类型地基)
-**Status:** not_started
+**Status:** planning
 
 ---
 
@@ -13,9 +13,9 @@
 |-------|-------|
 | Phase | 1 — Schema 类型地基 |
 | Package | `@flitter/schemas` |
-| Status | not_started |
+| Status | planning |
 | Requirements | SCHM-01, SCHM-02, SCHM-03, SCHM-04, SCHM-05 |
-| Plans created | 0/5 |
+| Plans created | 5/5 |
 | Plans completed | 0/5 |
 
 ---
@@ -24,7 +24,7 @@
 
 | Phase | Name | Status | Plans | Requirements |
 |-------|------|--------|-------|-------------|
-| 1 | Schema 类型地基 | not_started | 0/5 | SCHM-01..05 (5) |
+| 1 | Schema 类型地基 | planning | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | not_started | 0/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | not_started | 0/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
@@ -91,4 +91,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-12 (Phase 1 planning complete)*

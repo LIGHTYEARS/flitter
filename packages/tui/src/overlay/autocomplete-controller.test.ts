@@ -115,7 +115,7 @@ describe("AutocompleteController", () => {
 
     expect(ac.isActive).toBe(true);
     const opts = ac.currentState.options;
-    expect(opts.length).toBe(2); // help, history
+    expect(opts.length).toBe(1); // "help" 包含 "he", "history" 不含 "he"
     expect(opts.map((o) => o.label)).toContain("help");
   });
 

@@ -2,3 +2,5 @@
 export * from "./overlay-entry.js";
 export * from "./overlay.js";
 export * from "./layer-link.js";
+export * from "./autocomplete-controller.js";
+export * from "./command-palette.js";

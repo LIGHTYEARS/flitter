@@ -2,8 +2,8 @@
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 2 (基础设施工具层)
-**Status:** complete
+**Current phase:** 3 (TUI 底层渲染基础)
+**Status:** planning
 
 ---
 
@@ -11,12 +11,12 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 2 — 基础设施工具层 |
-| Package | `@flitter/util` |
-| Status | complete |
-| Requirements | INFR-01, INFR-02, INFR-03, INFR-04, INFR-05, INFR-06 |
-| Plans created | 7/7 |
-| Plans completed | 7/7 |
+| Phase | 3 — TUI 底层渲染基础 |
+| Package | `@flitter/tui` |
+| Status | planning |
+| Requirements | TUI-01, TUI-02 |
+| Plans created | 6/6 |
+| Plans completed | 0/6 |
 
 ---
 
@@ -26,7 +26,7 @@
 |-------|------|--------|-------|-------------|
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
-| 3 | TUI 底层渲染基础 | not_started | 0/6 | TUI-01..02 (2) |
+| 3 | TUI 底层渲染基础 | planning | 6/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
@@ -72,6 +72,8 @@
 | KD-06 | 沙箱无 bun，使用 npx pnpm@10 + npx tsx 替代 | Phase 1 | 2026-04-12 |
 | KD-07 | Phase 2 零外部重量级依赖: Reactive/URI/Git/Scanner/FuzzySearch 全部自实现 | Phase 2 | 2026-04-12 |
 | KD-08 | Phase 2 三波执行: Wave 1 (Reactive+工具) → Wave 2 (URI+Git+Keyring) → Wave 3 (Scanner+FuzzySearch) | Phase 2 | 2026-04-12 |
+| KD-09 | Phase 3 零外部依赖: VT 解析器 + Screen 缓冲区全部自实现 (不用 xterm.js) | Phase 3 | 2026-04-12 |
+| KD-10 | Phase 3 三波执行: Wave 1 (Cell/Color/TextStyle 数据结构 + VT 类型) → Wave 2 (VT 状态机 + Input 解析器) → Wave 3 (Screen 双缓冲 + ANSI 差分渲染) | Phase 3 | 2026-04-12 |
 
 ---
 
@@ -95,6 +97,13 @@
 - @flitter/util 导出 10 个模块: error, logger, assert, process, reactive, uri, git, keyring, scanner, search
 - Phase 2 零外部依赖验证通过: Reactive/URI/Git/Scanner/FuzzySearch 全部自实现
 
+- Phase 3 规划完成: 6 个 plan (3 Waves)
+  - Wave 1: 03-01 (Cell/Color/TextStyle 数据结构) + 03-02 (VT 事件类型定义)
+  - Wave 2: 03-03 (VT 状态机 — CSI/OSC/DCS/APC 解析) + 03-04 (InputParser — Key/Mouse/Paste 映射)
+  - Wave 3: 03-05 (Screen 双缓冲 + 脏标记) + 03-06 (ANSI 差分渲染器)
+- Phase 3 逆向参考: tui-widget-framework.js (VT 状态机), clipboard-and-input.js (输入), tui-render-pipeline.js (Screen/Cell/渲染)
+- Phase 3 关键陷阱: PIT-C4 (VT 解析器不完整), PIT-E1 (CJK 宽度计算)
+
 ---
 
 ## Blockers
@@ -104,4 +113,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 2 complete — 7/7 plans executed, 276 tests passing)*
+*Last updated: 2026-04-12 (Phase 3 planning — 6 plans created, 3 waves)*

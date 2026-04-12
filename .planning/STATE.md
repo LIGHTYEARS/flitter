@@ -2,8 +2,8 @@
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 3 (TUI 底层渲染基础)
-**Status:** planning
+**Current phase:** 4 (TUI 三棵树引擎)
+**Status:** not_started
 
 ---
 
@@ -11,12 +11,12 @@
 
 | Field | Value |
 |-------|-------|
-| Phase | 3 — TUI 底层渲染基础 |
+| Phase | 4 — TUI 三棵树引擎 |
 | Package | `@flitter/tui` |
-| Status | planning |
-| Requirements | TUI-01, TUI-02 |
-| Plans created | 6/6 |
-| Plans completed | 0/6 |
+| Status | not_started |
+| Requirements | TUI-03..06 |
+| Plans created | 0/8 |
+| Plans completed | 0/8 |
 
 ---
 
@@ -26,7 +26,7 @@
 |-------|------|--------|-------|-------------|
 | 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | complete | 7/7 | INFR-01..06 (6) |
-| 3 | TUI 底层渲染基础 | planning | 6/6 | TUI-01..02 (2) |
+| 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | not_started | 0/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
@@ -97,12 +97,13 @@
 - @flitter/util 导出 10 个模块: error, logger, assert, process, reactive, uri, git, keyring, scanner, search
 - Phase 2 零外部依赖验证通过: Reactive/URI/Git/Scanner/FuzzySearch 全部自实现
 
-- Phase 3 规划完成: 6 个 plan (3 Waves)
-  - Wave 1: 03-01 (Cell/Color/TextStyle 数据结构) + 03-02 (VT 事件类型定义)
-  - Wave 2: 03-03 (VT 状态机 — CSI/OSC/DCS/APC 解析) + 03-04 (InputParser — Key/Mouse/Paste 映射)
-  - Wave 3: 03-05 (Screen 双缓冲 + 脏标记) + 03-06 (ANSI 差分渲染器)
-- Phase 3 逆向参考: tui-widget-framework.js (VT 状态机), clipboard-and-input.js (输入), tui-render-pipeline.js (Screen/Cell/渲染)
-- Phase 3 关键陷阱: PIT-C4 (VT 解析器不完整), PIT-E1 (CJK 宽度计算)
+- Phase 3 完成: 6 个 plan 全部实现 — 270 个测试全部通过
+  - Wave 1: Cell/Color/TextStyle (30 tests) + VT 事件类型 (14 tests)
+  - Wave 2: VtParser 状态机 (77 tests) + InputParser (64 tests)
+  - Wave 3: Screen 双缓冲 (41 tests) + ANSI 差分渲染器 (44 tests)
+- @flitter/tui 导出 vt/ + screen/ 全部公共 API
+- Phase 3 零外部依赖验证通过: VT 解析器 + Screen 缓冲区 + ANSI 渲染全部自实现
+- 总测试数: 812 (Phase 1: 315 + Phase 2: 227 + Phase 3: 270)
 
 ---
 
@@ -113,4 +114,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 3 planning — 6 plans created, 3 waves)*
+*Last updated: 2026-04-12 (Phase 3 complete — 6 plans, 270 tests, 3 waves)*

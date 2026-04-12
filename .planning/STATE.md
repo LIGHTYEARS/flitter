@@ -2,8 +2,8 @@
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 1 (Schema 类型地基)
-**Status:** planning
+**Current phase:** 2 (基础设施工具层)
+**Status:** not_started
 
 ---
 
@@ -13,10 +13,10 @@
 |-------|-------|
 | Phase | 1 — Schema 类型地基 |
 | Package | `@flitter/schemas` |
-| Status | planning |
+| Status | complete |
 | Requirements | SCHM-01, SCHM-02, SCHM-03, SCHM-04, SCHM-05 |
 | Plans created | 5/5 |
-| Plans completed | 0/5 |
+| Plans completed | 5/5 |
 
 ---
 
@@ -24,7 +24,7 @@
 
 | Phase | Name | Status | Plans | Requirements |
 |-------|------|--------|-------|-------------|
-| 1 | Schema 类型地基 | planning | 5/5 | SCHM-01..05 (5) |
+| 1 | Schema 类型地基 | complete | 5/5 | SCHM-01..05 (5) |
 | 2 | 基础设施工具层 | not_started | 0/7 | INFR-01..06 (6) |
 | 3 | TUI 底层渲染基础 | not_started | 0/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | not_started | 0/8 | TUI-03..06 (4) |
@@ -68,6 +68,8 @@
 | KD-02 | TDD 模式——每阶段内置测试先行 | All | 2026-04-12 |
 | KD-03 | 依赖链: schemas → util → tui(4) → llm(2) → data → agent → cli | Roadmap | 2026-04-12 |
 | KD-04 | TUI 和 LLM 可并行推进（Phase 1 完成后） | Roadmap | 2026-04-12 |
+| KD-05 | Zod v4 (非 v3) 用于 schemas，z.lazy() + interface 规避 TS2456 递归 | Phase 1 | 2026-04-12 |
+| KD-06 | 沙箱无 bun，使用 npx pnpm@10 + npx tsx 替代 | Phase 1 | 2026-04-12 |
 
 ---
 
@@ -79,7 +81,9 @@
 - 逆向参考代码在 `amp-cli-reversed/` 目录（1073 模块，116K 行）
 - TUI 框架是最大单一子系统（26K 行，12/26 陷阱），也是项目最大赌注
 - 开发方法: JS → TS 直译，保持相同函数签名，TDD 先测试后实现
-- 运行时: Bun >= 1.3.0，TypeScript 5.8.x strict，ESM-only
+- 运行时: 沙箱环境使用 Node.js v24 + npx tsx + npx pnpm@10（bun 不可用）
+- Zod v4.3.6（非 v3），z.lazy() 递归需用 interface 规避 TS2456
+- Phase 1 完成: 5 个 schema 模块 + 315 个测试全部通过
 - 注释规范: JSDoc 中文，含功能说明 + 使用示例
 
 ---
@@ -91,4 +95,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 1 planning complete)*
+*Last updated: 2026-04-12 (Phase 1 execution complete — all 5 plans done)*

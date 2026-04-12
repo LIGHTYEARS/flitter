@@ -86,11 +86,15 @@ export class GlobalKey extends Key {
   /**
    * 获取当前关联的状态。
    *
-   * StatefulElement 尚未实现，暂时返回 undefined。
+   * 如果关联的元素是 StatefulElement，返回其 State 实例；
+   * 否则返回 undefined。
    *
-   * @returns 当前状态，暂时为 undefined
+   * @returns 当前状态，非 StatefulElement 时为 undefined
    */
   get currentState(): unknown {
+    if (this._element && "state" in this._element) {
+      return (this._element as any).state;
+    }
     return undefined;
   }
 }

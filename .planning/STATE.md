@@ -3,22 +3,22 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 08
-status: phase_07b_complete
-last_updated: "2026-04-13T23:00:00.000Z"
+status: phase_08_planning
+last_updated: "2026-04-14T01:00:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 7
-  total_plans: 61
+  total_plans: 67
   completed_plans: 61
-  percent: 60
+  percent: 63
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 07b (complete)
-**Status:** Phase 07b Complete
+**Current phase:** 08 (planning)
+**Status:** Phase 8 Planning Complete
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 7b — SDK Migration + OAuth |
+| Phase | 8 — MCP 协议集成 |
 | Package | `@flitter/llm` |
-| Status | complete |
-| Requirements | LLM-01..06 (SDK rewrite), OAuth |
-| Plans created | 11/11 |
-| Plans completed | 11/11 |
+| Status | planning |
+| Requirements | LLM-07..10 (4) |
+| Plans created | 6/6 |
+| Plans completed | 0/6 |
 
 ---
 
@@ -47,7 +47,7 @@ progress:
 | 6 | TUI 高级交互组件 | complete | 8/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | complete | 8/8 | LLM-01..06 (6) |
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
-| 8 | MCP 协议集成 | not_started | 0/6 | LLM-07..10 (4) |
+| 8 | MCP 协议集成 | planning | 0/6 | LLM-07..10 (4) |
 | 9 | 数据持久化层 | not_started | 0/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
@@ -98,6 +98,11 @@ progress:
 | KD-17 | xAI 使用 OpenAI-compatible ChatCompletion API (非 Responses API)，其余 Provider 各用原生 API | Phase 7 | 2026-04-13 |
 | KD-18 | Phase 7 四波执行: Wave 1 (types+SSE) → Wave 2 (Anthropic+OpenAI) → Wave 3 (Gemini+xAI+Registry) → Wave 4 (Integration Tests) | Phase 7 | 2026-04-13 |
 | KD-19 | Phase 7b 逆转 KD-16: 改用官方 SDK (@anthropic-ai/sdk, openai ^6.26, @google/genai) + OpenAI-compatible 通用层 + OAuth 基础设施。删除 stream/ (SSEParser/fetchSSE/RetryPolicy)，xAI 合并为 OpenAICompatProvider | Phase 7b | 2026-04-13 |
+| KD-20 | MCP 协议版本: 支持 2025-03-26 (稳定版)，兼容 2024-11-05 和 2024-10-07 | Phase 8 | 2026-04-14 |
+| KD-21 | MCPTransport 接口统一 Stdio/SSE/StreamableHTTP 三种传输: start() + send(msg) + close() + onmessage/onclose/onerror 回调 | Phase 8 | 2026-04-14 |
+| KD-22 | MCPConnection 管理单个 MCP Server 生命周期: 连接/断开/重连(指数退避) + 能力协商 + Observable 暴露工具/资源/提示列表 | Phase 8 | 2026-04-14 |
+| KD-23 | 工具名命名空间: mcp__<serverName>__<toolName>，非字母数字替换为 _ | Phase 8 | 2026-04-14 |
+| KD-24 | Phase 8 零外部 MCP SDK 依赖: 不使用 @modelcontextprotocol/sdk，从逆向代码直译实现协议层 | Phase 8 | 2026-04-14 |
 
 ---
 
@@ -182,7 +187,15 @@ _(none)_
 - Phase 7b 核心设计: 构造函数注入 (所有 Provider 接受可选 SDK client 用于测试), KNOWN_COMPAT_CONFIGS (5 preset), mergeWithDefaults, OAuthProviderInterface + registry
 - 总测试数: 1830 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289)
 
+- Phase 8 规划完成: 6 个 plan, 3 waves, 预计 ~185 新测试
+  - Wave 1: 08-01 (JSON-RPC 2.0 协议基础 + types + RequestManager, ~30 tests) + 08-02 (Stdio 传输 + ReadBuffer, ~25 tests)
+  - Wave 2: 08-03 (StreamableHTTP 传输 + SSEEventParser, ~30 tests) + 08-04 (SSE 传输 legacy fallback, ~20 tests)
+  - Wave 3: 08-05 (MCP OAuth 2.0 PKCE 认证流, ~25 tests) + 08-06 (MCPConnection + ServerManager + tools, ~55 tests)
+  - 关键逆向映射: Uq→MCPConnection, jPR→MCPServerManager, T7→StreamableHTTPTransport, JD→SSETransport, TDT→StdioTransport, PDT→namespacedToolName, Q_/Dq→auth(), ZD→parseWWWAuthenticate
+  - 零外部 MCP SDK: 从逆向代码直译 JSON-RPC 2.0 + MCP 协议 + 三种传输 + OAuth 流程
+  - 复用已有: @flitter/schemas JSON-RPC schemas, @flitter/util Reactive (BehaviorSubject/Observable), @flitter/llm oauth/pkce.ts
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-13 (Phase 7b complete — 11/11 plans executed, 289 LLM tests, 1830 total)*
+*Last updated: 2026-04-14 (Phase 8 planning complete — 6/6 plans written, 3 waves, ~185 expected tests)*

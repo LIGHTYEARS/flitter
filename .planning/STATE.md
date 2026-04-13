@@ -1,9 +1,24 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_phase: 06
+status: phase_complete
+last_updated: "2026-04-13T16:50:00.000Z"
+progress:
+  total_phases: 11
+  completed_phases: 6
+  total_plans: 42
+  completed_plans: 42
+  percent: 52
+---
+
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 6 (TUI 高级交互组件)
-**Status:** not_started
+**Current phase:** 06
+**Status:** Phase 06 Complete
 
 ---
 
@@ -29,7 +44,7 @@
 | 3 | TUI 底层渲染基础 | complete | 6/6 | TUI-01..02 (2) |
 | 4 | TUI 三棵树引擎 | complete | 8/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | complete | 8/8 | TUI-07,08,11 (3) |
-| 6 | TUI 高级交互组件 | not_started | 0/8 | TUI-09,10,12..15 (6) |
+| 6 | TUI 高级交互组件 | complete | 8/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
 | 8 | MCP 协议集成 | not_started | 0/6 | LLM-07..10 (4) |
 | 9 | 数据持久化层 | not_started | 0/7 | DATA-01..05 (5) |
@@ -132,7 +147,16 @@ _(none)_
 - Phase 5 零外部依赖: Flex 布局引擎 + CJK/Emoji 宽度计算 + 主题系统 + 全部 Widget 自实现
 - 总测试数: 1220 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133)
 
+- Phase 6 完成: 8 个 plan 全部实现 — 321 个新测试, 1062 总 TUI 测试全部通过
+  - Wave 1: ScrollController+Scrollable+ScrollKeyHandler (60 tests) + TextLayoutEngine+TextEditingController+TextField (52 tests) + MarkdownParser+MarkdownRenderer+SyntaxHighlighter (47 tests) + PerformanceTracker+FrameStatsOverlay (55 tests) = 214 tests
+  - Wave 2: ListView 虚拟化列表 (18 tests) + TextEditing 选区+Kill buffer (41 new tests) = 59 tests
+  - Wave 3: OverlayEntry+Overlay+LayerLink+AutocompleteController+CommandPalette (19 tests) + Clipboard+SelectionArea+SelectionKeepAliveBoundary (29 tests) = 48 tests
+- @flitter/tui 新增 scroll/ + editing/ + markdown/ + perf/ + overlay/ + selection/ 六个子目录
+- Phase 6 唯一外部依赖: micromark + GFM 扩展 (Markdown 解析)
+- Phase 6 逆向类映射: ScrollController→Kw.scroll, TextLayoutEngine→Kw, TextEditingController→wc, PerformanceTracker→Yh, FrameStatsOverlay→ZXT, OverlayEntry→lZT, LayerLink→mZT, AutocompleteController→uZT, Clipboard→eA, SelectionArea→m1T
+- 总测试数: 1541 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321)
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-12 (Phase 5 complete — 8/8 plans, 133 widget tests, 741 TUI tests, 1220 total)*
+*Last updated: 2026-04-13 (Phase 6 complete — 8/8 plans, 321 new tests, 1062 TUI tests, 1541 total)*

@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 09
-status: phase_09_planning
-last_updated: "2026-04-14T05:00:00.000Z"
+current_phase: 10
+status: phase_09_complete
+last_updated: "2026-04-14T06:00:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 74
-  completed_plans: 67
-  percent: 73
+  completed_plans: 74
+  percent: 82
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 09 (planning_complete)
-**Status:** Phase 9 Planning Complete — 数据持久化层
+**Current phase:** 10 (not_started)
+**Status:** Phase 9 Complete — 数据持久化層
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 9 — 数据持久化层 |
+| Phase | 9 — 数据持久化層 |
 | Package | `@flitter/data` |
-| Status | planning_complete |
+| Status | complete |
 | Requirements | DATA-01..05 (5) |
 | Plans created | 7/7 |
-| Plans completed | 0/7 |
+| Plans completed | 7/7 |
 
 ---
 
@@ -48,7 +48,7 @@ progress:
 | 7 | LLM Provider 核心层 | complete | 8/8 | LLM-01..06 (6) |
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
-| 9 | 数据持久化层 | planning_complete | 7/7 | DATA-01..05 (5) |
+| 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
 
@@ -205,7 +205,17 @@ _(none)_
   - Milestone M5 (MCP 集成) 达成
   - 总测试数: 2072 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242)
 
+- Phase 9 完成: 7 个 plan 全部实现 (4 waves) — 167 个新测试, 167 总 Data 测试通过
+  - Wave 1: 09-01 (ThreadStore CRUD — snapshotToEntry/entryEquals/dirty tracking/Observable, 25 tests) + 09-02 (ThreadPersistence — atomic JSON writes/autoSave/Zod validation, 26 tests) = 51 tests
+  - Wave 2: 09-03 (ConfigService 3-tier merge + JSONC stripper, 12 tests) + 09-04 (FileSettingsStorage + hot reload, 21 tests) = 33 tests
+  - Wave 3: 09-05 (SkillService — SKILL.md frontmatter parse/validate/scan/install/remove, 25 tests) + 09-06 (Guidance Files — AGENTS.md/CLAUDE.md discovery/walk-up/@references/glob filter, 36 tests) = 61 tests
+  - Wave 4: 09-07 (Context Manager — approx token count/compaction threshold/LLM summary/tool_use trim, 22 tests)
+  - 关键逆向映射: azT→ThreadStore, fuT→snapshotToEntry, T4→entryEquals, HqR→computeUserLastInteractedAt, f_0→FileSettingsStorage, LX→ConfigService, SqR→parseSkillFrontmatter, vqR→validateSkillName, OqR→loadSkill, UqR→SkillService, XDT→parseFrontmatter, kkR→discoverGuidanceFiles, Q9T→isRootDirectory, _IR→trimIncompleteToolUse
+  - 零外部依赖 (KD-25..31): JSONC stripper/YAML parser/glob matcher/token counter 全部自实现
+  - 文件结构: packages/data/src/ — thread/ (types, store, persistence) + config/ (jsonc, settings-storage, config-service) + skill/ (types, parser, service) + guidance/ (types, loader) + context/ (token-counter, context-manager)
+  - 总测试数: 2239 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242 + Phase 9: 167)
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 9 planning complete — 7/7 plans, 4 waves, KD-25..31)*
+*Last updated: 2026-04-14 (Phase 9 complete — 7/7 plans, 4 waves, 167 tests, KD-25..31)*

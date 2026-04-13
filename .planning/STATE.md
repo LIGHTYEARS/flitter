@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 10
-status: phase_09_complete
-last_updated: "2026-04-14T06:00:00.000Z"
+status: phase_10_planned
+last_updated: "2026-04-14T08:00:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 9
-  total_plans: 74
+  total_plans: 84
   completed_plans: 74
   percent: 82
 ---
@@ -17,8 +17,8 @@ progress:
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 10 (not_started)
-**Status:** Phase 9 Complete — 数据持久化層
+**Current phase:** 10 (planned)
+**Status:** Phase 10 Planned — Agent 核心引擎
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 9 — 数据持久化層 |
-| Package | `@flitter/data` |
-| Status | complete |
-| Requirements | DATA-01..05 (5) |
-| Plans created | 7/7 |
-| Plans completed | 7/7 |
+| Phase | 10 — Agent 核心引擎 |
+| Package | `@flitter/agent-core` |
+| Status | planned |
+| Requirements | AGNT-01..11 (11) |
+| Plans created | 10/10 |
+| Plans completed | 0/10 |
 
 ---
 
@@ -49,7 +49,7 @@ progress:
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
-| 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
+| 10 | Agent 核心引擎 | planned | 10/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
 
 ---
@@ -110,6 +110,13 @@ progress:
 | KD-29 | Context Manager 本地实现: LLM 驱动摘要 + 近似 token 计数 (chars/4 ASCII, chars/2 CJK) | Phase 9 | 2026-04-14 |
 | KD-30 | SkillService 发现路径: .flitter/skills/ (project) + ~/.config/flitter/skills/ (global) | Phase 9 | 2026-04-14 |
 | KD-31 | Guidance 文件: AGENTS.md/CLAUDE.md, cwd 向上遍历, 32768 字节预算, YAML frontmatter + globs 过滤 | Phase 9 | 2026-04-14 |
+| KD-32 | ThreadWorker 状态机 3 态: idle → running → cancelled, 工具执行由 ToolOrchestrator 管理 | Phase 10 | 2026-04-14 |
+| KD-33 | 工具并行执行: Promise.allSettled + 资源冲突检测 (读写键), batchToolsByDependency 分组 | Phase 10 | 2026-04-14 |
+| KD-34 | 内置工具最小集: Read, Write, Edit, Bash, Grep, Glob, FuzzyFind (7 工具) | Phase 10 | 2026-04-14 |
+| KD-35 | 权限 DSL: 自实现 glob→regex 匹配 (无 picomatch) + 四级决策 (allow/ask/reject/delegate) | Phase 10 | 2026-04-14 |
+| KD-36 | 子代理共享 ThreadStore + 独立 ToolOrchestrator，超时可取消，嵌套深度限制=1 | Phase 10 | 2026-04-14 |
+| KD-37 | Hook 系统: PreToolUse/PostToolUse/Notification 三类 hook，shell 命令执行，环境变量传递 | Phase 10 | 2026-04-14 |
+| KD-38 | Prompt 组装: 基础角色 + 环境信息 + 工具列表 + Guidance + Skills 多段拼接, cache_control 分段 | Phase 10 | 2026-04-14 |
 
 ---
 
@@ -215,7 +222,17 @@ _(none)_
   - 文件结构: packages/data/src/ — thread/ (types, store, persistence) + config/ (jsonc, settings-storage, config-service) + skill/ (types, parser, service) + guidance/ (types, loader) + context/ (token-counter, context-manager)
   - 总测试数: 2239 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242 + Phase 9: 167)
 
+- Phase 10 已规划: 10 个 plan, 5 waves
+  - Wave 1 (serial): 10-01 (Tool Types + Registry, ~20 tests) + 10-02 (ToolOrchestrator 批处理/并行, ~25 tests)
+  - Wave 2 (parallel): 10-03 (Read/Write/Edit 文件工具, ~20 tests) + 10-04 (Bash Shell 工具, ~15 tests) + 10-05 (Grep/Glob/FuzzyFind 搜索工具, ~15 tests)
+  - Wave 3 (serial): 10-06 (Permission DSL 解析器 — glob→regex 匹配, ~20 tests) + 10-07 (Permission 执行引擎 — 四级决策 + 受保护文件, ~20 tests)
+  - Wave 4 (serial): 10-08 (系统提示词组装 — 角色/环境/工具/Guidance/Skills, ~15 tests) + 10-09 (ThreadWorker 状态机 — Agent 推理循环, ~25 tests)
+  - Wave 5 (parallel): 10-10 (子代理框架 + Hook 系统, ~30 tests)
+  - 关键逆向映射: ov→ThreadWorker, FWT→ToolOrchestrator, LO→buildSystemPrompt, fwR→collectContextBlocks, wwR→batchToolsByDependency, MwR→hasResourceConflict, Vf→matchToolPattern, Xf→matchDisablePattern, yy→checkToolEnabled, jmR→getToolFilePaths, rcT→checkGuardedFile
+  - 关键设计决策: KD-32..38 (状态机/并行执行/内置工具/权限DSL/子代理/Hook/Prompt组装)
+  - 预计新增测试: ~205 tests
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 9 complete — 7/7 plans, 4 waves, 167 tests, KD-25..31)*
+*Last updated: 2026-04-14 (Phase 10 planned — 10/10 plans, 5 waves, KD-32..38)*

@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 08
-status: phase_08_planning
-last_updated: "2026-04-14T01:00:00.000Z"
+current_phase: 09
+status: phase_08_complete
+last_updated: "2026-04-14T04:00:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 67
-  completed_plans: 61
-  percent: 63
+  completed_plans: 67
+  percent: 73
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 08 (planning)
-**Status:** Phase 8 Planning Complete
+**Current phase:** 09 (not_started)
+**Status:** Phase 8 Complete — MCP 协议集成
 
 ---
 
@@ -28,10 +28,10 @@ progress:
 |-------|-------|
 | Phase | 8 — MCP 协议集成 |
 | Package | `@flitter/llm` |
-| Status | planning |
+| Status | complete |
 | Requirements | LLM-07..10 (4) |
 | Plans created | 6/6 |
-| Plans completed | 0/6 |
+| Plans completed | 6/6 |
 
 ---
 
@@ -47,7 +47,7 @@ progress:
 | 6 | TUI 高级交互组件 | complete | 8/8 | TUI-09,10,12..15 (6) |
 | 7 | LLM Provider 核心层 | complete | 8/8 | LLM-01..06 (6) |
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
-| 8 | MCP 协议集成 | planning | 0/6 | LLM-07..10 (4) |
+| 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
 | 9 | 数据持久化层 | not_started | 0/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
@@ -62,7 +62,7 @@ progress:
 | M2 | Widget 树 | complete | Phase 5 |
 | M3 | 流式对话 | complete | Phase 7b |
 | M4 | 工具调用 | pending | Phase 10 |
-| M5 | MCP 集成 | pending | Phase 8 |
+| M5 | MCP 集成 | complete | Phase 8 |
 | M6 | 完整对话 | pending | Phase 11 |
 
 ---
@@ -187,15 +187,18 @@ _(none)_
 - Phase 7b 核心设计: 构造函数注入 (所有 Provider 接受可选 SDK client 用于测试), KNOWN_COMPAT_CONFIGS (5 preset), mergeWithDefaults, OAuthProviderInterface + registry
 - 总测试数: 1830 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289)
 
-- Phase 8 规划完成: 6 个 plan, 3 waves, 预计 ~185 新测试
-  - Wave 1: 08-01 (JSON-RPC 2.0 协议基础 + types + RequestManager, ~30 tests) + 08-02 (Stdio 传输 + ReadBuffer, ~25 tests)
-  - Wave 2: 08-03 (StreamableHTTP 传输 + SSEEventParser, ~30 tests) + 08-04 (SSE 传输 legacy fallback, ~20 tests)
-  - Wave 3: 08-05 (MCP OAuth 2.0 PKCE 认证流, ~25 tests) + 08-06 (MCPConnection + ServerManager + tools, ~55 tests)
+- Phase 8 完成: 6 个 plan 全部实现 (3 waves) — 242 个新测试, 531 总 LLM 测试通过 (含 Phase 7b 289 + Phase 8 242)
+  - Wave 1: 08-01 (JSON-RPC 2.0 协议 types/protocol/McpError/RequestManager, 38 tests) + 08-02 (Stdio 传输 ReadBuffer+StdioTransport, 19 tests) = 57 tests
+  - Wave 2: 08-03 (StreamableHTTP 传输 + SSEEventParser, 43 tests) + 08-04 (SSE 传输 legacy fallback + SSELineParser, 31 tests) = 74 tests
+  - Wave 3: 08-05 (MCP OAuth 2.0 PKCE 完整认证流, 35 tests) + 08-06 (MCPClient+MCPConnection+MCPServerManager+tools, 76 tests) = 111 tests
   - 关键逆向映射: Uq→MCPConnection, jPR→MCPServerManager, T7→StreamableHTTPTransport, JD→SSETransport, TDT→StdioTransport, PDT→namespacedToolName, Q_/Dq→auth(), ZD→parseWWWAuthenticate
-  - 零外部 MCP SDK: 从逆向代码直译 JSON-RPC 2.0 + MCP 协议 + 三种传输 + OAuth 流程
-  - 复用已有: @flitter/schemas JSON-RPC schemas, @flitter/util Reactive (BehaviorSubject/Observable), @flitter/llm oauth/pkce.ts
+  - 零外部 MCP SDK (KD-24): 从逆向代码直译 JSON-RPC 2.0 + MCP 协议 + 三种传输 + OAuth 流程
+  - 复用已有: @flitter/util Reactive (BehaviorSubject/Subscription), @flitter/llm oauth/pkce.ts (generatePKCE)
+  - 文件结构: packages/llm/src/mcp/ (types, protocol, tools, connection, server-manager, index) + transport/ (read-buffer, stdio, sse-parser, streamable-http, sse) + auth/ (types, oauth-provider)
+  - Milestone M5 (MCP 集成) 达成
+  - 总测试数: 2072 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242)
 
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 8 planning complete — 6/6 plans written, 3 waves, ~185 expected tests)*
+*Last updated: 2026-04-14 (Phase 8 execution complete — 6/6 plans, 242 new tests, M5 milestone reached)*

@@ -63,3 +63,6 @@ export {
   OpenAICodexOAuthProvider,
   GitHubCopilotOAuthProvider,
 } from "./oauth/index";
+
+// ─── MCP ─────────────────────────────────────────────
+export * from "./mcp/index";

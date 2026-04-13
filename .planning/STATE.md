@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 06
-status: phase_complete
-last_updated: "2026-04-13T16:50:00.000Z"
+current_phase: 08
+status: phase_07b_complete
+last_updated: "2026-04-13T23:00:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 6
-  total_plans: 42
-  completed_plans: 42
-  percent: 52
+  completed_phases: 7
+  total_plans: 61
+  completed_plans: 61
+  percent: 60
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 06
-**Status:** Phase 06 Complete
+**Current phase:** 07b (complete)
+**Status:** Phase 07b Complete
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 5 — TUI Widget 库与主题 |
-| Package | `@flitter/tui` |
+| Phase | 7b — SDK Migration + OAuth |
+| Package | `@flitter/llm` |
 | Status | complete |
-| Requirements | TUI-07, TUI-08, TUI-11 |
-| Plans created | 8/8 |
-| Plans completed | 8/8 |
+| Requirements | LLM-01..06 (SDK rewrite), OAuth |
+| Plans created | 11/11 |
+| Plans completed | 11/11 |
 
 ---
 
@@ -45,7 +45,8 @@ progress:
 | 4 | TUI 三棵树引擎 | complete | 8/8 | TUI-03..06 (4) |
 | 5 | TUI Widget 库与主题 | complete | 8/8 | TUI-07,08,11 (3) |
 | 6 | TUI 高级交互组件 | complete | 8/8 | TUI-09,10,12..15 (6) |
-| 7 | LLM Provider 核心层 | not_started | 0/8 | LLM-01..06 (6) |
+| 7 | LLM Provider 核心层 | complete | 8/8 | LLM-01..06 (6) |
+| 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
 | 8 | MCP 协议集成 | not_started | 0/6 | LLM-07..10 (4) |
 | 9 | 数据持久化层 | not_started | 0/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
@@ -59,7 +60,7 @@ progress:
 |-----------|-------------|--------|------------|
 | M1 | Hello TUI | complete | Phase 4 |
 | M2 | Widget 树 | complete | Phase 5 |
-| M3 | 流式对话 | pending | Phase 7 |
+| M3 | 流式对话 | complete | Phase 7b |
 | M4 | 工具调用 | pending | Phase 10 |
 | M5 | MCP 集成 | pending | Phase 8 |
 | M6 | 完整对话 | pending | Phase 11 |
@@ -93,6 +94,10 @@ progress:
 | KD-13 | Phase 5 逆向类映射: T0→Row, Ta/xR→Column, uR→Padding, XT→SizedBox, TR→EdgeInsets, G→TextSpan, cT→TextStyle(widget), Vk→AppColorScheme, Gt→Theme, J8→charWidth, B9→graphemeSegments, Hm0→isCjk | Phase 5 | 2026-04-12 |
 | KD-14 | CJK/Emoji 宽度函数放在 text/ 子目录 (packages/tui/src/text/)，Widget 放在 widgets/ 子目录 | Phase 5 | 2026-04-12 |
 | KD-15 | Theme.of() 在 Phase 5 使用简化全局引用方案，InheritedWidget 机制延后到 Phase 6 | Phase 5 | 2026-04-12 |
+| KD-16 | Phase 7 不依赖任何官方 SDK (无 @anthropic-ai/sdk, openai, @google/generative-ai)，全部使用原生 fetch + SSE 自行封装 | Phase 7 | 2026-04-13 |
+| KD-17 | xAI 使用 OpenAI-compatible ChatCompletion API (非 Responses API)，其余 Provider 各用原生 API | Phase 7 | 2026-04-13 |
+| KD-18 | Phase 7 四波执行: Wave 1 (types+SSE) → Wave 2 (Anthropic+OpenAI) → Wave 3 (Gemini+xAI+Registry) → Wave 4 (Integration Tests) | Phase 7 | 2026-04-13 |
+| KD-19 | Phase 7b 逆转 KD-16: 改用官方 SDK (@anthropic-ai/sdk, openai ^6.26, @google/genai) + OpenAI-compatible 通用层 + OAuth 基础设施。删除 stream/ (SSEParser/fetchSSE/RetryPolicy)，xAI 合并为 OpenAICompatProvider | Phase 7b | 2026-04-13 |
 
 ---
 
@@ -156,7 +161,28 @@ _(none)_
 - Phase 6 逆向类映射: ScrollController→Kw.scroll, TextLayoutEngine→Kw, TextEditingController→wc, PerformanceTracker→Yh, FrameStatsOverlay→ZXT, OverlayEntry→lZT, LayerLink→mZT, AutocompleteController→uZT, Clipboard→eA, SelectionArea→m1T
 - 总测试数: 1541 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321)
 
+- Phase 7 完成: 8 个 plan 全部实现 — 207 个新测试, 207 总 LLM 测试全部通过
+  - Wave 1: TransformState+types (27 tests) + SSEParser+RetryPolicy+fetchSSE (38 tests) = 65 tests
+  - Wave 2: Anthropic Provider+Transformer (26 tests) + OpenAI Provider+Transformer (29 tests) = 55 tests
+  - Wave 3: Gemini Provider+Transformer (24 tests) + xAI Provider+Transformer (23 tests) + Registry+index.ts (38 tests) = 85 tests
+  - Wave 4: Cross-Provider Integration Tests (29 tests) — MockSSEServer + Fixtures + e2e
+- @flitter/llm 导出 providers/ + stream/ + transformers/ + testing/ 全部公共 API
+- Phase 7 零 SDK 依赖: Anthropic/OpenAI/Gemini/xAI 全部使用原生 fetch + SSE 自行封装
+- Phase 7 核心设计: TransformState (block-level tracking), BaseMessageTransformer/BaseToolTransformer, SSEParser, fetchSSE, RetryPolicy, Provider Registry (3-tier resolution)
+- 总测试数: 1748 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7: 207)
+
+- Phase 7b 完成: 11 个 plan 全部实现 (5 waves) — 289 总 LLM 测试全部通过 (净增 82 tests)
+  - Wave 1: SDK 依赖安装 (@anthropic-ai/sdk, openai ^6.26, @google/genai) + types 更新 + 新工具函数 (calculateCost, isContextOverflow, sanitizeSurrogates)
+  - Wave 2: Anthropic Provider → SDK (client.messages.stream) + OpenAI Provider → SDK (client.responses.create)
+  - Wave 3: Gemini Provider → SDK (client.models.generateContentStream) + OpenAI-Compatible 通用层 (xAI/Groq/DeepSeek/OpenRouter/Cerebras)
+  - Wave 4: OAuth 基础设施 (PKCE + callback server + registry + Anthropic/GitHub Copilot/OpenAI Codex providers)
+  - Wave 5: 删除 stream/ 基础设施 + 重写 fixtures + 重写集成测试 + 全面验证
+- @flitter/llm 导出 providers/ + oauth/ + testing/ + utils/ 公共 API (stream/ 已删除)
+- Phase 7b 架构变更: 零 SDK → 官方 SDK, xAI 独立 Provider → OpenAICompatProvider 子配置, 新增 OAuth 模块
+- Phase 7b 核心设计: 构造函数注入 (所有 Provider 接受可选 SDK client 用于测试), KNOWN_COMPAT_CONFIGS (5 preset), mergeWithDefaults, OAuthProviderInterface + registry
+- 总测试数: 1830 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289)
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-13 (Phase 6 complete — 8/8 plans, 321 new tests, 1062 TUI tests, 1541 total)*
+*Last updated: 2026-04-13 (Phase 7b complete — 11/11 plans executed, 289 LLM tests, 1830 total)*

@@ -9,8 +9,11 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.73.0",
     "@flitter/schemas": "workspace:*",
-    "@flitter/util": "workspace:*"
+    "@flitter/util": "workspace:*",
+    "@google/genai": "^1.40.0",
+    "openai": "^6.26.0"
   },
   "keywords": [
     "llm",

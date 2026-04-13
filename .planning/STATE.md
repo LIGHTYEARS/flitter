@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 09
-status: phase_08_complete
-last_updated: "2026-04-14T04:00:00.000Z"
+status: phase_09_planning
+last_updated: "2026-04-14T05:00:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 8
-  total_plans: 67
+  total_plans: 74
   completed_plans: 67
   percent: 73
 ---
@@ -17,8 +17,8 @@ progress:
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 09 (not_started)
-**Status:** Phase 8 Complete — MCP 协议集成
+**Current phase:** 09 (planning_complete)
+**Status:** Phase 9 Planning Complete — 数据持久化层
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 8 — MCP 协议集成 |
-| Package | `@flitter/llm` |
-| Status | complete |
-| Requirements | LLM-07..10 (4) |
-| Plans created | 6/6 |
-| Plans completed | 6/6 |
+| Phase | 9 — 数据持久化层 |
+| Package | `@flitter/data` |
+| Status | planning_complete |
+| Requirements | DATA-01..05 (5) |
+| Plans created | 7/7 |
+| Plans completed | 0/7 |
 
 ---
 
@@ -48,7 +48,7 @@ progress:
 | 7 | LLM Provider 核心层 | complete | 8/8 | LLM-01..06 (6) |
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
-| 9 | 数据持久化层 | not_started | 0/7 | DATA-01..05 (5) |
+| 9 | 数据持久化层 | planning_complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | not_started | 0/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
 
@@ -103,6 +103,13 @@ progress:
 | KD-22 | MCPConnection 管理单个 MCP Server 生命周期: 连接/断开/重连(指数退避) + 能力协商 + Observable 暴露工具/资源/提示列表 | Phase 8 | 2026-04-14 |
 | KD-23 | 工具名命名空间: mcp__<serverName>__<toolName>，非字母数字替换为 _ | Phase 8 | 2026-04-14 |
 | KD-24 | Phase 8 零外部 MCP SDK 依赖: 不使用 @modelcontextprotocol/sdk，从逆向代码直译实现协议层 | Phase 8 | 2026-04-14 |
+| KD-25 | 本地文件存储 (非 DTW): Flitter v1 只实现本地 JSON 文件持久化，不实现 DTW 远程同步 | Phase 9 | 2026-04-14 |
+| KD-26 | 配置路径映射: ~/.config/amp → ~/.config/flitter, .amp/ → .flitter/, .agents/skills → .flitter/skills | Phase 9 | 2026-04-14 |
+| KD-27 | JSONC 自实现: ConfigService 使用自实现的 JSONC stripper，不引入外部依赖 | Phase 9 | 2026-04-14 |
+| KD-28 | 原子写入: write-to-temp + fsync + rename 防止断电丢失 | Phase 9 | 2026-04-14 |
+| KD-29 | Context Manager 本地实现: LLM 驱动摘要 + 近似 token 计数 (chars/4 ASCII, chars/2 CJK) | Phase 9 | 2026-04-14 |
+| KD-30 | SkillService 发现路径: .flitter/skills/ (project) + ~/.config/flitter/skills/ (global) | Phase 9 | 2026-04-14 |
+| KD-31 | Guidance 文件: AGENTS.md/CLAUDE.md, cwd 向上遍历, 32768 字节预算, YAML frontmatter + globs 过滤 | Phase 9 | 2026-04-14 |
 
 ---
 
@@ -201,4 +208,4 @@ _(none)_
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 8 execution complete — 6/6 plans, 242 new tests, M5 milestone reached)*
+*Last updated: 2026-04-14 (Phase 9 planning complete — 7/7 plans, 4 waves, KD-25..31)*

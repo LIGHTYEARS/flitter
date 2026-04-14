@@ -48,3 +48,9 @@ export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
 // ─── 模式入口 ────────────────────────────────────────────
 export { launchInteractiveMode } from "./modes/interactive";
 export type { RunAppOptions } from "./modes/interactive";
+
+export { runHeadlessMode } from "./modes/headless";
+export type { HeadlessIO } from "./modes/headless";
+
+export { runExecuteMode } from "./modes/execute";
+export type { ExecuteIO } from "./modes/execute";

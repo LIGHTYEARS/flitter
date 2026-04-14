@@ -10,4 +10,5 @@ export * from "./screen/index.js";
 export * from "./scroll/index.js";
 export * from "./selection/index.js";
 export * from "./tree/index.js";
+export * from "./tui/index.js";
 export * from "./vt/index.js";

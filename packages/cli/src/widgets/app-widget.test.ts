@@ -107,7 +107,7 @@ describe("AppWidget", () => {
 
     const built = state.build({} as never) as ThemeController;
     // ThemeController 的 child 应该是 ConfigProvider
-    expect((built as unknown as { _child: unknown })._child).toBeInstanceOf(ConfigProvider);
+    expect((built as unknown as { child: unknown }).child).toBeInstanceOf(ConfigProvider);
   });
 
   it("ConfigProvider child 为 config.child", () => {
@@ -121,8 +121,8 @@ describe("AppWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never) as ThemeController;
-    const configProvider = (built as unknown as { _child: unknown })._child as ConfigProvider;
-    expect((configProvider as unknown as { _child: unknown })._child).toBe(child);
+    const configProvider = (built as unknown as { child: unknown }).child as ConfigProvider;
+    expect((configProvider as unknown as { child: unknown }).child).toBe(child);
   });
 });
 

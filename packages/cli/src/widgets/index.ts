@@ -22,3 +22,9 @@
 
 export { ThemeController, type ThemeData } from "./theme-controller.js";
 export { ConfigProvider } from "./config-provider.js";
+export { AppWidget, AppWidgetState, type AppWidgetConfig } from "./app-widget.js";
+export {
+  ThreadStateWidget,
+  ThreadStateWidgetState,
+  type ThreadStateWidgetConfig,
+} from "./thread-state-widget.js";

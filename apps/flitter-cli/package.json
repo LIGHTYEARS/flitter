@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@flitter/cli": "workspace:*",
     "@flitter/flitter": "workspace:*"
   },
   "bin": {

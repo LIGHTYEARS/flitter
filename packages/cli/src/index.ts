@@ -14,6 +14,8 @@
  */
 
 // ─── 核心 API ─────────────────────────────────────────────
+export { main, getVersion } from "./main";
+export type { MainOptions } from "./main";
 export { createProgram } from "./program";
 export { resolveCliContext } from "./context";
 export type { CliContext } from "./context";

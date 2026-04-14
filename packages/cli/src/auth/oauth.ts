@@ -319,18 +319,24 @@ export async function performOAuth(
 /**
  * 默认的浏览器打开函数
  *
- * 使用 child_process.exec 调用系统默认浏览器。
- * macOS: open, Linux: xdg-open, Windows: start
+ * 使用 child_process.execFile 调用系统默认浏览器。
+ * execFile 不启动 shell，URL 作为参数数组传递，防止命令注入。
+ * macOS: open, Linux: xdg-open, Windows: cmd /c start
  */
 async function defaultOpenBrowser(url: string): Promise<void> {
-  const { exec } = await import("node:child_process");
+  const { execFile } = await import("node:child_process");
   const cmd =
     process.platform === "darwin"
-      ? `open "${url}"`
+      ? "open"
       : process.platform === "win32"
-        ? `start "" "${url}"`
-        : `xdg-open "${url}"`;
-  exec(cmd);
+        ? "cmd"
+        : "xdg-open";
+
+  if (process.platform === "win32") {
+    execFile(cmd, ["/c", "start", "", url]);
+  } else {
+    execFile(cmd, [url]);
+  }
 }
 
 /**

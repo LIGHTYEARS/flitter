@@ -1,16 +1,12 @@
 ---
 phase: 11-cli-integration
-reviewed: 2026-04-14T12:00:00Z
+reviewed: 2026-04-14T13:19:26Z
 depth: standard
-files_reviewed: 28
+files_reviewed: 32
 files_reviewed_list:
-  - apps/flitter-cli/bin/flitter.ts
-  - apps/flitter-cli/package.json
-  - packages/cli/package.json
   - packages/cli/src/auth/api-key.test.ts
   - packages/cli/src/auth/api-key.ts
-  - packages/cli/src/auth/oauth.test.ts
-  - packages/cli/src/auth/oauth.ts
+  - packages/cli/src/commands/auth.test.ts
   - packages/cli/src/commands/auth.ts
   - packages/cli/src/commands/config.ts
   - packages/cli/src/commands/threads.ts
@@ -32,216 +28,188 @@ files_reviewed_list:
   - packages/cli/src/update/checker.ts
   - packages/cli/src/update/installer.test.ts
   - packages/cli/src/update/installer.ts
-  - packages/flitter/package.json
+  - packages/flitter/src/container.test.ts
+  - packages/flitter/src/container.ts
+  - packages/flitter/src/factory.ts
+  - packages/flitter/src/index.ts
+  - packages/llm/src/providers/anthropic/provider.test.ts
+  - packages/llm/src/providers/registry.test.ts
+  - packages/llm/src/types.test.ts
+  - packages/schemas/src/config.test.ts
 findings:
   critical: 2
-  warning: 7
-  info: 5
-  total: 14
+  warning: 4
+  info: 3
+  total: 9
 status: issues_found
 ---
 
 # Phase 11: Code Review Report
 
-**Reviewed:** 2026-04-14T12:00:00Z
+**Reviewed:** 2026-04-14T13:19:26Z
 **Depth:** standard
-**Files Reviewed:** 28
+**Files Reviewed:** 32
 **Status:** issues_found
 
 ## Summary
 
-The CLI integration layer implements a well-structured command system using Commander.js with authentication (API Key + OAuth PKCE), mode routing (interactive/execute/headless), self-update via binary download or package managers, and thread/config management stubs. The code is generally clean with good documentation and test coverage.
+The CLI integration layer is well-structured with clear separation of concerns across commands, modes, context resolution, and update management. The DI container pattern in `@flitter/flitter` is solid with proper disposal ordering and error isolation. Test coverage is thorough across all packages.
 
-Key concerns:
-1. A **command injection vulnerability** in the OAuth browser-open function allows URL contents to escape shell quoting.
-2. The `validateApiKey` function accepts whitespace-padded keys that pass validation but would fail at the API level.
-3. A **circular dependency** exists between `@flitter/cli` and `@flitter/flitter` packages.
-4. The `main()` function registers signal and rejection handlers on every invocation without cleanup, causing listener leaks in repeated-call scenarios (tests).
-5. Several missing `await` patterns for stream operations in the installer module.
+Key concerns found:
+
+1. **Critical:** `handleLogout` fails to register OAuth providers before iterating them, causing incomplete credential cleanup in fresh-process scenarios.
+2. **Critical:** User messages are resolved but never actually delivered to the inference worker in execute and headless modes -- the `runInference()` call operates on an empty thread.
+3. **Warning:** The binary updater registers its stream error handler too late, risking an uncaught exception on filesystem errors during download.
+4. **Warning:** A missing `StreamDelta` import in the Anthropic provider test file will cause TypeScript compilation errors.
+
+The `@flitter/flitter` container, factory functions, `@flitter/llm` provider/registry/types tests, and `@flitter/schemas` config tests are clean with no issues found.
 
 ## Critical Issues
 
-### CR-01: Command Injection in OAuth Browser Open
+### CR-01: handleLogout skips OAuth credential cleanup when called without prior login
 
-**File:** `packages/cli/src/auth/oauth.ts:327-333`
-**Issue:** The `defaultOpenBrowser` function interpolates the URL into a shell command string using double quotes. If an attacker-controlled OAuth authorization URL contains shell metacharacters (e.g., `$(...)` or backticks), they will be executed. While the URL is partly constructed by `buildAuthUrl`, the `ampURL` parameter originates from user/config input and flows directly into the shell command.
+**File:** `packages/cli/src/commands/auth.ts:166-175`
+**Issue:** `handleLogout` calls `getOAuthProviders()` at line 170 without first calling `ensureOAuthProviders()`. The OAuth providers are only registered during `handleLogin` (line 72). If a user runs `flitter logout` in a fresh process (without a preceding `flitter login` call in that same process), `getOAuthProviders()` returns an empty array, and all OAuth credentials (`oauthCredentials` and per-provider `apiKey` entries) are silently left in storage. The message "All credentials have been removed" is misleading.
 **Fix:**
 ```typescript
-async function defaultOpenBrowser(url: string): Promise<void> {
-  const { execFile } = await import("node:child_process");
-  const cmd =
-    process.platform === "darwin"
-      ? "open"
-      : process.platform === "win32"
-        ? "cmd"
-        : "xdg-open";
+export async function handleLogout(deps: AuthCommandDeps, _context: CliContext): Promise<void> {
+  const { secrets } = deps;
+  ensureOAuthProviders(); // <-- Add this call
 
-  if (process.platform === "win32") {
-    execFile(cmd, ["/c", "start", "", url]);
-  } else {
-    execFile(cmd, [url]);
+  await secrets.delete("apiKey", "default");
+  const providers = getOAuthProviders();
+  for (const provider of providers) {
+    await secrets.delete("oauthCredentials", provider.id);
+    await secrets.delete("apiKey", provider.id);
   }
+  process.stderr.write("Logged out. All credentials have been removed.\n");
 }
 ```
-Use `execFile` (or `child_process.spawn`) with argument arrays instead of `exec` with string interpolation to avoid shell interpretation.
 
-### CR-02: Circular Package Dependency Between @flitter/cli and @flitter/flitter
+### CR-02: User messages never delivered to ThreadWorker in execute and headless modes
 
-**File:** `packages/cli/package.json:17` and `packages/flitter/package.json:16`
-**Issue:** `@flitter/cli` depends on `@flitter/flitter` (line 17 of cli/package.json), and `@flitter/flitter` depends on `@flitter/cli` (line 16 of flitter/package.json). This creates a circular dependency that can cause undefined import behavior, build failures, or runtime errors depending on bundler/resolution order. TypeScript type imports from `@flitter/flitter` (e.g., `ServiceContainer`, `SecretStorage`) are used extensively throughout the CLI package.
-**Fix:** Extract the shared types (`ServiceContainer`, `SecretStorage`, `ThreadWorker`, etc.) into a dedicated shared types package (e.g., `@flitter/types` or `@flitter/interfaces`), or have `@flitter/cli` depend only on `@flitter/agent-core` / `@flitter/data` for the specific types it needs, removing the direct `@flitter/flitter` dependency. The assembly/wiring should happen only in `@flitter/flitter` or `apps/flitter-cli`.
+**File:** `packages/cli/src/modes/execute.ts:119-132`
+**File:** `packages/cli/src/modes/headless.ts:69-92`
+**Issue:** In `runExecuteMode`, the `userMessage` is resolved from CLI args or stdin (lines 108-117), but it is never injected into the thread store or passed to `worker.runInference()`. The worker is created via `container.createThreadWorker(threadId)` which initializes with an empty thread snapshot (no messages -- see `container.ts:278`). The comment on line 131 ("userMessage already passed to worker via context") is incorrect -- no such passing occurs.
+
+The same pattern exists in `runHeadlessMode` (lines 79-81 and 89-92): messages parsed from stdin JSON Lines are validated but never added to the thread. As a result, inference runs with an empty message history, producing no meaningful output.
+
+The tests mask this bug because they mock `runInference` to succeed regardless of thread content.
+**Fix:** Before calling `worker.runInference()`, add the user message to the thread store:
+```typescript
+// In execute.ts, before worker.runInference():
+container.threadStore.updateThread(threadId, (snapshot) => ({
+  ...snapshot,
+  messages: [
+    ...snapshot.messages,
+    {
+      role: "user",
+      messageId: Date.now(),
+      content: [{ type: "text", text: userMessage }],
+    },
+  ],
+}));
+await worker.runInference();
+```
+Apply the same pattern in `headless.ts` for both the initial `context.userMessage` and each parsed stdin JSON message.
 
 ## Warnings
 
-### WR-01: validateApiKey Accepts Whitespace-Prefixed Keys
+### WR-01: Stream write error handler registered after write loop in installBinaryUpdate
 
-**File:** `packages/cli/src/auth/api-key.ts:53-56`
-**Issue:** `validateApiKey` checks `key.trim().length === 0` to reject blank strings, but then checks `key.startsWith(prefix)` on the untrimmed value. A key like `"  sk-abc123"` (with leading whitespace) will be rejected because `startsWith("sk-")` fails on the padded string, which is correct. However, `storeApiKey` stores whatever is passed without trimming. If `promptApiKey` returns a trimmed value that passes validation but the env var `FLITTER_API_KEY` has trailing whitespace (e.g., `"sk-abc123 "`), it passes validation (`startsWith("sk-")` is true) and gets stored with the trailing space, which will likely cause API authentication failures.
-**Fix:**
+**File:** `packages/cli/src/update/installer.ts:97-111`
+**Issue:** The `createWriteStream` error handler (`writer.on("error", reject)`) is registered at line 110, only after the entire download write loop finishes (lines 100-106). If a filesystem error occurs during the write loop (e.g., disk full, permission denied), the "error" event fires before the handler is attached. In Node.js, an unhandled "error" event on a stream causes an uncaught exception that crashes the process.
+**Fix:** Register the error handler immediately after creating the write stream:
 ```typescript
-export function validateApiKey(key: string): boolean {
-  const trimmed = key.trim();
-  if (trimmed.length === 0) return false;
-  return API_KEY_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+const writer = createWriteStream(tempPath);
+
+// Register error handler immediately to prevent unhandled 'error' event crash
+let writeError: Error | null = null;
+writer.on("error", (err) => { writeError = err; });
+
+const reader = resp.body.getReader();
+while (true) {
+  if (writeError) throw writeError;
+  const { done, value } = await reader.read();
+  if (done) break;
+  writer.write(value);
+  downloaded += value.byteLength;
+  opts?.onProgress?.(downloaded, total);
 }
-```
-And trim the key before storing in `handleLogin`:
-```typescript
-await storeApiKey(secrets, ampURL, envKey.trim());
-```
-
-### WR-02: Signal/Rejection Handler Leak in main()
-
-**File:** `packages/cli/src/main.ts:86-100`
-**Issue:** Every call to `main()` adds new `unhandledRejection`, `SIGINT`, and `SIGTERM` listeners without removing them. In test scenarios where `main()` is called multiple times, this causes listener accumulation. Node.js will warn about MaxListeners exceeded. The `main.test.ts` attempts cleanup but only restores pre-test listeners, not removing the ones `main()` adds during the test.
-**Fix:** Store handler references and remove them in a cleanup block, or use `{ once: true }` for signal handlers, or guard with a module-level flag:
-```typescript
-let signalHandlersInstalled = false;
-
-export async function main(opts?: MainOptions): Promise<void> {
-  if (!signalHandlersInstalled) {
-    process.on("unhandledRejection", ...);
-    process.on("SIGINT", handleSignal);
-    process.on("SIGTERM", handleSignal);
-    signalHandlersInstalled = true;
-  }
-  // ...
-}
-```
-
-### WR-03: Missing await on writer.write() in installBinaryUpdate
-
-**File:** `packages/cli/src/update/installer.ts:105`
-**Issue:** `writer.write(value)` returns a boolean indicating backpressure, but is not awaited. When dealing with large binary downloads, this can cause unbounded memory growth if the writable stream applies backpressure (write returns false). The data may also not be fully flushed before the SHA-256 computation runs.
-**Fix:** Use `stream.promises.pipeline` or handle backpressure:
-```typescript
-import { pipeline } from "node:stream/promises";
-import { Readable } from "node:stream";
-
-// Replace manual reader loop with pipeline
-const nodeStream = Readable.fromWeb(resp.body);
-await pipeline(nodeStream, writer);
-```
-
-### WR-04: handleLogin Falls Through to OAuth When TTY API Key Validation Fails
-
-**File:** `packages/cli/src/commands/auth.ts:69-84`
-**Issue:** When a user is in TTY mode and enters an invalid API key via `promptApiKey()`, the function prints an error message but does not return -- it falls through to the OAuth PKCE flow (line 83). This is likely unintentional: after the user enters an invalid key, starting a browser-based OAuth flow without asking is a poor user experience. The user should be informed and given a chance to retry or abort.
-**Fix:**
-```typescript
-if (context.isTTY) {
-  const key = await promptApiKey();
-  if (key) {
-    if (validateApiKey(key)) {
-      await storeApiKey(secrets, ampURL, key);
-      process.stderr.write("API key saved successfully.\n");
-      return;
-    }
-    process.stderr.write("Invalid API key format. Expected 'sk-' or 'flitter-' prefix.\n");
-    return; // Don't fall through to OAuth
-  }
-  // User entered empty key (pressed Enter) -- fall through to OAuth is OK
-}
-```
-
-### WR-05: userMessage Not Passed to ThreadWorker in execute.ts
-
-**File:** `packages/cli/src/modes/execute.ts:117-130`
-**Issue:** The `runExecuteMode` function resolves the `userMessage` (lines 106-115) but never passes it to the `ThreadWorker` or `ThreadStore`. Line 130 calls `worker.runInference()` with no arguments, and the comment says "userMessage 已通过 context 传入 worker" but there is no code that adds the user message to the thread. The worker's inference will run on an empty thread, producing no meaningful output. The tests mock `runInference` so this bug is hidden.
-**Fix:** Add the user message to the thread before running inference:
-```typescript
-// Add user message to thread store
-container.threadStore.updateThread(threadId, {
-  messages: [{ role: "user", content: [{ type: "text", text: userMessage }] }],
+writer.end();
+await new Promise<void>((resolve, reject) => {
+  writer.on("finish", resolve);
+  writer.on("error", reject);
 });
-
-await worker.runInference();
 ```
 
-### WR-06: userMessage Not Passed to ThreadWorker in headless.ts
+### WR-02: Missing import of StreamDelta in Anthropic provider test
 
-**File:** `packages/cli/src/modes/headless.ts:77-79`
-**Issue:** Same issue as WR-05. When `context.userMessage` exists, `worker.runInference()` is called without first adding the message to the thread. For stdin JSON Lines messages (line 89), the parsed message content is validated but never added to the thread store either. The worker runs inference on an empty or stale thread state.
-**Fix:** Before each `runInference()` call, add the user message to the thread via the container's `threadStore`.
+**File:** `packages/llm/src/providers/anthropic/provider.test.ts:381,428,486,550`
+**Issue:** The type `StreamDelta` is used at 4 locations (`let lastDelta: StreamDelta | undefined;`) but is never imported. The imports at the top of the file (lines 7-14) include `SystemPromptBlock` and `TransformState` from `../../types` but not `StreamDelta`. This will cause a TypeScript compilation error.
+**Fix:** Add the missing import at the top of the file:
+```typescript
+import type { StreamDelta, SystemPromptBlock } from "../../types";
+```
 
-### WR-07: errorPage XSS Mitigation is Incomplete
+### WR-03: Missing await on async defaultOpenBrowser call
 
-**File:** `packages/cli/src/auth/oauth.ts:382`
-**Issue:** The `errorPage` function escapes `<` and `>` but does not escape `"`, `'`, or `&`. While the escaped value is placed inside a `<p>` element (not an attribute), the lack of `&` escaping means HTML entities in the error message won't render correctly. More importantly, if the template ever changes to place the value in an attribute context, the incomplete escaping would become an XSS vector.
+**File:** `packages/cli/src/commands/auth.ts:118`
+**Issue:** `defaultOpenBrowser(info.url)` is called without `await` inside the synchronous `onAuth` callback. The function is `async` (line 178) and returns a Promise. If `execFile` fails (e.g., `xdg-open` not found on Linux), the rejection becomes an unhandled promise rejection, which triggers the global `unhandledRejection` handler registered in `main.ts` and sets `exitCode = 2`.
+**Fix:** Add `.catch()` to handle browser-open failures gracefully:
+```typescript
+onAuth: (info) => {
+  defaultOpenBrowser(info.url).catch(() => {
+    // Browser open failure is non-fatal
+  });
+  process.stderr.write("Opening browser for authentication...\n");
+```
+
+### WR-04: Missing validateApiKey call for interactively entered API key
+
+**File:** `packages/cli/src/commands/auth.ts:96-101`
+**Issue:** When a user selects "API Key" from the interactive prompt and enters a key, the key is stored directly via `storeApiKey` at line 99 without calling `validateApiKey()`. The environment variable path (line 76) correctly validates. While the current validator is permissive (any non-empty string passes), skipping validation means future changes to validation rules won't apply to the interactive path, creating an inconsistency between the two input paths.
 **Fix:**
 ```typescript
-function errorPage(message: string): string {
-  const escaped = message
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-  // ...
+if (method === "api-key") {
+  const key = await promptApiKey();
+  if (key && validateApiKey(key)) {
+    await storeApiKey(secrets, "default", key);
+    process.stderr.write("API key saved successfully.\n");
+    return;
+  }
+  process.stderr.write(key ? "Invalid API key format.\n" : "No key entered.\n");
+  return;
 }
 ```
 
 ## Info
 
-### IN-01: Duplicate bin Entry in @flitter/cli package.json
+### IN-01: Inconsistent SecretStorage mock key format between test files
 
-**File:** `packages/cli/package.json:8-9`
-**Issue:** `@flitter/cli` declares `"bin": { "flitter": "./bin/flitter.ts" }` which is a placeholder (`console.log('Flitter CLI placeholder')`). The actual entry point is in `apps/flitter-cli/bin/flitter.ts`. Having two packages declare the same bin name can cause confusion during development and incorrect global installs.
-**Fix:** Remove the `bin` field from `packages/cli/package.json` since the actual entry point lives in `apps/flitter-cli`.
+**File:** `packages/cli/src/auth/api-key.test.ts:15`
+**File:** `packages/cli/src/commands/auth.test.ts:31`
+**Issue:** The mock `SecretStorage` in `api-key.test.ts` uses `${key}@${scope}` format for composite keys (line 15), while `auth.test.ts` and `main.ts:createInMemorySecretStorage` use `${scope}:${key}` format (line 31 and main.ts:73 respectively). Each test file is internally consistent so tests pass, but the differing conventions would cause cross-test failures if mocks were shared and makes it harder to reason about key format expectations.
+**Fix:** Standardize on one format (e.g., `${scope}:${key}`) across all mock implementations.
 
-### IN-02: TODO Stubs in config.ts and threads.ts
+### IN-02: Double disposal of container in mode handlers and main.ts
 
-**File:** `packages/cli/src/commands/config.ts:44,64,82` and `packages/cli/src/commands/threads.ts:58,76,94,111,130`
-**Issue:** All command handlers in `config.ts` and `threads.ts` are empty stubs with `void` expressions to suppress unused-parameter warnings. These are placeholder implementations that will silently do nothing when users invoke the commands.
-**Fix:** Either implement the handlers or have them print a "not yet implemented" message and set a non-zero exit code so users get feedback.
+**File:** `packages/cli/src/main.ts:339-343`
+**File:** `packages/cli/src/modes/execute.ts:147-149`
+**File:** `packages/cli/src/modes/headless.ts:98-100`
+**File:** `packages/cli/src/modes/interactive.ts:281`
+**Issue:** The mode handlers (`runExecuteMode`, `runHeadlessMode`, `launchInteractiveMode`) each call `container.asyncDispose()` in their `finally` blocks. Additionally, `main.ts` calls `container.asyncDispose()` in its own `finally` block (line 342). This results in double disposal on every normal execution path. While the container's `disposed` guard makes this safe (idempotent), the unclear ownership of disposal responsibility is a code smell that could confuse future maintainers.
+**Fix:** Choose one layer to own disposal. Either remove `asyncDispose()` from mode handlers (let `main.ts` handle it) or remove it from `main.ts` (let each mode own its cleanup).
 
-### IN-03: Redundant throw After rejectPort in tryListen
+### IN-03: Stub command handlers with TODO comments
 
-**File:** `packages/cli/src/auth/oauth.ts:123-126`
-**Issue:** Inside `tryListen`, when `attempts >= maxRetries`, the code calls `rejectPort(err)` and then `throw err`. The `throw` will propagate to the synchronous caller of `tryListen()` (which is only on initial call at line 155). On subsequent calls from the error handler (line 142), the separate `rejectPort` path at lines 134-139 handles the same condition, making the throw in `tryListen` only reachable on the first call when `maxRetries=0`. This dual error-signaling path is confusing.
-**Fix:** Remove the `throw err` after `rejectPort(err)` and let the promise rejection be the sole error channel. Add a `return` after `rejectPort` to prevent `server.listen` from being called.
-
-### IN-04: Weak Test Assertion in computeSHA256 Test
-
-**File:** `packages/cli/src/update/checker.test.ts:62-73`
-**Issue:** The SHA-256 test for known content uses a hardcoded hash string in a comparison that always evaluates to true (`.length > 0` is always true), then falls back to just checking the format. The test does not actually verify the correct hash value for "hello world\n".
-**Fix:** Use the known SHA-256 of "hello world\n":
-```typescript
-assert.equal(
-  hash,
-  "a948904f2f0f479b8f8564e9d7a7b3f53d43c6b8e7a7e8f2e5a9c6d0f1e2b3a4"
-);
-```
-Or compute it separately and compare.
-
-### IN-05: createLogger Import Without @flitter/util in CLI Dependencies
-
-**File:** `packages/cli/src/main.ts:28`
-**Issue:** `main.ts` imports `createLogger` from `@flitter/util`, but `@flitter/util` is not listed in `packages/cli/package.json` dependencies. It is only a transitive dependency through `@flitter/flitter`. This works due to hoisted node_modules in the monorepo but would break if the package were consumed standalone or if hoisting configuration changed.
-**Fix:** Add `"@flitter/util": "workspace:*"` to `packages/cli/package.json` dependencies.
+**File:** `packages/cli/src/commands/config.ts:41-45`
+**File:** `packages/cli/src/commands/threads.ts:57-61`
+**Issue:** Multiple command handlers (`handleConfigGet`, `handleConfigSet`, `handleConfigList`, `handleThreadsList`, `handleThreadsNew`, `handleThreadsContinue`, `handleThreadsArchive`, `handleThreadsDelete`) are stub implementations with `void` expressions to suppress unused-parameter warnings and TODO comments. When users invoke these commands, they execute silently with no output and no error, which is confusing.
+**Fix:** No immediate action needed if these are tracked in the roadmap. Consider adding `stderr.write("Not yet implemented.\n")` so users receive clear feedback.
 
 ---
 
-_Reviewed: 2026-04-14T12:00:00Z_
+_Reviewed: 2026-04-14T13:19:26Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_

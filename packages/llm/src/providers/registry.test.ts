@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MODEL_REGISTRY, ProviderError } from "../types";
+import { MODEL_REGISTRY } from "../types";
 import { createProvider, getProviderForModel, resolveModel, resolveProvider } from "./registry";
 
 // ─── createProvider 测试 ─────────────────────────────────
@@ -30,11 +30,10 @@ describe("createProvider", () => {
     assert.equal(provider.name, "xai");
   });
 
-  it("should throw ProviderError for unknown provider", () => {
-    assert.throws(
-      () => createProvider("unknown" as never),
-      (err: unknown) => err instanceof ProviderError && err.status === 404,
-    );
+  it("should create OpenAICompatProvider for unknown provider name (dynamic fallback)", () => {
+    const provider = createProvider("unknown-custom" as never);
+    // Dynamic providers fall through to OpenAICompatProvider
+    assert.equal(provider.name, "unknown-custom");
   });
 
   it("should return same instance (singleton cache)", () => {
@@ -156,11 +155,10 @@ describe("resolveProvider", () => {
     assert.equal(resolveProvider("xai/grok-custom"), "xai");
   });
 
-  it("should throw ProviderError for totally unknown model", () => {
-    assert.throws(
-      () => resolveProvider("totally-unknown"),
-      (err: unknown) => err instanceof ProviderError && err.status === 404,
-    );
+  it("should default to 'anthropic' for totally unknown model (custom endpoint support)", () => {
+    assert.equal(resolveProvider("totally-unknown"), "anthropic");
+    assert.equal(resolveProvider("ep-20260331120931-5lxqv"), "anthropic");
+    assert.equal(resolveProvider("my-custom-model-v1"), "anthropic");
   });
 });
 
@@ -187,11 +185,9 @@ describe("getProviderForModel", () => {
     assert.equal(provider.name, "openai-compat"); // OpenAICompatProvider via MODEL_REGISTRY
   });
 
-  it("should throw ProviderError for unknown model", () => {
-    assert.throws(
-      () => getProviderForModel("unknown-model"),
-      (err: unknown) => err instanceof ProviderError,
-    );
+  it("should return AnthropicProvider for unknown model (defaults to anthropic)", () => {
+    const provider = getProviderForModel("unknown-model");
+    assert.equal(provider.name, "anthropic");
   });
 });
 

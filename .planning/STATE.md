@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 12
 status: executing
-last_updated: "2026-04-14T17:34:01.339Z"
+last_updated: "2026-04-14T17:41:34.000Z"
 progress:
   total_phases: 12
   completed_phases: 11
   total_plans: 98
-  completed_plans: 97
-  percent: 99
+  completed_plans: 98
+  percent: 100
 ---
 
 # Flitter — Project State
@@ -31,7 +31,7 @@ progress:
 | Status | executing |
 | Requirements | TUI-06, CLI-02 |
 | Plans created | 15/15 |
-| Plans completed | 14/15 |
+| Plans completed | 15/15 |
 
 ---
 
@@ -51,7 +51,7 @@ progress:
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | complete | 10/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | planned | 0/7 | CLI-01..05 (5) |
-| 12 | WidgetsBinding + runApp TUI 启动 | executing | 14/15 | TUI-06, CLI-02 |
+| 12 | WidgetsBinding + runApp TUI 启动 | complete | 15/15 | TUI-06, CLI-02 |
 
 ---
 
@@ -127,6 +127,7 @@ progress:
 | KD-45 | Headless JSON 流: stdin JSON Lines 输入 + stdout JSON 事件流输出 | Phase 11 | 2026-04-14 |
 | KD-46 | TuiController 适配: InputParser.onInput() 按 type 过滤分发; AnsiRenderer + ANSI 常量直接使用; 非 TTY stdin.unref() 防止测试挂起 | Phase 12 | 2026-04-14 |
 | KD-47 | interactive.ts stub 替换: onSubmit 先追加 user message 到 ThreadStore 再调 runInference() (零参数); defaultThemeData 本地定义 | Phase 12 | 2026-04-14 |
+| KD-48 | E2E typecheck 作用域: 仅检查 Phase 12 文件 (binding/focus/gestures/tui/widgets/cli), 排除 agent-core 预存类型错误 | Phase 12 | 2026-04-14 |
 
 ---
 

@@ -475,7 +475,7 @@ Phase 6 (TUI Advanced) + Phase 10 (Agent Core) ──> Phase 11 (CLI)
 - Phase 6 (高级交互组件 — 依赖事件系统)
 - Phase 11 (CLI 入口 — interactive.ts stub 替换)
 
-**Plans:** 14/15 plans executed
+**Plans:** 15/15 plans complete
 
 Plans:
 - [x] 12-01-PLAN.md — InheritedWidget + InheritedElement (Wave A)
@@ -492,7 +492,7 @@ Plans:
 - [x] 12-12-PLAN.md — InputField + ConversationView (Wave D)
 - [x] 12-13-PLAN.md — interactive.ts stub 替换 (Wave E)
 - [x] 12-14-PLAN.md — Theme 系统迁移 (Wave E)
-- [ ] 12-15-PLAN.md — E2E 集成测试 (Wave E)
+- [x] 12-15-PLAN.md — E2E 集成测试 (Wave E)
 
 ### Key Pitfalls
 - PIT-C1: 三棵树生命周期时序错误（mount 前访问 renderObject）

@@ -22,6 +22,22 @@ export type { CliContext } from "./context";
 export { handleLogin, handleLogout } from "./commands/auth";
 export type { AuthCommandDeps } from "./commands/auth";
 
+// ─── 认证模块 ────────────────────────────────────────────
+export {
+  validateApiKey,
+  getApiKeyFromEnv,
+  hasApiKey,
+  storeApiKey,
+  promptApiKey,
+} from "./auth/api-key";
+
+export {
+  performOAuth,
+  buildAuthUrl,
+  startOAuthCallbackServer,
+} from "./auth/oauth";
+export type { OAuthResult, OAuthHooks } from "./auth/oauth";
+
 export {
   handleThreadsList,
   handleThreadsNew,

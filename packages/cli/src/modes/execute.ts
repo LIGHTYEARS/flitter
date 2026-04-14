@@ -22,7 +22,7 @@
 
 import type { AgentEvent } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
-import type { ThreadMessage } from "@flitter/schemas";
+import type { Message, ThreadMessage } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import type { CliContext } from "../context";
 
@@ -117,7 +117,18 @@ export async function runExecuteMode(
   }
 
   const threadId = crypto.randomUUID();
-  const worker = container.createThreadWorker(threadId);
+
+  // Build user message and inject into worker via getMessages
+  const messages: Message[] = [
+    {
+      role: "user",
+      messageId: Date.now(),
+      content: [{ type: "text", text: userMessage }],
+    },
+  ];
+  const worker = container.createThreadWorker(threadId, {
+    getMessages: () => messages,
+  });
 
   try {
     // 可选: stream-json 模式
@@ -128,7 +139,7 @@ export async function runExecuteMode(
       });
     }
 
-    // 执行推理循环 (userMessage 已通过 context 传入 worker)
+    // 执行推理循环
     await worker.runInference();
 
     // 非 stream-json: 输出最终文本

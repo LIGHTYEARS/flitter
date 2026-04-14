@@ -21,6 +21,7 @@
 import { createInterface } from "node:readline";
 import type { AgentEvent } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
+import type { Message } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import type { CliContext } from "../context";
 
@@ -67,7 +68,12 @@ export async function runHeadlessMode(
   const stderr = io?.stderr ?? process.stderr;
 
   const threadId = crypto.randomUUID();
-  const worker = container.createThreadWorker(threadId);
+
+  // Mutable messages array; worker reads via getMessages callback
+  const messages: Message[] = [];
+  const worker = container.createThreadWorker(threadId, {
+    getMessages: () => messages,
+  });
 
   // 订阅 AgentEvent → JSON Lines 输出到 stdout
   const sub: Subscription = worker.events$.subscribe((event: AgentEvent) => {
@@ -77,6 +83,11 @@ export async function runHeadlessMode(
   try {
     // 如果有初始消息 (命令行参数), 先执行推理
     if (context.userMessage) {
+      messages.push({
+        role: "user",
+        messageId: Date.now(),
+        content: [{ type: "text", text: context.userMessage }],
+      });
       await worker.runInference();
     }
 
@@ -88,7 +99,12 @@ export async function runHeadlessMode(
       try {
         const msg = JSON.parse(trimmed);
         if (msg.role === "user" && typeof msg.content === "string") {
-          // 触发推理循环 (用户消息已通过 JSON 传入)
+          // 将用户消息加入历史后触发推理循环
+          messages.push({
+            role: "user",
+            messageId: Date.now(),
+            content: [{ type: "text", text: msg.content }],
+          });
           await worker.runInference();
         }
       } catch {

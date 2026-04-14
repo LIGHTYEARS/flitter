@@ -319,7 +319,7 @@ _(none — foundation layer)_
 **Packages:** `@flitter/cli` + `@flitter/flitter` + `apps/flitter-cli`
 **Effort:** L | **Risk:** Medium
 **Requirements:** CLI-01, CLI-02, CLI-03, CLI-04, CLI-05
-**Plans:** 9 plans
+**Plans:** 9/9 plans complete
 
 Plans:
 - [x] 11-01-PLAN.md — Commander.js 命令树搭建
@@ -329,8 +329,8 @@ Plans:
 - [x] 11-05-PLAN.md — 自动更新 (SHA-256 + 原子替换)
 - [x] 11-06-PLAN.md — DI 组装层 (ServiceContainer)
 - [x] 11-07-PLAN.md — main() 入口 + apps/flitter-cli shebang
-- [ ] 11-08-PLAN.md — Gap closure: 依赖修复 + 安全修复 (CR-01, CR-02)
-- [ ] 11-09-PLAN.md — Gap closure: main.ts 完整布线 (模式路由 + 命令注册)
+- [x] 11-08-PLAN.md — Gap closure: 依赖修复 + 安全修复 (CR-01, CR-02)
+- [x] 11-09-PLAN.md — Gap closure: main.ts 完整布线 (模式路由 + 命令注册)
 
 ### Success Criteria
 1. `flitter --help` 输出完整命令树

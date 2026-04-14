@@ -79,11 +79,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLI (CLI)
 
-- [ ] **CLI-01**: Commander 命令树（auth/thread/config/run 等子命令）
-- [ ] **CLI-02**: 交互式 TUI 模式入口（全屏 + 组件组装）
-- [ ] **CLI-03**: Headless JSON 流模式（管道输入 + JSON 输出）
-- [ ] **CLI-04**: 认证流程（API Key 输入 + OAuth 回调 + Keyring 存储）
-- [ ] **CLI-05**: 自动更新（CDN 下载 + SHA-256 校验 + 原子替换）
+- [x] **CLI-01**: Commander 命令树（auth/thread/config/run 等子命令）
+- [x] **CLI-02**: 交互式 TUI 模式入口（全屏 + 组件组装）
+- [x] **CLI-03**: Headless JSON 流模式（管道输入 + JSON 输出）
+- [x] **CLI-04**: 认证流程（API Key 输入 + OAuth 回调 + Keyring 存储）
+- [x] **CLI-05**: 自动更新（CDN 下载 + SHA-256 校验 + 原子替换）
 
 ## v2 Requirements
 

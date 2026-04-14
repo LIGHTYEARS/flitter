@@ -14,6 +14,7 @@
   "dependencies": {
     "@flitter/agent-core": "workspace:*",
     "@flitter/data": "workspace:*",
+    "@flitter/flitter": "workspace:*",
     "@flitter/llm": "workspace:*",
     "@flitter/tui": "workspace:*",
     "commander": "^14.0.3"

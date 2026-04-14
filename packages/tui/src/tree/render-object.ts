@@ -264,16 +264,17 @@ export abstract class RenderObject {
     offsetX = 0,
     offsetY = 0,
   ): boolean {
-    // RenderBox 子类拥有 _size 和 _offset，通过 runtime 检查判断
-    const self = this as Record<string, unknown>;
-    const size = self._size as { width: number; height: number } | undefined;
-    const offset = self._offset as { x: number; y: number } | undefined;
+    // RenderBox 子类拥有 _size 和 _offset，通过 duck-typing 检查
+    const self = this as unknown as {
+      _size?: { width: number; height: number };
+      _offset?: { x: number; y: number };
+    };
 
-    if (size && offset) {
-      const absX = offsetX + offset.x;
-      const absY = offsetY + offset.y;
-      const inX = position.x >= absX && position.x < absX + size.width;
-      const inY = position.y >= absY && position.y < absY + size.height;
+    if (self._size && self._offset) {
+      const absX = offsetX + self._offset.x;
+      const absY = offsetY + self._offset.y;
+      const inX = position.x >= absX && position.x < absX + self._size.width;
+      const inY = position.y >= absY && position.y < absY + self._size.height;
       if (inX && inY) {
         const localPosition = {
           x: position.x - absX,

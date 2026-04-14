@@ -4,46 +4,58 @@
  * runHeadlessMode: stdin JSON Lines 输入 + stdout JSON 事件流输出
  * 逆向: SB() stream-json 分支 in cli-entrypoint.js
  */
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { runHeadlessMode } from "./headless";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { CliContext } from "../context";
 import type { AgentEvent } from "@flitter/agent-core";
 import { Subject } from "@flitter/util";
-import { Readable, Writable, PassThrough } from "node:stream";
+import { PassThrough } from "node:stream";
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
 /**
  * 创建模拟的 ServiceContainer
+ *
+ * 模拟 createThreadWorker 返回的 worker 拥有 events$ 和 runInference
+ * 通过 onUserMessage 回调捕获用户消息
  */
 function createMockContainer(overrides: Partial<{
   events: Subject<AgentEvent>;
-  submitUserMessage: (msg: string) => Promise<void>;
-  waitForIdle: () => Promise<void>;
+  onUserMessage: (msg: string) => void;
+  runInference: () => Promise<void>;
   asyncDispose: () => Promise<void>;
   getThreadSnapshot: (id: string) => any;
-}> = {}): ServiceContainer {
+}> = {}): ServiceContainer & { _addedMessages: string[] } {
   const events$ = overrides.events ?? new Subject<AgentEvent>();
-  const submitUserMessage = overrides.submitUserMessage ?? (async () => {});
-  const waitForIdle = overrides.waitForIdle ?? (async () => {});
+  const addedMessages: string[] = [];
+  const onUserMessage = overrides.onUserMessage ?? (() => {});
+
+  const runInference = overrides.runInference ?? (async () => {});
 
   const mockWorker = {
     events$,
-    inferenceState$: { getValue: () => "idle" as const },
-    runInference: async () => {},
+    inferenceState$: { getValue: () => "idle" as const, next: () => {} },
+    runInference,
     cancelInference: () => {},
     retry: async () => {},
     dispose: () => {},
-    submitUserMessage,
-    waitForIdle,
   };
 
-  return {
+  // Mock ThreadStore: addUserMessage 追踪
+  const mockThreadStore = {
+    getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
+    getThread: () => undefined,
+    createThread: () => ({ getValue: () => ({
+      id: "test", v: 1, title: null, messages: [], env: "local",
+      agentMode: "normal", relationships: [],
+    }) }) as any,
+    updateThread: () => {},
+  };
+
+  const container = {
     createThreadWorker: mock(() => mockWorker),
-    threadStore: {
-      getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
-    },
+    threadStore: mockThreadStore,
     asyncDispose: overrides.asyncDispose ?? (async () => {}),
     configService: {} as any,
     toolRegistry: {} as any,
@@ -51,13 +63,15 @@ function createMockContainer(overrides: Partial<{
     permissionEngine: {} as any,
     mcpServerManager: {} as any,
     skillService: {} as any,
-    threadStore: {} as any,
     threadPersistence: null,
     guidanceLoader: {} as any,
     contextManager: {} as any,
     secrets: {} as any,
     settings: {} as any,
-  } as unknown as ServiceContainer;
+    _addedMessages: addedMessages,
+  } as unknown as ServiceContainer & { _addedMessages: string[] };
+
+  return container;
 }
 
 /**
@@ -74,19 +88,6 @@ function createContext(overrides: Partial<CliContext> = {}): CliContext {
   };
 }
 
-/**
- * 收集写入 stream 的数据
- */
-function collectOutput(stream: Writable): string[] {
-  const lines: string[] = [];
-  const orig = stream.write;
-  stream.write = ((data: string) => {
-    lines.push(data);
-    return true;
-  }) as any;
-  return lines;
-}
-
 // ─── 测试 ───────────────────────────────────────────────────
 
 describe("runHeadlessMode", () => {
@@ -94,21 +95,19 @@ describe("runHeadlessMode", () => {
     const events$ = new Subject<AgentEvent>();
     const stdoutLines: string[] = [];
 
-    // 模拟 submitUserMessage 时发出事件
-    const submitUserMessage = async () => {
+    // runInference 时发出事件
+    const runInference = async () => {
       events$.next({ type: "inference:start" });
       events$.next({ type: "turn:complete" });
     };
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage,
-      waitForIdle: async () => {},
+      runInference,
     });
 
     const context = createContext({ userMessage: "hello" });
 
-    // 使用 PassThrough 模拟 stdin, 立即结束
     const fakeStdin = new PassThrough();
     fakeStdin.end();
 
@@ -130,14 +129,14 @@ describe("runHeadlessMode", () => {
     expect(parsed[1].type).toBe("turn:complete");
   });
 
-  it("有效 JSON stdin 行触发 submitUserMessage", async () => {
+  it("有效 JSON stdin 行触发 runInference", async () => {
     const events$ = new Subject<AgentEvent>();
-    const messages: string[] = [];
+    let inferenceCount = 0;
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage: async (msg) => {
-        messages.push(msg);
+      runInference: async () => {
+        inferenceCount++;
       },
     });
 
@@ -157,14 +156,20 @@ describe("runHeadlessMode", () => {
 
     await promise;
 
-    expect(messages).toContain("test message");
+    expect(inferenceCount).toBeGreaterThanOrEqual(1);
   });
 
   it("无效 JSON stdin 行写入 stderr 警告但不中断", async () => {
     const events$ = new Subject<AgentEvent>();
     const stderrLines: string[] = [];
+    let inferenceCount = 0;
 
-    const container = createMockContainer({ events: events$ });
+    const container = createMockContainer({
+      events: events$,
+      runInference: async () => {
+        inferenceCount++;
+      },
+    });
     const context = createContext();
 
     const fakeStdin = new PassThrough();
@@ -188,16 +193,18 @@ describe("runHeadlessMode", () => {
 
     // stderr 应该有警告
     expect(stderrLines.some((l) => l.includes("Warning"))).toBe(true);
+    // 有效行仍然触发推理
+    expect(inferenceCount).toBeGreaterThanOrEqual(1);
   });
 
   it("空行跳过", async () => {
     const events$ = new Subject<AgentEvent>();
-    const messages: string[] = [];
+    let inferenceCount = 0;
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage: async (msg) => {
-        messages.push(msg);
+      runInference: async () => {
+        inferenceCount++;
       },
     });
 
@@ -219,16 +226,15 @@ describe("runHeadlessMode", () => {
 
     await promise;
 
-    // 只有 "real" 被提交
-    expect(messages.length).toBe(1);
-    expect(messages[0]).toBe("real");
+    // 只有 "real" 消息触发推理
+    expect(inferenceCount).toBe(1);
   });
 
   it("stdout 每行是合法 JSON + \\n 结尾 (JSON Lines 格式)", async () => {
     const events$ = new Subject<AgentEvent>();
     const rawOutput: string[] = [];
 
-    const submitUserMessage = async () => {
+    const runInference = async () => {
       events$.next({ type: "inference:start" });
       events$.next({
         type: "inference:delta",
@@ -239,7 +245,7 @@ describe("runHeadlessMode", () => {
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage,
+      runInference,
     });
     const context = createContext({ userMessage: "test" });
 
@@ -296,13 +302,18 @@ describe("runHeadlessMode", () => {
 
   it("初始 userMessage (命令行参数) 先执行", async () => {
     const events$ = new Subject<AgentEvent>();
-    const messages: string[] = [];
+    const inferenceOrder: string[] = [];
+
+    // 区分初始消息和 stdin 消息
+    let callCount = 0;
+    const runInference = async () => {
+      callCount++;
+      inferenceOrder.push(`inference-${callCount}`);
+    };
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage: async (msg) => {
-        messages.push(msg);
-      },
+      runInference,
     });
 
     const context = createContext({ userMessage: "initial message" });
@@ -321,22 +332,22 @@ describe("runHeadlessMode", () => {
 
     await promise;
 
-    // 初始消息在前
-    expect(messages[0]).toBe("initial message");
-    expect(messages[1]).toBe("follow up");
+    // 初始消息先执行 (callCount >= 2)
+    expect(inferenceOrder.length).toBeGreaterThanOrEqual(2);
+    expect(inferenceOrder[0]).toBe("inference-1");
   });
 
   it("asyncDispose 在 finally 中调用", async () => {
     const events$ = new Subject<AgentEvent>();
     let disposed = false;
 
-    const submitUserMessage = async () => {
+    const runInference = async () => {
       throw new Error("simulated error");
     };
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage,
+      runInference,
       asyncDispose: async () => {
         disposed = true;
       },

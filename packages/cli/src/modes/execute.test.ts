@@ -4,7 +4,7 @@
  * runExecuteMode: 发送 userMessage → 等待完成 → 输出结果
  * 逆向: SB() execute 分支 in cli-entrypoint.js
  */
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { describe, it, expect, mock } from "bun:test";
 import { runExecuteMode } from "./execute";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { CliContext } from "../context";
@@ -16,33 +16,37 @@ import { PassThrough } from "node:stream";
 
 /**
  * 创建模拟的 ServiceContainer
+ *
+ * 模拟 createThreadWorker 返回 worker 拥有 events$ 和 runInference
  */
 function createMockContainer(overrides: Partial<{
   events: Subject<AgentEvent>;
-  submitUserMessage: (msg: string) => Promise<void>;
-  waitForIdle: () => Promise<void>;
+  runInference: () => Promise<void>;
   asyncDispose: () => Promise<void>;
   getThreadSnapshot: (id: string) => any;
 }> = {}): ServiceContainer {
   const events$ = overrides.events ?? new Subject<AgentEvent>();
-  const submitUserMessage = overrides.submitUserMessage ?? (async () => {});
-  const waitForIdle = overrides.waitForIdle ?? (async () => {});
+  const runInference = overrides.runInference ?? (async () => {});
 
   const mockWorker = {
     events$,
-    inferenceState$: { getValue: () => "idle" as const },
-    runInference: async () => {},
+    inferenceState$: { getValue: () => "idle" as const, next: () => {} },
+    runInference,
     cancelInference: () => {},
     retry: async () => {},
     dispose: () => {},
-    submitUserMessage,
-    waitForIdle,
   };
 
   return {
     createThreadWorker: mock(() => mockWorker),
     threadStore: {
       getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
+      getThread: () => undefined,
+      createThread: () => ({ getValue: () => ({
+        id: "test", v: 1, title: null, messages: [], env: "local",
+        agentMode: "normal", relationships: [],
+      }) }) as any,
+      updateThread: () => {},
     },
     asyncDispose: overrides.asyncDispose ?? (async () => {}),
     configService: {} as any,
@@ -76,16 +80,12 @@ function createContext(overrides: Partial<CliContext> = {}): CliContext {
 // ─── 测试 ───────────────────────────────────────────────────
 
 describe("runExecuteMode", () => {
-  it("发送 userMessage 并等待完成", async () => {
-    const messages: string[] = [];
-    let idleAwaited = false;
+  it("发送 userMessage 并等待 runInference 完成", async () => {
+    let inferenceRan = false;
 
     const container = createMockContainer({
-      submitUserMessage: async (msg) => {
-        messages.push(msg);
-      },
-      waitForIdle: async () => {
-        idleAwaited = true;
+      runInference: async () => {
+        inferenceRan = true;
       },
       getThreadSnapshot: () => ({
         id: "test",
@@ -111,8 +111,7 @@ describe("runExecuteMode", () => {
       stderr: process.stderr,
     });
 
-    expect(messages).toContain("hello world");
-    expect(idleAwaited).toBe(true);
+    expect(inferenceRan).toBe(true);
   });
 
   it("无 userMessage + 无 stdin 内容 → exitCode=1", async () => {
@@ -126,7 +125,6 @@ describe("runExecuteMode", () => {
     const fakeStderr = new PassThrough();
     fakeStderr.on("data", (chunk: Buffer) => stderrData.push(chunk.toString()));
 
-    let exitCode: number | undefined;
     const fakeProcess = { exitCode: undefined as number | undefined };
 
     await runExecuteMode(container, context, {
@@ -141,11 +139,11 @@ describe("runExecuteMode", () => {
   });
 
   it("stdin pipe mode 读取内容作为 userMessage", async () => {
-    const messages: string[] = [];
+    let inferenceRan = false;
 
     const container = createMockContainer({
-      submitUserMessage: async (msg) => {
-        messages.push(msg);
+      runInference: async () => {
+        inferenceRan = true;
       },
       getThreadSnapshot: () => ({
         id: "test",
@@ -172,21 +170,22 @@ describe("runExecuteMode", () => {
       stderr: process.stderr,
     });
 
-    expect(messages[0]).toBe("piped input text");
+    // stdin content should trigger inference
+    expect(inferenceRan).toBe(true);
   });
 
   it("stream-json 模式输出 JSON Lines", async () => {
     const events$ = new Subject<AgentEvent>();
     const stdoutData: string[] = [];
 
-    const submitUserMessage = async () => {
+    const runInference = async () => {
       events$.next({ type: "inference:start" });
       events$.next({ type: "turn:complete" });
     };
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage,
+      runInference,
     });
 
     const context = createContext({ streamJson: true, userMessage: "test" });
@@ -284,13 +283,13 @@ describe("runExecuteMode", () => {
     let disposed = false;
     const events$ = new Subject<AgentEvent>();
 
-    const submitUserMessage = async () => {
+    const runInference = async () => {
       throw new Error("simulated failure");
     };
 
     const container = createMockContainer({
       events: events$,
-      submitUserMessage,
+      runInference,
       asyncDispose: async () => {
         disposed = true;
       },

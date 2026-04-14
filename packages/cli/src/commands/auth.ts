@@ -165,6 +165,7 @@ export async function handleLogin(deps: AuthCommandDeps, context: CliContext): P
  */
 export async function handleLogout(deps: AuthCommandDeps, _context: CliContext): Promise<void> {
   const { secrets } = deps;
+  ensureOAuthProviders();
 
   await secrets.delete("apiKey", "default");
   const providers = getOAuthProviders();

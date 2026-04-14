@@ -96,8 +96,15 @@ export async function installBinaryUpdate(info: UpdateInfo, opts?: InstallOption
     let downloaded = 0;
     const writer = createWriteStream(tempPath);
 
+    // Register error handler immediately to prevent unhandled 'error' event crash
+    let writeError: Error | null = null;
+    writer.on("error", (err) => {
+      writeError = err;
+    });
+
     const reader = resp.body.getReader();
     while (true) {
+      if (writeError) throw writeError;
       const { done, value } = await reader.read();
       if (done) break;
       writer.write(value);

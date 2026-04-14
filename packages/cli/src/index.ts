@@ -44,3 +44,10 @@ export type { ConfigCommandDeps } from "./commands/config";
 
 export { handleUpdate } from "./commands/update";
 export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
+
+// ─── 模式 ───────────────────────────────────────────────────
+export { runHeadlessMode } from "./modes/headless";
+export type { HeadlessIO } from "./modes/headless";
+
+export { runExecuteMode } from "./modes/execute";
+export type { ExecuteIO } from "./modes/execute";

@@ -319,7 +319,7 @@ _(none — foundation layer)_
 **Packages:** `@flitter/cli` + `@flitter/flitter` + `apps/flitter-cli`
 **Effort:** L | **Risk:** Medium
 **Requirements:** CLI-01, CLI-02, CLI-03, CLI-04, CLI-05
-**Plans:** 9/9 plans complete
+**Plans:** 10/10 plans complete
 
 Plans:
 - [x] 11-01-PLAN.md — Commander.js 命令树搭建

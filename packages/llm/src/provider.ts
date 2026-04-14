@@ -16,11 +16,11 @@
 import type { Message } from "@flitter/schemas";
 import type {
   ProviderName,
-  StreamParams,
   StreamDelta,
+  StreamParams,
+  SystemPromptBlock,
   ToolDefinition,
   TransformState,
-  SystemPromptBlock,
 } from "./types";
 
 // ─── LLMProvider 接口 ───────────────────────────────────

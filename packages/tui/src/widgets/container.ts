@@ -7,11 +7,11 @@
  * @module
  */
 
-import { StatelessWidget } from "../tree/stateless-widget.js";
+import type { Widget as WidgetInterface } from "../tree/element.js";
 import type { BuildContext } from "../tree/stateless-widget.js";
-import type { Element, Widget as WidgetInterface } from "../tree/element.js";
+import { StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
-import { EdgeInsets } from "./edge-insets.js";
+import type { EdgeInsets } from "./edge-insets.js";
 import { Padding } from "./padding.js";
 import { SizedBox } from "./sized-box.js";
 
@@ -81,7 +81,7 @@ export class Container extends StatelessWidget {
    * @param context - 构建上下文
    * @returns 组合后的 Widget
    */
-  build(context: BuildContext): WidgetInterface {
+  build(_context: BuildContext): WidgetInterface {
     let current: WidgetInterface | undefined = this.child;
 
     // 如果指定了宽度或高度，用 SizedBox 包裹

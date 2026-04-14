@@ -15,7 +15,7 @@
  */
 import * as nodePath from "node:path";
 import { FileScanner, FuzzyMatcher } from "@flitter/util";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -31,9 +31,7 @@ export function fuzzyFindExecutionProfile(
   args: Record<string, unknown>,
   cwd: string,
 ): ExecutionProfile {
-  const searchPath = args.path
-    ? nodePath.resolve(cwd, args.path as string)
-    : cwd;
+  const searchPath = args.path ? nodePath.resolve(cwd, args.path as string) : cwd;
   return {
     resourceKeys: [{ key: searchPath, mode: "read" }],
   };
@@ -72,19 +70,14 @@ export const FuzzyFindTool: ToolSpec = {
     },
   },
 
-  async execute(
-    args: Record<string, unknown>,
-    context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
     const query = args.query as string | undefined;
     if (!query) {
       return { status: "error", error: "query is required." };
     }
 
     const cwd = context.workingDirectory;
-    const searchPath = args.path
-      ? nodePath.resolve(cwd, args.path as string)
-      : cwd;
+    const searchPath = args.path ? nodePath.resolve(cwd, args.path as string) : cwd;
     const limit = (args.limit as number | undefined) ?? DEFAULT_LIMIT;
 
     // Scan the directory tree
@@ -108,9 +101,7 @@ export const FuzzyFindTool: ToolSpec = {
     }
 
     // Format output: path (score: N)
-    const lines = results.map(
-      (r) => `${r.entry.path} (score: ${r.score})`,
-    );
+    const lines = results.map((r) => `${r.entry.path} (score: ${r.score})`);
 
     return { status: "done", content: lines.join("\n") };
   },

@@ -103,18 +103,8 @@ export class EdgeInsets {
    * @param opts - 可选的 left、top、right、bottom 间距
    * @returns 新的 EdgeInsets 实例
    */
-  static only(opts: {
-    left?: number;
-    top?: number;
-    right?: number;
-    bottom?: number;
-  }): EdgeInsets {
-    return new EdgeInsets(
-      opts.left ?? 0,
-      opts.top ?? 0,
-      opts.right ?? 0,
-      opts.bottom ?? 0,
-    );
+  static only(opts: { left?: number; top?: number; right?: number; bottom?: number }): EdgeInsets {
+    return new EdgeInsets(opts.left ?? 0, opts.top ?? 0, opts.right ?? 0, opts.bottom ?? 0);
   }
 
   // ════════════════════════════════════════════════════

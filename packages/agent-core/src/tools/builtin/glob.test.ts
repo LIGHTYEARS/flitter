@@ -4,14 +4,15 @@
  * Covers ToolSpec shape, glob patterns, path-limited matching, no-match,
  * absolute paths, and execution profile.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { GlobTool, globExecutionProfile } from "./glob";
-import type { ToolContext } from "../types";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Config } from "@flitter/schemas";
+import type { ToolContext } from "../types";
+import { GlobTool, globExecutionProfile } from "./glob";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -91,16 +92,16 @@ describe("GlobTool", () => {
     const lines = result.content.split("\n").filter(Boolean);
     // Should find index.ts, utils.ts, index.test.ts (3 .ts files)
     assert.ok(lines.length >= 3, `Expected >= 3 .ts files, got ${lines.length}`);
-    assert.ok(lines.every((l: string) => l.endsWith(".ts")), "All results should be .ts files");
+    assert.ok(
+      lines.every((l: string) => l.endsWith(".ts")),
+      "All results should be .ts files",
+    );
   });
 
   // ─── src/**/*.ts path-limited matching ──────────────────
 
   it("src/**/*.ts matches only src .ts files when path is set", async () => {
-    const result = await GlobTool.execute(
-      { pattern: "**/*.ts", path: "src" },
-      ctx,
-    );
+    const result = await GlobTool.execute({ pattern: "**/*.ts", path: "src" }, ctx);
     assert.equal(result.status, "done");
     assert.ok(result.content);
     const lines = result.content.split("\n").filter(Boolean);
@@ -117,10 +118,7 @@ describe("GlobTool", () => {
   // ─── No match ───────────────────────────────────────────
 
   it("returns no-match message for non-matching pattern", async () => {
-    const result = await GlobTool.execute(
-      { pattern: "**/*.zzz_nonexistent" },
-      ctx,
-    );
+    const result = await GlobTool.execute({ pattern: "**/*.zzz_nonexistent" }, ctx);
     assert.equal(result.status, "done");
     assert.equal(result.content, "No files matched the pattern.");
   });
@@ -133,10 +131,7 @@ describe("GlobTool", () => {
     assert.ok(result.content);
     const lines = result.content.split("\n").filter(Boolean);
     for (const line of lines) {
-      assert.ok(
-        path.isAbsolute(line),
-        `Expected absolute path, got: ${line}`,
-      );
+      assert.ok(path.isAbsolute(line), `Expected absolute path, got: ${line}`);
     }
   });
 

@@ -1,34 +1,38 @@
 /**
  * Tests for ThreadStore — in-memory CRUD engine.
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
-import type { ThreadSnapshot } from "@flitter/schemas";
+import { beforeEach, describe, it } from "node:test";
+import type { ThreadMessage, ThreadSnapshot } from "@flitter/schemas";
 import {
-  ThreadStore,
-  snapshotToEntry,
-  entryEquals,
   computeUserLastInteractedAt,
+  entryEquals,
+  snapshotToEntry,
+  ThreadStore,
 } from "./thread-store";
 
-function makeThread(overrides: Partial<ThreadSnapshot> & { id: string; created?: number }): ThreadSnapshot {
+function makeThread(
+  overrides: Partial<ThreadSnapshot> & { id: string; created?: number; [key: string]: unknown },
+): ThreadSnapshot {
   return {
     v: 1,
     messages: [],
     ...overrides,
-  } as ThreadSnapshot;
+  } as unknown as ThreadSnapshot;
 }
 
-function makeUserMessage(sentAt?: number): any {
-  return {
+function makeUserMessage(sentAt?: number): ThreadMessage {
+  const base: ThreadMessage = {
     role: "user" as const,
     content: [{ type: "text" as const, text: "hello" }],
     messageId: 1,
     meta: sentAt !== undefined ? { sentAt } : undefined,
   };
+  return base;
 }
 
-function makeAssistantMessage(): any {
+function makeAssistantMessage(): ThreadMessage {
   return {
     role: "assistant" as const,
     content: [{ type: "text" as const, text: "hi" }],
@@ -74,7 +78,7 @@ describe("computeUserLastInteractedAt", () => {
 
 describe("snapshotToEntry", () => {
   it("should map basic fields", () => {
-    const thread = makeThread({ id: "t1", created: 1000, title: "Test" } as any);
+    const thread = makeThread({ id: "t1", created: 1000, title: "Test" });
     const entry = snapshotToEntry(thread);
     assert.equal(entry.id, "t1");
     assert.equal(entry.title, "Test");
@@ -83,7 +87,7 @@ describe("snapshotToEntry", () => {
   });
 
   it("should default title to null", () => {
-    const thread = makeThread({ id: "t2" } as any);
+    const thread = makeThread({ id: "t2" });
     const entry = snapshotToEntry(thread);
     assert.equal(entry.title, null);
   });
@@ -92,7 +96,7 @@ describe("snapshotToEntry", () => {
     const thread = makeThread({
       id: "t3",
       messages: [makeUserMessage(100), makeAssistantMessage()],
-    } as any);
+    });
     const entry = snapshotToEntry(thread);
     assert.equal(entry.messageCount, 2);
     assert.equal(entry.summaryStats.messageCount, 2);
@@ -102,7 +106,7 @@ describe("snapshotToEntry", () => {
     const thread = makeThread({
       id: "t4",
       relationships: [{ threadID: "t5", type: "handoff" as const }],
-    } as any);
+    });
     const entry = snapshotToEntry(thread);
     assert.equal(entry.relationships.length, 1);
     assert.equal(entry.relationships[0].threadID, "t5");
@@ -111,26 +115,26 @@ describe("snapshotToEntry", () => {
 
 describe("entryEquals", () => {
   it("should return true for identical entries", () => {
-    const thread = makeThread({ id: "t1", created: 1000 } as any);
+    const thread = makeThread({ id: "t1", created: 1000 });
     const e1 = snapshotToEntry(thread);
     const e2 = snapshotToEntry(thread);
     assert.equal(entryEquals(e1, e2), true);
   });
 
   it("should return true for same reference", () => {
-    const thread = makeThread({ id: "t1" } as any);
+    const thread = makeThread({ id: "t1" });
     const e = snapshotToEntry(thread);
     assert.equal(entryEquals(e, e), true);
   });
 
   it("should return false for different title", () => {
-    const e1 = snapshotToEntry(makeThread({ id: "t1", title: "A" } as any));
-    const e2 = snapshotToEntry(makeThread({ id: "t1", title: "B" } as any));
+    const e1 = snapshotToEntry(makeThread({ id: "t1", title: "A" }));
+    const e2 = snapshotToEntry(makeThread({ id: "t1", title: "B" }));
     assert.equal(entryEquals(e1, e2), false);
   });
 
   it("should skip version when includeVersion=false", () => {
-    const t1 = makeThread({ id: "t1" } as any);
+    const t1 = makeThread({ id: "t1" });
     const t2 = { ...t1, v: 99 };
     const e1 = snapshotToEntry(t1 as ThreadSnapshot);
     const e2 = snapshotToEntry(t2 as ThreadSnapshot);
@@ -219,7 +223,9 @@ describe("ThreadStore", () => {
     });
 
     it("should auto-mark dirty with scheduleUpload", () => {
-      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }), { scheduleUpload: true });
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }), {
+        scheduleUpload: true,
+      });
       assert.deepEqual(store.getDirtyThreadIds(), ["t1"]);
     });
 
@@ -232,14 +238,18 @@ describe("ThreadStore", () => {
   describe("ThreadEntry index", () => {
     it("should generate entries from cached threads", () => {
       store.markEntriesLoaded();
-      store.setCachedThread(makeThread({
-        id: "t1",
-        messages: [makeUserMessage(1000)],
-      } as any));
-      store.setCachedThread(makeThread({
-        id: "t2",
-        messages: [makeUserMessage(2000)],
-      } as any));
+      store.setCachedThread(
+        makeThread({
+          id: "t1",
+          messages: [makeUserMessage(1000)],
+        }),
+      );
+      store.setCachedThread(
+        makeThread({
+          id: "t2",
+          messages: [makeUserMessage(2000)],
+        }),
+      );
       const entries = store.observeThreadEntries().getValue();
       assert.ok(entries);
       assert.equal(entries.length, 2);
@@ -249,13 +259,13 @@ describe("ThreadStore", () => {
     });
 
     it("should not emit entries before markEntriesLoaded", () => {
-      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] } as any));
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
       assert.equal(store.observeThreadEntries().getValue(), null);
     });
 
     it("should remove entry for empty thread (no messages, no draft)", () => {
       store.markEntriesLoaded();
-      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] } as any));
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
       assert.equal(store.observeThreadEntries().getValue()!.length, 1);
       // Update to empty
       store.setCachedThread(makeThread({ id: "t1", messages: [] }));
@@ -265,9 +275,9 @@ describe("ThreadStore", () => {
     it("should respect maxThreads", () => {
       const limitedStore = new ThreadStore({ maxThreads: 2 });
       limitedStore.markEntriesLoaded();
-      limitedStore.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage(1000)] } as any));
-      limitedStore.setCachedThread(makeThread({ id: "t2", messages: [makeUserMessage(2000)] } as any));
-      limitedStore.setCachedThread(makeThread({ id: "t3", messages: [makeUserMessage(3000)] } as any));
+      limitedStore.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage(1000)] }));
+      limitedStore.setCachedThread(makeThread({ id: "t2", messages: [makeUserMessage(2000)] }));
+      limitedStore.setCachedThread(makeThread({ id: "t3", messages: [makeUserMessage(3000)] }));
       const entries = limitedStore.observeThreadEntries().getValue()!;
       assert.equal(entries.length, 2);
       assert.equal(entries[0].id, "t3");
@@ -278,7 +288,7 @@ describe("ThreadStore", () => {
       store.markEntriesLoaded();
       let emitCount = 0;
       store.observeThreadEntries().subscribe(() => emitCount++);
-      const t = makeThread({ id: "t1", messages: [makeUserMessage(1000)] } as any);
+      const t = makeThread({ id: "t1", messages: [makeUserMessage(1000)] });
       store.setCachedThread(t);
       const countAfterFirst = emitCount;
       // Upsert same entry — should not emit
@@ -300,7 +310,7 @@ describe("ThreadStore", () => {
       const values: (number | null)[] = [];
       store.observeThreadEntries().subscribe((e) => values.push(e?.length ?? null));
       store.markEntriesLoaded();
-      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] } as any));
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
       // null (initial) → 0 (markEntriesLoaded with no entries yet, but then setCachedThread adds one) → 1
       assert.ok(values.length >= 2);
       assert.equal(values[values.length - 1], 1);

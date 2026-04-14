@@ -6,11 +6,11 @@ current_phase: 11
 status: completed
 last_updated: "2026-04-14T08:16:18.059Z"
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 4
-  total_plans: 82
+  total_plans: 97
   completed_plans: 33
-  percent: 40
+  percent: 34
 ---
 
 # Flitter — Project State
@@ -51,6 +51,7 @@ progress:
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | complete | 10/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | planned | 0/7 | CLI-01..05 (5) |
+| 12 | WidgetsBinding + runApp TUI 启动 | planned | 0/15 | TUI-06, CLI-02 |
 
 ---
 
@@ -255,5 +256,24 @@ _(none)_
 
 ---
 
+## Accumulated Context
+
+### Roadmap Evolution
+
+- Phase 12 added: WidgetsBinding and runApp — TUI application bootstrap
+
+- Phase 12 计划完成: 15 个 plan 全部编写 (5 waves), ~120 tests 预估
+  - Wave A (基础原语, parallel): 12-01 (InheritedWidget+InheritedElement, ~12 tests) + 12-02 (FocusNode, ~14 tests) + 12-03 (FocusManager, ~14 tests) + 12-04 (HitTestResult+RenderObject.hitTest, ~10 tests)
+  - Wave B (终端事件, partial-parallel): 12-05 (TuiController 终端控制器, ~12 tests) + 12-06 (MouseManager, ~8 tests) + 12-07 (MediaQuery InheritedWidget, ~10 tests)
+  - Wave C (核心编排, serial): 12-08 (WidgetsBinding 核心编排器单例, ~14 tests) + 12-09 (runApp 顶层函数, ~4 tests)
+  - Wave D (应用层, serial): 12-10 (ThemeController+ConfigProvider, ~8 tests) + 12-11 (AppWidget+ThreadStateWidget, ~8 tests) + 12-12 (InputField+ConversationView, ~10 tests)
+  - Wave E (集成, serial): 12-13 (interactive.ts stub 替换, ~6 tests) + 12-14 (Theme 全局变量→InheritedWidget 迁移, ~6 tests) + 12-15 (E2E 集成测试, ~12 tests)
+  - 关键逆向映射: d9→WidgetsBinding, T1T→runApp, XXT→TuiController, ic→FocusManager, l8→FocusNode, ha→MouseManager, BM→MediaQueryData, I9→MediaQuery, oXT/nXT→HitTestResult, Dy0→RenderObject.hitTest
+  - 关键设计: WidgetsBinding 组合 BuildOwner+PipelineOwner+FrameScheduler+FocusManager+MouseManager+TuiController, 6 个 frame callbacks (frame-start, resize, build, layout, paint, render)
+  - 文件结构: @flitter/tui 新增 binding/ + focus/ + gestures/ + tui/, @flitter/cli 新增 widgets/ (ThemeController, ConfigProvider, AppWidget, ThreadStateWidget, InputField, ConversationView)
+  - 目标: 替换 interactive.ts 中所有 stub，使 `flitter` CLI 启动后进入持久终端交互界面
+
+---
+
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 11 planned — 7/7 plans, 4 waves, ~110 tests, KD-39..45, M6 pending)*
+*Last updated: 2026-04-14 (Phase 12 planned — 15 plans across 5 waves: A→E)*

@@ -17,8 +17,8 @@
  * @module
  */
 
-import { TextStyle } from "../screen/text-style.js";
 import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import { TextSpan } from "../widgets/text-span.js";
 
 /**
@@ -64,20 +64,85 @@ interface HighlightToken {
 /** 常见编程语言关键字集合 */
 const KEYWORDS = new Set([
   // JS/TS
-  "const", "let", "var", "if", "else", "for", "while", "do",
-  "return", "function", "class", "new", "this", "super",
-  "import", "export", "from", "default", "async", "await",
-  "try", "catch", "finally", "throw", "typeof", "instanceof",
-  "in", "of", "switch", "case", "break", "continue",
-  "void", "delete", "yield", "true", "false", "null", "undefined",
+  "const",
+  "let",
+  "var",
+  "if",
+  "else",
+  "for",
+  "while",
+  "do",
+  "return",
+  "function",
+  "class",
+  "new",
+  "this",
+  "super",
+  "import",
+  "export",
+  "from",
+  "default",
+  "async",
+  "await",
+  "try",
+  "catch",
+  "finally",
+  "throw",
+  "typeof",
+  "instanceof",
+  "in",
+  "of",
+  "switch",
+  "case",
+  "break",
+  "continue",
+  "void",
+  "delete",
+  "yield",
+  "true",
+  "false",
+  "null",
+  "undefined",
   // Python
-  "def", "lambda", "with", "as", "pass", "raise", "except",
-  "print", "self", "None", "True", "False", "and", "or", "not",
-  "elif", "is",
+  "def",
+  "lambda",
+  "with",
+  "as",
+  "pass",
+  "raise",
+  "except",
+  "print",
+  "self",
+  "None",
+  "True",
+  "False",
+  "and",
+  "or",
+  "not",
+  "elif",
+  "is",
   // Rust/Go
-  "fn", "pub", "mod", "use", "impl", "trait", "struct", "enum",
-  "match", "mut", "ref", "type", "interface", "package", "func",
-  "go", "defer", "chan", "select", "map", "range",
+  "fn",
+  "pub",
+  "mod",
+  "use",
+  "impl",
+  "trait",
+  "struct",
+  "enum",
+  "match",
+  "mut",
+  "ref",
+  "type",
+  "interface",
+  "package",
+  "func",
+  "go",
+  "defer",
+  "chan",
+  "select",
+  "map",
+  "range",
 ]);
 
 /**
@@ -105,14 +170,14 @@ export class SyntaxHighlighter {
    * @param lang - 语言标识（目前用于判断注释风格，不做完整区分）
    * @returns TextSpan 数组，每个 token 对应一个 span
    */
-  highlight(code: string, lang: string): TextSpan[] {
+  highlight(code: string, _lang: string): TextSpan[] {
     const tokens = this._tokenize(code);
     return tokens.map(
       (tok) =>
         new TextSpan({
           text: tok.text,
           style: this._theme[tok.type],
-        })
+        }),
     );
   }
 
@@ -148,7 +213,7 @@ export class SyntaxHighlighter {
 
     // 综合正则：匹配各类 token
     const regex =
-      /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|(["'`])(?:(?!\2|\\).|\\.)*\2|(\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[a-zA-Z_]\w*\b)|(=>|[=!<>]=?=?|&&|\|\||[+\-*/%&|^~!?:])|([{}()\[\];,.])|(\s+)/g;
+      /(\/\/[^\n]*|\/\*[\s\S]*?\*\/|#[^\n]*)|(["'`])(?:(?!\2|\\).|\\.)*\2|(\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[a-zA-Z_]\w*\b)|(=>|[=!<>]=?=?|&&|\|\||[+\-*/%&|^~!?:])|([{}()[\];,.])|(\s+)/g;
 
     let match: RegExpExecArray | null;
     let lastIndex = 0;

@@ -3,11 +3,12 @@
  *
  * 覆盖 CRUD、过滤、名称规范化
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
+import type { Settings } from "@flitter/schemas";
 import { ToolRegistry } from "./registry";
 import type { ToolSpec } from "./types";
-import type { Settings } from "@flitter/schemas";
 
 /** 创建 mock ToolSpec */
 function createMockToolSpec(overrides?: Partial<ToolSpec>): ToolSpec {
@@ -44,10 +45,9 @@ describe("ToolRegistry", () => {
 
     it("重复注册同名工具抛出 Error", () => {
       registry.register(createMockToolSpec({ name: "read" }));
-      assert.throws(
-        () => registry.register(createMockToolSpec({ name: "read" })),
-        { message: 'Tool "read" is already registered' },
-      );
+      assert.throws(() => registry.register(createMockToolSpec({ name: "read" })), {
+        message: 'Tool "read" is already registered',
+      });
     });
 
     it("不同名工具可同时注册", () => {
@@ -120,10 +120,12 @@ describe("ToolRegistry", () => {
     });
 
     it("isEnabled 返回 false 时排除该工具", () => {
-      registry.register(createMockToolSpec({
-        name: "read",
-        isEnabled: () => false,
-      }));
+      registry.register(
+        createMockToolSpec({
+          name: "read",
+          isEnabled: () => false,
+        }),
+      );
       registry.register(createMockToolSpec({ name: "write" }));
       const result = registry.listEnabled({} as Settings);
       assert.equal(result.length, 1);
@@ -153,14 +155,18 @@ describe("ToolRegistry", () => {
     });
 
     it("isEnabled + config 过滤组合正确工作", () => {
-      registry.register(createMockToolSpec({
-        name: "read",
-        isEnabled: () => true,
-      }));
-      registry.register(createMockToolSpec({
-        name: "write",
-        isEnabled: () => false,
-      }));
+      registry.register(
+        createMockToolSpec({
+          name: "read",
+          isEnabled: () => true,
+        }),
+      );
+      registry.register(
+        createMockToolSpec({
+          name: "write",
+          isEnabled: () => false,
+        }),
+      );
       registry.register(createMockToolSpec({ name: "bash" }));
       const config = { "tools.disable": ["bash"] } as Settings;
       const result = registry.listEnabled(config);
@@ -174,11 +180,13 @@ describe("ToolRegistry", () => {
   describe("getToolDefinitions", () => {
     it("返回 ToolDefinition[] 仅含 name/description/inputSchema", () => {
       const schema = { type: "object", properties: { path: { type: "string" } } };
-      registry.register(createMockToolSpec({
-        name: "read",
-        description: "Read a file",
-        inputSchema: schema,
-      }));
+      registry.register(
+        createMockToolSpec({
+          name: "read",
+          description: "Read a file",
+          inputSchema: schema,
+        }),
+      );
       const defs = registry.getToolDefinitions({} as Settings);
       assert.equal(defs.length, 1);
       assert.deepEqual(defs[0], {
@@ -189,10 +197,12 @@ describe("ToolRegistry", () => {
     });
 
     it("过滤逻辑与 listEnabled 一致", () => {
-      registry.register(createMockToolSpec({
-        name: "read",
-        isEnabled: () => false,
-      }));
+      registry.register(
+        createMockToolSpec({
+          name: "read",
+          isEnabled: () => false,
+        }),
+      );
       registry.register(createMockToolSpec({ name: "write" }));
       const defs = registry.getToolDefinitions({} as Settings);
       assert.equal(defs.length, 1);
@@ -217,10 +227,7 @@ describe("ToolRegistry", () => {
     });
 
     it("mcp__server__multi__part 返回 multi__part", () => {
-      assert.equal(
-        registry.normalizeToolName("mcp__srv__multi__part"),
-        "multi__part",
-      );
+      assert.equal(registry.normalizeToolName("mcp__srv__multi__part"), "multi__part");
     });
 
     it("mcp__ 开头但不足 3 段原样返回", () => {

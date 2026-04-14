@@ -10,13 +10,13 @@
  */
 import { generatePKCE } from "../../oauth/pkce";
 import type {
-  MCPAuthProvider,
-  ProtectedResourceMetadata,
   AuthorizationServerMetadata,
-  OAuthTokens,
+  AuthResult,
+  MCPAuthProvider,
   OAuthClientInfo,
   OAuthClientMetadata,
-  AuthResult,
+  OAuthTokens,
+  ProtectedResourceMetadata,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -90,9 +90,7 @@ export async function discoverProtectedResource(
 ): Promise<ProtectedResourceMetadata> {
   const response = await fetchFn(resourceMetadataUrl);
   if (!response.ok) {
-    throw new Error(
-      `Failed to fetch protected resource metadata: ${response.status}`,
-    );
+    throw new Error(`Failed to fetch protected resource metadata: ${response.status}`);
   }
   return (await response.json()) as ProtectedResourceMetadata;
 }
@@ -115,29 +113,20 @@ export async function discoverAuthorizationServer(
 
   // Path-suffix mode: /.well-known/oauth-authorization-server{path}
   candidates.push({
-    url: new URL(
-      `/.well-known/oauth-authorization-server${cleanPath}`,
-      url.origin,
-    ).toString(),
+    url: new URL(`/.well-known/oauth-authorization-server${cleanPath}`, url.origin).toString(),
     type: "oauth",
   });
 
   // OpenID discovery: /.well-known/openid-configuration{path}
   candidates.push({
-    url: new URL(
-      `/.well-known/openid-configuration${cleanPath}`,
-      url.origin,
-    ).toString(),
+    url: new URL(`/.well-known/openid-configuration${cleanPath}`, url.origin).toString(),
     type: "oidc",
   });
 
   // If there's a non-root path, also try prepend mode: {path}/.well-known/openid-configuration
   if (cleanPath) {
     candidates.push({
-      url: new URL(
-        `${cleanPath}/.well-known/openid-configuration`,
-        url.origin,
-      ).toString(),
+      url: new URL(`${cleanPath}/.well-known/openid-configuration`, url.origin).toString(),
       type: "oidc",
     });
   }
@@ -161,9 +150,7 @@ export async function discoverAuthorizationServer(
     }
   }
 
-  throw new Error(
-    `Failed to discover authorization server at ${serverUrl}`,
-  );
+  throw new Error(`Failed to discover authorization server at ${serverUrl}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -177,9 +164,7 @@ export async function registerClient(
 ): Promise<OAuthClientInfo> {
   const endpoint = metadata.registration_endpoint;
   if (!endpoint) {
-    throw new Error(
-      "Authorization server does not support dynamic client registration",
-    );
+    throw new Error("Authorization server does not support dynamic client registration");
   }
 
   const response = await fetchFn(endpoint, {
@@ -347,27 +332,18 @@ async function _authFlow(
   // 1. Discover protected resource (if metadata URL provided)
   let resourceMetadata: ProtectedResourceMetadata | undefined;
   if (options.resourceMetadataUrl) {
-    resourceMetadata = await discoverProtectedResource(
-      options.resourceMetadataUrl,
-      fetchFn,
-    );
+    resourceMetadata = await discoverProtectedResource(options.resourceMetadataUrl, fetchFn);
   }
 
   // 2. Determine auth server URL
-  const authServerUrl =
-    resourceMetadata?.authorization_servers?.[0] ?? options.serverUrl;
+  const authServerUrl = resourceMetadata?.authorization_servers?.[0] ?? options.serverUrl;
 
   // 3. Discover authorization server metadata
-  const serverMetadata = await discoverAuthorizationServer(
-    authServerUrl,
-    fetchFn,
-  );
+  const serverMetadata = await discoverAuthorizationServer(authServerUrl, fetchFn);
 
   // 4. Validate resource URL if provider supports it
   if (provider.validateResourceURL && resourceMetadata?.resource) {
-    const valid = await provider.validateResourceURL(
-      resourceMetadata.resource,
-    );
+    const valid = await provider.validateResourceURL(resourceMetadata.resource);
     if (!valid) throw new Error("Resource URL validation failed");
   }
 
@@ -375,8 +351,7 @@ async function _authFlow(
   let clientInfo = await provider.clientInformation();
   if (!clientInfo) {
     // Check for client_id_metadata_document support (from reversed Dq)
-    const supportsMetadataDoc =
-      serverMetadata.client_id_metadata_document_supported === true;
+    const supportsMetadataDoc = serverMetadata.client_id_metadata_document_supported === true;
     const metadataUrl = provider.clientMetadataUrl;
 
     if (supportsMetadataDoc && metadataUrl) {
@@ -385,11 +360,7 @@ async function _authFlow(
       await provider.saveClientInformation(clientInfo);
     } else {
       // Dynamic client registration
-      clientInfo = await registerClient(
-        serverMetadata,
-        provider.clientMetadata,
-        fetchFn,
-      );
+      clientInfo = await registerClient(serverMetadata, provider.clientMetadata, fetchFn);
       await provider.saveClientInformation(clientInfo);
     }
   }
@@ -424,9 +395,7 @@ async function _authFlow(
 
   // 8. Start authorization code flow with PKCE
   const scope =
-    options.scope ??
-    resourceMetadata?.scopes_supported?.join(" ") ??
-    provider.clientMetadata.scope;
+    options.scope ?? resourceMetadata?.scopes_supported?.join(" ") ?? provider.clientMetadata.scope;
   const { url: authUrl, codeVerifier } = await buildAuthorizationUrl(
     serverMetadata,
     clientInfo,

@@ -93,7 +93,7 @@ export class GlobalKey extends Key {
    */
   get currentState(): unknown {
     if (this._element && "state" in this._element) {
-      return (this._element as any).state;
+      return (this._element as unknown as { state: unknown }).state;
     }
     return undefined;
   }

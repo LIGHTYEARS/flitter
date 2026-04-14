@@ -11,10 +11,10 @@
  * @module
  */
 
-import { Widget } from "./widget.js";
 import { ComponentElement } from "./component-element.js";
 import type { Element, Widget as WidgetInterface } from "./element.js";
 import type { RenderObject } from "./render-object.js";
+import { Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  BuildContext 接口

@@ -11,8 +11,8 @@
  * @module
  */
 
-import { ClampingScrollPhysics } from "./scroll-physics.js";
 import type { ScrollPhysics } from "./scroll-physics.js";
+import { ClampingScrollPhysics } from "./scroll-physics.js";
 
 // ════════════════════════════════════════════════════
 //  ScrollController
@@ -343,7 +343,7 @@ export class ScrollController {
    * @returns 缓动后的进度值
    */
   private _easeOutCubic(t: number): number {
-    return 1 - Math.pow(1 - t, 3);
+    return 1 - (1 - t) ** 3;
   }
 
   /**

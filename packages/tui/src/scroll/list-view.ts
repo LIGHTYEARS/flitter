@@ -257,15 +257,12 @@ export class ListView {
     const firstVisible = Math.floor(offset / itemExtent);
     const lastVisible = Math.min(
       this._itemCount - 1,
-      Math.ceil((offset + viewportHeight) / itemExtent) - 1
+      Math.ceil((offset + viewportHeight) / itemExtent) - 1,
     );
 
     // 扩展缓冲区，clamp 到 [0, itemCount-1] (T-06-04 越界保护)
     const firstWithCache = Math.max(0, firstVisible - this._cacheExtent);
-    const lastWithCache = Math.min(
-      this._itemCount - 1,
-      lastVisible + this._cacheExtent
-    );
+    const lastWithCache = Math.min(this._itemCount - 1, lastVisible + this._cacheExtent);
 
     // 记录纯可见范围（不含 cache）
     this._firstVisibleIndex = Math.max(0, firstVisible);
@@ -287,10 +284,7 @@ export class ListView {
    * @param offset - 当前滚动偏移量
    * @param viewportHeight - 视口高度
    */
-  private _layoutVariableExtent(
-    offset: number,
-    viewportHeight: number
-  ): void {
+  private _layoutVariableExtent(offset: number, viewportHeight: number): void {
     const heightProvider = this._itemHeightProvider;
 
     // 计算所有项的累积偏移和总高度
@@ -307,10 +301,7 @@ export class ListView {
     this._controller.updateMaxScrollExtent(maxScrollExtent);
 
     // 二分搜索确定第一个可见项
-    let firstVisible = this._binarySearchFirstVisible(
-      itemOffsets,
-      offset
-    );
+    const firstVisible = this._binarySearchFirstVisible(itemOffsets, offset);
 
     // 确定最后一个可见项
     let lastVisible = firstVisible;
@@ -322,10 +313,7 @@ export class ListView {
 
     // 扩展缓冲区，clamp 到 [0, itemCount-1]
     const firstWithCache = Math.max(0, firstVisible - this._cacheExtent);
-    const lastWithCache = Math.min(
-      this._itemCount - 1,
-      lastVisible + this._cacheExtent
-    );
+    const lastWithCache = Math.min(this._itemCount - 1, lastVisible + this._cacheExtent);
 
     this._firstVisibleIndex = Math.max(0, firstVisible);
     this._lastVisibleIndex = Math.min(this._itemCount - 1, lastVisible);
@@ -344,10 +332,7 @@ export class ListView {
    * @param targetOffset - 目标偏移量
    * @returns 第一个可见项的 index
    */
-  private _binarySearchFirstVisible(
-    itemOffsets: number[],
-    targetOffset: number
-  ): number {
+  private _binarySearchFirstVisible(itemOffsets: number[], targetOffset: number): number {
     let low = 0;
     let high = itemOffsets.length - 1;
 

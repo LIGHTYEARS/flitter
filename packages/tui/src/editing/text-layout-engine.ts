@@ -18,7 +18,7 @@
  * ```
  */
 
-import { charWidth, graphemeSegments } from "../text/char-width.js";
+import { charWidth } from "../text/char-width.js";
 
 /**
  * 布局位置，表示文本中的行列坐标
@@ -261,9 +261,7 @@ export class TextLayoutEngine {
    */
   getLineText(lineIndex: number): string {
     const textLines = this._text.split("\n");
-    return lineIndex >= 0 && lineIndex < textLines.length
-      ? textLines[lineIndex] ?? ""
-      : "";
+    return lineIndex >= 0 && lineIndex < textLines.length ? (textLines[lineIndex] ?? "") : "";
   }
 
   /**
@@ -358,14 +356,9 @@ export class TextLayoutEngine {
     }
 
     // 处理最后一行 / 末尾换行符
-    const endsWithNewline =
-      gs.length > 0 && gs[gs.length - 1] === "\n";
+    const endsWithNewline = gs.length > 0 && gs[gs.length - 1] === "\n";
 
-    if (
-      lineStart < gs.length ||
-      this._layoutLines.length === 0 ||
-      endsWithNewline
-    ) {
+    if (lineStart < gs.length || this._layoutLines.length === 0 || endsWithNewline) {
       this._layoutLines.push({
         startOffset: lineStart,
         endOffset: gs.length,

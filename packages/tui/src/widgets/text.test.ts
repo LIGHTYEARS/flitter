@@ -13,15 +13,15 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TextSpan } from "./text-span.js";
+import { describe, it } from "node:test";
+import { Color } from "../screen/color.js";
+import { Screen } from "../screen/screen.js";
+import { TextStyle } from "../screen/text-style.js";
+import { BoxConstraints } from "../tree/constraints.js";
 import { RenderParagraph, RichText } from "./rich-text.js";
 import { Text } from "./text.js";
-import { TextStyle } from "../screen/text-style.js";
-import { Color } from "../screen/color.js";
-import { BoxConstraints } from "../tree/constraints.js";
-import { Screen } from "../screen/screen.js";
+import { TextSpan } from "./text-span.js";
 
 // ════════════════════════════════════════════════════
 //  1. TextSpan 测试
@@ -117,10 +117,7 @@ describe("TextSpan", () => {
   it("visitTextSpan: visitor 返回 false 停止遍历", () => {
     const span = new TextSpan({
       text: "root",
-      children: [
-        new TextSpan({ text: "child1" }),
-        new TextSpan({ text: "child2" }),
-      ],
+      children: [new TextSpan({ text: "child1" }), new TextSpan({ text: "child2" })],
     });
 
     const visited: string[] = [];

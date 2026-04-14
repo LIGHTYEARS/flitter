@@ -188,7 +188,11 @@ export class Color {
    * ```
    */
   static rgb(r: number, g: number, b: number): Color {
-    for (const [name, val] of [["r", r], ["g", g], ["b", b]] as const) {
+    for (const [name, val] of [
+      ["r", r],
+      ["g", g],
+      ["b", b],
+    ] as const) {
       if (val < 0 || val > 255 || !Number.isInteger(val)) {
         throw new RangeError(`RGB 分量 ${name} 必须为 0-255 的整数，收到: ${val}`);
       }

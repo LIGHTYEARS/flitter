@@ -12,7 +12,7 @@
  * @module text-editing-controller.test
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { TextEditingController } from "./text-editing-controller.js";
 
 describe("TextEditingController", () => {
@@ -247,7 +247,9 @@ describe("TextEditingController", () => {
   it("addListener 在文本变更时通知", () => {
     const ctrl = new TextEditingController();
     let callCount = 0;
-    const listener = () => { callCount++; };
+    const listener = () => {
+      callCount++;
+    };
     ctrl.addListener(listener);
     ctrl.insertText("a");
     expect(callCount).toBe(1);
@@ -258,7 +260,9 @@ describe("TextEditingController", () => {
   it("removeListener 移除后不再通知", () => {
     const ctrl = new TextEditingController();
     let callCount = 0;
-    const listener = () => { callCount++; };
+    const listener = () => {
+      callCount++;
+    };
     ctrl.addListener(listener);
     ctrl.insertText("a");
     expect(callCount).toBe(1);
@@ -272,7 +276,9 @@ describe("TextEditingController", () => {
   it("dispose 清理 listeners", () => {
     const ctrl = new TextEditingController();
     let callCount = 0;
-    ctrl.addListener(() => { callCount++; });
+    ctrl.addListener(() => {
+      callCount++;
+    });
     ctrl.dispose();
     // dispose 后的操作不应通知 (listeners 已清空)
     // 但 insertText 仍可工作

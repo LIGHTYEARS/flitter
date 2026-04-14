@@ -1,5 +1,5 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { createLogger } from "./logger.ts";
 
 function createCaptureLogger(name: string) {
@@ -129,7 +129,7 @@ describe("timestamp", () => {
     const entry = parseLastLine(lines);
     const ts = entry.timestamp as string;
     const parsed = new Date(ts);
-    assert.ok(!isNaN(parsed.getTime()), `Invalid timestamp: ${ts}`);
+    assert.ok(!Number.isNaN(parsed.getTime()), `Invalid timestamp: ${ts}`);
     // ISO 8601 format check
     assert.match(ts, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   });

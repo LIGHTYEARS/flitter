@@ -4,13 +4,15 @@
  * runHeadlessMode: stdin JSON Lines 输入 + stdout JSON 事件流输出
  * 逆向: SB() stream-json 分支 in cli-entrypoint.js
  */
-import { describe, it, expect, mock } from "bun:test";
-import { runHeadlessMode } from "./headless";
-import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "../context";
-import type { AgentEvent } from "@flitter/agent-core";
-import { Subject } from "@flitter/util";
+import { describe, expect, it, mock } from "bun:test";
 import { PassThrough } from "node:stream";
+import type { AgentEvent } from "@flitter/agent-core";
+import type { ServiceContainer } from "@flitter/flitter";
+import type { StreamDelta } from "@flitter/llm";
+import type { ThreadSnapshot } from "@flitter/schemas";
+import { Subject } from "@flitter/util";
+import type { CliContext } from "../context";
+import { runHeadlessMode } from "./headless";
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
@@ -20,16 +22,18 @@ import { PassThrough } from "node:stream";
  * 模拟 createThreadWorker 返回的 worker 拥有 events$ 和 runInference
  * 通过 onUserMessage 回调捕获用户消息
  */
-function createMockContainer(overrides: Partial<{
-  events: Subject<AgentEvent>;
-  onUserMessage: (msg: string) => void;
-  runInference: () => Promise<void>;
-  asyncDispose: () => Promise<void>;
-  getThreadSnapshot: (id: string) => any;
-}> = {}): ServiceContainer & { _addedMessages: string[] } {
+function createMockContainer(
+  overrides: Partial<{
+    events: Subject<AgentEvent>;
+    onUserMessage: (msg: string) => void;
+    runInference: () => Promise<void>;
+    asyncDispose: () => Promise<void>;
+    getThreadSnapshot: (id: string) => ThreadSnapshot | undefined;
+  }> = {},
+): ServiceContainer & { _addedMessages: string[] } {
   const events$ = overrides.events ?? new Subject<AgentEvent>();
   const addedMessages: string[] = [];
-  const onUserMessage = overrides.onUserMessage ?? (() => {});
+  const _onUserMessage = overrides.onUserMessage ?? (() => {});
 
   const runInference = overrides.runInference ?? (async () => {});
 
@@ -46,10 +50,18 @@ function createMockContainer(overrides: Partial<{
   const mockThreadStore = {
     getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
     getThread: () => undefined,
-    createThread: () => ({ getValue: () => ({
-      id: "test", v: 1, title: null, messages: [], env: "local",
-      agentMode: "normal", relationships: [],
-    }) }) as any,
+    createThread: () =>
+      ({
+        getValue: () => ({
+          id: "test",
+          v: 1,
+          title: null,
+          messages: [],
+          env: "local",
+          agentMode: "normal",
+          relationships: [],
+        }),
+      }) as unknown as ReturnType<ServiceContainer["threadStore"]["getThread"]>,
     updateThread: () => {},
   };
 
@@ -57,17 +69,17 @@ function createMockContainer(overrides: Partial<{
     createThreadWorker: mock(() => mockWorker),
     threadStore: mockThreadStore,
     asyncDispose: overrides.asyncDispose ?? (async () => {}),
-    configService: {} as any,
-    toolRegistry: {} as any,
-    toolOrchestrator: {} as any,
-    permissionEngine: {} as any,
-    mcpServerManager: {} as any,
-    skillService: {} as any,
+    configService: {} as unknown as ServiceContainer["configService"],
+    toolRegistry: {} as unknown as ServiceContainer["toolRegistry"],
+    toolOrchestrator: {} as unknown as ServiceContainer["toolOrchestrator"],
+    permissionEngine: {} as unknown as ServiceContainer["permissionEngine"],
+    mcpServerManager: {} as unknown as ServiceContainer["mcpServerManager"],
+    skillService: {} as unknown as ServiceContainer["skillService"],
     threadPersistence: null,
-    guidanceLoader: {} as any,
-    contextManager: {} as any,
-    secrets: {} as any,
-    settings: {} as any,
+    guidanceLoader: {} as unknown as ServiceContainer["guidanceLoader"],
+    contextManager: {} as unknown as ServiceContainer["contextManager"],
+    secrets: {} as unknown as ServiceContainer["secrets"],
+    settings: {} as unknown as ServiceContainer["settings"],
     _addedMessages: addedMessages,
   } as unknown as ServiceContainer & { _addedMessages: string[] };
 
@@ -117,8 +129,8 @@ describe("runHeadlessMode", () => {
     });
 
     await runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -146,8 +158,8 @@ describe("runHeadlessMode", () => {
     const fakeStdout = new PassThrough();
 
     const promise = runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -180,9 +192,9 @@ describe("runHeadlessMode", () => {
     });
 
     const promise = runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
-      stderr: fakeStderr as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: fakeStderr as unknown as NodeJS.WritableStream,
     });
 
     fakeStdin.write("not valid json\n");
@@ -214,8 +226,8 @@ describe("runHeadlessMode", () => {
     const fakeStdout = new PassThrough();
 
     const promise = runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -238,7 +250,7 @@ describe("runHeadlessMode", () => {
       events$.next({ type: "inference:start" });
       events$.next({
         type: "inference:delta",
-        delta: { content: [{ type: "text", text: "hi" }] } as any,
+        delta: { content: [{ type: "text", text: "hi" }] } as unknown as StreamDelta,
       });
       events$.next({ type: "turn:complete" });
     };
@@ -258,8 +270,8 @@ describe("runHeadlessMode", () => {
     });
 
     await runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -287,8 +299,8 @@ describe("runHeadlessMode", () => {
     const fakeStdout = new PassThrough();
 
     const promise = runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -322,8 +334,8 @@ describe("runHeadlessMode", () => {
     const fakeStdout = new PassThrough();
 
     const promise = runHeadlessMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: fakeStdout as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -363,9 +375,9 @@ describe("runHeadlessMode", () => {
     // 即使出错, dispose 也应该被调用
     try {
       await runHeadlessMode(container, context, {
-        stdin: fakeStdin as any,
-        stdout: fakeStdout as any,
-        stderr: fakeStderr as any,
+        stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+        stdout: fakeStdout as unknown as NodeJS.WritableStream,
+        stderr: fakeStderr as unknown as NodeJS.WritableStream,
       });
     } catch {
       // 可能抛出异常

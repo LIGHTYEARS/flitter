@@ -1,17 +1,20 @@
 /**
  * Tests for MCP Stdio Transport.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
-import { StdioTransport } from "./stdio";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { JSONRPCMessage, JSONRPCSuccessResponse } from "../types";
 import { ReadBuffer } from "./read-buffer";
-import type { JSONRPCMessage } from "../types";
+import { StdioTransport } from "./stdio";
 
 // ─── ReadBuffer Tests ──────────────────────────────────
 
 describe("ReadBuffer", () => {
   let buf: ReadBuffer;
-  beforeEach(() => { buf = new ReadBuffer(); });
+  beforeEach(() => {
+    buf = new ReadBuffer();
+  });
 
   it("should return null when empty", () => {
     assert.equal(buf.readMessage(), null);
@@ -26,18 +29,18 @@ describe("ReadBuffer", () => {
     buf.append(Buffer.from('{"jsonrpc":"2.0","id":1,"method":"ping"}\n'));
     const msg = buf.readMessage();
     assert.ok(msg);
-    assert.equal((msg as any).method, "ping");
+    assert.equal((msg as JSONRPCSuccessResponse & { method: string }).method, "ping");
   });
 
   it("should handle multiple messages in one chunk", () => {
-    buf.append(Buffer.from(
-      '{"jsonrpc":"2.0","id":1,"method":"a"}\n{"jsonrpc":"2.0","id":2,"method":"b"}\n'
-    ));
+    buf.append(
+      Buffer.from('{"jsonrpc":"2.0","id":1,"method":"a"}\n{"jsonrpc":"2.0","id":2,"method":"b"}\n'),
+    );
     const m1 = buf.readMessage();
     const m2 = buf.readMessage();
     const m3 = buf.readMessage();
-    assert.equal((m1 as any).method, "a");
-    assert.equal((m2 as any).method, "b");
+    assert.equal((m1 as JSONRPCSuccessResponse & { method: string }).method, "a");
+    assert.equal((m2 as JSONRPCSuccessResponse & { method: string }).method, "b");
     assert.equal(m3, null);
   });
 
@@ -47,14 +50,14 @@ describe("ReadBuffer", () => {
     buf.append(Buffer.from('"method":"ping"}\n'));
     const msg = buf.readMessage();
     assert.ok(msg);
-    assert.equal((msg as any).method, "ping");
+    assert.equal((msg as JSONRPCSuccessResponse & { method: string }).method, "ping");
   });
 
   it("should strip \\r before \\n", () => {
     buf.append(Buffer.from('{"jsonrpc":"2.0","id":1,"method":"ping"}\r\n'));
     const msg = buf.readMessage();
     assert.ok(msg);
-    assert.equal((msg as any).method, "ping");
+    assert.equal((msg as JSONRPCSuccessResponse & { method: string }).method, "ping");
   });
 
   it("should clear buffer", () => {
@@ -78,7 +81,9 @@ describe("StdioTransport", () => {
 
   afterEach(async () => {
     if (transport) {
-      try { await transport.close(); } catch {}
+      try {
+        await transport.close();
+      } catch {}
     }
   });
 
@@ -86,7 +91,9 @@ describe("StdioTransport", () => {
     // Node script that echoes JSON-RPC ping response
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         process.stdin.setEncoding('utf8');
         let buf = '';
         process.stdin.on('data', (d) => {
@@ -101,7 +108,8 @@ describe("StdioTransport", () => {
             }
           }
         });
-      `],
+      `,
+      ],
     });
 
     await transport.start();
@@ -117,7 +125,9 @@ describe("StdioTransport", () => {
   it("should send and receive messages", async () => {
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         process.stdin.setEncoding('utf8');
         let buf = '';
         process.stdin.on('data', (d) => {
@@ -130,7 +140,8 @@ describe("StdioTransport", () => {
             process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:msg.id,result:{echo:msg.method}}) + '\\n');
           }
         });
-      `],
+      `,
+      ],
     });
 
     await transport.start();
@@ -150,7 +161,7 @@ describe("StdioTransport", () => {
     });
 
     assert.equal(received.length, 1);
-    assert.deepEqual((received[0] as any).result, { echo: "test" });
+    assert.deepEqual((received[0] as JSONRPCSuccessResponse).result, { echo: "test" });
   });
 
   it("should call onclose when process exits", async () => {
@@ -160,7 +171,9 @@ describe("StdioTransport", () => {
     });
 
     let closed = false;
-    transport.onclose = () => { closed = true; };
+    transport.onclose = () => {
+      closed = true;
+    };
 
     await transport.start();
 
@@ -187,7 +200,9 @@ describe("StdioTransport", () => {
   it("should handle backpressure on send", async () => {
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         process.stdin.setEncoding('utf8');
         let buf = '';
         process.stdin.on('data', (d) => {
@@ -200,7 +215,8 @@ describe("StdioTransport", () => {
             process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:msg.id,result:'ok'}) + '\\n');
           }
         });
-      `],
+      `,
+      ],
     });
 
     await transport.start();
@@ -230,10 +246,13 @@ describe("StdioTransport", () => {
   it("should close gracefully with stdin.end()", async () => {
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         process.stdin.on('end', () => process.exit(0));
         setTimeout(() => {}, 60000);
-      `],
+      `,
+      ],
     });
 
     await transport.start();
@@ -247,11 +266,14 @@ describe("StdioTransport", () => {
   it("should pass environment variables", async () => {
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         const val = process.env.TEST_VAR;
         process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:1,result:val}) + '\\n');
         process.stdin.resume();
-      `],
+      `,
+      ],
       env: { TEST_VAR: "hello_mcp" },
     });
 
@@ -268,7 +290,7 @@ describe("StdioTransport", () => {
       check();
     });
 
-    assert.equal((received[0] as any).result, "hello_mcp");
+    assert.equal((received[0] as JSONRPCSuccessResponse).result, "hello_mcp");
   });
 
   it("should return null pid when not started", () => {
@@ -279,10 +301,13 @@ describe("StdioTransport", () => {
   it("should handle stderr output", async () => {
     transport = new StdioTransport({
       command: "node",
-      args: ["-e", `
+      args: [
+        "-e",
+        `
         process.stderr.write('error output\\n');
         setTimeout(() => process.exit(0), 100);
-      `],
+      `,
+      ],
     });
 
     await transport.start();
@@ -298,7 +323,7 @@ describe("StdioTransport", () => {
     transport = new StdioTransport({ command: "node", args: ["-e", ""] });
     await assert.rejects(
       () => transport.send({ jsonrpc: "2.0", id: 1, method: "test" }),
-      /Not connected/
+      /Not connected/,
     );
   });
 });

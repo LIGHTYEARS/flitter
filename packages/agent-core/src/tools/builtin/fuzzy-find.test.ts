@@ -4,14 +4,15 @@
  * Covers ToolSpec shape, exact query, fuzzy query, limit parameter,
  * no-match case, and execution profile.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { FuzzyFindTool, fuzzyFindExecutionProfile } from "./fuzzy-find";
-import type { ToolContext } from "../types";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Config } from "@flitter/schemas";
+import type { ToolContext } from "../types";
+import { FuzzyFindTool, fuzzyFindExecutionProfile } from "./fuzzy-find";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -117,26 +118,17 @@ describe("FuzzyFindTool", () => {
   // ─── limit parameter limits results ─────────────────────
 
   it("limit parameter limits results", async () => {
-    const result = await FuzzyFindTool.execute(
-      { query: "t", limit: 2 },
-      ctx,
-    );
+    const result = await FuzzyFindTool.execute({ query: "t", limit: 2 }, ctx);
     assert.equal(result.status, "done");
     assert.ok(result.content);
     const lines = result.content.split("\n").filter(Boolean);
-    assert.ok(
-      lines.length <= 2,
-      `Expected at most 2 results, got ${lines.length}`,
-    );
+    assert.ok(lines.length <= 2, `Expected at most 2 results, got ${lines.length}`);
   });
 
   // ─── No match ───────────────────────────────────────────
 
   it("returns no-match message for unmatched query", async () => {
-    const result = await FuzzyFindTool.execute(
-      { query: "zzzzxxxxxyyyyywwwww" },
-      ctx,
-    );
+    const result = await FuzzyFindTool.execute({ query: "zzzzxxxxxyyyyywwwww" }, ctx);
     assert.equal(result.status, "done");
     assert.equal(result.content, "No matching files found.");
   });
@@ -144,10 +136,7 @@ describe("FuzzyFindTool", () => {
   // ─── Execution profile ─────────────────────────────────
 
   it("fuzzyFindExecutionProfile returns correct resourceKeys", () => {
-    const profile = fuzzyFindExecutionProfile(
-      { path: "src" },
-      "/home/user/project",
-    );
+    const profile = fuzzyFindExecutionProfile({ path: "src" }, "/home/user/project");
     assert.ok(profile.resourceKeys);
     assert.equal(profile.resourceKeys.length, 1);
     assert.equal(profile.resourceKeys[0]!.key, "/home/user/project/src");

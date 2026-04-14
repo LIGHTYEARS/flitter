@@ -12,15 +12,14 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { StatelessWidget, StatelessElement } from "./stateless-widget.js";
-import { StatefulWidget, StatefulElement, State } from "./stateful-widget.js";
-import { Widget, Key } from "./widget.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { Element } from "./element.js";
-import { setBuildOwner } from "./types.js";
+import { State, type StatefulElement, StatefulWidget } from "./stateful-widget.js";
+import { StatelessElement, StatelessWidget } from "./stateless-widget.js";
 import type { BuildOwnerLike } from "./types.js";
+import { setBuildOwner } from "./types.js";
+import { type Key, Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -89,7 +88,7 @@ class CounterState extends State<CounterWidget> {
     this.disposeCount++;
   }
 
-  build(context: Element): Widget {
+  build(_context: Element): Widget {
     this.buildCount++;
     return new LeafWidget();
   }
@@ -106,7 +105,7 @@ class CounterWidget extends StatefulWidget {
 class AnotherStatefulWidget extends StatefulWidget {
   createState(): State {
     return new (class extends State {
-      build(context: Element): Widget {
+      build(_context: Element): Widget {
         return new LeafWidget();
       }
     })();
@@ -135,10 +134,7 @@ describe("StatelessWidget 测试", () => {
     const widget = new TestStatelessWidget(leaf);
     const element = widget.createElement();
 
-    assert.ok(
-      element instanceof StatelessElement,
-      "createElement 应返回 StatelessElement 实例"
-    );
+    assert.ok(element instanceof StatelessElement, "createElement 应返回 StatelessElement 实例");
   });
 
   // ── 2. mount 后 build 被调用 ──────────────────────
@@ -149,10 +145,7 @@ describe("StatelessWidget 测试", () => {
 
     element.mount();
 
-    assert.ok(
-      widget.buildCallCount > 0,
-      "mount 后 build 应至少被调用一次"
-    );
+    assert.ok(widget.buildCallCount > 0, "mount 后 build 应至少被调用一次");
   });
 
   // ── 3. rebuild 时 build 再次调用 ──────────────────
@@ -168,10 +161,7 @@ describe("StatelessWidget 测试", () => {
     element.markNeedsRebuild();
     element.performRebuild();
 
-    assert.ok(
-      widget.buildCallCount > countAfterMount,
-      "rebuild 后 build 应被再次调用"
-    );
+    assert.ok(widget.buildCallCount > countAfterMount, "rebuild 后 build 应被再次调用");
   });
 
   // ── 4. build 接收 BuildContext ────────────────────
@@ -182,11 +172,7 @@ describe("StatelessWidget 测试", () => {
 
     element.mount();
 
-    assert.equal(
-      widget.lastBuildContext,
-      element,
-      "build 的 context 参数应为 Element 本身"
-    );
+    assert.equal(widget.lastBuildContext, element, "build 的 context 参数应为 Element 本身");
   });
 });
 
@@ -212,11 +198,7 @@ describe("State 生命周期测试", () => {
     const state1 = widget.createState();
     const state2 = widget.createState();
 
-    assert.notEqual(
-      state1,
-      state2,
-      "每次 createState 应返回不同的实例"
-    );
+    assert.notEqual(state1, state2, "每次 createState 应返回不同的实例");
     assert.ok(state1 instanceof CounterState);
     assert.ok(state2 instanceof CounterState);
   });
@@ -229,11 +211,7 @@ describe("State 生命周期测试", () => {
     element.mount();
 
     const state = element.state as CounterState;
-    assert.equal(
-      state.initStateCount,
-      1,
-      "mount 后 initState 应被调用一次"
-    );
+    assert.equal(state.initStateCount, 1, "mount 后 initState 应被调用一次");
   });
 
   // ── 7. initState 中 widget 可访问 ────────────────
@@ -246,7 +224,7 @@ describe("State 生命周期测试", () => {
         this.widgetInInitState = this.widget;
       }
 
-      build(context: Element): Widget {
+      build(_context: Element): Widget {
         return new LeafWidget();
       }
     }
@@ -266,7 +244,7 @@ describe("State 生命周期测试", () => {
     assert.equal(
       state.widgetInInitState,
       widget,
-      "initState 中 state.widget 应已设置为当前 Widget"
+      "initState 中 state.widget 应已设置为当前 Widget",
     );
   });
 
@@ -280,7 +258,7 @@ describe("State 生命周期测试", () => {
         this.mountedInInitState = this.mounted;
       }
 
-      build(context: Element): Widget {
+      build(_context: Element): Widget {
         return new LeafWidget();
       }
     }
@@ -297,11 +275,7 @@ describe("State 生命周期测试", () => {
     element.mount();
 
     const state = element.state as CheckMountedState;
-    assert.equal(
-      state.mountedInInitState,
-      true,
-      "initState 中 state.mounted 应为 true"
-    );
+    assert.equal(state.mountedInInitState, true, "initState 中 state.mounted 应为 true");
   });
 
   // ── 9. didUpdateWidget 收到旧 widget ─────────────
@@ -317,16 +291,8 @@ describe("State 生命周期测试", () => {
 
     element.update(widget2);
 
-    assert.equal(
-      state.didUpdateWidgetCount,
-      1,
-      "update 后 didUpdateWidget 应被调用一次"
-    );
-    assert.equal(
-      state.lastOldWidget,
-      widget1,
-      "didUpdateWidget 应收到旧 Widget"
-    );
+    assert.equal(state.didUpdateWidgetCount, 1, "update 后 didUpdateWidget 应被调用一次");
+    assert.equal(state.lastOldWidget, widget1, "didUpdateWidget 应收到旧 Widget");
   });
 
   // ── 10. dispose 在 unmount 时调用 ─────────────────
@@ -341,11 +307,7 @@ describe("State 生命周期测试", () => {
 
     element.unmount();
 
-    assert.equal(
-      state.disposeCount,
-      1,
-      "unmount 后 dispose 应被调用一次"
-    );
+    assert.equal(state.disposeCount, 1, "unmount 后 dispose 应被调用一次");
   });
 });
 
@@ -377,11 +339,7 @@ describe("dispose 后状态测试", () => {
 
     element.unmount();
 
-    assert.equal(
-      state.mounted,
-      false,
-      "unmount/dispose 后 state.mounted 应为 false"
-    );
+    assert.equal(state.mounted, false, "unmount/dispose 后 state.mounted 应为 false");
   });
 });
 
@@ -415,11 +373,7 @@ describe("setState 测试", () => {
       state.count++;
     });
 
-    assert.equal(
-      state.count,
-      1,
-      "setState 回调应被同步执行"
-    );
+    assert.equal(state.count, 1, "setState 回调应被同步执行");
   });
 
   // ── 13. setState 标记 element dirty ───────────────
@@ -438,11 +392,7 @@ describe("setState 测试", () => {
       state.count++;
     });
 
-    assert.equal(
-      element.dirty,
-      true,
-      "setState 后 element.dirty 应为 true"
-    );
+    assert.equal(element.dirty, true, "setState 后 element.dirty 应为 true");
   });
 
   // ── 14. setState 调用 BuildOwner.scheduleBuildFor ─
@@ -461,7 +411,7 @@ describe("setState 测试", () => {
 
     assert.ok(
       mockOwner.scheduledElements.includes(element),
-      "setState 应通过 markNeedsRebuild 触发 scheduleBuildFor"
+      "setState 应通过 markNeedsRebuild 触发 scheduleBuildFor",
     );
   });
 
@@ -477,11 +427,7 @@ describe("setState 测试", () => {
     const state = element.state as CounterState;
     state.setState();
 
-    assert.equal(
-      element.dirty,
-      true,
-      "无回调的 setState 也应标记 dirty"
-    );
+    assert.equal(element.dirty, true, "无回调的 setState 也应标记 dirty");
   });
 
   // ── 16. dispose 后 setState 抛出错误 ──────────────
@@ -500,7 +446,7 @@ describe("setState 测试", () => {
         state.setState();
       },
       /setState.*dispose/i,
-      "dispose 后调用 setState 应抛出包含相关提示的错误"
+      "dispose 后调用 setState 应抛出包含相关提示的错误",
     );
   });
 });
@@ -534,15 +480,8 @@ describe("StatefulElement 更新测试", () => {
 
     element.update(widget2);
 
-    assert.equal(
-      state.didUpdateWidgetCount,
-      1,
-      "update 应触发 didUpdateWidget"
-    );
-    assert.ok(
-      state.buildCount > buildCountAfterMount,
-      "update 应触发 rebuild"
-    );
+    assert.equal(state.didUpdateWidgetCount, 1, "update 应触发 didUpdateWidget");
+    assert.ok(state.buildCount > buildCountAfterMount, "update 应触发 rebuild");
   });
 
   // ── 18. State 跨 update 保持 ─────────────────────
@@ -559,11 +498,7 @@ describe("StatefulElement 更新测试", () => {
 
     const stateAfter = element.state;
 
-    assert.equal(
-      stateBefore,
-      stateAfter,
-      "update 后 State 实例应保持不变"
-    );
+    assert.equal(stateBefore, stateAfter, "update 后 State 实例应保持不变");
   });
 
   // ── 19. 不同类型 Widget → 需要重建 ───────────────
@@ -574,7 +509,7 @@ describe("StatefulElement 更新测试", () => {
     assert.equal(
       counterWidget.canUpdate(anotherWidget),
       false,
-      "不同类型 Widget 的 canUpdate 应返回 false"
+      "不同类型 Widget 的 canUpdate 应返回 false",
     );
   });
 });
@@ -605,15 +540,8 @@ describe("BuildContext 测试", () => {
     const state = element.state as CounterState;
     const context = state.context;
 
-    assert.ok(
-      context !== undefined,
-      "state.context 不应为 undefined"
-    );
-    assert.equal(
-      context!.widget,
-      widget,
-      "context.widget 应返回当前关联的 Widget"
-    );
+    assert.ok(context !== undefined, "state.context 不应为 undefined");
+    assert.equal(context!.widget, widget, "context.widget 应返回当前关联的 Widget");
   });
 
   // ── 21. findRenderObject 返回最近的 RenderObject ──
@@ -632,7 +560,7 @@ describe("BuildContext 测试", () => {
     assert.equal(
       renderObject,
       undefined,
-      "ComponentElement 没有直接关联的 RenderObject，应返回 undefined"
+      "ComponentElement 没有直接关联的 RenderObject，应返回 undefined",
     );
   });
 });

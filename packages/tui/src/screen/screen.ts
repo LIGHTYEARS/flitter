@@ -24,9 +24,9 @@
  * @module
  */
 
-import { Cell } from "./cell.js";
-import { TextStyle } from "./text-style.js";
 import { ScreenBuffer } from "./buffer.js";
+import type { Cell } from "./cell.js";
+import type { TextStyle } from "./text-style.js";
 
 /**
  * 脏区域描述：一行中发生变化的单元格集合。

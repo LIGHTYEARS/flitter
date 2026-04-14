@@ -8,6 +8,6 @@
  * @module
  */
 
+export * from "./clipboard.js";
 export * from "./selection-area.js";
 export * from "./selection-keep-alive.js";
-export * from "./clipboard.js";

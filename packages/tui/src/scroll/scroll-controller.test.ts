@@ -6,10 +6,9 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { ScrollController } from "./scroll-controller.js";
 import { ClampingScrollPhysics } from "./scroll-physics.js";
-import type { ScrollPhysics } from "./scroll-physics.js";
 
 // ════════════════════════════════════════════════════
 //  ClampingScrollPhysics
@@ -93,7 +92,9 @@ describe("ScrollController", () => {
     it("should notify listeners on offset change", () => {
       controller.updateMaxScrollExtent(100);
       let notified = false;
-      controller.addListener(() => { notified = true; });
+      controller.addListener(() => {
+        notified = true;
+      });
       controller.jumpTo(50);
       expect(notified).toBe(true);
     });
@@ -102,7 +103,9 @@ describe("ScrollController", () => {
       controller.updateMaxScrollExtent(100);
       controller.jumpTo(0);
       let notified = false;
-      controller.addListener(() => { notified = true; });
+      controller.addListener(() => {
+        notified = true;
+      });
       controller.jumpTo(0);
       expect(notified).toBe(false);
     });
@@ -228,7 +231,9 @@ describe("ScrollController", () => {
   describe("listeners", () => {
     it("addListener / removeListener should manage callback set", () => {
       let count = 0;
-      const fn = () => { count++; };
+      const fn = () => {
+        count++;
+      };
       controller.addListener(fn);
       controller.updateMaxScrollExtent(50);
       expect(count).toBeGreaterThan(0);
@@ -243,8 +248,12 @@ describe("ScrollController", () => {
 
     it("listener errors should not break other listeners", () => {
       let called = false;
-      controller.addListener(() => { throw new Error("boom"); });
-      controller.addListener(() => { called = true; });
+      controller.addListener(() => {
+        throw new Error("boom");
+      });
+      controller.addListener(() => {
+        called = true;
+      });
       controller.updateMaxScrollExtent(50);
       expect(called).toBe(true);
     });
@@ -260,7 +269,7 @@ describe("ScrollController", () => {
       controller.jumpTo(0);
       controller.animateTo(100, 50);
       // 等待动画完成
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       expect(controller.offset).toBe(100);
     });
 

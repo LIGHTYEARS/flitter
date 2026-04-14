@@ -1,10 +1,11 @@
 /**
  * Tests for GitHub Copilot OAuth provider (Device Code flow).
  */
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
+
 import assert from "node:assert/strict";
-import { GitHubCopilotOAuthProvider } from "./github-copilot";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { OAuthLoginCallbacks } from "../types";
+import { GitHubCopilotOAuthProvider } from "./github-copilot";
 
 describe("GitHubCopilotOAuthProvider", () => {
   let provider: GitHubCopilotOAuthProvider;
@@ -32,15 +33,18 @@ describe("GitHubCopilotOAuthProvider", () => {
   describe("modifyModels", () => {
     it("should set baseUrl from copilot endpoints", () => {
       const models = [
-        { id: "gpt-4o", provider: "openai" as const, contextWindow: 128000, supportsThinking: false },
+        {
+          id: "gpt-4o",
+          provider: "openai" as const,
+          contextWindow: 128000,
+          supportsThinking: false,
+        },
       ];
       const credentials = {
         refresh: "r",
         access: "a",
         expires: Date.now() + 3600_000,
-        endpoints: [
-          { api: "openai-chat", base_url: "https://proxy.githubcopilot.com" },
-        ],
+        endpoints: [{ api: "openai-chat", base_url: "https://proxy.githubcopilot.com" }],
       };
       const modified = provider.modifyModels(models, credentials);
       assert.equal(modified[0].baseUrl, "https://proxy.githubcopilot.com");
@@ -48,7 +52,12 @@ describe("GitHubCopilotOAuthProvider", () => {
 
     it("should return models unchanged if no endpoints", () => {
       const models = [
-        { id: "gpt-4o", provider: "openai" as const, contextWindow: 128000, supportsThinking: false },
+        {
+          id: "gpt-4o",
+          provider: "openai" as const,
+          contextWindow: 128000,
+          supportsThinking: false,
+        },
       ];
       const credentials = {
         refresh: "r",
@@ -61,7 +70,12 @@ describe("GitHubCopilotOAuthProvider", () => {
 
     it("should return models unchanged if no openai-chat endpoint", () => {
       const models = [
-        { id: "gpt-4o", provider: "openai" as const, contextWindow: 128000, supportsThinking: false },
+        {
+          id: "gpt-4o",
+          provider: "openai" as const,
+          contextWindow: 128000,
+          supportsThinking: false,
+        },
       ];
       const credentials = {
         refresh: "r",
@@ -93,7 +107,8 @@ describe("GitHubCopilotOAuthProvider", () => {
       };
 
       globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
-        const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+        const urlStr =
+          typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         assert.ok(urlStr.includes("githubcopilot.com"));
         return new Response(JSON.stringify(mockCopilotResponse), {
           status: 200,
@@ -145,7 +160,8 @@ describe("GitHubCopilotOAuthProvider", () => {
 
       // Mock fetch to handle device code, token poll, and copilot token
       globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
-        const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+        const urlStr =
+          typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         fetchCallCount++;
 
         // 1. Device code request
@@ -212,7 +228,8 @@ describe("GitHubCopilotOAuthProvider", () => {
       let deviceCodeUrl = "";
 
       globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
-        const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+        const urlStr =
+          typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
 
         if (urlStr.includes("/login/device/code")) {
           deviceCodeUrl = urlStr;
@@ -229,10 +246,10 @@ describe("GitHubCopilotOAuthProvider", () => {
         }
 
         if (urlStr.includes("/login/oauth/access_token")) {
-          return new Response(
-            JSON.stringify({ access_token: "gho_enterprise_token" }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          );
+          return new Response(JSON.stringify({ access_token: "gho_enterprise_token" }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
         }
 
         if (urlStr.includes("githubcopilot.com")) {

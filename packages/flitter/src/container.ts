@@ -11,7 +11,6 @@
  * import { createContainer, type ContainerOptions } from 'flitter';
  *
  * const container = await createContainer({
- *   ampURL: 'https://api.example.com',
  *   settings: mySettingsStorage,
  *   secrets: mySecretStorage,
  *   workspaceRoot: process.cwd(),
@@ -24,29 +23,43 @@
  * await container.asyncDispose();
  * ```
  */
-import type { ConfigService, ThreadStore, ThreadPersistence, SkillService,
-  FileSettingsStorage, ContextManager } from "@flitter/data";
-import type { GuidanceLoadOptions, GuidanceFile } from "@flitter/data";
+
+import type {
+  PermissionEngine,
+  ThreadWorker,
+  ThreadWorkerOptions,
+  ToolRegistry,
+} from "@flitter/agent-core";
+import {
+  type OrchestratorCallbacks,
+  ThreadWorker as ThreadWorkerImpl,
+  ToolOrchestrator,
+} from "@flitter/agent-core";
+import type {
+  ConfigService,
+  ContextManager,
+  FileSettingsStorage,
+  GuidanceFile,
+  GuidanceLoadOptions,
+  SkillService,
+  ThreadPersistence,
+  ThreadStore,
+} from "@flitter/data";
 import type { MCPServerManager } from "@flitter/llm";
-import type { ToolRegistry, PermissionEngine,
-  ThreadWorker, ThreadWorkerOptions } from "@flitter/agent-core";
-import { ToolOrchestrator, type OrchestratorCallbacks } from "@flitter/agent-core";
-import { createLogger } from "@flitter/util";
-import { Subject, BehaviorSubject } from "@flitter/util";
-import type { Config, ThreadSnapshot, Message } from "@flitter/schemas";
+import type { ThreadSnapshot } from "@flitter/schemas";
+import { BehaviorSubject, createLogger } from "@flitter/util";
 import {
   createConfigService,
+  createContextManager,
+  createGuidanceLoader,
+  createMCPServerManager,
+  createPermissionEngine,
+  createSkillService,
+  createThreadPersistence,
+  createThreadStore,
   createToolRegistry,
   registerBuiltinTools,
-  createPermissionEngine,
-  createMCPServerManager,
-  createSkillService,
-  createGuidanceLoader,
-  createThreadStore,
-  createThreadPersistence,
-  createContextManager,
 } from "./factory";
-import { ThreadWorker as ThreadWorkerImpl } from "@flitter/agent-core";
 
 const log = createLogger("container");
 
@@ -79,8 +92,6 @@ export interface GuidanceLoader {
  * 逆向: X3 参数 (claude-config-system.js:1097)
  */
 export interface ContainerOptions {
-  /** Flitter API 服务器 URL */
-  ampURL: string;
   /** 用户设置存储 */
   settings: FileSettingsStorage;
   /** 秘密存储 (API Key 等) */
@@ -160,7 +171,7 @@ interface Disposable {
  * 逆向: X3() in claude-config-system.js:1097-1324
  */
 export async function createContainer(opts: ContainerOptions): Promise<ServiceContainer> {
-  log.info("Initializing service container...", { ampURL: opts.ampURL });
+  log.info("Initializing service container...");
   const disposables: Disposable[] = [];
   let disposed = false;
 
@@ -183,7 +194,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const noopCallbacks: OrchestratorCallbacks = {
       getConfig: async () => configService.get(),
       updateThread: async () => {},
-      getToolRunEnvironment: async (toolUseId, signal) => ({
+      getToolRunEnvironment: async (_toolUseId, signal) => ({
         workspaceRoot: opts.workspaceRoot,
         abortSignal: signal,
         readFile: async () => "",
@@ -192,7 +203,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       applyHookResult: async () => ({ abortOp: false }),
       applyPostHookResult: async () => {},
       updateFileChanges: async () => {},
-      getDisposed$: () => new BehaviorSubject(false) as any,
+      getDisposed$: () => new BehaviorSubject(false),
     };
     const toolOrchestrator = new ToolOrchestrator("__container__", toolRegistry, noopCallbacks);
     disposables.push(toolOrchestrator);
@@ -239,12 +250,15 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       secrets: opts.secrets,
       settings: opts.settings,
 
-      createThreadWorker(threadId: string, workerOpts?: Partial<ThreadWorkerOptions>): ThreadWorker {
+      createThreadWorker(
+        threadId: string,
+        workerOpts?: Partial<ThreadWorkerOptions>,
+      ): ThreadWorker {
         // 为每个线程创建独立的 ToolOrchestrator
         const threadCallbacks: OrchestratorCallbacks = {
           getConfig: async () => configService.get(),
           updateThread: async () => {},
-          getToolRunEnvironment: async (toolUseId, signal) => ({
+          getToolRunEnvironment: async (_toolUseId, signal) => ({
             workspaceRoot: opts.workspaceRoot,
             abortSignal: signal,
             readFile: async () => "",
@@ -253,23 +267,26 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           applyHookResult: async () => ({ abortOp: false }),
           applyPostHookResult: async () => {},
           updateFileChanges: async () => {},
-          getDisposed$: () => new BehaviorSubject(false) as any,
+          getDisposed$: () => new BehaviorSubject(false),
         };
         const threadOrchestrator = new ToolOrchestrator(threadId, toolRegistry, threadCallbacks);
 
         const fullOpts: ThreadWorkerOptions = {
-          getThreadSnapshot: workerOpts?.getThreadSnapshot ?? (() => ({
-            id: threadId,
-            v: 1,
-            title: null,
-            messages: [],
-            env: "local",
-            agentMode: "normal",
-            relationships: [],
-          } as any)),
+          getThreadSnapshot:
+            workerOpts?.getThreadSnapshot ??
+            (() =>
+              ({
+                id: threadId,
+                v: 1,
+                title: null,
+                messages: [],
+                env: "local",
+                agentMode: "normal",
+                relationships: [],
+              }) as unknown as ThreadSnapshot),
           updateThreadSnapshot: workerOpts?.updateThreadSnapshot ?? (() => {}),
           getMessages: workerOpts?.getMessages ?? (() => []),
-          provider: workerOpts?.provider ?? (null as any),
+          provider: workerOpts?.provider ?? (null as unknown as import("@flitter/llm").LLMProvider),
           toolOrchestrator: threadOrchestrator,
           buildSystemPrompt: workerOpts?.buildSystemPrompt ?? (async () => []),
           checkAndCompact: workerOpts?.checkAndCompact ?? (async () => null),

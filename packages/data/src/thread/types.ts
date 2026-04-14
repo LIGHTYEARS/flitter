@@ -4,10 +4,7 @@
  * ThreadEntry 轻量索引、ThreadStoreOptions 配置
  * 从 amp-cli-reversed/app/skills-agents-system.js:fuT/azT 提取
  */
-import type {
-  ThreadEnvironment,
-  ThreadRelationship,
-} from "@flitter/schemas";
+import type { ThreadEnvironment, ThreadRelationship } from "@flitter/schemas";
 
 /** 线程索引条目 — 轻量摘要，不含完整消息 */
 export interface ThreadEntry {

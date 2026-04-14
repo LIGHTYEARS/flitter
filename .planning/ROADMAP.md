@@ -449,7 +449,58 @@ Phase 6 (TUI Advanced) + Phase 10 (Agent Core) ──> Phase 11 (CLI)
 - Phase 3-6 (TUI track) can run in parallel with Phase 7-8 (LLM track) after Phase 1
 - Phase 9 (Data) can run in parallel with Phase 5-6 (TUI) and Phase 8 (MCP)
 
+### Phase 12: WidgetsBinding and runApp — TUI application bootstrap
+
+**Package:** `@flitter/tui` + `@flitter/cli`
+**Effort:** L | **Risk:** High
+**Goal:** 迁移 WidgetsBinding 和 runApp() 到 @flitter/tui，将 interactive.ts 中的 stub 替换为真实 TUI 引擎，使 `flitter` CLI 启动后进入持久的终端交互界面。
+**Requirements**: TUI-06 (补充), CLI-02
+
+### Scope
+
+核心任务:
+1. **WidgetsBinding 单例** — 组合 BuildOwner + PipelineOwner + FrameScheduler + 事件系统，管理 TUI 应用生命周期
+2. **runApp() 顶层函数** — 初始化终端 (alt screen)、挂载根 Widget、启动帧调度、waitForExit 阻塞直到退出
+3. **事件绑定** — 键盘/鼠标/粘贴/resize 事件从终端输入流分发到 Widget 树
+4. **MediaQuery** — 终端尺寸感知，包裹根 Widget 提供 rows/cols 信息
+5. **interactive.ts 集成** — 将 _runApp stub 替换为 @flitter/tui 的真实 runApp 导入
+
+逆向参考:
+- `T1T()` → `runApp` (tui-render-pipeline.js:199-203)
+- `d9` → `WidgetsBinding` (tui-layout-engine.js:1182 + tui-render-pipeline.js:7-28)
+
+### Depends on
+- Phase 4 (三棵树引擎 — FrameScheduler, BuildOwner, PipelineOwner)
+- Phase 3 (VT 解析器 + Screen 缓冲区 + 输入流解析)
+- Phase 6 (高级交互组件 — 依赖事件系统)
+- Phase 11 (CLI 入口 — interactive.ts stub 替换)
+
+**Plans:** 15/15 plans complete
+
+Plans:
+- [ ] 12-01-PLAN.md — InheritedWidget + InheritedElement (Wave A)
+- [ ] 12-02-PLAN.md — FocusNode + FocusScopeNode (Wave A)
+- [ ] 12-03-PLAN.md — FocusManager 单例 (Wave A)
+- [ ] 12-04-PLAN.md — HitTestResult + RenderObject.hitTest (Wave A)
+- [ ] 12-05-PLAN.md — TuiController 终端控制器 (Wave B)
+- [ ] 12-06-PLAN.md — MouseManager 鼠标事件管理器 (Wave B)
+- [ ] 12-07-PLAN.md — MediaQuery InheritedWidget (Wave B)
+- [ ] 12-08-PLAN.md — WidgetsBinding 核心编排器 (Wave C)
+- [ ] 12-09-PLAN.md — runApp() 顶层入口函数 (Wave C)
+- [ ] 12-10-PLAN.md — ThemeController + ConfigProvider (Wave D)
+- [ ] 12-11-PLAN.md — AppWidget + ThreadStateWidget (Wave D)
+- [ ] 12-12-PLAN.md — InputField + ConversationView (Wave D)
+- [ ] 12-13-PLAN.md — interactive.ts stub 替换 (Wave E)
+- [ ] 12-14-PLAN.md — Theme 系统迁移 (Wave E)
+- [ ] 12-15-PLAN.md — E2E 集成测试 (Wave E)
+
+### Key Pitfalls
+- PIT-C1: 三棵树生命周期时序错误（mount 前访问 renderObject）
+- PIT-D4: 背压帧率冲突（Layout 超时拖慢 Paint）
+- 终端 alt screen 进入/退出 + 清理不彻底导致终端状态污染
+- waitForExit 阻塞机制需正确响应 SIGINT/SIGTERM 优雅退出
+
 ---
 
 *Roadmap created: 2026-04-12*
-*Last updated: 2026-04-14 — Phase 11 gap closure plans 08-09 added*
+*Last updated: 2026-04-14 — Phase 12 planned (15 plans across 5 waves: A→E)*

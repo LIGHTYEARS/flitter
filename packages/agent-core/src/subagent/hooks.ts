@@ -8,8 +8,9 @@
  * 3. 执行 Hook 命令 (子进程, 环境变量传递, 超时处理)
  * 4. 解析 stdout JSON 控制指令 (abort, modifiedArgs)
  */
-import { matchToolPattern } from "../permissions/matcher";
+
 import { spawn } from "node:child_process";
+import { matchToolPattern } from "../permissions/matcher";
 import type { ToolResult } from "../tools/types";
 
 // ─── Hook 类型 ──────────────────────────────────────────
@@ -86,11 +87,7 @@ const DEFAULT_HOOK_TIMEOUT = 60_000;
 
 // ─── 有效 Hook 类型集合 ────────────────────────────────
 
-const VALID_HOOK_TYPES = new Set<string>([
-  "PreToolUse",
-  "PostToolUse",
-  "Notification",
-]);
+const VALID_HOOK_TYPES = new Set<string>(["PreToolUse", "PostToolUse", "Notification"]);
 
 // ─── parseHooksConfig ───────────────────────────────────
 
@@ -110,9 +107,7 @@ const VALID_HOOK_TYPES = new Set<string>([
  * @param hooks - Settings.hooks 的原始值
  * @returns 解析后的 HookConfig[]
  */
-export function parseHooksConfig(
-  hooks: Record<string, unknown>,
-): HookConfig[] {
+export function parseHooksConfig(hooks: Record<string, unknown>): HookConfig[] {
   if (!hooks || typeof hooks !== "object") return [];
 
   const result: HookConfig[] = [];
@@ -161,10 +156,7 @@ export function parseHooksConfig(
  * @param toolName - 工具名
  * @returns true 如果匹配
  */
-export function matchHookToTool(
-  hook: HookConfig,
-  toolName: string,
-): boolean {
+export function matchHookToTool(hook: HookConfig, toolName: string): boolean {
   if (!hook.matcher) return true;
   return matchToolPattern(hook.matcher, toolName);
 }
@@ -196,11 +188,7 @@ export async function executePreHook(
   };
 
   const timeout = hookConfig.timeout ?? DEFAULT_HOOK_TIMEOUT;
-  const { exitCode, stdout, stderr } = await runCommand(
-    hookConfig.command,
-    env,
-    timeout,
-  );
+  const { exitCode, stdout, stderr } = await runCommand(hookConfig.command, env, timeout);
 
   // 解析 stdout 中的 JSON 控制指令
   const directives = parseDirectives(stdout);
@@ -242,11 +230,7 @@ export async function executePostHook(
   };
 
   const timeout = hookConfig.timeout ?? DEFAULT_HOOK_TIMEOUT;
-  const { exitCode, stdout, stderr } = await runCommand(
-    hookConfig.command,
-    env,
-    timeout,
-  );
+  const { exitCode, stdout, stderr } = await runCommand(hookConfig.command, env, timeout);
 
   // Post-hooks 也可能输出消息
   const directives = parseDirectives(stdout);

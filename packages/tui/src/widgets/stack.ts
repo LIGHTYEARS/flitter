@@ -10,14 +10,14 @@
  * @module
  */
 
-import { RenderBox } from "../tree/render-box.js";
 import { BoxConstraints } from "../tree/constraints.js";
+import type { Element } from "../tree/element.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { RenderObject } from "../tree/render-object.js";
 import { ParentData } from "../tree/types.js";
+import type { Key } from "../tree/widget.js";
 import { Widget } from "../tree/widget.js";
 import { MultiChildRenderObjectElement } from "./multi-child-render-object-element.js";
-import type { RenderObject } from "../tree/render-object.js";
-import type { Element } from "../tree/element.js";
-import type { Key } from "../tree/widget.js";
 
 // ════════════════════════════════════════════════════
 //  StackAlignment 类型
@@ -152,12 +152,8 @@ export class RenderStack extends RenderBox {
       this.size = constraints.constrain(maxChildWidth, maxChildHeight);
     } else {
       // 无非定位子节点时，使用约束最大值；如果无界则使用最小值
-      const width = constraints.hasBoundedWidth
-        ? constraints.maxWidth
-        : constraints.minWidth;
-      const height = constraints.hasBoundedHeight
-        ? constraints.maxHeight
-        : constraints.minHeight;
+      const width = constraints.hasBoundedWidth ? constraints.maxWidth : constraints.minWidth;
+      const height = constraints.hasBoundedHeight ? constraints.maxHeight : constraints.minHeight;
       this.size = { width, height };
     }
 

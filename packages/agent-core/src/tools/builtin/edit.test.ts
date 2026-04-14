@@ -5,20 +5,22 @@
  * replace_all, same string error, file not found, editExecutionProfile,
  * and post-edit file content verification.
  */
-import { describe, it, after } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { EditTool, editExecutionProfile } from "./edit";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+import type { Config } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { EditTool, editExecutionProfile } from "./edit";
 
 function createMockContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
     workingDirectory: "/tmp",
     signal: new AbortController().signal,
     threadId: "test-thread",
-    config: {} as any,
+    config: {} as unknown as Config,
     ...overrides,
   };
 }
@@ -179,8 +181,7 @@ describe("EditTool", () => {
 
   it("preserves unchanged content after a targeted edit", async () => {
     const filePath = path.join(tmpDir, "preserve.txt");
-    const original =
-      "line 1\nline 2 target\nline 3\nline 4\nline 5\n";
+    const original = "line 1\nline 2 target\nline 3\nline 4\nline 5\n";
     fs.writeFileSync(filePath, original, "utf-8");
 
     const result = await EditTool.execute(
@@ -194,9 +195,6 @@ describe("EditTool", () => {
 
     assert.equal(result.status, "done");
     const actual = fs.readFileSync(filePath, "utf-8");
-    assert.equal(
-      actual,
-      "line 1\nline 2 replaced\nline 3\nline 4\nline 5\n",
-    );
+    assert.equal(actual, "line 1\nline 2 replaced\nline 3\nline 4\nline 5\n");
   });
 });

@@ -1,12 +1,12 @@
-export { type IDisposable, DisposableCollection } from "./disposable";
+export { DisposableCollection, type IDisposable } from "./disposable";
 export {
   Observable,
-  type Observer,
-  type Subscription,
-  type OperatorFunction,
   type ObservableInput,
+  type Observer,
+  type OperatorFunction,
+  type Subscription,
 } from "./observable";
-export { Subject, BehaviorSubject } from "./subject";
-export { map, filter, distinctUntilChanged } from "./operators";
-export { ObservableSet } from "./observable-set";
 export { ObservableMap } from "./observable-map";
+export { ObservableSet } from "./observable-set";
+export { distinctUntilChanged, filter, map } from "./operators";
+export { BehaviorSubject, Subject } from "./subject";

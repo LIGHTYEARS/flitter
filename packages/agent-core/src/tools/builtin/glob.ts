@@ -16,7 +16,7 @@
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { FileScanner } from "@flitter/util";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 // ---------------------------------------------------------------------------
 // Glob-to-regex converter
@@ -116,13 +116,8 @@ async function sortByMtime(filePaths: string[]): Promise<string[]> {
 // Execution profile helper
 // ---------------------------------------------------------------------------
 
-export function globExecutionProfile(
-  args: Record<string, unknown>,
-  cwd: string,
-): ExecutionProfile {
-  const searchPath = args.path
-    ? nodePath.resolve(cwd, args.path as string)
-    : cwd;
+export function globExecutionProfile(args: Record<string, unknown>, cwd: string): ExecutionProfile {
+  const searchPath = args.path ? nodePath.resolve(cwd, args.path as string) : cwd;
   return {
     resourceKeys: [{ key: searchPath, mode: "read" }],
   };
@@ -157,19 +152,14 @@ export const GlobTool: ToolSpec = {
     },
   },
 
-  async execute(
-    args: Record<string, unknown>,
-    context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
     const pattern = args.pattern as string | undefined;
     if (!pattern) {
       return { status: "error", error: "pattern is required." };
     }
 
     const cwd = context.workingDirectory;
-    const searchPath = args.path
-      ? nodePath.resolve(cwd, args.path as string)
-      : cwd;
+    const searchPath = args.path ? nodePath.resolve(cwd, args.path as string) : cwd;
 
     // Scan the directory tree
     const scanner = new FileScanner([searchPath], {

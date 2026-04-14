@@ -1,19 +1,26 @@
 /**
  * Tests for MCP JSON-RPC 2.0 protocol.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import {
-  createRequest,
-  createNotification,
-  createSuccessResponse,
-  createErrorResponse,
-  parseMessage,
-  serializeMessage,
-  McpError,
-  RequestManager,
   _resetIdCounter,
+  createErrorResponse,
+  createNotification,
+  createRequest,
+  createSuccessResponse,
+  McpError,
+  parseMessage,
+  RequestManager,
+  serializeMessage,
 } from "./protocol";
+import type {
+  JSONRPCErrorResponse,
+  JSONRPCNotification,
+  JSONRPCRequest,
+  JSONRPCSuccessResponse,
+} from "./types";
 import { ErrorCode } from "./types";
 
 describe("createRequest", () => {
@@ -95,41 +102,53 @@ describe("createErrorResponse", () => {
 
 describe("parseMessage", () => {
   it("should parse a valid request", () => {
-    const msg = parseMessage('{"jsonrpc":"2.0","id":1,"method":"ping"}');
-    assert.equal((msg as any).method, "ping");
-    assert.equal((msg as any).id, 1);
+    const msg = parseMessage('{"jsonrpc":"2.0","id":1,"method":"ping"}') as JSONRPCRequest;
+    assert.equal(msg.method, "ping");
+    assert.equal(msg.id, 1);
   });
 
   it("should parse a valid notification", () => {
-    const msg = parseMessage('{"jsonrpc":"2.0","method":"notifications/initialized"}');
-    assert.equal((msg as any).method, "notifications/initialized");
+    const msg = parseMessage(
+      '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+    ) as JSONRPCNotification;
+    assert.equal(msg.method, "notifications/initialized");
     assert.equal("id" in msg, false);
   });
 
   it("should parse a success response", () => {
-    const msg = parseMessage('{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}');
-    assert.deepEqual((msg as any).result, { tools: [] });
+    const msg = parseMessage(
+      '{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}',
+    ) as JSONRPCSuccessResponse;
+    assert.deepEqual(msg.result, { tools: [] });
   });
 
   it("should parse an error response", () => {
-    const msg = parseMessage('{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"not found"}}');
-    assert.equal((msg as any).error.code, -32601);
+    const msg = parseMessage(
+      '{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"not found"}}',
+    ) as JSONRPCErrorResponse;
+    assert.equal(msg.error.code, -32601);
   });
 
   it("should throw McpError on invalid JSON", () => {
-    assert.throws(() => parseMessage("not json"), (err: any) => {
-      assert.ok(err instanceof McpError);
-      assert.equal(err.code, ErrorCode.ParseError);
-      return true;
-    });
+    assert.throws(
+      () => parseMessage("not json"),
+      (err: unknown) => {
+        assert.ok(err instanceof McpError);
+        assert.equal(err.code, ErrorCode.ParseError);
+        return true;
+      },
+    );
   });
 
   it("should throw McpError on non-JSONRPC message", () => {
-    assert.throws(() => parseMessage('{"hello":"world"}'), (err: any) => {
-      assert.ok(err instanceof McpError);
-      assert.equal(err.code, ErrorCode.InvalidRequest);
-      return true;
-    });
+    assert.throws(
+      () => parseMessage('{"hello":"world"}'),
+      (err: unknown) => {
+        assert.ok(err instanceof McpError);
+        assert.equal(err.code, ErrorCode.InvalidRequest);
+        return true;
+      },
+    );
   });
 
   it("should throw on missing jsonrpc field", () => {
@@ -141,8 +160,10 @@ describe("parseMessage", () => {
   });
 
   it("should parse request with params", () => {
-    const msg = parseMessage('{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test"}}');
-    assert.deepEqual((msg as any).params, { name: "test" });
+    const msg = parseMessage(
+      '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test"}}',
+    ) as JSONRPCRequest;
+    assert.deepEqual(msg.params, { name: "test" });
   });
 });
 
@@ -241,7 +262,7 @@ describe("RequestManager", () => {
       id: message.id,
       error: { code: -32601, message: "not found" },
     });
-    await assert.rejects(response, (err: any) => {
+    await assert.rejects(response, (err: unknown) => {
       assert.ok(err instanceof McpError);
       assert.equal(err.code, -32601);
       return true;
@@ -255,7 +276,7 @@ describe("RequestManager", () => {
 
   it("should timeout pending requests", async () => {
     const { response } = manager.request("slow", undefined, { timeout: 50 });
-    await assert.rejects(response, (err: any) => {
+    await assert.rejects(response, (err: unknown) => {
       assert.ok(err instanceof McpError);
       assert.equal(err.code, ErrorCode.RequestTimeout);
       return true;
@@ -267,7 +288,7 @@ describe("RequestManager", () => {
     const ac = new AbortController();
     const { response } = manager.request("cancel-me", undefined, { signal: ac.signal });
     ac.abort();
-    await assert.rejects(response, (err: any) => {
+    await assert.rejects(response, (err: unknown) => {
       assert.ok(err instanceof McpError);
       assert.equal(err.code, ErrorCode.RequestTimeout);
       return true;
@@ -279,8 +300,8 @@ describe("RequestManager", () => {
     const { response: r2 } = manager.request("b");
     assert.equal(manager.pendingCount, 2);
     manager.cancelAll("shutting down");
-    await assert.rejects(r1, (err: any) => err instanceof McpError);
-    await assert.rejects(r2, (err: any) => err instanceof McpError);
+    await assert.rejects(r1, (err: unknown) => err instanceof McpError);
+    await assert.rejects(r2, (err: unknown) => err instanceof McpError);
     assert.equal(manager.pendingCount, 0);
   });
 

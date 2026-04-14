@@ -13,13 +13,10 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { LLMProvider } from "../../provider";
-import type { StreamParams, StreamDelta } from "../../types";
+import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
-import {
-  AnthropicTransformer,
-  AnthropicToolTransformer,
-} from "./transformer";
 import type { AnthropicSSEEvent } from "./transformer";
+import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
 
 // ─── AnthropicProvider ──────────────────────────────────
 
@@ -52,11 +49,17 @@ export class AnthropicProvider implements LLMProvider {
     // Build request params
     const anthropicMessages = this._transformer.toProviderMessages(messages, systemPrompt);
     const system = this._transformer.toSystemBlocks(systemPrompt);
-    const anthropicTools = tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
+    const anthropicTools =
+      tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
 
     const body = this._buildRequestBody(
-      model, maxOutputTokens, anthropicMessages, system,
-      anthropicTools, config.settings, reasoningEffort,
+      model,
+      maxOutputTokens,
+      anthropicMessages,
+      system,
+      anthropicTools,
+      config.settings,
+      reasoningEffort,
     );
 
     // Create state for tracking blocks
@@ -64,7 +67,9 @@ export class AnthropicProvider implements LLMProvider {
 
     // Stream via SDK
     try {
-      const stream = client.messages.stream(body as Parameters<typeof client.messages.stream>[0], { signal });
+      const stream = client.messages.stream(body as Parameters<typeof client.messages.stream>[0], {
+        signal,
+      });
 
       for await (const event of stream) {
         const delta = this._transformer.fromProviderDelta(event as AnthropicSSEEvent, state);
@@ -76,9 +81,14 @@ export class AnthropicProvider implements LLMProvider {
         throw new ProviderError(
           err.status,
           "anthropic",
-          err.status === 408 || err.status === 409 || err.status === 429 ||
-            err.status === 500 || err.status === 502 || err.status === 503 ||
-            err.status === 504 || err.status === 529,
+          err.status === 408 ||
+            err.status === 409 ||
+            err.status === 429 ||
+            err.status === 500 ||
+            err.status === 502 ||
+            err.status === 503 ||
+            err.status === 504 ||
+            err.status === 529,
           err.message,
         );
       }
@@ -112,8 +122,11 @@ export class AnthropicProvider implements LLMProvider {
       defaultHeaders["anthropic-beta"] = betaFeatures.join(",");
     }
 
+    const baseURL = settings["anthropic.baseURL"] as string | undefined;
+
     return new Anthropic({
       ...(isOAuthToken ? { authToken: apiKey } : { apiKey }),
+      ...(baseURL ? { baseURL } : {}),
       defaultHeaders,
     });
   }

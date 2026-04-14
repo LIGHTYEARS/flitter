@@ -9,15 +9,16 @@
  * 3. Local callback server receives authorization code
  * 4. Exchange code for access + refresh tokens
  */
-import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
-import { generatePKCE } from "../pkce";
+
 import { startCallbackServer } from "../callback-server";
+import { generatePKCE } from "../pkce";
+import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
 
 const AUTH_URL = "https://auth.openai.com/oauth/authorize";
 const TOKEN_URL = "https://auth.openai.com/oauth/token";
 const CALLBACK_PORT = 1455;
 const CALLBACK_PATH = "/auth/callback";
-const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
+const _REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const CLIENT_ID = "app_scp_zbGLJVBPIHcryOMjO7Vbh8dI";
 const AUDIENCE = "https://api.openai.com/v1";
 const SCOPES = "openid profile email offline_access";
@@ -66,7 +67,9 @@ export class OpenAICodexOAuthProvider implements OAuthProviderInterface {
     } catch (err) {
       server.stop();
       if (callbacks.onManualCodeInput) {
-        callbacks.onProgress?.("Could not receive callback automatically. Please paste the authorization code.");
+        callbacks.onProgress?.(
+          "Could not receive callback automatically. Please paste the authorization code.",
+        );
         code = await callbacks.onManualCodeInput();
       } else {
         throw err;

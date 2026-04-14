@@ -5,8 +5,7 @@
  * Supports single-match replacement and replace-all mode.
  */
 import * as fs from "node:fs";
-import * as path from "node:path";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 /**
  * Count the number of non-overlapping occurrences of `search` in `content`.
@@ -32,9 +31,7 @@ function countOccurrences(content: string, search: string): number {
  * Compute the execution profile for an Edit invocation.
  * Declares a write-mode resource key on the target file path.
  */
-export function editExecutionProfile(
-  args: Record<string, unknown>,
-): ExecutionProfile {
+export function editExecutionProfile(args: Record<string, unknown>): ExecutionProfile {
   const filePath = args.file_path as string;
   return {
     resourceKeys: [{ key: filePath, mode: "write" }],
@@ -70,8 +67,7 @@ export const EditTool: ToolSpec = {
       },
       replace_all: {
         type: "boolean",
-        description:
-          "If true, replace all occurrences of old_string. Defaults to false.",
+        description: "If true, replace all occurrences of old_string. Defaults to false.",
         default: false,
       },
     },
@@ -81,10 +77,7 @@ export const EditTool: ToolSpec = {
 
   executionProfile: undefined,
 
-  async execute(
-    args: Record<string, unknown>,
-    _context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const oldString = args.old_string as string;
     const newString = args.new_string as string;
@@ -159,10 +152,7 @@ export const EditTool: ToolSpec = {
     } else {
       // Replace only the first occurrence
       const index = content.indexOf(oldString);
-      newContent =
-        content.slice(0, index) +
-        newString +
-        content.slice(index + oldString.length);
+      newContent = content.slice(0, index) + newString + content.slice(index + oldString.length);
     }
 
     // Write back

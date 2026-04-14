@@ -57,10 +57,7 @@ function buildCharBag(str: string): Map<string, number> {
   return bag;
 }
 
-function charBagContains(
-  haystack: Map<string, number>,
-  needle: Map<string, number>,
-): boolean {
+function charBagContains(haystack: Map<string, number>, needle: Map<string, number>): boolean {
   for (const [char, count] of needle) {
     if ((haystack.get(char) ?? 0) < count) return false;
   }
@@ -89,11 +86,7 @@ function computeFuzzyMatchPositions(
   return qi === q.length ? positions : null;
 }
 
-function computeExactPositions(
-  _text: string,
-  query: string,
-  startIndex: number,
-): number[] {
+function computeExactPositions(_text: string, query: string, startIndex: number): number[] {
   return Array.from({ length: query.length }, (_, i) => startIndex + i);
 }
 
@@ -155,11 +148,7 @@ function scoreEntry(
   }
 
   // 5. Fuzzy match
-  const fuzzyPositions = computeFuzzyMatchPositions(
-    filePath,
-    query,
-    caseSensitive,
-  );
+  const fuzzyPositions = computeFuzzyMatchPositions(filePath, query, caseSensitive);
   if (fuzzyPositions) {
     // Score based on gap penalties
     let gapPenalty = 0;
@@ -189,8 +178,7 @@ export class FuzzyMatcher {
     const hasCaseSensitive = config?.caseSensitive ?? false;
 
     // Smart case: if query has uppercase, force case-sensitive
-    this._caseSensitive =
-      hasCaseSensitive || (smartCase && /[A-Z]/.test(query));
+    this._caseSensitive = hasCaseSensitive || (smartCase && /[A-Z]/.test(query));
 
     this._query = query;
     this._config = {
@@ -201,9 +189,7 @@ export class FuzzyMatcher {
       dirtyFiles: config?.dirtyFiles ?? new Set(),
     };
 
-    const normalizedQuery = this._caseSensitive
-      ? query
-      : query.toLowerCase();
+    const normalizedQuery = this._caseSensitive ? query : query.toLowerCase();
     this._queryCharBag = buildCharBag(normalizedQuery);
   }
 
@@ -225,10 +211,7 @@ export class FuzzyMatcher {
     }
 
     // Sort by score desc, tiebreak by path length asc
-    results.sort(
-      (a, b) =>
-        b.score - a.score || a.entry.path.length - b.entry.path.length,
-    );
+    results.sort((a, b) => b.score - a.score || a.entry.path.length - b.entry.path.length);
 
     return results.slice(0, this._config.maxResults);
   }
@@ -237,9 +220,7 @@ export class FuzzyMatcher {
     const results: FuzzyMatchResult[] = [];
     for (const entry of entries) {
       // Char bag pre-filter
-      const entryBag = buildCharBag(
-        this._caseSensitive ? entry.path : entry.path.toLowerCase(),
-      );
+      const entryBag = buildCharBag(this._caseSensitive ? entry.path : entry.path.toLowerCase());
       if (!charBagContains(entryBag, this._queryCharBag)) continue;
 
       const scored = scoreEntry(entry, this._query, this._caseSensitive);
@@ -259,9 +240,7 @@ export class FuzzyMatcher {
   matchWithFuzzyScoring(entries: ScanEntry[]): FuzzyMatchResult[] {
     const results: FuzzyMatchResult[] = [];
     for (const entry of entries) {
-      const entryBag = buildCharBag(
-        this._caseSensitive ? entry.path : entry.path.toLowerCase(),
-      );
+      const entryBag = buildCharBag(this._caseSensitive ? entry.path : entry.path.toLowerCase());
       if (!charBagContains(entryBag, this._queryCharBag)) continue;
 
       const scored = scoreEntry(entry, this._query, this._caseSensitive);
@@ -292,10 +271,7 @@ export class FuzzyMatcher {
       score: this._applyBonuses(entry),
       matchPositions: [],
     }));
-    results.sort(
-      (a, b) =>
-        b.score - a.score || a.entry.path.length - b.entry.path.length,
-    );
+    results.sort((a, b) => b.score - a.score || a.entry.path.length - b.entry.path.length);
     return results.slice(0, this._config.maxResults);
   }
 }

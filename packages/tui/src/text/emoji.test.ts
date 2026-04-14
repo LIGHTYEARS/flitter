@@ -1,7 +1,7 @@
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import { isEmoji, isEmojiPresentation } from "./emoji.js";
+import { describe, it } from "node:test";
 import { charWidth, textWidth } from "./char-width.js";
+import { isEmoji, isEmojiPresentation } from "./emoji.js";
 
 describe("isEmoji", () => {
   it("😀 (U+1F600) 属于 Emoji 表情符号范围", () => {

@@ -4,23 +4,24 @@
  * Runner: node:test (built-in Node.js test runner)
  * Zod version: v4 — JSON Schema via z.toJSONSchema(schema)
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { z } from "zod";
 
 import {
-  PermissionMatcherSchema,
   PermissionActionSchema,
+  PermissionCheckResultSchema,
   PermissionContextSchema,
-  PermissionEntrySchema,
   PermissionEntryListSchema,
-  ToolSourceSchema,
-  ToolRunInternalStatusSchema,
-  ToolRunDisplayStatusSchema,
-  ToolEnableResultSchema,
+  PermissionEntrySchema,
+  PermissionMatcherSchema,
   ToolApprovalRequestSchema,
   ToolApprovalResponseSchema,
-  PermissionCheckResultSchema,
+  ToolEnableResultSchema,
+  ToolRunDisplayStatusSchema,
+  ToolRunInternalStatusSchema,
+  ToolSourceSchema,
 } from "./permissions";
 
 // ──────────────────────────────────────────────────────────

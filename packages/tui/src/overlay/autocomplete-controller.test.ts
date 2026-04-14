@@ -7,19 +7,19 @@
  * @module autocomplete-controller.test
  */
 
-import { describe, it, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { TextEditingController } from "../editing/text-editing-controller.js";
 import {
   AutocompleteController,
-  type AutocompleteTrigger,
   type AutocompleteOption,
   type AutocompleteState,
+  type AutocompleteTrigger,
 } from "./autocomplete-controller.js";
-import { TextEditingController } from "../editing/text-editing-controller.js";
 
 /**
  * 辅助: 创建 TextEditingController 并设置 text + cursor
  */
-function makeTextCtrl(text: string = "", cursorPos?: number): TextEditingController {
+function _makeTextCtrl(text: string = "", cursorPos?: number): TextEditingController {
   const ctrl = new TextEditingController({ text });
   if (cursorPos !== undefined) {
     ctrl.cursorPosition = cursorPos;
@@ -78,7 +78,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
     });
     // 初始化后仍未激活 (没有触发字符)
     expect(ac.isActive).toBe(false);
@@ -89,7 +91,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -106,7 +110,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -128,7 +134,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -152,7 +160,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -184,7 +194,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -203,7 +215,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
     });
 
     ac.acceptSelected();
@@ -219,7 +233,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -248,7 +264,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: countingBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 50,
     });
 
@@ -272,8 +290,8 @@ describe("AutocompleteController", () => {
   // ═══════════════════════════════════════════════════════
 
   it("generationId: 旧异步结果不覆盖新结果", async () => {
-    let resolvers: Array<(opts: AutocompleteOption[]) => void> = [];
-    const asyncBuilder = (query: string): Promise<AutocompleteOption[]> => {
+    const resolvers: Array<(opts: AutocompleteOption[]) => void> = [];
+    const asyncBuilder = (_query: string): Promise<AutocompleteOption[]> => {
       return new Promise((resolve) => {
         resolvers.push(resolve);
       });
@@ -283,7 +301,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: asyncBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -319,14 +339,18 @@ describe("AutocompleteController", () => {
 
   it("addListener / removeListener 管理状态监听", async () => {
     let notifyCount = 0;
-    const listener = (_state: AutocompleteState) => { notifyCount++; };
+    const listener = (_state: AutocompleteState) => {
+      notifyCount++;
+    };
 
     ac.addListener(listener);
     ac.initialize({
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -350,7 +374,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
     });
 
     ac.dispose();
@@ -368,7 +394,9 @@ describe("AutocompleteController", () => {
         textController: textCtrl,
         triggers: [slashTrigger()],
         optionsBuilder: simpleOptionsBuilder,
-        onSelected: (o) => { selectedOption = o; },
+        onSelected: (o) => {
+          selectedOption = o;
+        },
       });
     }).toThrow();
   });
@@ -385,7 +413,9 @@ describe("AutocompleteController", () => {
         { char: "@", minLength: 1 },
       ],
       optionsBuilder: (query) => [{ label: query, value: query }],
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -405,7 +435,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: simpleOptionsBuilder,
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 
@@ -424,7 +456,9 @@ describe("AutocompleteController", () => {
       textController: textCtrl,
       triggers: [slashTrigger()],
       optionsBuilder: () => [],
-      onSelected: (o) => { selectedOption = o; },
+      onSelected: (o) => {
+        selectedOption = o;
+      },
       debounceMs: 0,
     });
 

@@ -3,17 +3,9 @@
  *
  * 测试 API Key 验证、环境变量读取、存储与检查功能。
  */
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import {
-  validateApiKey,
-  getApiKeyFromEnv,
-  hasApiKey,
-  storeApiKey,
-  promptApiKey,
-} from "./api-key";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { SecretStorage } from "@flitter/flitter";
-
-// ─── Mock SecretStorage ─────────────────────────────────
+import { getApiKeyFromEnv, hasApiKey, storeApiKey, validateApiKey } from "./api-key";
 
 function createMockSecretStorage(): SecretStorage & { _store: Map<string, string> } {
   const store = new Map<string, string>();
@@ -34,8 +26,6 @@ function createMockSecretStorage(): SecretStorage & { _store: Map<string, string
   };
 }
 
-// ─── validateApiKey ─────────────────────────────────────
-
 describe("validateApiKey", () => {
   it("应该接受 'sk-' 前缀的 key", () => {
     expect(validateApiKey("sk-abc123")).toBe(true);
@@ -45,8 +35,8 @@ describe("validateApiKey", () => {
     expect(validateApiKey("flitter-abc123")).toBe(true);
   });
 
-  it("应该拒绝无效前缀的 key", () => {
-    expect(validateApiKey("invalid-key")).toBe(false);
+  it("应该接受非标准格式的 key (如 ARK 端点 key)", () => {
+    expect(validateApiKey("7c02ee8f-c1d5-4fda-8a1d-c863f4917cb8")).toBe(true);
   });
 
   it("应该拒绝空字符串", () => {
@@ -57,8 +47,6 @@ describe("validateApiKey", () => {
     expect(validateApiKey("   ")).toBe(false);
   });
 });
-
-// ─── getApiKeyFromEnv ───────────────────────────────────
 
 describe("getApiKeyFromEnv", () => {
   const originalEnv = process.env.FLITTER_API_KEY;
@@ -82,8 +70,6 @@ describe("getApiKeyFromEnv", () => {
   });
 });
 
-// ─── storeApiKey + hasApiKey ────────────────────────────
-
 describe("storeApiKey + hasApiKey", () => {
   let secrets: SecretStorage;
 
@@ -92,16 +78,16 @@ describe("storeApiKey + hasApiKey", () => {
   });
 
   it("存储后 hasApiKey 应返回 true", async () => {
-    const ampURL = "https://api.example.com";
-    expect(await hasApiKey(secrets, ampURL)).toBe(false);
+    const providerId = "default";
+    expect(await hasApiKey(secrets, providerId)).toBe(false);
 
-    await storeApiKey(secrets, ampURL, "sk-stored-key");
-    expect(await hasApiKey(secrets, ampURL)).toBe(true);
+    await storeApiKey(secrets, providerId, "sk-stored-key");
+    expect(await hasApiKey(secrets, providerId)).toBe(true);
   });
 
-  it("不同 ampURL 的 key 应互相隔离", async () => {
-    await storeApiKey(secrets, "https://a.example.com", "sk-key-a");
-    expect(await hasApiKey(secrets, "https://a.example.com")).toBe(true);
-    expect(await hasApiKey(secrets, "https://b.example.com")).toBe(false);
+  it("不同 providerId 的 key 应互相隔离", async () => {
+    await storeApiKey(secrets, "anthropic", "sk-key-a");
+    expect(await hasApiKey(secrets, "anthropic")).toBe(true);
+    expect(await hasApiKey(secrets, "openai")).toBe(false);
   });
 });

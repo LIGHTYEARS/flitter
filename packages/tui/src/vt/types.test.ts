@@ -11,19 +11,10 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-import {
-  MODIFIERS_NONE,
-  hasModifier,
-  modifierFromCsiParam,
-} from "./types.js";
-import type {
-  VtEvent,
-  InputEvent,
-  Modifiers,
-} from "./types.js";
+import { describe, it } from "node:test";
+import type { InputEvent, Modifiers, VtEvent } from "./types.js";
+import { hasModifier, MODIFIERS_NONE, modifierFromCsiParam } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  MODIFIERS_NONE 测试

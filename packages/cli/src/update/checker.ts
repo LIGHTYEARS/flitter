@@ -154,14 +154,21 @@ export async function checkForUpdate(
 ): Promise<UpdateInfo | null> {
   if (opts?.updateMode === "disabled") return null;
 
-  const url = opts?.checkUrl ?? "https://update.flitter.dev/latest";
-  const resp = await fetch(url, {
-    headers: { "X-Current-Version": currentVersion },
-  });
-  if (!resp.ok) return null;
+  const url = opts?.checkUrl ?? process.env.FLITTER_UPDATE_URL;
+  if (!url) return null;
 
-  const info = (await resp.json()) as UpdateInfo;
-  if (compareVersions(currentVersion, info.version) >= 0) return null;
+  try {
+    const resp = await fetch(url, {
+      headers: { "X-Current-Version": currentVersion },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) return null;
 
-  return info;
+    const info = (await resp.json()) as UpdateInfo;
+    if (compareVersions(currentVersion, info.version) >= 0) return null;
+
+    return info;
+  } catch {
+    return null;
+  }
 }

@@ -13,6 +13,7 @@
  * );
  * ```
  */
+import type { ConfigService } from "@flitter/data";
 import type { CliContext } from "../context";
 
 /**
@@ -22,11 +23,7 @@ import type { CliContext } from "../context";
  */
 export interface ConfigCommandDeps {
   /** 配置服务 */
-  configService?: {
-    get(key: string): unknown;
-    set(key: string, value: unknown): void;
-    getAll(): Record<string, unknown>;
-  };
+  configService?: ConfigService;
 }
 
 /**

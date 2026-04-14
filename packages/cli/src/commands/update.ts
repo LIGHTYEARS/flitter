@@ -15,17 +15,10 @@
  * );
  * ```
  */
+import type { ConfigService } from "@flitter/data";
 import type { CliContext } from "../context";
-import {
-  checkForUpdate,
-  detectInstallMethod,
-  type UpdateInfo,
-  type InstallMethod,
-} from "../update/checker";
-import {
-  installBinaryUpdate,
-  installWithPackageManager,
-} from "../update/installer";
+import { checkForUpdate, detectInstallMethod } from "../update/checker";
+import { installBinaryUpdate, installWithPackageManager } from "../update/installer";
 
 /**
  * 服务容器接口 (update 命令所需的最小子集)
@@ -34,9 +27,7 @@ import {
  */
 export interface UpdateCommandDeps {
   /** 配置服务 — 提供更新设置 */
-  configService?: {
-    get(): Record<string, unknown>;
-  };
+  configService?: ConfigService;
 }
 
 /** update 命令选项 */
@@ -66,8 +57,8 @@ export async function handleUpdate(
   options: UpdateOptions,
 ): Promise<void> {
   // 获取更新模式设置
-  const config = deps.configService?.get() ?? {};
-  const updateMode = (config as Record<string, unknown>)["updates.mode"] as string | undefined;
+  const config = deps.configService?.get();
+  const updateMode = config?.settings["update.mode"] as string | undefined;
 
   // 获取当前版本 (从 package.json 或环境变量)
   const currentVersion = process.env.FLITTER_VERSION ?? "0.0.0";

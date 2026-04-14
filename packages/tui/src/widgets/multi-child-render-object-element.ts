@@ -8,8 +8,7 @@
  * @module
  */
 
-import { Element } from "../tree/element.js";
-import type { Widget } from "../tree/element.js";
+import type { Element, Widget } from "../tree/element.js";
 import { RenderObjectElement, type RenderObjectWidget } from "../tree/render-object-element.js";
 
 // ════════════════════════════════════════════════════

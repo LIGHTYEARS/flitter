@@ -12,19 +12,17 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { Element } from "./element.js";
-import type { Widget, Key } from "./element.js";
-import { Key as KeyImpl, Widget as WidgetBase } from "./widget.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { ComponentElement } from "./component-element.js";
-import { RenderObjectElement } from "./render-object-element.js";
-import type { RenderObjectWidget } from "./render-object-element.js";
-import { RenderObject } from "./render-object.js";
+import type { Element, Widget } from "./element.js";
 import { RenderBox } from "./render-box.js";
-import { setBuildOwner, setPipelineOwner } from "./types.js";
+import type { RenderObject } from "./render-object.js";
+import type { RenderObjectWidget } from "./render-object-element.js";
+import { RenderObjectElement } from "./render-object-element.js";
 import type { BuildOwnerLike, PipelineOwnerLike } from "./types.js";
+import { setBuildOwner, setPipelineOwner } from "./types.js";
+import { Key as KeyImpl, Widget as WidgetBase } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -128,7 +126,7 @@ describe("ComponentElement — 协调测试", () => {
 
   afterEach(() => {
     setBuildOwner(undefined);
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 1. mount 触发 performRebuild 和 build ────────────
@@ -226,8 +224,8 @@ describe("ComponentElement — 协调测试", () => {
 
     // build() 返回 undefined 的情况需要特殊处理
     // 重写 build 让它返回 undefined
-    const origBuild = element.build.bind(element);
-    (element as any).build = () => undefined;
+    const _origBuild = element.build.bind(element);
+    (element as unknown as { build: () => undefined }).build = () => undefined;
 
     element.markNeedsRebuild();
     element.performRebuild();
@@ -319,7 +317,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
 
   afterEach(() => {
     setBuildOwner(undefined);
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 9. mount 创建 renderObject ────────────────────
@@ -335,10 +333,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
     element.mount(parentElement);
     parentElement.addChild(element);
 
-    assert.ok(
-      element.renderObject !== undefined,
-      "mount 后 renderObject 应已创建"
-    );
+    assert.ok(element.renderObject !== undefined, "mount 后 renderObject 应已创建");
   });
 
   // ── 10. mount 后 renderObject 是正确类型 ──────────
@@ -355,7 +350,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
 
     assert.ok(
       element.renderObject instanceof TestRenderBox,
-      "renderObject 应为 TestRenderBox 实例"
+      "renderObject 应为 TestRenderBox 实例",
     );
   });
 
@@ -382,7 +377,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
     assert.equal(
       widget2.updatedRenderObject,
       renderObj,
-      "updateRenderObject 应接收到当前 renderObject"
+      "updateRenderObject 应接收到当前 renderObject",
     );
     assert.equal(widget2.updateCallCount, 1, "updateRenderObject 应被调用一次");
   });
@@ -403,11 +398,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
 
     element.unmount();
 
-    assert.equal(
-      element.renderObject,
-      undefined,
-      "unmount 后 renderObject 应为 undefined"
-    );
+    assert.equal(element.renderObject, undefined, "unmount 后 renderObject 应为 undefined");
   });
 
   // ── 13. insertRenderObjectChild 将 renderObject 挂到父 renderObject ──
@@ -425,10 +416,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
     const childRO = childElement.renderObject!;
 
     // 子 renderObject 应被挂到父 renderObject
-    assert.ok(
-      parentRO.children.includes(childRO),
-      "父 renderObject 应包含子 renderObject"
-    );
+    assert.ok(parentRO.children.includes(childRO), "父 renderObject 应包含子 renderObject");
   });
 
   // ── 14. removeRenderObjectChild 从父 renderObject 移除 ──
@@ -453,7 +441,7 @@ describe("RenderObjectElement — 渲染对象管理", () => {
 
     assert.ok(
       !parentRO.children.includes(childRO),
-      "unmount 后父 renderObject 应不再包含子 renderObject"
+      "unmount 后父 renderObject 应不再包含子 renderObject",
     );
   });
 });
@@ -475,7 +463,7 @@ describe("跨树桥接 — ComponentElement 与 RenderObjectElement", () => {
 
   afterEach(() => {
     setBuildOwner(undefined);
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 15. ComponentElement 内嵌 RenderObjectElement ──
@@ -504,10 +492,7 @@ describe("跨树桥接 — ComponentElement 与 RenderObjectElement", () => {
     const leafRO = leafElement.renderObject!;
 
     // 叶子的 renderObject 应通过 insertRenderObjectChild 挂到根的 renderObject
-    assert.ok(
-      rootRO.children.includes(leafRO),
-      "叶 renderObject 应挂到祖先 renderObject 上"
-    );
+    assert.ok(rootRO.children.includes(leafRO), "叶 renderObject 应挂到祖先 renderObject 上");
   });
 
   // ── 16. 多层嵌套: Component → Component → RenderObject ──
@@ -542,7 +527,7 @@ describe("跨树桥接 — ComponentElement 与 RenderObjectElement", () => {
     // 叶子的 renderObject 应跳过两层 ComponentElement，挂到根的 renderObject
     assert.ok(
       rootRO.children.includes(leafRO),
-      "叶 renderObject 应穿透多层 ComponentElement 挂到最近的祖先 RenderObjectElement"
+      "叶 renderObject 应穿透多层 ComponentElement 挂到最近的祖先 RenderObjectElement",
     );
   });
 
@@ -574,21 +559,17 @@ describe("跨树桥接 — ComponentElement 与 RenderObjectElement", () => {
     componentElement.performRebuild();
 
     // 复用的场景下，Element 被 update，widget 的 updateRenderObject 被调用
-    assert.equal(
-      childWidget2.updateCallCount,
-      1,
-      "update 时应调用新 widget 的 updateRenderObject"
-    );
+    assert.equal(childWidget2.updateCallCount, 1, "update 时应调用新 widget 的 updateRenderObject");
     assert.equal(
       childWidget2.updatedRenderObject,
       originalLeafRO,
-      "updateRenderObject 应接收到原有 renderObject"
+      "updateRenderObject 应接收到原有 renderObject",
     );
 
     // renderObject 仍挂在根上
     assert.ok(
       rootRO.children.includes(originalLeafRO),
-      "update 后 renderObject 仍应挂在根 renderObject 上"
+      "update 后 renderObject 仍应挂在根 renderObject 上",
     );
   });
 
@@ -619,18 +600,12 @@ describe("跨树桥接 — ComponentElement 与 RenderObjectElement", () => {
     componentElement.performRebuild();
 
     // 旧 renderObject 应被移除
-    assert.ok(
-      !rootRO.children.includes(oldLeafRO),
-      "旧 renderObject 应从根 renderObject 中移除"
-    );
+    assert.ok(!rootRO.children.includes(oldLeafRO), "旧 renderObject 应从根 renderObject 中移除");
 
     // 新 renderObject 应挂上
     const newLeafElement = componentElement.children[0] as TestRenderObjectElement;
     const newLeafRO = newLeafElement.renderObject!;
-    assert.ok(
-      rootRO.children.includes(newLeafRO),
-      "新 renderObject 应挂到根 renderObject 上"
-    );
+    assert.ok(rootRO.children.includes(newLeafRO), "新 renderObject 应挂到根 renderObject 上");
     assert.notEqual(newLeafRO, oldLeafRO, "新旧 renderObject 应不是同一实例");
   });
 });

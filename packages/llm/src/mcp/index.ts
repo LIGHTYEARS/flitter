@@ -5,91 +5,85 @@
  * connection lifecycle, server management, and tool utilities.
  */
 
-// ─── Types ────────────────────────────────────────────────
-export type {
-  JSONRPCRequest,
-  JSONRPCNotification,
-  JSONRPCSuccessResponse,
-  JSONRPCErrorResponse,
-  JSONRPCResponse,
-  JSONRPCMessage,
-  ClientCapabilities,
-  ServerCapabilities,
-  ImplementationInfo,
-  InitializeResult,
-  MCPTransport,
-  MCPTool,
-  MCPToolResult,
-  MCPToolContent,
-  MCPToolTextContent,
-  MCPToolImageContent,
-  MCPResource,
-  MCPResourceContents,
-  MCPPrompt,
-  MCPPromptArgument,
-  ProtocolVersion,
-} from "./types";
-export { ErrorCode, Method, PROTOCOL_VERSIONS, LATEST_PROTOCOL_VERSION } from "./types";
-
-// ─── Protocol ─────────────────────────────────────────────
-export {
-  createRequest,
-  createNotification,
-  createSuccessResponse,
-  createErrorResponse,
-  parseMessage,
-  serializeMessage,
-  McpError,
-  RequestManager,
-} from "./protocol";
-
-// ─── Transport ────────────────────────────────────────────
-export { ReadBuffer } from "./transport/read-buffer";
-export { StdioTransport } from "./transport/stdio";
-export type { StdioTransportOptions } from "./transport/stdio";
-export { StreamableHTTPTransport } from "./transport/streamable-http";
-export { SSETransport } from "./transport/sse";
-export { SSEEventParser } from "./transport/sse-parser";
-
 // ─── Auth ─────────────────────────────────────────────────
 export type {
-  MCPAuthProvider,
-  OAuthTokens,
-  OAuthClientInfo,
-  OAuthClientMetadata,
-  ProtectedResourceMetadata,
   AuthorizationServerMetadata,
   AuthResult,
+  MCPAuthProvider,
+  OAuthClientInfo,
+  OAuthClientMetadata,
+  OAuthTokens,
+  ProtectedResourceMetadata,
 } from "./auth/types";
-
-// ─── Tools ────────────────────────────────────────────────
-export {
-  sanitizeName,
-  namespacedToolName,
-  parseNamespacedToolName,
-  truncateToolResult,
-  formatToolError,
-} from "./tools";
-
+export type {
+  MCPCommandServerSpec,
+  MCPConnectionError,
+  MCPConnectionOptions,
+  MCPConnectionStatus,
+  MCPServerSpec,
+  MCPURLServerSpec,
+} from "./connection";
 // ─── Connection ───────────────────────────────────────────
 export {
   MCPClient,
   MCPConnection,
   RECONNECT_CONFIG,
 } from "./connection";
-export type {
-  MCPConnectionStatus,
-  MCPConnectionError,
-  MCPCommandServerSpec,
-  MCPURLServerSpec,
-  MCPServerSpec,
-  MCPConnectionOptions,
-} from "./connection";
-
-// ─── Server Manager ───────────────────────────────────────
-export { MCPServerManager } from "./server-manager";
+// ─── Protocol ─────────────────────────────────────────────
+export {
+  createErrorResponse,
+  createNotification,
+  createRequest,
+  createSuccessResponse,
+  McpError,
+  parseMessage,
+  RequestManager,
+  serializeMessage,
+} from "./protocol";
 export type {
   MCPServerInfo,
-  NamespacedMCPTool,
   MCPServerManagerOptions,
+  NamespacedMCPTool,
 } from "./server-manager";
+// ─── Server Manager ───────────────────────────────────────
+export { MCPServerManager } from "./server-manager";
+// ─── Tools ────────────────────────────────────────────────
+export {
+  formatToolError,
+  namespacedToolName,
+  parseNamespacedToolName,
+  sanitizeName,
+  truncateToolResult,
+} from "./tools";
+// ─── Transport ────────────────────────────────────────────
+export { ReadBuffer } from "./transport/read-buffer";
+export { SSETransport } from "./transport/sse";
+export { SSEEventParser } from "./transport/sse-parser";
+export type { StdioTransportOptions } from "./transport/stdio";
+export { StdioTransport } from "./transport/stdio";
+export { StreamableHTTPTransport } from "./transport/streamable-http";
+// ─── Types ────────────────────────────────────────────────
+export type {
+  ClientCapabilities,
+  ImplementationInfo,
+  InitializeResult,
+  JSONRPCErrorResponse,
+  JSONRPCMessage,
+  JSONRPCNotification,
+  JSONRPCRequest,
+  JSONRPCResponse,
+  JSONRPCSuccessResponse,
+  MCPPrompt,
+  MCPPromptArgument,
+  MCPResource,
+  MCPResourceContents,
+  MCPTool,
+  MCPToolContent,
+  MCPToolImageContent,
+  MCPToolResult,
+  MCPToolTextContent,
+  MCPTransport,
+  ProtocolVersion,
+  ServerCapabilities,
+} from "./types";
+export { ErrorCode, LATEST_PROTOCOL_VERSION, Method, PROTOCOL_VERSIONS } from "./types";

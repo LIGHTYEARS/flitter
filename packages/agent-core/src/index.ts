@@ -15,84 +15,79 @@
  * ```
  */
 
-// ─── Tools ─────────────────────────────────────────────
+export type { PermissionEngineOpts } from "./permissions/engine";
+export { DEFAULT_PERMISSION_RULES, PermissionEngine } from "./permissions/engine";
+export { checkGuardedFile, getToolFilePaths } from "./permissions/guarded-files";
+// ─── Permissions ───────────────────────────────────────
+export {
+  checkToolEnabled,
+  matchDisablePattern,
+  matchPermissionEntry,
+  matchPermissionMatcher,
+  matchToolPattern,
+} from "./permissions/matcher";
+export type { ContextBlocksOptions } from "./prompt/context-blocks";
+// ─── Prompt Assembly ───────────────────────────────────
+export { collectContextBlocks } from "./prompt/context-blocks";
 export type {
-  ToolSpec,
-  ToolResult,
-  ToolContext,
-  ResourceKey,
-  ExecutionProfile,
-  ToolDefinition,
-} from "./tools/types";
-export { ToolRegistry } from "./tools/registry";
-export { ToolOrchestrator } from "./tools/orchestrator";
-export type { ToolUseItem, OrchestratorCallbacks } from "./tools/orchestrator";
-
+  HookConfig,
+  HookResult,
+  HookType,
+  PostHookContext,
+  PreHookContext,
+} from "./subagent/hooks";
+// ─── Sub-agent & Hooks ────────────────────────────────
+export {
+  executePostHook,
+  executePreHook,
+  matchHookToTool,
+  parseHooksConfig,
+} from "./subagent/hooks";
+export type {
+  SubAgentInfo,
+  SubAgentManagerOptions,
+  SubAgentOptions,
+  SubAgentResult,
+  SubAgentWorkerOptions,
+} from "./subagent/subagent";
+export { SubAgentManager } from "./subagent/subagent";
+export { BashTool } from "./tools/builtin/bash";
+export { EditTool } from "./tools/builtin/edit";
+export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
+export { GlobTool } from "./tools/builtin/glob";
+export { GrepTool } from "./tools/builtin/grep";
 // ─── Built-in Tools ────────────────────────────────────
 export { ReadTool } from "./tools/builtin/read";
 export { WriteTool } from "./tools/builtin/write";
-export { EditTool } from "./tools/builtin/edit";
-export { BashTool } from "./tools/builtin/bash";
-export { GrepTool } from "./tools/builtin/grep";
-export { GlobTool } from "./tools/builtin/glob";
-export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
-
-// ─── Permissions ───────────────────────────────────────
-export {
-  matchToolPattern,
-  matchDisablePattern,
-  checkToolEnabled,
-  matchPermissionMatcher,
-  matchPermissionEntry,
-} from "./permissions/matcher";
-export { PermissionEngine, DEFAULT_PERMISSION_RULES } from "./permissions/engine";
-export type { PermissionEngineOpts } from "./permissions/engine";
-export { getToolFilePaths, checkGuardedFile } from "./permissions/guarded-files";
-
-// ─── Prompt Assembly ───────────────────────────────────
-export { collectContextBlocks } from "./prompt/context-blocks";
-export type { ContextBlocksOptions } from "./prompt/context-blocks";
-
+export type { OrchestratorCallbacks, ToolUseItem } from "./tools/orchestrator";
+export { ToolOrchestrator } from "./tools/orchestrator";
+export { ToolRegistry } from "./tools/registry";
+// ─── Tools ─────────────────────────────────────────────
+export type {
+  ExecutionProfile,
+  ResourceKey,
+  ToolContext,
+  ToolDefinition,
+  ToolResult,
+  ToolSpec,
+} from "./tools/types";
 // ─── Worker ────────────────────────────────────────────
 export type {
-  InferenceState,
   AgentEvent,
-  InferenceStartEvent,
-  InferenceDeltaEvent,
-  InferenceCompleteEvent,
-  InferenceErrorEvent,
-  ToolStartEvent,
-  ToolDataEvent,
-  ToolCompleteEvent,
-  TurnCompleteEvent,
-  CompactionStartEvent,
   CompactionCompleteEvent,
+  CompactionStartEvent,
+  InferenceCompleteEvent,
+  InferenceDeltaEvent,
+  InferenceErrorEvent,
+  InferenceStartEvent,
+  InferenceState,
+  ToolCompleteEvent,
+  ToolDataEvent,
+  ToolStartEvent,
+  TurnCompleteEvent,
 } from "./worker/events";
-export { ThreadWorker } from "./worker/thread-worker";
 export type {
   ThreadWorkerOptions,
   ToolApprovalResponse,
 } from "./worker/thread-worker";
-
-// ─── Sub-agent & Hooks ────────────────────────────────
-export {
-  parseHooksConfig,
-  matchHookToTool,
-  executePreHook,
-  executePostHook,
-} from "./subagent/hooks";
-export type {
-  HookType,
-  HookConfig,
-  HookResult,
-  PreHookContext,
-  PostHookContext,
-} from "./subagent/hooks";
-export { SubAgentManager } from "./subagent/subagent";
-export type {
-  SubAgentOptions,
-  SubAgentResult,
-  SubAgentInfo,
-  SubAgentWorkerOptions,
-  SubAgentManagerOptions,
-} from "./subagent/subagent";
+export { ThreadWorker } from "./worker/thread-worker";

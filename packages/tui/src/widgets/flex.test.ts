@@ -13,13 +13,12 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import { RenderFlex, FlexParentData } from "./flex.js";
-import type { MainAxisAlignment, CrossAxisAlignment, Axis } from "./flex.js";
-import { RenderBox } from "../tree/render-box.js";
+import { describe, it } from "node:test";
 import { BoxConstraints } from "../tree/constraints.js";
-import type { Size } from "../tree/constraints.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { Axis, CrossAxisAlignment, MainAxisAlignment } from "./flex.js";
+import { FlexParentData, RenderFlex } from "./flex.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -41,10 +40,7 @@ class TestRenderBox extends RenderBox {
   }
 
   performLayout(): void {
-    this.size = this._constraints!.constrain(
-      this.preferredWidth,
-      this.preferredHeight
-    );
+    this.size = this._constraints!.constrain(this.preferredWidth, this.preferredHeight);
   }
 }
 
@@ -62,7 +58,7 @@ function createFlex(
     box: RenderBox;
     flex?: number;
     fit?: "tight" | "loose";
-  }>
+  }>,
 ): RenderFlex {
   const flex = new RenderFlex(opts);
   for (const child of children) {
@@ -111,10 +107,11 @@ describe("RenderFlex -- 水平布局基础", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(20, 10);
     const c3 = new TestRenderBox(20, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [{ box: c1 }, { box: c2 }, { box: c3 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: c1 },
+      { box: c2 },
+      { box: c3 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
 
     assert.equal(c1.offset.x, 0);
@@ -131,10 +128,11 @@ describe("RenderFlex -- 水平布局基础", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(20, 30);
     const c3 = new TestRenderBox(20, 20);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "min" },
-      [{ box: c1 }, { box: c2 }, { box: c3 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "min" }, [
+      { box: c1 },
+      { box: c2 },
+      { box: c3 },
+    ]);
     flex.layout(BoxConstraints.loose(200, 100));
 
     // 交叉轴（高度）应为 30
@@ -145,10 +143,7 @@ describe("RenderFlex -- 水平布局基础", () => {
 
   // 5. 空子节点不报错
   it("没有子节点时不报错，尺寸为约束值", () => {
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "max" },
-      []
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "max" }, []);
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(flex.size.width, 100);
     assert.equal(flex.size.height, 50);
@@ -163,10 +158,7 @@ describe("RenderFlex -- MainAxisSize", () => {
   // 6. mainAxisSize="max" 填满约束
   it("mainAxisSize='max' 填满约束主轴", () => {
     const c1 = new TestRenderBox(20, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "max" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "max" }, [{ box: c1 }]);
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(flex.size.width, 100);
   });
@@ -175,10 +167,10 @@ describe("RenderFlex -- MainAxisSize", () => {
   it("mainAxisSize='min' 收缩到内容大小", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(30, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "min" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "min" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.loose(200, 100));
     assert.equal(flex.size.width, 50);
   });
@@ -193,10 +185,10 @@ describe("RenderFlex -- MainAxisAlignment", () => {
   it("'start' 对齐：子节点从主轴起点排列", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(30, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(c1.offset.x, 0);
     assert.equal(c2.offset.x, 20);
@@ -206,10 +198,10 @@ describe("RenderFlex -- MainAxisAlignment", () => {
   it("'end' 对齐：子节点靠主轴末尾排列", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(30, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "end" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "end" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 100 - 50 = 50
     assert.equal(c1.offset.x, 50);
@@ -220,10 +212,10 @@ describe("RenderFlex -- MainAxisAlignment", () => {
   it("'center' 对齐：子节点在主轴居中排列", () => {
     const c1 = new TestRenderBox(20, 10);
     const c2 = new TestRenderBox(30, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "center" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "center" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 100 - 50 = 50，起始偏移 = 25
     assert.equal(c1.offset.x, 25);
@@ -235,10 +227,11 @@ describe("RenderFlex -- MainAxisAlignment", () => {
     const c1 = new TestRenderBox(10, 10);
     const c2 = new TestRenderBox(10, 10);
     const c3 = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "spaceBetween" },
-      [{ box: c1 }, { box: c2 }, { box: c3 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "spaceBetween" }, [
+      { box: c1 },
+      { box: c2 },
+      { box: c3 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 100 - 30 = 70，间距 = 70 / 2 = 35
     assert.equal(c1.offset.x, 0);
@@ -250,10 +243,10 @@ describe("RenderFlex -- MainAxisAlignment", () => {
   it("'spaceAround' 对齐：每个子节点周围等间距", () => {
     const c1 = new TestRenderBox(10, 10);
     const c2 = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "spaceAround" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "spaceAround" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 100 - 20 = 80，gap = 80 / 2 = 40，起始偏移 = 40 / 2 = 20
     assert.equal(c1.offset.x, 20);
@@ -264,10 +257,10 @@ describe("RenderFlex -- MainAxisAlignment", () => {
   it("'spaceEvenly' 对齐：均匀分布包含两端", () => {
     const c1 = new TestRenderBox(10, 10);
     const c2 = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "spaceEvenly" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "spaceEvenly" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 100 - 20 = 80，间距 = 80 / 3 ≈ 26.67，起始偏移 = 26.67
     const gap = 80 / 3;
@@ -290,7 +283,7 @@ describe("RenderFlex -- CrossAxisAlignment", () => {
         crossAxisAlignment: "start",
         mainAxisSize: "max",
       },
-      [{ box: c1 }]
+      [{ box: c1 }],
     );
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(c1.offset.y, 0);
@@ -305,7 +298,7 @@ describe("RenderFlex -- CrossAxisAlignment", () => {
         crossAxisAlignment: "end",
         mainAxisSize: "max",
       },
-      [{ box: c1 }]
+      [{ box: c1 }],
     );
     flex.layout(BoxConstraints.tight(100, 50));
     // 交叉轴尺寸 = 50, 子节点高度 = 10, offset.y = 50 - 10 = 40
@@ -321,7 +314,7 @@ describe("RenderFlex -- CrossAxisAlignment", () => {
         crossAxisAlignment: "center",
         mainAxisSize: "max",
       },
-      [{ box: c1 }]
+      [{ box: c1 }],
     );
     flex.layout(BoxConstraints.tight(100, 50));
     // 交叉轴尺寸 = 50, 子节点高度 = 10, offset.y = (50 - 10) / 2 = 20
@@ -337,7 +330,7 @@ describe("RenderFlex -- CrossAxisAlignment", () => {
         crossAxisAlignment: "stretch",
         mainAxisSize: "max",
       },
-      [{ box: c1 }]
+      [{ box: c1 }],
     );
     flex.layout(BoxConstraints.tight(100, 50));
     // stretch 时子节点的高度应为 50
@@ -355,10 +348,10 @@ describe("RenderFlex -- 弹性分配", () => {
   it("单个 flex=1 填满剩余空间", () => {
     const fixed = new TestRenderBox(30, 10);
     const flexible = new TestRenderBox(0, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [{ box: fixed }, { box: flexible, flex: 1, fit: "tight" }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: fixed },
+      { box: flexible, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余 = 100 - 30 = 70
     assert.equal(flexible.size.width, 70);
@@ -370,13 +363,10 @@ describe("RenderFlex -- 弹性分配", () => {
   it("两个 flex=1 均分剩余空间", () => {
     const f1 = new TestRenderBox(0, 10);
     const f2 = new TestRenderBox(0, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [
-        { box: f1, flex: 1, fit: "tight" },
-        { box: f2, flex: 1, fit: "tight" },
-      ]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: f1, flex: 1, fit: "tight" },
+      { box: f2, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(f1.size.width, 50);
     assert.equal(f2.size.width, 50);
@@ -388,13 +378,10 @@ describe("RenderFlex -- 弹性分配", () => {
   it("flex=2 和 flex=1 按 2:1 分配剩余空间", () => {
     const f1 = new TestRenderBox(0, 10);
     const f2 = new TestRenderBox(0, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [
-        { box: f1, flex: 2, fit: "tight" },
-        { box: f2, flex: 1, fit: "tight" },
-      ]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: f1, flex: 2, fit: "tight" },
+      { box: f2, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(90, 50));
     // 90 / 3 = 30，flex=2 得 60，flex=1 得 30
     assert.ok(Math.abs(f1.size.width - 60) < 0.01);
@@ -406,14 +393,11 @@ describe("RenderFlex -- 弹性分配", () => {
     const fixed1 = new TestRenderBox(20, 10);
     const flexible = new TestRenderBox(0, 10);
     const fixed2 = new TestRenderBox(30, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [
-        { box: fixed1 },
-        { box: flexible, flex: 1, fit: "tight" },
-        { box: fixed2 },
-      ]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: fixed1 },
+      { box: flexible, flex: 1, fit: "tight" },
+      { box: fixed2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 固定总宽度 = 20 + 30 = 50, 剩余 = 50
     assert.equal(fixed1.offset.x, 0);
@@ -425,10 +409,9 @@ describe("RenderFlex -- 弹性分配", () => {
   // 22. FlexFit="tight" 强制填满分配空间
   it("FlexFit='tight' 强制填满分配的空间", () => {
     const child = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [{ box: child, flex: 1, fit: "tight" }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: child, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // tight 约束下，即使首选宽度 10，也被强制设为 100
     assert.equal(child.size.width, 100);
@@ -437,10 +420,9 @@ describe("RenderFlex -- 弹性分配", () => {
   // 23. FlexFit="loose" 允许小于分配空间
   it("FlexFit='loose' 允许子节点小于分配空间", () => {
     const child = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [{ box: child, flex: 1, fit: "loose" }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: child, flex: 1, fit: "loose" },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // loose 约束 0..100，首选宽度 10，所以结果为 10
     assert.equal(child.size.width, 10);
@@ -457,10 +439,11 @@ describe("RenderFlex -- 垂直布局", () => {
     const c1 = new TestRenderBox(10, 20);
     const c2 = new TestRenderBox(10, 30);
     const c3 = new TestRenderBox(10, 10);
-    const flex = createFlex(
-      { direction: "vertical", mainAxisAlignment: "start" },
-      [{ box: c1 }, { box: c2 }, { box: c3 }]
-    );
+    const flex = createFlex({ direction: "vertical", mainAxisAlignment: "start" }, [
+      { box: c1 },
+      { box: c2 },
+      { box: c3 },
+    ]);
     flex.layout(BoxConstraints.tight(50, 200));
 
     assert.equal(c1.offset.y, 0);
@@ -476,10 +459,10 @@ describe("RenderFlex -- 垂直布局", () => {
   it("垂直方向 center 对齐", () => {
     const c1 = new TestRenderBox(10, 20);
     const c2 = new TestRenderBox(10, 20);
-    const flex = createFlex(
-      { direction: "vertical", mainAxisAlignment: "center" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "vertical", mainAxisAlignment: "center" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(50, 100));
     // 总高度 = 40, 剩余 = 60, 起始偏移 = 30
     assert.equal(c1.offset.y, 30);
@@ -495,10 +478,9 @@ describe("RenderFlex -- 边界情况", () => {
   // 26. 单个子节点正确布局
   it("单个子节点正确布局", () => {
     const c1 = new TestRenderBox(30, 20);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "center" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "center" }, [
+      { box: c1 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 居中：剩余 = 100 - 30 = 70, offset.x = 35
     assert.equal(c1.offset.x, 35);
@@ -511,14 +493,11 @@ describe("RenderFlex -- 边界情况", () => {
     const c1 = new TestRenderBox(0, 10);
     const c2 = new TestRenderBox(0, 10);
     const c3 = new TestRenderBox(0, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "start" },
-      [
-        { box: c1, flex: 1, fit: "tight" },
-        { box: c2, flex: 1, fit: "tight" },
-        { box: c3, flex: 1, fit: "tight" },
-      ]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "start" }, [
+      { box: c1, flex: 1, fit: "tight" },
+      { box: c2, flex: 1, fit: "tight" },
+      { box: c3, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(90, 30));
     assert.equal(c1.size.width, 30);
     assert.equal(c2.size.width, 30);
@@ -532,10 +511,10 @@ describe("RenderFlex -- 边界情况", () => {
   it("剩余空间为零时 spaceBetween 不报错", () => {
     const c1 = new TestRenderBox(50, 10);
     const c2 = new TestRenderBox(50, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "spaceBetween" },
-      [{ box: c1 }, { box: c2 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "spaceBetween" }, [
+      { box: c1 },
+      { box: c2 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     // 剩余空间 = 0，间距 = 0
     assert.equal(c1.offset.x, 0);
@@ -550,10 +529,9 @@ describe("RenderFlex -- 边界情况", () => {
 describe("RenderFlex -- 额外覆盖", () => {
   it("垂直方向 stretch 拉伸交叉轴宽度", () => {
     const c1 = new TestRenderBox(10, 20);
-    const flex = createFlex(
-      { direction: "vertical", crossAxisAlignment: "stretch" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "vertical", crossAxisAlignment: "stretch" }, [
+      { box: c1 },
+    ]);
     flex.layout(BoxConstraints.tight(80, 100));
     // stretch 时子节点的宽度应为 80
     assert.equal(c1.size.width, 80);
@@ -561,10 +539,7 @@ describe("RenderFlex -- 额外覆盖", () => {
 
   it("垂直方向 end 交叉轴对齐", () => {
     const c1 = new TestRenderBox(10, 20);
-    const flex = createFlex(
-      { direction: "vertical", crossAxisAlignment: "end" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "vertical", crossAxisAlignment: "end" }, [{ box: c1 }]);
     flex.layout(BoxConstraints.tight(80, 100));
     // 交叉轴（宽度）= 80, 子节点宽度 = 10, offset.x = 80 - 10 = 70
     assert.equal(c1.offset.x, 70);
@@ -572,10 +547,7 @@ describe("RenderFlex -- 额外覆盖", () => {
 
   it("垂直方向 center 交叉轴对齐", () => {
     const c1 = new TestRenderBox(10, 20);
-    const flex = createFlex(
-      { direction: "vertical", crossAxisAlignment: "center" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "vertical", crossAxisAlignment: "center" }, [{ box: c1 }]);
     flex.layout(BoxConstraints.tight(80, 100));
     // 交叉轴（宽度）= 80, 子节点宽度 = 10, offset.x = (80 - 10) / 2 = 35
     assert.equal(c1.offset.x, 35);
@@ -583,10 +555,9 @@ describe("RenderFlex -- 额外覆盖", () => {
 
   it("spaceBetween 只有一个子节点时不报错，子节点在起点", () => {
     const c1 = new TestRenderBox(20, 10);
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisAlignment: "spaceBetween" },
-      [{ box: c1 }]
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisAlignment: "spaceBetween" }, [
+      { box: c1 },
+    ]);
     flex.layout(BoxConstraints.tight(100, 50));
     assert.equal(c1.offset.x, 0);
   });
@@ -594,10 +565,10 @@ describe("RenderFlex -- 额外覆盖", () => {
   it("垂直方向弹性子节点填满剩余高度", () => {
     const fixed = new TestRenderBox(10, 30);
     const flexible = new TestRenderBox(10, 0);
-    const flex = createFlex(
-      { direction: "vertical", mainAxisAlignment: "start" },
-      [{ box: fixed }, { box: flexible, flex: 1, fit: "tight" }]
-    );
+    const flex = createFlex({ direction: "vertical", mainAxisAlignment: "start" }, [
+      { box: fixed },
+      { box: flexible, flex: 1, fit: "tight" },
+    ]);
     flex.layout(BoxConstraints.tight(50, 100));
     // 剩余 = 100 - 30 = 70
     assert.equal(flexible.size.height, 70);

@@ -14,7 +14,7 @@
  */
 import type { LLMProvider } from "../provider";
 import type { ModelInfo, ProviderName } from "../types";
-import { MODEL_REGISTRY, ProviderError } from "../types";
+import { MODEL_REGISTRY } from "../types";
 import { AnthropicProvider } from "./anthropic/provider";
 import { GeminiProvider } from "./gemini/provider";
 import { OpenAIProvider } from "./openai/provider";
@@ -72,12 +72,8 @@ export function createProvider(name: ProviderName): LLMProvider {
       provider = new OpenAICompatProvider();
       break;
     default:
-      throw new ProviderError(
-        404,
-        name as ProviderName,
-        false,
-        `Unknown provider: ${name as string}`,
-      );
+      provider = new OpenAICompatProvider({ name });
+      break;
   }
 
   _cache.set(name, provider);
@@ -133,12 +129,8 @@ export function resolveProvider(model: string): ProviderName {
     if (rule.match(model)) return rule.provider;
   }
 
-  throw new ProviderError(
-    404,
-    "anthropic", // fallback provider for error context
-    false,
-    `Cannot resolve provider for model: ${model}`,
-  );
+  // 4. Unknown model — default to anthropic (supports custom baseURL)
+  return "anthropic";
 }
 
 /**

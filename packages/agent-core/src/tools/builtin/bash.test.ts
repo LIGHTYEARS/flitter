@@ -4,20 +4,28 @@
  * Uses real subprocesses (echo, sleep, pwd, cat, etc.)
  * via node:test and node:assert/strict.
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
 import { mkdtempSync, rmdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BashTool } from "./bash";
+import { describe, it } from "node:test";
+import type { Config } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { BashTool } from "./bash";
+
+interface BashResultData {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
 
 function createMockContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
     workingDirectory: process.cwd(),
     signal: new AbortController().signal,
     threadId: "test-thread",
-    config: {} as any,
+    config: {} as unknown as Config,
     ...overrides,
   };
 }
@@ -31,14 +39,15 @@ describe("BashTool ToolSpec shape", () => {
   });
 
   it("inputSchema has command as required, timeout and description as optional", () => {
-    const schema = BashTool.inputSchema as any;
+    const schema = BashTool.inputSchema as Record<string, unknown>;
+    const properties = schema.properties as Record<string, Record<string, unknown>>;
     assert.equal(schema.type, "object");
-    assert.ok(schema.properties.command);
-    assert.equal(schema.properties.command.type, "string");
-    assert.ok(schema.properties.timeout);
-    assert.equal(schema.properties.timeout.type, "number");
-    assert.ok(schema.properties.description);
-    assert.equal(schema.properties.description.type, "string");
+    assert.ok(properties.command);
+    assert.equal(properties.command.type, "string");
+    assert.ok(properties.timeout);
+    assert.equal(properties.timeout.type, "number");
+    assert.ok(properties.description);
+    assert.equal(properties.description.type, "string");
     assert.deepEqual(schema.required, ["command"]);
   });
 
@@ -51,42 +60,30 @@ describe("BashTool ToolSpec shape", () => {
 
 describe("BashTool basic commands", () => {
   it("captures stdout from echo", async () => {
-    const result = await BashTool.execute(
-      { command: "echo 'hello'" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "echo 'hello'" }, createMockContext());
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("hello"));
   });
 
   it("captures stderr output", async () => {
-    const result = await BashTool.execute(
-      { command: "echo 'err' >&2" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "echo 'err' >&2" }, createMockContext());
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("err"));
-    const data = result.data as any;
+    const data = result.data as BashResultData;
     assert.ok(data.stderr.includes("err"));
   });
 
   it("returns status 'done' and exitCode 0 for successful command", async () => {
-    const result = await BashTool.execute(
-      { command: "echo 'ok'" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "echo 'ok'" }, createMockContext());
     assert.equal(result.status, "done");
-    const data = result.data as any;
+    const data = result.data as BashResultData;
     assert.equal(data.exitCode, 0);
   });
 
   it("returns status 'done' with non-zero exitCode for failing command", async () => {
-    const result = await BashTool.execute(
-      { command: "false" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "false" }, createMockContext());
     assert.equal(result.status, "done");
-    const data = result.data as any;
+    const data = result.data as BashResultData;
     assert.equal(data.exitCode, 1);
   });
 
@@ -96,7 +93,7 @@ describe("BashTool basic commands", () => {
       createMockContext(),
     );
     assert.equal(result.status, "done");
-    const data = result.data as any;
+    const data = result.data as BashResultData;
     assert.ok(typeof data.stdout === "string");
     assert.ok(typeof data.stderr === "string");
     assert.ok(typeof data.exitCode === "number");
@@ -123,7 +120,7 @@ describe("BashTool timeout", () => {
       { command: "sleep 10", timeout: 200 },
       createMockContext(),
     );
-    const data = result.data as any;
+    const data = result.data as BashResultData;
     assert.ok(typeof data.exitCode === "number");
     assert.ok(result.content?.includes("200ms"));
   });
@@ -152,10 +149,7 @@ describe("BashTool abort signal", () => {
 
 describe("BashTool output truncation", () => {
   it("returns small output as-is without truncation", async () => {
-    const result = await BashTool.execute(
-      { command: "echo 'short output'" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "echo 'short output'" }, createMockContext());
     assert.equal(result.status, "done");
     assert.ok(!result.content?.includes("[output truncated"));
   });
@@ -197,10 +191,7 @@ describe("BashTool working directory", () => {
 
 describe("BashTool shell features", () => {
   it("supports pipe commands", async () => {
-    const result = await BashTool.execute(
-      { command: "echo 'hello' | cat" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "echo 'hello' | cat" }, createMockContext());
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("hello"));
   });
@@ -210,17 +201,14 @@ describe("BashTool shell features", () => {
 
 describe("BashTool input validation", () => {
   it("returns error for empty command", async () => {
-    const result = await BashTool.execute(
-      { command: "" },
-      createMockContext(),
-    );
+    const result = await BashTool.execute({ command: "" }, createMockContext());
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("non-empty"));
   });
 
   it("returns error for non-string command", async () => {
     const result = await BashTool.execute(
-      { command: 123 as any },
+      { command: 123 as unknown as string },
       createMockContext(),
     );
     assert.equal(result.status, "error");

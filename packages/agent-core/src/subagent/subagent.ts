@@ -14,8 +14,9 @@
  * - 深度限制 = 1 (createWorker 回调不注入 SubAgentManager, 子代理无法 spawn)
  * - 超时可取消
  */
-import { BehaviorSubject } from "@flitter/util";
+
 import type { PermissionContext, ThreadSnapshot } from "@flitter/schemas";
+import { BehaviorSubject } from "@flitter/util";
 import type { ThreadWorker } from "../worker/thread-worker";
 
 // ─── 子代理选项 ─────────────────────────────────────────
@@ -145,17 +146,13 @@ export class SubAgentManager {
   readonly activeAgents$: BehaviorSubject<Map<string, SubAgentInfo>>;
 
   private readonly opts: SubAgentManagerOptions;
-  private readonly runningWorkers: Map<
-    string,
-    { worker: ThreadWorker; abort: AbortController }
-  > = new Map();
+  private readonly runningWorkers: Map<string, { worker: ThreadWorker; abort: AbortController }> =
+    new Map();
   private disposed = false;
 
   constructor(opts: SubAgentManagerOptions) {
     this.opts = opts;
-    this.activeAgents$ = new BehaviorSubject<Map<string, SubAgentInfo>>(
-      new Map(),
-    );
+    this.activeAgents$ = new BehaviorSubject<Map<string, SubAgentInfo>>(new Map());
   }
 
   // ─── 公共方法 ──────────────────────────────────────
@@ -229,11 +226,7 @@ export class SubAgentManager {
 
       // 推理循环: 运行直到完成、超时、或达到 maxTurns
       const inferenceLoop = async (): Promise<void> => {
-        while (
-          turn < maxTurns &&
-          !timedOut &&
-          !abortController.signal.aborted
-        ) {
+        while (turn < maxTurns && !timedOut && !abortController.signal.aborted) {
           turn++;
           await worker.runInference();
 
@@ -285,8 +278,7 @@ export class SubAgentManager {
     } catch (error) {
       if (timeoutHandle) clearTimeout(timeoutHandle);
 
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       this.updateActiveAgent(threadId, { ...info, status: "error" });
       this.cleanup(threadId);
 

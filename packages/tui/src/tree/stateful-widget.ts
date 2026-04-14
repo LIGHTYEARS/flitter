@@ -14,10 +14,10 @@
  * @module
  */
 
-import { Widget } from "./widget.js";
 import { ComponentElement } from "./component-element.js";
 import type { Element, Widget as WidgetInterface } from "./element.js";
 import type { BuildContext } from "./stateless-widget.js";
+import { Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  State 抽象基类
@@ -85,7 +85,7 @@ export abstract class State<T extends StatefulWidget = StatefulWidget> {
    *
    * @param oldWidget - 更新前的旧 Widget
    */
-  didUpdateWidget(oldWidget: T): void {}
+  didUpdateWidget(_oldWidget: T): void {}
 
   /**
    * 清理资源。

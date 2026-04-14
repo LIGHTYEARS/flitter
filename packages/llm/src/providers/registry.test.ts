@@ -1,15 +1,11 @@
 /**
  * @flitter/llm — Provider Registry 测试
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import {
-  createProvider,
-  resolveModel,
-  resolveProvider,
-  getProviderForModel,
-} from "./registry";
+import { describe, it } from "node:test";
 import { MODEL_REGISTRY, ProviderError } from "../types";
+import { createProvider, getProviderForModel, resolveModel, resolveProvider } from "./registry";
 
 // ─── createProvider 测试 ─────────────────────────────────
 
@@ -210,7 +206,7 @@ describe("MODEL_REGISTRY content validation", () => {
   });
 
   it("OpenAI o3 should support thinking, gpt-4o should not", () => {
-    const o3 = MODEL_REGISTRY["o3"];
+    const o3 = MODEL_REGISTRY.o3;
     const gpt4o = MODEL_REGISTRY["gpt-4o"];
     assert.ok(o3);
     assert.ok(gpt4o);

@@ -4,16 +4,17 @@
  * 覆盖 matchToolPattern, matchDisablePattern, checkToolEnabled,
  * matchPermissionMatcher, matchPermissionEntry
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { PermissionEntry, Settings } from "@flitter/schemas";
 import {
-  matchToolPattern,
-  matchDisablePattern,
   checkToolEnabled,
-  matchPermissionMatcher,
+  matchDisablePattern,
   matchPermissionEntry,
+  matchPermissionMatcher,
+  matchToolPattern,
 } from "./matcher";
-import type { Settings, PermissionEntry } from "@flitter/schemas";
 
 // ─── matchToolPattern ──────────────────────────────────
 
@@ -171,25 +172,16 @@ describe("matchPermissionMatcher", () => {
   });
 
   it("record AND: { path: '*.ts' } 匹配 { path: 'foo.ts' }", () => {
-    assert.equal(
-      matchPermissionMatcher({ path: "*.ts" }, { path: "foo.ts" }),
-      true,
-    );
+    assert.equal(matchPermissionMatcher({ path: "*.ts" }, { path: "foo.ts" }), true);
   });
 
   it("record AND: 嵌套 { opts: { recursive: true } } 深度匹配", () => {
     assert.equal(
-      matchPermissionMatcher(
-        { opts: { recursive: true } },
-        { opts: { recursive: true } },
-      ),
+      matchPermissionMatcher({ opts: { recursive: true } }, { opts: { recursive: true } }),
       true,
     );
     assert.equal(
-      matchPermissionMatcher(
-        { opts: { recursive: true } },
-        { opts: { recursive: false } },
-      ),
+      matchPermissionMatcher({ opts: { recursive: true } }, { opts: { recursive: false } }),
       false,
     );
   });
@@ -226,10 +218,7 @@ describe("matchPermissionEntry", () => {
       action: "allow",
       matches: { file_path: "/workspace/**" },
     };
-    assert.equal(
-      matchPermissionEntry(entry, "Write", { file_path: "/etc/passwd" }),
-      false,
-    );
+    assert.equal(matchPermissionEntry(entry, "Write", { file_path: "/etc/passwd" }), false);
   });
 
   it("tool 不匹配: 直接返回 false", () => {

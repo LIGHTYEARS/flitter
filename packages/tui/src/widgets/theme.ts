@@ -19,10 +19,9 @@
  */
 
 import { Color } from "../screen/color.js";
+import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
+import type { Key, Widget } from "../tree/widget.js";
 import { AppColorScheme } from "./color-scheme.js";
-import { StatelessWidget, type BuildContext } from "../tree/stateless-widget.js";
-import { Widget, Key } from "../tree/widget.js";
-import type { Element } from "../tree/element.js";
 
 // ════════════════════════════════════════════════════
 //  ThemeData 接口
@@ -169,7 +168,7 @@ export class Theme extends StatelessWidget {
    * @param context - 构建上下文
    * @returns 子 Widget
    */
-  build(context: BuildContext): Widget {
+  build(_context: BuildContext): Widget {
     _globalTheme = this.data;
     return this.child;
   }

@@ -157,9 +157,7 @@ export function matchGlobs(
     return false;
   }
 
-  return frontMatter.globs.some((glob) =>
-    readFiles.some((file) => simpleGlobMatch(glob, file)),
-  );
+  return frontMatter.globs.some((glob) => readFiles.some((file) => simpleGlobMatch(glob, file)));
 }
 
 /**
@@ -276,9 +274,7 @@ export function isRootDirectory(dir: string): boolean {
  * Discover and load guidance files from workspace roots, parent directories,
  * and user config directory.
  */
-export async function discoverGuidanceFiles(
-  options: GuidanceLoadOptions,
-): Promise<GuidanceFile[]> {
+export async function discoverGuidanceFiles(options: GuidanceLoadOptions): Promise<GuidanceFile[]> {
   const {
     workspaceRoots,
     userConfigDir,
@@ -314,9 +310,7 @@ export async function discoverGuidanceFiles(
       if (!seenDirs.has(dir)) {
         for (const filename of SEARCH_FILENAMES) {
           const filePath = path.join(dir, filename);
-          const type: GuidanceType = isUnderAny(dir, workspaceRootSet)
-            ? "project"
-            : "parent";
+          const type: GuidanceType = isUnderAny(dir, workspaceRootSet) ? "project" : "parent";
           candidates.push({ filePath, type });
         }
         seenDirs.add(dir);
@@ -369,8 +363,7 @@ export async function discoverGuidanceFiles(
   // Load each file and collect results
   const results: GuidanceFile[] = [];
   // Mentioned files to be inserted after their referrer
-  const mentionedQueue: Array<{ afterIndex: number; files: GuidanceFile[] }> =
-    [];
+  const mentionedQueue: Array<{ afterIndex: number; files: GuidanceFile[] }> = [];
 
   for (const candidate of validCandidates) {
     signal?.throwIfAborted();
@@ -380,13 +373,7 @@ export async function discoverGuidanceFiles(
       continue;
     }
 
-    const file = await loadGuidanceFile(
-      uri,
-      candidate.type,
-      readFiles,
-      maxBytesPerFile,
-      signal,
-    );
+    const file = await loadGuidanceFile(uri, candidate.type, readFiles, maxBytesPerFile, signal);
     if (!file) {
       continue;
     }

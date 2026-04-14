@@ -133,11 +133,7 @@ function globToRegex(pattern: string): RegExp {
  * If the pattern contains no `/` it is matched against the basename only,
  * otherwise against the full relative path.
  */
-function matchesGlob(
-  relativePath: string,
-  baseName: string,
-  pattern: string,
-): boolean {
+function matchesGlob(relativePath: string, baseName: string, pattern: string): boolean {
   // Strip leading `/` (anchors pattern, but we always match from start)
   const stripped = pattern.startsWith("/") ? pattern.slice(1) : pattern;
   const hasSlash = stripped.includes("/");
@@ -146,11 +142,7 @@ function matchesGlob(
   return regex.test(target);
 }
 
-function shouldIgnore(
-  relativePath: string,
-  baseName: string,
-  patterns: string[],
-): boolean {
+function shouldIgnore(relativePath: string, baseName: string, patterns: string[]): boolean {
   for (const pattern of patterns) {
     if (matchesGlob(relativePath, baseName, pattern)) return true;
   }
@@ -169,18 +161,13 @@ function pathToFileUri(absPath: string): string {
 // NodeJS recursive scanner
 // ---------------------------------------------------------------------------
 
-async function scanWithNodeJS(
-  root: string,
-  options: ResolvedOptions,
-): Promise<ScanResult> {
+async function scanWithNodeJS(root: string, options: ResolvedOptions): Promise<ScanResult> {
   const entries: ScanEntry[] = [];
   let scannedFiles = 0;
   let scannedDirectories = 0;
   let truncated = false;
 
-  const alwaysIncludeSet = new Set(
-    options.alwaysIncludePaths.map((p) => path.resolve(root, p)),
-  );
+  const alwaysIncludeSet = new Set(options.alwaysIncludePaths.map((p) => path.resolve(root, p)));
 
   async function walk(dir: string, depth: number): Promise<void> {
     if (options.abortSignal?.aborted) return;
@@ -208,10 +195,7 @@ async function scanWithNodeJS(
       const isAlwaysIncluded = alwaysIncludeSet.has(fullPath);
 
       // Check ignore patterns (skip if matched, unless always-included)
-      if (
-        !isAlwaysIncluded &&
-        shouldIgnore(relativePath, dirent.name, options.ignorePatterns)
-      ) {
+      if (!isAlwaysIncluded && shouldIgnore(relativePath, dirent.name, options.ignorePatterns)) {
         continue;
       }
 
@@ -330,9 +314,7 @@ async function scanWithExternalTool(
     }
 
     // Handle always-include paths
-    const alwaysIncludeSet = new Set(
-      options.alwaysIncludePaths.map((p) => path.resolve(root, p)),
-    );
+    const alwaysIncludeSet = new Set(options.alwaysIncludePaths.map((p) => path.resolve(root, p)));
     for (const entry of entries) {
       if (alwaysIncludeSet.has(entry.path)) entry.isAlwaysIncluded = true;
     }

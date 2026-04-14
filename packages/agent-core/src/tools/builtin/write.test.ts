@@ -4,20 +4,22 @@
  * Covers: ToolSpec shape, new file write, overwrite, auto-create dirs,
  * empty content, writeExecutionProfile, outputFiles.
  */
-import { describe, it, after } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { WriteTool, writeExecutionProfile } from "./write";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+import type { Config } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { WriteTool, writeExecutionProfile } from "./write";
 
 function createMockContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
     workingDirectory: "/tmp",
     signal: new AbortController().signal,
     threadId: "test-thread",
-    config: {} as any,
+    config: {} as unknown as Config,
     ...overrides,
   };
 }
@@ -48,10 +50,7 @@ describe("WriteTool", () => {
     const filePath = path.join(tmpDir, "new-file.txt");
     const content = "Hello, world!\nSecond line.\n";
 
-    const result = await WriteTool.execute(
-      { file_path: filePath, content },
-      createMockContext(),
-    );
+    const result = await WriteTool.execute({ file_path: filePath, content }, createMockContext());
 
     assert.equal(result.status, "done");
     assert.ok(result.content);

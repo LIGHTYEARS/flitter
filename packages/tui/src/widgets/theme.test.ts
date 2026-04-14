@@ -12,14 +12,13 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import { AppColorScheme } from "./color-scheme.js";
-import { Theme, setGlobalTheme, getGlobalTheme } from "./theme.js";
-import type { ThemeData } from "./theme.js";
+import { describe, it } from "node:test";
 import { Color } from "../screen/color.js";
-import { Widget } from "../tree/widget.js";
 import type { Element } from "../tree/element.js";
+import { Widget } from "../tree/widget.js";
+import { AppColorScheme } from "./color-scheme.js";
+import { getGlobalTheme, setGlobalTheme, Theme } from "./theme.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -130,10 +129,7 @@ describe("AppColorScheme.default()", () => {
       "tableBorder",
     ];
     for (const field of fields) {
-      assert.ok(
-        scheme[field] instanceof Color,
-        `${field} 应为 Color 实例`
-      );
+      assert.ok(scheme[field] instanceof Color, `${field} 应为 Color 实例`);
     }
   });
 });
@@ -272,7 +268,7 @@ describe("Theme Widget", () => {
   it("Theme.of() 返回全局默认 ThemeData", () => {
     // 重置为暗色主题
     setGlobalTheme(Theme.dark());
-    const themeData = Theme.of(null as any);
+    const themeData = Theme.of(null as unknown as import("../tree/element.js").Element);
     assert.ok(themeData.colorScheme.equals(AppColorScheme.default()));
   });
 

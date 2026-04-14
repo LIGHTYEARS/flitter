@@ -12,15 +12,12 @@
  * }
  * ```
  */
-import { GoogleGenAI, ApiError } from "@google/genai";
+import { ApiError, GoogleGenAI } from "@google/genai";
 import type { LLMProvider } from "../../provider";
-import type { StreamParams, StreamDelta } from "../../types";
+import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
-import {
-  GeminiTransformer,
-  GeminiToolTransformer,
-} from "./transformer";
 import type { GeminiStreamChunk } from "./transformer";
+import { GeminiToolTransformer, GeminiTransformer } from "./transformer";
 
 // ─── GeminiProvider ─────────────────────────────────────
 
@@ -44,11 +41,22 @@ export class GeminiProvider implements LLMProvider {
     }
 
     // Build SDK client (injected for tests, or create on-demand)
-    const vertexProject = (config.settings as Record<string, unknown>)["google.project"] as string | undefined;
-    const vertexLocation = (config.settings as Record<string, unknown>)["google.location"] as string | undefined;
-    const client = this._injectedClient ?? (vertexProject && vertexLocation
-      ? new GoogleGenAI({ apiKey, vertexai: true, project: vertexProject, location: vertexLocation })
-      : new GoogleGenAI({ apiKey }));
+    const vertexProject = (config.settings as Record<string, unknown>)["google.project"] as
+      | string
+      | undefined;
+    const vertexLocation = (config.settings as Record<string, unknown>)["google.location"] as
+      | string
+      | undefined;
+    const client =
+      this._injectedClient ??
+      (vertexProject && vertexLocation
+        ? new GoogleGenAI({
+            apiKey,
+            vertexai: true,
+            project: vertexProject,
+            location: vertexLocation,
+          })
+        : new GoogleGenAI({ apiKey }));
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -64,8 +72,13 @@ export class GeminiProvider implements LLMProvider {
 
     // Build config
     const generateConfig = this._buildConfig(
-      systemInstruction, geminiTools, maxOutputTokens,
-      config.settings, reasoningEffort, supportsThinking, signal,
+      systemInstruction,
+      geminiTools,
+      maxOutputTokens,
+      config.settings,
+      reasoningEffort,
+      supportsThinking,
+      signal,
     );
 
     // Create state for tracking blocks
@@ -80,7 +93,10 @@ export class GeminiProvider implements LLMProvider {
       });
 
       for await (const chunk of stream) {
-        const delta = this._transformer.fromProviderDelta(chunk as unknown as GeminiStreamChunk, state);
+        const delta = this._transformer.fromProviderDelta(
+          chunk as unknown as GeminiStreamChunk,
+          state,
+        );
         yield delta;
       }
     } catch (err: unknown) {
@@ -90,8 +106,11 @@ export class GeminiProvider implements LLMProvider {
         throw new ProviderError(
           status,
           "gemini",
-          status === 408 || status === 429 ||
-            status === 500 || status === 502 || status === 503 ||
+          status === 408 ||
+            status === 429 ||
+            status === 500 ||
+            status === 502 ||
+            status === 503 ||
             status === 504,
           err.message,
         );

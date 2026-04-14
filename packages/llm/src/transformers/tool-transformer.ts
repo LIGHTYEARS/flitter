@@ -18,9 +18,7 @@ import type { ToolDefinition } from "../types";
  *
  * 提供工具定义验证和 JSON Schema 规范化方法
  */
-export abstract class BaseToolTransformer<TNativeTool>
-  implements ToolTransformer<TNativeTool>
-{
+export abstract class BaseToolTransformer<TNativeTool> implements ToolTransformer<TNativeTool> {
   abstract toProviderTools(tools: ToolDefinition[]): TNativeTool[];
 
   /**

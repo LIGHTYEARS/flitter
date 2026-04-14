@@ -1,14 +1,14 @@
-import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, describe, it } from "node:test";
 import {
-  parseSkillFrontmatter,
-  validateSkillName,
   loadSkill,
+  parseSkillFrontmatter,
   scanSkillFiles,
+  validateSkillName,
 } from "./skill-parser.ts";
 import { SkillService } from "./skill-service.ts";
 
@@ -19,9 +19,7 @@ import { SkillService } from "./skill-service.ts";
 const tmpDirs: string[] = [];
 
 function makeTmpDir(): string {
-  const dir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "flitter-skill-test-"),
-  );
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "flitter-skill-test-"));
   tmpDirs.push(dir);
   return dir;
 }
@@ -106,21 +104,12 @@ describe("validateSkillName", () => {
   });
 
   it("throws for uppercase characters", () => {
-    assert.throws(
-      () => validateSkillName("MySkill"),
-      /Invalid skill name/,
-    );
+    assert.throws(() => validateSkillName("MySkill"), /Invalid skill name/);
   });
 
   it("throws for special characters", () => {
-    assert.throws(
-      () => validateSkillName("my_skill"),
-      /Invalid skill name/,
-    );
-    assert.throws(
-      () => validateSkillName("my skill"),
-      /Invalid skill name/,
-    );
+    assert.throws(() => validateSkillName("my_skill"), /Invalid skill name/);
+    assert.throws(() => validateSkillName("my skill"), /Invalid skill name/);
   });
 
   it("throws for empty string", () => {
@@ -129,17 +118,11 @@ describe("validateSkillName", () => {
 
   it("throws for names longer than 64 characters", () => {
     const longName = "a".repeat(65);
-    assert.throws(
-      () => validateSkillName(longName),
-      /at most 64 characters/,
-    );
+    assert.throws(() => validateSkillName(longName), /at most 64 characters/);
   });
 
   it("throws for trailing hyphen", () => {
-    assert.throws(
-      () => validateSkillName("my-skill-"),
-      /Invalid skill name/,
-    );
+    assert.throws(() => validateSkillName("my-skill-"), /Invalid skill name/);
   });
 });
 
@@ -223,10 +206,7 @@ describe("scanSkillFiles", () => {
     fs.mkdirSync(path.join(skillDir, "node_modules", "dep"), {
       recursive: true,
     });
-    fs.writeFileSync(
-      path.join(skillDir, "node_modules", "dep", "lib.js"),
-      "dep",
-    );
+    fs.writeFileSync(path.join(skillDir, "node_modules", "dep", "lib.js"), "dep");
 
     const files = scanSkillFiles(skillDir);
     const paths = files.map((f) => f.path);
@@ -287,9 +267,7 @@ describe("SkillService.scan", () => {
     // Should only have one skill, the project version (discovered first)
     assert.equal(result.skills.length, 1);
     assert.equal(result.skills[0]!.description, "Project version");
-    assert.ok(
-      result.warnings.some((w) => w.includes("Duplicate") && w.includes("my-skill")),
-    );
+    assert.ok(result.warnings.some((w) => w.includes("Duplicate") && w.includes("my-skill")));
   });
 });
 
@@ -318,9 +296,7 @@ describe("SkillService.install", () => {
 
     assert.equal(result.success, true);
     assert.equal(result.skillName, "installed-skill");
-    assert.ok(
-      fs.existsSync(path.join(result.installedPath, "SKILL.md")),
-    );
+    assert.ok(fs.existsSync(path.join(result.installedPath, "SKILL.md")));
   });
 
   it("returns error for existing skill without overwrite", async () => {
@@ -335,12 +311,7 @@ describe("SkillService.install", () => {
     });
 
     // Pre-create the target
-    const targetDir = path.join(
-      workspace,
-      ".flitter",
-      "skills",
-      "dup-skill",
-    );
+    const targetDir = path.join(workspace, ".flitter", "skills", "dup-skill");
     writeSkillMd(targetDir, {
       name: "dup-skill",
       description: "Already here",
@@ -369,12 +340,7 @@ describe("SkillService.install", () => {
     });
 
     // Pre-create the target
-    const targetDir = path.join(
-      workspace,
-      ".flitter",
-      "skills",
-      "overwrite-skill",
-    );
+    const targetDir = path.join(workspace, ".flitter", "skills", "overwrite-skill");
     writeSkillMd(targetDir, {
       name: "overwrite-skill",
       description: "Old version",
@@ -389,10 +355,7 @@ describe("SkillService.install", () => {
 
     assert.equal(result.success, true);
     // Verify the content was replaced
-    const installedContent = fs.readFileSync(
-      path.join(result.installedPath, "SKILL.md"),
-      "utf-8",
-    );
+    const installedContent = fs.readFileSync(path.join(result.installedPath, "SKILL.md"), "utf-8");
     assert.ok(installedContent.includes("New version"));
   });
 });
@@ -406,12 +369,7 @@ describe("SkillService.remove", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(
-      workspace,
-      ".flitter",
-      "skills",
-      "remove-me",
-    );
+    const skillDir = path.join(workspace, ".flitter", "skills", "remove-me");
     writeSkillMd(skillDir, { name: "remove-me", description: "Goodbye" });
 
     const service = new SkillService({
@@ -447,12 +405,7 @@ describe("SkillService.list", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(
-      workspace,
-      ".flitter",
-      "skills",
-      "list-skill",
-    );
+    const skillDir = path.join(workspace, ".flitter", "skills", "list-skill");
     writeSkillMd(skillDir, { name: "list-skill", description: "Listed" });
 
     const service = new SkillService({
@@ -477,17 +430,11 @@ describe("MCP server derivation", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(
-      workspace,
-      ".flitter",
-      "skills",
-      "mcp-skill",
-    );
+    const skillDir = path.join(workspace, ".flitter", "skills", "mcp-skill");
     writeSkillMd(skillDir, {
       name: "mcp-skill",
       description: "Has MCP servers",
-      extra:
-        "mcpServers:\n  my-server:\n    command: node\n    args:\n      - server.js\n",
+      extra: "mcpServers:\n  my-server:\n    command: node\n    args:\n      - server.js\n",
     });
 
     const service = new SkillService({

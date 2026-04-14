@@ -22,10 +22,11 @@
  * ```
  */
 
-import { StatefulWidget, State } from "../tree/stateful-widget.js";
-import type { Widget } from "../tree/widget.js";
-import type { BuildContext } from "../tree/stateless-widget.js";
 import { TextEditingController } from "../editing/text-editing-controller.js";
+import { State, StatefulWidget } from "../tree/stateful-widget.js";
+import type { BuildContext } from "../tree/stateless-widget.js";
+import type { Widget } from "../tree/widget.js";
+import { Text } from "../widgets/text.js";
 import { AutocompleteController, type AutocompleteOption } from "./autocomplete-controller.js";
 
 /**
@@ -143,14 +144,13 @@ class CommandPaletteState extends State<CommandPalette> {
    * @param context - 构建上下文
    * @returns 子 Widget
    */
-  build(context: BuildContext): Widget {
+  build(_context: BuildContext): Widget {
     // 简化实现: 返回一个描述命令面板的最小 Widget
     // 完整实现需要 Column([ TextField(searchInput), ListView(matchedCommands) ])
     // 这些组件在后续 plan 中实现
-    const { Text } = require("../widgets/text.js") as { Text: any };
     const matchCount = this._matchedCommands.length;
     return new Text({
-      text: `Command Palette (${matchCount} commands)`,
+      data: `Command Palette (${matchCount} commands)`,
     });
   }
 
@@ -159,9 +159,10 @@ class CommandPaletteState extends State<CommandPalette> {
    */
   private _filterCommands(query: string): AutocompleteOption[] {
     const q = query.toLowerCase();
-    const matches = this.widget.commands.filter((cmd) =>
-      cmd.label.toLowerCase().includes(q) ||
-      (cmd.description?.toLowerCase().includes(q) ?? false)
+    const matches = this.widget.commands.filter(
+      (cmd) =>
+        cmd.label.toLowerCase().includes(q) ||
+        (cmd.description?.toLowerCase().includes(q) ?? false),
     );
     this._matchedCommands = matches;
     return matches.map((cmd) => ({

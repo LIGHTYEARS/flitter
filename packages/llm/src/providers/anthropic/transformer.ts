@@ -11,15 +11,10 @@
  * const delta = transformer.fromProviderDelta(sseEvent, state);
  * ```
  */
-import type {
-  Message,
-  AssistantContentBlock,
-  Usage,
-} from "@flitter/schemas";
+import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "../../transformers/message-transformer";
 import { BaseToolTransformer } from "../../transformers/tool-transformer";
-import type { StreamDelta, SystemPromptBlock, ToolDefinition } from "../../types";
-import { TransformState } from "../../types";
+import type { StreamDelta, SystemPromptBlock, ToolDefinition, TransformState } from "../../types";
 
 // ─── Anthropic 原生类型 ─────────────────────────────────
 
@@ -39,7 +34,10 @@ export interface AnthropicMessage {
 /** Anthropic content block */
 export type AnthropicContentBlock =
   | { type: "text"; text: string; cache_control?: { type: "ephemeral" } }
-  | { type: "image"; source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string } }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string };
+    }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "tool_result"; tool_use_id: string; content: string | AnthropicContentBlock[] }
   | { type: "thinking"; thinking: string; signature: string }
@@ -110,7 +108,10 @@ export class AnthropicToolTransformer extends BaseToolTransformer<AnthropicTool>
  *
  * 处理 Flitter ↔ Anthropic Messages API 格式的双向转换
  */
-export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessage, AnthropicSSEEvent> {
+export class AnthropicTransformer extends BaseMessageTransformer<
+  AnthropicMessage,
+  AnthropicSSEEvent
+> {
   /** 内部状态: message-level usage tracking */
   private _model = "";
   private _maxInputTokens = 200_000;
@@ -125,10 +126,7 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
    *
    * 返回 system blocks 和 messages 分开的结构
    */
-  toProviderMessages(
-    messages: Message[],
-    systemPrompt: SystemPromptBlock[],
-  ): AnthropicMessage[] {
+  toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): AnthropicMessage[] {
     const result: AnthropicMessage[] = [];
 
     for (const msg of messages) {
@@ -202,7 +200,9 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
 
   // ─── Private: Message conversion ──────────────────────
 
-  private _convertUserContent(msg: { content: ReadonlyArray<{ type: string; [key: string]: unknown }> }): AnthropicContentBlock[] {
+  private _convertUserContent(msg: {
+    content: ReadonlyArray<{ type: string; [key: string]: unknown }>;
+  }): AnthropicContentBlock[] {
     const result: AnthropicContentBlock[] = [];
 
     for (const block of msg.content) {
@@ -211,7 +211,9 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
           if (typeof block.text === "string" && block.text.trim().length > 0) {
             const b: AnthropicContentBlock = { type: "text", text: block.text };
             if (block.cache_control) {
-              (b as { cache_control?: { type: "ephemeral" } }).cache_control = { type: "ephemeral" };
+              (b as { cache_control?: { type: "ephemeral" } }).cache_control = {
+                type: "ephemeral",
+              };
             }
             result.push(b);
           }
@@ -219,7 +221,11 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
         case "image":
           if (block.source && typeof block.source === "object") {
             const source = block.source as { type: string; [key: string]: unknown };
-            if (source.type === "base64" && typeof source.mediaType === "string" && typeof source.data === "string") {
+            if (
+              source.type === "base64" &&
+              typeof source.mediaType === "string" &&
+              typeof source.data === "string"
+            ) {
               result.push({
                 type: "image",
                 source: { type: "base64", media_type: source.mediaType, data: source.data },
@@ -234,10 +240,15 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
           break;
         case "tool_result":
           if (typeof block.toolUseID === "string" && block.run && typeof block.run === "object") {
-            const run = block.run as { status: string; result?: unknown; error?: { message: string } };
+            const run = block.run as {
+              status: string;
+              result?: unknown;
+              error?: { message: string };
+            };
             let content: string;
             if (run.status === "done") {
-              content = typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
+              content =
+                typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
             } else if (run.status === "error" && run.error) {
               content = `Error: ${run.error.message}`;
             } else {
@@ -256,7 +267,9 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
     return result;
   }
 
-  private _convertAssistantContent(msg: { content: ReadonlyArray<AssistantContentBlock> }): AnthropicContentBlock[] {
+  private _convertAssistantContent(msg: {
+    content: ReadonlyArray<AssistantContentBlock>;
+  }): AnthropicContentBlock[] {
     const blocks: AnthropicContentBlock[] = [];
 
     for (const block of msg.content) {
@@ -349,7 +362,11 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
   }
 
   private _handleContentBlockStart(
-    event: { type: "content_block_start"; index: number; content_block: AnthropicContentBlockStart },
+    event: {
+      type: "content_block_start";
+      index: number;
+      content_block: AnthropicContentBlockStart;
+    },
     state: TransformState,
   ): StreamDelta {
     const block = event.content_block;
@@ -438,7 +455,11 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
   }
 
   private _handleMessageDelta(
-    event: { type: "message_delta"; delta: { stop_reason: string }; usage: { output_tokens: number } },
+    event: {
+      type: "message_delta";
+      delta: { stop_reason: string };
+      usage: { output_tokens: number };
+    },
     state: TransformState,
   ): StreamDelta {
     this._outputTokens = event.usage.output_tokens;
@@ -462,7 +483,8 @@ export class AnthropicTransformer extends BaseMessageTransformer<AnthropicMessag
       outputTokens: this._outputTokens,
       cacheCreationInputTokens: this._cacheCreationInputTokens,
       cacheReadInputTokens: this._cacheReadInputTokens,
-      totalInputTokens: this._inputTokens +
+      totalInputTokens:
+        this._inputTokens +
         (this._cacheCreationInputTokens ?? 0) +
         (this._cacheReadInputTokens ?? 0),
       timestamp: new Date().toISOString(),

@@ -12,11 +12,10 @@
  * @module
  */
 
-import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-
+import { describe, it } from "node:test";
+import type { VtCsiEvent, VtEvent, VtPrintEvent } from "./types.js";
 import { VtParser } from "./vt-parser.js";
-import type { VtEvent, VtCsiEvent, VtPrintEvent } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助工具
@@ -48,9 +47,7 @@ function parseBytes(bytes: number[]): VtEvent[] {
 
 /** 提取所有 print 事件的 grapheme */
 function graphemes(events: VtEvent[]): string[] {
-  return events
-    .filter((e): e is VtPrintEvent => e.type === "print")
-    .map((e) => e.grapheme);
+  return events.filter((e): e is VtPrintEvent => e.type === "print").map((e) => e.grapheme);
 }
 
 // ════════════════════════════════════════════════════
@@ -125,9 +122,7 @@ describe("打印事件", () => {
   // ── 8. ESC 序列分隔的多段 ASCII ─────────────────────
   it("8. ESC 序列分隔的多段 ASCII 正确产生 print 事件", () => {
     // "AB" ESC M "CD"
-    const events = parseBytes([
-      0x41, 0x42, 0x1b, 0x4d, 0x43, 0x44,
-    ]);
+    const events = parseBytes([0x41, 0x42, 0x1b, 0x4d, 0x43, 0x44]);
     const gs = graphemes(events);
     assert.deepEqual(gs, ["A", "B", "C", "D"]);
     // 中间应有一个 escape 事件
@@ -451,8 +446,12 @@ describe("OSC 序列", () => {
   // ── 34. OSC 8 位 ST (0x9C) 终止 ────────────────────
   it("34. OSC 使用 8 位 ST (0x9C) 终止", () => {
     const events = parseBytes([
-      0x1b, 0x5d, // ESC ]
-      0x31, 0x3b, 0x68, 0x69, // "1;hi"
+      0x1b,
+      0x5d, // ESC ]
+      0x31,
+      0x3b,
+      0x68,
+      0x69, // "1;hi"
       0x9c, // 8-bit ST
     ]);
     const osc = events.find((e) => e.type === "osc");
@@ -511,7 +510,10 @@ describe("OSC 序列", () => {
   it("38b. 8 位 OSC (0x9D) 正确进入 OSC 状态", () => {
     const events = parseBytes([
       0x9d, // 8-bit OSC
-      0x30, 0x3b, 0x68, 0x69, // "0;hi"
+      0x30,
+      0x3b,
+      0x68,
+      0x69, // "0;hi"
       0x07, // BEL
     ]);
     const osc = events.find((e) => e.type === "osc");
@@ -570,9 +572,12 @@ describe("DCS 序列", () => {
     // 0x90 + q data ESC \
     const events = parseBytes([
       0x90, // 8-bit DCS
-      0x2b, 0x71, // "+q"
-      0x41, 0x42, // "AB"
-      0x1b, 0x5c, // ESC \
+      0x2b,
+      0x71, // "+q"
+      0x41,
+      0x42, // "AB"
+      0x1b,
+      0x5c, // ESC \
     ]);
     const dcs = events.find((e) => e.type === "dcs");
     assert.ok(dcs);
@@ -606,10 +611,12 @@ describe("DCS 序列", () => {
   // ── 43b. DCS 使用 8 位 ST (0x9C) 终止 ─────────────
   it("43b. DCS 使用 8 位 ST (0x9C) 终止", () => {
     const events = parseBytes([
-      0x1b, 0x50, // ESC P
-      0x71,       // 'q'
-      0x41, 0x42, // "AB"
-      0x9c,       // 8-bit ST
+      0x1b,
+      0x50, // ESC P
+      0x71, // 'q'
+      0x41,
+      0x42, // "AB"
+      0x9c, // 8-bit ST
     ]);
     const dcs = events.find((e) => e.type === "dcs");
     assert.ok(dcs);
@@ -658,8 +665,10 @@ describe("APC 序列", () => {
   it("46b. 8 位 APC (0x9F) 正确进入 APC 状态", () => {
     const events = parseBytes([
       0x9f, // 8-bit APC
-      0x41, 0x42, // "AB"
-      0x1b, 0x5c, // ESC \
+      0x41,
+      0x42, // "AB"
+      0x1b,
+      0x5c, // ESC \
     ]);
     const apc = events.find((e) => e.type === "apc");
     assert.ok(apc);
@@ -671,8 +680,10 @@ describe("APC 序列", () => {
   // ── 46c. APC 使用 8 位 ST (0x9C) 终止 ─────────────
   it("46c. APC 使用 8 位 ST (0x9C) 终止", () => {
     const events = parseBytes([
-      0x1b, 0x5f, // ESC _
-      0x58, 0x59, // "XY"
+      0x1b,
+      0x5f, // ESC _
+      0x58,
+      0x59, // "XY"
       0x9c, // 8-bit ST
     ]);
     const apc = events.find((e) => e.type === "apc");
@@ -974,8 +985,15 @@ describe("状态机边界情况", () => {
   it("69. csi_ignore 完成后可继续解析新序列", () => {
     // 触发 csi_ignore 然后正常序列
     const events = parseBytes([
-      0x1b, 0x5b, 0x31, 0x3f, 0x6d, // CSI 1 ? m → ignore → ground on 'm'
-      0x1b, 0x5b, 0x32, 0x41,         // CSI 2 A
+      0x1b,
+      0x5b,
+      0x31,
+      0x3f,
+      0x6d, // CSI 1 ? m → ignore → ground on 'm'
+      0x1b,
+      0x5b,
+      0x32,
+      0x41, // CSI 2 A
     ]);
     const csiEvents = events.filter((e) => e.type === "csi") as VtCsiEvent[];
     assert.equal(csiEvents.length, 1);

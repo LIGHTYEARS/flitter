@@ -16,7 +16,7 @@
 import * as fs from "node:fs";
 import * as nodePath from "node:path";
 import { spawn } from "@flitter/util";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 // ---------------------------------------------------------------------------
 // Ripgrep availability cache
@@ -152,7 +152,16 @@ const TYPE_EXTENSIONS: Record<string, string[]> = {
   cpp: [".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx"],
 };
 
-const SKIP_DIRS = new Set(["node_modules", ".git", ".hg", ".svn", "__pycache__", ".next", "dist", ".cache"]);
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  ".hg",
+  ".svn",
+  "__pycache__",
+  ".next",
+  "dist",
+  ".cache",
+]);
 
 function matchesGlobFilter(filePath: string, globPattern: string): boolean {
   // Convert simple glob to regex
@@ -314,9 +323,7 @@ async function grepFallback(
         if (matchingLines.length > 0) {
           const formatted = matchingLines.map((m) => {
             const sep = m.isContext ? "-" : ":";
-            return options.showLineNumbers
-              ? `${m.lineNum}${sep}${m.text}`
-              : m.text;
+            return options.showLineNumbers ? `${m.lineNum}${sep}${m.text}` : m.text;
           });
           fileMatches.push({ file: fullPath, lines: formatted });
         }
@@ -331,15 +338,11 @@ async function grepFallback(
     return matchedFiles.length > 0 ? matchedFiles.join("\n") : "";
   }
   if (options.outputMode === "count") {
-    return fileCounts.length > 0
-      ? fileCounts.map((fc) => `${fc.file}:${fc.count}`).join("\n")
-      : "";
+    return fileCounts.length > 0 ? fileCounts.map((fc) => `${fc.file}:${fc.count}`).join("\n") : "";
   }
   // content mode
   if (fileMatches.length === 0) return "";
-  return fileMatches
-    .map((fm) => `${fm.file}\n${fm.lines.join("\n")}`)
-    .join("\n\n");
+  return fileMatches.map((fm) => `${fm.file}\n${fm.lines.join("\n")}`).join("\n\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -360,13 +363,8 @@ function applyPagination(output: string, headLimit: number, offset: number): str
 // Execution profile helper
 // ---------------------------------------------------------------------------
 
-export function grepExecutionProfile(
-  args: Record<string, unknown>,
-  cwd: string,
-): ExecutionProfile {
-  const searchPath = args.path
-    ? nodePath.resolve(cwd, args.path as string)
-    : cwd;
+export function grepExecutionProfile(args: Record<string, unknown>, cwd: string): ExecutionProfile {
+  const searchPath = args.path ? nodePath.resolve(cwd, args.path as string) : cwd;
   return {
     resourceKeys: [{ key: searchPath, mode: "read" }],
   };
@@ -395,8 +393,7 @@ export const GrepTool: ToolSpec = {
       },
       path: {
         type: "string",
-        description:
-          "File or directory to search in. Defaults to current working directory.",
+        description: "File or directory to search in. Defaults to current working directory.",
       },
       type: {
         type: "string",
@@ -405,8 +402,7 @@ export const GrepTool: ToolSpec = {
       },
       glob: {
         type: "string",
-        description:
-          'Glob pattern to filter files (e.g. "*.js", "**/*.tsx").',
+        description: 'Glob pattern to filter files (e.g. "*.js", "**/*.tsx").',
       },
       output_mode: {
         type: "string",
@@ -421,13 +417,11 @@ export const GrepTool: ToolSpec = {
       },
       "-A": {
         type: "number",
-        description:
-          "Number of lines to show after each match. Requires output_mode: content.",
+        description: "Number of lines to show after each match. Requires output_mode: content.",
       },
       "-B": {
         type: "number",
-        description:
-          "Number of lines to show before each match. Requires output_mode: content.",
+        description: "Number of lines to show before each match. Requires output_mode: content.",
       },
       "-C": {
         type: "number",
@@ -444,26 +438,20 @@ export const GrepTool: ToolSpec = {
       },
       multiline: {
         type: "boolean",
-        description:
-          "Enable multiline mode where . matches newlines and patterns can span lines.",
+        description: "Enable multiline mode where . matches newlines and patterns can span lines.",
       },
       head_limit: {
         type: "number",
-        description:
-          "Limit output to first N lines/entries. Defaults to 0 (unlimited).",
+        description: "Limit output to first N lines/entries. Defaults to 0 (unlimited).",
       },
       offset: {
         type: "number",
-        description:
-          "Skip first N lines/entries before applying head_limit. Defaults to 0.",
+        description: "Skip first N lines/entries before applying head_limit. Defaults to 0.",
       },
     },
   },
 
-  async execute(
-    args: Record<string, unknown>,
-    context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
     const grepArgs = args as unknown as GrepArgs;
 
     if (!grepArgs.pattern) {
@@ -495,9 +483,7 @@ export const GrepTool: ToolSpec = {
       }
     } else {
       // Fallback to NodeJS implementation
-      const searchPath = grepArgs.path
-        ? nodePath.resolve(cwd, grepArgs.path)
-        : cwd;
+      const searchPath = grepArgs.path ? nodePath.resolve(cwd, grepArgs.path) : cwd;
 
       const contextVal = grepArgs["-C"] ?? grepArgs.context ?? 0;
       const contextBefore = grepArgs["-B"] ?? contextVal;

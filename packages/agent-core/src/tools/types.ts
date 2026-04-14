@@ -16,8 +16,8 @@
  * };
  * ```
  */
-import type { ToolRunInternalStatus, ToolSource, Settings, Config } from "@flitter/schemas";
-import type { ToolDefinition } from "@flitter/llm";
+
+import type { Config, Settings, ToolRunInternalStatus, ToolSource } from "@flitter/schemas";
 import type { Observable, Subject } from "@flitter/util";
 
 // ─── 执行配置 ────────────────────────────────────────────

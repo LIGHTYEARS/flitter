@@ -1,19 +1,27 @@
 /**
  * @flitter/llm — OpenAI-Compatible ChatCompletion API Provider 测试
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import { CompatTransformer, CompatToolTransformer } from "./transformer";
-import type { CompatStreamChunk } from "./transformer";
-import { TransformState } from "../../types";
-import type { OpenAICompatConfig } from "../../types";
-import type { Message, AssistantContentBlock } from "@flitter/schemas";
+import { describe, it } from "node:test";
+import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock, ToolDefinition } from "../../types";
-import { KNOWN_COMPAT_CONFIGS, mergeWithDefaults, detectCompatFromURL, getKnownConfig } from "./compat";
+import { TransformState } from "../../types";
+import {
+  detectCompatFromURL,
+  getKnownConfig,
+  KNOWN_COMPAT_CONFIGS,
+  mergeWithDefaults,
+} from "./compat";
+import type { CompatStreamChunk } from "./transformer";
+import { CompatToolTransformer, CompatTransformer } from "./transformer";
 
 // ─── Helper ──────────────────────────────────────────────
 
-const DEFAULT_CONFIG = mergeWithDefaults({ baseURL: "https://api.x.ai/v1", supportsDeveloperRole: false });
+const DEFAULT_CONFIG = mergeWithDefaults({
+  baseURL: "https://api.x.ai/v1",
+  supportsDeveloperRole: false,
+});
 
 function createUserMessage(content: Message["content"]): Message {
   return { role: "user", content } as Message;
@@ -23,17 +31,24 @@ function createAssistantMessage(content: AssistantContentBlock[]): Message {
   return { role: "assistant", content } as Message;
 }
 
-function createChunk(overrides: Partial<CompatStreamChunk> & { delta?: CompatStreamChunk["choices"][0]["delta"]; finish_reason?: CompatStreamChunk["choices"][0]["finish_reason"] }): CompatStreamChunk {
+function createChunk(
+  overrides: Partial<CompatStreamChunk> & {
+    delta?: CompatStreamChunk["choices"][0]["delta"];
+    finish_reason?: CompatStreamChunk["choices"][0]["finish_reason"];
+  },
+): CompatStreamChunk {
   return {
     id: "chatcmpl-001",
     object: "chat.completion.chunk",
     model: "grok-3",
-    choices: [{
-      index: 0,
-      delta: overrides.delta ?? {},
-      finish_reason: overrides.finish_reason ?? null,
-    }],
-    ...overrides.usage ? { usage: overrides.usage } : {},
+    choices: [
+      {
+        index: 0,
+        delta: overrides.delta ?? {},
+        finish_reason: overrides.finish_reason ?? null,
+      },
+    ],
+    ...(overrides.usage ? { usage: overrides.usage } : {}),
   };
 }
 
@@ -108,20 +123,19 @@ describe("CompatTransformer.toProviderMessages", () => {
   const emptySystem: SystemPromptBlock[] = [];
 
   it("should convert system prompt to system role (when supportsDeveloperRole=false)", () => {
-    const system: SystemPromptBlock[] = [
-      { type: "text", text: "You are helpful." },
-    ];
+    const system: SystemPromptBlock[] = [{ type: "text", text: "You are helpful." }];
     const result = transformer.toProviderMessages([], system);
     assert.equal(result.length, 1);
     assert.deepEqual(result[0], { role: "system", content: "You are helpful." });
   });
 
   it("should convert system prompt to developer role (when supportsDeveloperRole=true)", () => {
-    const devConfig = mergeWithDefaults({ baseURL: "https://api.openai.com/v1", supportsDeveloperRole: true });
+    const devConfig = mergeWithDefaults({
+      baseURL: "https://api.openai.com/v1",
+      supportsDeveloperRole: true,
+    });
     const t = new CompatTransformer(devConfig);
-    const system: SystemPromptBlock[] = [
-      { type: "text", text: "You are helpful." },
-    ];
+    const system: SystemPromptBlock[] = [{ type: "text", text: "You are helpful." }];
     const result = t.toProviderMessages([], system);
     assert.equal(result.length, 1);
     assert.deepEqual(result[0], { role: "developer", content: "You are helpful." });
@@ -159,9 +173,7 @@ describe("CompatTransformer.toProviderMessages", () => {
   });
 
   it("should convert AssistantMessage text to assistant role", () => {
-    const msg = createAssistantMessage([
-      { type: "text", text: "Hi", startTime: Date.now() },
-    ]);
+    const msg = createAssistantMessage([{ type: "text", text: "Hi", startTime: Date.now() }]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
     assert.equal(result[0].role, "assistant");
@@ -173,7 +185,14 @@ describe("CompatTransformer.toProviderMessages", () => {
 
   it("should convert AssistantMessage tool_use to tool_calls", () => {
     const msg = createAssistantMessage([
-      { type: "tool_use", id: "toolu_xyz", name: "bash", complete: true, input: { cmd: "ls" }, startTime: Date.now() },
+      {
+        type: "tool_use",
+        id: "toolu_xyz",
+        name: "bash",
+        complete: true,
+        input: { cmd: "ls" },
+        startTime: Date.now(),
+      },
     ]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
@@ -188,7 +207,13 @@ describe("CompatTransformer.toProviderMessages", () => {
 
   it("should skip ThinkingBlock in assistant messages", () => {
     const msg = createAssistantMessage([
-      { type: "thinking", thinking: "hmm...", signature: "", provider: "anthropic", startTime: Date.now() },
+      {
+        type: "thinking",
+        thinking: "hmm...",
+        signature: "",
+        provider: "anthropic",
+        startTime: Date.now(),
+      },
       { type: "text", text: "Answer", startTime: Date.now() },
     ]);
     const result = transformer.toProviderMessages([msg], emptySystem);
@@ -201,9 +226,7 @@ describe("CompatTransformer.toProviderMessages", () => {
   it("should convert info message summary to assistant role", () => {
     const msg: Message = {
       role: "info",
-      content: [
-        { type: "summary", summary: { type: "message", summary: "Previous summary" } },
-      ],
+      content: [{ type: "summary", summary: { type: "message", summary: "Previous summary" } }],
     } as unknown as Message;
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
@@ -273,12 +296,14 @@ describe("CompatTransformer.fromProviderDelta", () => {
     const state = new TransformState();
     const chunk = createChunk({
       delta: {
-        tool_calls: [{
-          index: 0,
-          id: "call_001",
-          type: "function",
-          function: { name: "bash", arguments: "" },
-        }],
+        tool_calls: [
+          {
+            index: 0,
+            id: "call_001",
+            type: "function",
+            function: { name: "bash", arguments: "" },
+          },
+        ],
       },
     });
     const delta = transformer.fromProviderDelta(chunk, state);
@@ -294,25 +319,35 @@ describe("CompatTransformer.fromProviderDelta", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
 
-    transformer.fromProviderDelta(createChunk({
-      delta: {
-        tool_calls: [{
-          index: 0,
-          id: "call_001",
-          type: "function",
-          function: { name: "bash", arguments: "" },
-        }],
-      },
-    }), state);
+    transformer.fromProviderDelta(
+      createChunk({
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_001",
+              type: "function",
+              function: { name: "bash", arguments: "" },
+            },
+          ],
+        },
+      }),
+      state,
+    );
 
-    transformer.fromProviderDelta(createChunk({
-      delta: {
-        tool_calls: [{
-          index: 0,
-          function: { arguments: '{"cmd":' },
-        }],
-      },
-    }), state);
+    transformer.fromProviderDelta(
+      createChunk({
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              function: { arguments: '{"cmd":' },
+            },
+          ],
+        },
+      }),
+      state,
+    );
 
     const block = state.blocks.get(0);
     assert.ok(block);
@@ -323,42 +358,54 @@ describe("CompatTransformer.fromProviderDelta", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
     transformer.fromProviderDelta(createChunk({ delta: { content: "Hi" } }), state);
-    const delta = transformer.fromProviderDelta(createChunk({
-      delta: {},
-      finish_reason: "stop",
-      usage: { prompt_tokens: 50, completion_tokens: 5, total_tokens: 55 },
-    }), state);
+    const delta = transformer.fromProviderDelta(
+      createChunk({
+        delta: {},
+        finish_reason: "stop",
+        usage: { prompt_tokens: 50, completion_tokens: 5, total_tokens: 55 },
+      }),
+      state,
+    );
     assert.deepEqual(delta.state, { type: "complete", stopReason: "end_turn" });
   });
 
   it("should handle finish_reason 'tool_calls' → tool_use", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
-    const delta = transformer.fromProviderDelta(createChunk({
-      delta: {},
-      finish_reason: "tool_calls",
-    }), state);
+    const delta = transformer.fromProviderDelta(
+      createChunk({
+        delta: {},
+        finish_reason: "tool_calls",
+      }),
+      state,
+    );
     assert.deepEqual(delta.state, { type: "complete", stopReason: "tool_use" });
   });
 
   it("should handle finish_reason 'length' → max_tokens", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
-    const delta = transformer.fromProviderDelta(createChunk({
-      delta: {},
-      finish_reason: "length",
-    }), state);
+    const delta = transformer.fromProviderDelta(
+      createChunk({
+        delta: {},
+        finish_reason: "length",
+      }),
+      state,
+    );
     assert.deepEqual(delta.state, { type: "complete", stopReason: "max_tokens" });
   });
 
   it("should map usage correctly", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
-    const delta = transformer.fromProviderDelta(createChunk({
-      delta: {},
-      finish_reason: "stop",
-      usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
-    }), state);
+    const delta = transformer.fromProviderDelta(
+      createChunk({
+        delta: {},
+        finish_reason: "stop",
+        usage: { prompt_tokens: 100, completion_tokens: 25, total_tokens: 125 },
+      }),
+      state,
+    );
     assert.ok(delta.usage);
     assert.equal(delta.usage!.totalInputTokens, 100);
     assert.equal(delta.usage!.outputTokens, 25);
@@ -369,16 +416,19 @@ describe("CompatTransformer.fromProviderDelta", () => {
   it("should handle usage with cached tokens", () => {
     const transformer = new CompatTransformer(DEFAULT_CONFIG);
     const state = new TransformState();
-    const delta = transformer.fromProviderDelta(createChunk({
-      delta: {},
-      finish_reason: "stop",
-      usage: {
-        prompt_tokens: 200,
-        completion_tokens: 50,
-        total_tokens: 250,
-        prompt_tokens_details: { cached_tokens: 80 },
-      },
-    }), state);
+    const delta = transformer.fromProviderDelta(
+      createChunk({
+        delta: {},
+        finish_reason: "stop",
+        usage: {
+          prompt_tokens: 200,
+          completion_tokens: 50,
+          total_tokens: 250,
+          prompt_tokens_details: { cached_tokens: 80 },
+        },
+      }),
+      state,
+    );
     assert.ok(delta.usage);
     assert.equal(delta.usage!.cacheReadInputTokens, 80);
     assert.equal(delta.usage!.cacheCreationInputTokens, 120);
@@ -455,28 +505,34 @@ describe("CompatTransformer — full stream simulation", () => {
     const chunks: CompatStreamChunk[] = [
       createChunk({
         delta: {
-          tool_calls: [{
-            index: 0,
-            id: "call_001",
-            type: "function",
-            function: { name: "bash", arguments: "" },
-          }],
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_001",
+              type: "function",
+              function: { name: "bash", arguments: "" },
+            },
+          ],
         },
       }),
       createChunk({
         delta: {
-          tool_calls: [{
-            index: 0,
-            function: { arguments: '{"command"' },
-          }],
+          tool_calls: [
+            {
+              index: 0,
+              function: { arguments: '{"command"' },
+            },
+          ],
         },
       }),
       createChunk({
         delta: {
-          tool_calls: [{
-            index: 0,
-            function: { arguments: ':"ls -la"}' },
-          }],
+          tool_calls: [
+            {
+              index: 0,
+              function: { arguments: ':"ls -la"}' },
+            },
+          ],
         },
       }),
       createChunk({
@@ -511,22 +567,26 @@ describe("CompatTransformer — full stream simulation", () => {
     const chunks: CompatStreamChunk[] = [
       createChunk({
         delta: {
-          tool_calls: [{
-            index: 0,
-            id: "call_001",
-            type: "function",
-            function: { name: "bash", arguments: '{"cmd":"ls"}' },
-          }],
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_001",
+              type: "function",
+              function: { name: "bash", arguments: '{"cmd":"ls"}' },
+            },
+          ],
         },
       }),
       createChunk({
         delta: {
-          tool_calls: [{
-            index: 1,
-            id: "call_002",
-            type: "function",
-            function: { name: "read", arguments: '{"path":"file.txt"}' },
-          }],
+          tool_calls: [
+            {
+              index: 1,
+              id: "call_002",
+              type: "function",
+              function: { name: "read", arguments: '{"path":"file.txt"}' },
+            },
+          ],
         },
       }),
       createChunk({
@@ -556,11 +616,13 @@ describe("CompatToolTransformer", () => {
   const toolTransformer = new CompatToolTransformer();
 
   it("should convert ToolDefinition to ChatCompletion function tool", () => {
-    const tools: ToolDefinition[] = [{
-      name: "bash",
-      description: "Run a command",
-      inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
-    }];
+    const tools: ToolDefinition[] = [
+      {
+        name: "bash",
+        description: "Run a command",
+        inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
+      },
+    ];
     const result = toolTransformer.toProviderTools(tools);
     assert.equal(result.length, 1);
     assert.equal(result[0].type, "function");

@@ -1,6 +1,6 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { assert as utilAssert, assertNever, assertDefined } from "./assert.ts";
+import { describe, it } from "node:test";
+import { assertDefined, assertNever, assert as utilAssert } from "./assert.ts";
 
 describe("assert", () => {
   it("does not throw for true", () => {
@@ -68,10 +68,9 @@ describe("assertNever", () => {
   });
 
   it("uses custom message when provided", () => {
-    assert.throws(
-      () => assertNever("x" as never, "should not happen"),
-      { message: "should not happen" },
-    );
+    assert.throws(() => assertNever("x" as never, "should not happen"), {
+      message: "should not happen",
+    });
   });
 });
 
@@ -107,9 +106,6 @@ describe("assertDefined", () => {
   });
 
   it("uses custom message when provided", () => {
-    assert.throws(
-      () => assertDefined(null, "value required"),
-      { message: "value required" },
-    );
+    assert.throws(() => assertDefined(null, "value required"), { message: "value required" });
   });
 });

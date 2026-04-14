@@ -18,8 +18,8 @@
  * @module
  */
 
-import { TextStyle } from "../screen/text-style.js";
 import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import { TextSpan } from "../widgets/text-span.js";
 import type { MarkdownNode } from "./markdown-parser.js";
 import { SyntaxHighlighter, type SyntaxTheme } from "./syntax-highlight.js";
@@ -71,13 +71,10 @@ export class MarkdownRenderer {
    */
   renderStreaming(nodes: MarkdownNode[]): TextSpan[] {
     // 过滤掉尾部空段落
-    let filtered = [...nodes];
+    const filtered = [...nodes];
     while (filtered.length > 0) {
       const last = filtered[filtered.length - 1];
-      if (
-        last.type === "paragraph" &&
-        (!last.children || last.children.length === 0)
-      ) {
+      if (last.type === "paragraph" && (!last.children || last.children.length === 0)) {
         filtered.pop();
       } else {
         break;
@@ -89,10 +86,7 @@ export class MarkdownRenderer {
   /**
    * 递归渲染节点列表。
    */
-  private _renderNodes(
-    nodes: MarkdownNode[],
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderNodes(nodes: MarkdownNode[], parentStyle: TextStyle | undefined): TextSpan[] {
     const spans: TextSpan[] = [];
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
@@ -110,10 +104,7 @@ export class MarkdownRenderer {
   /**
    * 渲染单个节点。
    */
-  private _renderNode(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderNode(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     switch (node.type) {
       case "text":
         return [new TextSpan({ text: node.value ?? "", style: parentStyle })];
@@ -178,10 +169,7 @@ export class MarkdownRenderer {
   /**
    * 渲染子节点。
    */
-  private _renderChildren(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderChildren(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     if (!node.children) return [];
     const spans: TextSpan[] = [];
     for (const child of node.children) {
@@ -193,10 +181,7 @@ export class MarkdownRenderer {
   /**
    * 渲染标题节点。
    */
-  private _renderHeading(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderHeading(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const level = node.level ?? 1;
     const prefix = "#".repeat(level) + " ";
     const boldStyle = new TextStyle({ bold: true });
@@ -212,10 +197,7 @@ export class MarkdownRenderer {
   /**
    * 渲染粗体节点。
    */
-  private _renderStrong(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderStrong(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const style = parentStyle
       ? parentStyle.copyWith({ bold: true })
       : new TextStyle({ bold: true });
@@ -230,10 +212,7 @@ export class MarkdownRenderer {
   /**
    * 渲染斜体节点。
    */
-  private _renderEmphasis(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderEmphasis(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const style = parentStyle
       ? parentStyle.copyWith({ italic: true })
       : new TextStyle({ italic: true });
@@ -248,10 +227,7 @@ export class MarkdownRenderer {
   /**
    * 渲染删除线节点。
    */
-  private _renderDelete(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderDelete(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const style = parentStyle
       ? parentStyle.copyWith({ strikethrough: true })
       : new TextStyle({ strikethrough: true });
@@ -291,10 +267,8 @@ export class MarkdownRenderer {
         (span) =>
           new TextSpan({
             text: span.text,
-            style: span.style
-              ? span.style.copyWith({ background: Color.indexed(236) })
-              : bgStyle,
-          })
+            style: span.style ? span.style.copyWith({ background: Color.indexed(236) }) : bgStyle,
+          }),
       );
       return [new TextSpan({ style: bgStyle, children: styledSpans })];
     } else {
@@ -306,10 +280,7 @@ export class MarkdownRenderer {
   /**
    * 渲染列表。
    */
-  private _renderList(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderList(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const ordered = node.ordered ?? false;
     const spans: TextSpan[] = [];
     const items = node.children ?? [];
@@ -332,7 +303,7 @@ export class MarkdownRenderer {
     node: MarkdownNode,
     parentStyle: TextStyle | undefined,
     ordered: boolean,
-    index: number
+    index: number,
   ): TextSpan[] {
     let prefix: string;
     if (node.checked === true) {
@@ -368,20 +339,14 @@ export class MarkdownRenderer {
   /**
    * 渲染块引用。
    */
-  private _renderBlockquote(
-    node: MarkdownNode,
-    parentStyle: TextStyle | undefined
-  ): TextSpan[] {
+  private _renderBlockquote(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const dimStyle = new TextStyle({ dim: true });
     const children = this._renderChildren(node, parentStyle);
 
     // 添加 "│ " 前缀
     return [
       new TextSpan({
-        children: [
-          new TextSpan({ text: "│ ", style: dimStyle }),
-          ...children,
-        ],
+        children: [new TextSpan({ text: "│ ", style: dimStyle }), ...children],
       }),
     ];
   }
@@ -400,10 +365,7 @@ export class MarkdownRenderer {
     return [
       new TextSpan({
         style: linkStyle,
-        children: [
-          ...children,
-          new TextSpan({ text: ` (${url})` }),
-        ],
+        children: [...children, new TextSpan({ text: ` (${url})` })],
       }),
     ];
   }
@@ -424,18 +386,14 @@ export class MarkdownRenderer {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const cells = row.children ?? [];
-      const cellTexts: TextSpan[][] = cells.map((cell) =>
-        this._renderChildren(cell, undefined)
-      );
+      const cellTexts: TextSpan[][] = cells.map((cell) => this._renderChildren(cell, undefined));
 
       // 构建行: │ cell1 │ cell2 │
-      const rowChildren: TextSpan[] = [
-        new TextSpan({ text: "│ ", style: borderStyle }),
-      ];
+      const rowChildren: TextSpan[] = [new TextSpan({ text: "│ ", style: borderStyle })];
       for (let j = 0; j < cellTexts.length; j++) {
         rowChildren.push(...cellTexts[j]);
         rowChildren.push(
-          new TextSpan({ text: j < cellTexts.length - 1 ? " │ " : " │", style: borderStyle })
+          new TextSpan({ text: j < cellTexts.length - 1 ? " │ " : " │", style: borderStyle }),
         );
       }
       spans.push(new TextSpan({ children: rowChildren }));
@@ -443,9 +401,7 @@ export class MarkdownRenderer {
       // 表头后添加分隔线
       if (i === 0) {
         const sep = cells.map(() => "───").join("─┼─");
-        spans.push(
-          new TextSpan({ text: "\n├─" + sep + "─┤", style: borderStyle })
-        );
+        spans.push(new TextSpan({ text: "\n├─" + sep + "─┤", style: borderStyle }));
       }
 
       if (i < rows.length - 1) {

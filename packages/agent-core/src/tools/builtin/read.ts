@@ -6,8 +6,7 @@
  * and detects binary files.
  */
 import * as fs from "node:fs";
-import * as path from "node:path";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 /** Default number of lines to return when no limit is specified */
 const DEFAULT_LIMIT = 2000;
@@ -48,9 +47,7 @@ function formatWithLineNumbers(lines: string[], startLine: number): string {
     .map((line, index) => {
       const lineNum = (startLine + index).toString().padStart(6, " ");
       const truncatedLine =
-        line.length > MAX_LINE_LENGTH
-          ? line.slice(0, MAX_LINE_LENGTH) + " [truncated]"
-          : line;
+        line.length > MAX_LINE_LENGTH ? line.slice(0, MAX_LINE_LENGTH) + " [truncated]" : line;
       return `${lineNum}\t${truncatedLine}`;
     })
     .join("\n");
@@ -60,9 +57,7 @@ function formatWithLineNumbers(lines: string[], startLine: number): string {
  * Compute the execution profile for a Read invocation.
  * Declares a read-mode resource key on the target file path.
  */
-export function readExecutionProfile(
-  args: Record<string, unknown>,
-): ExecutionProfile {
+export function readExecutionProfile(args: Record<string, unknown>): ExecutionProfile {
   const filePath = args.file_path as string;
   return {
     resourceKeys: [{ key: filePath, mode: "read" }],
@@ -90,8 +85,7 @@ export const ReadTool: ToolSpec = {
       },
       offset: {
         type: "number",
-        description:
-          "The 1-based line number to start reading from. Defaults to 1.",
+        description: "The 1-based line number to start reading from. Defaults to 1.",
       },
       limit: {
         type: "number",
@@ -104,10 +98,7 @@ export const ReadTool: ToolSpec = {
 
   executionProfile: undefined,
 
-  async execute(
-    args: Record<string, unknown>,
-    _context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const offset = (args.offset as number | undefined) ?? 1;
     const limit = (args.limit as number | undefined) ?? DEFAULT_LIMIT;

@@ -12,13 +12,12 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { Key, Widget } from "./element.js";
 import { Element } from "./element.js";
-import type { Widget, Key } from "./element.js";
-import { setBuildOwner, getBuildOwner } from "./types.js";
 import type { BuildOwnerLike } from "./types.js";
+import { setBuildOwner } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -390,10 +389,7 @@ describe("Element — dirty/rebuild", () => {
 
     element.markNeedsRebuild();
 
-    assert.ok(
-      mockOwner.scheduledElements.length > 0,
-      "应调用 BuildOwner.scheduleBuildFor"
-    );
+    assert.ok(mockOwner.scheduledElements.length > 0, "应调用 BuildOwner.scheduleBuildFor");
     assert.ok(mockOwner.scheduledElements.includes(element));
   });
 
@@ -411,7 +407,7 @@ describe("Element — dirty/rebuild", () => {
     assert.equal(
       mockOwner.scheduledElements.length,
       0,
-      "已经 dirty 时不应重复调用 scheduleBuildFor"
+      "已经 dirty 时不应重复调用 scheduleBuildFor",
     );
   });
 

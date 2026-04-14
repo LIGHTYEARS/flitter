@@ -130,9 +130,7 @@ export function parsePortalainStatus(output: string): StatusEntry[] {
 // statusEntryToChangeType
 // ---------------------------------------------------------------------------
 
-export function statusEntryToChangeType(
-  entry: StatusEntry,
-): GitFileChange["changeType"] {
+export function statusEntryToChangeType(entry: StatusEntry): GitFileChange["changeType"] {
   if (entry.x === "?" && entry.y === "?") return "untracked";
   if (entry.x === "R" || entry.y === "R") return "renamed";
   if (entry.x === "C" || entry.y === "C") return "renamed"; // copy treated as rename
@@ -147,10 +145,7 @@ export function statusEntryToChangeType(
 
 export async function isGitRepository(dirPath: string): Promise<boolean> {
   try {
-    const result = await git(dirPath, [
-      "rev-parse",
-      "--is-inside-work-tree",
-    ]);
+    const result = await git(dirPath, ["rev-parse", "--is-inside-work-tree"]);
     return result.exitCode === 0;
   } catch {
     // ENOENT (git not installed) or other spawn errors
@@ -162,9 +157,7 @@ export async function isGitRepository(dirPath: string): Promise<boolean> {
 // getCurrentBranch
 // ---------------------------------------------------------------------------
 
-export async function getCurrentBranch(
-  repoRoot: string,
-): Promise<string | null> {
+export async function getCurrentBranch(repoRoot: string): Promise<string | null> {
   try {
     const result = await git(repoRoot, ["symbolic-ref", "--short", "HEAD"]);
     if (result.exitCode === 0) {
@@ -180,10 +173,7 @@ export async function getCurrentBranch(
 // getGitDiff
 // ---------------------------------------------------------------------------
 
-export async function getGitDiff(
-  repoRoot: string,
-  ref?: string,
-): Promise<string> {
+export async function getGitDiff(repoRoot: string, ref?: string): Promise<string> {
   try {
     const args = ref ? ["diff", ref] : ["diff", "HEAD"];
     const result = await git(repoRoot, args);
@@ -206,12 +196,7 @@ async function getFileDiff(
     const result = await git(repoRoot, ["diff", "HEAD", "--", filePath]);
     if (result.exitCode !== 0 && result.stdout === "") {
       // For untracked files, diff won't produce output — try diff --no-index
-      const untrackedResult = await git(repoRoot, [
-        "diff",
-        "--no-index",
-        "/dev/null",
-        filePath,
-      ]);
+      const untrackedResult = await git(repoRoot, ["diff", "--no-index", "/dev/null", filePath]);
       const raw = untrackedResult.stdout;
       return raw.length > maxBytes ? raw.slice(0, maxBytes) : raw || null;
     }
@@ -222,18 +207,9 @@ async function getFileDiff(
   }
 }
 
-async function getFileDiffStat(
-  repoRoot: string,
-  filePath: string,
-): Promise<DiffStat> {
+async function getFileDiffStat(repoRoot: string, filePath: string): Promise<DiffStat> {
   try {
-    const result = await git(repoRoot, [
-      "diff",
-      "--numstat",
-      "HEAD",
-      "--",
-      filePath,
-    ]);
+    const result = await git(repoRoot, ["diff", "--numstat", "HEAD", "--", filePath]);
     if (result.exitCode === 0 && result.stdout.trim()) {
       const line = result.stdout.trim().split("\n")[0]!;
       const [addStr, delStr] = line.split("\t");
@@ -281,10 +257,7 @@ export async function captureGitStatus(
   // a. Repository root
   let repositoryRoot: string;
   try {
-    const result = await git(workspaceRoot, [
-      "rev-parse",
-      "--show-toplevel",
-    ]);
+    const result = await git(workspaceRoot, ["rev-parse", "--show-toplevel"]);
     if (result.exitCode !== 0) {
       return makeUnavailableSnapshot(workspaceRoot);
     }
@@ -296,11 +269,7 @@ export async function captureGitStatus(
   // b. HEAD short sha
   let head: string | null = null;
   try {
-    const result = await git(repositoryRoot, [
-      "rev-parse",
-      "--short",
-      "HEAD",
-    ]);
+    const result = await git(repositoryRoot, ["rev-parse", "--short", "HEAD"]);
     if (result.exitCode === 0) {
       head = result.stdout.trim() || null;
     }
@@ -314,11 +283,7 @@ export async function captureGitStatus(
   // d. Porcelain status
   let statusEntries: StatusEntry[] = [];
   try {
-    const result = await git(repositoryRoot, [
-      "status",
-      "--porcelain=v1",
-      "-z",
-    ]);
+    const result = await git(repositoryRoot, ["status", "--porcelain=v1", "-z"]);
     if (result.exitCode === 0) {
       statusEntries = parsePortalainStatus(result.stdout);
     }
@@ -355,7 +320,7 @@ export async function captureGitStatus(
 
   // f. Ahead / behind counts
   let aheadCount = 0;
-  let behindCount: number | undefined = undefined;
+  let behindCount: number | undefined;
   if (branch) {
     try {
       const result = await git(repositoryRoot, [

@@ -6,15 +6,13 @@
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { ToolSpec, ToolResult, ToolContext, ExecutionProfile } from "../types";
+import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 /**
  * Compute the execution profile for a Write invocation.
  * Declares a write-mode resource key on the target file path.
  */
-export function writeExecutionProfile(
-  args: Record<string, unknown>,
-): ExecutionProfile {
+export function writeExecutionProfile(args: Record<string, unknown>): ExecutionProfile {
   const filePath = args.file_path as string;
   return {
     resourceKeys: [{ key: filePath, mode: "write" }],
@@ -50,10 +48,7 @@ export const WriteTool: ToolSpec = {
 
   executionProfile: undefined,
 
-  async execute(
-    args: Record<string, unknown>,
-    _context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const content = args.content as string;
 

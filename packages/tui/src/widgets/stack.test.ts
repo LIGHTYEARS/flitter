@@ -13,16 +13,11 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import {
-  StackParentData,
-  RenderStack,
-  Stack,
-  Positioned,
-} from "./stack.js";
-import { RenderBox } from "../tree/render-box.js";
+import { describe, it } from "node:test";
 import { BoxConstraints } from "../tree/constraints.js";
+import { RenderBox } from "../tree/render-box.js";
+import { Positioned, RenderStack, Stack, StackParentData } from "./stack.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -42,10 +37,7 @@ class TestRenderBox extends RenderBox {
   }
 
   performLayout(): void {
-    this.size = this._constraints!.constrain(
-      this.preferredWidth,
-      this.preferredHeight,
-    );
+    this.size = this._constraints!.constrain(this.preferredWidth, this.preferredHeight);
   }
 }
 
@@ -60,7 +52,16 @@ class TestRenderBox extends RenderBox {
  */
 function buildStack(
   args: {
-    alignment?: "topLeft" | "topCenter" | "topRight" | "centerLeft" | "center" | "centerRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
+    alignment?:
+      | "topLeft"
+      | "topCenter"
+      | "topRight"
+      | "centerLeft"
+      | "center"
+      | "centerRight"
+      | "bottomLeft"
+      | "bottomCenter"
+      | "bottomRight";
     children: Array<{
       width: number;
       height: number;
@@ -180,9 +181,7 @@ describe("Stack 尺寸确定", () => {
   it("无非定位子节点 -- 使用约束最大值", () => {
     const stack = buildStack(
       {
-        children: [
-          { width: 20, height: 10, left: 5, top: 5, positioned: true },
-        ],
+        children: [{ width: 20, height: 10, left: 5, top: 5, positioned: true }],
       },
       BoxConstraints.tight(100, 80),
     );
@@ -230,8 +229,8 @@ describe("Stack 对齐方式", () => {
       {
         alignment: "center",
         children: [
-          { width: 100, height: 80 },  // 决定 Stack 大小
-          { width: 20, height: 10 },   // 被居中
+          { width: 100, height: 80 }, // 决定 Stack 大小
+          { width: 20, height: 10 }, // 被居中
         ],
       },
       BoxConstraints.loose(200, 200),
@@ -248,8 +247,8 @@ describe("Stack 对齐方式", () => {
       {
         alignment: "bottomRight",
         children: [
-          { width: 100, height: 80 },  // 决定 Stack 大小
-          { width: 20, height: 10 },   // 放右下角
+          { width: 100, height: 80 }, // 决定 Stack 大小
+          { width: 20, height: 10 }, // 放右下角
         ],
       },
       BoxConstraints.loose(200, 200),
@@ -265,8 +264,8 @@ describe("Stack 对齐方式", () => {
       {
         alignment: "topCenter",
         children: [
-          { width: 100, height: 80 },  // 决定 Stack 大小
-          { width: 20, height: 10 },   // 被对齐
+          { width: 100, height: 80 }, // 决定 Stack 大小
+          { width: 20, height: 10 }, // 被对齐
         ],
       },
       BoxConstraints.loose(200, 200),
@@ -287,7 +286,7 @@ describe("Positioned 定位", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 100, height: 80 },  // 非定位子节点，决定大小
+          { width: 100, height: 80 }, // 非定位子节点，决定大小
           { width: 20, height: 10, left: 10, top: 5, positioned: true },
         ],
       },
@@ -302,7 +301,7 @@ describe("Positioned 定位", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 100, height: 80 },  // 非定位子节点，决定大小
+          { width: 100, height: 80 }, // 非定位子节点，决定大小
           { width: 20, height: 10, right: 10, bottom: 5, positioned: true },
         ],
       },
@@ -318,7 +317,7 @@ describe("Positioned 定位", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 100, height: 80 },  // 非定位子节点
+          { width: 100, height: 80 }, // 非定位子节点
           { width: 50, height: 10, left: 0, right: 0, positioned: true },
         ],
       },
@@ -334,7 +333,7 @@ describe("Positioned 定位", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 100, height: 80 },  // 非定位子节点
+          { width: 100, height: 80 }, // 非定位子节点
           { width: 10, height: 20, top: 0, bottom: 0, positioned: true },
         ],
       },
@@ -356,7 +355,7 @@ describe("混合布局", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 80, height: 60 },  // 非定位
+          { width: 80, height: 60 }, // 非定位
           { width: 20, height: 10, left: 5, top: 10, positioned: true },
         ],
       },
@@ -380,7 +379,7 @@ describe("混合布局", () => {
     const stack = buildStack(
       {
         children: [
-          { width: 100, height: 80 },  // 非定位
+          { width: 100, height: 80 }, // 非定位
           { width: 30, height: 20, left: 10, top: 10, positioned: true },
           { width: 30, height: 20, left: 20, top: 20, positioned: true },
         ],
@@ -401,10 +400,7 @@ describe("混合布局", () => {
 
 describe("Stack 边界情况", () => {
   it("空子节点列表 -- 不报错，尺寸为约束值", () => {
-    const stack = buildStack(
-      { children: [] },
-      BoxConstraints.tight(100, 80),
-    );
+    const stack = buildStack({ children: [] }, BoxConstraints.tight(100, 80));
 
     assert.equal(stack.size.width, 100);
     assert.equal(stack.size.height, 80);
@@ -414,9 +410,7 @@ describe("Stack 边界情况", () => {
   it("仅有单个 Positioned 子节点（无非定位子节点确定尺寸）", () => {
     const stack = buildStack(
       {
-        children: [
-          { width: 30, height: 20, left: 10, top: 5, positioned: true },
-        ],
+        children: [{ width: 30, height: 20, left: 10, top: 5, positioned: true }],
       },
       BoxConstraints.tight(100, 80),
     );
@@ -442,7 +436,7 @@ describe("Positioned Widget", () => {
     child.parentData = new StackParentData();
 
     const positioned = new Positioned({
-      child: new Stack(),  // Widget 层的 child
+      child: new Stack(), // Widget 层的 child
       left: 15,
       top: 25,
       right: 35,

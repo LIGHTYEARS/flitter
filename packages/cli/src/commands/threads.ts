@@ -15,6 +15,7 @@
  * );
  * ```
  */
+import type { ThreadStore } from "@flitter/data";
 import type { CliContext } from "../context";
 
 /**
@@ -24,9 +25,7 @@ import type { CliContext } from "../context";
  */
 export interface ThreadsCommandDeps {
   /** Thread 存储服务 */
-  threadStore?: {
-    list(): unknown[];
-  };
+  threadStore?: ThreadStore;
 }
 
 /** threads list 命令选项 */

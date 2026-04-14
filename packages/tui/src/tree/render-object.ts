@@ -9,8 +9,8 @@
  * @module
  */
 
-import { ParentData, getPipelineOwner } from "./types.js";
 import type { Screen } from "../screen/screen.js";
+import { getPipelineOwner, type ParentData } from "./types.js";
 
 /**
  * 渲染树节点抽象基类。
@@ -96,7 +96,7 @@ export abstract class RenderObject {
    *
    * @param child - 待设置的子节点
    */
-  setupParentData(child: RenderObject): void {}
+  setupParentData(_child: RenderObject): void {}
 
   /**
    * 收养子节点。

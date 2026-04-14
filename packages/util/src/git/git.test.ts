@@ -1,15 +1,15 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { spawn } from "../process.ts";
+import type { StatusEntry } from "./git.ts";
 import {
-  parsePortalainStatus,
-  statusEntryToChangeType,
-  isGitRepository,
+  captureGitStatus,
   getCurrentBranch,
   getGitDiff,
-  captureGitStatus,
+  isGitRepository,
+  parsePortalainStatus,
+  statusEntryToChangeType,
 } from "./git.ts";
-import type { StatusEntry } from "./git.ts";
 
 const FLITTER_ROOT = "/home/gem/workspace/flitter";
 
@@ -193,10 +193,7 @@ describe("captureGitStatus", () => {
 
   it("repositoryName is a non-empty string", async () => {
     const snapshot = await captureGitStatus(FLITTER_ROOT);
-    assert.ok(
-      snapshot.repositoryName.length > 0,
-      "repositoryName should be non-empty",
-    );
+    assert.ok(snapshot.repositoryName.length > 0, "repositoryName should be non-empty");
   });
 
   it("provider is 'git'", async () => {

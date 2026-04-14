@@ -1,6 +1,6 @@
-import type { ThreadSnapshot, ThreadMessage } from "@flitter/schemas";
+import type { ThreadContentBlock, ThreadMessage, ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject } from "@flitter/util";
-import { countThreadTokens, countMessageTokens } from "./token-counter";
+import { countThreadTokens } from "./token-counter";
 
 export type CompactionState = "idle" | "compacting";
 
@@ -63,12 +63,14 @@ export class ContextManager {
       // Build summary message
       const summaryMessage: ThreadMessage = {
         role: "user",
-        content: [{
-          type: "summary" as any,
-          summary: { type: "message", summary: summaryText },
-        }],
+        content: [
+          {
+            type: "summary",
+            summary: { type: "message", summary: summaryText },
+          } satisfies ThreadContentBlock,
+        ],
         messageId: 0,
-      } as any;
+      };
 
       // Trim incomplete tool_use sequences from toKeep
       const trimmedKeep = trimIncompleteToolUse(toKeep);
@@ -81,8 +83,14 @@ export class ContextManager {
       };
 
       const tokensAfter = countThreadTokens(newThread);
-      return { compacted: true, thread: newThread, tokensBefore, tokensAfter, summary: summaryText };
-    } catch (err) {
+      return {
+        compacted: true,
+        thread: newThread,
+        tokensBefore,
+        tokensAfter,
+        summary: summaryText,
+      };
+    } catch (_err) {
       // On failure, restore idle and return original thread
       return { compacted: false, thread, tokensBefore, tokensAfter: tokensBefore };
     } finally {
@@ -102,7 +110,9 @@ function trimIncompleteToolUse(messages: ThreadMessage[]): ThreadMessage[] {
     const last = result[result.length - 1];
     if (last.role !== "assistant") break;
 
-    const hasToolUse = Array.isArray(last.content) && last.content.some((b: any) => b.type === "tool_use");
+    const hasToolUse =
+      Array.isArray(last.content) &&
+      last.content.some((b: ThreadContentBlock) => b.type === "tool_use");
 
     if (!hasToolUse) break;
 

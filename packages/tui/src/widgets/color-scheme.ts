@@ -188,9 +188,7 @@ export class AppColorScheme {
    * @param config - RGB 颜色配置映射
    * @returns 新的配色方案实例
    */
-  static fromRgb(
-    config: Record<string, { r: number; g: number; b: number }>
-  ): AppColorScheme {
+  static fromRgb(config: Record<string, { r: number; g: number; b: number }>): AppColorScheme {
     const defaults = AppColorScheme.default();
     const options: Partial<AppColorSchemeOptions> = {};
     for (const field of COLOR_FIELDS) {

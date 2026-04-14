@@ -7,8 +7,13 @@
  */
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
+import {
+  type ConfigScope,
+  GLOBAL_ONLY_KEYS,
+  type Settings,
+  SettingsSchema,
+} from "@flitter/schemas";
 import { Subject } from "@flitter/util";
-import { SettingsSchema, type Settings, type ConfigScope, GLOBAL_ONLY_KEYS, MERGED_ARRAY_KEYS } from "@flitter/schemas";
 import { stripJsonComments } from "./jsonc";
 
 export interface FileSettingsStorageOptions {
@@ -78,7 +83,7 @@ export class FileSettingsStorage {
   /** 读取单键 */
   async get(key: string, scope?: ConfigScope): Promise<unknown> {
     const s = await this.read(scope ?? "global");
-    return (s as any)[key];
+    return (s as Record<string, unknown>)[key];
   }
 
   /** 写入单键 */
@@ -86,7 +91,7 @@ export class FileSettingsStorage {
     const targetScope = scope ?? "global";
     this.validateScopeForKey(key, targetScope);
     const current = await this.read(targetScope);
-    (current as any)[key] = value;
+    (current as Record<string, unknown>)[key] = value;
     await this.write(targetScope, current);
     this.changes.next([key]);
   }
@@ -95,7 +100,7 @@ export class FileSettingsStorage {
   async delete(key: string, scope?: ConfigScope): Promise<void> {
     const targetScope = scope ?? "global";
     const current = await this.read(targetScope);
-    delete (current as any)[key];
+    delete (current as Record<string, unknown>)[key];
     await this.write(targetScope, current);
     this.changes.next([key]);
   }
@@ -104,9 +109,10 @@ export class FileSettingsStorage {
   async append(key: string, value: unknown, scope?: ConfigScope): Promise<void> {
     const targetScope = scope ?? "global";
     const current = await this.read(targetScope);
-    const arr = Array.isArray((current as any)[key]) ? [...(current as any)[key]] : [];
+    const currentRecord = current as Record<string, unknown>;
+    const arr = Array.isArray(currentRecord[key]) ? [...(currentRecord[key] as unknown[])] : [];
     arr.push(value);
-    (current as any)[key] = arr;
+    currentRecord[key] = arr;
     await this.write(targetScope, current);
     this.changes.next([key]);
   }
@@ -115,9 +121,10 @@ export class FileSettingsStorage {
   async prepend(key: string, value: unknown, scope?: ConfigScope): Promise<void> {
     const targetScope = scope ?? "global";
     const current = await this.read(targetScope);
-    const arr = Array.isArray((current as any)[key]) ? [...(current as any)[key]] : [];
+    const currentRecord = current as Record<string, unknown>;
+    const arr = Array.isArray(currentRecord[key]) ? [...(currentRecord[key] as unknown[])] : [];
     arr.unshift(value);
-    (current as any)[key] = arr;
+    currentRecord[key] = arr;
     await this.write(targetScope, current);
     this.changes.next([key]);
   }
@@ -165,8 +172,8 @@ export class FileSettingsStorage {
     let raw: string;
     try {
       raw = await fsp.readFile(filePath, "utf-8");
-    } catch (err: any) {
-      if (err?.code === "ENOENT") {
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
         // Try .jsonc fallback if .json
         if (filePath.endsWith(".json")) {
           const jsoncPath = filePath.replace(/\.json$/, ".jsonc");
@@ -187,7 +194,7 @@ export class FileSettingsStorage {
       const parsed = JSON.parse(stripped);
       // Partial validation — strip unknown keys
       const result = SettingsSchema.partial().safeParse(parsed);
-      return result.success ? result.data as Partial<Settings> : parsed;
+      return result.success ? (result.data as Partial<Settings>) : parsed;
     } catch {
       return {};
     }

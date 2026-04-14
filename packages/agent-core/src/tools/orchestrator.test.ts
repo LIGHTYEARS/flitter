@@ -3,21 +3,21 @@
  *
  * 覆盖 hasResourceConflict、batchToolsByDependency、ToolOrchestrator
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
-import {
-  hasResourceConflict,
-  batchToolsByDependency,
-  ToolOrchestrator,
-  type ToolUseItem,
-  type OrchestratorCallbacks,
-  type ToolThreadEvent,
-  type HookResult,
-} from "./orchestrator";
-import { ToolRegistry } from "./registry";
-import type { ToolSpec, ToolResult, ToolContext, ResourceKey } from "./types";
+import { describe, it } from "node:test";
 import type { Config } from "@flitter/schemas";
 import { Observable } from "@flitter/util";
+import {
+  batchToolsByDependency,
+  hasResourceConflict,
+  type OrchestratorCallbacks,
+  ToolOrchestrator,
+  type ToolThreadEvent,
+  type ToolUseItem,
+} from "./orchestrator";
+import { ToolRegistry } from "./registry";
+import type { ResourceKey, ToolResult, ToolSpec } from "./types";
 
 // ─── 测试辅助函数 ──────────────────────────────────────────
 
@@ -38,17 +38,22 @@ function createTestRegistry(tools: Partial<ToolSpec>[]): ToolRegistry {
   return registry;
 }
 
-function createMockCallbacks(
-  overrides?: Partial<OrchestratorCallbacks>,
-): OrchestratorCallbacks {
+function createMockCallbacks(overrides?: Partial<OrchestratorCallbacks>): OrchestratorCallbacks {
   return {
-    getConfig: async () => ({ settings: {}, secrets: { getToken: async () => undefined, isSet: () => false } } as Config),
+    getConfig: async () =>
+      ({
+        settings: {},
+        secrets: { getToken: async () => undefined, isSet: () => false },
+      }) as Config,
     updateThread: async () => {},
     getToolRunEnvironment: async (_id: string, signal: AbortSignal) => ({
       workingDirectory: "/tmp",
       signal,
       threadId: "test-thread",
-      config: { settings: {}, secrets: { getToken: async () => undefined, isSet: () => false } } as Config,
+      config: {
+        settings: {},
+        secrets: { getToken: async () => undefined, isSet: () => false },
+      } as Config,
     }),
     applyHookResult: async () => ({ abortOp: false }),
     applyPostHookResult: async () => {},
@@ -58,11 +63,7 @@ function createMockCallbacks(
   };
 }
 
-function createDelayedTool(
-  name: string,
-  delayMs: number,
-  result?: ToolResult,
-): Partial<ToolSpec> {
+function createDelayedTool(name: string, delayMs: number, result?: ToolResult): Partial<ToolSpec> {
   return {
     name,
     execute: async () => {
@@ -72,10 +73,7 @@ function createDelayedTool(
   };
 }
 
-function createResourceTool(
-  name: string,
-  keys: ResourceKey[],
-): Partial<ToolSpec> {
+function createResourceTool(name: string, keys: ResourceKey[]): Partial<ToolSpec> {
   return {
     name,
     executionProfile: { resourceKeys: keys },
@@ -100,30 +98,21 @@ describe("hasResourceConflict", () => {
   });
 
   it("工具 A serial=true → 冲突", () => {
-    const registry = createTestRegistry([
-      createSerialTool("a"),
-      { name: "b" },
-    ]);
+    const registry = createTestRegistry([createSerialTool("a"), { name: "b" }]);
     const a: ToolUseItem = { id: "1", name: "a", input: {} };
     const b: ToolUseItem = { id: "2", name: "b", input: {} };
     assert.equal(hasResourceConflict(a, b, registry), true);
   });
 
   it("工具 B serial=true → 冲突", () => {
-    const registry = createTestRegistry([
-      { name: "a" },
-      createSerialTool("b"),
-    ]);
+    const registry = createTestRegistry([{ name: "a" }, createSerialTool("b")]);
     const a: ToolUseItem = { id: "1", name: "a", input: {} };
     const b: ToolUseItem = { id: "2", name: "b", input: {} };
     assert.equal(hasResourceConflict(a, b, registry), true);
   });
 
   it("两工具都 serial=true → 冲突", () => {
-    const registry = createTestRegistry([
-      createSerialTool("a"),
-      createSerialTool("b"),
-    ]);
+    const registry = createTestRegistry([createSerialTool("a"), createSerialTool("b")]);
     const a: ToolUseItem = { id: "1", name: "a", input: {} };
     const b: ToolUseItem = { id: "2", name: "b", input: {} };
     assert.equal(hasResourceConflict(a, b, registry), true);
@@ -279,10 +268,7 @@ describe("batchToolsByDependency", () => {
 describe("ToolOrchestrator", () => {
   describe("executeToolsWithPlan", () => {
     it("并行执行: 无冲突工具同时开始 (计时验证)", async () => {
-      const registry = createTestRegistry([
-        createDelayedTool("a", 50),
-        createDelayedTool("b", 50),
-      ]);
+      const registry = createTestRegistry([createDelayedTool("a", 50), createDelayedTool("b", 50)]);
       const callbacks = createMockCallbacks();
       const orch = new ToolOrchestrator("t1", registry, callbacks);
 
@@ -332,7 +318,9 @@ describe("ToolOrchestrator", () => {
         },
       ]);
       const callbacks = createMockCallbacks({
-        updateThread: async (event) => { events.push(event); },
+        updateThread: async (event) => {
+          events.push(event);
+        },
       });
       const orch = new ToolOrchestrator("t1", registry, callbacks);
       await orch.executeToolsWithPlan([{ id: "1", name: "read", input: {} }]);
@@ -387,11 +375,15 @@ describe("ToolOrchestrator", () => {
       const registry = createTestRegistry([
         {
           name: "fail",
-          execute: async () => { throw new Error("boom"); },
+          execute: async () => {
+            throw new Error("boom");
+          },
         },
       ]);
       const callbacks = createMockCallbacks({
-        updateThread: async (event) => { events.push(event); },
+        updateThread: async (event) => {
+          events.push(event);
+        },
       });
       const orch = new ToolOrchestrator("t1", registry, callbacks);
       await orch.executeToolsWithPlan([{ id: "1", name: "fail", input: {} }]);
@@ -415,7 +407,9 @@ describe("ToolOrchestrator", () => {
         },
       ]);
       const callbacks = createMockCallbacks({
-        updateThread: async (event) => { events.push(event); },
+        updateThread: async (event) => {
+          events.push(event);
+        },
       });
       const orch = new ToolOrchestrator("t1", registry, callbacks);
       // Pre-cancel the tool
@@ -430,7 +424,9 @@ describe("ToolOrchestrator", () => {
       const events: ToolThreadEvent[] = [];
       const registry = createTestRegistry([]);
       const callbacks = createMockCallbacks({
-        updateThread: async (event) => { events.push(event); },
+        updateThread: async (event) => {
+          events.push(event);
+        },
       });
       const orch = new ToolOrchestrator("t1", registry, callbacks);
       await orch.executeToolsWithPlan([{ id: "1", name: "nonexistent", input: {} }]);
@@ -454,7 +450,9 @@ describe("ToolOrchestrator", () => {
       ]);
       const callbacks = createMockCallbacks({
         applyHookResult: async () => ({ abortOp: true }),
-        updateThread: async (event) => { events.push(event); },
+        updateThread: async (event) => {
+          events.push(event);
+        },
       });
       const orch = new ToolOrchestrator("t1", registry, callbacks);
       await orch.executeToolsWithPlan([{ id: "1", name: "read", input: {} }]);

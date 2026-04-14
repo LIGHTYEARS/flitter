@@ -12,23 +12,21 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 
 import { InputParser } from "./input-parser.js";
-import { VtParser } from "./vt-parser.js";
 import type {
   InputEvent,
   KeyEvent,
-  MouseEvent as TermMouseEvent,
+  Modifiers,
   PasteEvent,
   FocusEvent as TermFocusEvent,
+  MouseEvent as TermMouseEvent,
   VtCsiEvent,
   VtEscapeEvent,
   VtPrintEvent,
-  Modifiers,
 } from "./types.js";
-import { MODIFIERS_NONE } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助工具
@@ -54,9 +52,7 @@ function feedStr(input: string): InputEvent[] {
 }
 
 /** 手动传入 VtEvent 并收集输入事件 */
-function handleAndCollect(
-  setup: (parser: InputParser) => void,
-): InputEvent[] {
+function handleAndCollect(setup: (parser: InputParser) => void): InputEvent[] {
   const parser = new InputParser();
   const events: InputEvent[] = [];
   parser.onInput((e) => events.push(e));
@@ -702,10 +698,10 @@ describe("集成测试", () => {
   it("44. 完整集成：C0 + 打印 + CSI 混合", () => {
     // Tab + 'A' + ArrowUp + 'B'
     const buf = Buffer.concat([
-      Buffer.from([0x09]),             // Tab
-      Buffer.from("A", "latin1"),      // 'A'
+      Buffer.from([0x09]), // Tab
+      Buffer.from("A", "latin1"), // 'A'
       Buffer.from("\x1b[A", "latin1"), // ArrowUp
-      Buffer.from("B", "latin1"),      // 'B'
+      Buffer.from("B", "latin1"), // 'B'
     ]);
     const events = feedAndCollect(buf);
     assert.equal(events.length, 4);

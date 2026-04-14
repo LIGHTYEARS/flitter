@@ -9,7 +9,6 @@
  * import { createContainer, type ContainerOptions, type ServiceContainer } from 'flitter';
  *
  * const container = await createContainer({
- *   ampURL: 'https://api.example.com',
  *   settings: mySettings,
  *   secrets: mySecrets,
  *   workspaceRoot: process.cwd(),
@@ -17,25 +16,25 @@
  * ```
  */
 
-// ─── Container ────────────────────────────────────────────
-export { createContainer } from "./container";
 export type {
   ContainerOptions,
-  ServiceContainer,
-  SecretStorage,
   GuidanceLoader,
+  SecretStorage,
+  ServiceContainer,
 } from "./container";
+// ─── Container ────────────────────────────────────────────
+export { createContainer } from "./container";
 
 // ─── Factory (供高级用户直接组装) ──────────────────────────
 export {
   createConfigService,
+  createContextManager,
+  createGuidanceLoader,
+  createMCPServerManager,
+  createPermissionEngine,
+  createSkillService,
+  createThreadPersistence,
+  createThreadStore,
   createToolRegistry,
   registerBuiltinTools,
-  createPermissionEngine,
-  createMCPServerManager,
-  createSkillService,
-  createGuidanceLoader,
-  createThreadStore,
-  createThreadPersistence,
-  createContextManager,
 } from "./factory";

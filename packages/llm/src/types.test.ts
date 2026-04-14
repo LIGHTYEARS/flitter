@@ -3,17 +3,14 @@
  *
  * 测试: MODEL_REGISTRY, ProviderError, TransformState, BaseToolTransformer, BaseMessageTransformer
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import {
-  MODEL_REGISTRY,
-  ProviderError,
-  TransformState,
-} from "./types";
-import type { ToolDefinition, SystemPromptBlock } from "./types";
+import { describe, it } from "node:test";
+import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "./transformers/message-transformer";
 import { BaseToolTransformer } from "./transformers/tool-transformer";
-import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
+import type { SystemPromptBlock, ToolDefinition } from "./types";
+import { MODEL_REGISTRY, ProviderError, TransformState } from "./types";
 
 // ─── 辅助: 测试用 concrete 子类 ─────────────────────────
 
@@ -21,7 +18,10 @@ class TestMessageTransformer extends BaseMessageTransformer<unknown, unknown> {
   toProviderMessages(_messages: Message[], _systemPrompt: SystemPromptBlock[]): unknown[] {
     return [];
   }
-  fromProviderDelta(_chunk: unknown, _state: TransformState): ReturnType<typeof this.createEmptyDelta> {
+  fromProviderDelta(
+    _chunk: unknown,
+    _state: TransformState,
+  ): ReturnType<typeof this.createEmptyDelta> {
     return this.createEmptyDelta();
   }
 }

@@ -4,17 +4,14 @@
  * Uses node:http createServer as mock HTTP/SSE server.
  * Test patterns: node:test + node:assert/strict, co-located test file.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import http from "node:http";
-import { SSEEventParser, createSSEParser } from "./sse-parser";
+import { afterEach, describe, it } from "node:test";
+import type { JSONRPCMessage, JSONRPCNotification, JSONRPCSuccessResponse } from "../types";
 import type { SSEEvent } from "./sse-parser";
-import {
-  StreamableHTTPTransport,
-  StreamableHTTPError,
-  UnauthorizedError,
-} from "./streamable-http";
-import type { JSONRPCMessage } from "../types";
+import { createSSEParser, SSEEventParser } from "./sse-parser";
+import { StreamableHTTPError, StreamableHTTPTransport, UnauthorizedError } from "./streamable-http";
 
 // ─── Test helpers ──────────────────────────────────────
 
@@ -31,9 +28,7 @@ async function collectStream<T>(stream: ReadableStream<T>): Promise<T[]> {
 }
 
 /** Create an SSE-format string from events. */
-function formatSSEEvents(
-  events: Array<{ event?: string; data: string; id?: string }>,
-): string {
+function formatSSEEvents(events: Array<{ event?: string; data: string; id?: string }>): string {
   let result = "";
   for (const evt of events) {
     if (evt.event) result += `event: ${evt.event}\n`;
@@ -193,9 +188,7 @@ describe("SSEEventParser", () => {
         controller.close();
       },
     });
-    const events = await collectStream(
-      readable.pipeThrough(new SSEEventParser()),
-    );
+    const events = await collectStream(readable.pipeThrough(new SSEEventParser()));
     assert.equal(events.length, 1);
     assert.equal(events[0].data, "hello");
   });
@@ -301,7 +294,7 @@ describe("StreamableHTTPTransport", () => {
     await transport.send({ jsonrpc: "2.0", id: 1, method: "ping" });
 
     assert.equal(received.length, 1);
-    assert.equal((received[0] as any).result, "pong");
+    assert.equal((received[0] as JSONRPCSuccessResponse).result, "pong");
   });
 
   it("should POST JSON and receive SSE stream response", async () => {
@@ -340,7 +333,7 @@ describe("StreamableHTTPTransport", () => {
     });
 
     assert.equal(received.length, 1);
-    assert.deepEqual((received[0] as any).result, { tools: [] });
+    assert.deepEqual((received[0] as JSONRPCSuccessResponse).result, { tools: [] });
   });
 
   it("should receive multiple messages from SSE stream", async () => {
@@ -381,8 +374,8 @@ describe("StreamableHTTPTransport", () => {
     });
 
     assert.equal(received.length, 2);
-    assert.equal((received[0] as any).result, "first");
-    assert.equal((received[1] as any).method, "notifications/tools/list_changed");
+    assert.equal((received[0] as JSONRPCSuccessResponse).result, "first");
+    assert.equal((received[1] as JSONRPCNotification).method, "notifications/tools/list_changed");
   });
 
   it("should capture mcp-session-id from response headers", async () => {
@@ -545,7 +538,7 @@ describe("StreamableHTTPTransport", () => {
     let capturedAuth: string | undefined;
 
     const s = await createTestServer((req, res) => {
-      capturedAuth = req.headers["authorization"] as string | undefined;
+      capturedAuth = req.headers.authorization as string | undefined;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end('{"jsonrpc":"2.0","id":1,"result":"ok"}');
     });
@@ -593,9 +586,7 @@ describe("StreamableHTTPTransport", () => {
     let capturedVersion: string | undefined;
 
     const s = await createTestServer((req, res) => {
-      capturedVersion = req.headers["mcp-protocol-version"] as
-        | string
-        | undefined;
+      capturedVersion = req.headers["mcp-protocol-version"] as string | undefined;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end('{"jsonrpc":"2.0","id":1,"result":"ok"}');
     });
@@ -846,7 +837,7 @@ describe("StreamableHTTPTransport", () => {
     let capturedAuth: string | undefined;
 
     const s = await createTestServer((req, res) => {
-      capturedAuth = req.headers["authorization"] as string | undefined;
+      capturedAuth = req.headers.authorization as string | undefined;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end('{"jsonrpc":"2.0","id":1,"result":"ok"}');
     });
@@ -873,7 +864,7 @@ describe("StreamableHTTPTransport", () => {
 
     const s = await createTestServer((req, res) => {
       capturedContentType = req.headers["content-type"] as string | undefined;
-      capturedAccept = req.headers["accept"] as string | undefined;
+      capturedAccept = req.headers.accept as string | undefined;
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end('{"jsonrpc":"2.0","id":1,"result":"ok"}');
     });

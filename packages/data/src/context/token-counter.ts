@@ -3,6 +3,7 @@
  * ASCII/Latin: chars / 4
  * CJK (Chinese/Japanese/Korean): chars / 2
  */
+import type { ThreadMessage } from "@flitter/schemas";
 
 /** Check if a character code is CJK */
 function isCJK(code: number): boolean {
@@ -13,13 +14,15 @@ function isCJK(code: number): boolean {
   // Katakana: 30A0-30FF
   // Hangul Syllables: AC00-D7AF
   // CJK Symbols: 3000-303F
-  return (code >= 0x4E00 && code <= 0x9FFF) ||
-    (code >= 0x3400 && code <= 0x4DBF) ||
-    (code >= 0xF900 && code <= 0xFAFF) ||
-    (code >= 0x3040 && code <= 0x309F) ||
-    (code >= 0x30A0 && code <= 0x30FF) ||
-    (code >= 0xAC00 && code <= 0xD7AF) ||
-    (code >= 0x3000 && code <= 0x303F);
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) ||
+    (code >= 0x3400 && code <= 0x4dbf) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0x3040 && code <= 0x309f) ||
+    (code >= 0x30a0 && code <= 0x30ff) ||
+    (code >= 0xac00 && code <= 0xd7af) ||
+    (code >= 0x3000 && code <= 0x303f)
+  );
 }
 
 export function countTokensApprox(text: string): number {
@@ -37,7 +40,9 @@ export function countTokensApprox(text: string): number {
 }
 
 /** Count tokens for a single message */
-export function countMessageTokens(message: any): number {
+export function countMessageTokens(
+  message: ThreadMessage | { role: string; content?: unknown },
+): number {
   if (!message.content || !Array.isArray(message.content)) return 0;
   let total = 0;
   for (const block of message.content) {
@@ -67,7 +72,9 @@ export function countMessageTokens(message: any): number {
 }
 
 /** Count tokens for entire thread */
-export function countThreadTokens(thread: { messages: any[] }): number {
+export function countThreadTokens(thread: {
+  messages: (ThreadMessage | { role: string; content?: unknown })[];
+}): number {
   let total = 0;
   for (const msg of thread.messages) {
     total += countMessageTokens(msg);

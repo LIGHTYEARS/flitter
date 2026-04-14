@@ -2,18 +2,19 @@
  * Tests for Guidance file loader — parseFrontmatter, matchGlobs,
  * extractAtReferences, isRootDirectory, discoverGuidanceFiles.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import {
-  parseFrontmatter,
-  matchGlobs,
+  discoverGuidanceFiles,
   extractAtReferences,
   isRootDirectory,
-  discoverGuidanceFiles,
+  matchGlobs,
+  parseFrontmatter,
 } from "./guidance-loader";
 
 let tmpDir: string;
@@ -219,14 +220,9 @@ describe("discoverGuidanceFiles", () => {
 
     const files = await discoverGuidanceFiles({ workspaceRoots: [workspace] });
 
-    const fromWorkspace = files.filter(
-      (f) => path.dirname(f.uri) === workspace,
-    );
+    const fromWorkspace = files.filter((f) => path.dirname(f.uri) === workspace);
     assert.equal(fromWorkspace.length, 1, "only one file per directory");
-    assert.ok(
-      fromWorkspace[0].uri.endsWith("AGENTS.md"),
-      "AGENTS.md preferred",
-    );
+    assert.ok(fromWorkspace[0].uri.endsWith("AGENTS.md"), "AGENTS.md preferred");
   });
 
   it("should only load one file per directory (dedup)", async () => {
@@ -237,9 +233,7 @@ describe("discoverGuidanceFiles", () => {
 
     const files = await discoverGuidanceFiles({ workspaceRoots: [workspace] });
 
-    const fromWorkspace = files.filter(
-      (f) => path.dirname(f.uri) === workspace,
-    );
+    const fromWorkspace = files.filter((f) => path.dirname(f.uri) === workspace);
     assert.equal(fromWorkspace.length, 1);
   });
 
@@ -252,10 +246,7 @@ describe("discoverGuidanceFiles", () => {
     await fsp.mkdir(workspace, { recursive: true });
     await fsp.mkdir(configDir, { recursive: true });
 
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "Project guidance",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "Project guidance");
     await fsp.writeFile(path.join(parentDir, "CLAUDE.md"), "Parent guidance");
     await fsp.writeFile(path.join(configDir, "AGENTS.md"), "User guidance");
 
@@ -264,15 +255,9 @@ describe("discoverGuidanceFiles", () => {
       userConfigDir: configDir,
     });
 
-    const project = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
-    const parent = files.find(
-      (f) => f.uri === path.join(parentDir, "CLAUDE.md"),
-    );
-    const user = files.find(
-      (f) => f.uri === path.join(configDir, "AGENTS.md"),
-    );
+    const project = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
+    const parent = files.find((f) => f.uri === path.join(parentDir, "CLAUDE.md"));
+    const user = files.find((f) => f.uri === path.join(configDir, "AGENTS.md"));
 
     assert.ok(project, "project file found");
     assert.equal(project.type, "project");
@@ -290,22 +275,14 @@ describe("discoverGuidanceFiles", () => {
     const workspace = path.join(parentDir, "workspace");
 
     await fsp.mkdir(workspace, { recursive: true });
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "Project",
-    );
-    await fsp.writeFile(
-      path.join(grandparent, "CLAUDE.md"),
-      "Grandparent",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "Project");
+    await fsp.writeFile(path.join(grandparent, "CLAUDE.md"), "Grandparent");
 
     const files = await discoverGuidanceFiles({
       workspaceRoots: [workspace],
     });
 
-    const grandparentFile = files.find(
-      (f) => f.uri === path.join(grandparent, "CLAUDE.md"),
-    );
+    const grandparentFile = files.find((f) => f.uri === path.join(grandparent, "CLAUDE.md"));
     assert.ok(grandparentFile, "should find grandparent CLAUDE.md");
     assert.equal(grandparentFile.type, "parent");
   });
@@ -328,10 +305,7 @@ describe("discoverGuidanceFiles", () => {
     const subDir = path.join(workspace, "sub");
 
     await fsp.mkdir(subDir, { recursive: true });
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "Main guidance @sub/AGENTS.md",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "Main guidance @sub/AGENTS.md");
     await fsp.writeFile(path.join(subDir, "AGENTS.md"), "Sub guidance");
 
     const files = await discoverGuidanceFiles({
@@ -339,9 +313,7 @@ describe("discoverGuidanceFiles", () => {
     });
 
     const mentioned = files.find(
-      (f) =>
-        f.uri === path.join(workspace, "sub", "AGENTS.md") &&
-        f.type === "mentioned",
+      (f) => f.uri === path.join(workspace, "sub", "AGENTS.md") && f.type === "mentioned",
     );
     assert.ok(mentioned, "referenced file loaded as mentioned");
     assert.equal(mentioned.content, "Sub guidance");
@@ -352,14 +324,8 @@ describe("discoverGuidanceFiles", () => {
     await fsp.mkdir(workspace, { recursive: true });
 
     // A references B, B references A
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "See @other.md",
-    );
-    await fsp.writeFile(
-      path.join(workspace, "other.md"),
-      "See @AGENTS.md",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "See @other.md");
+    await fsp.writeFile(path.join(workspace, "other.md"), "See @AGENTS.md");
 
     const files = await discoverGuidanceFiles({
       workspaceRoots: [workspace],
@@ -383,14 +349,9 @@ describe("discoverGuidanceFiles", () => {
       maxBytesPerFile: 100,
     });
 
-    const file = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
+    const file = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
     assert.ok(file, "file found");
-    assert.ok(
-      Buffer.byteLength(file.content, "utf-8") <= 100,
-      "content truncated to budget",
-    );
+    assert.ok(Buffer.byteLength(file.content, "utf-8") <= 100, "content truncated to budget");
   });
 
   it("should gracefully handle missing files", async () => {
@@ -402,9 +363,7 @@ describe("discoverGuidanceFiles", () => {
       workspaceRoots: [workspace],
     });
 
-    const fromWorkspace = files.filter(
-      (f) => path.dirname(f.uri) === workspace,
-    );
+    const fromWorkspace = files.filter((f) => path.dirname(f.uri) === workspace);
     assert.equal(fromWorkspace.length, 0, "no files from empty workspace");
   });
 
@@ -431,9 +390,7 @@ Python only guidance`,
       readFiles: ["src/index.ts"],
     });
 
-    const file = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
+    const file = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
     assert.ok(file, "file found");
     assert.equal(file.exclude, true, "excluded because glob does not match");
   });
@@ -456,9 +413,7 @@ TypeScript guidance`,
       readFiles: ["src/index.ts"],
     });
 
-    const file = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
+    const file = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
     assert.ok(file, "file found");
     assert.equal(file.exclude, false, "not excluded because glob matches");
   });
@@ -467,19 +422,14 @@ TypeScript guidance`,
     const workspace = path.join(tmpDir, "workspace");
     await fsp.mkdir(workspace, { recursive: true });
 
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "No frontmatter guidance",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "No frontmatter guidance");
 
     const files = await discoverGuidanceFiles({
       workspaceRoots: [workspace],
       readFiles: ["src/index.ts"],
     });
 
-    const file = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
+    const file = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
     assert.ok(file, "file found");
     assert.equal(file.exclude, false, "not excluded when no globs");
   });
@@ -488,18 +438,13 @@ TypeScript guidance`,
     const workspace = path.join(tmpDir, "workspace");
     await fsp.mkdir(workspace, { recursive: true });
 
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "Line 1\nLine 2\nLine 3",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "Line 1\nLine 2\nLine 3");
 
     const files = await discoverGuidanceFiles({
       workspaceRoots: [workspace],
     });
 
-    const file = files.find(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
+    const file = files.find((f) => f.uri === path.join(workspace, "AGENTS.md"));
     assert.ok(file);
     assert.equal(file.lineCount, 3);
   });
@@ -509,25 +454,15 @@ TypeScript guidance`,
     const subDir = path.join(workspace, "sub");
     await fsp.mkdir(subDir, { recursive: true });
 
-    await fsp.writeFile(
-      path.join(workspace, "AGENTS.md"),
-      "Main @sub/referenced.md",
-    );
-    await fsp.writeFile(
-      path.join(subDir, "referenced.md"),
-      "Referenced content",
-    );
+    await fsp.writeFile(path.join(workspace, "AGENTS.md"), "Main @sub/referenced.md");
+    await fsp.writeFile(path.join(subDir, "referenced.md"), "Referenced content");
 
     const files = await discoverGuidanceFiles({
       workspaceRoots: [workspace],
     });
 
-    const mainIdx = files.findIndex(
-      (f) => f.uri === path.join(workspace, "AGENTS.md"),
-    );
-    const refIdx = files.findIndex(
-      (f) => f.uri === path.join(subDir, "referenced.md"),
-    );
+    const mainIdx = files.findIndex((f) => f.uri === path.join(workspace, "AGENTS.md"));
+    const refIdx = files.findIndex((f) => f.uri === path.join(subDir, "referenced.md"));
 
     assert.ok(mainIdx >= 0, "main file found");
     assert.ok(refIdx >= 0, "referenced file found");

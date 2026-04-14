@@ -24,14 +24,15 @@
  * await installWithPackageManager("npm", "2.0.0");
  * ```
  */
+
+import { execFile } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { rename, chmod, unlink } from "node:fs/promises";
+import { chmod, rename, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import type { InstallMethod, UpdateInfo } from "./checker";
 import { computeSHA256 } from "./checker";
-import type { UpdateInfo, InstallMethod } from "./checker";
 
 const execFileAsync = promisify(execFile);
 
@@ -82,10 +83,7 @@ export interface InstallOptions {
  * });
  * ```
  */
-export async function installBinaryUpdate(
-  info: UpdateInfo,
-  opts?: InstallOptions,
-): Promise<void> {
+export async function installBinaryUpdate(info: UpdateInfo, opts?: InstallOptions): Promise<void> {
   const targetPath = opts?.targetPath ?? process.execPath;
   const tempPath = join(tmpdir(), `flitter-update-${Date.now()}`);
 

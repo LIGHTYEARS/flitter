@@ -4,35 +4,32 @@
  * 覆盖差分渲染、全屏渲染、光标控制、SGR 编码、宽字符处理及端到端集成。
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-import { Screen } from "./screen.js";
-import { Cell } from "./cell.js";
-import { TextStyle } from "./text-style.js";
-import { Color } from "./color.js";
+import { describe, it } from "node:test";
 import {
+  ALT_SCREEN_OFF,
+  ALT_SCREEN_ON,
   AnsiRenderer,
-  ESC,
-  CSI,
-  CUP,
-  CUF,
-  CUB,
-  CUU,
-  CUD,
-  HIDE_CURSOR,
-  SHOW_CURSOR,
-  CLEAR_SCREEN,
   CLEAR_LINE,
+  CLEAR_SCREEN,
+  CSI,
+  CUB,
+  CUD,
+  CUF,
+  CUP,
+  CUU,
+  HIDE_CURSOR,
+  MOUSE_OFF,
+  MOUSE_ON,
+  PASTE_OFF,
+  PASTE_ON,
   SGR,
   SGR_RESET,
-  ALT_SCREEN_ON,
-  ALT_SCREEN_OFF,
-  MOUSE_ON,
-  MOUSE_OFF,
-  PASTE_ON,
-  PASTE_OFF,
+  SHOW_CURSOR,
 } from "./ansi-renderer.js";
+import { Color } from "./color.js";
+import { Screen } from "./screen.js";
+import { TextStyle } from "./text-style.js";
 
 // ── ANSI 常量测试 ────────────────────────────────────
 
@@ -514,7 +511,7 @@ describe("端到端集成", () => {
 
     // Frame 2
     screen.writeChar(1, 0, "2", TextStyle.NORMAL);
-    const f2 = renderer.render(screen);
+    const _f2 = renderer.render(screen);
     screen.present();
 
     // Frame 3 - 无变化

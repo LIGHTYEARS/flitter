@@ -1,14 +1,14 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { z } from "zod";
 import {
-  ConfigScopeSchema,
-  SecretKeySchema,
-  MCPPermissionEntrySchema,
-  SettingsSchema,
   ADMIN_OVERRIDE_KEYS,
-  MERGED_ARRAY_KEYS,
+  ConfigScopeSchema,
   GLOBAL_ONLY_KEYS,
+  MCPPermissionEntrySchema,
+  MERGED_ARRAY_KEYS,
+  SecretKeySchema,
+  SettingsSchema,
 } from "./config";
 
 // ─── ConfigScope ─────────────────────────────────────────────
@@ -187,7 +187,10 @@ describe("SettingsSchema", () => {
     };
     const result = SettingsSchema.parse(settings);
     assert.ok(result.mcpServers);
-    const server = result.mcpServers["remote-server"] as { url: string; headers?: Record<string, string> };
+    const server = result.mcpServers["remote-server"] as {
+      url: string;
+      headers?: Record<string, string>;
+    };
     assert.equal(server.url, "https://mcp.example.com/sse");
     assert.deepEqual(server.headers, { Authorization: "Bearer token123" });
   });
@@ -222,9 +225,7 @@ describe("SettingsSchema", () => {
 
   it("should parse permissions with delegate action and to field", () => {
     const settings = {
-      permissions: [
-        { tool: "Write", action: "delegate", to: "admin" },
-      ],
+      permissions: [{ tool: "Write", action: "delegate", to: "admin" }],
     };
     const result = SettingsSchema.parse(settings);
     assert.ok(result.permissions);
@@ -234,9 +235,7 @@ describe("SettingsSchema", () => {
 
   it("should parse permissions with reject action and message", () => {
     const settings = {
-      permissions: [
-        { tool: "Bash", action: "reject", message: "Bash is disabled" },
-      ],
+      permissions: [{ tool: "Bash", action: "reject", message: "Bash is disabled" }],
     };
     const result = SettingsSchema.parse(settings);
     assert.ok(result.permissions);
@@ -246,9 +245,7 @@ describe("SettingsSchema", () => {
 
   it("should parse permissions with ask action", () => {
     const settings = {
-      permissions: [
-        { tool: "Edit", action: "ask" },
-      ],
+      permissions: [{ tool: "Edit", action: "ask" }],
     };
     const result = SettingsSchema.parse(settings);
     assert.ok(result.permissions);
@@ -257,9 +254,7 @@ describe("SettingsSchema", () => {
 
   it("should parse permissions with matches field", () => {
     const settings = {
-      permissions: [
-        { tool: "Bash", action: "allow", matches: { command: "ls *" } },
-      ],
+      permissions: [{ tool: "Bash", action: "allow", matches: { command: "ls *" } }],
     };
     const result = SettingsSchema.parse(settings);
     assert.ok(result.permissions);
@@ -268,18 +263,14 @@ describe("SettingsSchema", () => {
 
   it("should reject permissions where delegate is missing to field", () => {
     const settings = {
-      permissions: [
-        { tool: "Bash", action: "delegate" },
-      ],
+      permissions: [{ tool: "Bash", action: "delegate" }],
     };
     assert.throws(() => SettingsSchema.parse(settings));
   });
 
   it("should reject permissions where allow has a to field", () => {
     const settings = {
-      permissions: [
-        { tool: "Bash", action: "allow", to: "admin" },
-      ],
+      permissions: [{ tool: "Bash", action: "allow", to: "admin" }],
     };
     assert.throws(() => SettingsSchema.parse(settings));
   });
@@ -339,7 +330,7 @@ describe("SettingsSchema", () => {
     };
     const result = SettingsSchema.parse(settings);
     assert.equal(result.url, "https://api.example.com");
-    assert.equal((result as Record<string, unknown>)["unknownKey"], undefined);
+    assert.equal((result as Record<string, unknown>).unknownKey, undefined);
   });
 });
 
@@ -369,8 +360,8 @@ describe("ADMIN_OVERRIDE_KEYS", () => {
     }
   });
 
-  it("should have exactly 15 entries", () => {
-    assert.equal(ADMIN_OVERRIDE_KEYS.length, 15);
+  it("should have exactly 22 entries", () => {
+    assert.equal(ADMIN_OVERRIDE_KEYS.length, 22);
   });
 });
 
@@ -435,9 +426,12 @@ describe("JSON Schema conversion", () => {
       assert.equal(jsonSchema.type, "object");
       assert.ok(jsonSchema.properties);
       assert.ok("url" in (jsonSchema.properties as Record<string, unknown>));
-    } catch (err: any) {
+    } catch (err: unknown) {
       // PermissionMatcherSchema contains z.undefined() which can't be serialized to JSON Schema
-      assert.ok(err.message.includes("Undefined") || err.message.includes("undefined"));
+      assert.ok(
+        (err as { message: string }).message.includes("Undefined") ||
+          (err as { message: string }).message.includes("undefined"),
+      );
     }
   });
 

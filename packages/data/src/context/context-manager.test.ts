@@ -1,21 +1,25 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ThreadSnapshot, ThreadMessage } from "@flitter/schemas";
-import { countTokensApprox, countMessageTokens, countThreadTokens } from "./token-counter";
-import { ContextManager, type CompactFunction } from "./context-manager";
+import { describe, it } from "node:test";
+import type { ThreadMessage, ThreadSnapshot } from "@flitter/schemas";
+import { type CompactFunction, ContextManager } from "./context-manager";
+import { countMessageTokens, countThreadTokens, countTokensApprox } from "./token-counter";
 
 // ─── Helpers ────────────────────────────────────────────
 
 function makeTextMessage(role: "user" | "assistant", text: string): ThreadMessage {
-  const base: any = {
+  if (role === "assistant") {
+    return {
+      role,
+      content: [{ type: "text", text }],
+      messageId: 1,
+      state: { type: "complete", stopReason: "end_turn" },
+    };
+  }
+  return {
     role,
     content: [{ type: "text", text }],
     messageId: 1,
   };
-  if (role === "assistant") {
-    base.state = { type: "complete", stopReason: "end_turn" };
-  }
-  return base as ThreadMessage;
 }
 
 function makeThread(messages: ThreadMessage[], id = "t1"): ThreadSnapshot {
@@ -28,11 +32,11 @@ function makeToolUseMessage(): ThreadMessage {
     content: [{ type: "tool_use", id: "tu1", name: "bash", input: { command: "ls" } }],
     messageId: 2,
     state: { type: "complete", stopReason: "tool_use" },
-  } as any;
+  };
 }
 
 /** Generate a large text message with approximately the given token count */
-function makeLargeTextMessage(role: "user" | "assistant", approxTokens: number): ThreadMessage {
+function _makeLargeTextMessage(role: "user" | "assistant", approxTokens: number): ThreadMessage {
   // ASCII: chars/4 + 4 overhead. So chars ~ (approxTokens - 4) * 4
   const charCount = Math.max(1, (approxTokens - 4) * 4);
   const text = "a".repeat(charCount);
@@ -74,11 +78,11 @@ describe("countMessageTokens", () => {
   });
 
   it("counts tokens across multiple text blocks", () => {
-    const msg: any = {
+    const msg: ThreadMessage = {
       role: "user",
       content: [
         { type: "text", text: "hello world" }, // 3 tokens
-        { type: "text", text: "test" },         // ceil(4/4) = 1 token
+        { type: "text", text: "test" }, // ceil(4/4) = 1 token
       ],
       messageId: 1,
     };
@@ -87,8 +91,11 @@ describe("countMessageTokens", () => {
   });
 
   it("returns 0 for message with no content array", () => {
-    assert.equal(countMessageTokens({ role: "user" }), 0);
-    assert.equal(countMessageTokens({ role: "user", content: null }), 0);
+    assert.equal(countMessageTokens({ role: "user" } as unknown as ThreadMessage), 0);
+    assert.equal(
+      countMessageTokens({ role: "user", content: null } as unknown as ThreadMessage),
+      0,
+    );
   });
 });
 
@@ -96,8 +103,8 @@ describe("countMessageTokens", () => {
 
 describe("countThreadTokens", () => {
   it("sums tokens across multiple messages", () => {
-    const msg1 = makeTextMessage("user", "hello world");      // 3 + 4 = 7
-    const msg2 = makeTextMessage("assistant", "hello world");  // 3 + 4 = 7
+    const msg1 = makeTextMessage("user", "hello world"); // 3 + 4 = 7
+    const msg2 = makeTextMessage("assistant", "hello world"); // 3 + 4 = 7
     const thread = makeThread([msg1, msg2]);
     assert.equal(countThreadTokens(thread), 14);
   });
@@ -135,11 +142,11 @@ describe("ContextManager", () => {
     });
 
     const messages: ThreadMessage[] = [
-      makeTextMessage("user", "a]".repeat(20)),       // many tokens
-      makeTextMessage("assistant", "b".repeat(20)),    // many tokens
-      makeTextMessage("user", "c".repeat(20)),         // many tokens
-      makeTextMessage("assistant", "d".repeat(20)),    // many tokens
-      makeTextMessage("user", "recent message"),       // will be kept
+      makeTextMessage("user", "a]".repeat(20)), // many tokens
+      makeTextMessage("assistant", "b".repeat(20)), // many tokens
+      makeTextMessage("user", "c".repeat(20)), // many tokens
+      makeTextMessage("assistant", "d".repeat(20)), // many tokens
+      makeTextMessage("user", "recent message"), // will be kept
     ];
     const thread = makeThread(messages);
 
@@ -148,7 +155,9 @@ describe("ContextManager", () => {
     assert.equal(result.summary, "This is the summary.");
     assert.ok(result.tokensAfter <= result.tokensBefore);
     // First message should be the summary
-    const firstMsg = result.thread.messages[0] as any;
+    const firstMsg = result.thread.messages[0] as unknown as {
+      content: Array<{ type: string; summary: { summary: string } }>;
+    };
     assert.equal(firstMsg.content[0].type, "summary");
     assert.equal(firstMsg.content[0].summary.summary, "This is the summary.");
   });
@@ -156,7 +165,9 @@ describe("ContextManager", () => {
   it("transitions compactionState: idle -> compacting -> idle", async () => {
     const states: string[] = [];
     let resolveCompact: (v: string) => void;
-    const compactPromise = new Promise<string>((r) => { resolveCompact = r; });
+    const compactPromise = new Promise<string>((r) => {
+      resolveCompact = r;
+    });
 
     const compactFn: CompactFunction = async () => {
       return compactPromise;
@@ -209,7 +220,10 @@ describe("ContextManager", () => {
 
     const result = await mgr.checkAndCompact(thread);
     assert.equal(result.compacted, true);
-    const first = result.thread.messages[0] as any;
+    const first = result.thread.messages[0] as unknown as {
+      role: string;
+      content: Array<{ type: string; summary: { type: string; summary: string } }>;
+    };
     assert.equal(first.role, "user");
     assert.equal(first.content[0].type, "summary");
     assert.equal(first.content[0].summary.type, "message");
@@ -239,8 +253,8 @@ describe("ContextManager", () => {
     assert.equal(result.compacted, true);
     // Should have: summary + 2 recent messages = 3 total
     assert.equal(result.thread.messages.length, 3);
-    const kept1 = result.thread.messages[1] as any;
-    const kept2 = result.thread.messages[2] as any;
+    const kept1 = result.thread.messages[1] as unknown as { content: Array<{ text: string }> };
+    const kept2 = result.thread.messages[2] as unknown as { content: Array<{ text: string }> };
     assert.equal(kept1.content[0].text, "recent1");
     assert.equal(kept2.content[0].text, "recent2");
   });
@@ -266,8 +280,14 @@ describe("ContextManager", () => {
     await mgr.checkAndCompact(thread);
     // compactFn should receive the first 2 messages (not the last 1 which is kept)
     assert.equal(receivedMessages.length, 2);
-    assert.equal((receivedMessages[0] as any).content[0].text, "first_" + "x".repeat(100));
-    assert.equal((receivedMessages[1] as any).content[0].text, "second_" + "x".repeat(100));
+    assert.equal(
+      (receivedMessages[0] as unknown as { content: Array<{ text: string }> }).content[0].text,
+      "first_" + "x".repeat(100),
+    );
+    assert.equal(
+      (receivedMessages[1] as unknown as { content: Array<{ text: string }> }).content[0].text,
+      "second_" + "x".repeat(100),
+    );
   });
 
   it("recovers gracefully when compactFn throws", async () => {
@@ -326,10 +346,13 @@ describe("ContextManager", () => {
     assert.equal(result.compacted, true);
     // The trailing tool_use message should be trimmed
     // summary + kept_user + kept_assistant = 3 (tool_use removed)
-    const msgContents = result.thread.messages.map((m: any) => {
-      if (m.content[0].type === "summary") return "summary";
-      if (m.content[0].type === "text") return m.content[0].text;
-      return m.content[0].type;
+    const msgContents = result.thread.messages.map((m: ThreadMessage) => {
+      const first = (
+        m.content as Array<{ type: string; text?: string; summary?: { summary: string } }>
+      )[0];
+      if (first.type === "summary") return "summary";
+      if (first.type === "text") return first.text;
+      return first.type;
     });
     assert.ok(!msgContents.includes("tool_use"), "tool_use message should be trimmed");
     assert.ok(msgContents.includes("kept_user"));
@@ -338,7 +361,10 @@ describe("ContextManager", () => {
 
   it("respects custom modelContextWindow", async () => {
     let called = false;
-    const compactFn: CompactFunction = async () => { called = true; return "s"; };
+    const compactFn: CompactFunction = async () => {
+      called = true;
+      return "s";
+    };
 
     // With a large window, messages should be under threshold
     const mgr = new ContextManager({
@@ -360,7 +386,10 @@ describe("ContextManager", () => {
 
   it("respects custom compactionThresholdPercent", async () => {
     let called = false;
-    const compactFn: CompactFunction = async () => { called = true; return "s"; };
+    const compactFn: CompactFunction = async () => {
+      called = true;
+      return "s";
+    };
 
     // Window = 100, threshold at 10% = 10 tokens
     // Even a small thread will exceed 10 tokens
@@ -372,7 +401,7 @@ describe("ContextManager", () => {
     });
 
     const messages: ThreadMessage[] = [
-      makeTextMessage("user", "x".repeat(100)),     // well over 10 tokens
+      makeTextMessage("user", "x".repeat(100)), // well over 10 tokens
       makeTextMessage("assistant", "x".repeat(100)),
       makeTextMessage("user", "x".repeat(100)),
       makeTextMessage("assistant", "x".repeat(100)),
@@ -418,10 +447,13 @@ describe("ContextManager", () => {
 
   it("does not compact when message count is at or below keepRecent", async () => {
     let called = false;
-    const compactFn: CompactFunction = async () => { called = true; return "s"; };
+    const compactFn: CompactFunction = async () => {
+      called = true;
+      return "s";
+    };
     const mgr = new ContextManager({
       compactFn,
-      modelContextWindow: 10,     // tiny window
+      modelContextWindow: 10, // tiny window
       compactionThresholdPercent: 1, // very low threshold
       keepRecentMessages: 4,
     });

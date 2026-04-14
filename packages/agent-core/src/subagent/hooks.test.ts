@@ -2,23 +2,22 @@
  * Hook 系统测试
  * 覆盖: parseHooksConfig, matchHookToTool, executePreHook, executePostHook, 超时处理
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  parseHooksConfig,
-  matchHookToTool,
-  executePreHook,
   executePostHook,
+  executePreHook,
   type HookConfig,
-  type PreHookContext,
+  matchHookToTool,
   type PostHookContext,
+  type PreHookContext,
+  parseHooksConfig,
 } from "./hooks";
 
 // ─── 辅助函数 ──────────────────────────────────────────
 
-function createPreHookContext(
-  overrides?: Partial<PreHookContext>,
-): PreHookContext {
+function createPreHookContext(overrides?: Partial<PreHookContext>): PreHookContext {
   return {
     threadId: "thread-1",
     toolUse: {
@@ -29,9 +28,7 @@ function createPreHookContext(
   };
 }
 
-function createPostHookContext(
-  overrides?: Partial<PostHookContext>,
-): PostHookContext {
+function createPostHookContext(overrides?: Partial<PostHookContext>): PostHookContext {
   return {
     threadId: "thread-1",
     toolUse: {
@@ -52,10 +49,7 @@ describe("Hook System", () => {
   describe("parseHooksConfig", () => {
     it("有效配置返回 HookConfig[]", () => {
       const hooks = {
-        PreToolUse: [
-          { matcher: "Bash", command: "echo pre" },
-          { command: "echo all-pre" },
-        ],
+        PreToolUse: [{ matcher: "Bash", command: "echo pre" }, { command: "echo all-pre" }],
         PostToolUse: [{ command: "echo post" }],
         Notification: [{ command: "notify-send done", timeout: 5000 }],
       };
@@ -84,8 +78,8 @@ describe("Hook System", () => {
     });
 
     it("null/undefined 输入返回空数组", () => {
-      assert.deepEqual(parseHooksConfig(null as any), []);
-      assert.deepEqual(parseHooksConfig(undefined as any), []);
+      assert.deepEqual(parseHooksConfig(null as unknown as Record<string, unknown>), []);
+      assert.deepEqual(parseHooksConfig(undefined as unknown as Record<string, unknown>), []);
     });
 
     it("跳过无效条目 (缺少 command)", () => {
@@ -120,7 +114,7 @@ describe("Hook System", () => {
         PostToolUse: [{ command: "echo ok" }],
       };
 
-      const result = parseHooksConfig(hooks as any);
+      const result = parseHooksConfig(hooks as unknown as Record<string, unknown>);
       assert.equal(result.length, 1);
       assert.equal(result[0].type, "PostToolUse");
     });
@@ -130,7 +124,7 @@ describe("Hook System", () => {
         PreToolUse: [null, 42, "string", { command: "echo ok" }],
       };
 
-      const result = parseHooksConfig(hooks as any);
+      const result = parseHooksConfig(hooks as unknown as Record<string, unknown>);
       assert.equal(result.length, 1);
       assert.equal(result[0].command, "echo ok");
     });
@@ -234,8 +228,7 @@ describe("Hook System", () => {
     it("解析 stdout JSON 中的 abort 指令", async () => {
       const hook: HookConfig = {
         type: "PreToolUse",
-        command:
-          'echo \'{"abort": true, "message": "Blocked by policy"}\'',
+        command: 'echo \'{"abort": true, "message": "Blocked by policy"}\'',
       };
 
       const result = await executePreHook(hook, createPreHookContext());
@@ -248,8 +241,7 @@ describe("Hook System", () => {
     it("解析 stdout JSON 中的 modifiedArgs", async () => {
       const hook: HookConfig = {
         type: "PreToolUse",
-        command:
-          'echo \'{"modifiedArgs": {"command": "echo safe"}}\'',
+        command: 'echo \'{"modifiedArgs": {"command": "echo safe"}}\'',
       };
 
       const result = await executePreHook(hook, createPreHookContext());

@@ -4,28 +4,25 @@
  * 使用 SDK mock clients + constructor injection 进行端到端测试。
  * 验证所有 4 个 Provider 的完整 stream() → StreamDelta 管线。
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-
+import { describe, it } from "node:test";
+import type { Message } from "@flitter/schemas";
 import * as fixtures from "../testing/fixtures";
-
-// Transformers for direct testing
-import { AnthropicTransformer, AnthropicToolTransformer } from "./anthropic/transformer";
-import { OpenAITransformer, OpenAIToolTransformer } from "./openai/transformer";
-import { GeminiTransformer, GeminiToolTransformer } from "./gemini/transformer";
-import { CompatTransformer, CompatToolTransformer } from "./openai-compat/transformer";
-
+import type { StreamDelta } from "../types";
 // Providers
 import { AnthropicProvider } from "./anthropic/provider";
-import { OpenAIProvider } from "./openai/provider";
+// Transformers for direct testing
+import { AnthropicToolTransformer, AnthropicTransformer } from "./anthropic/transformer";
 import { GeminiProvider } from "./gemini/provider";
-import { OpenAICompatProvider } from "./openai-compat/provider";
-
-import { createProvider, getProviderForModel, resolveProvider } from "./registry";
-import type { StreamDelta } from "../types";
-import type { Message } from "@flitter/schemas";
-import type { CompatStreamChunk } from "./openai-compat/transformer";
+import { GeminiToolTransformer, GeminiTransformer } from "./gemini/transformer";
+import { OpenAIProvider } from "./openai/provider";
+import { OpenAIToolTransformer, OpenAITransformer } from "./openai/transformer";
 import { mergeWithDefaults } from "./openai-compat/compat";
+import { OpenAICompatProvider } from "./openai-compat/provider";
+import type { CompatStreamChunk } from "./openai-compat/transformer";
+import { CompatToolTransformer, CompatTransformer } from "./openai-compat/transformer";
+import { createProvider, getProviderForModel, resolveProvider } from "./registry";
 
 // ─── Mock SDK Client Factories ─────────────────────────
 
@@ -117,15 +114,19 @@ async function collectDeltas(gen: AsyncGenerator<StreamDelta>): Promise<StreamDe
 describe("Anthropic — end-to-end stream (SDK)", () => {
   it("should stream simple text response", async () => {
     const client = mockAnthropicClient(fixtures.anthropicSimpleText);
-    const provider = new AnthropicProvider(client as ConstructorParameters<typeof AnthropicProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "claude-sonnet-4-20250514",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "claude-sonnet-4-20250514",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -134,15 +135,19 @@ describe("Anthropic — end-to-end stream (SDK)", () => {
 
   it("should stream thinking + text response", async () => {
     const client = mockAnthropicClient(fixtures.anthropicThinkingText);
-    const provider = new AnthropicProvider(client as ConstructorParameters<typeof AnthropicProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "claude-sonnet-4-20250514",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "claude-sonnet-4-20250514",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -152,15 +157,19 @@ describe("Anthropic — end-to-end stream (SDK)", () => {
 
   it("should stream tool use response", async () => {
     const client = mockAnthropicClient(fixtures.anthropicToolUse);
-    const provider = new AnthropicProvider(client as ConstructorParameters<typeof AnthropicProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "claude-sonnet-4-20250514",
-      messages: [],
-      systemPrompt: [],
-      tools: fixtures.testTools,
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "claude-sonnet-4-20250514",
+        messages: [],
+        systemPrompt: [],
+        tools: fixtures.testTools,
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "tool_use" });
@@ -183,7 +192,9 @@ describe("Anthropic — end-to-end stream (SDK)", () => {
 
     const controller = new AbortController();
     const client = mockAnthropicClient(longEvents);
-    const provider = new AnthropicProvider(client as ConstructorParameters<typeof AnthropicProvider>[0]);
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
     const deltas: StreamDelta[] = [];
 
     for await (const d of provider.stream({
@@ -211,14 +222,16 @@ describe("OpenAI — end-to-end stream (SDK)", () => {
   it("should stream simple text response", async () => {
     const client = mockOpenAIClient(fixtures.openaiSimpleText);
     const provider = new OpenAIProvider(client as ConstructorParameters<typeof OpenAIProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "gpt-4o",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "gpt-4o",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -228,14 +241,16 @@ describe("OpenAI — end-to-end stream (SDK)", () => {
   it("should stream reasoning + text response", async () => {
     const client = mockOpenAIClient(fixtures.openaiReasoning);
     const provider = new OpenAIProvider(client as ConstructorParameters<typeof OpenAIProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "o3",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "o3",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -246,14 +261,16 @@ describe("OpenAI — end-to-end stream (SDK)", () => {
   it("should stream tool call response", async () => {
     const client = mockOpenAIClient(fixtures.openaiToolCall);
     const provider = new OpenAIProvider(client as ConstructorParameters<typeof OpenAIProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "gpt-4o",
-      messages: [],
-      systemPrompt: [],
-      tools: fixtures.testTools,
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "gpt-4o",
+        messages: [],
+        systemPrompt: [],
+        tools: fixtures.testTools,
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "tool_use" });
@@ -267,14 +284,16 @@ describe("Gemini — end-to-end stream (SDK)", () => {
   it("should stream simple text response", async () => {
     const client = mockGeminiClient(fixtures.geminiSimpleText);
     const provider = new GeminiProvider(client as ConstructorParameters<typeof GeminiProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "gemini-2.5-pro",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "gemini-2.5-pro",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -284,14 +303,16 @@ describe("Gemini — end-to-end stream (SDK)", () => {
   it("should stream thinking + text response", async () => {
     const client = mockGeminiClient(fixtures.geminiThinking);
     const provider = new GeminiProvider(client as ConstructorParameters<typeof GeminiProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "gemini-2.5-pro",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "gemini-2.5-pro",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -302,14 +323,16 @@ describe("Gemini — end-to-end stream (SDK)", () => {
   it("should stream tool call response", async () => {
     const client = mockGeminiClient(fixtures.geminiToolCall);
     const provider = new GeminiProvider(client as ConstructorParameters<typeof GeminiProvider>[0]);
-    const deltas = await collectDeltas(provider.stream({
-      model: "gemini-2.5-pro",
-      messages: [],
-      systemPrompt: [],
-      tools: fixtures.testTools,
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "gemini-2.5-pro",
+        messages: [],
+        systemPrompt: [],
+        tools: fixtures.testTools,
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.equal(last.state.type, "complete");
@@ -326,14 +349,16 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
       name: "xai",
       client: client as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
     });
-    const deltas = await collectDeltas(provider.stream({
-      model: "grok-3",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "grok-3",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -346,14 +371,16 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
       name: "xai",
       client: client as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
     });
-    const deltas = await collectDeltas(provider.stream({
-      model: "grok-3",
-      messages: [],
-      systemPrompt: [],
-      tools: fixtures.testTools,
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "grok-3",
+        messages: [],
+        systemPrompt: [],
+        tools: fixtures.testTools,
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "tool_use" });
@@ -366,35 +393,43 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
         id: "chatcmpl-mt",
         object: "chat.completion.chunk",
         model: "grok-3",
-        choices: [{
-          index: 0,
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: "call_001",
-              type: "function",
-              function: { name: "bash", arguments: '{"command":"ls"}' },
-            }],
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: "call_001",
+                  type: "function",
+                  function: { name: "bash", arguments: '{"command":"ls"}' },
+                },
+              ],
+            },
+            finish_reason: null,
           },
-          finish_reason: null,
-        }],
+        ],
       },
       {
         id: "chatcmpl-mt",
         object: "chat.completion.chunk",
         model: "grok-3",
-        choices: [{
-          index: 0,
-          delta: {
-            tool_calls: [{
-              index: 1,
-              id: "call_002",
-              type: "function",
-              function: { name: "read", arguments: '{"path":"file.txt"}' },
-            }],
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 1,
+                  id: "call_002",
+                  type: "function",
+                  function: { name: "read", arguments: '{"path":"file.txt"}' },
+                },
+              ],
+            },
+            finish_reason: null,
           },
-          finish_reason: null,
-        }],
+        ],
       },
       {
         id: "chatcmpl-mt",
@@ -410,14 +445,16 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
       name: "xai",
       client: client as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
     });
-    const deltas = await collectDeltas(provider.stream({
-      model: "grok-3",
-      messages: [],
-      systemPrompt: [],
-      tools: fixtures.testTools,
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "grok-3",
+        messages: [],
+        systemPrompt: [],
+        tools: fixtures.testTools,
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "tool_use" });
@@ -440,14 +477,16 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
 
     assert.equal(provider.name, "custom-provider");
 
-    const deltas = await collectDeltas(provider.stream({
-      model: "grok-3",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "grok-3",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
@@ -460,21 +499,25 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
         id: "chatcmpl-r1",
         object: "chat.completion.chunk",
         model: "deepseek-r1",
-        choices: [{
-          index: 0,
-          delta: { role: "assistant", reasoning_content: "Let me think..." },
-          finish_reason: null,
-        }],
+        choices: [
+          {
+            index: 0,
+            delta: { role: "assistant", reasoning_content: "Let me think..." },
+            finish_reason: null,
+          },
+        ],
       },
       {
         id: "chatcmpl-r1",
         object: "chat.completion.chunk",
         model: "deepseek-r1",
-        choices: [{
-          index: 0,
-          delta: { content: "The answer is 42." },
-          finish_reason: null,
-        }],
+        choices: [
+          {
+            index: 0,
+            delta: { content: "The answer is 42." },
+            finish_reason: null,
+          },
+        ],
       },
       {
         id: "chatcmpl-r1",
@@ -490,19 +533,27 @@ describe("OpenAI-Compat — end-to-end stream (SDK)", () => {
       name: "deepseek",
       client: client as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
     });
-    const deltas = await collectDeltas(provider.stream({
-      model: "deepseek-r1",
-      messages: [],
-      systemPrompt: [],
-      tools: [],
-      config: fixtures.testConfig,
-      signal: AbortSignal.timeout(5000),
-    }));
+    const deltas = await collectDeltas(
+      provider.stream({
+        model: "deepseek-r1",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+      }),
+    );
 
     const last = deltas[deltas.length - 1];
     assert.deepEqual(last.state, { type: "complete", stopReason: "end_turn" });
-    assert.ok(last.content.some((b) => b.type === "thinking"), "expected thinking block from reasoning_content");
-    assert.ok(last.content.some((b) => b.type === "text"), "expected text block");
+    assert.ok(
+      last.content.some((b) => b.type === "thinking"),
+      "expected thinking block from reasoning_content",
+    );
+    assert.ok(
+      last.content.some((b) => b.type === "text"),
+      "expected text block",
+    );
   });
 });
 
@@ -513,38 +564,54 @@ describe("Cross-provider consistency (SDK)", () => {
     const providers = [
       {
         name: "anthropic",
-        provider: new AnthropicProvider(mockAnthropicClient(fixtures.anthropicSimpleText) as ConstructorParameters<typeof AnthropicProvider>[0]),
+        provider: new AnthropicProvider(
+          mockAnthropicClient(fixtures.anthropicSimpleText) as ConstructorParameters<
+            typeof AnthropicProvider
+          >[0],
+        ),
         model: "claude-sonnet-4-20250514",
       },
       {
         name: "openai",
-        provider: new OpenAIProvider(mockOpenAIClient(fixtures.openaiSimpleText) as ConstructorParameters<typeof OpenAIProvider>[0]),
+        provider: new OpenAIProvider(
+          mockOpenAIClient(fixtures.openaiSimpleText) as ConstructorParameters<
+            typeof OpenAIProvider
+          >[0],
+        ),
         model: "gpt-4o",
       },
       {
         name: "gemini",
-        provider: new GeminiProvider(mockGeminiClient(fixtures.geminiSimpleText) as ConstructorParameters<typeof GeminiProvider>[0]),
+        provider: new GeminiProvider(
+          mockGeminiClient(fixtures.geminiSimpleText) as ConstructorParameters<
+            typeof GeminiProvider
+          >[0],
+        ),
         model: "gemini-2.5-pro",
       },
       {
         name: "xai",
         provider: new OpenAICompatProvider({
           name: "xai",
-          client: mockCompatClient(fixtures.compatSimpleText) as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
+          client: mockCompatClient(fixtures.compatSimpleText) as ConstructorParameters<
+            typeof OpenAICompatProvider
+          >[0]["client"],
         }),
         model: "grok-3",
       },
     ];
 
     for (const { name, provider, model } of providers) {
-      const deltas = await collectDeltas(provider.stream({
-        model,
-        messages: [],
-        systemPrompt: [],
-        tools: [],
-        config: fixtures.testConfig,
-        signal: AbortSignal.timeout(5000),
-      }));
+      const deltas = await collectDeltas(
+        provider.stream({
+          model,
+          messages: [],
+          systemPrompt: [],
+          tools: [],
+          config: fixtures.testConfig,
+          signal: AbortSignal.timeout(5000),
+        }),
+      );
       const last = deltas[deltas.length - 1];
       assert.equal(last.state.type, "complete", `${name}: expected complete state`);
       if (last.state.type === "complete") {
@@ -557,38 +624,54 @@ describe("Cross-provider consistency (SDK)", () => {
     const providers = [
       {
         name: "anthropic",
-        provider: new AnthropicProvider(mockAnthropicClient(fixtures.anthropicToolUse) as ConstructorParameters<typeof AnthropicProvider>[0]),
+        provider: new AnthropicProvider(
+          mockAnthropicClient(fixtures.anthropicToolUse) as ConstructorParameters<
+            typeof AnthropicProvider
+          >[0],
+        ),
         model: "claude-sonnet-4-20250514",
       },
       {
         name: "openai",
-        provider: new OpenAIProvider(mockOpenAIClient(fixtures.openaiToolCall) as ConstructorParameters<typeof OpenAIProvider>[0]),
+        provider: new OpenAIProvider(
+          mockOpenAIClient(fixtures.openaiToolCall) as ConstructorParameters<
+            typeof OpenAIProvider
+          >[0],
+        ),
         model: "gpt-4o",
       },
       {
         name: "gemini",
-        provider: new GeminiProvider(mockGeminiClient(fixtures.geminiToolCall) as ConstructorParameters<typeof GeminiProvider>[0]),
+        provider: new GeminiProvider(
+          mockGeminiClient(fixtures.geminiToolCall) as ConstructorParameters<
+            typeof GeminiProvider
+          >[0],
+        ),
         model: "gemini-2.5-pro",
       },
       {
         name: "xai",
         provider: new OpenAICompatProvider({
           name: "xai",
-          client: mockCompatClient(fixtures.compatToolCall) as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
+          client: mockCompatClient(fixtures.compatToolCall) as ConstructorParameters<
+            typeof OpenAICompatProvider
+          >[0]["client"],
         }),
         model: "grok-3",
       },
     ];
 
     for (const { name, provider, model } of providers) {
-      const deltas = await collectDeltas(provider.stream({
-        model,
-        messages: [],
-        systemPrompt: [],
-        tools: fixtures.testTools,
-        config: fixtures.testConfig,
-        signal: AbortSignal.timeout(5000),
-      }));
+      const deltas = await collectDeltas(
+        provider.stream({
+          model,
+          messages: [],
+          systemPrompt: [],
+          tools: fixtures.testTools,
+          config: fixtures.testConfig,
+          signal: AbortSignal.timeout(5000),
+        }),
+      );
       const last = deltas[deltas.length - 1];
       assert.ok(
         last.content.some((b) => b.type === "tool_use"),
@@ -601,41 +684,60 @@ describe("Cross-provider consistency (SDK)", () => {
     const providers = [
       {
         name: "anthropic",
-        provider: new AnthropicProvider(mockAnthropicClient(fixtures.anthropicSimpleText) as ConstructorParameters<typeof AnthropicProvider>[0]),
+        provider: new AnthropicProvider(
+          mockAnthropicClient(fixtures.anthropicSimpleText) as ConstructorParameters<
+            typeof AnthropicProvider
+          >[0],
+        ),
         model: "claude-sonnet-4-20250514",
       },
       {
         name: "openai",
-        provider: new OpenAIProvider(mockOpenAIClient(fixtures.openaiSimpleText) as ConstructorParameters<typeof OpenAIProvider>[0]),
+        provider: new OpenAIProvider(
+          mockOpenAIClient(fixtures.openaiSimpleText) as ConstructorParameters<
+            typeof OpenAIProvider
+          >[0],
+        ),
         model: "gpt-4o",
       },
       {
         name: "gemini",
-        provider: new GeminiProvider(mockGeminiClient(fixtures.geminiSimpleText) as ConstructorParameters<typeof GeminiProvider>[0]),
+        provider: new GeminiProvider(
+          mockGeminiClient(fixtures.geminiSimpleText) as ConstructorParameters<
+            typeof GeminiProvider
+          >[0],
+        ),
         model: "gemini-2.5-pro",
       },
       {
         name: "xai",
         provider: new OpenAICompatProvider({
           name: "xai",
-          client: mockCompatClient(fixtures.compatSimpleText) as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
+          client: mockCompatClient(fixtures.compatSimpleText) as ConstructorParameters<
+            typeof OpenAICompatProvider
+          >[0]["client"],
         }),
         model: "grok-3",
       },
     ];
 
     for (const { name, provider, model } of providers) {
-      const deltas = await collectDeltas(provider.stream({
-        model,
-        messages: [],
-        systemPrompt: [],
-        tools: [],
-        config: fixtures.testConfig,
-        signal: AbortSignal.timeout(5000),
-      }));
+      const deltas = await collectDeltas(
+        provider.stream({
+          model,
+          messages: [],
+          systemPrompt: [],
+          tools: [],
+          config: fixtures.testConfig,
+          signal: AbortSignal.timeout(5000),
+        }),
+      );
       const last = deltas[deltas.length - 1];
       assert.ok(last.usage, `${name}: expected usage in final delta`);
-      assert.ok(typeof last.usage!.totalInputTokens === "number", `${name}: expected totalInputTokens`);
+      assert.ok(
+        typeof last.usage!.totalInputTokens === "number",
+        `${name}: expected totalInputTokens`,
+      );
       assert.ok(typeof last.usage!.outputTokens === "number", `${name}: expected outputTokens`);
     }
   });
@@ -683,9 +785,17 @@ describe("Message conversion roundtrip", () => {
       if (name === "gemini") {
         assert.equal(result.length, 1, `${name}: expected 1 tool config wrapper`);
         const decls = (result[0] as { functionDeclarations: unknown[] }).functionDeclarations;
-        assert.equal(decls.length, fixtures.testTools.length, `${name}: expected ${fixtures.testTools.length} function declarations`);
+        assert.equal(
+          decls.length,
+          fixtures.testTools.length,
+          `${name}: expected ${fixtures.testTools.length} function declarations`,
+        );
       } else {
-        assert.equal(result.length, fixtures.testTools.length, `${name}: expected ${fixtures.testTools.length} tools`);
+        assert.equal(
+          result.length,
+          fixtures.testTools.length,
+          `${name}: expected ${fixtures.testTools.length} tools`,
+        );
       }
     }
   });
@@ -748,7 +858,9 @@ describe("Error handling — missing API key", () => {
 
   it("Anthropic should throw ProviderError on missing key", async () => {
     const client = mockAnthropicClient(fixtures.anthropicSimpleText);
-    const provider = new AnthropicProvider(client as ConstructorParameters<typeof AnthropicProvider>[0]);
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
     await assert.rejects(
       async () => {
         for await (const _ of provider.stream({
@@ -758,7 +870,9 @@ describe("Error handling — missing API key", () => {
           tools: [],
           config: noKeyConfig,
           signal: AbortSignal.timeout(5000),
-        })) { /* consume */ }
+        })) {
+          /* consume */
+        }
       },
       (err: Error) => {
         assert.ok(err.message.includes("API key"));
@@ -779,7 +893,9 @@ describe("Error handling — missing API key", () => {
           tools: [],
           config: noKeyConfig,
           signal: AbortSignal.timeout(5000),
-        })) { /* consume */ }
+        })) {
+          /* consume */
+        }
       },
       (err: Error) => {
         assert.ok(err.message.includes("API key"));
@@ -800,7 +916,9 @@ describe("Error handling — missing API key", () => {
           tools: [],
           config: noKeyConfig,
           signal: AbortSignal.timeout(5000),
-        })) { /* consume */ }
+        })) {
+          /* consume */
+        }
       },
       (err: Error) => {
         assert.ok(err.message.includes("API key"));
@@ -824,7 +942,9 @@ describe("Error handling — missing API key", () => {
           tools: [],
           config: noKeyConfig,
           signal: AbortSignal.timeout(5000),
-        })) { /* consume */ }
+        })) {
+          /* consume */
+        }
       },
       (err: Error) => {
         assert.ok(err.message.includes("API key"));

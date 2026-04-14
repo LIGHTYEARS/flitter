@@ -24,9 +24,9 @@
  * ```
  */
 
-import { TextLayoutEngine } from "./text-layout-engine.js";
-import type { LayoutPosition } from "./text-layout-engine.js";
 import { charWidth, graphemeSegments } from "../text/char-width.js";
+import type { LayoutPosition } from "./text-layout-engine.js";
+import { TextLayoutEngine } from "./text-layout-engine.js";
 
 /**
  * 光标移动选项
@@ -57,10 +57,38 @@ const WHITESPACE_BOUNDARY = new Set([" ", "\t", "\n", "\r", "\v", "\f"]);
  * 常见标点符号和 CJK 字符被视为词边界。
  */
 const PUNCTUATION_BOUNDARY = new Set([
-  ".", ",", ";", ":", "!", "?", "'", "\"", "`",
-  "(", ")", "[", "]", "{", "}", "<", ">",
-  "/", "\\", "|", "@", "#", "$", "%", "^", "&", "*",
-  "-", "+", "=", "~", "_",
+  ".",
+  ",",
+  ";",
+  ":",
+  "!",
+  "?",
+  "'",
+  '"',
+  "`",
+  "(",
+  ")",
+  "[",
+  "]",
+  "{",
+  "}",
+  "<",
+  ">",
+  "/",
+  "\\",
+  "|",
+  "@",
+  "#",
+  "$",
+  "%",
+  "^",
+  "&",
+  "*",
+  "-",
+  "+",
+  "=",
+  "~",
+  "_",
 ]);
 
 /**
@@ -920,9 +948,8 @@ export class TextEditingController {
     const currentLine = pos.line;
     const lineCount = this._layoutEngine.getLineCount();
 
-    const targetLine = delta < 0
-      ? Math.max(0, currentLine + delta)
-      : Math.min(lineCount - 1, currentLine + delta);
+    const targetLine =
+      delta < 0 ? Math.max(0, currentLine + delta) : Math.min(lineCount - 1, currentLine + delta);
 
     if (targetLine === currentLine) return -1;
 
@@ -989,7 +1016,7 @@ export class TextEditingController {
    */
   private _parseMoveArgs(
     arg: number | CursorMoveOptions | undefined,
-    defaultCount: number
+    defaultCount: number,
   ): { count: number; extend: boolean } {
     if (arg === undefined) {
       return { count: defaultCount, extend: false };
@@ -1014,7 +1041,7 @@ export class TextEditingController {
     if (WHITESPACE_BOUNDARY.has(ch) || PUNCTUATION_BOUNDARY.has(ch)) return true;
     // CJK 统一汉字范围
     const code = ch.codePointAt(0) ?? 0;
-    if ((code >= 0x4E00 && code <= 0x9FFF) || (code >= 0x3400 && code <= 0x4DBF)) return true;
+    if ((code >= 0x4e00 && code <= 0x9fff) || (code >= 0x3400 && code <= 0x4dbf)) return true;
     return false;
   }
 

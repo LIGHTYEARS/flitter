@@ -101,11 +101,11 @@ export class Observable<T> {
   }
 
   pipe(): Observable<T>;
-  pipe<R>(...operators: OperatorFunction<any, any>[]): Observable<R>;
-  pipe(...operators: OperatorFunction<any, any>[]): Observable<any> {
+  pipe<R>(...operators: OperatorFunction<unknown, unknown>[]): Observable<R>;
+  pipe(...operators: OperatorFunction<unknown, unknown>[]): Observable<unknown> {
     return operators.reduce(
-      (source, op) => op(source),
-      this as Observable<any>,
+      (source, op) => op(source as Observable<unknown>),
+      this as Observable<unknown>,
     );
   }
 
@@ -114,7 +114,7 @@ export class Observable<T> {
     // Check if iterable
     if (
       input != null &&
-      typeof (input as any)[Symbol.iterator] === "function"
+      typeof (input as unknown as Record<symbol, unknown>)[Symbol.iterator] === "function"
     ) {
       return new Observable<T>((observer) => {
         for (const value of input as Iterable<T>) {
@@ -124,7 +124,7 @@ export class Observable<T> {
       });
     }
     // Promise-like
-    if (input != null && typeof (input as any).then === "function") {
+    if (input != null && typeof (input as unknown as Record<string, unknown>).then === "function") {
       return new Observable<T>((observer) => {
         (input as PromiseLike<T>).then(
           (value) => {

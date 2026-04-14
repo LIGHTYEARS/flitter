@@ -19,17 +19,17 @@
  * @module
  */
 
-import { RenderBox } from "../tree/render-box.js";
-import { Widget } from "../tree/widget.js";
-import { RenderObjectElement } from "../tree/render-object-element.js";
-import type { RenderObjectWidget } from "../tree/render-object-element.js";
-import type { RenderObject } from "../tree/render-object.js";
-import type { Element, Widget as WidgetInterface } from "../tree/element.js";
-import type { Key } from "../tree/widget.js";
 import type { Screen } from "../screen/screen.js";
 import { TextStyle } from "../screen/text-style.js";
-import { TextSpan } from "./text-span.js";
-import { graphemeSegments, charWidth } from "../text/char-width.js";
+import { charWidth, graphemeSegments } from "../text/char-width.js";
+import type { Element, Widget as WidgetInterface } from "../tree/element.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { RenderObject } from "../tree/render-object.js";
+import type { RenderObjectWidget } from "../tree/render-object-element.js";
+import { RenderObjectElement } from "../tree/render-object-element.js";
+import type { Key } from "../tree/widget.js";
+import { Widget } from "../tree/widget.js";
+import type { TextSpan } from "./text-span.js";
 
 // ════════════════════════════════════════════════════
 //  内部类型
@@ -221,11 +221,7 @@ export class RenderParagraph extends RenderBox {
    *
    * @internal
    */
-  private _collectGlyphs(
-    span: TextSpan,
-    styleStack: TextStyle[],
-    out: LayoutGlyph[],
-  ): void {
+  private _collectGlyphs(span: TextSpan, styleStack: TextStyle[], out: LayoutGlyph[]): void {
     // 计算有效样式：从根到当前节点逐层合并
     const effectiveStyle = this._resolveStyle(span, styleStack);
     const newStack = [...styleStack, effectiveStyle];

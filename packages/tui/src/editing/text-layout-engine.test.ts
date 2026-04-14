@@ -13,7 +13,6 @@
 
 import { describe, expect, it } from "bun:test";
 import { TextLayoutEngine } from "./text-layout-engine.js";
-import type { LayoutPosition } from "./text-layout-engine.js";
 
 describe("TextLayoutEngine", () => {
   // ─── 基础功能 ─────────────────────────────────────

@@ -10,15 +10,16 @@
  * 3. Local callback server receives authorization code
  * 4. Exchange code for access + refresh tokens
  */
-import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
-import { generatePKCE } from "../pkce";
+
 import { startCallbackServer } from "../callback-server";
+import { generatePKCE } from "../pkce";
+import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
 
 const AUTH_URL = "https://claude.ai/oauth/authorize";
 const TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
 const CALLBACK_PORT = 53692;
 const CALLBACK_PATH = "/callback";
-const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
+const _REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
 const CLIENT_ID = "9d1c250b-e535-45c9-a2b1-5e26609dc77c";
 const SCOPES = "org:create_api_key user:profile user:inference";
 
@@ -66,7 +67,9 @@ export class AnthropicOAuthProvider implements OAuthProviderInterface {
       server.stop();
       // If callback server fails, try manual code input
       if (callbacks.onManualCodeInput) {
-        callbacks.onProgress?.("Could not receive callback automatically. Please paste the authorization code.");
+        callbacks.onProgress?.(
+          "Could not receive callback automatically. Please paste the authorization code.",
+        );
         code = await callbacks.onManualCodeInput();
       } else {
         throw err;

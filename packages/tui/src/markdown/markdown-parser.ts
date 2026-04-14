@@ -155,9 +155,7 @@ export class MarkdownParser {
           const parent = stack[stack.length - 1];
           const isStructural =
             parent &&
-            (parent.type === "list" ||
-              parent.type === "table" ||
-              parent.type === "tableRow");
+            (parent.type === "list" || parent.type === "table" || parent.type === "tableRow");
           if (isStructural && !decoded.trim()) {
             continue;
           }
@@ -181,11 +179,7 @@ export class MarkdownParser {
   /**
    * 处理 HTML 开放标签，映射为 AST 节点。
    */
-  private _handleOpenTag(
-    tag: string,
-    stack: MarkdownNode[],
-    nodes: MarkdownNode[]
-  ): void {
+  private _handleOpenTag(tag: string, stack: MarkdownNode[], nodes: MarkdownNode[]): void {
     const tagName = this._getTagName(tag);
 
     switch (tagName) {
@@ -350,11 +344,7 @@ export class MarkdownParser {
   /**
    * 处理 HTML 关闭标签，从栈中弹出节点。
    */
-  private _handleCloseTag(
-    tag: string,
-    stack: MarkdownNode[],
-    nodes: MarkdownNode[]
-  ): void {
+  private _handleCloseTag(tag: string, stack: MarkdownNode[], nodes: MarkdownNode[]): void {
     const tagName = this._getTagName(tag);
 
     // 透明容器直接忽略
@@ -394,11 +384,7 @@ export class MarkdownParser {
   /**
    * 将节点添加到栈顶的 children 或顶层数组。
    */
-  private _pushChild(
-    stack: MarkdownNode[],
-    nodes: MarkdownNode[],
-    node: MarkdownNode
-  ): void {
+  private _pushChild(stack: MarkdownNode[], nodes: MarkdownNode[], node: MarkdownNode): void {
     const parent = stack[stack.length - 1];
     if (parent) {
       // 特殊处理: code 块内的文本 → 追加到 value

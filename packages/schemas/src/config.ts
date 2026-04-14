@@ -10,13 +10,7 @@ import { PermissionEntrySchema } from "./permissions";
 
 // ─── 配置层级枚举 ──────────────────────────────────────
 
-export const ConfigScopeSchema = z.enum([
-  "default",
-  "global",
-  "workspace",
-  "admin",
-  "override",
-]);
+export const ConfigScopeSchema = z.enum(["default", "global", "workspace", "admin", "override"]);
 export type ConfigScope = z.infer<typeof ConfigScopeSchema>;
 
 // ─── 密钥键枚举 ────────────────────────────────────────
@@ -44,13 +38,20 @@ export const ADMIN_OVERRIDE_KEYS = [
   "anthropic.speed",
   "anthropic.temperature",
   "anthropic.thinking.enabled",
+  "anthropic.baseURL",
+  "anthropic.apiKey",
   "gemini.thinkingLevel",
+  "gemini.apiKey",
   "internal.compactionThresholdPercent",
   "internal.model",
   "internal.oracleReasoningEffort",
   "openai.speed",
+  "openai.baseURL",
+  "openai.apiKey",
   "tools.disable",
   "tools.enable",
+  "update.url",
+  "update.mode",
 ] as const;
 
 /** 数组合并键 (concat + dedup) */
@@ -63,11 +64,7 @@ export const MERGED_ARRAY_KEYS = [
 ] as const;
 
 /** 仅全局键 */
-export const GLOBAL_ONLY_KEYS = [
-  "mcpServers",
-  "mcpPermissions",
-  "url",
-] as const;
+export const GLOBAL_ONLY_KEYS = ["mcpServers", "mcpPermissions", "url"] as const;
 
 // ─── MCP Permission Entry (简化版，在 permissions.ts 中精确定义) ─
 
@@ -91,12 +88,21 @@ export const SettingsSchema = z.object({
   "anthropic.interleavedThinking.enabled": z.boolean().optional(),
   "anthropic.effort": z.string().optional(),
   "anthropic.provider": z.string().optional(),
+  "anthropic.baseURL": z.string().optional(),
+  "anthropic.apiKey": z.string().optional(),
 
   // OpenAI
   "openai.speed": z.string().optional(),
+  "openai.baseURL": z.string().optional(),
+  "openai.apiKey": z.string().optional(),
 
   // Gemini
   "gemini.thinkingLevel": z.string().optional(),
+  "gemini.apiKey": z.string().optional(),
+
+  // Update
+  "update.url": z.string().optional(),
+  "update.mode": z.enum(["auto", "warn", "disabled"]).optional(),
 
   // Internal
   "internal.model": z.string().optional(),

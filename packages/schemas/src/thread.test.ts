@@ -1,27 +1,27 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { z } from "zod";
 
 import {
-  GuidanceFileRefSchema,
-  ThreadRelationshipSchema,
-  ThreadMetaSchema,
-  ThreadEnvironmentSchema,
-  ThreadContentBlockSchema,
-  UserThreadMessageSchema,
-  AssistantThreadMessageSchema,
   AssistantMessageStateSchema,
-  InfoThreadMessageSchema,
-  ThreadMessageSchema,
-  QueuedMessageEntrySchema,
-  ThreadSnapshotSchema,
-  ConnectionStateSchema,
-  ConnectionInfoSchema,
-  ReconnectCauseSchema,
+  AssistantThreadMessageSchema,
   CompactionStateSchema,
+  ConnectionInfoSchema,
   ConnectionModeSchema,
-  ThreadSummarySchema,
+  ConnectionStateSchema,
   ConversationDeltaSchema,
+  GuidanceFileRefSchema,
+  InfoThreadMessageSchema,
+  QueuedMessageEntrySchema,
+  ReconnectCauseSchema,
+  ThreadContentBlockSchema,
+  ThreadEnvironmentSchema,
+  ThreadMessageSchema,
+  ThreadMetaSchema,
+  ThreadRelationshipSchema,
+  ThreadSnapshotSchema,
+  ThreadSummarySchema,
+  UserThreadMessageSchema,
 } from "./thread";
 
 // ─── Helpers ────────────────────────────────────────────
@@ -177,11 +177,7 @@ describe("ThreadEnvironmentSchema", () => {
   it("parses with initial.trees containing repository info", () => {
     const result = ThreadEnvironmentSchema.parse({
       initial: {
-        trees: [
-          { repository: { url: "https://github.com/org/repo.git" } },
-          { repository: {} },
-          {},
-        ],
+        trees: [{ repository: { url: "https://github.com/org/repo.git" } }, { repository: {} }, {}],
       },
       trees: [],
       platform: "darwin",
@@ -215,7 +211,7 @@ describe("ThreadContentBlockSchema", () => {
       name: "Bash",
       input: { command: "ls" },
     });
-    assert.equal((result as any).name, "Bash");
+    assert.equal((result as unknown as { name: string }).name, "Bash");
   });
 
   it("parses tool_result block", () => {
@@ -225,7 +221,7 @@ describe("ThreadContentBlockSchema", () => {
       output: "file.txt",
       status: "success",
     });
-    assert.equal((result as any).toolUseID, "tu_1");
+    assert.equal((result as unknown as { toolUseID: string }).toolUseID, "tu_1");
   });
 
   it("parses thinking block", () => {
@@ -233,7 +229,7 @@ describe("ThreadContentBlockSchema", () => {
       type: "thinking",
       thinking: "Let me consider...",
     });
-    assert.equal((result as any).thinking, "Let me consider...");
+    assert.equal((result as unknown as { thinking: string }).thinking, "Let me consider...");
   });
 
   it("parses redacted_thinking block", () => {
@@ -241,7 +237,7 @@ describe("ThreadContentBlockSchema", () => {
       type: "redacted_thinking",
       data: "base64encodeddata",
     });
-    assert.equal((result as any).data, "base64encodeddata");
+    assert.equal((result as unknown as { data: string }).data, "base64encodeddata");
   });
 
   it("parses summary block", () => {
@@ -249,7 +245,10 @@ describe("ThreadContentBlockSchema", () => {
       type: "summary",
       summary: { type: "message", summary: "A brief summary." },
     });
-    assert.equal((result as any).summary.summary, "A brief summary.");
+    assert.equal(
+      (result as unknown as { summary: { summary: string } }).summary.summary,
+      "A brief summary.",
+    );
   });
 
   it("parses manual_bash_invocation block", () => {
@@ -259,7 +258,7 @@ describe("ThreadContentBlockSchema", () => {
       toolRun: toolRunDone,
       hidden: true,
     });
-    assert.equal((result as any).hidden, true);
+    assert.equal((result as unknown as { hidden: boolean }).hidden, true);
   });
 
   it("parses server_tool_use block", () => {
@@ -269,7 +268,7 @@ describe("ThreadContentBlockSchema", () => {
       name: "web_search",
       input: { query: "hello" },
     });
-    assert.equal((result as any).name, "web_search");
+    assert.equal((result as unknown as { name: string }).name, "web_search");
   });
 
   it("parses image block", () => {
@@ -277,7 +276,7 @@ describe("ThreadContentBlockSchema", () => {
       type: "image",
       source: { type: "base64", mediaType: "image/png", data: "abc" },
     });
-    assert.equal((result as any).type, "image");
+    assert.equal(result.type, "image");
   });
 
   it("rejects unknown block type", () => {
@@ -300,9 +299,7 @@ describe("UserThreadMessageSchema", () => {
       userState: { lastFile: "foo.ts" },
       readAt: 1712880001,
       agentMode: "code",
-      discoveredGuidanceFiles: [
-        { uri: "file:///CLAUDE.md", lineCount: 10, content: "rules" },
-      ],
+      discoveredGuidanceFiles: [{ uri: "file:///CLAUDE.md", lineCount: 10, content: "rules" }],
       parentToolUseId: "tu_parent",
     });
     assert.equal(result.role, "user");
@@ -333,10 +330,7 @@ describe("AssistantThreadMessageSchema", () => {
         state: { type: "complete", stopReason: "tool_use" },
       }),
     );
-    assert.equal(
-      (result.state as { type: "complete"; stopReason: string }).stopReason,
-      "tool_use",
-    );
+    assert.equal((result.state as { type: "complete"; stopReason: string }).stopReason, "tool_use");
   });
 
   it("parses with state=streaming", () => {
@@ -358,9 +352,7 @@ describe("AssistantThreadMessageSchema", () => {
   });
 
   it("parses with usage", () => {
-    const result = AssistantThreadMessageSchema.parse(
-      makeAssistantMsg({ usage }),
-    );
+    const result = AssistantThreadMessageSchema.parse(makeAssistantMsg({ usage }));
     assert.equal(result.usage!.model, "claude-opus-4-5-20251101");
   });
 
@@ -578,10 +570,7 @@ describe("ConnectionModeSchema", () => {
   });
 
   it('accepts "executor+observer"', () => {
-    assert.equal(
-      ConnectionModeSchema.parse("executor+observer"),
-      "executor+observer",
-    );
+    assert.equal(ConnectionModeSchema.parse("executor+observer"), "executor+observer");
   });
 });
 
@@ -652,7 +641,7 @@ describe("ConversationDeltaSchema", () => {
       messageIndex: 3,
     });
     assert.equal(result.type, "user:message:interrupt");
-    assert.equal((result as any).messageIndex, 3);
+    assert.equal((result as unknown as { messageIndex: number }).messageIndex, 3);
   });
 
   it("parses user:message:append-content delta", () => {
@@ -684,7 +673,7 @@ describe("ConversationDeltaSchema", () => {
       type: "user:message-queue:discard",
       id: "q_discard",
     });
-    assert.equal((result as any).id, "q_discard");
+    assert.equal((result as unknown as { id: string }).id, "q_discard");
   });
 
   it("parses assistant:message delta", () => {
@@ -710,7 +699,7 @@ describe("ConversationDeltaSchema", () => {
       model: "claude-opus-4-5-20251101",
     });
     assert.equal(result.type, "inference:completed");
-    assert.equal((result as any).model, "claude-opus-4-5-20251101");
+    assert.equal((result as unknown as { model: string }).model, "claude-opus-4-5-20251101");
   });
 
   it("parses title delta", () => {
@@ -718,7 +707,7 @@ describe("ConversationDeltaSchema", () => {
       type: "title",
       value: "New title",
     });
-    assert.equal((result as any).value, "New title");
+    assert.equal((result as unknown as { value: string }).value, "New title");
   });
 
   it("parses thread:truncate delta", () => {
@@ -726,7 +715,7 @@ describe("ConversationDeltaSchema", () => {
       type: "thread:truncate",
       fromIndex: 5,
     });
-    assert.equal((result as any).fromIndex, 5);
+    assert.equal((result as unknown as { fromIndex: number }).fromIndex, 5);
   });
 
   it("parses relationship delta", () => {
@@ -743,7 +732,7 @@ describe("ConversationDeltaSchema", () => {
       content: "draft text",
       autoSubmit: true,
     });
-    assert.equal((result as any).autoSubmit, true);
+    assert.equal((result as unknown as { autoSubmit: boolean }).autoSubmit, true);
   });
 
   it("parses agent-mode delta", () => {
@@ -751,7 +740,7 @@ describe("ConversationDeltaSchema", () => {
       type: "agent-mode",
       mode: "code",
     });
-    assert.equal((result as any).mode, "code");
+    assert.equal((result as unknown as { mode: string }).mode, "code");
   });
 
   it("parses environment delta", () => {
@@ -784,7 +773,7 @@ describe("ConversationDeltaSchema", () => {
       toolUse: "tu_1",
       data: { partial: true },
     });
-    assert.equal((result as any).toolUse, "tu_1");
+    assert.equal((result as unknown as { toolUse: string }).toolUse, "tu_1");
   });
 
   it("parses info:manual-bash-invocation delta", () => {
@@ -802,7 +791,7 @@ describe("ConversationDeltaSchema", () => {
       type: "setPendingNavigation",
       threadID: "thread_nav",
     });
-    assert.equal((result as any).threadID, "thread_nav");
+    assert.equal((result as unknown as { threadID: string }).threadID, "thread_nav");
   });
 
   it("parses clearPendingNavigation delta", () => {
@@ -874,7 +863,12 @@ describe("JSON Schema conversion", () => {
     const jsonSchema = z.toJSONSchema(ThreadSnapshotSchema);
     assert.equal(typeof jsonSchema, "object");
     assert.ok(jsonSchema !== null);
-    assert.ok("type" in jsonSchema || "anyOf" in jsonSchema || "$ref" in jsonSchema || "properties" in jsonSchema);
+    assert.ok(
+      "type" in jsonSchema ||
+        "anyOf" in jsonSchema ||
+        "$ref" in jsonSchema ||
+        "properties" in jsonSchema,
+    );
   });
 
   it("converts ConnectionStateSchema to JSON Schema", () => {

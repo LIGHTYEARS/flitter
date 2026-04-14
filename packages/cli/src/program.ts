@@ -60,19 +60,13 @@ export function createProgram(version: string): Command {
 
   // ─── Auth 命令 ──────────────────────────────────────────
 
-  program
-    .command("login")
-    .description("Authenticate with API key or OAuth");
+  program.command("login").description("Authenticate with API key or OAuth");
 
-  program
-    .command("logout")
-    .description("Remove stored credentials");
+  program.command("logout").description("Remove stored credentials");
 
   // ─── Thread 管理 ────────────────────────────────────────
 
-  const threads = program
-    .command("threads")
-    .description("Manage conversation threads");
+  const threads = program.command("threads").description("Manage conversation threads");
 
   threads
     .command("list")
@@ -95,21 +89,13 @@ export function createProgram(version: string): Command {
     .description("Archive a thread")
     .argument("<id>", "Thread ID to archive");
 
-  threads
-    .command("delete")
-    .description("Delete a thread")
-    .argument("<id>", "Thread ID to delete");
+  threads.command("delete").description("Delete a thread").argument("<id>", "Thread ID to delete");
 
   // ─── Config 管理 ────────────────────────────────────────
 
-  const config = program
-    .command("config")
-    .description("Manage configuration");
+  const config = program.command("config").description("Manage configuration");
 
-  config
-    .command("get")
-    .description("Get a config value")
-    .argument("<key>", "Config key to get");
+  config.command("get").description("Get a config value").argument("<key>", "Config key to get");
 
   config
     .command("set")
@@ -117,9 +103,7 @@ export function createProgram(version: string): Command {
     .argument("<key>", "Config key to set")
     .argument("<value>", "Config value to set");
 
-  config
-    .command("list")
-    .description("List all config values");
+  config.command("list").description("List all config values");
 
   // ─── Update ─────────────────────────────────────────────
 

@@ -1,10 +1,11 @@
 /**
  * Tests for Anthropic OAuth provider.
  */
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
+
 import assert from "node:assert/strict";
-import { AnthropicOAuthProvider } from "./anthropic";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { OAuthLoginCallbacks } from "../types";
+import { AnthropicOAuthProvider } from "./anthropic";
 
 describe("AnthropicOAuthProvider", () => {
   let provider: AnthropicOAuthProvider;
@@ -48,7 +49,8 @@ describe("AnthropicOAuthProvider", () => {
       };
 
       globalThis.fetch = mock.fn(async (url: string | URL | Request, init?: RequestInit) => {
-        const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+        const urlStr =
+          typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         assert.ok(urlStr.includes("platform.claude.com"));
         const body = init?.body?.toString() ?? "";
         assert.ok(body.includes("refresh_token"));

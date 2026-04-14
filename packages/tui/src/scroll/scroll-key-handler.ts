@@ -9,8 +9,8 @@
  * @module
  */
 
-import type { ScrollController } from "./scroll-controller.js";
 import type { KeyEvent, MouseAction } from "../vt/types.js";
+import type { ScrollController } from "./scroll-controller.js";
 
 // ════════════════════════════════════════════════════
 //  ScrollKeyHandler 配置
@@ -82,11 +82,7 @@ export class ScrollKeyHandler {
    * @param viewportSize - 视口高度（行数），用于翻页计算
    * @returns 事件是否已消费
    */
-  handleKeyEvent(
-    event: KeyEvent,
-    controller: ScrollController,
-    viewportSize: number
-  ): boolean {
+  handleKeyEvent(event: KeyEvent, controller: ScrollController, viewportSize: number): boolean {
     const { key, modifiers } = event;
 
     switch (key) {
@@ -156,10 +152,7 @@ export class ScrollKeyHandler {
    * @param controller - 滚动控制器
    * @returns 事件是否已消费
    */
-  handleMouseScroll(
-    action: MouseAction | string,
-    controller: ScrollController
-  ): boolean {
+  handleMouseScroll(action: MouseAction | string, controller: ScrollController): boolean {
     switch (action) {
       case "wheel_up":
         controller.scrollUp(this._scrollStep);

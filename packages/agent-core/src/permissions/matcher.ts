@@ -7,9 +7,9 @@
 import type {
   PermissionEntry,
   PermissionMatcher,
+  Settings,
   ToolEnableResult,
 } from "@flitter/schemas";
-import type { Settings } from "@flitter/schemas";
 
 // ─── Glob → Regex 转换 ─────────────────────────────────
 
@@ -61,10 +61,7 @@ export function matchToolPattern(pattern: string, toolName: string): boolean {
  * 检查工具名是否匹配禁用列表中的任意模式
  * 逆向: Xf (matchDisablePattern)
  */
-export function matchDisablePattern(
-  patterns: string[],
-  toolName: string,
-): boolean {
+export function matchDisablePattern(patterns: string[], toolName: string): boolean {
   return patterns.some((pattern) => matchToolPattern(pattern, toolName));
 }
 
@@ -79,10 +76,7 @@ export function matchDisablePattern(
  * 2. 如果上一步 disabled 且 config["tools.enable"] 包含匹配模式 → 重新启用
  * 3. 默认: enabled
  */
-export function checkToolEnabled(
-  toolName: string,
-  config: Settings,
-): ToolEnableResult {
+export function checkToolEnabled(toolName: string, config: Settings): ToolEnableResult {
   const disablePatterns = config["tools.disable"] ?? [];
   const enablePatterns = config["tools.enable"] ?? [];
 
@@ -115,10 +109,7 @@ export function checkToolEnabled(
  * - array: OR 语义 — 任一元素匹配即 true
  * - record: AND 语义 — 每个 key 递归匹配
  */
-export function matchPermissionMatcher(
-  matcher: PermissionMatcher,
-  value: unknown,
-): boolean {
+export function matchPermissionMatcher(matcher: PermissionMatcher, value: unknown): boolean {
   // undefined matcher
   if (matcher === undefined) {
     return value === undefined;

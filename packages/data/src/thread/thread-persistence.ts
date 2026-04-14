@@ -1,23 +1,9 @@
-/**
- * @flitter/data — ThreadPersistence JSON 文件持久化
- *
- * 原子写入 (write-to-temp + fsync + rename)、Zod 校验、自动保存
- * 替代 Amp 的 DTW 远程同步 (KD-25)
- *
- * @example
- * ```ts
- * const persistence = new ThreadPersistence({ baseDir: "/home/user/.flitter/threads" });
- * await persistence.save(snapshot);
- * const loaded = await persistence.load("thread-id");
- * ```
- */
-import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { ThreadSnapshotSchema } from "@flitter/schemas";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import type { ThreadPersistenceOptions } from "./types";
+import { ThreadSnapshotSchema } from "@flitter/schemas";
 import type { ThreadStore } from "./thread-store";
+import type { ThreadPersistenceOptions } from "./types";
 
 /**
  * ThreadPersistence — 线程 JSON 文件持久化层
@@ -61,8 +47,8 @@ export class ThreadPersistence {
     let raw: string;
     try {
       raw = await fsp.readFile(filePath, "utf-8");
-    } catch (err: any) {
-      if (err?.code === "ENOENT") return null;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
       throw err;
     }
 
@@ -80,8 +66,8 @@ export class ThreadPersistence {
     const filePath = this.threadPath(id);
     try {
       await fsp.unlink(filePath);
-    } catch (err: any) {
-      if (err?.code !== "ENOENT") throw err;
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") throw err;
     }
   }
 
@@ -92,8 +78,8 @@ export class ThreadPersistence {
       return files
         .filter((f) => f.endsWith(".json") && !f.endsWith(".tmp"))
         .map((f) => f.slice(0, -5)); // strip .json
-    } catch (err: any) {
-      if (err?.code === "ENOENT") return [];
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return [];
       throw err;
     }
   }

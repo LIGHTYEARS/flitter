@@ -17,7 +17,7 @@
  */
 
 import { parseMessage } from "../protocol";
-import type { MCPTransport, JSONRPCMessage, ProtocolVersion } from "../types";
+import type { JSONRPCMessage, MCPTransport, ProtocolVersion } from "../types";
 
 // ---- Minimal inline SSE parser ----
 // Plan 08-03 may provide SSEEventParser; we inline a minimal one here
@@ -106,7 +106,7 @@ export class SSELineParser {
           break;
         case "retry": {
           const n = parseInt(value, 10);
-          if (!isNaN(n)) {
+          if (!Number.isNaN(n)) {
             // Could store retry, but not needed for our use case
           }
           break;
@@ -184,7 +184,7 @@ export class SSETransport implements MCPTransport {
     if (this._authProvider) {
       const tokens = await this._authProvider.tokens();
       if (tokens) {
-        headers["Authorization"] = `Bearer ${tokens.access_token}`;
+        headers.Authorization = `Bearer ${tokens.access_token}`;
       }
     }
 
@@ -205,7 +205,7 @@ export class SSETransport implements MCPTransport {
   async start(): Promise<void> {
     if (this._started) {
       throw new Error(
-        "SSETransport already started! If using Client class, note that connect() calls start() automatically."
+        "SSETransport already started! If using Client class, note that connect() calls start() automatically.",
       );
     }
     this._started = true;
@@ -213,7 +213,7 @@ export class SSETransport implements MCPTransport {
     this._abortController = new AbortController();
 
     const headers = await this._buildHeaders();
-    headers["Accept"] = "text/event-stream";
+    headers.Accept = "text/event-stream";
 
     let response: Response;
     try {
@@ -270,7 +270,7 @@ export class SSETransport implements MCPTransport {
                   const endpointUrl = new URL(event.data, this._url);
                   if (endpointUrl.origin !== this._url.origin) {
                     const err = new Error(
-                      `Endpoint origin does not match connection origin: ${endpointUrl.origin}`
+                      `Endpoint origin does not match connection origin: ${endpointUrl.origin}`,
                     );
                     reject(err);
                     this.onerror?.(err);
@@ -293,9 +293,7 @@ export class SSETransport implements MCPTransport {
                   const message = parseMessage(event.data);
                   this.onmessage?.(message);
                 } catch (err) {
-                  this.onerror?.(
-                    err instanceof Error ? err : new Error(String(err))
-                  );
+                  this.onerror?.(err instanceof Error ? err : new Error(String(err)));
                 }
               }
             }
@@ -354,9 +352,7 @@ export class SSETransport implements MCPTransport {
         throw error;
       }
 
-      const error = new Error(
-        `Error POSTing to endpoint (HTTP ${response.status}): ${body ?? ""}`
-      );
+      const error = new Error(`Error POSTing to endpoint (HTTP ${response.status}): ${body ?? ""}`);
       this.onerror?.(error);
       throw error;
     }

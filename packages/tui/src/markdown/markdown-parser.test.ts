@@ -6,8 +6,8 @@
  * @module
  */
 
-import { describe, it, expect } from "bun:test";
-import { MarkdownParser, type MarkdownNode } from "./markdown-parser.js";
+import { describe, expect, it } from "bun:test";
+import { MarkdownParser } from "./markdown-parser.js";
 
 describe("MarkdownParser", () => {
   const parser = new MarkdownParser();

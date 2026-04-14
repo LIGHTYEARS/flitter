@@ -10,10 +10,11 @@
  * await orch.executeToolsWithPlan(toolUses);
  * ```
  */
-import type { ToolSpec, ToolResult, ToolContext } from "./types";
-import type { ToolRegistry } from "./registry";
+
 import type { Config, Settings } from "@flitter/schemas";
 import type { Observable } from "@flitter/util";
+import type { ToolRegistry } from "./registry";
+import type { ToolContext, ToolResult, ToolSpec } from "./types";
 
 // ─── ToolUse 类型 ──────────────────────────────────────────
 
@@ -214,9 +215,7 @@ export class ToolOrchestrator {
 
     for (const batch of batches) {
       if (this.disposed) break;
-      await Promise.allSettled(
-        batch.map((toolUse) => this.invokeToolAndWait(toolUse)),
-      );
+      await Promise.allSettled(batch.map((toolUse) => this.invokeToolAndWait(toolUse)));
     }
   }
 

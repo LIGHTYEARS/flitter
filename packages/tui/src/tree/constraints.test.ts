@@ -11,11 +11,10 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-import { BoxConstraints } from "./constraints.js";
+import { describe, it } from "node:test";
 import type { Size } from "./constraints.js";
+import { BoxConstraints } from "./constraints.js";
 
 // ════════════════════════════════════════════════════
 //  构造函数测试
@@ -101,7 +100,7 @@ describe("BoxConstraints 构造函数", () => {
     const c = new BoxConstraints({ minWidth: 10, maxWidth: 80 });
     // TypeScript 类型层面已阻止，但运行时也应确保不可写
     assert.throws(() => {
-      (c as any).minWidth = 999;
+      (c as unknown as { minWidth: number }).minWidth = 999;
     });
   });
 });
@@ -324,10 +323,10 @@ describe("BoxConstraints 方法", () => {
 
     // inner.min 被 clamp 到 outer 的 [min, max]
     // inner.max 被 clamp 到 outer 的 [min, max]
-    assert.equal(result.minWidth, 20);   // clamp(20, 0, 100) = 20
-    assert.equal(result.maxWidth, 100);  // clamp(200, 0, 100) = 100
-    assert.equal(result.minHeight, 10);  // clamp(10, 0, 50) = 10
-    assert.equal(result.maxHeight, 50);  // clamp(80, 0, 50) = 50
+    assert.equal(result.minWidth, 20); // clamp(20, 0, 100) = 20
+    assert.equal(result.maxWidth, 100); // clamp(200, 0, 100) = 100
+    assert.equal(result.minHeight, 10); // clamp(10, 0, 50) = 10
+    assert.equal(result.maxHeight, 50); // clamp(80, 0, 50) = 50
   });
 
   // ── 32. enforce: 结果满足 min <= max 不变式 ────────
@@ -473,7 +472,7 @@ describe("BoxConstraints 方法", () => {
     // maxWidth 和 maxHeight 是 Infinity，应在输出中体现
     assert.ok(
       str.includes("Infinity") || str.includes("Inf") || str.includes("inf"),
-      "默认约束的 toString 应包含 Infinity 标识"
+      "默认约束的 toString 应包含 Infinity 标识",
     );
   });
 });
@@ -485,7 +484,12 @@ describe("BoxConstraints 方法", () => {
 describe("BoxConstraints 不可变性", () => {
   // ── 45. loosen 不修改原实例 ────────────────────────
   it("loosen 不修改原实例", () => {
-    const original = new BoxConstraints({ minWidth: 20, maxWidth: 80, minHeight: 10, maxHeight: 40 });
+    const original = new BoxConstraints({
+      minWidth: 20,
+      maxWidth: 80,
+      minHeight: 10,
+      maxHeight: 40,
+    });
     const loosened = original.loosen();
     // 原实例不受影响
     assert.equal(original.minWidth, 20);

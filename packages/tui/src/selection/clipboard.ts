@@ -22,7 +22,7 @@
  * @module
  */
 
-import { spawn, type ChildProcess } from "child_process";
+import { type ChildProcess, spawn } from "child_process";
 
 /** 剪贴板策略类型 */
 export type ClipboardStrategy = "pbcopy" | "wl-copy" | "xclip" | "osc52";
@@ -119,11 +119,7 @@ export class Clipboard {
    *
    * @internal
    */
-  private async _writeViaSpawn(
-    command: string,
-    args: string[],
-    text: string
-  ): Promise<boolean> {
+  private async _writeViaSpawn(command: string, args: string[], text: string): Promise<boolean> {
     try {
       const child = this._spawn(command, args);
       child.stdin?.write(text);
@@ -163,10 +159,7 @@ export class Clipboard {
    *
    * @internal
    */
-  private async _execCommand(
-    command: string,
-    args: string[] = []
-  ): Promise<string> {
+  private async _execCommand(command: string, args: string[] = []): Promise<string> {
     try {
       const child = this._spawn(command, args);
       let stdout = "";

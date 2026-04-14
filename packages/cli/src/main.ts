@@ -26,34 +26,27 @@
  * });
  * ```
  */
-import path from "node:path";
+
 import os from "node:os";
-import { createProgram } from "./program";
-import { createLogger } from "@flitter/util";
-import {
-  createContainer,
-  type ServiceContainer,
-  type SecretStorage,
-} from "@flitter/flitter";
+import path from "node:path";
 import { FileSettingsStorage } from "@flitter/data";
-import { resolveCliContext } from "./context";
-import { launchInteractiveMode } from "./modes/interactive";
-import { runHeadlessMode } from "./modes/headless";
-import { runExecuteMode } from "./modes/execute";
+import { createContainer, type SecretStorage, type ServiceContainer } from "@flitter/flitter";
+import { createLogger } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
-import { handleUpdate } from "./commands/update";
+import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
 import {
+  handleThreadsArchive,
+  handleThreadsContinue,
+  handleThreadsDelete,
   handleThreadsList,
   handleThreadsNew,
-  handleThreadsContinue,
-  handleThreadsArchive,
-  handleThreadsDelete,
 } from "./commands/threads";
-import {
-  handleConfigGet,
-  handleConfigSet,
-  handleConfigList,
-} from "./commands/config";
+import { handleUpdate } from "./commands/update";
+import { resolveCliContext } from "./context";
+import { runExecuteMode } from "./modes/execute";
+import { runHeadlessMode } from "./modes/headless";
+import { launchInteractiveMode } from "./modes/interactive";
+import { createProgram } from "./program";
 
 const log = createLogger("cli");
 
@@ -192,19 +185,15 @@ export async function main(opts?: MainOptions): Promise<void> {
 
     // ── 依赖准备 ──────────────────────────────────────────
 
-    const secrets: SecretStorage =
-      opts?._testSecrets ?? createInMemorySecretStorage();
+    const secrets: SecretStorage = opts?._testSecrets ?? createInMemorySecretStorage();
     const configDir = path.join(os.homedir(), ".config", "flitter");
     const settings = new FileSettingsStorage({
       globalPath: path.join(configDir, "settings.json"),
     });
-    const ampURL = process.env.FLITTER_API_URL ?? "https://api.flitter.dev";
 
-    // 懒加载容器: 只在命令需要时才创建
     async function ensureContainer(): Promise<ServiceContainer> {
       if (!container) {
         container = await createContainer({
-          ampURL,
           settings,
           secrets,
           workspaceRoot: process.cwd(),
@@ -224,7 +213,7 @@ export async function main(opts?: MainOptions): Promise<void> {
       loginCmd.action(async () => {
         const c = await ensureContainer();
         const ctx = resolveCliContext(program);
-        await handleLogin({ secrets: c.secrets, ampURL }, ctx);
+        await handleLogin({ secrets: c.secrets }, ctx);
       });
     }
 
@@ -234,18 +223,18 @@ export async function main(opts?: MainOptions): Promise<void> {
       logoutCmd.action(async () => {
         const c = await ensureContainer();
         const ctx = resolveCliContext(program);
-        await handleLogout({ secrets: c.secrets, ampURL }, ctx);
+        await handleLogout({ secrets: c.secrets }, ctx);
       });
     }
 
     // update 命令
     const updateCmd = program.commands.find((c) => c.name() === "update");
     if (updateCmd) {
-      updateCmd.action(async (cmdOpts: any) => {
+      updateCmd.action(async (cmdOpts: Record<string, unknown>) => {
         const c = await ensureContainer();
         const ctx = resolveCliContext(program);
         await handleUpdate({ configService: c.configService }, ctx, {
-          targetVersion: cmdOpts?.targetVersion,
+          targetVersion: cmdOpts?.targetVersion as string | undefined,
         });
       });
     }
@@ -255,71 +244,47 @@ export async function main(opts?: MainOptions): Promise<void> {
     if (threadsCmd) {
       const listCmd = threadsCmd.commands.find((c) => c.name() === "list");
       if (listCmd) {
-        listCmd.action(async (cmdOpts: any) => {
+        listCmd.action(async (cmdOpts: Record<string, unknown>) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsList(
-            { threadStore: c.threadStore as any },
-            ctx,
-            {
-              limit: cmdOpts?.limit ?? "20",
-              format: cmdOpts?.format ?? "table",
-            },
-          );
+          await handleThreadsList({ threadStore: c.threadStore }, ctx, {
+            limit: (cmdOpts?.limit as string) ?? "20",
+            format: (cmdOpts?.format as "table" | "json") ?? "table",
+          });
         });
       }
       const newCmd = threadsCmd.commands.find((c) => c.name() === "new");
       if (newCmd) {
-        newCmd.action(async (cmdOpts: any) => {
+        newCmd.action(async (cmdOpts: Record<string, unknown>) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsNew(
-            { threadStore: c.threadStore as any },
-            ctx,
-            { model: cmdOpts?.model },
-          );
+          await handleThreadsNew({ threadStore: c.threadStore }, ctx, {
+            model: cmdOpts?.model as string | undefined,
+          });
         });
       }
-      const continueCmd = threadsCmd.commands.find(
-        (c) => c.name() === "continue",
-      );
+      const continueCmd = threadsCmd.commands.find((c) => c.name() === "continue");
       if (continueCmd) {
         continueCmd.action(async (threadId: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsContinue(
-            { threadStore: c.threadStore as any },
-            ctx,
-            threadId,
-          );
+          await handleThreadsContinue({ threadStore: c.threadStore }, ctx, threadId);
         });
       }
-      const archiveCmd = threadsCmd.commands.find(
-        (c) => c.name() === "archive",
-      );
+      const archiveCmd = threadsCmd.commands.find((c) => c.name() === "archive");
       if (archiveCmd) {
         archiveCmd.action(async (threadId: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsArchive(
-            { threadStore: c.threadStore as any },
-            ctx,
-            threadId,
-          );
+          await handleThreadsArchive({ threadStore: c.threadStore }, ctx, threadId);
         });
       }
-      const deleteCmd = threadsCmd.commands.find(
-        (c) => c.name() === "delete",
-      );
+      const deleteCmd = threadsCmd.commands.find((c) => c.name() === "delete");
       if (deleteCmd) {
         deleteCmd.action(async (threadId: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsDelete(
-            { threadStore: c.threadStore as any },
-            ctx,
-            threadId,
-          );
+          await handleThreadsDelete({ threadStore: c.threadStore }, ctx, threadId);
         });
       }
     }
@@ -332,11 +297,7 @@ export async function main(opts?: MainOptions): Promise<void> {
         getCmd.action(async (key: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleConfigGet(
-            { configService: c.configService as any },
-            ctx,
-            key,
-          );
+          await handleConfigGet({ configService: c.configService }, ctx, key);
         });
       }
       const setCmd = configCmd.commands.find((c) => c.name() === "set");
@@ -344,25 +305,15 @@ export async function main(opts?: MainOptions): Promise<void> {
         setCmd.action(async (key: string, value: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleConfigSet(
-            { configService: c.configService as any },
-            ctx,
-            key,
-            value,
-          );
+          await handleConfigSet({ configService: c.configService }, ctx, key, value);
         });
       }
-      const listConfigCmd = configCmd.commands.find(
-        (c) => c.name() === "list",
-      );
+      const listConfigCmd = configCmd.commands.find((c) => c.name() === "list");
       if (listConfigCmd) {
         listConfigCmd.action(async () => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleConfigList(
-            { configService: c.configService as any },
-            ctx,
-          );
+          await handleConfigList({ configService: c.configService }, ctx);
         });
       }
     }
@@ -378,7 +329,7 @@ export async function main(opts?: MainOptions): Promise<void> {
       } else if (ctx.executeMode) {
         await runExecuteMode(c, ctx);
       } else {
-        await launchInteractiveMode(c, { ...ctx, ampURL });
+        await launchInteractiveMode(c, { ...ctx });
       }
     });
 
@@ -397,7 +348,7 @@ export async function main(opts?: MainOptions): Promise<void> {
       err &&
       typeof err === "object" &&
       "exitCode" in err &&
-      (err as any).exitCode === 0
+      (err as { exitCode: unknown }).exitCode === 0
     ) {
       // --help 或 --version 正常退出
       return;

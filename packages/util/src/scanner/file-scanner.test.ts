@@ -1,10 +1,9 @@
-import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, describe, it } from "node:test";
 import { FileScanner } from "./file-scanner.ts";
-import type { ScanEntry, ScanResult } from "./file-scanner.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,8 +105,8 @@ describe("FileScanner (NodeJS fallback)", () => {
 
   it("maxDepth limits recursion", async () => {
     const root = makeTmpDir();
-    touch(path.join(root, "depth0.ts"));            // depth 0 (root's children)
-    touch(path.join(root, "d1", "depth1.ts"));       // depth 1
+    touch(path.join(root, "depth0.ts")); // depth 0 (root's children)
+    touch(path.join(root, "d1", "depth1.ts")); // depth 1
     touch(path.join(root, "d1", "d2", "depth2.ts")); // depth 2
 
     const scanner = new FileScanner([root], { maxDepth: 1 });
@@ -275,7 +274,10 @@ describe("FileScanner (NodeJS fallback)", () => {
     const result = await scanner.scan();
 
     for (const entry of result.entries) {
-      assert.ok(entry.uri.startsWith("file://"), `URI should start with file://, got: ${entry.uri}`);
+      assert.ok(
+        entry.uri.startsWith("file://"),
+        `URI should start with file://, got: ${entry.uri}`,
+      );
       const uriPath = entry.uri.slice("file://".length);
       assert.ok(path.isAbsolute(uriPath), `URI path portion should be absolute: ${uriPath}`);
     }
@@ -343,7 +345,10 @@ describe("FileScanner class", () => {
     const result = await scanner.scan();
 
     assert.ok(result.scannedFiles >= 2, `Expected scannedFiles >= 2, got ${result.scannedFiles}`);
-    assert.ok(result.scannedDirectories >= 1, `Expected scannedDirectories >= 1, got ${result.scannedDirectories}`);
+    assert.ok(
+      result.scannedDirectories >= 1,
+      `Expected scannedDirectories >= 1, got ${result.scannedDirectories}`,
+    );
   });
 });
 

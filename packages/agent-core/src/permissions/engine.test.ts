@@ -4,17 +4,12 @@
  * 覆盖 getToolFilePaths, checkGuardedFile, PermissionEngine (四级决策),
  * context 过滤, requestApproval, DEFAULT_PERMISSION_RULES
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import type {
-  Config,
-  Settings,
-  PermissionEntry,
-  ToolApprovalRequest,
-  PermissionContext,
-} from "@flitter/schemas";
-import { PermissionEngine, DEFAULT_PERMISSION_RULES } from "./engine";
-import { getToolFilePaths, checkGuardedFile } from "./guarded-files";
+import { describe, it } from "node:test";
+import type { Config, Settings, ToolApprovalRequest } from "@flitter/schemas";
+import { DEFAULT_PERMISSION_RULES, PermissionEngine } from "./engine";
+import { checkGuardedFile, getToolFilePaths } from "./guarded-files";
 
 // ─── 测试辅助函数 ──────────────────────────────────────
 
@@ -46,15 +41,17 @@ function createMockSubject<T>(): MockSubject<T> {
   };
 }
 
-function createEngine(opts?: {
-  settings?: Partial<Settings>;
-  workspaceRoot?: string;
-}): { engine: PermissionEngine; approvals$: MockSubject<ToolApprovalRequest[]> } {
+function createEngine(opts?: { settings?: Partial<Settings>; workspaceRoot?: string }): {
+  engine: PermissionEngine;
+  approvals$: MockSubject<ToolApprovalRequest[]>;
+} {
   const approvals$ = createMockSubject<ToolApprovalRequest[]>();
   const config = createMockConfig(opts?.settings);
   const engine = new PermissionEngine({
     getConfig: () => config,
-    pendingApprovals$: approvals$ as unknown as import("@flitter/util").Subject<ToolApprovalRequest[]>,
+    pendingApprovals$: approvals$ as unknown as import("@flitter/util").Subject<
+      ToolApprovalRequest[]
+    >,
     workspaceRoot: opts?.workspaceRoot ?? "/workspace",
   });
   return { engine, approvals$ };
@@ -120,10 +117,7 @@ describe("checkGuardedFile", () => {
   });
 
   it("多个 allowlist 模式: 匹配任一即不受保护", () => {
-    assert.equal(
-      checkGuardedFile("/tmp/test.ts", ["/workspace/**", "/tmp/**"]),
-      false,
-    );
+    assert.equal(checkGuardedFile("/tmp/test.ts", ["/workspace/**", "/tmp/**"]), false);
   });
 });
 
@@ -310,9 +304,7 @@ describe("PermissionEngine — Context Filtering", () => {
   it("规则 context='subagent' 在 thread 上下文中不生效", () => {
     const { engine } = createEngine({
       settings: {
-        permissions: [
-          { tool: "Bash", action: "allow", context: "subagent" },
-        ],
+        permissions: [{ tool: "Bash", action: "allow", context: "subagent" }],
       },
     });
     // In thread context, the subagent-only rule is skipped → falls to default (ask)
@@ -324,9 +316,7 @@ describe("PermissionEngine — Context Filtering", () => {
   it("规则 context='subagent' 在 subagent 上下文中生效", () => {
     const { engine } = createEngine({
       settings: {
-        permissions: [
-          { tool: "Bash", action: "allow", context: "subagent" },
-        ],
+        permissions: [{ tool: "Bash", action: "allow", context: "subagent" }],
       },
     });
     const result = engine.checkPermission("Bash", {}, "subagent");
@@ -386,8 +376,6 @@ describe("DEFAULT_PERMISSION_RULES", () => {
   it("Write/Edit 规则包含 ${workspaceRoot} 占位符", () => {
     const writeRule = DEFAULT_PERMISSION_RULES.find((r) => r.tool === "Write");
     assert.ok(writeRule?.matches);
-    assert.ok(
-      (writeRule!.matches!.file_path as string).includes("${workspaceRoot}"),
-    );
+    assert.ok((writeRule!.matches!.file_path as string).includes("${workspaceRoot}"));
   });
 });

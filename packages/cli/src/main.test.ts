@@ -11,16 +11,15 @@
  * - 模式路由: interactive / headless / execute
  * - _testContainer 注入 (跳过真实 createContainer)
  */
-import { describe, it, expect, beforeEach, afterEach, mock } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "./context";
 
 // ─── 保存原始 process 监听器以便恢复 ────────────────────
 
 let originalListeners: {
-  unhandledRejection: Function[];
-  SIGINT: Function[];
-  SIGTERM: Function[];
+  unhandledRejection: ((...args: unknown[]) => void)[];
+  SIGINT: ((...args: unknown[]) => void)[];
+  SIGTERM: ((...args: unknown[]) => void)[];
 };
 
 // 抑制日志输出 (JSON 日志走 stderr)
@@ -29,9 +28,9 @@ const origStdoutWrite = process.stdout.write.bind(process.stdout);
 
 beforeEach(() => {
   originalListeners = {
-    unhandledRejection: process.listeners("unhandledRejection") as Function[],
-    SIGINT: process.listeners("SIGINT") as Function[],
-    SIGTERM: process.listeners("SIGTERM") as Function[],
+    unhandledRejection: process.listeners("unhandledRejection") as ((...args: unknown[]) => void)[],
+    SIGINT: process.listeners("SIGINT") as ((...args: unknown[]) => void)[],
+    SIGTERM: process.listeners("SIGTERM") as ((...args: unknown[]) => void)[],
   };
   // 重置 exitCode
   process.exitCode = 0;
@@ -48,13 +47,13 @@ afterEach(() => {
   process.removeAllListeners("SIGTERM");
   // 恢复原始监听器
   for (const fn of originalListeners.unhandledRejection) {
-    process.on("unhandledRejection", fn as any);
+    process.on("unhandledRejection", fn);
   }
   for (const fn of originalListeners.SIGINT) {
-    process.on("SIGINT", fn as any);
+    process.on("SIGINT", fn);
   }
   for (const fn of originalListeners.SIGTERM) {
-    process.on("SIGTERM", fn as any);
+    process.on("SIGTERM", fn);
   }
   // 重置 exitCode
   process.exitCode = 0;
@@ -64,15 +63,13 @@ afterEach(() => {
  * 抑制所有输出 (测试辅助)
  */
 function suppressOutput() {
-  process.stderr.write = (() => true) as any;
-  process.stdout.write = (() => true) as any;
+  process.stderr.write = (() => true) as typeof process.stderr.write;
+  process.stdout.write = (() => true) as typeof process.stdout.write;
 }
 
 // ─── Mock ServiceContainer ───────────────────────────────
 
-function createMockContainer(
-  overrides: Partial<Record<string, unknown>> = {},
-): ServiceContainer {
+function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): ServiceContainer {
   const mockWorker = {
     events$: { subscribe: () => ({ unsubscribe: () => {} }) },
     inferenceState$: {
@@ -92,13 +89,13 @@ function createMockContainer(
       }),
       unsubscribe: () => {},
     },
-    toolRegistry: {} as any,
-    toolOrchestrator: { dispose: () => {} } as any,
-    permissionEngine: {} as any,
-    mcpServerManager: { dispose: () => {} } as any,
+    toolRegistry: {} as unknown as ServiceContainer["toolRegistry"],
+    toolOrchestrator: { dispose: () => {} } as unknown as ServiceContainer["toolOrchestrator"],
+    permissionEngine: {} as unknown as ServiceContainer["permissionEngine"],
+    mcpServerManager: { dispose: () => {} } as unknown as ServiceContainer["mcpServerManager"],
     skillService: {
       skills: { subscribe: () => ({ unsubscribe: () => {} }) },
-    } as any,
+    } as unknown as ServiceContainer["skillService"],
     threadStore: {
       setCachedThread: () => {},
       getThreadSnapshot: () => null,
@@ -106,19 +103,20 @@ function createMockContainer(
       observeThreadEntries: () => ({
         subscribe: () => ({ unsubscribe: () => {} }),
       }),
-    } as any,
+    } as unknown as ServiceContainer["threadStore"],
     threadPersistence: null,
-    guidanceLoader: { discover: async () => [] } as any,
-    contextManager: {} as any,
+    guidanceLoader: { discover: async () => [] } as unknown as ServiceContainer["guidanceLoader"],
+    contextManager: {} as unknown as ServiceContainer["contextManager"],
     secrets: {
       get: async () => undefined,
       set: async () => {},
       delete: async () => {},
     },
-    settings: {} as any,
-    createThreadWorker: () => mockWorker as any,
+    settings: {} as unknown as ServiceContainer["settings"],
+    createThreadWorker: () =>
+      mockWorker as unknown as ReturnType<ServiceContainer["createThreadWorker"]>,
     asyncDispose: mock(async () => {}),
-    ...(overrides as any),
+    ...overrides,
   } as unknown as ServiceContainer;
 }
 
@@ -184,11 +182,11 @@ describe("main()", () => {
     const { main } = await import("./main");
 
     const stderrChunks: string[] = [];
-    process.stderr.write = ((chunk: any) => {
+    process.stderr.write = ((chunk: string | Uint8Array) => {
       stderrChunks.push(String(chunk));
       return true;
-    }) as any;
-    process.stdout.write = (() => true) as any;
+    }) as typeof process.stderr.write;
+    process.stdout.write = (() => true) as typeof process.stdout.write;
 
     await main({
       argv: ["node", "flitter"],

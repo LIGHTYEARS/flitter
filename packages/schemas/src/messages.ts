@@ -183,10 +183,12 @@ export const ThinkingBlockSchema = z.object({
   thinking: z.string(),
   signature: z.string(),
   provider: z.enum(["anthropic", "vertexai", "openai"]).optional(),
-  openAIReasoning: z.object({
-    id: z.string(),
-    encryptedContent: z.string(),
-  }).optional(),
+  openAIReasoning: z
+    .object({
+      id: z.string(),
+      encryptedContent: z.string(),
+    })
+    .optional(),
   startTime: z.number().optional(),
   finalTime: z.number().optional(),
 });
@@ -249,10 +251,12 @@ export const FileMentionFileSchema = z.object({
   uri: z.string(),
   content: z.string(),
   isImage: z.boolean(),
-  imageInfo: z.object({
-    mimeType: z.string(),
-    size: z.number(),
-  }).optional(),
+  imageInfo: z
+    .object({
+      mimeType: z.string(),
+      size: z.number(),
+    })
+    .optional(),
 });
 
 export const FileMentionsSchema = z.object({
@@ -300,9 +304,11 @@ export const AssistantMessageSchema = z.object({
   dtwMessageID: z.string().optional(),
   readAt: z.number().optional(),
   nativeMessage: NativeMessageSchema.optional(),
-  meta: z.object({
-    openAIResponsePhase: z.enum(["commentary", "final_answer"]).optional(),
-  }).optional(),
+  meta: z
+    .object({
+      openAIResponsePhase: z.enum(["commentary", "final_answer"]).optional(),
+    })
+    .optional(),
   parentToolUseId: z.string().optional(),
 });
 export type AssistantMessage = z.infer<typeof AssistantMessageSchema>;

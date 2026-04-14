@@ -15,10 +15,10 @@
  * ```
  */
 
-import { StatefulWidget, State } from "../tree/stateful-widget.js";
-import { TextEditingController } from "./text-editing-controller.js";
-import type { Widget } from "../tree/widget.js";
+import { State, StatefulWidget } from "../tree/stateful-widget.js";
 import type { BuildContext } from "../tree/stateless-widget.js";
+import type { Widget } from "../tree/widget.js";
+import { TextEditingController } from "./text-editing-controller.js";
 
 /**
  * TextField 构造属性
@@ -142,7 +142,7 @@ class TextFieldState extends State<TextField> {
    * @param context - 构建上下文
    * @returns Widget 树
    */
-  build(context: BuildContext): Widget {
+  build(_context: BuildContext): Widget {
     // 简化实现: 返回一个占位 Widget
     // 完整实现需要 RichText + TextSpan + 光标渲染，依赖 InheritedWidget 等
     // 此处提供最小可编译实现

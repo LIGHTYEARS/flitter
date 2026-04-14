@@ -12,7 +12,7 @@
  * }
  * ```
  */
-import type { Message, AssistantContentBlock, Usage } from "@flitter/schemas";
+import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import type { MessageTransformer } from "../provider";
 import type { StreamDelta, SystemPromptBlock } from "../types";
 import { TransformState } from "../types";
@@ -27,7 +27,10 @@ import { TransformState } from "../types";
 export abstract class BaseMessageTransformer<TNativeMessage, TNativeDelta>
   implements MessageTransformer<TNativeMessage, TNativeDelta>
 {
-  abstract toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): TNativeMessage[];
+  abstract toProviderMessages(
+    messages: Message[],
+    systemPrompt: SystemPromptBlock[],
+  ): TNativeMessage[];
   abstract fromProviderDelta(chunk: TNativeDelta, state: TransformState): StreamDelta;
 
   /**
@@ -55,7 +58,10 @@ export abstract class BaseMessageTransformer<TNativeMessage, TNativeDelta>
   }
 
   /** 构建缓存控制头 */
-  buildCacheControl(cacheControl?: { type: "ephemeral"; ttl: string }): Record<string, unknown> | undefined {
+  buildCacheControl(cacheControl?: {
+    type: "ephemeral";
+    ttl: string;
+  }): Record<string, unknown> | undefined {
     if (!cacheControl) return undefined;
     return { type: cacheControl.type, ttl: cacheControl.ttl };
   }

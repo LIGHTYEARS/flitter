@@ -12,15 +12,14 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "./constraints.js";
-import type { Size } from "./constraints.js";
 import { RenderBox } from "./render-box.js";
 import { RenderObject } from "./render-object.js";
-import type { Position } from "./types.js";
-import { setPipelineOwner } from "./types.js";
 import type { PipelineOwnerLike } from "./types.js";
+import { setPipelineOwner } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -57,13 +56,13 @@ class PaintTrackingRenderBox extends RenderBox {
     }
   }
 
-  override performPaint(screen: any, offsetX: number, offsetY: number): void {
+  override performPaint(_screen: Screen, offsetX: number, offsetY: number): void {
     this.paintCalls.push({ offsetX, offsetY });
   }
 }
 
 /** mock Screen，RenderBox.paint 仅做透传。 */
-const mockScreen = {} as any;
+const mockScreen = {} as unknown as Screen;
 
 /** mock PipelineOwner，满足 markNeedsLayout / markNeedsPaint 的全局依赖。 */
 class MockPipelineOwner implements PipelineOwnerLike {
@@ -95,7 +94,7 @@ describe("RenderBox -- 默认值", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 18. 默认 size 为 { width: 0, height: 0 } ─────────
@@ -130,7 +129,7 @@ describe("RenderBox -- layout", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 1. layout 保存 constraints ─────────────────────
@@ -241,7 +240,7 @@ describe("RenderBox -- offset", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 7. 默认 offset 为 {x: 0, y: 0} ─────────────────
@@ -277,7 +276,7 @@ describe("RenderBox -- hitTest", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 9. 点在矩形内 -> true ──────────────────────────
@@ -289,10 +288,10 @@ describe("RenderBox -- hitTest", () => {
 
   // ── 10. 点在矩形外 -> false ─────────────────────────
   it("点在矩形外返回 false", () => {
-    assert.equal(box.hitTest(0, 0), false);   // 左上方
-    assert.equal(box.hitTest(60, 30), false);  // 右下方
-    assert.equal(box.hitTest(5, 15), false);   // 左侧
-    assert.equal(box.hitTest(20, 30), false);  // 下方
+    assert.equal(box.hitTest(0, 0), false); // 左上方
+    assert.equal(box.hitTest(60, 30), false); // 右下方
+    assert.equal(box.hitTest(5, 15), false); // 左侧
+    assert.equal(box.hitTest(20, 30), false); // 下方
   });
 
   // ── 11. 边界点 (offset.x, offset.y) -> true ─────────
@@ -304,8 +303,8 @@ describe("RenderBox -- hitTest", () => {
   it("终止边界点 (offset.x + width, offset.y + height) 返回 false（exclusive）", () => {
     // x: 10 + 40 = 50, y: 5 + 20 = 25
     assert.equal(box.hitTest(50, 25), false);
-    assert.equal(box.hitTest(50, 10), false);  // 右边界
-    assert.equal(box.hitTest(20, 25), false);  // 下边界
+    assert.equal(box.hitTest(50, 10), false); // 右边界
+    assert.equal(box.hitTest(20, 25), false); // 下边界
   });
 });
 
@@ -322,7 +321,7 @@ describe("RenderBox -- paint", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 13. paint 递归调用 children 的 paint ──────────────
@@ -393,7 +392,7 @@ describe("RenderBox -- 继承关系", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 16. RenderBox 是 RenderObject 的子类 ─────────────
@@ -432,7 +431,7 @@ describe("RenderBox -- size setter 验证", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   it("size setter 接受合法的有限尺寸", () => {
@@ -471,7 +470,7 @@ describe("RenderBox -- 综合行为", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   it("layout 后调用 markNeedsPaint", () => {

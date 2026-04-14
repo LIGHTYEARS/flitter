@@ -6,19 +6,20 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach, mock } from "bun:test";
-import {
-  SelectionArea,
-  type Selectable,
-  type SelectionPosition,
-} from "./selection-area.js";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { Clipboard } from "./clipboard.js";
+import { type Selectable, SelectionArea } from "./selection-area.js";
 
 /** 创建一个 mock Selectable */
 function createMockSelectable(
   id: string,
   text: string,
-  bounds: { top: number; left: number; width: number; height: number } = { top: 0, left: 0, width: 80, height: 1 }
+  bounds: { top: number; left: number; width: number; height: number } = {
+    top: 0,
+    left: 0,
+    width: 80,
+    height: 1,
+  },
 ): Selectable {
   let highlightStart = -1;
   let highlightEnd = -1;
@@ -146,10 +147,7 @@ describe("SelectionArea", () => {
       const s = createMockSelectable("s1", "hello world");
       area.register(s);
 
-      area.setSelection(
-        { selectableId: "s1", offset: 0 },
-        { selectableId: "s1", offset: 5 }
-      );
+      area.setSelection({ selectableId: "s1", offset: 0 }, { selectableId: "s1", offset: 5 });
 
       const text = area.copySelection();
       expect(text).toBe("hello");
@@ -161,10 +159,7 @@ describe("SelectionArea", () => {
       area.register(s1);
       area.register(s2);
 
-      area.setSelection(
-        { selectableId: "s1", offset: 0 },
-        { selectableId: "s2", offset: 5 }
-      );
+      area.setSelection({ selectableId: "s1", offset: 0 }, { selectableId: "s2", offset: 5 });
 
       const text = area.copySelection();
       // Cross-selectable: all of s1 + all of s2
@@ -183,10 +178,7 @@ describe("SelectionArea", () => {
       const s = createMockSelectable("s1", "hello");
       area.register(s);
 
-      area.setSelection(
-        { selectableId: "s1", offset: 0 },
-        { selectableId: "s1", offset: 3 }
-      );
+      area.setSelection({ selectableId: "s1", offset: 0 }, { selectableId: "s1", offset: 3 });
       expect(area.getSelection()).not.toBeNull();
 
       area.clear();
@@ -198,10 +190,7 @@ describe("SelectionArea", () => {
     it("should write selected text to clipboard and return true", async () => {
       const s = createMockSelectable("s1", "hello");
       area.register(s);
-      area.setSelection(
-        { selectableId: "s1", offset: 0 },
-        { selectableId: "s1", offset: 5 }
-      );
+      area.setSelection({ selectableId: "s1", offset: 0 }, { selectableId: "s1", offset: 5 });
 
       const result = await area.copyToClipboard();
       expect(result).toBe(true);

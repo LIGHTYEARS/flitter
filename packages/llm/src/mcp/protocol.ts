@@ -5,11 +5,11 @@
  * Direct translation from reversed VyR/XyR, l9, and request tracking.
  */
 import type {
-  JSONRPCRequest,
-  JSONRPCNotification,
-  JSONRPCSuccessResponse,
   JSONRPCErrorResponse,
   JSONRPCMessage,
+  JSONRPCNotification,
+  JSONRPCRequest,
+  JSONRPCSuccessResponse,
 } from "./types";
 import { ErrorCode } from "./types";
 
@@ -39,7 +39,10 @@ export function createNotification(method: string, params?: unknown): JSONRPCNot
   };
 }
 
-export function createSuccessResponse(id: string | number, result: unknown): JSONRPCSuccessResponse {
+export function createSuccessResponse(
+  id: string | number,
+  result: unknown,
+): JSONRPCSuccessResponse {
   return {
     jsonrpc: "2.0",
     id,
@@ -74,14 +77,21 @@ function isJSONRPCMessage(value: unknown): value is JSONRPCMessage {
     if (!idOk) return false;
     if ("error" in obj) {
       const err = obj.error as Record<string, unknown>;
-      return typeof err === "object" && err !== null && typeof err.code === "number" && typeof err.message === "string";
+      return (
+        typeof err === "object" &&
+        err !== null &&
+        typeof err.code === "number" &&
+        typeof err.message === "string"
+      );
     }
     return true;
   }
 
   // Request (has id + method)
   if ("id" in obj && "method" in obj) {
-    return (typeof obj.id === "string" || typeof obj.id === "number") && typeof obj.method === "string";
+    return (
+      (typeof obj.id === "string" || typeof obj.id === "number") && typeof obj.method === "string"
+    );
   }
 
   // Notification (has method, no id)
@@ -192,16 +202,25 @@ export class RequestManager {
       if (options?.timeout && options.timeout > 0) {
         pending.timer = setTimeout(() => {
           this._pending.delete(message.id);
-          reject(new McpError(ErrorCode.RequestTimeout, `Request ${message.id} timed out after ${options.timeout}ms`));
+          reject(
+            new McpError(
+              ErrorCode.RequestTimeout,
+              `Request ${message.id} timed out after ${options.timeout}ms`,
+            ),
+          );
         }, options.timeout);
       }
 
       if (options?.signal) {
-        options.signal.addEventListener("abort", () => {
-          if (pending.timer) clearTimeout(pending.timer);
-          this._pending.delete(message.id);
-          reject(new McpError(ErrorCode.RequestTimeout, "Request cancelled"));
-        }, { once: true });
+        options.signal.addEventListener(
+          "abort",
+          () => {
+            if (pending.timer) clearTimeout(pending.timer);
+            this._pending.delete(message.id);
+            reject(new McpError(ErrorCode.RequestTimeout, "Request cancelled"));
+          },
+          { once: true },
+        );
       }
 
       this._pending.set(message.id, pending);
@@ -229,7 +248,7 @@ export class RequestManager {
   /** Cancel all pending requests */
   cancelAll(reason?: string): void {
     const error = new McpError(ErrorCode.ConnectionClosed, reason ?? "Connection closed");
-    for (const [id, pending] of this._pending) {
+    for (const [_id, pending] of this._pending) {
       if (pending.timer) clearTimeout(pending.timer);
       pending.reject(error);
     }

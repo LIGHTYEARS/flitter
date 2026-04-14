@@ -1,9 +1,8 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as path from "node:path";
-import { FuzzyMatcher } from "./fuzzy-search.ts";
-import type { FuzzyMatchResult } from "./fuzzy-search.ts";
+import { describe, it } from "node:test";
 import type { ScanEntry } from "../scanner/file-scanner.ts";
+import { FuzzyMatcher } from "./fuzzy-search.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -37,11 +36,7 @@ describe("FuzzyMatcher -- scoring tiers", () => {
     const results = matcher.match(entries);
 
     assert.ok(results.length > 0, "Should have results");
-    assert.equal(
-      results[0]!.entry.path,
-      "/src/utils.ts",
-      "Exact match should be first",
-    );
+    assert.equal(results[0]!.entry.path, "/src/utils.ts", "Exact match should be first");
     // Exact score should be > any other score
     for (let i = 1; i < results.length; i++) {
       assert.ok(
@@ -55,12 +50,8 @@ describe("FuzzyMatcher -- scoring tiers", () => {
     const matcher = new FuzzyMatcher("utils");
     const results = matcher.match(entries);
 
-    const prefixResult = results.find(
-      (r) => r.entry.path === "/src/utils-helper.ts",
-    );
-    const suffixResult = results.find(
-      (r) => r.entry.path === "/src/my-utils.ts",
-    );
+    const prefixResult = results.find((r) => r.entry.path === "/src/utils-helper.ts");
+    const suffixResult = results.find((r) => r.entry.path === "/src/my-utils.ts");
 
     assert.ok(prefixResult, "Prefix match should exist");
     assert.ok(suffixResult, "Suffix match should exist");
@@ -74,9 +65,7 @@ describe("FuzzyMatcher -- scoring tiers", () => {
     const matcher = new FuzzyMatcher("utils");
     const results = matcher.match(entries);
 
-    const suffixResult = results.find(
-      (r) => r.entry.path === "/src/my-utils.ts",
-    );
+    const suffixResult = results.find((r) => r.entry.path === "/src/my-utils.ts");
     const substringResult = results.find(
       (r) => r.entry.path === "/src/deep/path/with/utils/index.ts",
     );
@@ -96,9 +85,7 @@ describe("FuzzyMatcher -- scoring tiers", () => {
     const substringResult = results.find(
       (r) => r.entry.path === "/src/deep/path/with/utils/index.ts",
     );
-    const fuzzyResult = results.find(
-      (r) => r.entry.path === "/src/u_t_i_l_s.ts",
-    );
+    const fuzzyResult = results.find((r) => r.entry.path === "/src/u_t_i_l_s.ts");
 
     assert.ok(substringResult, "Substring match should exist");
     assert.ok(fuzzyResult, "Fuzzy match should exist");
@@ -120,10 +107,7 @@ describe("FuzzyMatcher -- scoring tiers", () => {
 // ---------------------------------------------------------------------------
 
 describe("FuzzyMatcher -- smart case", () => {
-  const entries = [
-    makeEntry("/src/Component.tsx"),
-    makeEntry("/src/component.tsx"),
-  ];
+  const entries = [makeEntry("/src/Component.tsx"), makeEntry("/src/component.tsx")];
 
   it("lowercase query is case-insensitive (matches Component with comp)", () => {
     const matcher = new FuzzyMatcher("comp");
@@ -141,21 +125,14 @@ describe("FuzzyMatcher -- smart case", () => {
   });
 
   it("caseSensitive:true overrides smart case", () => {
-    const caseSensitiveEntries = [
-      makeEntry("/app/Component.tsx"),
-      makeEntry("/app/component.tsx"),
-    ];
+    const caseSensitiveEntries = [makeEntry("/app/Component.tsx"), makeEntry("/app/component.tsx")];
     const matcher = new FuzzyMatcher("component", { caseSensitive: true });
     const results = matcher.match(caseSensitiveEntries);
 
     // Only component.tsx (lowercase) should get a high-tier match when case-sensitive
     // Component.tsx cannot match "component" case-sensitively as a prefix/exact/suffix
-    const exactOrPrefix = results.filter(
-      (r) => r.entry.path === "/app/component.tsx",
-    );
-    const other = results.filter(
-      (r) => r.entry.path === "/app/Component.tsx",
-    );
+    const exactOrPrefix = results.filter((r) => r.entry.path === "/app/component.tsx");
+    const other = results.filter((r) => r.entry.path === "/app/Component.tsx");
 
     assert.ok(exactOrPrefix.length > 0, "Lowercase component.tsx should match");
     if (other.length > 0) {
@@ -194,63 +171,42 @@ describe("FuzzyMatcher -- char bag pre-filter", () => {
 
 describe("FuzzyMatcher -- bonus/penalty", () => {
   it("open file (+500) boosts ranking", () => {
-    const entries = [
-      makeEntry("/src/foo.ts"),
-      makeEntry("/src/bar/foo.ts"),
-    ];
+    const entries = [makeEntry("/src/foo.ts"), makeEntry("/src/bar/foo.ts")];
 
     const matcherNoBoost = new FuzzyMatcher("foo");
     const matcherBoost = new FuzzyMatcher("foo", {
       openFiles: new Set(["/src/bar/foo.ts"]),
     });
 
-    const resultsNoBoost = matcherNoBoost.match(entries);
+    const _resultsNoBoost = matcherNoBoost.match(entries);
     const resultsBoost = matcherBoost.match(entries);
 
     // Without boost, /src/foo.ts (shorter path) would normally rank first or equal
     // With boost, /src/bar/foo.ts should rank first due to +500
-    const boostedResult = resultsBoost.find(
-      (r) => r.entry.path === "/src/bar/foo.ts",
-    );
-    const unboostedResult = resultsBoost.find(
-      (r) => r.entry.path === "/src/foo.ts",
-    );
+    const boostedResult = resultsBoost.find((r) => r.entry.path === "/src/bar/foo.ts");
+    const unboostedResult = resultsBoost.find((r) => r.entry.path === "/src/foo.ts");
     assert.ok(boostedResult, "Boosted entry should exist");
     assert.ok(unboostedResult, "Unboosted entry should exist");
-    assert.ok(
-      boostedResult.score > unboostedResult.score,
-      "Open file should have higher score",
-    );
+    assert.ok(boostedResult.score > unboostedResult.score, "Open file should have higher score");
   });
 
   it("dirty file (+300) boosts ranking", () => {
-    const entries = [
-      makeEntry("/src/foo.ts"),
-      makeEntry("/src/bar/foo.ts"),
-    ];
+    const entries = [makeEntry("/src/foo.ts"), makeEntry("/src/bar/foo.ts")];
 
     const matcher = new FuzzyMatcher("foo", {
       dirtyFiles: new Set(["/src/bar/foo.ts"]),
     });
     const results = matcher.match(entries);
 
-    const dirtyResult = results.find(
-      (r) => r.entry.path === "/src/bar/foo.ts",
-    );
+    const dirtyResult = results.find((r) => r.entry.path === "/src/bar/foo.ts");
     const cleanResult = results.find((r) => r.entry.path === "/src/foo.ts");
     assert.ok(dirtyResult, "Dirty entry should exist");
     assert.ok(cleanResult, "Clean entry should exist");
-    assert.ok(
-      dirtyResult.score > cleanResult.score,
-      "Dirty file should have higher score",
-    );
+    assert.ok(dirtyResult.score > cleanResult.score, "Dirty file should have higher score");
   });
 
   it("open + dirty bonuses stack", () => {
-    const entries = [
-      makeEntry("/src/foo.ts"),
-      makeEntry("/src/bar/foo.ts"),
-    ];
+    const entries = [makeEntry("/src/foo.ts"), makeEntry("/src/bar/foo.ts")];
 
     const matcherOpen = new FuzzyMatcher("foo", {
       openFiles: new Set(["/src/bar/foo.ts"]),
@@ -263,12 +219,8 @@ describe("FuzzyMatcher -- bonus/penalty", () => {
     const resultsOpen = matcherOpen.match(entries);
     const resultsBoth = matcherBoth.match(entries);
 
-    const openScore = resultsOpen.find(
-      (r) => r.entry.path === "/src/bar/foo.ts",
-    )!.score;
-    const bothScore = resultsBoth.find(
-      (r) => r.entry.path === "/src/bar/foo.ts",
-    )!.score;
+    const openScore = resultsOpen.find((r) => r.entry.path === "/src/bar/foo.ts")!.score;
+    const bothScore = resultsBoth.find((r) => r.entry.path === "/src/bar/foo.ts")!.score;
 
     assert.ok(
       bothScore > openScore,
@@ -277,20 +229,13 @@ describe("FuzzyMatcher -- bonus/penalty", () => {
   });
 
   it("test file receives penalty", () => {
-    const entries = [
-      makeEntry("/src/Button.tsx"),
-      makeEntry("/src/Button.test.tsx"),
-    ];
+    const entries = [makeEntry("/src/Button.tsx"), makeEntry("/src/Button.test.tsx")];
 
     const matcher = new FuzzyMatcher("Button");
     const results = matcher.match(entries);
 
-    const normalResult = results.find(
-      (r) => r.entry.path === "/src/Button.tsx",
-    );
-    const testResult = results.find(
-      (r) => r.entry.path === "/src/Button.test.tsx",
-    );
+    const normalResult = results.find((r) => r.entry.path === "/src/Button.tsx");
+    const testResult = results.find((r) => r.entry.path === "/src/Button.test.tsx");
 
     assert.ok(normalResult, "Normal file should match");
     assert.ok(testResult, "Test file should match");
@@ -345,14 +290,11 @@ describe("FuzzyMatcher -- matchPositions", () => {
 
     assert.ok(results.length > 0, "Should find a match");
     const result = results[0]!;
-    const target = result.entry.name; // or path, depends on match type
+    const _target = result.entry.name; // or path, depends on match type
 
     // All positions must be valid indices
     for (const pos of result.matchPositions) {
-      assert.ok(
-        pos >= 0,
-        `Position ${pos} should be non-negative`,
-      );
+      assert.ok(pos >= 0, `Position ${pos} should be non-negative`);
     }
   });
 });
@@ -363,22 +305,14 @@ describe("FuzzyMatcher -- matchPositions", () => {
 
 describe("FuzzyMatcher -- empty query", () => {
   it("returns all entries", () => {
-    const entries = [
-      makeEntry("/src/a.ts"),
-      makeEntry("/src/b.ts"),
-      makeEntry("/src/c.ts"),
-    ];
+    const entries = [makeEntry("/src/a.ts"), makeEntry("/src/b.ts"), makeEntry("/src/c.ts")];
     const matcher = new FuzzyMatcher("");
     const results = matcher.match(entries);
     assert.equal(results.length, 3);
   });
 
   it("open files sorted first", () => {
-    const entries = [
-      makeEntry("/src/a.ts"),
-      makeEntry("/src/b.ts"),
-      makeEntry("/src/c.ts"),
-    ];
+    const entries = [makeEntry("/src/a.ts"), makeEntry("/src/b.ts"), makeEntry("/src/c.ts")];
     const matcher = new FuzzyMatcher("", {
       openFiles: new Set(["/src/c.ts"]),
     });
@@ -414,10 +348,7 @@ describe("FuzzyMatcher -- maxResults", () => {
     const matcher = new FuzzyMatcher("item");
     const results = matcher.match(entries);
 
-    assert.ok(
-      results.length <= 100,
-      `Default maxResults should cap at 100, got ${results.length}`,
-    );
+    assert.ok(results.length <= 100, `Default maxResults should cap at 100, got ${results.length}`);
   });
 });
 
@@ -428,20 +359,13 @@ describe("FuzzyMatcher -- maxResults", () => {
 describe("FuzzyMatcher -- tiebreaker", () => {
   it("same score: shorter path wins", () => {
     // Both should get the same scoring tier (exact basename match)
-    const entries = [
-      makeEntry("/very/long/deep/nested/path/foo.ts"),
-      makeEntry("/src/foo.ts"),
-    ];
+    const entries = [makeEntry("/very/long/deep/nested/path/foo.ts"), makeEntry("/src/foo.ts")];
 
     const matcher = new FuzzyMatcher("foo.ts");
     const results = matcher.match(entries);
 
     assert.equal(results.length, 2);
-    assert.equal(
-      results[0]!.entry.path,
-      "/src/foo.ts",
-      "Shorter path should win as tiebreaker",
-    );
+    assert.equal(results[0]!.entry.path, "/src/foo.ts", "Shorter path should win as tiebreaker");
   });
 });
 
@@ -458,10 +382,7 @@ describe("FuzzyMatcher -- edge cases", () => {
   });
 
   it("single-character query", () => {
-    const entries = [
-      makeEntry("/src/a.ts"),
-      makeEntry("/src/b.ts"),
-    ];
+    const entries = [makeEntry("/src/a.ts"), makeEntry("/src/b.ts")];
     const matcher = new FuzzyMatcher("a");
     const results = matcher.match(entries);
 
@@ -474,10 +395,7 @@ describe("FuzzyMatcher -- edge cases", () => {
   });
 
   it("special regex chars in query are treated as literal", () => {
-    const entries = [
-      makeEntry("/src/file.test.ts"),
-      makeEntry("/src/file_test_ts"),
-    ];
+    const entries = [makeEntry("/src/file.test.ts"), makeEntry("/src/file_test_ts")];
 
     // The dot in ".test." should be treated literally, not as regex wildcard
     const matcher = new FuzzyMatcher(".test.");
@@ -503,11 +421,7 @@ describe("FuzzyMatcher -- edge cases", () => {
     assert.equal(results.length, 3, "All three index.ts files should match");
     // They should all be exact matches with the same tier
     const scores = results.map((r) => r.score);
-    assert.equal(
-      scores[0],
-      scores[1],
-      "Same basename matches should have the same base score",
-    );
+    assert.equal(scores[0], scores[1], "Same basename matches should have the same base score");
   });
 
   it("large number of entries (1000+) does not crash", () => {
@@ -556,9 +470,7 @@ describe("FuzzyMatcher -- additional", () => {
 
     const normal = results.find((r) => r.entry.name === "Widget.tsx")!;
     const spec = results.find((r) => r.entry.name === "Widget.spec.tsx")!;
-    const stories = results.find(
-      (r) => r.entry.name === "Widget.stories.tsx",
-    )!;
+    const stories = results.find((r) => r.entry.name === "Widget.stories.tsx")!;
 
     assert.ok(normal.score > spec.score, "Normal should beat spec");
     assert.ok(normal.score > stories.score, "Normal should beat stories");
@@ -603,12 +515,8 @@ describe("FuzzyMatcher -- additional", () => {
 
     // Both should match, but the one with smaller gaps should score higher
     assert.equal(results.length, 2, "Both should match");
-    const smallGap = results.find(
-      (r) => r.entry.path === "/src/ab_cd.ts",
-    )!;
-    const largeGap = results.find(
-      (r) => r.entry.path === "/src/a____b____c____d.ts",
-    )!;
+    const smallGap = results.find((r) => r.entry.path === "/src/ab_cd.ts")!;
+    const largeGap = results.find((r) => r.entry.path === "/src/a____b____c____d.ts")!;
     assert.ok(
       smallGap.score > largeGap.score,
       `Smaller gaps (${smallGap.score}) should score higher than larger gaps (${largeGap.score})`,

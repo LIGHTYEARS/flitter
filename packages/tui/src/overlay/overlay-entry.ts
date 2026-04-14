@@ -24,7 +24,7 @@ import type { OverlayState } from "./overlay.js";
 /** OverlayEntry 构造选项。 */
 export interface OverlayEntryOptions {
   /** builder 函数，延迟构建弹出层的 Widget 内容 */
-  builder: (context: any) => Widget;
+  builder: (context: unknown) => Widget;
   /** 是否在隐藏时保持 Widget 状态，默认 false */
   maintainState?: boolean;
 }
@@ -44,7 +44,7 @@ export interface OverlayEntryOptions {
  */
 export class OverlayEntry {
   /** 构建弹出层 Widget 的工厂函数 */
-  readonly builder: (context: any) => Widget;
+  readonly builder: (context: unknown) => Widget;
 
   /** 是否在隐藏时保持 Widget 状态 */
   readonly maintainState: boolean;

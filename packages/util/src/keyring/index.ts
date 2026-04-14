@@ -1,6 +1,6 @@
 export {
-  type SecretStore,
+  createSecretStore,
   FileSecretStore,
   NativeSecretStore,
-  createSecretStore,
+  type SecretStore,
 } from "./keyring";

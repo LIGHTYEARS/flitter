@@ -35,10 +35,7 @@ export function sanitizeName(name: string, fallback: string): string {
  *
  * Reversed: PDT
  */
-export function namespacedToolName(
-  serverName: string,
-  toolName: string,
-): string {
+export function namespacedToolName(serverName: string, toolName: string): string {
   const server = sanitizeName(serverName, "server");
   const tool = sanitizeName(toolName, "tool");
   const full = `mcp__${server}__${tool}`;
@@ -90,9 +87,7 @@ export function truncateToolResult(
       const byteLength = Buffer.byteLength(item.text, "utf-8");
       if (byteLength > maxBytes) {
         // Truncate to approximate character count (may not be exact for multi-byte)
-        const truncated = Buffer.from(item.text, "utf-8")
-          .subarray(0, maxBytes)
-          .toString("utf-8");
+        const truncated = Buffer.from(item.text, "utf-8").subarray(0, maxBytes).toString("utf-8");
         const totalKB = Math.round(byteLength / 1024);
         const shownKB = Math.round(maxBytes / 1024);
         return {
@@ -109,10 +104,7 @@ export function truncateToolResult(
  * Format an error tool result as a human-readable string.
  * Extracts text from content entries and joins them.
  */
-export function formatToolError(
-  toolName: string,
-  content: MCPToolContent[],
-): string {
+export function formatToolError(toolName: string, content: MCPToolContent[]): string {
   const texts = content
     .filter((c): c is { type: "text"; text: string } => c.type === "text")
     .map((c) => c.text.trim())

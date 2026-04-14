@@ -11,8 +11,9 @@
  * const token = await store.get('token', 'https://api.example.com');
  * ```
  */
-import * as fs from "node:fs";
+
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { Subject } from "../reactive/index";
 
@@ -78,8 +79,7 @@ export class FileSecretStore implements SecretStore {
       const content = await fs.promises.readFile(this._filePath, "utf-8");
       return JSON.parse(content);
     } catch (err: unknown) {
-      if (err instanceof Error && "code" in err && err.code === "ENOENT")
-        return {};
+      if (err instanceof Error && "code" in err && err.code === "ENOENT") return {};
       // Corrupt JSON -- return empty
       if (err instanceof SyntaxError) return {};
       throw err;
@@ -91,7 +91,13 @@ export class FileSecretStore implements SecretStore {
     await fs.promises.mkdir(dir, { recursive: true });
     // Atomic write: write to temp file then rename
     const tmpPath =
-      this._filePath + ".tmp." + process.pid + "." + Date.now() + "." + crypto.randomBytes(4).toString("hex");
+      this._filePath +
+      ".tmp." +
+      process.pid +
+      "." +
+      Date.now() +
+      "." +
+      crypto.randomBytes(4).toString("hex");
     await fs.promises.writeFile(tmpPath, JSON.stringify(data, null, 2), {
       mode: 0o600,
     });
@@ -128,7 +134,10 @@ export class FileSecretStore implements SecretStore {
 export class NativeSecretStore implements SecretStore {
   readonly changes: Subject<void> = new Subject<void>();
   private _native: {
-    Entry: new (service: string, key: string) => {
+    Entry: new (
+      service: string,
+      key: string,
+    ) => {
       getPassword(): string | null;
       setPassword(value: string): void;
       deletePassword(): void;

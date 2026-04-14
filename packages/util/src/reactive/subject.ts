@@ -70,9 +70,7 @@ export class BehaviorSubject<T> extends Subject<T> {
     return this._value;
   }
 
-  override subscribe(
-    observer: Partial<Observer<T>>,
-  ): Subscription;
+  override subscribe(observer: Partial<Observer<T>>): Subscription;
   override subscribe(
     next?: (value: T) => void,
     error?: (err: unknown) => void,
@@ -84,16 +82,12 @@ export class BehaviorSubject<T> extends Subject<T> {
     complete?: () => void,
   ): Subscription {
     // Call parent subscribe first to register the observer
-    const sub = super.subscribe(observerOrNext as any, error, complete);
+    const sub = super.subscribe(observerOrNext as unknown as (value: T) => void, error, complete);
     // Then emit current value synchronously to the new subscriber
     if (!sub.closed) {
       if (typeof observerOrNext === "function") {
         observerOrNext(this._value);
-      } else if (
-        observerOrNext &&
-        typeof observerOrNext === "object" &&
-        observerOrNext.next
-      ) {
+      } else if (observerOrNext && typeof observerOrNext === "object" && observerOrNext.next) {
         observerOrNext.next(this._value);
       }
     }

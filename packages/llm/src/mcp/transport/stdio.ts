@@ -5,10 +5,10 @@
  * newline-delimited JSON-RPC. Direct translation from reversed TDT.
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
-import { ReadBuffer } from "./read-buffer";
+import { type ChildProcess, spawn } from "node:child_process";
 import { serializeMessage } from "../protocol";
-import type { MCPTransport, JSONRPCMessage } from "../types";
+import type { JSONRPCMessage, MCPTransport } from "../types";
+import { ReadBuffer } from "./read-buffer";
 
 export interface StdioTransportOptions {
   command: string;
@@ -42,16 +42,12 @@ export class StdioTransport implements MCPTransport {
     return new Promise<void>((resolve, reject) => {
       const env = { ...process.env, ...this._serverParams.env };
 
-      this._process = spawn(
-        this._serverParams.command,
-        this._serverParams.args ?? [],
-        {
-          env,
-          stdio: ["pipe", "pipe", "pipe"],
-          shell: false,
-          cwd: this._serverParams.cwd,
-        },
-      );
+      this._process = spawn(this._serverParams.command, this._serverParams.args ?? [], {
+        env,
+        stdio: ["pipe", "pipe", "pipe"],
+        shell: false,
+        cwd: this._serverParams.cwd,
+      });
 
       this._process.on("error", (err) => {
         reject(err);

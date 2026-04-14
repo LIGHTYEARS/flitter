@@ -6,12 +6,12 @@
  *
  * 逆向参考: S8() in cli-entrypoint.js:913-990
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
-import { resolveCliContext } from "./context";
-import type { CliContext } from "./context";
-import { createProgram } from "./program";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Command } from "commander";
+import { resolveCliContext } from "./context";
+import { createProgram } from "./program";
 
 /**
  * 辅助函数: 创建已解析的 program 实例

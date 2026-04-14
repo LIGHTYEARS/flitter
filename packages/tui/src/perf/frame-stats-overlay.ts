@@ -20,10 +20,10 @@
  * @module
  */
 
-import type { Screen } from "../screen/screen.js";
 import { Cell } from "../screen/cell.js";
-import { TextStyle } from "../screen/text-style.js";
 import { Color } from "../screen/color.js";
+import type { Screen } from "../screen/screen.js";
+import { TextStyle } from "../screen/text-style.js";
 import type { PerformanceTracker } from "./performance-tracker.js";
 
 /**
@@ -291,7 +291,7 @@ export class FrameStatsOverlay {
       p99: number;
       type: "ms" | "percent" | "bytes";
       labelColor: Color;
-    }
+    },
   ): void {
     const paddedLabel = ` ${label.padStart(7, " ")} `;
     let col = x;
@@ -302,9 +302,12 @@ export class FrameStatsOverlay {
 
     // Last
     const lastStr = this.formatValue(data.last, data.type);
-    const lastColor = data.type === "bytes" ? this._foregroundColor
-      : data.type === "percent" ? this.getPercentColor(data.last)
-      : this.getTimingColor(data.last);
+    const lastColor =
+      data.type === "bytes"
+        ? this._foregroundColor
+        : data.type === "percent"
+          ? this.getPercentColor(data.last)
+          : this.getTimingColor(data.last);
     this._drawText(screen, col, y, lastStr, lastColor);
     col += lastStr.length;
 
@@ -314,9 +317,12 @@ export class FrameStatsOverlay {
 
     // P95
     const p95Str = this.formatValue(data.p95, data.type);
-    const p95Color = data.type === "bytes" ? this._foregroundColor
-      : data.type === "percent" ? this.getPercentColor(data.p95)
-      : this.getTimingColor(data.p95);
+    const p95Color =
+      data.type === "bytes"
+        ? this._foregroundColor
+        : data.type === "percent"
+          ? this.getPercentColor(data.p95)
+          : this.getTimingColor(data.p95);
     this._drawText(screen, col, y, p95Str, p95Color);
     col += p95Str.length;
 
@@ -326,9 +332,12 @@ export class FrameStatsOverlay {
 
     // P99
     const p99Str = this.formatValue(data.p99, data.type);
-    const p99Color = data.type === "bytes" ? this._foregroundColor
-      : data.type === "percent" ? this.getPercentColor(data.p99)
-      : this.getTimingColor(data.p99);
+    const p99Color =
+      data.type === "bytes"
+        ? this._foregroundColor
+        : data.type === "percent"
+          ? this.getPercentColor(data.p99)
+          : this.getTimingColor(data.p99);
     this._drawText(screen, col, y, p99Str, p99Color);
   }
 

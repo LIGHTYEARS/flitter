@@ -3,13 +3,14 @@
  *
  * 测试: OpenAITransformer, OpenAIToolTransformer, fromProviderDelta, 完整流模拟
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import { OpenAITransformer, OpenAIToolTransformer } from "./transformer";
-import type { OpenAISSEEvent, OpenAIResponse } from "./transformer";
-import { TransformState } from "../../types";
-import type { Message, AssistantContentBlock } from "@flitter/schemas";
+import { describe, it } from "node:test";
+import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock, ToolDefinition } from "../../types";
+import { TransformState } from "../../types";
+import type { OpenAIResponse, OpenAISSEEvent } from "./transformer";
+import { OpenAIToolTransformer, OpenAITransformer } from "./transformer";
 
 // ─── Helper ──────────────────────────────────────────────
 
@@ -52,10 +53,12 @@ describe("OpenAITransformer.toProviderMessages", () => {
     assert.equal(result.length, 1);
     assert.deepEqual(result[0], {
       role: "user",
-      content: [{
-        type: "input_image",
-        image_url: { url: "data:image/png;base64,abc123" },
-      }],
+      content: [
+        {
+          type: "input_image",
+          image_url: { url: "data:image/png;base64,abc123" },
+        },
+      ],
     });
   });
 
@@ -67,10 +70,12 @@ describe("OpenAITransformer.toProviderMessages", () => {
     assert.equal(result.length, 1);
     assert.deepEqual(result[0], {
       role: "user",
-      content: [{
-        type: "input_image",
-        image_url: { url: "https://example.com/img.png" },
-      }],
+      content: [
+        {
+          type: "input_image",
+          image_url: { url: "https://example.com/img.png" },
+        },
+      ],
     });
   });
 
@@ -88,9 +93,7 @@ describe("OpenAITransformer.toProviderMessages", () => {
   });
 
   it("should convert AssistantMessage text to assistant role", () => {
-    const msg = createAssistantMessage([
-      { type: "text", text: "Hi there", startTime: Date.now() },
-    ]);
+    const msg = createAssistantMessage([{ type: "text", text: "Hi there", startTime: Date.now() }]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
     assert.equal(result[0].role, "assistant");
@@ -147,10 +150,13 @@ describe("OpenAITransformer.fromProviderDelta", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
     // First create response
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
 
     const event: OpenAISSEEvent = {
       type: "response.output_item.added",
@@ -165,10 +171,13 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.output_item.added (reasoning)", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "o3", status: "in_progress", output: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "o3", status: "in_progress", output: [] },
+      },
+      state,
+    );
 
     const event: OpenAISSEEvent = {
       type: "response.output_item.added",
@@ -186,15 +195,24 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.output_item.added (function_call)", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
 
     const event: OpenAISSEEvent = {
       type: "response.output_item.added",
       output_index: 0,
-      item: { type: "function_call", id: "fc_001", name: "bash", arguments: "", call_id: "call_001" },
+      item: {
+        type: "function_call",
+        id: "fc_001",
+        name: "bash",
+        arguments: "",
+        call_id: "call_001",
+      },
     };
     const delta = transformer.fromProviderDelta(event, state);
     assert.equal(delta.content.length, 1);
@@ -209,28 +227,40 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.output_text.delta — append text", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_item.added",
-      output_index: 0,
-      item: { type: "message", content: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_item.added",
+        output_index: 0,
+        item: { type: "message", content: [] },
+      },
+      state,
+    );
 
-    transformer.fromProviderDelta({
-      type: "response.output_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "Hello ",
-    }, state);
-    const delta = transformer.fromProviderDelta({
-      type: "response.output_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "world!",
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "Hello ",
+      },
+      state,
+    );
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.output_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "world!",
+      },
+      state,
+    );
 
     assert.equal(delta.content.length, 1);
     if (delta.content[0].type === "text") {
@@ -241,28 +271,40 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.reasoning.delta — append thinking", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "o3", status: "in_progress", output: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_item.added",
-      output_index: 0,
-      item: { type: "reasoning", content: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "o3", status: "in_progress", output: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_item.added",
+        output_index: 0,
+        item: { type: "reasoning", content: [] },
+      },
+      state,
+    );
 
-    transformer.fromProviderDelta({
-      type: "response.reasoning_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "Let me ",
-    }, state);
-    const delta = transformer.fromProviderDelta({
-      type: "response.reasoning_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "think...",
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.reasoning_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "Let me ",
+      },
+      state,
+    );
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.reasoning_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "think...",
+      },
+      state,
+    );
 
     assert.equal(delta.content.length, 1);
     if (delta.content[0].type === "thinking") {
@@ -273,21 +315,36 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.function_call_arguments.delta — accumulate JSON", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_item.added",
-      output_index: 0,
-      item: { type: "function_call", id: "fc_001", name: "bash", arguments: "", call_id: "call_001" },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_item.added",
+        output_index: 0,
+        item: {
+          type: "function_call",
+          id: "fc_001",
+          name: "bash",
+          arguments: "",
+          call_id: "call_001",
+        },
+      },
+      state,
+    );
 
-    transformer.fromProviderDelta({
-      type: "response.function_call_arguments.delta",
-      output_index: 0,
-      delta: '{"cmd":',
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.function_call_arguments.delta",
+        output_index: 0,
+        delta: '{"cmd":',
+      },
+      state,
+    );
 
     // Check inputPartialJSON was set
     const block = state.blocks.get(0);
@@ -298,27 +355,39 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.output_item.done", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_item.added",
-      output_index: 0,
-      item: { type: "message", content: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "Hello",
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_item.added",
+        output_index: 0,
+        item: { type: "message", content: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "Hello",
+      },
+      state,
+    );
 
-    const delta = transformer.fromProviderDelta({
-      type: "response.output_item.done",
-      output_index: 0,
-      item: { type: "message", content: [{ type: "output_text", text: "Hello" }] },
-    }, state);
+    const _delta = transformer.fromProviderDelta(
+      {
+        type: "response.output_item.done",
+        output_index: 0,
+        item: { type: "message", content: [{ type: "output_text", text: "Hello" }] },
+      },
+      state,
+    );
 
     const block = state.blocks.get(0);
     assert.ok(block?.finalTime);
@@ -327,21 +396,30 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.completed → complete delta with usage", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_item.added",
-      output_index: 0,
-      item: { type: "message", content: [] },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "response.output_text.delta",
-      output_index: 0,
-      content_index: 0,
-      delta: "Hi",
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_item.added",
+        output_index: 0,
+        item: { type: "message", content: [] },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "response.output_text.delta",
+        output_index: 0,
+        content_index: 0,
+        delta: "Hi",
+      },
+      state,
+    );
 
     const response: OpenAIResponse = {
       id: "resp_001",
@@ -355,10 +433,13 @@ describe("OpenAITransformer.fromProviderDelta", () => {
       },
     };
 
-    const delta = transformer.fromProviderDelta({
-      type: "response.completed",
-      response,
-    }, state);
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.completed",
+        response,
+      },
+      state,
+    );
 
     assert.deepEqual(delta.state, { type: "complete", stopReason: "end_turn" });
     assert.ok(delta.usage);
@@ -372,11 +453,14 @@ describe("OpenAITransformer.fromProviderDelta", () => {
   it("should handle response.failed → error delta", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
-    const delta = transformer.fromProviderDelta({
-      type: "response.failed",
-      response: { id: "resp_001", model: "gpt-4o", status: "failed", output: [] },
-      error: { message: "Rate limit exceeded" },
-    }, state);
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.failed",
+        response: { id: "resp_001", model: "gpt-4o", status: "failed", output: [] },
+        error: { message: "Rate limit exceeded" },
+      },
+      state,
+    );
 
     assert.deepEqual(delta.state, { type: "error", error: { message: "Rate limit exceeded" } });
   });
@@ -461,7 +545,13 @@ describe("OpenAITransformer — full stream simulation", () => {
       {
         type: "response.output_item.added",
         output_index: 0,
-        item: { type: "function_call", id: "fc_001", name: "bash", arguments: "", call_id: "call_001" },
+        item: {
+          type: "function_call",
+          id: "fc_001",
+          name: "bash",
+          arguments: "",
+          call_id: "call_001",
+        },
       },
       {
         type: "response.function_call_arguments.delta",
@@ -482,7 +572,13 @@ describe("OpenAITransformer — full stream simulation", () => {
       {
         type: "response.output_item.done",
         output_index: 0,
-        item: { type: "function_call", id: "fc_001", name: "bash", arguments: '{"command":"ls -la"}', call_id: "call_001" },
+        item: {
+          type: "function_call",
+          id: "fc_001",
+          name: "bash",
+          arguments: '{"command":"ls -la"}',
+          call_id: "call_001",
+        },
       },
       {
         type: "response.completed",
@@ -490,7 +586,15 @@ describe("OpenAITransformer — full stream simulation", () => {
           id: "resp_002",
           model: "gpt-4o",
           status: "completed",
-          output: [{ type: "function_call", id: "fc_001", name: "bash", arguments: '{"command":"ls -la"}', call_id: "call_001" }],
+          output: [
+            {
+              type: "function_call",
+              id: "fc_001",
+              name: "bash",
+              arguments: '{"command":"ls -la"}',
+              call_id: "call_001",
+            },
+          ],
           usage: { input_tokens: 80, output_tokens: 20 },
         },
       },
@@ -566,10 +670,19 @@ describe("OpenAITransformer — full stream simulation", () => {
           model: "o3",
           status: "completed",
           output: [
-            { type: "reasoning", id: "rs_001", content: [{ type: "reasoning_text", text: "Let me think about this..." }], encrypted_content: "enc_abc123" },
+            {
+              type: "reasoning",
+              id: "rs_001",
+              content: [{ type: "reasoning_text", text: "Let me think about this..." }],
+              encrypted_content: "enc_abc123",
+            },
             { type: "message", content: [{ type: "output_text", text: "The answer is 42." }] },
           ],
-          usage: { input_tokens: 200, output_tokens: 50, input_tokens_details: { cached_tokens: 100 } },
+          usage: {
+            input_tokens: 200,
+            output_tokens: 50,
+            input_tokens_details: { cached_tokens: 100 },
+          },
         },
       },
     ];
@@ -610,11 +723,13 @@ describe("OpenAIToolTransformer", () => {
   const toolTransformer = new OpenAIToolTransformer();
 
   it("should convert ToolDefinition to OpenAI function tool", () => {
-    const tools: ToolDefinition[] = [{
-      name: "bash",
-      description: "Run a command",
-      inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
-    }];
+    const tools: ToolDefinition[] = [
+      {
+        name: "bash",
+        description: "Run a command",
+        inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
+      },
+    ];
     const result = toolTransformer.toProviderTools(tools);
     assert.equal(result.length, 1);
     assert.equal(result[0].type, "function");
@@ -650,25 +765,31 @@ describe("OpenAITransformer — usage calculation", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
+      },
+      state,
+    );
 
-    const delta = transformer.fromProviderDelta({
-      type: "response.completed",
-      response: {
-        id: "resp_001",
-        model: "gpt-4o",
-        status: "completed",
-        output: [],
-        usage: {
-          input_tokens: 500,
-          output_tokens: 100,
-          input_tokens_details: { cached_tokens: 200 },
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_001",
+          model: "gpt-4o",
+          status: "completed",
+          output: [],
+          usage: {
+            input_tokens: 500,
+            output_tokens: 100,
+            input_tokens_details: { cached_tokens: 200 },
+          },
         },
       },
-    }, state);
+      state,
+    );
 
     assert.ok(delta.usage);
     assert.equal(delta.usage!.cacheReadInputTokens, 200);
@@ -681,21 +802,27 @@ describe("OpenAITransformer — usage calculation", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-
-    const delta = transformer.fromProviderDelta({
-      type: "response.completed",
-      response: {
-        id: "resp_001",
-        model: "gpt-4o",
-        status: "completed",
-        output: [],
-        usage: { input_tokens: 100, output_tokens: 50 },
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
       },
-    }, state);
+      state,
+    );
+
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_001",
+          model: "gpt-4o",
+          status: "completed",
+          output: [],
+          usage: { input_tokens: 100, output_tokens: 50 },
+        },
+      },
+      state,
+    );
 
     assert.ok(delta.usage);
     assert.equal(delta.usage!.cacheReadInputTokens, null);
@@ -711,23 +838,35 @@ describe("OpenAITransformer — response.completed stop reason", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-
-    const delta = transformer.fromProviderDelta({
-      type: "response.completed",
-      response: {
-        id: "resp_001",
-        model: "gpt-4o",
-        status: "completed",
-        output: [
-          { type: "function_call", id: "fc_001", name: "bash", arguments: "{}", call_id: "call_001" },
-        ],
-        usage: { input_tokens: 50, output_tokens: 10 },
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
       },
-    }, state);
+      state,
+    );
+
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_001",
+          model: "gpt-4o",
+          status: "completed",
+          output: [
+            {
+              type: "function_call",
+              id: "fc_001",
+              name: "bash",
+              arguments: "{}",
+              call_id: "call_001",
+            },
+          ],
+          usage: { input_tokens: 50, output_tokens: 10 },
+        },
+      },
+      state,
+    );
 
     assert.deepEqual(delta.state, { type: "complete", stopReason: "tool_use" });
   });
@@ -736,23 +875,27 @@ describe("OpenAITransformer — response.completed stop reason", () => {
     const transformer = new OpenAITransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      type: "response.created",
-      response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
-    }, state);
-
-    const delta = transformer.fromProviderDelta({
-      type: "response.completed",
-      response: {
-        id: "resp_001",
-        model: "gpt-4o",
-        status: "completed",
-        output: [
-          { type: "message", content: [{ type: "output_text", text: "Hi" }] },
-        ],
-        usage: { input_tokens: 50, output_tokens: 10 },
+    transformer.fromProviderDelta(
+      {
+        type: "response.created",
+        response: { id: "resp_001", model: "gpt-4o", status: "in_progress", output: [] },
       },
-    }, state);
+      state,
+    );
+
+    const delta = transformer.fromProviderDelta(
+      {
+        type: "response.completed",
+        response: {
+          id: "resp_001",
+          model: "gpt-4o",
+          status: "completed",
+          output: [{ type: "message", content: [{ type: "output_text", text: "Hi" }] }],
+          usage: { input_tokens: 50, output_tokens: 10 },
+        },
+      },
+      state,
+    );
 
     assert.deepEqual(delta.state, { type: "complete", stopReason: "end_turn" });
   });

@@ -14,19 +14,19 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import { Row } from "./row.js";
-import { Column } from "./column.js";
-import { Flexible, Expanded } from "./flexible.js";
-import { MultiChildRenderObjectElement } from "./multi-child-render-object-element.js";
-import { RenderFlex, FlexParentData } from "./flex.js";
-import { RenderBox } from "../tree/render-box.js";
+import { describe, it } from "node:test";
 import { BoxConstraints } from "../tree/constraints.js";
-import { Widget } from "../tree/widget.js";
 import type { Element } from "../tree/element.js";
-import { RenderObjectElement, type RenderObjectWidget } from "../tree/render-object-element.js";
+import { RenderBox } from "../tree/render-box.js";
 import type { RenderObject } from "../tree/render-object.js";
+import { RenderObjectElement } from "../tree/render-object-element.js";
+import { Widget } from "../tree/widget.js";
+import { Column } from "./column.js";
+import type { FlexParentData, RenderFlex } from "./flex.js";
+import { Expanded, Flexible } from "./flexible.js";
+import { MultiChildRenderObjectElement } from "./multi-child-render-object-element.js";
+import { Row } from "./row.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -46,10 +46,7 @@ class TestRenderBox extends RenderBox {
   }
 
   performLayout(): void {
-    this.size = this._constraints!.constrain(
-      this.preferredWidth,
-      this.preferredHeight
-    );
+    this.size = this._constraints!.constrain(this.preferredWidth, this.preferredHeight);
   }
 }
 
@@ -83,11 +80,7 @@ class TestLeafWidget extends Widget {
 /**
  * 测试用的叶子元素，继承 RenderObjectElement。
  */
-class TestLeafElement extends RenderObjectElement {
-  constructor(widget: Widget) {
-    super(widget);
-  }
-}
+class TestLeafElement extends RenderObjectElement {}
 
 /**
  * 辅助函数：构建 Widget 树并执行布局。
@@ -173,10 +166,7 @@ describe("Row -- 水平布局基础", () => {
   it("mainAxisSize='min' 时 Row 收缩到内容宽度", () => {
     const row = new Row({
       mainAxisSize: "min",
-      children: [
-        new TestLeafWidget(20, 10),
-        new TestLeafWidget(30, 10),
-      ],
+      children: [new TestLeafWidget(20, 10), new TestLeafWidget(30, 10)],
     });
     const flex = buildAndLayout(row, BoxConstraints.loose(200, 100));
     assert.equal(flex.size.width, 50);
@@ -219,10 +209,7 @@ describe("Column -- 垂直布局基础", () => {
 describe("Expanded -- 填满剩余空间", () => {
   it("单个 Expanded 子节点填满 Row 剩余宽度", () => {
     const row = new Row({
-      children: [
-        new TestLeafWidget(30, 10),
-        new Expanded({ child: new TestLeafWidget(0, 10) }),
-      ],
+      children: [new TestLeafWidget(30, 10), new Expanded({ child: new TestLeafWidget(0, 10) })],
     });
     const flex = buildAndLayout(row, BoxConstraints.tight(100, 50));
 
@@ -262,10 +249,7 @@ describe("Expanded -- 填满剩余空间", () => {
 
   it("Column 中 Expanded 子节点填满剩余高度", () => {
     const col = new Column({
-      children: [
-        new TestLeafWidget(10, 30),
-        new Expanded({ child: new TestLeafWidget(10, 0) }),
-      ],
+      children: [new TestLeafWidget(10, 30), new Expanded({ child: new TestLeafWidget(10, 0) })],
     });
     const flex = buildAndLayout(col, BoxConstraints.tight(50, 100));
 
@@ -319,10 +303,7 @@ describe("Row -- MainAxisAlignment", () => {
   it("'end' 对齐：子节点靠主轴末尾", () => {
     const row = new Row({
       mainAxisAlignment: "end",
-      children: [
-        new TestLeafWidget(20, 10),
-        new TestLeafWidget(30, 10),
-      ],
+      children: [new TestLeafWidget(20, 10), new TestLeafWidget(30, 10)],
     });
     const flex = buildAndLayout(row, BoxConstraints.tight(100, 50));
 
@@ -334,10 +315,7 @@ describe("Row -- MainAxisAlignment", () => {
   it("'center' 对齐：子节点在主轴居中", () => {
     const row = new Row({
       mainAxisAlignment: "center",
-      children: [
-        new TestLeafWidget(20, 10),
-        new TestLeafWidget(30, 10),
-      ],
+      children: [new TestLeafWidget(20, 10), new TestLeafWidget(30, 10)],
     });
     const flex = buildAndLayout(row, BoxConstraints.tight(100, 50));
 
@@ -411,16 +389,10 @@ describe("Row -- CrossAxisAlignment", () => {
 describe("嵌套 Row/Column", () => {
   it("Column 嵌套 Row 正确布局", () => {
     const innerRow = new Row({
-      children: [
-        new TestLeafWidget(20, 10),
-        new TestLeafWidget(30, 10),
-      ],
+      children: [new TestLeafWidget(20, 10), new TestLeafWidget(30, 10)],
     });
     const col = new Column({
-      children: [
-        new TestLeafWidget(10, 20),
-        innerRow,
-      ],
+      children: [new TestLeafWidget(10, 20), innerRow],
     });
 
     const element = col.createElement();
@@ -499,9 +471,7 @@ describe("混合弹性与固定子节点", () => {
 describe("FlexParentData 设置验证", () => {
   it("Expanded 子节点的 parentData 的 flex 和 fit 正确设置", () => {
     const row = new Row({
-      children: [
-        new Expanded({ child: new TestLeafWidget(0, 10), flex: 3 }),
-      ],
+      children: [new Expanded({ child: new TestLeafWidget(0, 10), flex: 3 })],
     });
     const element = row.createElement();
     element.mount();
@@ -563,10 +533,7 @@ describe("Row/Column 默认值", () => {
 describe("元素卸载", () => {
   it("unmount 后渲染对象子节点被清空", () => {
     const row = new Row({
-      children: [
-        new TestLeafWidget(20, 10),
-        new TestLeafWidget(30, 10),
-      ],
+      children: [new TestLeafWidget(20, 10), new TestLeafWidget(30, 10)],
     });
     const element = row.createElement();
     element.mount();
@@ -588,10 +555,7 @@ describe("Column -- MainAxisAlignment", () => {
   it("'center' 对齐：子节点在垂直方向居中", () => {
     const col = new Column({
       mainAxisAlignment: "center",
-      children: [
-        new TestLeafWidget(10, 20),
-        new TestLeafWidget(10, 20),
-      ],
+      children: [new TestLeafWidget(10, 20), new TestLeafWidget(10, 20)],
     });
     const flex = buildAndLayout(col, BoxConstraints.tight(50, 100));
 

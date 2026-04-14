@@ -59,8 +59,7 @@ export interface CliContext {
 export function resolveCliContext(program: Command): CliContext {
   const opts = program.opts();
   const isTTY = Boolean(process.stdout.isTTY && process.stderr.isTTY);
-  const executeMode =
-    Boolean(opts.execute) || !isTTY || Boolean(opts.headless);
+  const executeMode = Boolean(opts.execute) || !isTTY || Boolean(opts.headless);
 
   return {
     executeMode,
@@ -68,7 +67,6 @@ export function resolveCliContext(program: Command): CliContext {
     headless: Boolean(opts.headless),
     streamJson: Boolean(opts.streamJson) || Boolean(opts.headless),
     verbose: Boolean(opts.verbose),
-    userMessage:
-      program.args.length > 0 ? program.args.join(" ") : undefined,
+    userMessage: program.args.length > 0 ? program.args.join(" ") : undefined,
   };
 }

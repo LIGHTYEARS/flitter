@@ -7,16 +7,12 @@
  * @module
  */
 
-import { Widget } from "../tree/widget.js";
-import type { Key } from "../tree/widget.js";
 import type { Element } from "../tree/element.js";
 import type { RenderObject } from "../tree/render-object.js";
+import type { Key } from "../tree/widget.js";
+import { Widget } from "../tree/widget.js";
+import type { CrossAxisAlignment, MainAxisAlignment, MainAxisSize } from "./flex.js";
 import { RenderFlex } from "./flex.js";
-import type {
-  MainAxisAlignment,
-  CrossAxisAlignment,
-  MainAxisSize,
-} from "./flex.js";
 import { MultiChildRenderObjectElement } from "./multi-child-render-object-element.js";
 
 // ════════════════════════════════════════════════════

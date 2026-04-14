@@ -1,24 +1,22 @@
 /**
  * Tests for MCPClient and MCPConnection.
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
-import {
-  MCPClient,
-  MCPConnection,
-  RECONNECT_CONFIG,
-  type MCPConnectionStatus,
-} from "./connection";
-import { Method, LATEST_PROTOCOL_VERSION, ErrorCode } from "./types";
+import { beforeEach, describe, it } from "node:test";
+import type { MCPServerSpec } from "./connection";
+import { MCPClient, MCPConnection, type MCPConnectionStatus } from "./connection";
 import type {
-  MCPTransport,
+  InitializeResult,
   JSONRPCMessage,
+  JSONRPCNotification,
   JSONRPCRequest,
   MCPTool,
   MCPToolResult,
-  InitializeResult,
+  MCPTransport,
   ServerCapabilities,
 } from "./types";
+import { LATEST_PROTOCOL_VERSION, Method } from "./types";
 
 // ─── Mock Transport ───────────────────────────────────────
 
@@ -193,7 +191,7 @@ describe("MCPClient", () => {
       assert.ok(transport.sentMessages.length >= 2);
       const notifMsg = transport.sentMessages[1];
       assert.equal("method" in notifMsg, true);
-      assert.equal((notifMsg as any).method, Method.Initialized);
+      assert.equal((notifMsg as JSONRPCNotification).method, Method.Initialized);
       assert.equal("id" in notifMsg, false);
     });
 
@@ -367,16 +365,14 @@ describe("MCPConnection", () => {
     return new MockTransport();
   }
 
-  function createConnection(
-    overrides?: {
-      transport?: MockTransport;
-      spec?: Record<string, unknown>;
-    },
-  ): { connection: MCPConnection; transport: MockTransport } {
+  function createConnection(overrides?: {
+    transport?: MockTransport;
+    spec?: Record<string, unknown>;
+  }): { connection: MCPConnection; transport: MockTransport } {
     const transport = overrides?.transport ?? createMockTransport();
 
     const connection = new MCPConnection(
-      overrides?.spec as any ?? { command: "test-server", args: [] },
+      (overrides?.spec as unknown as MCPServerSpec) ?? { command: "test-server", args: [] },
       {
         createTransport: () => transport,
         serverName: "test",
@@ -493,10 +489,7 @@ describe("MCPConnection", () => {
 
     await wait(50);
 
-    await assert.rejects(
-      () => connection.callTool({ name: "test" }),
-      /not connected/i,
-    );
+    await assert.rejects(() => connection.callTool({ name: "test" }), /not connected/i);
     await connection.dispose();
   });
 
@@ -556,9 +549,7 @@ describe("MCPConnection", () => {
     await wait(50);
 
     // Should have transitioned to reconnecting
-    const reconnectingStatus = statusHistory.find(
-      (s) => s.type === "reconnecting",
-    );
+    const reconnectingStatus = statusHistory.find((s) => s.type === "reconnecting");
     assert.ok(reconnectingStatus, "Should have entered reconnecting state");
     if (reconnectingStatus?.type === "reconnecting") {
       assert.equal(reconnectingStatus.attempt, 1);

@@ -12,12 +12,12 @@
  * ```
  */
 import type {
-  Message,
   AssistantContentBlock,
+  CacheControl,
+  Config,
+  Message,
   MessageState,
   Usage,
-  Config,
-  CacheControl,
 } from "@flitter/schemas";
 
 // ─── SystemPromptBlock ────────────────────────────────────
@@ -233,7 +233,11 @@ export class TransformState {
   private _content: AssistantContentBlock[] = [];
 
   /** 添加新 block */
-  addBlock(index: number, type: AssistantContentBlock["type"], initialData?: Record<string, unknown>): void {
+  addBlock(
+    index: number,
+    type: AssistantContentBlock["type"],
+    initialData?: Record<string, unknown>,
+  ): void {
     const state: BlockState = {
       type,
       startTime: Date.now(),
@@ -408,7 +412,7 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: false,
     cost: { input: 0.15, output: 0.6 },
   },
-  "o3": {
+  o3: {
     id: "o3",
     provider: "openai",
     contextWindow: 200_000,
@@ -525,3 +529,31 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     baseUrl: "https://api.x.ai/v1",
   },
 };
+
+/**
+ * 动态注册模型到 MODEL_REGISTRY
+ *
+ * 用于运行时添加自定义模型 (如 Volcengine ARK 端点的 ep-* 模型)。
+ * 如果模型 ID 已存在，覆盖之。
+ *
+ * @param info - 模型元数据
+ *
+ * @example
+ * ```ts
+ * import { registerModel } from "@flitter/llm";
+ *
+ * registerModel({
+ *   id: "ep-20260331120931-5lxqv",
+ *   provider: "anthropic",
+ *   contextWindow: 200_000,
+ *   maxOutputTokens: 16_384,
+ *   supportsThinking: false,
+ *   supportsTools: true,
+ *   supportsImages: false,
+ *   supportsCacheControl: false,
+ * });
+ * ```
+ */
+export function registerModel(info: ModelInfo): void {
+  MODEL_REGISTRY[info.id] = info;
+}

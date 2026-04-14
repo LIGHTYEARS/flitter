@@ -1,10 +1,11 @@
 /**
  * Tests for OpenAI Codex OAuth provider.
  */
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
+
 import assert from "node:assert/strict";
-import { OpenAICodexOAuthProvider } from "./openai-codex";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { OAuthLoginCallbacks } from "../types";
+import { OpenAICodexOAuthProvider } from "./openai-codex";
 
 describe("OpenAICodexOAuthProvider", () => {
   let provider: OpenAICodexOAuthProvider;
@@ -48,7 +49,8 @@ describe("OpenAICodexOAuthProvider", () => {
       };
 
       globalThis.fetch = mock.fn(async (url: string | URL | Request, init?: RequestInit) => {
-        const urlStr = typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
+        const urlStr =
+          typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         assert.ok(urlStr.includes("auth.openai.com"));
         const body = init?.body as string;
         assert.ok(body.includes("refresh_token"));

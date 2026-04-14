@@ -13,13 +13,10 @@
  */
 import OpenAI from "openai";
 import type { LLMProvider } from "../../provider";
-import type { StreamParams, StreamDelta } from "../../types";
+import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
-import {
-  OpenAITransformer,
-  OpenAIToolTransformer,
-} from "./transformer";
 import type { OpenAISSEEvent } from "./transformer";
+import { OpenAIToolTransformer, OpenAITransformer } from "./transformer";
 
 // ─── OpenAIProvider ─────────────────────────────────────
 
@@ -34,7 +31,7 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, reasoningEffort } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -54,8 +51,13 @@ export class OpenAIProvider implements LLMProvider {
     const openAITools = tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
 
     const body = this._buildRequestBody(
-      model, maxOutputTokens, input, openAITools,
-      config.settings, reasoningEffort, modelInfo?.supportsThinking ?? false,
+      model,
+      maxOutputTokens,
+      input,
+      openAITools,
+      config.settings,
+      reasoningEffort,
+      modelInfo?.supportsThinking ?? false,
     );
 
     // Create state for tracking blocks
@@ -63,10 +65,15 @@ export class OpenAIProvider implements LLMProvider {
 
     // Stream via SDK
     try {
-      const stream = await client.responses.create(body as Parameters<typeof client.responses.create>[0]) as AsyncIterable<unknown>;
+      const stream = (await client.responses.create(
+        body as Parameters<typeof client.responses.create>[0],
+      )) as AsyncIterable<unknown>;
 
       for await (const event of stream) {
-        const delta = this._transformer.fromProviderDelta(event as unknown as OpenAISSEEvent, state);
+        const delta = this._transformer.fromProviderDelta(
+          event as unknown as OpenAISSEEvent,
+          state,
+        );
         yield delta;
       }
     } catch (err: unknown) {
@@ -76,8 +83,11 @@ export class OpenAIProvider implements LLMProvider {
         throw new ProviderError(
           status,
           "openai",
-          status === 408 || status === 429 ||
-            status === 500 || status === 502 || status === 503 ||
+          status === 408 ||
+            status === 429 ||
+            status === 500 ||
+            status === 502 ||
+            status === 503 ||
             status === 504,
           err.message,
         );

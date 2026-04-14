@@ -106,7 +106,9 @@ export class AutocompleteController {
   private _triggers: AutocompleteTrigger[] = [];
 
   /** @internal 选项构建函数 */
-  private _optionsBuilder: ((query: string) => AutocompleteOption[] | Promise<AutocompleteOption[]>) | null = null;
+  private _optionsBuilder:
+    | ((query: string) => AutocompleteOption[] | Promise<AutocompleteOption[]>)
+    | null = null;
 
   /** @internal 选中回调 */
   private _onSelected: ((option: AutocompleteOption) => void) | null = null;
@@ -193,9 +195,7 @@ export class AutocompleteController {
     const state = this._state;
     if (!state.isActive || state.options.length === 0) return;
 
-    const next = state.selectedIndex < state.options.length - 1
-      ? state.selectedIndex + 1
-      : 0;
+    const next = state.selectedIndex < state.options.length - 1 ? state.selectedIndex + 1 : 0;
     this._updateState({ selectedIndex: next });
   }
 
@@ -208,9 +208,7 @@ export class AutocompleteController {
     const state = this._state;
     if (!state.isActive || state.options.length === 0) return;
 
-    const prev = state.selectedIndex > 0
-      ? state.selectedIndex - 1
-      : state.options.length - 1;
+    const prev = state.selectedIndex > 0 ? state.selectedIndex - 1 : state.options.length - 1;
     this._updateState({ selectedIndex: prev });
   }
 
@@ -222,7 +220,8 @@ export class AutocompleteController {
    */
   acceptSelected(): void {
     const state = this._state;
-    if (!state.isActive || state.selectedIndex < 0 || state.selectedIndex >= state.options.length) return;
+    if (!state.isActive || state.selectedIndex < 0 || state.selectedIndex >= state.options.length)
+      return;
 
     const option = state.options[state.selectedIndex];
     if (!option) return;
@@ -338,7 +337,10 @@ export class AutocompleteController {
    *
    * 在文本中查找光标前最近的触发字符，提取 query 文本。
    */
-  private _detectTrigger(text: string, cursorPos: number): { query: string; start: number; triggerChar: string } | null {
+  private _detectTrigger(
+    text: string,
+    cursorPos: number,
+  ): { query: string; start: number; triggerChar: string } | null {
     // 将文本转为字符数组以支持 grapheme 处理
     const chars = [...text];
     // cursorPos 是 grapheme index, 但 TextEditingController.text 返回原始字符串

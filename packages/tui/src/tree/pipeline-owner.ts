@@ -8,11 +8,11 @@
  * @module
  */
 
-import type { PipelineOwnerLike } from "./types.js";
-import type { RenderObject } from "./render-object.js";
-import { RenderBox } from "./render-box.js";
-import { BoxConstraints } from "./constraints.js";
 import type { Size } from "./constraints.js";
+import { BoxConstraints } from "./constraints.js";
+import { RenderBox } from "./render-box.js";
+import type { RenderObject } from "./render-object.js";
+import type { PipelineOwnerLike } from "./types.js";
 
 /**
  * 渲染管线所有者，管理渲染树的布局与绘制调度。
@@ -81,10 +81,7 @@ export class PipelineOwner implements PipelineOwnerLike {
    */
   updateRootConstraints(size: Size): void {
     const newConstraints = BoxConstraints.tight(size.width, size.height);
-    if (
-      !this._rootConstraints ||
-      !this._rootConstraints.equals(newConstraints)
-    ) {
+    if (!this._rootConstraints?.equals(newConstraints)) {
       this._rootConstraints = newConstraints;
       if (this._rootRenderObject) {
         this._rootRenderObject.markNeedsLayout();
@@ -99,7 +96,7 @@ export class PipelineOwner implements PipelineOwnerLike {
    *
    * @param node - 需要重新布局的节点
    */
-  requestLayout(node: unknown): void {
+  requestLayout(_node: unknown): void {
     this._onNeedFrame?.();
   }
 
@@ -151,7 +148,7 @@ export class PipelineOwner implements PipelineOwnerLike {
    */
   flushPaint(): void {
     for (const node of this._nodesNeedingPaint) {
-      (node as any)._needsPaint = false;
+      (node as unknown as { _needsPaint: boolean })._needsPaint = false;
     }
     this._nodesNeedingPaint.clear();
   }

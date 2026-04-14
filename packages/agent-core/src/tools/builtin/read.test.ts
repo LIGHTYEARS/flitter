@@ -5,20 +5,22 @@
  * long line truncation, file not found, binary detection, empty files,
  * and readExecutionProfile.
  */
-import { describe, it, after } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { ReadTool, readExecutionProfile } from "./read";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+import type { Config } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { ReadTool, readExecutionProfile } from "./read";
 
 function createMockContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
     workingDirectory: "/tmp",
     signal: new AbortController().signal,
     threadId: "test-thread",
-    config: {} as any,
+    config: {} as unknown as Config,
     ...overrides,
   };
 }
@@ -50,10 +52,7 @@ describe("ReadTool", () => {
     const filePath = path.join(tmpDir, "normal.txt");
     fs.writeFileSync(filePath, "line one\nline two\nline three\n", "utf-8");
 
-    const result = await ReadTool.execute(
-      { file_path: filePath },
-      createMockContext(),
-    );
+    const result = await ReadTool.execute({ file_path: filePath }, createMockContext());
 
     assert.equal(result.status, "done");
     assert.ok(result.content);
@@ -69,9 +68,7 @@ describe("ReadTool", () => {
 
   it("applies offset and limit correctly", async () => {
     const filePath = path.join(tmpDir, "offset.txt");
-    const content = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join(
-      "\n",
-    );
+    const content = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`).join("\n");
     fs.writeFileSync(filePath, content, "utf-8");
 
     const result = await ReadTool.execute(
@@ -92,16 +89,10 @@ describe("ReadTool", () => {
 
   it("enforces default limit of 2000 lines", async () => {
     const filePath = path.join(tmpDir, "large.txt");
-    const content = Array.from(
-      { length: 2500 },
-      (_, i) => `line ${i + 1}`,
-    ).join("\n");
+    const content = Array.from({ length: 2500 }, (_, i) => `line ${i + 1}`).join("\n");
     fs.writeFileSync(filePath, content, "utf-8");
 
-    const result = await ReadTool.execute(
-      { file_path: filePath },
-      createMockContext(),
-    );
+    const result = await ReadTool.execute({ file_path: filePath }, createMockContext());
 
     assert.equal(result.status, "done");
     const lines = result.content!.split("\n");
@@ -119,10 +110,7 @@ describe("ReadTool", () => {
     const longLine = "x".repeat(2500);
     fs.writeFileSync(filePath, longLine, "utf-8");
 
-    const result = await ReadTool.execute(
-      { file_path: filePath },
-      createMockContext(),
-    );
+    const result = await ReadTool.execute({ file_path: filePath }, createMockContext());
 
     assert.equal(result.status, "done");
     const lines = result.content!.split("\n");
@@ -153,10 +141,7 @@ describe("ReadTool", () => {
     const buffer = Buffer.from([0x48, 0x65, 0x6c, 0x00, 0x6f]);
     fs.writeFileSync(filePath, buffer);
 
-    const result = await ReadTool.execute(
-      { file_path: filePath },
-      createMockContext(),
-    );
+    const result = await ReadTool.execute({ file_path: filePath }, createMockContext());
 
     assert.equal(result.status, "error");
     assert.ok(result.error);
@@ -178,10 +163,7 @@ describe("ReadTool", () => {
     const filePath = path.join(tmpDir, "empty.txt");
     fs.writeFileSync(filePath, "", "utf-8");
 
-    const result = await ReadTool.execute(
-      { file_path: filePath },
-      createMockContext(),
-    );
+    const result = await ReadTool.execute({ file_path: filePath }, createMockContext());
 
     assert.equal(result.status, "done");
     assert.ok(typeof result.content === "string");

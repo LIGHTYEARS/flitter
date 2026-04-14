@@ -1,15 +1,16 @@
 /**
  * Tests for ConfigService — JSONC, FileSettingsStorage, 3-tier merge, hot reload.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
-import type { SecretKey, SecretStore } from "@flitter/schemas";
-import { FileSettingsStorage } from "./settings-storage";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { SecretStore, Settings } from "@flitter/schemas";
 import { ConfigService } from "./config-service";
+import { FileSettingsStorage } from "./settings-storage";
 
 let tmpDir: string;
 let globalDir: string;
@@ -62,9 +63,9 @@ describe("FileSettingsStorage", () => {
   describe("read/write global", () => {
     it("should write and read global settings", async () => {
       const storage = makeStorage();
-      await storage.write("global", { "anthropic.speed": "fast" } as any);
+      await storage.write("global", { "anthropic.speed": "fast" } as unknown as Partial<Settings>);
       const settings = await storage.read("global");
-      assert.equal((settings as any)["anthropic.speed"], "fast");
+      assert.equal((settings as Record<string, unknown>)["anthropic.speed"], "fast");
     });
 
     it("should return empty for non-existent file", async () => {
@@ -79,24 +80,30 @@ describe("FileSettingsStorage", () => {
   describe("read/write workspace", () => {
     it("should write and read workspace settings", async () => {
       const storage = makeStorage();
-      await storage.write("workspace", { "tools.inactivityTimeout": 30 } as any);
+      await storage.write("workspace", {
+        "tools.inactivityTimeout": 30,
+      } as unknown as Partial<Settings>);
       const settings = await storage.read("workspace");
-      assert.equal((settings as any)["tools.inactivityTimeout"], 30);
+      assert.equal((settings as Record<string, unknown>)["tools.inactivityTimeout"], 30);
     });
   });
 
   describe("JSONC support", () => {
     it("should read .jsonc files with comments", async () => {
       const jsoncPath = path.join(globalDir, "settings.jsonc");
-      await fsp.writeFile(jsoncPath, `{
+      await fsp.writeFile(
+        jsoncPath,
+        `{
   // Anthropic config
   "anthropic.speed": "fast", /* inline */
   "anthropic.temperature": 0.5
-}`, "utf-8");
+}`,
+        "utf-8",
+      );
       const storage = makeStorage();
       const settings = await storage.read("global");
-      assert.equal((settings as any)["anthropic.speed"], "fast");
-      assert.equal((settings as any)["anthropic.temperature"], 0.5);
+      assert.equal((settings as Record<string, unknown>)["anthropic.speed"], "fast");
+      assert.equal((settings as Record<string, unknown>)["anthropic.temperature"], 0.5);
     });
 
     it("should fallback to .jsonc when .json missing", async () => {
@@ -105,7 +112,7 @@ describe("FileSettingsStorage", () => {
       await fsp.writeFile(jsoncPath, '{ "proxy": "http://proxy" }', "utf-8");
       const storage = makeStorage();
       const settings = await storage.read("global");
-      assert.equal((settings as any).proxy, "http://proxy");
+      assert.equal((settings as Record<string, unknown>).proxy, "http://proxy");
     });
   });
 
@@ -122,7 +129,7 @@ describe("FileSettingsStorage", () => {
       const storage = makeStorage();
       await storage.set("tools.disable", ["bash"]);
       await storage.append("tools.disable", "write");
-      const val = await storage.get("tools.disable") as string[];
+      const val = (await storage.get("tools.disable")) as string[];
       assert.deepEqual(val, ["bash", "write"]);
     });
 
@@ -130,7 +137,7 @@ describe("FileSettingsStorage", () => {
       const storage = makeStorage();
       await storage.set("tools.disable", ["bash"]);
       await storage.prepend("tools.disable", "write");
-      const val = await storage.get("tools.disable") as string[];
+      const val = (await storage.get("tools.disable")) as string[];
       assert.deepEqual(val, ["write", "bash"]);
     });
   });
@@ -150,14 +157,14 @@ describe("FileSettingsStorage", () => {
   describe("atomic write", () => {
     it("should not leave tmp files", async () => {
       const storage = makeStorage();
-      await storage.write("global", { proxy: "test" } as any);
+      await storage.write("global", { proxy: "test" } as unknown as Partial<Settings>);
       const files = await fsp.readdir(globalDir);
       assert.equal(files.filter((f) => f.endsWith(".tmp")).length, 0);
     });
 
     it("should write pure JSON (no comments)", async () => {
       const storage = makeStorage();
-      await storage.write("global", { proxy: "test" } as any);
+      await storage.write("global", { proxy: "test" } as unknown as Partial<Settings>);
       const raw = await fsp.readFile(path.join(globalDir, "settings.json"), "utf-8");
       assert.ok(!raw.includes("//"));
       JSON.parse(raw); // Should not throw
@@ -169,24 +176,33 @@ describe("ConfigService", () => {
   describe("3-tier merge", () => {
     it("should merge global and workspace settings", async () => {
       const storage = makeStorage();
-      await storage.write("global", { "anthropic.speed": "fast", proxy: "http://proxy" } as any);
-      await storage.write("workspace", { "anthropic.speed": "slow" } as any);
+      await storage.write("global", {
+        "anthropic.speed": "fast",
+        proxy: "http://proxy",
+      } as unknown as Partial<Settings>);
+      await storage.write("workspace", {
+        "anthropic.speed": "slow",
+      } as unknown as Partial<Settings>);
 
       const service = makeService(storage);
       await service.reload();
       const { settings } = service.get();
-      assert.equal((settings as any)["anthropic.speed"], "slow"); // workspace overrides
-      assert.equal((settings as any).proxy, "http://proxy"); // global preserved
+      assert.equal((settings as Record<string, unknown>)["anthropic.speed"], "slow"); // workspace overrides
+      assert.equal((settings as Record<string, unknown>).proxy, "http://proxy"); // global preserved
     });
 
     it("should concat+dedup array keys", async () => {
       const storage = makeStorage();
-      await storage.write("global", { "tools.disable": ["bash", "write"] } as any);
-      await storage.write("workspace", { "tools.disable": ["write", "read"] } as any);
+      await storage.write("global", {
+        "tools.disable": ["bash", "write"],
+      } as unknown as Partial<Settings>);
+      await storage.write("workspace", {
+        "tools.disable": ["write", "read"],
+      } as unknown as Partial<Settings>);
 
       const service = makeService(storage);
       await service.reload();
-      const arr = (service.get().settings as any)["tools.disable"];
+      const arr = (service.get().settings as Record<string, unknown>)["tools.disable"];
       assert.ok(Array.isArray(arr));
       assert.ok(arr.includes("bash"));
       assert.ok(arr.includes("write"));
@@ -195,12 +211,16 @@ describe("ConfigService", () => {
 
     it("should keep GLOBAL_ONLY_KEYS from global only", async () => {
       const storage = makeStorage();
-      await storage.write("global", { mcpServers: { a: { command: "x" } } } as any);
-      await storage.write("workspace", { mcpServers: { b: { command: "y" } } } as any);
+      await storage.write("global", {
+        mcpServers: { a: { command: "x" } },
+      } as unknown as Partial<Settings>);
+      await storage.write("workspace", {
+        mcpServers: { b: { command: "y" } },
+      } as unknown as Partial<Settings>);
 
       const service = makeService(storage);
       await service.reload();
-      const servers = (service.get().settings as any).mcpServers;
+      const servers = (service.get().settings as Record<string, unknown>).mcpServers;
       assert.ok(servers.a);
       assert.equal(servers.b, undefined); // workspace value ignored
     });
@@ -211,13 +231,13 @@ describe("ConfigService", () => {
       const storage = makeStorage();
       const service = makeService(storage);
 
-      await storage.write("global", { proxy: "v1" } as any);
+      await storage.write("global", { proxy: "v1" } as unknown as Partial<Settings>);
       const config1 = await service.getLatest();
-      assert.equal((config1.settings as any).proxy, "v1");
+      assert.equal((config1.settings as Record<string, unknown>).proxy, "v1");
 
-      await storage.write("global", { proxy: "v2" } as any);
+      await storage.write("global", { proxy: "v2" } as unknown as Partial<Settings>);
       const config2 = await service.getLatest();
-      assert.equal((config2.settings as any).proxy, "v2");
+      assert.equal((config2.settings as Record<string, unknown>).proxy, "v2");
     });
   });
 
@@ -237,7 +257,7 @@ describe("ConfigService", () => {
   describe("diff filter", () => {
     it("should not emit when content unchanged", async () => {
       const storage = makeStorage();
-      await storage.write("global", { proxy: "test" } as any);
+      await storage.write("global", { proxy: "test" } as unknown as Partial<Settings>);
       const service = makeService(storage);
       await service.reload();
 
@@ -254,7 +274,7 @@ describe("ConfigService", () => {
   describe("hot reload", () => {
     it("should detect file changes and reload", async () => {
       const storage = makeStorage();
-      await storage.write("global", { proxy: "original" } as any);
+      await storage.write("global", { proxy: "original" } as unknown as Partial<Settings>);
       const service = makeService(storage);
       await service.reload();
 
@@ -272,7 +292,7 @@ describe("ConfigService", () => {
       handle.dispose();
 
       const config = service.get();
-      assert.equal((config.settings as any).proxy, "changed");
+      assert.equal((config.settings as Record<string, unknown>).proxy, "changed");
     });
 
     it("should cleanup on unsubscribe", async () => {
@@ -288,7 +308,7 @@ describe("ConfigService", () => {
       const storage = new FileSettingsStorage({
         globalPath: path.join(globalDir, "settings.json"),
       });
-      await storage.write("global", { proxy: "global-only" } as any);
+      await storage.write("global", { proxy: "global-only" } as unknown as Partial<Settings>);
       const service = new ConfigService({
         storage,
         secretStorage: mockSecretStore,
@@ -297,7 +317,7 @@ describe("ConfigService", () => {
         userConfigDir: globalDir,
       });
       await service.reload();
-      assert.equal((service.get().settings as any).proxy, "global-only");
+      assert.equal((service.get().settings as Record<string, unknown>).proxy, "global-only");
     });
   });
 });

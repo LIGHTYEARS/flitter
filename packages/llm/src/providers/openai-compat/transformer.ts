@@ -5,16 +5,16 @@
  * 支持任意 OpenAI-compatible 端点 (xAI, Groq, DeepSeek, OpenRouter, Cerebras 等)。
  * 支持 Text、Tool Calls、Reasoning (多种格式)。
  */
-import type {
-  Message,
-  AssistantContentBlock,
-  Usage,
-} from "@flitter/schemas";
+import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "../../transformers/message-transformer";
 import { BaseToolTransformer } from "../../transformers/tool-transformer";
-import type { StreamDelta, SystemPromptBlock, ToolDefinition } from "../../types";
-import { TransformState } from "../../types";
-import type { OpenAICompatConfig } from "../../types";
+import type {
+  OpenAICompatConfig,
+  StreamDelta,
+  SystemPromptBlock,
+  ToolDefinition,
+  TransformState,
+} from "../../types";
 
 // ─── ChatCompletion 原生类型 ────────────────────────────
 
@@ -22,7 +22,12 @@ export type CompatChatMessage =
   | { role: "system"; content: string }
   | { role: "developer"; content: string }
   | { role: "user"; content: string | CompatContentPart[] }
-  | { role: "assistant"; content: CompatContentPart[] | null; tool_calls?: CompatToolCall[]; reasoning_content?: string }
+  | {
+      role: "assistant";
+      content: CompatContentPart[] | null;
+      tool_calls?: CompatToolCall[];
+      reasoning_content?: string;
+    }
   | { role: "tool"; tool_call_id: string; content: string };
 
 export type CompatContentPart = { type: "text"; text: string };
@@ -46,26 +51,30 @@ export interface CompatStreamChunk {
   id: string;
   object: "chat.completion.chunk";
   model: string;
-  choices: [{
-    index: number;
-    delta: {
-      role?: "assistant";
-      content?: string | null;
-      reasoning_content?: string | null;
-      reasoning?: string | null;
-      reasoning_text?: string | null;
-      tool_calls?: [{
-        index: number;
-        id?: string;
-        type?: "function";
-        function?: {
-          name?: string;
-          arguments?: string;
-        };
-      }];
-    };
-    finish_reason: "stop" | "tool_calls" | "length" | null;
-  }];
+  choices: [
+    {
+      index: number;
+      delta: {
+        role?: "assistant";
+        content?: string | null;
+        reasoning_content?: string | null;
+        reasoning?: string | null;
+        reasoning_text?: string | null;
+        tool_calls?: [
+          {
+            index: number;
+            id?: string;
+            type?: "function";
+            function?: {
+              name?: string;
+              arguments?: string;
+            };
+          },
+        ];
+      };
+      finish_reason: "stop" | "tool_calls" | "length" | null;
+    },
+  ];
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
@@ -109,7 +118,10 @@ function stripToolPrefix(id: string): string {
  * 处理 Flitter ↔ ChatCompletion 格式的双向转换。
  * 支持多种 reasoning 字段格式 (reasoning_content, reasoning, reasoning_text)。
  */
-export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage, CompatStreamChunk> {
+export class CompatTransformer extends BaseMessageTransformer<
+  CompatChatMessage,
+  CompatStreamChunk
+> {
   private _toolCallBlockMap: Map<number, number> = new Map();
   private _nextBlockIndex = 0;
   private _hasTextBlock = false;
@@ -124,10 +136,7 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
   /**
    * Flitter Message[] → ChatCompletion messages
    */
-  toProviderMessages(
-    messages: Message[],
-    systemPrompt: SystemPromptBlock[],
-  ): CompatChatMessage[] {
+  toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): CompatChatMessage[] {
     const result: CompatChatMessage[] = [];
 
     // System prompt — use developer role if supported, else system
@@ -212,7 +221,9 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
 
   // ─── Private: Message conversion ──────────────────────
 
-  private _convertUserContent(msg: { content: ReadonlyArray<{ type: string; [key: string]: unknown }> }): CompatChatMessage[] {
+  private _convertUserContent(msg: {
+    content: ReadonlyArray<{ type: string; [key: string]: unknown }>;
+  }): CompatChatMessage[] {
     const items: CompatChatMessage[] = [];
     const textParts: CompatContentPart[] = [];
 
@@ -237,10 +248,15 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
             textParts.length = 0;
           }
           if (typeof block.toolUseID === "string" && block.run && typeof block.run === "object") {
-            const run = block.run as { status: string; result?: unknown; error?: { message: string } };
+            const run = block.run as {
+              status: string;
+              result?: unknown;
+              error?: { message: string };
+            };
             let content: string;
             if (run.status === "done") {
-              content = typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
+              content =
+                typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
             } else if (run.status === "error" && run.error) {
               content = `Error: ${run.error.message}`;
             } else {
@@ -267,7 +283,9 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
     return items;
   }
 
-  private _convertAssistantContent(msg: { content: ReadonlyArray<AssistantContentBlock> }): CompatChatMessage[] {
+  private _convertAssistantContent(msg: {
+    content: ReadonlyArray<AssistantContentBlock>;
+  }): CompatChatMessage[] {
     const textParts: CompatContentPart[] = [];
     const toolCalls: CompatToolCall[] = [];
 
@@ -315,8 +333,14 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
       const prev = merged[merged.length - 1];
       const curr = messages[i];
       if (prev.role === curr.role && prev.role === "user" && curr.role === "user") {
-        const prevText = typeof prev.content === "string" ? prev.content : (prev.content as CompatContentPart[]).map((p) => p.text).join("\n");
-        const currText = typeof curr.content === "string" ? curr.content : (curr.content as CompatContentPart[]).map((p) => p.text).join("\n");
+        const prevText =
+          typeof prev.content === "string"
+            ? prev.content
+            : (prev.content as CompatContentPart[]).map((p) => p.text).join("\n");
+        const currText =
+          typeof curr.content === "string"
+            ? curr.content
+            : (curr.content as CompatContentPart[]).map((p) => p.text).join("\n");
         (prev as { role: "user"; content: string }).content = `${prevText}\n${currText}`;
       } else {
         merged.push(curr);
@@ -362,7 +386,12 @@ export class CompatTransformer extends BaseMessageTransformer<CompatChatMessage,
   }
 
   private _handleToolCallDelta(
-    tc: { index: number; id?: string; type?: "function"; function?: { name?: string; arguments?: string } },
+    tc: {
+      index: number;
+      id?: string;
+      type?: "function";
+      function?: { name?: string; arguments?: string };
+    },
     state: TransformState,
   ): void {
     let blockIdx = this._toolCallBlockMap.get(tc.index);

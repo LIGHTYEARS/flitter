@@ -12,15 +12,14 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
-import { EdgeInsets } from "./edge-insets.js";
-import { RenderPadding, Padding, SingleChildRenderObjectElement } from "./padding.js";
-import { RenderSizedBox, SizedBox } from "./sized-box.js";
-import { Container } from "./container.js";
-import { RenderBox } from "../tree/render-box.js";
+import { describe, it } from "node:test";
 import { BoxConstraints } from "../tree/constraints.js";
-import type { Size } from "../tree/constraints.js";
+import { RenderBox } from "../tree/render-box.js";
+import { Container } from "./container.js";
+import { EdgeInsets } from "./edge-insets.js";
+import { Padding, RenderPadding } from "./padding.js";
+import { RenderSizedBox, SizedBox } from "./sized-box.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -147,9 +146,7 @@ describe("RenderPadding", () => {
   });
 
   it("子节点偏移为 (left, top)", () => {
-    const padding = new RenderPadding(
-      EdgeInsets.only({ left: 5, top: 3, right: 7, bottom: 9 }),
-    );
+    const padding = new RenderPadding(EdgeInsets.only({ left: 5, top: 3, right: 7, bottom: 9 }));
     const child = new TestRenderBox(20, 10);
     padding.adoptChild(child);
 

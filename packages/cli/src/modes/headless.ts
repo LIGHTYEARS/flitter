@@ -17,11 +17,12 @@
  * # 输出: {"type":"inference:start"}\n{"type":"inference:delta",...}\n...
  * ```
  */
-import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "../context";
-import type { AgentEvent } from "@flitter/agent-core";
-import type { Subscription } from "@flitter/util";
+
 import { createInterface } from "node:readline";
+import type { AgentEvent } from "@flitter/agent-core";
+import type { ServiceContainer } from "@flitter/flitter";
+import type { Subscription } from "@flitter/util";
+import type { CliContext } from "../context";
 
 /**
  * IO 注入选项 (方便测试)
@@ -80,7 +81,7 @@ export async function runHeadlessMode(
     }
 
     // 持续读 stdin JSON Lines
-    const rl = createInterface({ input: stdin as any });
+    const rl = createInterface({ input: stdin as unknown as NodeJS.ReadableStream });
     for await (const line of rl) {
       const trimmed = line.trim();
       if (!trimmed) continue;

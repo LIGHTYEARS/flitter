@@ -4,14 +4,15 @@
  * Covers ToolSpec shape, basic regex match, output modes, no-match case,
  * execution profile, and path scoping.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import { GrepTool, grepExecutionProfile } from "./grep";
-import type { ToolContext } from "../types";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Config } from "@flitter/schemas";
+import type { ToolContext } from "../types";
+import { GrepTool, grepExecutionProfile } from "./grep";
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -85,10 +86,7 @@ describe("GrepTool", () => {
   // ─── Basic regex match (content mode) ────────────────────
 
   it("finds basic regex matches in content mode", async () => {
-    const result = await GrepTool.execute(
-      { pattern: "hello", output_mode: "content" },
-      ctx,
-    );
+    const result = await GrepTool.execute({ pattern: "hello", output_mode: "content" }, ctx);
     assert.equal(result.status, "done");
     assert.ok(result.content);
     assert.ok(result.content.includes("hello"));
@@ -116,10 +114,7 @@ describe("GrepTool", () => {
   // ─── count mode ──────────────────────────────────────────
 
   it("returns match counts in count mode", async () => {
-    const result = await GrepTool.execute(
-      { pattern: "hello", output_mode: "count" },
-      ctx,
-    );
+    const result = await GrepTool.execute({ pattern: "hello", output_mode: "count" }, ctx);
     assert.equal(result.status, "done");
     assert.ok(result.content);
     // Each line should be file:count format
@@ -132,10 +127,7 @@ describe("GrepTool", () => {
   // ─── No match ───────────────────────────────────────────
 
   it("returns 'No matches found.' when nothing matches", async () => {
-    const result = await GrepTool.execute(
-      { pattern: "zzz_nonexistent_pattern_zzz" },
-      ctx,
-    );
+    const result = await GrepTool.execute({ pattern: "zzz_nonexistent_pattern_zzz" }, ctx);
     assert.equal(result.status, "done");
     assert.equal(result.content, "No matches found.");
   });

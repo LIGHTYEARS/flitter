@@ -20,33 +20,33 @@
  * @module
  */
 
-export { Color } from "./color.js";
-export type { ColorKind } from "./color.js";
-export { TextStyle } from "./text-style.js";
-export type { TextStyleOptions } from "./text-style.js";
-export { Cell } from "./cell.js";
-export { ScreenBuffer } from "./buffer.js";
-export { Screen } from "./screen.js";
-export type { DirtyRegion } from "./screen.js";
 export {
+  ALT_SCREEN_OFF,
+  ALT_SCREEN_ON,
   AnsiRenderer,
-  ESC,
-  CSI,
-  CUP,
-  CUF,
-  CUB,
-  CUU,
-  CUD,
-  HIDE_CURSOR,
-  SHOW_CURSOR,
-  CLEAR_SCREEN,
   CLEAR_LINE,
+  CLEAR_SCREEN,
+  CSI,
+  CUB,
+  CUD,
+  CUF,
+  CUP,
+  CUU,
+  ESC,
+  HIDE_CURSOR,
+  MOUSE_OFF,
+  MOUSE_ON,
+  PASTE_OFF,
+  PASTE_ON,
   SGR,
   SGR_RESET,
-  ALT_SCREEN_ON,
-  ALT_SCREEN_OFF,
-  MOUSE_ON,
-  MOUSE_OFF,
-  PASTE_ON,
-  PASTE_OFF,
+  SHOW_CURSOR,
 } from "./ansi-renderer.js";
+export { ScreenBuffer } from "./buffer.js";
+export { Cell } from "./cell.js";
+export type { ColorKind } from "./color.js";
+export { Color } from "./color.js";
+export type { DirtyRegion } from "./screen.js";
+export { Screen } from "./screen.js";
+export type { TextStyleOptions } from "./text-style.js";
+export { TextStyle } from "./text-style.js";

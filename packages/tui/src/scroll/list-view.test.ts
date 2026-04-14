@@ -7,10 +7,9 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { ScrollController } from "./scroll-controller.js";
+import { describe, expect, it } from "bun:test";
 import { ListView } from "./list-view.js";
-import type { ListViewProps } from "./list-view.js";
+import { ScrollController } from "./scroll-controller.js";
 
 // ════════════════════════════════════════════════════
 //  辅助工具

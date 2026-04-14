@@ -12,16 +12,11 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 
 import { RenderObject } from "./render-object.js";
-import {
-  Position,
-  ParentData,
-  PipelineOwnerLike,
-  setPipelineOwner,
-} from "./types.js";
+import { ParentData, type PipelineOwnerLike, setPipelineOwner } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -62,7 +57,7 @@ describe("RenderObject — 父子关系", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 1. adoptChild 设置 parent 引用 ─────────────────
@@ -171,7 +166,7 @@ describe("RenderObject — 脏标记", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 8. 新创建的 RenderObject needsLayout = true ────
@@ -218,10 +213,7 @@ describe("RenderObject — 脏标记", () => {
 
     root.markNeedsLayout();
 
-    assert.ok(
-      mockOwner.layoutRequests.length > 0,
-      "应调用 PipelineOwner.requestLayout"
-    );
+    assert.ok(mockOwner.layoutRequests.length > 0, "应调用 PipelineOwner.requestLayout");
     assert.ok(mockOwner.layoutRequests.includes(root));
   });
 
@@ -235,10 +227,7 @@ describe("RenderObject — 脏标记", () => {
 
     node.markNeedsPaint();
 
-    assert.ok(
-      mockOwner.paintRequests.length > 0,
-      "应调用 PipelineOwner.requestPaint"
-    );
+    assert.ok(mockOwner.paintRequests.length > 0, "应调用 PipelineOwner.requestPaint");
     assert.ok(mockOwner.paintRequests.includes(node));
   });
 });
@@ -256,7 +245,7 @@ describe("RenderObject — attach/detach", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 13. attach() 设置 attached = true ──────────────
@@ -336,7 +325,7 @@ describe("RenderObject — parentData", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 17. setupParentData 默认为空操作 ────────────────
@@ -375,7 +364,7 @@ describe("RenderObject — 遍历", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 19. visitChildren 遍历所有直接子节点 ────────────
@@ -428,7 +417,7 @@ describe("RenderObject — dispose", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 21. dispose 移除所有子节点 ─────────────────────
@@ -462,7 +451,7 @@ describe("RenderObject — 补充测试", () => {
   });
 
   afterEach(() => {
-    setPipelineOwner(undefined as any);
+    setPipelineOwner(undefined);
   });
 
   // ── 22. depth 多层嵌套正确递增 ─────────────────────

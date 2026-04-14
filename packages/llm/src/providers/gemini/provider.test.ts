@@ -3,13 +3,14 @@
  *
  * 测试: GeminiTransformer, GeminiToolTransformer, fromProviderDelta, 完整流模拟
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import { GeminiTransformer, GeminiToolTransformer } from "./transformer";
-import type { GeminiStreamChunk, GeminiContent } from "./transformer";
-import { TransformState } from "../../types";
-import type { Message, AssistantContentBlock } from "@flitter/schemas";
+import { describe, it } from "node:test";
+import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock, ToolDefinition } from "../../types";
+import { TransformState } from "../../types";
+import type { GeminiStreamChunk } from "./transformer";
+import { GeminiToolTransformer, GeminiTransformer } from "./transformer";
 
 // ─── Helper ──────────────────────────────────────────────
 
@@ -66,7 +67,12 @@ describe("GeminiTransformer.toProviderMessages", () => {
 
   it("should convert ToolResultBlock to functionResponse", () => {
     const msg = createUserMessage([
-      { type: "tool_result", toolUseID: "call_123", toolName: "bash", run: { status: "done", result: "output" } },
+      {
+        type: "tool_result",
+        toolUseID: "call_123",
+        toolName: "bash",
+        run: { status: "done", result: "output" },
+      },
     ]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
@@ -81,7 +87,14 @@ describe("GeminiTransformer.toProviderMessages", () => {
 
   it("should convert AssistantMessage tool_use to functionCall", () => {
     const msg = createAssistantMessage([
-      { type: "tool_use", id: "call_001", name: "bash", complete: true, input: { cmd: "ls" }, startTime: Date.now() },
+      {
+        type: "tool_use",
+        id: "call_001",
+        name: "bash",
+        complete: true,
+        input: { cmd: "ls" },
+        startTime: Date.now(),
+      },
     ]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
@@ -96,7 +109,13 @@ describe("GeminiTransformer.toProviderMessages", () => {
 
   it("should convert AssistantMessage thinking to thought part", () => {
     const msg = createAssistantMessage([
-      { type: "thinking", thinking: "Let me think...", signature: "", provider: "gemini", startTime: Date.now() },
+      {
+        type: "thinking",
+        thinking: "Let me think...",
+        signature: "",
+        provider: "gemini",
+        startTime: Date.now(),
+      },
     ]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result.length, 1);
@@ -120,9 +139,7 @@ describe("GeminiTransformer.toProviderMessages", () => {
   });
 
   it("should use role model instead of assistant", () => {
-    const msg = createAssistantMessage([
-      { type: "text", text: "Hi", startTime: Date.now() },
-    ]);
+    const msg = createAssistantMessage([{ type: "text", text: "Hi", startTime: Date.now() }]);
     const result = transformer.toProviderMessages([msg], emptySystem);
     assert.equal(result[0].role, "model");
   });
@@ -135,12 +152,14 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: {
-          role: "model",
-          parts: [{ text: "Hello world" }],
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ text: "Hello world" }],
+          },
         },
-      }],
+      ],
     };
     const delta = transformer.fromProviderDelta(chunk, state);
     assert.equal(delta.content.length, 1);
@@ -154,12 +173,14 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: {
-          role: "model",
-          parts: [{ text: "Let me reason...", thought: true }],
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ text: "Let me reason...", thought: true }],
+          },
         },
-      }],
+      ],
     };
     const delta = transformer.fromProviderDelta(chunk, state);
     assert.equal(delta.content.length, 1);
@@ -174,12 +195,14 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: {
-          role: "model",
-          parts: [{ functionCall: { name: "bash", args: { cmd: "ls" } } }],
+      candidates: [
+        {
+          content: {
+            role: "model",
+            parts: [{ functionCall: { name: "bash", args: { cmd: "ls" } } }],
+          },
         },
-      }],
+      ],
     };
     const delta = transformer.fromProviderDelta(chunk, state);
     assert.equal(delta.content.length, 1);
@@ -195,17 +218,27 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      candidates: [{
-        content: { role: "model", parts: [{ text: "Hello " }] },
-      }],
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        candidates: [
+          {
+            content: { role: "model", parts: [{ text: "Hello " }] },
+          },
+        ],
+      },
+      state,
+    );
 
-    const delta = transformer.fromProviderDelta({
-      candidates: [{
-        content: { role: "model", parts: [{ text: "world!" }] },
-      }],
-    }, state);
+    const delta = transformer.fromProviderDelta(
+      {
+        candidates: [
+          {
+            content: { role: "model", parts: [{ text: "world!" }] },
+          },
+        ],
+      },
+      state,
+    );
 
     assert.equal(delta.content.length, 1);
     if (delta.content[0].type === "text") {
@@ -217,10 +250,12 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: { role: "model", parts: [{ text: "Done" }] },
-        finishReason: "STOP",
-      }],
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: "Done" }] },
+          finishReason: "STOP",
+        },
+      ],
       usageMetadata: {
         promptTokenCount: 100,
         candidatesTokenCount: 10,
@@ -235,10 +270,12 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: { role: "model", parts: [{ text: "..." }] },
-        finishReason: "MAX_TOKENS",
-      }],
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: "..." }] },
+          finishReason: "MAX_TOKENS",
+        },
+      ],
     };
     const delta = transformer.fromProviderDelta(chunk, state);
     assert.deepEqual(delta.state, { type: "complete", stopReason: "max_tokens" });
@@ -248,10 +285,12 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: { role: "model", parts: [{ text: "Hi" }] },
-        finishReason: "STOP",
-      }],
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: "Hi" }] },
+          finishReason: "STOP",
+        },
+      ],
       usageMetadata: {
         promptTokenCount: 200,
         candidatesTokenCount: 50,
@@ -273,10 +312,12 @@ describe("GeminiTransformer.fromProviderDelta", () => {
     const transformer = new GeminiTransformer();
     const state = new TransformState();
     const chunk: GeminiStreamChunk = {
-      candidates: [{
-        content: { role: "model", parts: [{ text: "Hi" }] },
-        finishReason: "STOP",
-      }],
+      candidates: [
+        {
+          content: { role: "model", parts: [{ text: "Hi" }] },
+          finishReason: "STOP",
+        },
+      ],
       usageMetadata: {
         promptTokenCount: 100,
         candidatesTokenCount: 20,
@@ -301,10 +342,12 @@ describe("GeminiTransformer — full stream simulation", () => {
       { candidates: [{ content: { role: "model", parts: [{ text: "Hello " }] } }] },
       { candidates: [{ content: { role: "model", parts: [{ text: "there!" }] } }] },
       {
-        candidates: [{
-          content: { role: "model", parts: [{ text: "" }] },
-          finishReason: "STOP",
-        }],
+        candidates: [
+          {
+            content: { role: "model", parts: [{ text: "" }] },
+            finishReason: "STOP",
+          },
+        ],
         usageMetadata: { promptTokenCount: 50, candidatesTokenCount: 5, totalTokenCount: 55 },
       },
     ];
@@ -326,14 +369,24 @@ describe("GeminiTransformer — full stream simulation", () => {
     const state = new TransformState();
 
     const chunks: GeminiStreamChunk[] = [
-      { candidates: [{ content: { role: "model", parts: [{ text: "Let me think...", thought: true }] } }] },
-      { candidates: [{ content: { role: "model", parts: [{ text: " more thinking", thought: true }] } }] },
+      {
+        candidates: [
+          { content: { role: "model", parts: [{ text: "Let me think...", thought: true }] } },
+        ],
+      },
+      {
+        candidates: [
+          { content: { role: "model", parts: [{ text: " more thinking", thought: true }] } },
+        ],
+      },
       { candidates: [{ content: { role: "model", parts: [{ text: "The answer is 42." }] } }] },
       {
-        candidates: [{
-          content: { role: "model", parts: [] },
-          finishReason: "STOP",
-        }],
+        candidates: [
+          {
+            content: { role: "model", parts: [] },
+            finishReason: "STOP",
+          },
+        ],
         usageMetadata: { promptTokenCount: 100, candidatesTokenCount: 20, totalTokenCount: 120 },
       },
     ];
@@ -363,13 +416,15 @@ describe("GeminiTransformer — full stream simulation", () => {
 
     const chunks: GeminiStreamChunk[] = [
       {
-        candidates: [{
-          content: {
-            role: "model",
-            parts: [{ functionCall: { name: "bash", args: { command: "ls -la" } } }],
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [{ functionCall: { name: "bash", args: { command: "ls -la" } } }],
+            },
+            finishReason: "STOP",
           },
-          finishReason: "STOP",
-        }],
+        ],
         usageMetadata: { promptTokenCount: 80, candidatesTokenCount: 15, totalTokenCount: 95 },
       },
     ];
@@ -393,11 +448,13 @@ describe("GeminiToolTransformer", () => {
   const toolTransformer = new GeminiToolTransformer();
 
   it("should convert ToolDefinition to GeminiFunctionDeclaration", () => {
-    const tools: ToolDefinition[] = [{
-      name: "bash",
-      description: "Run a command",
-      inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
-    }];
+    const tools: ToolDefinition[] = [
+      {
+        name: "bash",
+        description: "Run a command",
+        inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
+      },
+    ];
     const result = toolTransformer.toProviderTools(tools);
     assert.equal(result.length, 1);
     assert.equal(result[0].functionDeclarations.length, 1);

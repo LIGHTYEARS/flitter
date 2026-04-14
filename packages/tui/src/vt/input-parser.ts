@@ -30,18 +30,18 @@
  */
 
 import type {
-  VtEvent,
-  VtPrintEvent,
-  VtCsiEvent,
-  VtEscapeEvent,
   InputEvent,
   KeyEvent,
-  MouseEvent as TermMouseEvent,
+  Modifiers,
+  MouseAction,
+  MouseButton,
   PasteEvent,
   FocusEvent as TermFocusEvent,
-  Modifiers,
-  MouseButton,
-  MouseAction,
+  MouseEvent as TermMouseEvent,
+  VtCsiEvent,
+  VtEscapeEvent,
+  VtEvent,
+  VtPrintEvent,
 } from "./types.js";
 
 import { MODIFIERS_NONE, modifierFromCsiParam } from "./types.js";
@@ -477,10 +477,7 @@ export class InputParser {
    * @param params - CSI 参数列表
    * @param finalChar - 终止字符
    */
-  private handleSgrMouse(
-    params: VtCsiEvent["params"],
-    finalChar: string,
-  ): void {
+  private handleSgrMouse(params: VtCsiEvent["params"], finalChar: string): void {
     if (params.length < 3) return;
 
     const buttonByte = params[0].value;

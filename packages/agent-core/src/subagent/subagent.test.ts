@@ -2,16 +2,17 @@
  * SubAgentManager 测试
  * 覆盖: spawn 生命周期, cancel, cancelAll, activeAgents$, dispose, 嵌套限制
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { Message, ThreadSnapshot } from "@flitter/schemas";
+import type { ThreadWorker } from "../worker/thread-worker";
 import {
   SubAgentManager,
-  type SubAgentOptions,
   type SubAgentManagerOptions,
+  type SubAgentOptions,
   type SubAgentWorkerOptions,
 } from "./subagent";
-import type { ThreadWorker } from "../worker/thread-worker";
-import type { ThreadSnapshot } from "@flitter/schemas";
 
 // ─── Mock ThreadWorker ──────────────────────────────────
 
@@ -44,41 +45,39 @@ function createMockWorker(opts?: {
       }),
     retry: async () => {},
     dispose: () => {},
-  } as any;
+  } as unknown as ThreadWorker;
 }
 
 // ─── Mock ThreadStore callbacks ─────────────────────────
 
 function createMockCallbacks() {
   let nextId = 0;
-  const threads = new Map<string, { messages: any[] }>();
+  const threads = new Map<string, { messages: Message[] }>();
   const workerCalls: SubAgentWorkerOptions[] = [];
 
   return {
     threads,
     workerCalls,
-    createChildThread: (parentId: string) => {
+    createChildThread: (_parentId: string) => {
       const id = `child-${nextId++}`;
       threads.set(id, { messages: [] });
       return id;
     },
-    addMessage: (threadId: string, msg: any) => {
+    addMessage: (threadId: string, msg: Message) => {
       const thread = threads.get(threadId);
       if (thread) thread.messages.push(msg);
     },
     getThreadSnapshot: (threadId: string): ThreadSnapshot | undefined => {
       const thread = threads.get(threadId);
       if (!thread) return undefined;
-      return { messages: thread.messages } as any;
+      return { messages: thread.messages } as unknown as ThreadSnapshot;
     },
   };
 }
 
 // ─── 辅助: 创建 SubAgentOptions ─────────────────────────
 
-function createSpawnOpts(
-  overrides?: Partial<SubAgentOptions>,
-): SubAgentOptions {
+function createSpawnOpts(overrides?: Partial<SubAgentOptions>): SubAgentOptions {
   return {
     parentThreadId: "parent-1",
     description: "Test task",
@@ -132,7 +131,7 @@ describe("SubAgentManager", () => {
                 thread.messages.push({
                   role: "assistant",
                   content: [{ type: "text", text: "Task completed" }],
-                });
+                } as unknown as Message);
               }
             },
           });
@@ -160,7 +159,7 @@ describe("SubAgentManager", () => {
                     { type: "text", text: "Part 1" },
                     { type: "text", text: " Part 2" },
                   ],
-                });
+                } as unknown as Message);
               }
             },
           });
@@ -205,9 +204,7 @@ describe("SubAgentManager", () => {
       const thread = callbacks.threads.get(threadId);
       assert.ok(thread);
       assert.equal(thread.messages[0].role, "user");
-      assert.deepEqual(thread.messages[0].content, [
-        { type: "text", text: "Find the bug" },
-      ]);
+      assert.deepEqual(thread.messages[0].content, [{ type: "text", text: "Find the bug" }]);
     });
 
     it("超时时取消推理并返回 timeout 状态", async () => {
@@ -260,7 +257,7 @@ describe("SubAgentManager", () => {
             },
             retry: async () => {},
             dispose: () => {},
-          } as any;
+          } as unknown as ThreadWorker;
         },
       });
 
@@ -425,7 +422,7 @@ describe("SubAgentManager", () => {
       assert.equal(typeof workerOpts.parentThreadId, "string");
       assert.equal(workerOpts.permissionContext, "subagent");
       // SubAgentWorkerOptions 不包含 SubAgentManager
-      assert.equal((workerOpts as any).subAgentManager, undefined);
+      assert.equal((workerOpts as Record<string, unknown>).subAgentManager, undefined);
     });
   });
 });

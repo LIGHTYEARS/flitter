@@ -1,6 +1,6 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TimeoutError, callWithTimeout, type Result } from "./error.ts";
+import { describe, it } from "node:test";
+import { callWithTimeout, type Result, TimeoutError } from "./error.ts";
 
 describe("TimeoutError", () => {
   it("is an instance of Error", () => {

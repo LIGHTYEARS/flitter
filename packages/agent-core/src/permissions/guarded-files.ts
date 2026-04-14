@@ -19,10 +19,7 @@ import { matchToolPattern } from "./matcher";
  * - Bash: 从 args.command 中解析简单文件路径 (以 / 开头的 token)
  * - 其他工具: 返回空数组
  */
-export function getToolFilePaths(
-  toolName: string,
-  args: Record<string, unknown>,
-): string[] {
+export function getToolFilePaths(toolName: string, args: Record<string, unknown>): string[] {
   const paths: string[] = [];
 
   switch (toolName) {
@@ -71,10 +68,7 @@ export function getToolFilePaths(
  * - 如果 filePath 匹配 allowlist 中任一 glob 模式 → 不受保护 (返回 false)
  * - 否则 → 受保护 (返回 true)
  */
-export function checkGuardedFile(
-  filePath: string,
-  allowlist: string[],
-): boolean {
+export function checkGuardedFile(filePath: string, allowlist: string[]): boolean {
   // allowlist 为空 → 所有文件受保护
   if (allowlist.length === 0) return true;
 

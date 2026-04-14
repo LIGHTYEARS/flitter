@@ -4,5 +4,5 @@
  * @module
  */
 
-export * from "./performance-tracker.js";
 export * from "./frame-stats-overlay.js";
+export * from "./performance-tracker.js";

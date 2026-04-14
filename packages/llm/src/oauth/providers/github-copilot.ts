@@ -12,8 +12,9 @@
  *
  * Supports GitHub Enterprise domains.
  */
-import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
+
 import type { ModelInfo } from "../../types";
+import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "../types";
 
 const GITHUB_CLIENT_ID = "Iv1.b507a08c87ecfe98";
 const DEFAULT_GITHUB_HOST = "https://github.com";
@@ -180,7 +181,9 @@ export class GitHubCopilotOAuthProvider implements OAuthProviderInterface {
         case "access_denied":
           throw new Error("GitHub authorization was denied.");
         default:
-          throw new Error(`GitHub authorization error: ${data.error_description ?? data.error ?? "unknown"}`);
+          throw new Error(
+            `GitHub authorization error: ${data.error_description ?? data.error ?? "unknown"}`,
+          );
       }
     }
   }

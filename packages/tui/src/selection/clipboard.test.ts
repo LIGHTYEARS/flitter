@@ -7,7 +7,7 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { Clipboard } from "./clipboard.js";
 
 describe("Clipboard", () => {
@@ -79,7 +79,7 @@ describe("Clipboard", () => {
         }),
       };
       // @ts-expect-error override for testing
-      cb._spawn = () => mockProcess as any;
+      cb._spawn = () => mockProcess;
 
       const result = await cb.writeText("hello");
       expect(result).toBe(true);
@@ -91,7 +91,9 @@ describe("Clipboard", () => {
       Object.defineProperty(process, "platform", { value: "darwin", configurable: true });
       const cb = new Clipboard();
       // @ts-expect-error override for testing
-      cb._spawn = () => { throw new Error("command not found"); };
+      cb._spawn = () => {
+        throw new Error("command not found");
+      };
 
       const result = await cb.writeText("hello");
       expect(result).toBe(false);
@@ -105,7 +107,9 @@ describe("Clipboard", () => {
 
       let written = "";
       // @ts-expect-error override for testing
-      cb._writeStdout = (data: string) => { written = data; };
+      cb._writeStdout = (data: string) => {
+        written = data;
+      };
 
       const result = await cb.writeText("hello");
       expect(result).toBe(true);
@@ -145,7 +149,10 @@ describe("Clipboard", () => {
       const cb = new Clipboard();
       let execCalled = "";
       // @ts-expect-error override for testing
-      cb._execCommand = async (cmd: string) => { execCalled = cmd; return "wayland text"; };
+      cb._execCommand = async (cmd: string) => {
+        execCalled = cmd;
+        return "wayland text";
+      };
 
       const result = await cb.readText();
       expect(result).toBe("wayland text");
@@ -159,7 +166,10 @@ describe("Clipboard", () => {
       const cb = new Clipboard();
       let execArgs: string[] = [];
       // @ts-expect-error override for testing
-      cb._execCommand = async (cmd: string, args?: string[]) => { execArgs = args || []; return "x11 text"; };
+      cb._execCommand = async (_cmd: string, args?: string[]) => {
+        execArgs = args || [];
+        return "x11 text";
+      };
 
       const result = await cb.readText();
       expect(result).toBe("x11 text");

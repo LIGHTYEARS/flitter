@@ -1,18 +1,22 @@
 /**
  * Tests for OAuth provider registry.
  */
-import { describe, it, beforeEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { beforeEach, describe, it } from "node:test";
 import {
-  registerOAuthProvider,
+  clearOAuthProviders,
+  getOAuthApiKey,
   getOAuthProvider,
   getOAuthProviders,
-  getOAuthApiKey,
-  clearOAuthProviders,
+  registerOAuthProvider,
 } from "./registry";
 import type { OAuthCredentials, OAuthProviderInterface } from "./types";
 
-function makeMockProvider(id: string, overrides: Partial<OAuthProviderInterface> = {}): OAuthProviderInterface {
+function makeMockProvider(
+  id: string,
+  overrides: Partial<OAuthProviderInterface> = {},
+): OAuthProviderInterface {
   return {
     id,
     name: `Mock ${id}`,
@@ -49,10 +53,7 @@ describe("OAuth Registry", () => {
     registerOAuthProvider(makeMockProvider("b"));
     const all = getOAuthProviders();
     assert.equal(all.length, 2);
-    assert.deepEqual(
-      all.map((p) => p.id).sort(),
-      ["a", "b"],
-    );
+    assert.deepEqual(all.map((p) => p.id).sort(), ["a", "b"]);
   });
 
   it("should replace existing provider with same id", () => {

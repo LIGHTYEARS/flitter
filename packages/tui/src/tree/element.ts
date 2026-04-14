@@ -7,8 +7,8 @@
  * @module
  */
 
-import { getBuildOwner } from "./types.js";
 import type { RenderObject } from "./render-object.js";
+import { getBuildOwner } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  前置接口声明

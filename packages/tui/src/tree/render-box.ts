@@ -7,11 +7,10 @@
  * @module
  */
 
-import { RenderObject } from "./render-object.js";
-import { BoxConstraints } from "./constraints.js";
-import type { Size } from "./constraints.js";
-import type { Position } from "./types.js";
 import type { Screen } from "../screen/screen.js";
+import type { BoxConstraints, Size } from "./constraints.js";
+import { RenderObject } from "./render-object.js";
+import type { Position } from "./types.js";
 
 /**
  * 盒模型渲染对象抽象基类。
@@ -53,9 +52,7 @@ export abstract class RenderBox extends RenderObject {
    */
   set size(value: Size) {
     if (!Number.isFinite(value.width) || !Number.isFinite(value.height)) {
-      throw new Error(
-        `尺寸必须为有限数值，收到: width=${value.width}, height=${value.height}`
-      );
+      throw new Error(`尺寸必须为有限数值，收到: width=${value.width}, height=${value.height}`);
     }
     this._size = value;
   }
@@ -143,7 +140,7 @@ export abstract class RenderBox extends RenderObject {
    * @param offsetX - 全局 X 偏移量
    * @param offsetY - 全局 Y 偏移量
    */
-  performPaint(screen: Screen, offsetX: number, offsetY: number): void {}
+  performPaint(_screen: Screen, _offsetX: number, _offsetY: number): void {}
 
   /**
    * 绘制当前节点及其子树。
@@ -187,11 +184,6 @@ export abstract class RenderBox extends RenderObject {
   hitTest(x: number, y: number): boolean {
     const localX = x - this._offset.x;
     const localY = y - this._offset.y;
-    return (
-      localX >= 0 &&
-      localX < this._size.width &&
-      localY >= 0 &&
-      localY < this._size.height
-    );
+    return localX >= 0 && localX < this._size.width && localY >= 0 && localY < this._size.height;
   }
 }

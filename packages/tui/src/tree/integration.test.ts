@@ -12,35 +12,19 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-
-import { Widget, Key, GlobalKey } from "./widget.js";
-import { Element } from "./element.js";
-import type { Widget as WidgetInterface } from "./element.js";
-import { ComponentElement } from "./component-element.js";
-import {
-  RenderObjectElement,
-  type RenderObjectWidget,
-} from "./render-object-element.js";
-import { RenderObject } from "./render-object.js";
-import { RenderBox } from "./render-box.js";
-import { BoxConstraints } from "./constraints.js";
-import type { Size } from "./constraints.js";
-import {
-  StatelessWidget,
-  StatelessElement,
-  type BuildContext,
-} from "./stateless-widget.js";
-import {
-  StatefulWidget,
-  StatefulElement,
-  State,
-} from "./stateful-widget.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { BuildOwner } from "./build-owner.js";
-import { PipelineOwner } from "./pipeline-owner.js";
+import type { Element, Widget as WidgetInterface } from "./element.js";
 import { FrameScheduler } from "./frame-scheduler.js";
+import { PipelineOwner } from "./pipeline-owner.js";
+import { RenderBox } from "./render-box.js";
+import type { RenderObject } from "./render-object.js";
+import { RenderObjectElement, type RenderObjectWidget } from "./render-object-element.js";
+import { State, type StatefulElement, StatefulWidget } from "./stateful-widget.js";
+import { type BuildContext, type StatelessElement, StatelessWidget } from "./stateless-widget.js";
 import { setBuildOwner, setPipelineOwner } from "./types.js";
+import { GlobalKey, Key, Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助类
@@ -118,7 +102,7 @@ class Container extends StatelessWidget {
     this.child = child;
   }
 
-  build(context: BuildContext): WidgetInterface {
+  build(_context: BuildContext): WidgetInterface {
     return this.child;
   }
 }
@@ -140,7 +124,7 @@ class CounterState extends State<Counter> {
     this.disposeCalled = true;
   }
 
-  build(context: BuildContext): WidgetInterface {
+  build(_context: BuildContext): WidgetInterface {
     this.buildCount++;
     return new ColorBox(`count-${this.count}`);
   }
@@ -156,10 +140,6 @@ class CounterState extends State<Counter> {
  * Counter: StatefulWidget，创建 CounterState。
  */
 class Counter extends StatefulWidget {
-  constructor(options?: { key?: Key }) {
-    super(options);
-  }
-
   createState(): CounterState {
     return new CounterState();
   }
@@ -179,7 +159,7 @@ class Wrapper extends StatelessWidget {
     this.child = child;
   }
 
-  build(context: BuildContext): WidgetInterface {
+  build(_context: BuildContext): WidgetInterface {
     return this.child;
   }
 }
@@ -195,7 +175,7 @@ class DynamicChildState extends State<DynamicChild> {
     this.childWidget = this.widget.initialChild;
   }
 
-  build(context: BuildContext): WidgetInterface {
+  build(_context: BuildContext): WidgetInterface {
     this.buildCount++;
     return this.childWidget!;
   }
@@ -239,16 +219,8 @@ function createPipeline() {
   pipelineOwner.setOnNeedFrame(() => scheduler.requestFrame());
 
   scheduler.addFrameCallback("build", () => buildOwner.buildScopes(), "build");
-  scheduler.addFrameCallback(
-    "layout",
-    () => pipelineOwner.flushLayout(),
-    "layout",
-  );
-  scheduler.addFrameCallback(
-    "paint",
-    () => pipelineOwner.flushPaint(),
-    "paint",
-  );
+  scheduler.addFrameCallback("layout", () => pipelineOwner.flushLayout(), "layout");
+  scheduler.addFrameCallback("paint", () => pipelineOwner.flushPaint(), "paint");
 
   return { buildOwner, pipelineOwner, scheduler };
 }
@@ -533,27 +505,18 @@ describe("调和算法端到端", () => {
     env.buildOwner.buildScopes();
 
     const newLeaf = element.children[0];
-    assert.notEqual(
-      newLeaf,
-      originalLeaf,
-      "canUpdate=false 时应创建新 Element",
-    );
+    assert.notEqual(newLeaf, originalLeaf, "canUpdate=false 时应创建新 Element");
     assert.equal(originalLeaf.mounted, false, "旧 Element 应被 unmount");
     assert.ok(newLeaf instanceof ColorBoxElement);
-    assert.equal(
-      (newLeaf.renderObject as ColorBoxRenderObject).color,
-      "blue",
-    );
+    assert.equal((newLeaf.renderObject as ColorBoxRenderObject).color, "blue");
   });
 
   it("子树从有到无（child -> undefined）正确卸载", () => {
     // 创建一个可以让 build 返回不同结果的 StatefulWidget
     class OptionalChildState extends State<OptionalChild> {
       hasChild = true;
-      build(context: BuildContext): WidgetInterface {
-        return this.hasChild
-          ? new ColorBox("child")
-          : new ColorBox("empty");
+      build(_context: BuildContext): WidgetInterface {
+        return this.hasChild ? new ColorBox("child") : new ColorBox("empty");
       }
       removeChild(): void {
         this.setState(() => {
@@ -592,10 +555,7 @@ describe("调和算法端到端", () => {
     const childAfter = optElement.children[0];
     // 同类型无 key -> canUpdate=true -> 复用 Element
     assert.equal(childAfter, childBefore);
-    assert.equal(
-      (childAfter.renderObject as ColorBoxRenderObject).color,
-      "empty",
-    );
+    assert.equal((childAfter.renderObject as ColorBoxRenderObject).color, "empty");
   });
 });
 
@@ -644,7 +604,7 @@ describe("帧管线端到端", () => {
   });
 
   it("多个 dirty element 在单帧内按 depth 排序重建", () => {
-    const rebuildOrder: string[] = [];
+    const _rebuildOrder: string[] = [];
 
     // 创建两个独立的 Counter（不同深度）
     const rootWidget = new ColorBox("root");
@@ -665,8 +625,7 @@ describe("帧管线端到端", () => {
     rootElement.addChild(wrapperElement);
 
     const state1 = element1.state as CounterState;
-    const state2 = (wrapperElement.children[0] as StatefulElement)
-      .state as CounterState;
+    const state2 = (wrapperElement.children[0] as StatefulElement).state as CounterState;
 
     // 清除初始 dirty
     env.buildOwner.buildScopes();
@@ -830,10 +789,7 @@ describe("复杂场景", () => {
     const leafRO = current.renderObject;
     assert.ok(leafRO instanceof ColorBoxRenderObject);
     assert.equal((leafRO as ColorBoxRenderObject).color, "deep");
-    assert.ok(
-      rootElement.renderObject!.children.includes(leafRO!),
-      "叶子 RO 应挂在根 RO 下",
-    );
+    assert.ok(rootElement.renderObject!.children.includes(leafRO!), "叶子 RO 应挂在根 RO 下");
 
     // findRenderObject 从顶层找到叶子 RO
     const foundRO = topElement.findRenderObject();
@@ -880,10 +836,7 @@ describe("复杂场景", () => {
     // 单帧执行，两者都应被重建
     env.scheduler.executeFrame();
 
-    assert.ok(
-      parentState.buildCount > parentBuildBefore,
-      "父 State 应被重建",
-    );
+    assert.ok(parentState.buildCount > parentBuildBefore, "父 State 应被重建");
     assert.ok(childState.buildCount > childBuildBefore, "子 State 应被重建");
     assert.equal(env.buildOwner.hasDirtyElements, false);
   });
@@ -919,11 +872,7 @@ describe("复杂场景", () => {
     // 手动执行一次 buildScopes，只触发一次 rebuild
     isolatedBuildOwner.buildScopes();
 
-    assert.equal(
-      state.buildCount,
-      buildCountAfterInit + 1,
-      "多次 setState 应合并为一次 rebuild",
-    );
+    assert.equal(state.buildCount, buildCountAfterInit + 1, "多次 setState 应合并为一次 rebuild");
     assert.equal(isolatedBuildOwner.hasDirtyElements, false);
 
     isolatedBuildOwner.dispose();
@@ -955,10 +904,7 @@ describe("复杂场景", () => {
     assert.equal(state.count, 1);
 
     // 由于帧被自动触发执行，build 阶段已完成
-    assert.ok(
-      state.buildCount > buildCountBefore,
-      "setState 后应触发 rebuild",
-    );
+    assert.ok(state.buildCount > buildCountBefore, "setState 后应触发 rebuild");
     assert.equal(env.buildOwner.hasDirtyElements, false);
 
     // layout 阶段也已完成（rootRO 被重新布局 -- 约束未变但 flushLayout 总是被调用）
@@ -993,18 +939,8 @@ describe("复杂场景", () => {
     env.pipelineOwner.updateRootConstraints({ width: 80, height: 24 });
 
     // 添加追踪性回调（不覆盖管线回调，添加额外追踪）
-    env.scheduler.addFrameCallback(
-      "track-build",
-      () => order.push("build"),
-      "build",
-      100,
-    );
-    env.scheduler.addFrameCallback(
-      "track-paint",
-      () => order.push("paint"),
-      "paint",
-      100,
-    );
+    env.scheduler.addFrameCallback("track-build", () => order.push("build"), "build", 100);
+    env.scheduler.addFrameCallback("track-paint", () => order.push("paint"), "paint", 100);
 
     env.scheduler.addPostFrameCallback(() => {
       order.push("post-frame");

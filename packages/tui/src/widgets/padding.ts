@@ -7,15 +7,15 @@
  * @module
  */
 
-import { RenderBox } from "../tree/render-box.js";
 import { BoxConstraints } from "../tree/constraints.js";
-import { Widget } from "../tree/widget.js";
-import { RenderObjectElement } from "../tree/render-object-element.js";
-import type { RenderObjectWidget } from "../tree/render-object-element.js";
 import type { Element, Widget as WidgetInterface } from "../tree/element.js";
+import { RenderBox } from "../tree/render-box.js";
 import type { RenderObject } from "../tree/render-object.js";
+import type { RenderObjectWidget } from "../tree/render-object-element.js";
+import { RenderObjectElement } from "../tree/render-object-element.js";
 import type { Key } from "../tree/widget.js";
-import { EdgeInsets } from "./edge-insets.js";
+import { Widget } from "../tree/widget.js";
+import type { EdgeInsets } from "./edge-insets.js";
 
 // ════════════════════════════════════════════════════
 //  SingleChildRenderObjectElement
@@ -129,7 +129,7 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
     }
 
     // 复用
-    if (child !== undefined && child.widget.canUpdate(newWidget)) {
+    if (child?.widget.canUpdate(newWidget)) {
       child.update(newWidget);
       return child;
     }

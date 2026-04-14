@@ -19,6 +19,6 @@
  * @module
  */
 
+export { InputParser } from "./input-parser.js";
 export * from "./types.js";
 export { VtParser } from "./vt-parser.js";
-export { InputParser } from "./input-parser.js";

@@ -1,13 +1,13 @@
 export {
-  type GitStatusSnapshot,
-  type GitFileChange,
   type AheadCommit,
-  type DiffStat,
-  type StatusEntry,
   captureGitStatus,
-  isGitRepository,
+  type DiffStat,
+  type GitFileChange,
+  type GitStatusSnapshot,
   getCurrentBranch,
   getGitDiff,
+  isGitRepository,
   parsePortalainStatus,
+  type StatusEntry,
   statusEntryToChangeType,
 } from "./git";

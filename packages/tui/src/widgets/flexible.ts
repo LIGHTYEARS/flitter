@@ -11,12 +11,12 @@
  * @module
  */
 
-import { Widget } from "../tree/widget.js";
-import type { Key } from "../tree/widget.js";
 import type { Element } from "../tree/element.js";
 import type { RenderObject } from "../tree/render-object.js";
-import { FlexParentData } from "./flex.js";
+import type { Key } from "../tree/widget.js";
+import { Widget } from "../tree/widget.js";
 import type { FlexFit } from "./flex.js";
+import { FlexParentData } from "./flex.js";
 
 // ════════════════════════════════════════════════════
 //  Flexible

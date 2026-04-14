@@ -67,14 +67,10 @@ export class BoxConstraints {
       throw new Error(`maxHeight 不能为负数，收到: ${maxHeight}`);
     }
     if (minWidth > maxWidth) {
-      throw new Error(
-        `minWidth (${minWidth}) 不能大于 maxWidth (${maxWidth})`
-      );
+      throw new Error(`minWidth (${minWidth}) 不能大于 maxWidth (${maxWidth})`);
     }
     if (minHeight > maxHeight) {
-      throw new Error(
-        `minHeight (${minHeight}) 不能大于 maxHeight (${maxHeight})`
-      );
+      throw new Error(`minHeight (${minHeight}) 不能大于 maxHeight (${maxHeight})`);
     }
 
     this.minWidth = minWidth;

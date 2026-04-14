@@ -4,11 +4,12 @@
  *
  * Reverse-engineered from: fwR (collectContextBlocks, tool-execution-engine.js 434-547)
  */
-import type { SystemPromptBlock } from "@flitter/llm";
-import type { GuidanceFile, GuidanceLoadOptions } from "@flitter/data";
-import type { Config } from "@flitter/schemas";
+
 import * as os from "node:os";
 import * as path from "node:path";
+import type { GuidanceFile, GuidanceLoadOptions } from "@flitter/data";
+import type { SystemPromptBlock } from "@flitter/llm";
+import type { Config } from "@flitter/schemas";
 
 // Re-export for consumers
 export type { SystemPromptBlock };
@@ -105,9 +106,7 @@ function buildEnvironmentBlock(opts: ContextBlocksOptions): SystemPromptBlock {
  * wrapped in <instructions> tags. Separate blocks allow
  * per-block cache_control.
  */
-async function buildGuidanceBlocks(
-  opts: ContextBlocksOptions,
-): Promise<SystemPromptBlock[]> {
+async function buildGuidanceBlocks(opts: ContextBlocksOptions): Promise<SystemPromptBlock[]> {
   if (!opts.discoverGuidanceFiles) return [];
 
   const blocks: SystemPromptBlock[] = [];
@@ -147,16 +146,12 @@ async function buildGuidanceBlocks(
  * Build skills list block.
  * Formats available skills as a bullet list.
  */
-function buildSkillsBlock(
-  opts: ContextBlocksOptions,
-): SystemPromptBlock | null {
+function buildSkillsBlock(opts: ContextBlocksOptions): SystemPromptBlock | null {
   try {
     const skills = opts.listSkills();
     if (skills.length === 0) return null;
 
-    const skillLines = skills.map(
-      (s) => `- ${s.name}: ${s.description ?? "No description"}`,
-    );
+    const skillLines = skills.map((s) => `- ${s.name}: ${s.description ?? "No description"}`);
 
     const text = ["Available skills:", ...skillLines].join("\n");
     return { type: "text", text };
@@ -168,12 +163,11 @@ function buildSkillsBlock(
 /**
  * Build custom system prompt block from config.settings.systemPrompt.
  */
-function buildCustomSystemPromptBlock(
-  opts: ContextBlocksOptions,
-): SystemPromptBlock | null {
+function buildCustomSystemPromptBlock(opts: ContextBlocksOptions): SystemPromptBlock | null {
   const config = opts.getConfig();
-  const customPrompt = (config.settings as Record<string, unknown>)
-    .systemPrompt as string | undefined;
+  const customPrompt = (config.settings as Record<string, unknown>).systemPrompt as
+    | string
+    | undefined;
 
   if (!customPrompt || customPrompt.trim().length === 0) return null;
 
@@ -186,9 +180,7 @@ function buildCustomSystemPromptBlock(
 /**
  * Build repository info block with git branch.
  */
-function buildRepositoryBlock(
-  opts: ContextBlocksOptions,
-): SystemPromptBlock | null {
+function buildRepositoryBlock(opts: ContextBlocksOptions): SystemPromptBlock | null {
   if (!opts.git?.isRepo) return null;
 
   const lines: string[] = [];

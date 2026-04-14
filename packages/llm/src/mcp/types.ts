@@ -73,7 +73,7 @@ export type Method = (typeof Method)[keyof typeof Method];
 
 // Protocol versions (newest first, from reversed XLT)
 export const PROTOCOL_VERSIONS = [
-  "2025-03-26",  // stable target per KD-20
+  "2025-03-26", // stable target per KD-20
   "2024-11-05",
   "2024-10-07",
 ] as const;

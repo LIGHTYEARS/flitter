@@ -5,7 +5,7 @@
  * 从 amp-cli-reversed/app/realtime-sync.js 提取
  */
 import { z } from "zod";
-import { UsageSchema, ToolRunSchema, MessageStateSchema } from "./messages";
+import { ToolRunSchema, UsageSchema } from "./messages";
 
 // ─── Guidance File Reference ───────────────────────────
 
@@ -36,11 +36,17 @@ export const ThreadMetaSchema = z.object({
 export type ThreadMeta = z.infer<typeof ThreadMetaSchema>;
 
 export const ThreadEnvironmentSchema = z.object({
-  initial: z.object({
-    trees: z.array(z.object({
-      repository: z.object({ url: z.string().optional() }).optional(),
-    })).optional(),
-  }).optional(),
+  initial: z
+    .object({
+      trees: z
+        .array(
+          z.object({
+            repository: z.object({ url: z.string().optional() }).optional(),
+          }),
+        )
+        .optional(),
+    })
+    .optional(),
   trees: z.array(z.unknown()),
   platform: z.string(),
 });
@@ -50,13 +56,36 @@ export type ThreadEnvironment = z.infer<typeof ThreadEnvironmentSchema>;
 
 export const ThreadContentBlockSchema = z.union([
   z.object({ type: z.literal("text"), text: z.string() }),
-  z.object({ type: z.literal("tool_use"), id: z.string(), name: z.string(), input: z.record(z.string(), z.unknown()) }),
-  z.object({ type: z.literal("tool_result"), toolUseID: z.string(), output: z.string().optional(), status: z.string().optional() }),
+  z.object({
+    type: z.literal("tool_use"),
+    id: z.string(),
+    name: z.string(),
+    input: z.record(z.string(), z.unknown()),
+  }),
+  z.object({
+    type: z.literal("tool_result"),
+    toolUseID: z.string(),
+    output: z.string().optional(),
+    status: z.string().optional(),
+  }),
   z.object({ type: z.literal("thinking"), thinking: z.string() }),
   z.object({ type: z.literal("redacted_thinking"), data: z.string() }),
-  z.object({ type: z.literal("summary"), summary: z.object({ type: z.literal("message"), summary: z.string() }) }),
-  z.object({ type: z.literal("manual_bash_invocation"), args: z.record(z.string(), z.unknown()), toolRun: ToolRunSchema, hidden: z.boolean().optional() }),
-  z.object({ type: z.literal("server_tool_use"), id: z.string(), name: z.string(), input: z.unknown() }),
+  z.object({
+    type: z.literal("summary"),
+    summary: z.object({ type: z.literal("message"), summary: z.string() }),
+  }),
+  z.object({
+    type: z.literal("manual_bash_invocation"),
+    args: z.record(z.string(), z.unknown()),
+    toolRun: ToolRunSchema,
+    hidden: z.boolean().optional(),
+  }),
+  z.object({
+    type: z.literal("server_tool_use"),
+    id: z.string(),
+    name: z.string(),
+    input: z.unknown(),
+  }),
   z.object({ type: z.literal("image"), source: z.unknown() }),
 ]);
 export type ThreadContentBlock = z.infer<typeof ThreadContentBlockSchema>;

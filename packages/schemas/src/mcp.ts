@@ -133,10 +133,7 @@ export const MCPURLServerSpecSchema = z.object({
 });
 export type MCPURLServerSpec = z.infer<typeof MCPURLServerSpecSchema>;
 
-export const MCPServerSpecSchema = z.union([
-  MCPCommandServerSpecSchema,
-  MCPURLServerSpecSchema,
-]);
+export const MCPServerSpecSchema = z.union([MCPCommandServerSpecSchema, MCPURLServerSpecSchema]);
 export type MCPServerSpec = z.infer<typeof MCPServerSpecSchema>;
 
 // ─── MCP Transport Type ────────────────────────────────
@@ -183,13 +180,7 @@ export type MCPToolContent = z.infer<typeof MCPToolContentSchema>;
 
 // ─── Guidance File ─────────────────────────────────────
 
-export const GuidanceFileTypeSchema = z.enum([
-  "project",
-  "user",
-  "parent",
-  "subtree",
-  "mentioned",
-]);
+export const GuidanceFileTypeSchema = z.enum(["project", "user", "parent", "subtree", "mentioned"]);
 export type GuidanceFileType = z.infer<typeof GuidanceFileTypeSchema>;
 
 export const GuidanceFileSchema = z.object({

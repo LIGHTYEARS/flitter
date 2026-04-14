@@ -11,8 +11,8 @@
  * @module
  */
 
+export * from "./list-view.js";
 export * from "./scroll-controller.js";
+export * from "./scroll-key-handler.js";
 export * from "./scroll-physics.js";
 export * from "./scrollable.js";
-export * from "./scroll-key-handler.js";
-export * from "./list-view.js";

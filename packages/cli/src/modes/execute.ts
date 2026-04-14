@@ -19,10 +19,12 @@
  * flitter --execute --stream-json "explain this code"
  * ```
  */
-import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "../context";
+
 import type { AgentEvent } from "@flitter/agent-core";
+import type { ServiceContainer } from "@flitter/flitter";
+import type { ThreadMessage } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
+import type { CliContext } from "../context";
 
 /**
  * IO 注入选项 (方便测试)
@@ -53,7 +55,7 @@ function writeJsonLine(stream: NodeJS.WritableStream, data: unknown): void {
  */
 async function readStdin(stdin: NodeJS.ReadableStream): Promise<string> {
   const chunks: Buffer[] = [];
-  for await (const chunk of stdin as any) {
+  for await (const chunk of stdin as unknown as AsyncIterable<Buffer | string>) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks).toString("utf-8");
@@ -133,10 +135,10 @@ export async function runExecuteMode(
     if (!context.streamJson) {
       const snapshot = container.threadStore.getThreadSnapshot(threadId);
       const lastAssistant = snapshot?.messages
-        .filter((m: any) => m.role === "assistant")
+        .filter((m: ThreadMessage) => m.role === "assistant")
         .pop();
       if (lastAssistant) {
-        const text = extractText(lastAssistant as any);
+        const text = extractText(lastAssistant as { content: Array<Record<string, unknown>> });
         stdout.write(text + "\n");
       }
     }

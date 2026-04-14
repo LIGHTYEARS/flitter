@@ -6,12 +6,11 @@
  * @module
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
+import type { TextSpan } from "../widgets/text-span.js";
+import type { MarkdownNode } from "./markdown-parser.js";
 import { MarkdownRenderer } from "./markdown-renderer.js";
 import { SyntaxHighlighter } from "./syntax-highlight.js";
-import { TextSpan } from "../widgets/text-span.js";
-import { TextStyle } from "../screen/text-style.js";
-import type { MarkdownNode } from "./markdown-parser.js";
 
 describe("SyntaxHighlighter", () => {
   const theme = SyntaxHighlighter.defaultTheme();
@@ -83,7 +82,7 @@ describe("MarkdownRenderer", () => {
   /** 递归查找带指定样式属性的 span */
   function findSpanWith(
     spans: TextSpan[],
-    predicate: (s: TextSpan) => boolean
+    predicate: (s: TextSpan) => boolean,
   ): TextSpan | undefined {
     for (const span of spans) {
       if (predicate(span)) return span;
@@ -119,9 +118,7 @@ describe("MarkdownRenderer", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "paragraph",
-        children: [
-          { type: "strong", children: [{ type: "text", value: "bold" }] },
-        ],
+        children: [{ type: "strong", children: [{ type: "text", value: "bold" }] }],
       },
     ];
     const spans = renderer.render(nodes);
@@ -134,9 +131,7 @@ describe("MarkdownRenderer", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "paragraph",
-        children: [
-          { type: "emphasis", children: [{ type: "text", value: "italic" }] },
-        ],
+        children: [{ type: "emphasis", children: [{ type: "text", value: "italic" }] }],
       },
     ];
     const spans = renderer.render(nodes);
@@ -148,16 +143,11 @@ describe("MarkdownRenderer", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "paragraph",
-        children: [
-          { type: "delete", children: [{ type: "text", value: "deleted" }] },
-        ],
+        children: [{ type: "delete", children: [{ type: "text", value: "deleted" }] }],
       },
     ];
     const spans = renderer.render(nodes);
-    const strikeSpan = findSpanWith(
-      spans,
-      (s) => s.style?.strikethrough === true
-    );
+    const strikeSpan = findSpanWith(spans, (s) => s.style?.strikethrough === true);
     expect(strikeSpan).toBeDefined();
   });
 
@@ -173,30 +163,23 @@ describe("MarkdownRenderer", () => {
     const spans = renderer.render(nodes);
     const codeSpan = findSpanWith(
       spans,
-      (s) => s.text === "inline" && s.style?.background?.kind !== "default"
+      (s) => s.text === "inline" && s.style?.background?.kind !== "default",
     );
     expect(codeSpan).toBeDefined();
   });
 
   it("code block 带语法高亮", () => {
-    const nodes: MarkdownNode[] = [
-      { type: "code", lang: "js", value: "const x = 1" },
-    ];
+    const nodes: MarkdownNode[] = [{ type: "code", lang: "js", value: "const x = 1" }];
     const spans = renderer.render(nodes);
     expect(spans.length).toBeGreaterThanOrEqual(1);
     // 包含背景色
-    const bgSpan = findSpanWith(
-      spans,
-      (s) => s.style?.background?.kind === "index"
-    );
+    const bgSpan = findSpanWith(spans, (s) => s.style?.background?.kind === "index");
     expect(bgSpan).toBeDefined();
     expect(collectText(spans)).toContain("const");
   });
 
   it("code block 无语言标记", () => {
-    const nodes: MarkdownNode[] = [
-      { type: "code", value: "plain code" },
-    ];
+    const nodes: MarkdownNode[] = [{ type: "code", value: "plain code" }];
     const spans = renderer.render(nodes);
     expect(collectText(spans)).toContain("plain code");
   });
@@ -425,9 +408,7 @@ describe("MarkdownRenderer", () => {
   // ── HTML 安全 ─────────────────────────────────────
 
   it("html 节点被忽略（安全措施）", () => {
-    const nodes: MarkdownNode[] = [
-      { type: "html", value: "<script>alert(1)</script>" },
-    ];
+    const nodes: MarkdownNode[] = [{ type: "html", value: "<script>alert(1)</script>" }];
     const spans = renderer.render(nodes);
     expect(spans).toEqual([]);
   });

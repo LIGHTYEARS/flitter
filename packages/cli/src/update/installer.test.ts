@@ -7,23 +7,24 @@
  *
  * 逆向参考: qVT in process-runner.js
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
-import { writeFile, readFile, unlink, mkdtemp, stat, access, constants } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { constants, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { UpdateInfo } from "./checker";
 import {
   installBinaryUpdate,
   installWithPackageManager,
   UpdateVerificationError,
 } from "./installer";
-import type { UpdateInfo } from "./checker";
 
 /**
  * 辅助: 创建临时文件并返回其 SHA-256
  */
-async function createTempFileWithHash(
+async function _createTempFileWithHash(
   dir: string,
   name: string,
   content: string,
@@ -66,7 +67,7 @@ describe("installBinaryUpdate", () => {
         status: 200,
         headers: { "Content-Length": String(newContent.length) },
       });
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const info: UpdateInfo = {
       version: "2.0.0",
@@ -94,7 +95,7 @@ describe("installBinaryUpdate", () => {
         },
       });
       return new Response(body, { status: 200 });
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const info: UpdateInfo = {
       version: "2.0.0",
@@ -129,7 +130,7 @@ describe("installBinaryUpdate", () => {
         },
       });
       return new Response(body, { status: 200 });
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const info: UpdateInfo = {
       version: "2.0.0",
@@ -138,9 +139,7 @@ describe("installBinaryUpdate", () => {
       releaseNotes: "",
     };
 
-    await assert.rejects(
-      () => installBinaryUpdate(info, { targetPath }),
-    );
+    await assert.rejects(() => installBinaryUpdate(info, { targetPath }));
 
     // 验证 temp 目录中没有残留的 flitter-update-* 文件
     // (无法精确检查 tmpdir，但至少原文件完整)
@@ -166,7 +165,7 @@ describe("installBinaryUpdate", () => {
         status: 200,
         headers: { "Content-Length": String(content.length) },
       });
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const info: UpdateInfo = {
       version: "2.0.0",
@@ -207,7 +206,7 @@ describe("installBinaryUpdate", () => {
         status: 200,
         headers: { "Content-Length": String(content.length) },
       });
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const info: UpdateInfo = {
       version: "2.0.0",
@@ -226,15 +225,15 @@ describe("installBinaryUpdate", () => {
 });
 
 describe("installWithPackageManager", () => {
-  let origExec: typeof import("node:child_process").exec;
-  let executedCommands: string[];
+  let _origExec: typeof import("node:child_process").exec;
+  let _executedCommands: string[];
 
   // 我们无法在测试中实际执行 npm install -g，
   // 但可以验证方法映射和错误处理
 
   it("未知安装方式抛出错误", async () => {
     await assert.rejects(
-      () => installWithPackageManager("unknown" as any),
+      () => installWithPackageManager("unknown" as unknown as import("./checker").InstallMethod),
       (err: Error) => {
         assert.ok(err.message.includes("Unsupported"));
         return true;

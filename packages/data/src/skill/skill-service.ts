@@ -2,14 +2,14 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { BehaviorSubject } from "@flitter/util";
-import type {
-  Skill,
-  SkillScanResult,
-  SkillInstallResult,
-  SkillFrontmatter,
-  MCPServerSpec,
-} from "./skill-types.ts";
 import { loadSkill, validateSkillName } from "./skill-parser.ts";
+import type {
+  MCPServerSpec,
+  Skill,
+  SkillFrontmatter,
+  SkillInstallResult,
+  SkillScanResult,
+} from "./skill-types.ts";
 
 export interface SkillServiceOptions {
   workspaceRoot: string | null;
@@ -19,12 +19,8 @@ export interface SkillServiceOptions {
 
 export class SkillService {
   readonly skills = new BehaviorSubject<Skill[]>([]);
-  readonly errors = new BehaviorSubject<Array<{ path: string; error: string }>>(
-    [],
-  );
-  readonly mcpServersFromSkills = new BehaviorSubject<
-    Record<string, MCPServerSpec>
-  >({});
+  readonly errors = new BehaviorSubject<Array<{ path: string; error: string }>>([]);
+  readonly mcpServersFromSkills = new BehaviorSubject<Record<string, MCPServerSpec>>({});
 
   private workspaceRoot: string | null;
   private userConfigDir: string;
@@ -89,8 +85,7 @@ export class SkillService {
         } catch (err: unknown) {
           errors.push({
             path: skillDir,
-            error:
-              err instanceof Error ? err.message : String(err),
+            error: err instanceof Error ? err.message : String(err),
           });
         }
       }
@@ -149,9 +144,7 @@ export class SkillService {
         await fsp.stat(skillDir);
         await fsp.rm(skillDir, { recursive: true, force: true });
         return true;
-      } catch {
-        continue;
-      }
+      } catch {}
     }
     return false;
   }
@@ -167,18 +160,11 @@ export class SkillService {
     const paths = this.getDiscoveryPaths();
     for (const p of paths) {
       try {
-        const watcher = fs.watch(
-          p,
-          { recursive: true, persistent: false },
-          (_event, filename) => {
-            if (
-              filename &&
-              filename.toLowerCase().endsWith("skill.md")
-            ) {
-              this.debouncedScan();
-            }
-          },
-        );
+        const watcher = fs.watch(p, { recursive: true, persistent: false }, (_event, filename) => {
+          if (filename?.toLowerCase().endsWith("skill.md")) {
+            this.debouncedScan();
+          }
+        });
         this.watchers.push(watcher);
       } catch {
         /* dir may not exist */
@@ -217,9 +203,7 @@ export class SkillService {
     const servers: Record<string, MCPServerSpec> = {};
     for (const skill of skills) {
       if (skill.frontmatter.mcpServers) {
-        for (const [name, spec] of Object.entries(
-          skill.frontmatter.mcpServers,
-        )) {
+        for (const [name, spec] of Object.entries(skill.frontmatter.mcpServers)) {
           servers[name] = spec;
         }
       }

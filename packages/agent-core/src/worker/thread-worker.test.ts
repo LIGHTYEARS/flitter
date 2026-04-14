@@ -4,42 +4,58 @@
  * 覆盖: 状态转换、推理循环、工具执行、上下文压缩、
  * 取消/重试、错误处理、dispose、事件序列
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import type { StreamDelta, StreamParams, ToolDefinition } from "@flitter/llm";
 import type {
-  StreamParams,
-  StreamDelta,
-  SystemPromptBlock,
-  ToolDefinition,
-} from "@flitter/llm";
-import type { Config, Settings, Message, ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject, Subject } from "@flitter/util";
+  AssistantContentBlock,
+  Config,
+  Message,
+  Settings,
+  ThreadSnapshot,
+  Usage,
+} from "@flitter/schemas";
+import type { BehaviorSubject, Subject } from "@flitter/util";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
-import { ThreadWorker, type ThreadWorkerOptions } from "./thread-worker";
 import type { AgentEvent, InferenceState } from "./events";
+import { ThreadWorker, type ThreadWorkerOptions } from "./thread-worker";
 
 // ─── 辅助: StreamDelta 构造 ──────────────────────────────
 
 function createTextDelta(text: string): StreamDelta {
   return {
-    content: [{ type: "text", text } as any],
+    content: [{ type: "text", text } as AssistantContentBlock],
     state: { type: "streaming" },
   };
 }
 
-function createCompleteDelta(text: string, usage?: { inputTokens: number; outputTokens: number }): StreamDelta {
+function createCompleteDelta(
+  text: string,
+  usage?: { inputTokens: number; outputTokens: number },
+): StreamDelta {
   return {
-    content: [{ type: "text", text } as any],
+    content: [{ type: "text", text } as AssistantContentBlock],
     state: { type: "complete", stopReason: "end_turn" },
-    usage: usage as any,
+    usage: usage as unknown as Usage,
   };
 }
 
-function createToolUseDelta(toolName: string, toolUseId: string, input: Record<string, unknown> = {}): StreamDelta {
+function createToolUseDelta(
+  toolName: string,
+  toolUseId: string,
+  input: Record<string, unknown> = {},
+): StreamDelta {
   return {
     content: [
-      { type: "tool_use", id: toolUseId, name: toolName, input, complete: true } as any,
+      {
+        type: "tool_use",
+        id: toolUseId,
+        name: toolName,
+        input,
+        complete: true,
+      } as AssistantContentBlock,
     ],
     state: { type: "complete", stopReason: "tool_use" },
   };
@@ -74,7 +90,7 @@ function createErrorProvider(error: Error): MockLLMProvider {
 
 // ─── 辅助: Mock ThreadSnapshot ──────────────────────────
 
-function createSnapshot(messages: any[] = []): ThreadSnapshot {
+function createSnapshot(messages: Message[] = []): ThreadSnapshot {
   return {
     id: "test-thread",
     v: 1,
@@ -87,7 +103,11 @@ function createSnapshot(messages: any[] = []): ThreadSnapshot {
 
 function createMockOrchestrator(opts?: {
   executeToolsWithPlan?: (toolUses: ToolUseItem[]) => Promise<void>;
-}): ToolOrchestrator & { cancelAllCalled: boolean; disposeCalled: boolean; lastToolUses: ToolUseItem[] } {
+}): ToolOrchestrator & {
+  cancelAllCalled: boolean;
+  disposeCalled: boolean;
+  lastToolUses: ToolUseItem[];
+} {
   const mock = {
     cancelAllCalled: false,
     disposeCalled: false,
@@ -109,7 +129,11 @@ function createMockOrchestrator(opts?: {
       mock.disposeCalled = true;
     },
   };
-  return mock as any;
+  return mock as unknown as ToolOrchestrator & {
+    cancelAllCalled: boolean;
+    disposeCalled: boolean;
+    lastToolUses: ToolUseItem[];
+  };
 }
 
 // ─── 辅助: Mock ToolRegistry ────────────────────────────
@@ -148,22 +172,33 @@ function createWorker(overrides?: Partial<ThreadWorkerOptions>) {
 
   const defaults: ThreadWorkerOptions = {
     getThreadSnapshot: () => snapshot,
-    updateThreadSnapshot: (s: ThreadSnapshot) => { snapshot = s; },
+    updateThreadSnapshot: (s: ThreadSnapshot) => {
+      snapshot = s;
+    },
     getMessages: () => [],
-    provider: createMockProvider([createCompleteDelta("Hello")]) as any,
-    toolOrchestrator: createMockOrchestrator() as any,
+    provider: createMockProvider([
+      createCompleteDelta("Hello"),
+    ]) as unknown as ThreadWorkerOptions["provider"],
+    toolOrchestrator: createMockOrchestrator() as unknown as ToolOrchestrator,
     buildSystemPrompt: async () => [{ type: "text" as const, text: "system prompt" }],
     checkAndCompact: async () => null,
-    getConfig: () => ({
-      settings: { model: "test-model" } as Settings,
-      secrets: { getToken: async () => undefined, isSet: () => false },
-    } as Config),
+    getConfig: () =>
+      ({
+        settings: { model: "test-model" } as Settings,
+        secrets: { getToken: async () => undefined, isSet: () => false },
+      }) as Config,
     toolRegistry: createMockToolRegistry(),
     ...overrides,
   };
 
   const worker = new ThreadWorker(defaults);
-  return { worker, getSnapshot: () => snapshot, setSnapshot: (s: ThreadSnapshot) => { snapshot = s; } };
+  return {
+    worker,
+    getSnapshot: () => snapshot,
+    setSnapshot: (s: ThreadSnapshot) => {
+      snapshot = s;
+    },
+  };
 }
 
 // ─── events.ts — 类型检查 ────────────────────────────────
@@ -217,12 +252,16 @@ describe("ThreadWorker — 状态转换", () => {
     const provider = {
       async *stream(_params: StreamParams) {
         yield createTextDelta("partial");
-        await new Promise<void>((resolve) => { resolveStream = resolve; });
+        await new Promise<void>((resolve) => {
+          resolveStream = resolve;
+        });
         yield createCompleteDelta("done");
       },
     };
 
-    const { worker } = createWorker({ provider: provider as any });
+    const { worker } = createWorker({
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+    });
     const states = collectStates(worker.inferenceState$);
 
     const inferencePromise = worker.runInference();
@@ -257,7 +296,9 @@ describe("ThreadWorker — 状态转换", () => {
 
   it("错误: running → idle", async () => {
     const errorProvider = createErrorProvider(new Error("LLM error"));
-    const { worker } = createWorker({ provider: errorProvider as any });
+    const { worker } = createWorker({
+      provider: errorProvider as unknown as ThreadWorkerOptions["provider"],
+    });
     const states = collectStates(worker.inferenceState$);
 
     await worker.runInference();
@@ -287,7 +328,9 @@ describe("ThreadWorker — runInference 基础流", () => {
       createCompleteDelta("Hello world!"),
     ]);
 
-    const { worker } = createWorker({ provider: provider as any });
+    const { worker } = createWorker({
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+    });
     const events = collectEvents(worker.events$);
 
     await worker.runInference();
@@ -301,7 +344,9 @@ describe("ThreadWorker — runInference 基础流", () => {
       createCompleteDelta("done", { inputTokens: 100, outputTokens: 50 }),
     ]);
 
-    const { worker } = createWorker({ provider: provider as any });
+    const { worker } = createWorker({
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+    });
     const events = collectEvents(worker.events$);
 
     await worker.runInference();
@@ -331,7 +376,7 @@ describe("ThreadWorker — runInference 基础流", () => {
     } as Config;
 
     const { worker } = createWorker({
-      provider: provider as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
       getConfig: () => config,
     });
 
@@ -351,7 +396,7 @@ describe("ThreadWorker — 工具执行", () => {
   it("检测 tool_use 块并交给 ToolOrchestrator", async () => {
     let callCount = 0;
     const orchestrator = createMockOrchestrator({
-      executeToolsWithPlan: async (toolUses) => {
+      executeToolsWithPlan: async (_toolUses) => {
         callCount++;
         // After orchestrator runs, the next runInference call should see no tools
       },
@@ -371,8 +416,8 @@ describe("ThreadWorker — 工具执行", () => {
     };
 
     const { worker } = createWorker({
-      provider: provider as any,
-      toolOrchestrator: orchestrator as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
     });
 
     await worker.runInference();
@@ -398,8 +443,8 @@ describe("ThreadWorker — 工具执行", () => {
 
     const orchestrator = createMockOrchestrator();
     const { worker } = createWorker({
-      provider: provider as any,
-      toolOrchestrator: orchestrator as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
     });
     const events = collectEvents(worker.events$);
 
@@ -413,7 +458,7 @@ describe("ThreadWorker — 工具执行", () => {
     assert.equal(startEvents.length, 2);
 
     // Should end with turn:complete
-    const lastEvent = events[events.length - 1];
+    const _lastEvent = events[events.length - 1];
     // Last two events are turn:complete, then idle (but idle is state, not event)
     assert.ok(events.some((e) => e.type === "turn:complete"));
   });
@@ -426,11 +471,23 @@ describe("ThreadWorker — 工具执行", () => {
         if (inferenceCount === 1) {
           yield {
             content: [
-              { type: "tool_use", id: "tu-1", name: "Read", input: { file_path: "/a" }, complete: true },
-              { type: "tool_use", id: "tu-2", name: "Grep", input: { pattern: "foo" }, complete: true },
+              {
+                type: "tool_use",
+                id: "tu-1",
+                name: "Read",
+                input: { file_path: "/a" },
+                complete: true,
+              },
+              {
+                type: "tool_use",
+                id: "tu-2",
+                name: "Grep",
+                input: { pattern: "foo" },
+                complete: true,
+              },
             ],
             state: { type: "complete", stopReason: "tool_use" },
-          } as any;
+          } as unknown as StreamDelta;
         } else {
           yield createCompleteDelta("Result");
         }
@@ -439,8 +496,8 @@ describe("ThreadWorker — 工具执行", () => {
 
     const orchestrator = createMockOrchestrator();
     const { worker } = createWorker({
-      provider: provider as any,
-      toolOrchestrator: orchestrator as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
     });
 
     await worker.runInference();
@@ -466,8 +523,8 @@ describe("ThreadWorker — 工具执行", () => {
 
     const orchestrator = createMockOrchestrator();
     const { worker } = createWorker({
-      provider: provider as any,
-      toolOrchestrator: orchestrator as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
     });
     const events = collectEvents(worker.events$);
 
@@ -493,7 +550,9 @@ describe("ThreadWorker — 工具执行", () => {
 
 describe("ThreadWorker — 上下文压缩", () => {
   it("checkAndCompact 返回新 snapshot 时发出 compaction:start/complete 事件", async () => {
-    const compactedSnapshot = createSnapshot([{ role: "user", content: [{ type: "text", text: "summary" }], messageId: 0 }]);
+    const compactedSnapshot = createSnapshot([
+      { role: "user", content: [{ type: "text", text: "summary" }], messageId: 0 },
+    ]);
 
     const { worker } = createWorker({
       checkAndCompact: async () => compactedSnapshot,
@@ -557,8 +616,8 @@ describe("ThreadWorker — 系统提示词", () => {
     };
 
     const { worker } = createWorker({
-      provider: provider as any,
-      toolOrchestrator: createMockOrchestrator() as any,
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+      toolOrchestrator: createMockOrchestrator() as unknown as ToolOrchestrator,
       buildSystemPrompt: async () => {
         buildCount++;
         return [{ type: "text" as const, text: "sys" }];
@@ -586,7 +645,9 @@ describe("ThreadWorker — cancelInference", () => {
       },
     };
 
-    const { worker } = createWorker({ provider: provider as any });
+    const { worker } = createWorker({
+      provider: provider as unknown as ThreadWorkerOptions["provider"],
+    });
 
     const inferencePromise = worker.runInference();
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -600,7 +661,9 @@ describe("ThreadWorker — cancelInference", () => {
 
   it("调用 ToolOrchestrator.cancelAll()", () => {
     const orchestrator = createMockOrchestrator();
-    const { worker } = createWorker({ toolOrchestrator: orchestrator as any });
+    const { worker } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
 
     worker.cancelInference();
 
@@ -642,7 +705,9 @@ describe("ThreadWorker — retry", () => {
 describe("ThreadWorker — 错误处理", () => {
   it("provider 错误: 状态回到 idle + 发出 inference:error 事件", async () => {
     const errorProvider = createErrorProvider(new Error("API down"));
-    const { worker } = createWorker({ provider: errorProvider as any });
+    const { worker } = createWorker({
+      provider: errorProvider as unknown as ThreadWorkerOptions["provider"],
+    });
     const events = collectEvents(worker.events$);
 
     await worker.runInference();
@@ -653,7 +718,9 @@ describe("ThreadWorker — 错误处理", () => {
 
   it("错误事件包含 Error 对象", async () => {
     const errorProvider = createErrorProvider(new Error("Rate limited"));
-    const { worker } = createWorker({ provider: errorProvider as any });
+    const { worker } = createWorker({
+      provider: errorProvider as unknown as ThreadWorkerOptions["provider"],
+    });
     const events = collectEvents(worker.events$);
 
     await worker.runInference();
@@ -672,7 +739,9 @@ describe("ThreadWorker — 错误处理", () => {
 describe("ThreadWorker — dispose", () => {
   it("调用 ToolOrchestrator.dispose()", () => {
     const orchestrator = createMockOrchestrator();
-    const { worker } = createWorker({ toolOrchestrator: orchestrator as any });
+    const { worker } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
 
     worker.dispose();
 
@@ -692,7 +761,9 @@ describe("ThreadWorker — dispose", () => {
 
   it("多次 dispose 幂等", () => {
     const orchestrator = createMockOrchestrator();
-    const { worker } = createWorker({ toolOrchestrator: orchestrator as any });
+    const { worker } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
 
     worker.dispose();
     worker.dispose(); // Should not throw
@@ -724,7 +795,7 @@ describe("ThreadWorker — Thread state updates", () => {
 
     const messages = getSnapshot().messages;
     assert.ok(messages.length > 0);
-    const assistantMsg = messages.find((m: any) => m.role === "assistant");
+    const assistantMsg = messages.find((m) => m.role === "assistant");
     assert.ok(assistantMsg);
   });
 });

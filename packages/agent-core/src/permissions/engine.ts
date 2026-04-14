@@ -10,15 +10,16 @@
  * 逆向: tool-permissions.js 的 ToolPermissionsService (171-283)
  */
 import type {
-  PermissionEntry,
-  PermissionContext,
+  Config,
   PermissionCheckResult,
+  PermissionContext,
+  PermissionEntry,
+  Settings,
   ToolApprovalRequest,
 } from "@flitter/schemas";
-import type { Config, Settings } from "@flitter/schemas";
 import type { Subject } from "@flitter/util";
+import { checkGuardedFile, getToolFilePaths } from "./guarded-files";
 import { matchPermissionEntry } from "./matcher";
-import { getToolFilePaths, checkGuardedFile } from "./guarded-files";
 
 // ─── 默认权限规则 ──────────────────────────────────────
 
@@ -102,24 +103,12 @@ export class PermissionEngine {
 
     // ─── Level 2: 用户规则 ───────────────────────────
     const userRules = settings.permissions ?? [];
-    const userResult = this.evaluateRules(
-      userRules,
-      toolName,
-      args,
-      context,
-      "user-settings",
-    );
+    const userResult = this.evaluateRules(userRules, toolName, args, context, "user-settings");
     if (userResult) return userResult;
 
     // ─── Level 3: 默认规则 ───────────────────────────
     const resolvedDefaults = this.resolveWorkspaceRoot(DEFAULT_PERMISSION_RULES);
-    const defaultResult = this.evaluateRules(
-      resolvedDefaults,
-      toolName,
-      args,
-      context,
-      "default",
-    );
+    const defaultResult = this.evaluateRules(resolvedDefaults, toolName, args, context, "default");
     if (defaultResult) return defaultResult;
 
     // ─── Level 4: Fallback ───────────────────────────
@@ -195,10 +184,7 @@ export class PermissionEngine {
   /**
    * 将匹配的规则转换为 PermissionCheckResult
    */
-  private ruleToResult(
-    rule: PermissionEntry,
-    source: string,
-  ): PermissionCheckResult {
+  private ruleToResult(rule: PermissionEntry, source: string): PermissionCheckResult {
     if (rule.action === "allow") {
       return {
         permitted: true,
@@ -249,10 +235,7 @@ export class PermissionEngine {
       const resolvedMatches: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(rule.matches)) {
         if (typeof value === "string" && value.includes("${workspaceRoot}")) {
-          resolvedMatches[key] = value.replace(
-            /\$\{workspaceRoot\}/g,
-            this.workspaceRoot,
-          );
+          resolvedMatches[key] = value.replace(/\$\{workspaceRoot\}/g, this.workspaceRoot);
         } else {
           resolvedMatches[key] = value;
         }

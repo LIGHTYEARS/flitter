@@ -1,16 +1,13 @@
 /**
  * Tests for MCPServerManager.
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { BehaviorSubject } from "@flitter/util";
-import { MCPServerManager, type NamespacedMCPTool } from "./server-manager";
-import {
-  MCPConnection,
-  type MCPConnectionStatus,
-  type MCPServerSpec,
-} from "./connection";
-import type { MCPTool, MCPToolResult, MCPResource, MCPPrompt } from "./types";
+import type { MCPConnection, MCPConnectionStatus, MCPServerSpec } from "./connection";
+import { MCPServerManager } from "./server-manager";
+import type { MCPPrompt, MCPResource, MCPTool, MCPToolResult, MCPToolTextContent } from "./types";
 
 // ─── Mock MCPConnection ───────────────────────────────────
 
@@ -73,7 +70,7 @@ describe("MCPServerManager", () => {
 
     const manager = new MCPServerManager({
       getConfig: () => config,
-      createConnection: (name, spec) => {
+      createConnection: (name, _spec) => {
         let conn = connMap.get(name);
         if (!conn) {
           conn = new MockMCPConnection();
@@ -174,12 +171,8 @@ describe("MCPServerManager", () => {
   });
 
   it("should route callTool to correct server", async () => {
-    const conn1 = new MockMCPConnection([
-      { name: "tool_a", inputSchema: { type: "object" } },
-    ]);
-    const conn2 = new MockMCPConnection([
-      { name: "tool_b", inputSchema: { type: "object" } },
-    ]);
+    const conn1 = new MockMCPConnection([{ name: "tool_a", inputSchema: { type: "object" } }]);
+    const conn2 = new MockMCPConnection([{ name: "tool_b", inputSchema: { type: "object" } }]);
     conn2.callToolResult = {
       content: [{ type: "text", text: "from server2" }],
     };
@@ -195,16 +188,13 @@ describe("MCPServerManager", () => {
       ]),
     );
 
-    const result = await manager.callTool(
-      "mcp__server2__tool_b",
-      { arg1: "value" },
-    );
+    const result = await manager.callTool("mcp__server2__tool_b", { arg1: "value" });
 
     assert.ok(conn2.lastCallToolParams);
     assert.equal(conn2.lastCallToolParams.name, "tool_b");
     assert.deepEqual(conn2.lastCallToolParams.arguments, { arg1: "value" });
     assert.equal(result.content[0].type, "text");
-    assert.equal((result.content[0] as any).text, "from server2");
+    assert.equal((result.content[0] as MCPToolTextContent).text, "from server2");
 
     manager.dispose();
   });
@@ -227,18 +217,13 @@ describe("MCPServerManager", () => {
       server1: { command: "cmd1" },
     });
 
-    await assert.rejects(
-      () => manager.callTool("mcp__unknown_server__tool", {}),
-      /not found/,
-    );
+    await assert.rejects(() => manager.callTool("mcp__unknown_server__tool", {}), /not found/);
 
     manager.dispose();
   });
 
   it("should update allTools when connection tools change", async () => {
-    const conn = new MockMCPConnection([
-      { name: "old_tool", inputSchema: { type: "object" } },
-    ]);
+    const conn = new MockMCPConnection([{ name: "old_tool", inputSchema: { type: "object" } }]);
 
     const { manager } = createManager(
       { server1: { command: "cmd" } },
@@ -249,9 +234,7 @@ describe("MCPServerManager", () => {
     assert.equal(manager.allTools$.value[0].originalName, "old_tool");
 
     // Simulate tools change
-    conn.tools$.next([
-      { name: "new_tool", inputSchema: { type: "object" } },
-    ]);
+    conn.tools$.next([{ name: "new_tool", inputSchema: { type: "object" } }]);
 
     await wait(10);
 

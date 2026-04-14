@@ -24,8 +24,8 @@ export interface Skill {
 }
 
 export interface SkillFile {
-  path: string;        // relative path
-  fullPath: string;    // absolute path
+  path: string; // relative path
+  fullPath: string; // absolute path
   size: number;
 }
 

@@ -4,9 +4,11 @@
  * 验证 launchInteractiveMode 的组件树组装、生命周期管理、
  * runApp 调用、资源清理、退出 URL 输出等行为。
  */
-import { describe, it, expect, mock, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import type { ThreadWorker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { CliContext } from "../context";
+import type { IWidget } from "./interactive";
 
 // ─── Mock 基础设施 ────────────────────────────────────────
 
@@ -16,14 +18,14 @@ function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): 
     get: () => ({
       settings: {
         "terminal.theme": "terminal",
-        ...(overrides.settingsOverride as Record<string, unknown> ?? {}),
+        ...((overrides.settingsOverride as Record<string, unknown>) ?? {}),
       },
       secrets: {},
     }),
     getLatest: async () => ({
       settings: {
         "terminal.theme": "terminal",
-        ...(overrides.settingsOverride as Record<string, unknown> ?? {}),
+        ...((overrides.settingsOverride as Record<string, unknown>) ?? {}),
       },
       secrets: {},
     }),
@@ -32,7 +34,7 @@ function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): 
 
   const threadStore = {
     setCachedThread: mock(() => {}),
-    getThreadSnapshot: mock((_id: string) => (overrides.threadSnapshot ?? null)),
+    getThreadSnapshot: mock((_id: string) => overrides.threadSnapshot ?? null),
   };
 
   const workerEvents$ = {
@@ -57,7 +59,7 @@ function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): 
     threadStore,
     createThreadWorker: mock((_threadId: string) => mockWorker),
     asyncDispose: mock(async () => {}),
-    ...(overrides.containerOverrides as Record<string, unknown> ?? {}),
+    ...((overrides.containerOverrides as Record<string, unknown>) ?? {}),
   } as unknown as ServiceContainer;
 
   return container;
@@ -84,10 +86,10 @@ describe("launchInteractiveMode", () => {
   beforeEach(() => {
     capturedOutput = "";
     originalStdoutWrite = process.stdout.write;
-    process.stdout.write = mock((chunk: any) => {
+    process.stdout.write = mock((chunk: string | Uint8Array) => {
       capturedOutput += String(chunk);
       return true;
-    }) as any;
+    }) as typeof process.stdout.write;
   });
 
   afterEach(() => {
@@ -143,7 +145,7 @@ describe("launchInteractiveMode", () => {
       },
     });
     const context = createMockContext();
-    (context as any).threadId = "existing-thread-123";
+    (context as CliContext & { threadId?: string }).threadId = "existing-thread-123";
 
     const threadId = await _testing.resolveThread(container, context);
 
@@ -155,7 +157,11 @@ describe("launchInteractiveMode", () => {
     const container = createMockContainer();
     const mockWorker = container.createThreadWorker("test");
 
-    const widget = _testing.buildWidgetTree(container, mockWorker as any, "terminal");
+    const widget = _testing.buildWidgetTree(
+      container,
+      mockWorker as unknown as ThreadWorker,
+      "terminal",
+    );
 
     expect(widget).toBeDefined();
     // 根节点应该是 ThemeController 类型
@@ -169,11 +175,15 @@ describe("launchInteractiveMode", () => {
     });
     const mockWorker = container.createThreadWorker("test");
 
-    const widget = _testing.buildWidgetTree(container, mockWorker as any, "dark");
+    const widget = _testing.buildWidgetTree(
+      container,
+      mockWorker as unknown as ThreadWorker,
+      "dark",
+    );
 
     expect(widget).toBeDefined();
     // 主题名应该传入 ThemeController
-    expect((widget as any).themeName).toBe("dark");
+    expect((widget as IWidget & { themeName: string }).themeName).toBe("dark");
   });
 
   it("ThemeController 默认主题为 terminal", async () => {
@@ -183,9 +193,13 @@ describe("launchInteractiveMode", () => {
     });
     const mockWorker = container.createThreadWorker("test");
 
-    const widget = _testing.buildWidgetTree(container, mockWorker as any, "terminal");
+    const widget = _testing.buildWidgetTree(
+      container,
+      mockWorker as unknown as ThreadWorker,
+      "terminal",
+    );
 
-    expect((widget as any).themeName).toBe("terminal");
+    expect((widget as IWidget & { themeName: string }).themeName).toBe("terminal");
   });
 
   it("ThreadWorker 创建时传递正确的 threadId", async () => {
@@ -199,9 +213,10 @@ describe("launchInteractiveMode", () => {
 
     expect(container.createThreadWorker).toHaveBeenCalledTimes(1);
     // 第一个参数应该是生成的 threadId (UUID)
-    const callArgs = (container.createThreadWorker as any).mock.calls[0];
+    const callArgs = (container.createThreadWorker as ReturnType<typeof mock>).mock
+      .calls[0] as unknown[];
     expect(typeof callArgs[0]).toBe("string");
-    expect(callArgs[0].length).toBeGreaterThan(0);
+    expect((callArgs[0] as string).length).toBeGreaterThan(0);
   });
 
   it("退出时输出 thread URL (有消息时)", async () => {
@@ -213,14 +228,11 @@ describe("launchInteractiveMode", () => {
       },
     });
     // Make getThreadSnapshot return the thread with messages
-    (container.threadStore.getThreadSnapshot as any).mockImplementation(
-      () => ({
-        id: "test-thread",
-        messages: [{ role: "user", content: "hello" }],
-      }),
-    );
+    (container.threadStore.getThreadSnapshot as ReturnType<typeof mock>).mockImplementation(() => ({
+      id: "test-thread",
+      messages: [{ role: "user", content: "hello" }],
+    }));
     const context = createMockContext();
-    (context as any).ampURL = "https://app.example.com";
 
     _testing.setRunApp(async () => {});
 
@@ -234,12 +246,10 @@ describe("launchInteractiveMode", () => {
     const { launchInteractiveMode, _testing } = await import("./interactive");
     const container = createMockContainer();
     // Return thread with no messages
-    (container.threadStore.getThreadSnapshot as any).mockImplementation(
-      () => ({
-        id: "test-thread",
-        messages: [],
-      }),
-    );
+    (container.threadStore.getThreadSnapshot as ReturnType<typeof mock>).mockImplementation(() => ({
+      id: "test-thread",
+      messages: [],
+    }));
     const context = createMockContext();
 
     _testing.setRunApp(async () => {});
@@ -254,7 +264,11 @@ describe("launchInteractiveMode", () => {
     const container = createMockContainer();
     const mockWorker = container.createThreadWorker("test");
 
-    const widget = _testing.buildWidgetTree(container, mockWorker as any, "terminal");
+    const widget = _testing.buildWidgetTree(
+      container,
+      mockWorker as unknown as ThreadWorker,
+      "terminal",
+    );
 
     expect(widget.constructor.name).toBe("ThemeController");
   });
@@ -264,12 +278,19 @@ describe("launchInteractiveMode", () => {
     const container = createMockContainer();
     const mockWorker = container.createThreadWorker("test");
 
-    const widget = _testing.buildWidgetTree(container, mockWorker as any, "terminal");
+    const widget = _testing.buildWidgetTree(
+      container,
+      mockWorker as unknown as ThreadWorker,
+      "terminal",
+    );
 
     // ThemeController.child should be ConfigProvider
-    expect((widget as any).child).toBeDefined();
-    expect((widget as any).child.constructor.name).toBe("ConfigProvider");
-    expect((widget as any).child.configService).toBe(container.configService);
+    const themeCtrl = widget as IWidget & {
+      child: IWidget & { configService: unknown; constructor: { name: string } };
+    };
+    expect(themeCtrl.child).toBeDefined();
+    expect(themeCtrl.child.constructor.name).toBe("ConfigProvider");
+    expect(themeCtrl.child.configService).toBe(container.configService);
   });
 
   it("错误处理: runApp 抛异常仍清理资源", async () => {
@@ -290,7 +311,7 @@ describe("launchInteractiveMode", () => {
   it("Ctrl+C 信号触发 cancel worker 和 dispose", async () => {
     const { _testing } = await import("./interactive");
     const container = createMockContainer();
-    const mockWorker = container.createThreadWorker("test");
+    const _mockWorker = container.createThreadWorker("test");
 
     // 验证 handleShutdown 函数存在并可调用
     expect(typeof _testing.handleShutdown).toBe("function");
@@ -310,6 +331,7 @@ describe("launchInteractiveMode", () => {
 
     expect(capturedOpts).toBeDefined();
     // options 应该包含 onRootElementMounted 回调
-    expect(typeof (capturedOpts as any).onRootElementMounted).toBe("function");
+    const opts = capturedOpts as { onRootElementMounted?: unknown };
+    expect(typeof opts.onRootElementMounted).toBe("function");
   });
 });

@@ -4,13 +4,14 @@
  * 测试: AnthropicTransformer (toProviderMessages, fromProviderDelta),
  *       AnthropicToolTransformer, AnthropicProvider 配置
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import { AnthropicTransformer, AnthropicToolTransformer } from "./transformer";
-import type { AnthropicSSEEvent, AnthropicMessage } from "./transformer";
-import { TransformState } from "../../types";
+import { describe, it } from "node:test";
+import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock } from "../../types";
-import type { Message, AssistantContentBlock } from "@flitter/schemas";
+import { TransformState } from "../../types";
+import type { AnthropicSSEEvent } from "./transformer";
+import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
 
 // ─── 辅助函数 ──────────────────────────────────────────
 
@@ -31,9 +32,7 @@ function makeAssistantMsg(content: AssistantContentBlock[], id = 2): Message {
   } as Message;
 }
 
-const systemPrompt: SystemPromptBlock[] = [
-  { type: "text", text: "You are a helpful assistant." },
-];
+const systemPrompt: SystemPromptBlock[] = [{ type: "text", text: "You are a helpful assistant." }];
 
 // ─── AnthropicTransformer.toProviderMessages 测试 ──────
 
@@ -41,9 +40,7 @@ describe("AnthropicTransformer.toProviderMessages", () => {
   const transformer = new AnthropicTransformer();
 
   it("should convert UserMessage text to Anthropic text block", () => {
-    const msgs: Message[] = [
-      makeUserMsg([{ type: "text", text: "Hello" }]),
-    ];
+    const msgs: Message[] = [makeUserMsg([{ type: "text", text: "Hello" }])];
     const result = transformer.toProviderMessages(msgs, systemPrompt);
     assert.equal(result.length, 1);
     assert.equal(result[0].role, "user");
@@ -56,10 +53,12 @@ describe("AnthropicTransformer.toProviderMessages", () => {
 
   it("should convert UserMessage image (base64) to Anthropic image block", () => {
     const msgs: Message[] = [
-      makeUserMsg([{
-        type: "image",
-        source: { type: "base64", mediaType: "image/png", data: "abc123" },
-      }]),
+      makeUserMsg([
+        {
+          type: "image",
+          source: { type: "base64", mediaType: "image/png", data: "abc123" },
+        },
+      ]),
     ];
     const result = transformer.toProviderMessages(msgs, systemPrompt);
     assert.equal(result.length, 1);
@@ -77,13 +76,15 @@ describe("AnthropicTransformer.toProviderMessages", () => {
   it("should convert AssistantMessage tool_use to Anthropic tool_use block", () => {
     const msgs: Message[] = [
       makeUserMsg([{ type: "text", text: "Use a tool" }]),
-      makeAssistantMsg([{
-        type: "tool_use",
-        id: "toolu_1",
-        name: "bash",
-        complete: true,
-        input: { command: "ls" },
-      }]),
+      makeAssistantMsg([
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "bash",
+          complete: true,
+          input: { command: "ls" },
+        },
+      ]),
     ];
     const result = transformer.toProviderMessages(msgs, systemPrompt);
     assert.equal(result.length, 2);
@@ -99,7 +100,12 @@ describe("AnthropicTransformer.toProviderMessages", () => {
     const msgs: Message[] = [
       makeUserMsg([{ type: "text", text: "Think" }]),
       makeAssistantMsg([
-        { type: "thinking", thinking: "Let me think...", signature: "sig_1", provider: "anthropic" },
+        {
+          type: "thinking",
+          thinking: "Let me think...",
+          signature: "sig_1",
+          provider: "anthropic",
+        },
         { type: "text", text: "Answer" },
       ]),
     ];
@@ -125,11 +131,13 @@ describe("AnthropicTransformer.toProviderMessages", () => {
 
   it("should convert ToolResultBlock to Anthropic tool_result", () => {
     const msgs: Message[] = [
-      makeUserMsg([{
-        type: "tool_result",
-        toolUseID: "toolu_1",
-        run: { status: "done", result: "file contents here" },
-      }]),
+      makeUserMsg([
+        {
+          type: "tool_result",
+          toolUseID: "toolu_1",
+          run: { status: "done", result: "file contents here" },
+        },
+      ]),
     ];
     const result = transformer.toProviderMessages(msgs, systemPrompt);
     assert.equal(result.length, 1);
@@ -290,29 +298,48 @@ describe("AnthropicTransformer.fromProviderDelta", () => {
     const state = new TransformState();
 
     // Setup: run through message lifecycle
-    transformer.fromProviderDelta({
-      type: "message_start",
-      message: { id: "msg_1", model: "claude-sonnet-4-20250514", usage: { input_tokens: 100, output_tokens: 0 } },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "content_block_start",
-      index: 0,
-      content_block: { type: "text", text: "" },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "content_block_delta",
-      index: 0,
-      delta: { type: "text_delta", text: "Hello world" },
-    }, state);
-    transformer.fromProviderDelta({
-      type: "content_block_stop",
-      index: 0,
-    }, state);
-    transformer.fromProviderDelta({
-      type: "message_delta",
-      delta: { stop_reason: "end_turn" },
-      usage: { output_tokens: 5 },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "message_start",
+        message: {
+          id: "msg_1",
+          model: "claude-sonnet-4-20250514",
+          usage: { input_tokens: 100, output_tokens: 0 },
+        },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "text", text: "" },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "text_delta", text: "Hello world" },
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "content_block_stop",
+        index: 0,
+      },
+      state,
+    );
+    transformer.fromProviderDelta(
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { output_tokens: 5 },
+      },
+      state,
+    );
 
     const delta = transformer.fromProviderDelta({ type: "message_stop" }, state);
     assert.equal(delta.state.type, "complete");
@@ -334,7 +361,14 @@ describe("AnthropicTransformer — full stream simulation", () => {
     const state = new TransformState();
 
     const events: AnthropicSSEEvent[] = [
-      { type: "message_start", message: { id: "msg_1", model: "claude-sonnet-4-20250514", usage: { input_tokens: 50, output_tokens: 0 } } },
+      {
+        type: "message_start",
+        message: {
+          id: "msg_1",
+          model: "claude-sonnet-4-20250514",
+          usage: { input_tokens: 50, output_tokens: 0 },
+        },
+      },
       { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
       { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello " } },
       { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "world!" } },
@@ -362,10 +396,29 @@ describe("AnthropicTransformer — full stream simulation", () => {
     const state = new TransformState();
 
     const events: AnthropicSSEEvent[] = [
-      { type: "message_start", message: { id: "msg_2", model: "claude-sonnet-4-20250514", usage: { input_tokens: 100, output_tokens: 0 } } },
-      { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "toolu_1", name: "bash", input: {} } },
-      { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"command"' } },
-      { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: ':"ls -la"}' } },
+      {
+        type: "message_start",
+        message: {
+          id: "msg_2",
+          model: "claude-sonnet-4-20250514",
+          usage: { input_tokens: 100, output_tokens: 0 },
+        },
+      },
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "tool_use", id: "toolu_1", name: "bash", input: {} },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: '{"command"' },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "input_json_delta", partial_json: ':"ls -la"}' },
+      },
       { type: "content_block_stop", index: 0 },
       { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 10 } },
       { type: "message_stop" },
@@ -394,13 +447,36 @@ describe("AnthropicTransformer — full stream simulation", () => {
     const state = new TransformState();
 
     const events: AnthropicSSEEvent[] = [
-      { type: "message_start", message: { id: "msg_3", model: "claude-sonnet-4-20250514", usage: { input_tokens: 80, output_tokens: 0 } } },
-      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
-      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Let me analyze" } },
-      { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig_abc" } },
+      {
+        type: "message_start",
+        message: {
+          id: "msg_3",
+          model: "claude-sonnet-4-20250514",
+          usage: { input_tokens: 80, output_tokens: 0 },
+        },
+      },
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "thinking", thinking: "", signature: "" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "thinking_delta", thinking: "Let me analyze" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "signature_delta", signature: "sig_abc" },
+      },
       { type: "content_block_stop", index: 0 },
       { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
-      { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "The answer is 42." } },
+      {
+        type: "content_block_delta",
+        index: 1,
+        delta: { type: "text_delta", text: "The answer is 42." },
+      },
       { type: "content_block_stop", index: 1 },
       { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 20 } },
       { type: "message_stop" },
@@ -429,15 +505,42 @@ describe("AnthropicTransformer — full stream simulation", () => {
     const state = new TransformState();
 
     const events: AnthropicSSEEvent[] = [
-      { type: "message_start", message: { id: "msg_4", model: "claude-sonnet-4-20250514", usage: { input_tokens: 90, output_tokens: 0 } } },
-      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
-      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "I should use a tool" } },
+      {
+        type: "message_start",
+        message: {
+          id: "msg_4",
+          model: "claude-sonnet-4-20250514",
+          usage: { input_tokens: 90, output_tokens: 0 },
+        },
+      },
+      {
+        type: "content_block_start",
+        index: 0,
+        content_block: { type: "thinking", thinking: "", signature: "" },
+      },
+      {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "thinking_delta", thinking: "I should use a tool" },
+      },
       { type: "content_block_stop", index: 0 },
       { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
-      { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Let me check" } },
+      {
+        type: "content_block_delta",
+        index: 1,
+        delta: { type: "text_delta", text: "Let me check" },
+      },
       { type: "content_block_stop", index: 1 },
-      { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: "toolu_2", name: "read_file", input: {} } },
-      { type: "content_block_delta", index: 2, delta: { type: "input_json_delta", partial_json: '{"path":"/etc/hosts"}' } },
+      {
+        type: "content_block_start",
+        index: 2,
+        content_block: { type: "tool_use", id: "toolu_2", name: "read_file", input: {} },
+      },
+      {
+        type: "content_block_delta",
+        index: 2,
+        delta: { type: "input_json_delta", partial_json: '{"path":"/etc/hosts"}' },
+      },
       { type: "content_block_stop", index: 2 },
       { type: "message_delta", delta: { stop_reason: "tool_use" }, usage: { output_tokens: 30 } },
       { type: "message_stop" },
@@ -463,7 +566,11 @@ describe("AnthropicToolTransformer", () => {
 
   it("should convert ToolDefinition to AnthropicTool format", () => {
     const tools = transformer.toProviderTools([
-      { name: "bash", description: "Run commands", inputSchema: { type: "object", properties: { cmd: { type: "string" } } } },
+      {
+        name: "bash",
+        description: "Run commands",
+        inputSchema: { type: "object", properties: { cmd: { type: "string" } } },
+      },
     ]);
     assert.equal(tools.length, 1);
     assert.equal(tools[0].name, "bash");
@@ -506,25 +613,31 @@ describe("AnthropicTransformer — cache usage", () => {
     const transformer = new AnthropicTransformer();
     const state = new TransformState();
 
-    transformer.fromProviderDelta({
-      type: "message_start",
-      message: {
-        id: "msg_cache",
-        model: "claude-sonnet-4-20250514",
-        usage: {
-          input_tokens: 100,
-          output_tokens: 0,
-          cache_creation_input_tokens: 50,
-          cache_read_input_tokens: 30,
+    transformer.fromProviderDelta(
+      {
+        type: "message_start",
+        message: {
+          id: "msg_cache",
+          model: "claude-sonnet-4-20250514",
+          usage: {
+            input_tokens: 100,
+            output_tokens: 0,
+            cache_creation_input_tokens: 50,
+            cache_read_input_tokens: 30,
+          },
         },
       },
-    }, state);
+      state,
+    );
 
-    transformer.fromProviderDelta({
-      type: "message_delta",
-      delta: { stop_reason: "end_turn" },
-      usage: { output_tokens: 10 },
-    }, state);
+    transformer.fromProviderDelta(
+      {
+        type: "message_delta",
+        delta: { stop_reason: "end_turn" },
+        usage: { output_tokens: 10 },
+      },
+      state,
+    );
 
     const delta = transformer.fromProviderDelta({ type: "message_stop" }, state);
     assert.ok(delta.usage);

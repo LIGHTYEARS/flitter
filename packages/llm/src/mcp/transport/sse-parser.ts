@@ -96,9 +96,7 @@ export function createSSEParser(options: {
   function dispatchEvent(): void {
     if (dataBuffer.length > 0) {
       // Remove trailing \n from data buffer (SSE spec: data always gets \n appended)
-      const data = dataBuffer.endsWith("\n")
-        ? dataBuffer.slice(0, -1)
-        : dataBuffer;
+      const data = dataBuffer.endsWith("\n") ? dataBuffer.slice(0, -1) : dataBuffer;
 
       onEvent({
         id: lastId,

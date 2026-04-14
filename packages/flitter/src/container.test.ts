@@ -3,7 +3,7 @@
  *
  * 测试 createContainer() DI 容器组装:
  * - 基本创建: 返回所有属性
- * - 配置传递: workspaceRoot/ampURL 正确传递
+ * - 配置传递: workspaceRoot 正确传递
  * - dispose 顺序: 反序清理
  * - dispose 错误隔离: 单个 dispose 失败不阻止其他
  * - partial failure: 创建中途失败时清理
@@ -12,8 +12,9 @@
  * - createThreadWorker 工厂: 返回 ThreadWorker
  * - 多次 dispose: 安全
  */
-import { describe, test, expect, beforeEach, mock, spyOn } from "bun:test";
-import { createContainer, type ContainerOptions, type SecretStorage, type ServiceContainer } from "./container";
+import { describe, expect, mock, test } from "bun:test";
+import type { FileSettingsStorage } from "@flitter/data";
+import { type ContainerOptions, createContainer, type SecretStorage } from "./container";
 
 // ── Mock SecretStorage ──────────────────────────────────
 
@@ -34,7 +35,7 @@ function createMockSecretStorage(): SecretStorage {
 
 // ── Mock FileSettingsStorage ────────────────────────────
 
-function createMockSettingsStorage(): any {
+function createMockSettingsStorage(): FileSettingsStorage {
   return {
     get: mock(() => Promise.resolve(undefined)),
     set: mock(() => Promise.resolve()),
@@ -44,14 +45,13 @@ function createMockSettingsStorage(): any {
     getWatchPaths: mock(() => []),
     getAll: mock(() => ({})),
     getAllForScope: mock(() => ({})),
-  };
+  } as unknown as FileSettingsStorage;
 }
 
 // ── 默认选项 ────────────────────────────────────────────
 
 function createDefaultOptions(): ContainerOptions {
   return {
-    ampURL: "https://api.example.com",
     settings: createMockSettingsStorage(),
     secrets: createMockSecretStorage(),
     workspaceRoot: "/tmp/test-workspace",
@@ -83,14 +83,12 @@ describe("createContainer", () => {
     await container.asyncDispose();
   });
 
-  test("正确传递 ampURL 和 workspaceRoot", async () => {
+  test("正确传递 workspaceRoot", async () => {
     const opts = createDefaultOptions();
-    opts.ampURL = "https://custom-api.test.com";
     opts.workspaceRoot = "/custom/workspace";
 
     const container = await createContainer(opts);
 
-    // configService 应包含正确的 workspaceRoot
     expect(container.configService.workspaceRoot).toBe("/custom/workspace");
 
     await container.asyncDispose();
@@ -110,9 +108,7 @@ describe("createContainer", () => {
     const opts = createDefaultOptions();
     const container = await createContainer(opts);
 
-    const expectedTools = [
-      "Read", "Write", "Edit", "Bash", "Grep", "Glob", "FuzzyFind",
-    ];
+    const expectedTools = ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "FuzzyFind"];
 
     for (const toolName of expectedTools) {
       expect(container.toolRegistry.has(toolName)).toBe(true);
@@ -158,10 +154,12 @@ describe("createContainer", () => {
     const container = await createContainer(opts);
 
     // 让 MCPServerManager 的 dispose 抛出错误
-    const origDispose = (container.mcpServerManager as any).dispose;
-    (container.mcpServerManager as any).dispose = async () => {
-      throw new Error("dispose error from mcp");
-    };
+    const _origDispose = (container.mcpServerManager as unknown as { dispose: () => Promise<void> })
+      .dispose;
+    (container.mcpServerManager as unknown as { dispose: () => Promise<void> }).dispose =
+      async () => {
+        throw new Error("dispose error from mcp");
+      };
 
     // 应该不抛出，其他服务应该正常清理
     await expect(container.asyncDispose()).resolves.toBeUndefined();

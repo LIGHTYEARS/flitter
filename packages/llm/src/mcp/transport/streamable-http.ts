@@ -14,9 +14,9 @@
  * - Support resumption tokens via SSE event id + Last-Event-ID header
  */
 
-import { SSEEventParser } from "./sse-parser";
 import { parseMessage } from "../protocol";
-import type { MCPTransport, JSONRPCMessage, ProtocolVersion } from "../types";
+import type { JSONRPCMessage, MCPTransport, ProtocolVersion } from "../types";
+import { SSEEventParser } from "./sse-parser";
 
 /**
  * Minimal auth provider interface for StreamableHTTP transport.
@@ -69,13 +69,13 @@ export class UnauthorizedError extends Error {
  * Check if a JSON-RPC message is a request (has id + method).
  */
 function isRequest(msg: JSONRPCMessage): boolean {
-  return "method" in msg && "id" in msg && (msg as any).id !== undefined;
+  return "method" in msg && "id" in msg && (msg as { id?: unknown }).id !== undefined;
 }
 
 /**
  * Check if a JSON-RPC message is a notification (has method but no id).
  */
-function isNotification(msg: JSONRPCMessage): boolean {
+function _isNotification(msg: JSONRPCMessage): boolean {
   return "method" in msg && !("id" in msg);
 }
 
@@ -136,7 +136,7 @@ export class StreamableHTTPTransport implements MCPTransport {
     if (this._authProvider) {
       const tokenResult = await this._authProvider.tokens();
       if (tokenResult) {
-        headers["Authorization"] = `Bearer ${tokenResult.access_token}`;
+        headers.Authorization = `Bearer ${tokenResult.access_token}`;
       }
     }
 
@@ -208,9 +208,7 @@ export class StreamableHTTPTransport implements MCPTransport {
         const body = await response.text().catch(() => null);
 
         if (response.status === 401 && this._authProvider) {
-          throw new UnauthorizedError(
-            `Server returned 401: ${body ?? response.statusText}`,
-          );
+          throw new UnauthorizedError(`Server returned 401: ${body ?? response.statusText}`);
         }
 
         throw new StreamableHTTPError(
@@ -252,10 +250,7 @@ export class StreamableHTTPTransport implements MCPTransport {
         }
       } else {
         await response.body?.cancel();
-        throw new StreamableHTTPError(
-          -1,
-          `Unexpected content type: ${contentType}`,
-        );
+        throw new StreamableHTTPError(-1, `Unexpected content type: ${contentType}`);
       }
     } catch (err) {
       // Re-throw abort errors without calling onerror
@@ -300,11 +295,7 @@ export class StreamableHTTPTransport implements MCPTransport {
               const msg = parseMessage(event.data);
               this.onmessage?.(msg);
             } catch (parseErr) {
-              this.onerror?.(
-                parseErr instanceof Error
-                  ? parseErr
-                  : new Error(String(parseErr)),
-              );
+              this.onerror?.(parseErr instanceof Error ? parseErr : new Error(String(parseErr)));
             }
           }
         }

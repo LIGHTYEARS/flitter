@@ -6,11 +6,12 @@
  * message sending/receiving, auth headers, protocol version,
  * close behavior, and error handling.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import http from "node:http";
-import { SSETransport, SSELineParser } from "./sse";
-import type { JSONRPCMessage } from "../types";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import type { JSONRPCMessage, JSONRPCSuccessResponse } from "../types";
+import { SSELineParser, SSETransport } from "./sse";
 
 // ─── Helpers ───────────────────────────────────────────
 
@@ -35,11 +36,7 @@ function closeServer(server: http.Server): Promise<void> {
 }
 
 /** Wait until a condition is met, with timeout. */
-function waitFor(
-  condition: () => boolean,
-  timeout = 3000,
-  interval = 10,
-): Promise<void> {
+function waitFor(condition: () => boolean, timeout = 3000, interval = 10): Promise<void> {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeout;
     const check = () => {
@@ -52,7 +49,7 @@ function waitFor(
 }
 
 /** Small delay helper. */
-function delay(ms: number): Promise<void> {
+function _delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
@@ -125,9 +122,7 @@ describe("SSELineParser", () => {
   });
 
   it("should parse multiple events in one chunk", () => {
-    const events = parser.feed(
-      "data: first\n\nevent: custom\ndata: second\n\n"
-    );
+    const events = parser.feed("data: first\n\nevent: custom\ndata: second\n\n");
     assert.equal(events.length, 2);
     assert.equal(events[0].data, "first");
     assert.equal(events[1].event, "custom");
@@ -229,7 +224,7 @@ describe("SSETransport", () => {
 
     await waitFor(() => received.length > 0);
     assert.equal(received.length, 1);
-    assert.deepEqual((received[0] as any).result, { tools: [] });
+    assert.deepEqual((received[0] as JSONRPCSuccessResponse).result, { tools: [] });
   });
 
   it("should receive multiple messages", async () => {
@@ -241,12 +236,8 @@ describe("SSETransport", () => {
         });
         res.write("event: endpoint\ndata: /mcp/post\n\n");
         setTimeout(() => {
-          res.write(
-            `data: ${JSON.stringify({ jsonrpc: "2.0", id: 1, result: "a" })}\n\n`
-          );
-          res.write(
-            `data: ${JSON.stringify({ jsonrpc: "2.0", id: 2, result: "b" })}\n\n`
-          );
+          res.write(`data: ${JSON.stringify({ jsonrpc: "2.0", id: 1, result: "a" })}\n\n`);
+          res.write(`data: ${JSON.stringify({ jsonrpc: "2.0", id: 2, result: "b" })}\n\n`);
         }, 50);
       }
     });
@@ -260,8 +251,8 @@ describe("SSETransport", () => {
     await waitFor(() => received.length >= 2);
 
     assert.equal(received.length, 2);
-    assert.equal((received[0] as any).result, "a");
-    assert.equal((received[1] as any).result, "b");
+    assert.equal((received[0] as JSONRPCSuccessResponse).result, "a");
+    assert.equal((received[1] as JSONRPCSuccessResponse).result, "b");
   });
 
   // ── Message sending ──
@@ -307,9 +298,8 @@ describe("SSETransport", () => {
   it("should throw when sending before connected", async () => {
     transport = new SSETransport({ url: "http://127.0.0.1:1" });
     await assert.rejects(
-      () =>
-        transport!.send({ jsonrpc: "2.0", id: 1, method: "test" }),
-      /Not connected/
+      () => transport!.send({ jsonrpc: "2.0", id: 1, method: "test" }),
+      /Not connected/,
     );
   });
 
@@ -323,9 +313,7 @@ describe("SSETransport", () => {
           "Cache-Control": "no-cache",
         });
         // Send endpoint with a different origin
-        res.write(
-          "event: endpoint\ndata: http://evil.example.com/mcp/post\n\n"
-        );
+        res.write("event: endpoint\ndata: http://evil.example.com/mcp/post\n\n");
       }
     });
     server = setup.server;
@@ -336,10 +324,7 @@ describe("SSETransport", () => {
       errorCalled = true;
     };
 
-    await assert.rejects(
-      () => transport!.start(),
-      /origin does not match/i
-    );
+    await assert.rejects(() => transport!.start(), /origin does not match/i);
     assert.ok(errorCalled);
   });
 
@@ -351,14 +336,14 @@ describe("SSETransport", () => {
 
     const setup = await createSSEServer((req, res) => {
       if (req.method === "GET") {
-        getAuthHeader = req.headers["authorization"] ?? "";
+        getAuthHeader = req.headers.authorization ?? "";
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
         });
         res.write("event: endpoint\ndata: /mcp/post\n\n");
       } else if (req.method === "POST") {
-        postAuthHeader = req.headers["authorization"] ?? "";
+        postAuthHeader = req.headers.authorization ?? "";
         res.writeHead(200);
         res.end();
       }
@@ -387,14 +372,14 @@ describe("SSETransport", () => {
 
     const setup = await createSSEServer((req, res) => {
       if (req.method === "GET") {
-        getCustomHeader = req.headers["x-custom"] as string ?? "";
+        getCustomHeader = (req.headers["x-custom"] as string) ?? "";
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
         });
         res.write("event: endpoint\ndata: /mcp/post\n\n");
       } else if (req.method === "POST") {
-        postCustomHeader = req.headers["x-custom"] as string ?? "";
+        postCustomHeader = (req.headers["x-custom"] as string) ?? "";
         res.writeHead(200);
         res.end();
       }
@@ -421,14 +406,14 @@ describe("SSETransport", () => {
 
     const setup = await createSSEServer((req, res) => {
       if (req.method === "GET") {
-        getVersionHeader = req.headers["mcp-protocol-version"] as string ?? "";
+        getVersionHeader = (req.headers["mcp-protocol-version"] as string) ?? "";
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
         });
         res.write("event: endpoint\ndata: /mcp/post\n\n");
       } else if (req.method === "POST") {
-        postVersionHeader = req.headers["mcp-protocol-version"] as string ?? "";
+        postVersionHeader = (req.headers["mcp-protocol-version"] as string) ?? "";
         res.writeHead(200);
         res.end();
       }
@@ -500,7 +485,7 @@ describe("SSETransport", () => {
   // ── Error handling ──
 
   it("should handle server returning non-200 on GET", async () => {
-    const setup = await createSSEServer((req, res) => {
+    const setup = await createSSEServer((_req, res) => {
       res.writeHead(500);
       res.end("Internal Server Error");
     });
@@ -536,7 +521,7 @@ describe("SSETransport", () => {
 
     await assert.rejects(
       () => transport!.send({ jsonrpc: "2.0", id: 1, method: "test" }),
-      /HTTP 500/
+      /HTTP 500/,
     );
   });
 
@@ -562,10 +547,7 @@ describe("SSETransport", () => {
     transport = new SSETransport({ url: setup.url, authProvider });
     await transport.start();
 
-    await assert.rejects(
-      () => transport!.send({ jsonrpc: "2.0", id: 1, method: "test" }),
-      /401/
-    );
+    await assert.rejects(() => transport!.send({ jsonrpc: "2.0", id: 1, method: "test" }), /401/);
   });
 
   it("should call onerror on invalid JSON in SSE message", async () => {
@@ -688,7 +670,7 @@ describe("SSETransport", () => {
 
     const setup = await createSSEServer((req, res) => {
       if (req.method === "GET") {
-        acceptHeader = req.headers["accept"] ?? "";
+        acceptHeader = req.headers.accept ?? "";
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",
@@ -711,7 +693,7 @@ describe("SSETransport", () => {
 
     const setup = await createSSEServer((req, res) => {
       if (req.method === "GET") {
-        authHeader = req.headers["authorization"];
+        authHeader = req.headers.authorization;
         res.writeHead(200, {
           "Content-Type": "text/event-stream",
           "Cache-Control": "no-cache",

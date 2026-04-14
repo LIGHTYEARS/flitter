@@ -8,8 +8,8 @@
  * @module
  */
 
-import type { BuildOwnerLike } from "./types.js";
 import type { Element } from "./element.js";
+import type { BuildOwnerLike } from "./types.js";
 
 /**
  * 构建所有者，管理元素树的脏标记调度与重建流程。

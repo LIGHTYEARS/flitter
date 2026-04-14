@@ -4,13 +4,14 @@
  * runExecuteMode: 发送 userMessage → 等待完成 → 输出结果
  * 逆向: SB() execute 分支 in cli-entrypoint.js
  */
-import { describe, it, expect, mock } from "bun:test";
-import { runExecuteMode } from "./execute";
-import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "../context";
-import type { AgentEvent } from "@flitter/agent-core";
-import { Subject } from "@flitter/util";
+import { describe, expect, it, mock } from "bun:test";
 import { PassThrough } from "node:stream";
+import type { AgentEvent } from "@flitter/agent-core";
+import type { ServiceContainer } from "@flitter/flitter";
+import type { ThreadSnapshot } from "@flitter/schemas";
+import { Subject } from "@flitter/util";
+import type { CliContext } from "../context";
+import { runExecuteMode } from "./execute";
 
 // ─── 工具函数 ──────────────────────────────────────────────
 
@@ -19,12 +20,14 @@ import { PassThrough } from "node:stream";
  *
  * 模拟 createThreadWorker 返回 worker 拥有 events$ 和 runInference
  */
-function createMockContainer(overrides: Partial<{
-  events: Subject<AgentEvent>;
-  runInference: () => Promise<void>;
-  asyncDispose: () => Promise<void>;
-  getThreadSnapshot: (id: string) => any;
-}> = {}): ServiceContainer {
+function createMockContainer(
+  overrides: Partial<{
+    events: Subject<AgentEvent>;
+    runInference: () => Promise<void>;
+    asyncDispose: () => Promise<void>;
+    getThreadSnapshot: (id: string) => ThreadSnapshot | undefined;
+  }> = {},
+): ServiceContainer {
   const events$ = overrides.events ?? new Subject<AgentEvent>();
   const runInference = overrides.runInference ?? (async () => {});
 
@@ -42,24 +45,32 @@ function createMockContainer(overrides: Partial<{
     threadStore: {
       getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
       getThread: () => undefined,
-      createThread: () => ({ getValue: () => ({
-        id: "test", v: 1, title: null, messages: [], env: "local",
-        agentMode: "normal", relationships: [],
-      }) }) as any,
+      createThread: () =>
+        ({
+          getValue: () => ({
+            id: "test",
+            v: 1,
+            title: null,
+            messages: [],
+            env: "local",
+            agentMode: "normal",
+            relationships: [],
+          }),
+        }) as unknown as ReturnType<ServiceContainer["threadStore"]["getThread"]>,
       updateThread: () => {},
     },
     asyncDispose: overrides.asyncDispose ?? (async () => {}),
-    configService: {} as any,
-    toolRegistry: {} as any,
-    toolOrchestrator: {} as any,
-    permissionEngine: {} as any,
-    mcpServerManager: {} as any,
-    skillService: {} as any,
+    configService: {} as unknown as ServiceContainer["configService"],
+    toolRegistry: {} as unknown as ServiceContainer["toolRegistry"],
+    toolOrchestrator: {} as unknown as ServiceContainer["toolOrchestrator"],
+    permissionEngine: {} as unknown as ServiceContainer["permissionEngine"],
+    mcpServerManager: {} as unknown as ServiceContainer["mcpServerManager"],
+    skillService: {} as unknown as ServiceContainer["skillService"],
     threadPersistence: null,
-    guidanceLoader: {} as any,
-    contextManager: {} as any,
-    secrets: {} as any,
-    settings: {} as any,
+    guidanceLoader: {} as unknown as ServiceContainer["guidanceLoader"],
+    contextManager: {} as unknown as ServiceContainer["contextManager"],
+    secrets: {} as unknown as ServiceContainer["secrets"],
+    settings: {} as unknown as ServiceContainer["settings"],
   } as unknown as ServiceContainer;
 }
 
@@ -87,17 +98,19 @@ describe("runExecuteMode", () => {
       runInference: async () => {
         inferenceRan = true;
       },
-      getThreadSnapshot: () => ({
-        id: "test",
-        messages: [
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "response text" }],
-            messageId: 1,
-            state: { type: "complete", stopReason: "end_turn" },
-          },
-        ],
-      }),
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "response text" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
     });
 
     const context = createContext({ userMessage: "hello world" });
@@ -106,8 +119,8 @@ describe("runExecuteMode", () => {
     fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
 
     await runExecuteMode(container, context, {
-      stdin: new PassThrough() as any,
-      stdout: fakeStdout as any,
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -128,10 +141,10 @@ describe("runExecuteMode", () => {
     const fakeProcess = { exitCode: undefined as number | undefined };
 
     await runExecuteMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: new PassThrough() as any,
-      stderr: fakeStderr as any,
-      processRef: fakeProcess as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+      stderr: fakeStderr as unknown as NodeJS.WritableStream,
+      processRef: fakeProcess,
     });
 
     expect(fakeProcess.exitCode).toBe(1);
@@ -145,17 +158,19 @@ describe("runExecuteMode", () => {
       runInference: async () => {
         inferenceRan = true;
       },
-      getThreadSnapshot: () => ({
-        id: "test",
-        messages: [
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "ok" }],
-            messageId: 1,
-            state: { type: "complete", stopReason: "end_turn" },
-          },
-        ],
-      }),
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "ok" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
     });
 
     const context = createContext({ userMessage: undefined });
@@ -165,8 +180,8 @@ describe("runExecuteMode", () => {
     fakeStdin.end();
 
     await runExecuteMode(container, context, {
-      stdin: fakeStdin as any,
-      stdout: new PassThrough() as any,
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -194,8 +209,8 @@ describe("runExecuteMode", () => {
     fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
 
     await runExecuteMode(container, context, {
-      stdin: new PassThrough() as any,
-      stdout: fakeStdout as any,
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -209,22 +224,25 @@ describe("runExecuteMode", () => {
     const stdoutData: string[] = [];
 
     const container = createMockContainer({
-      getThreadSnapshot: () => ({
-        id: "test",
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: "hi" }],
-            messageId: 0,
-          },
-          {
-            role: "assistant",
-            content: [{ type: "text", text: "Hello! How can I help?" }],
-            messageId: 1,
-            state: { type: "complete", stopReason: "end_turn" },
-          },
-        ],
-      }),
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: "hi" }],
+              messageId: 0,
+              meta: {},
+            },
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "Hello! How can I help?" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
     });
 
     const context = createContext({ streamJson: false, userMessage: "hi" });
@@ -233,8 +251,8 @@ describe("runExecuteMode", () => {
     fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
 
     await runExecuteMode(container, context, {
-      stdin: new PassThrough() as any,
-      stdout: fakeStdout as any,
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -246,21 +264,23 @@ describe("runExecuteMode", () => {
     const stdoutData: string[] = [];
 
     const container = createMockContainer({
-      getThreadSnapshot: () => ({
-        id: "test",
-        messages: [
-          {
-            role: "assistant",
-            content: [
-              { type: "text", text: "Part 1. " },
-              { type: "tool_use", id: "t1", name: "read", input: {} },
-              { type: "text", text: "Part 2." },
-            ],
-            messageId: 1,
-            state: { type: "complete", stopReason: "end_turn" },
-          },
-        ],
-      }),
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [
+                { type: "text", text: "Part 1. " },
+                { type: "tool_use", id: "t1", name: "read", input: {} },
+                { type: "text", text: "Part 2." },
+              ],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
     });
 
     const context = createContext({ streamJson: false, userMessage: "test" });
@@ -269,8 +289,8 @@ describe("runExecuteMode", () => {
     fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
 
     await runExecuteMode(container, context, {
-      stdin: new PassThrough() as any,
-      stdout: fakeStdout as any,
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
       stderr: process.stderr,
     });
 
@@ -301,9 +321,9 @@ describe("runExecuteMode", () => {
 
     try {
       await runExecuteMode(container, context, {
-        stdin: new PassThrough() as any,
-        stdout: new PassThrough() as any,
-        stderr: fakeStderr as any,
+        stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+        stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+        stderr: fakeStderr as unknown as NodeJS.WritableStream,
       });
     } catch {
       // 可能抛出异常

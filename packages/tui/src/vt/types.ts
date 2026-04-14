@@ -376,12 +376,7 @@ export interface ResizeEvent {
  * }
  * ```
  */
-export type InputEvent =
-  | KeyEvent
-  | MouseEvent
-  | PasteEvent
-  | FocusEvent
-  | ResizeEvent;
+export type InputEvent = KeyEvent | MouseEvent | PasteEvent | FocusEvent | ResizeEvent;
 
 // ════════════════════════════════════════════════════
 //  辅助工具

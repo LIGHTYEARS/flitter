@@ -7,16 +7,16 @@
  */
 import * as fs from "node:fs";
 import type {
-  ConfigService as IConfigService,
   Config,
-  Settings,
   ConfigScope,
+  ConfigService as IConfigService,
   SecretKey,
   SecretStore,
+  Settings,
 } from "@flitter/schemas";
-import { MERGED_ARRAY_KEYS, GLOBAL_ONLY_KEYS } from "@flitter/schemas";
+import { GLOBAL_ONLY_KEYS, MERGED_ARRAY_KEYS } from "@flitter/schemas";
 import { BehaviorSubject, type Subscription } from "@flitter/util";
-import { FileSettingsStorage } from "./settings-storage";
+import type { FileSettingsStorage } from "./settings-storage";
 
 export interface ConfigServiceOptions {
   storage: FileSettingsStorage;
@@ -31,7 +31,7 @@ export interface ConfigServiceOptions {
  * 数组键使用 concat + dedup
  */
 function mergeSettings(global: Partial<Settings>, workspace: Partial<Settings>): Settings {
-  const merged: any = { ...global };
+  const merged: Partial<Settings> & Record<string, unknown> = { ...global };
 
   for (const [key, value] of Object.entries(workspace)) {
     if ((GLOBAL_ONLY_KEYS as readonly string[]).includes(key)) continue;
@@ -41,7 +41,9 @@ function mergeSettings(global: Partial<Settings>, workspace: Partial<Settings>):
       const wsArr = Array.isArray(value) ? value : [];
       // concat + dedup
       const combined = [...globalArr, ...wsArr];
-      merged[key] = [...new Set(combined.map((v: unknown) => typeof v === "string" ? v : JSON.stringify(v)))];
+      merged[key] = [
+        ...new Set(combined.map((v: unknown) => (typeof v === "string" ? v : JSON.stringify(v)))),
+      ];
       // If items are strings, dedup works. For objects, use JSON-based dedup
       if (globalArr.length > 0 && typeof globalArr[0] !== "string") {
         const seen = new Set<string>();
@@ -186,7 +188,11 @@ export class ConfigService implements IConfigService {
 
   private stopWatching(): void {
     for (const w of this.watchers) {
-      try { w.close(); } catch { /* ignore */ }
+      try {
+        w.close();
+      } catch {
+        /* ignore */
+      }
     }
     this.watchers = [];
     if (this.debounceTimer) {

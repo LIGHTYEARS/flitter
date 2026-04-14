@@ -2,27 +2,28 @@
  * Tests for MCP OAuth 2.0 PKCE authentication flow.
  * Uses node:http createServer on port 0 to mock OAuth endpoints.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import http from "node:http";
+import { afterEach, describe, it } from "node:test";
 import {
-  parseWWWAuthenticate,
-  discoverProtectedResource,
-  discoverAuthorizationServer,
-  registerClient,
-  buildAuthorizationUrl,
-  exchangeAuthorizationCode,
-  refreshAccessToken,
   auth,
-  TokenError,
+  buildAuthorizationUrl,
   CredentialError,
+  discoverAuthorizationServer,
+  discoverProtectedResource,
+  exchangeAuthorizationCode,
   InvalidTokenError,
+  parseWWWAuthenticate,
+  refreshAccessToken,
+  registerClient,
+  TokenError,
 } from "./oauth-provider";
 import type {
-  MCPAuthProvider,
-  OAuthTokens,
-  OAuthClientInfo,
   AuthorizationServerMetadata,
+  MCPAuthProvider,
+  OAuthClientInfo,
+  OAuthTokens,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -31,10 +32,7 @@ import type {
 
 /** Create a test HTTP server with a request handler. Returns base URL. */
 function createTestServer(
-  handler: (
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-  ) => void,
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => void,
 ): Promise<{ url: string; server: http.Server }> {
   return new Promise((resolve) => {
     const server = http.createServer(handler);
@@ -193,9 +191,7 @@ describe("discoverProtectedResource", () => {
       `${baseUrl}/.well-known/oauth-protected-resource`,
     );
     assert.equal(result.resource, "https://api.example.com");
-    assert.deepEqual(result.authorization_servers, [
-      "https://auth.example.com",
-    ]);
+    assert.deepEqual(result.authorization_servers, ["https://auth.example.com"]);
     assert.deepEqual(result.scopes_supported, ["read", "write"]);
   });
 
@@ -238,10 +234,7 @@ describe("discoverAuthorizationServer", () => {
 
     const result = await discoverAuthorizationServer(baseUrl);
     assert.equal(result.issuer, "https://auth.example.com");
-    assert.equal(
-      result.authorization_endpoint,
-      "https://auth.example.com/authorize",
-    );
+    assert.equal(result.authorization_endpoint, "https://auth.example.com/authorize");
   });
 
   it("should fall back to .well-known/openid-configuration", async () => {
@@ -277,9 +270,7 @@ describe("discoverAuthorizationServer", () => {
     const metadata = mockServerMetadata("https://auth.example.com");
 
     ({ url: baseUrl, server } = await createTestServer((req, res) => {
-      if (
-        req.url === "/.well-known/oauth-authorization-server/v1/auth"
-      ) {
+      if (req.url === "/.well-known/oauth-authorization-server/v1/auth") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(metadata));
       } else {
@@ -288,9 +279,7 @@ describe("discoverAuthorizationServer", () => {
       }
     }));
 
-    const result = await discoverAuthorizationServer(
-      `${baseUrl}/v1/auth`,
-    );
+    const result = await discoverAuthorizationServer(`${baseUrl}/v1/auth`);
     assert.equal(result.issuer, "https://auth.example.com");
   });
 });
@@ -391,10 +380,7 @@ describe("buildAuthorizationUrl", () => {
     assert.equal(url.pathname, "/authorize");
     assert.equal(url.searchParams.get("response_type"), "code");
     assert.equal(url.searchParams.get("client_id"), "my-client");
-    assert.equal(
-      url.searchParams.get("redirect_uri"),
-      "http://localhost:3000/callback",
-    );
+    assert.equal(url.searchParams.get("redirect_uri"), "http://localhost:3000/callback");
     assert.equal(url.searchParams.get("code_challenge_method"), "S256");
     assert.equal(url.searchParams.get("scope"), "read write");
 
@@ -424,16 +410,8 @@ describe("buildAuthorizationUrl", () => {
     const metadata = mockServerMetadata("https://auth.example.com");
     const clientInfo: OAuthClientInfo = { client_id: "my-client" };
 
-    const a = await buildAuthorizationUrl(
-      metadata,
-      clientInfo,
-      "http://localhost:3000/callback",
-    );
-    const b = await buildAuthorizationUrl(
-      metadata,
-      clientInfo,
-      "http://localhost:3000/callback",
-    );
+    const a = await buildAuthorizationUrl(metadata, clientInfo, "http://localhost:3000/callback");
+    const b = await buildAuthorizationUrl(metadata, clientInfo, "http://localhost:3000/callback");
 
     assert.notEqual(a.codeVerifier, b.codeVerifier);
     assert.notEqual(
@@ -471,10 +449,7 @@ describe("exchangeAuthorizationCode", () => {
           assert.equal(params.get("grant_type"), "authorization_code");
           assert.equal(params.get("code"), "auth-code-789");
           assert.equal(params.get("code_verifier"), "my-verifier");
-          assert.equal(
-            params.get("redirect_uri"),
-            "http://localhost:3000/callback",
-          );
+          assert.equal(params.get("redirect_uri"), "http://localhost:3000/callback");
           assert.equal(params.get("client_id"), "client-abc");
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify(tokens));
@@ -591,11 +566,7 @@ describe("refreshAccessToken", () => {
     const metadata = mockServerMetadata(baseUrl);
     metadata.token_endpoint = `${baseUrl}/token`;
 
-    const result = await refreshAccessToken(
-      metadata,
-      { client_id: "client-abc" },
-      "old-refresh",
-    );
+    const result = await refreshAccessToken(metadata, { client_id: "client-abc" }, "old-refresh");
 
     assert.equal(result.access_token, "new-access");
     assert.equal(result.refresh_token, "new-refresh");
@@ -611,8 +582,7 @@ describe("refreshAccessToken", () => {
     metadata.token_endpoint = `${baseUrl}/token`;
 
     await assert.rejects(
-      () =>
-        refreshAccessToken(metadata, { client_id: "c" }, "bad-token"),
+      () => refreshAccessToken(metadata, { client_id: "c" }, "bad-token"),
       (err: unknown) => {
         assert.ok(err instanceof InvalidTokenError);
         assert.match(err.message, /Token refresh failed: 401/);
@@ -640,9 +610,7 @@ describe("auth() orchestration", () => {
     };
 
     ({ url: baseUrl, server } = await createTestServer((req, res) => {
-      if (
-        req.url === "/.well-known/oauth-authorization-server"
-      ) {
+      if (req.url === "/.well-known/oauth-authorization-server") {
         // Use the actual test server baseUrl so register endpoint is reachable
         const serverMeta = mockServerMetadata(baseUrl);
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -674,10 +642,7 @@ describe("auth() orchestration", () => {
 
     assert.equal(result, "REDIRECT");
     assert.ok(redirectedUrl, "should have redirected");
-    assert.equal(
-      redirectedUrl!.searchParams.get("response_type"),
-      "code",
-    );
+    assert.equal(redirectedUrl!.searchParams.get("response_type"), "code");
     assert.ok(savedVerifier.length > 0, "should have saved code verifier");
   });
 
@@ -689,9 +654,7 @@ describe("auth() orchestration", () => {
 
     ({ url: baseUrl, server } = await createTestServer((req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
-      if (
-        req.url === "/.well-known/oauth-authorization-server"
-      ) {
+      if (req.url === "/.well-known/oauth-authorization-server") {
         res.end(
           JSON.stringify({
             issuer: baseUrl,
@@ -743,9 +706,7 @@ describe("auth() orchestration", () => {
 
     ({ url: baseUrl, server } = await createTestServer((req, res) => {
       res.writeHead(200, { "Content-Type": "application/json" });
-      if (
-        req.url === "/.well-known/oauth-authorization-server"
-      ) {
+      if (req.url === "/.well-known/oauth-authorization-server") {
         res.end(
           JSON.stringify({
             issuer: baseUrl,
@@ -797,9 +758,7 @@ describe("auth() orchestration", () => {
     };
 
     ({ url: baseUrl, server } = await createTestServer((req, res) => {
-      if (
-        req.url === "/.well-known/oauth-authorization-server"
-      ) {
+      if (req.url === "/.well-known/oauth-authorization-server") {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
@@ -867,15 +826,9 @@ describe("auth() orchestration", () => {
       res.writeHead(200, { "Content-Type": "application/json" });
       if (req.url === "/resource-metadata") {
         res.end(JSON.stringify(resourceMeta));
-      } else if (
-        req.url === "/.well-known/oauth-authorization-server"
-      ) {
+      } else if (req.url === "/.well-known/oauth-authorization-server") {
         // This should NOT be called since we redirect to auth.example.com
-        res.end(
-          JSON.stringify(
-            mockServerMetadata("https://auth.example.com"),
-          ),
-        );
+        res.end(JSON.stringify(mockServerMetadata("https://auth.example.com")));
       } else {
         res.writeHead(404);
         res.end();
@@ -883,9 +836,7 @@ describe("auth() orchestration", () => {
     }));
 
     // We need the auth server to be reachable too. We'll mock fetchFn.
-    const authServerMeta = mockServerMetadata(
-      "https://auth.example.com",
-    );
+    const authServerMeta = mockServerMetadata("https://auth.example.com");
     let redirectedUrl: URL | undefined;
 
     const provider = mockProvider({
@@ -897,14 +848,10 @@ describe("auth() orchestration", () => {
     // Custom fetch that routes requests appropriately
     const testFetch = async (
       input: string | URL | Request,
-      init?: RequestInit,
+      _init?: RequestInit,
     ): Promise<Response> => {
       const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url === `${baseUrl}/resource-metadata`) {
         return new Response(JSON.stringify(resourceMeta), {
@@ -912,10 +859,7 @@ describe("auth() orchestration", () => {
           headers: { "Content-Type": "application/json" },
         });
       }
-      if (
-        url ===
-        "https://auth.example.com/.well-known/oauth-authorization-server"
-      ) {
+      if (url === "https://auth.example.com/.well-known/oauth-authorization-server") {
         return new Response(JSON.stringify(authServerMeta), {
           status: 200,
           headers: { "Content-Type": "application/json" },
@@ -971,15 +915,9 @@ describe("auth() orchestration", () => {
       },
     });
 
-    const testFetch = async (
-      input: string | URL | Request,
-    ): Promise<Response> => {
+    const testFetch = async (input: string | URL | Request): Promise<Response> => {
       const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url.includes("oauth-authorization-server")) {
         return new Response(JSON.stringify(serverMeta), {
@@ -997,10 +935,7 @@ describe("auth() orchestration", () => {
 
     assert.equal(result, "REDIRECT");
     assert.ok(savedClient);
-    assert.equal(
-      savedClient!.client_id,
-      "https://my-app.example.com/.well-known/oauth-client",
-    );
+    assert.equal(savedClient!.client_id, "https://my-app.example.com/.well-known/oauth-client");
     assert.ok(redirectedUrl);
     assert.equal(
       redirectedUrl!.searchParams.get("client_id"),
@@ -1013,14 +948,10 @@ describe("auth() orchestration", () => {
 
     const testFetch = async (
       input: string | URL | Request,
-      init?: RequestInit,
+      _init?: RequestInit,
     ): Promise<Response> => {
       const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url.includes("oauth-authorization-server")) {
         return new Response(
@@ -1086,15 +1017,9 @@ describe("auth() orchestration", () => {
       resource: "https://evil.example.com",
     };
 
-    const testFetch = async (
-      input: string | URL | Request,
-    ): Promise<Response> => {
+    const testFetch = async (input: string | URL | Request): Promise<Response> => {
       const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url.includes("resource-meta")) {
         return new Response(JSON.stringify(resourceMeta), {
@@ -1103,12 +1028,10 @@ describe("auth() orchestration", () => {
         });
       }
       if (url.includes("oauth-authorization-server")) {
-        return new Response(
-          JSON.stringify(
-            mockServerMetadata("https://auth.example.com"),
-          ),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify(mockServerMetadata("https://auth.example.com")), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response("Not Found", { status: 404 });
     };
@@ -1135,15 +1058,9 @@ describe("auth() orchestration", () => {
     const serverMeta = mockServerMetadata("https://auth.example.com");
     let redirectedUrl: URL | undefined;
 
-    const testFetch = async (
-      input: string | URL | Request,
-    ): Promise<Response> => {
+    const testFetch = async (input: string | URL | Request): Promise<Response> => {
       const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.toString()
-            : input.url;
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
       if (url.includes("oauth-authorization-server")) {
         return new Response(JSON.stringify(serverMeta), {
@@ -1152,10 +1069,10 @@ describe("auth() orchestration", () => {
         });
       }
       if (url.includes("/register")) {
-        return new Response(
-          JSON.stringify({ client_id: "test-client" }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ client_id: "test-client" }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
       return new Response("Not Found", { status: 404 });
     };

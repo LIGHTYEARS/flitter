@@ -78,9 +78,7 @@ export interface BuildSystemPromptOptions {
  * Returns multiple SystemPromptBlock segments to allow
  * per-segment cache_control at the LLM provider level.
  */
-export function buildSystemPrompt(
-  opts: BuildSystemPromptOptions,
-): SystemPromptBlock[] {
+export function buildSystemPrompt(opts: BuildSystemPromptOptions): SystemPromptBlock[] {
   const blocks: SystemPromptBlock[] = [];
 
   // 1. Base role prompt
@@ -114,14 +112,10 @@ export function buildSystemPrompt(
  * Format tool definitions into an instruction block.
  * Reverse: LO ~660-720
  */
-function buildToolInstructionsBlock(
-  toolDefinitions: ToolDefinition[],
-): SystemPromptBlock | null {
+function buildToolInstructionsBlock(toolDefinitions: ToolDefinition[]): SystemPromptBlock | null {
   if (toolDefinitions.length === 0) return null;
 
-  const toolLines = toolDefinitions.map(
-    (tool) => `- **${tool.name}**: ${tool.description}`,
-  );
+  const toolLines = toolDefinitions.map((tool) => `- **${tool.name}**: ${tool.description}`);
 
   const text = [
     "You have access to the following tools:",

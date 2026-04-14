@@ -4,20 +4,14 @@
  * Covers collectContextBlocks (environment, guidance, skills, custom prompt,
  * repo info) and buildSystemPrompt (role, tools, context, sub-agent modifier).
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import type { SystemPromptBlock, ToolDefinition } from "@flitter/llm";
+import { describe, it } from "node:test";
 import type { GuidanceFile, GuidanceLoadOptions } from "@flitter/data";
+import type { SystemPromptBlock, ToolDefinition } from "@flitter/llm";
 import type { Config, Settings } from "@flitter/schemas";
-import {
-  collectContextBlocks,
-  type ContextBlocksOptions,
-} from "./context-blocks";
-import {
-  buildSystemPrompt,
-  BASE_ROLE_PROMPT,
-  SUB_AGENT_MODIFIER,
-} from "./system-prompt";
+import { type ContextBlocksOptions, collectContextBlocks } from "./context-blocks";
+import { BASE_ROLE_PROMPT, buildSystemPrompt, SUB_AGENT_MODIFIER } from "./system-prompt";
 
 // ─── Test Helpers ───────────────────────────────────────
 
@@ -31,9 +25,7 @@ function createMockConfig(overrides?: Record<string, unknown>): Config {
   };
 }
 
-function createDefaultOpts(
-  overrides?: Partial<ContextBlocksOptions>,
-): ContextBlocksOptions {
+function createDefaultOpts(overrides?: Partial<ContextBlocksOptions>): ContextBlocksOptions {
   return {
     getConfig: () => createMockConfig(),
     listSkills: () => [],
@@ -43,10 +35,7 @@ function createDefaultOpts(
   };
 }
 
-function createMockToolDef(
-  name: string,
-  description: string,
-): ToolDefinition {
+function createMockToolDef(name: string, description: string): ToolDefinition {
   return {
     name,
     description,
@@ -116,9 +105,7 @@ describe("collectContextBlocks", () => {
       createDefaultOpts({ discoverGuidanceFiles: mockDiscover }),
     );
 
-    const guidanceBlock = blocks.find((b) =>
-      b.text.includes("<instructions"),
-    );
+    const guidanceBlock = blocks.find((b) => b.text.includes("<instructions"));
     assert.ok(guidanceBlock);
     assert.ok(guidanceBlock.text.includes("Follow these rules."));
     assert.ok(guidanceBlock.text.includes("</instructions>"));
@@ -136,24 +123,18 @@ describe("collectContextBlocks", () => {
       createDefaultOpts({ discoverGuidanceFiles: mockDiscover }),
     );
 
-    const guidanceBlock = blocks.find((b) =>
-      b.text.includes("<instructions"),
-    );
+    const guidanceBlock = blocks.find((b) => b.text.includes("<instructions"));
     assert.equal(guidanceBlock, undefined);
   });
 
   it("guidance blocks: sets cache_control ephemeral", async () => {
-    const mockDiscover = async () => [
-      createMockGuidanceFile("/workspace/CLAUDE.md", "content"),
-    ];
+    const mockDiscover = async () => [createMockGuidanceFile("/workspace/CLAUDE.md", "content")];
 
     const blocks = await collectContextBlocks(
       createDefaultOpts({ discoverGuidanceFiles: mockDiscover }),
     );
 
-    const guidanceBlock = blocks.find((b) =>
-      b.text.includes("<instructions"),
-    );
+    const guidanceBlock = blocks.find((b) => b.text.includes("<instructions"));
     assert.ok(guidanceBlock);
     assert.deepEqual(guidanceBlock.cache_control, { type: "ephemeral" });
   });
@@ -168,36 +149,27 @@ describe("collectContextBlocks", () => {
       }),
     );
 
-    const skillsBlock = blocks.find((b) =>
-      b.text.includes("Available skills:"),
-    );
+    const skillsBlock = blocks.find((b) => b.text.includes("Available skills:"));
     assert.ok(skillsBlock);
     assert.ok(skillsBlock.text.includes("- web-search: Search the web"));
     assert.ok(skillsBlock.text.includes("- code-review: Review code"));
   });
 
   it("skills block: not generated when no skills", async () => {
-    const blocks = await collectContextBlocks(
-      createDefaultOpts({ listSkills: () => [] }),
-    );
+    const blocks = await collectContextBlocks(createDefaultOpts({ listSkills: () => [] }));
 
-    const skillsBlock = blocks.find((b) =>
-      b.text.includes("Available skills:"),
-    );
+    const skillsBlock = blocks.find((b) => b.text.includes("Available skills:"));
     assert.equal(skillsBlock, undefined);
   });
 
   it("custom system prompt: included when settings.systemPrompt exists", async () => {
     const blocks = await collectContextBlocks(
       createDefaultOpts({
-        getConfig: () =>
-          createMockConfig({ systemPrompt: "Always be helpful." }),
+        getConfig: () => createMockConfig({ systemPrompt: "Always be helpful." }),
       }),
     );
 
-    const customBlock = blocks.find((b) =>
-      b.text.includes("Always be helpful"),
-    );
+    const customBlock = blocks.find((b) => b.text.includes("Always be helpful"));
     assert.ok(customBlock);
   });
 
@@ -217,9 +189,7 @@ describe("collectContextBlocks", () => {
       createDefaultOpts({ git: { isRepo: true, branch: "feature/xyz" } }),
     );
 
-    const repoBlock = blocks.find((b) =>
-      b.text.includes("Current branch:"),
-    );
+    const repoBlock = blocks.find((b) => b.text.includes("Current branch:"));
     assert.ok(repoBlock);
     assert.ok(repoBlock.text.includes("Current branch: feature/xyz"));
   });
@@ -227,9 +197,7 @@ describe("collectContextBlocks", () => {
   it("repository info: not generated without git", async () => {
     const blocks = await collectContextBlocks(createDefaultOpts());
 
-    const repoBlock = blocks.find((b) =>
-      b.text.includes("Current branch:"),
-    );
+    const repoBlock = blocks.find((b) => b.text.includes("Current branch:"));
     assert.equal(repoBlock, undefined);
   });
 
@@ -237,9 +205,7 @@ describe("collectContextBlocks", () => {
     const controller = new AbortController();
     controller.abort();
 
-    const mockDiscover = async () => [
-      createMockGuidanceFile("/workspace/CLAUDE.md", "content"),
-    ];
+    const mockDiscover = async () => [createMockGuidanceFile("/workspace/CLAUDE.md", "content")];
 
     const blocks = await collectContextBlocks(
       createDefaultOpts({
@@ -249,9 +215,7 @@ describe("collectContextBlocks", () => {
     );
 
     // Guidance block should be skipped because signal was already aborted
-    const guidanceBlock = blocks.find((b) =>
-      b.text.includes("<instructions"),
-    );
+    const guidanceBlock = blocks.find((b) => b.text.includes("<instructions"));
     assert.equal(guidanceBlock, undefined);
   });
 

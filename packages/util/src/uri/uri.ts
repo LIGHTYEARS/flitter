@@ -45,30 +45,36 @@ const PATH_SAFE_MAP: Record<string, string> = {
 };
 
 function encodePath(path: string): string {
-  return encodeURIComponent(path).replace(
-    PATH_SAFE,
-    (match) => PATH_SAFE_MAP[match] ?? match,
-  );
+  return encodeURIComponent(path).replace(PATH_SAFE, (match) => PATH_SAFE_MAP[match] ?? match);
 }
 
 // Characters allowed unencoded in query: pchar / "/" / "?" (RFC 3986 3.4)
 // We selectively unescape =, &, :, @, /, ?, +, ,, ;, !, $, ', (, ), *
 const QUERY_SAFE = /%(3D|26|3A|40|2F|3F|2B|2C|3B|21|24|27|28|29|2A)/gi;
 const QUERY_SAFE_MAP: Record<string, string> = {
-  "%3D": "=", "%3d": "=",
+  "%3D": "=",
+  "%3d": "=",
   "%26": "&",
-  "%3A": ":", "%3a": ":",
+  "%3A": ":",
+  "%3a": ":",
   "%40": "@",
-  "%2F": "/", "%2f": "/",
-  "%3F": "?", "%3f": "?",
-  "%2B": "+", "%2b": "+",
-  "%2C": ",", "%2c": ",",
-  "%3B": ";", "%3b": ";",
+  "%2F": "/",
+  "%2f": "/",
+  "%3F": "?",
+  "%3f": "?",
+  "%2B": "+",
+  "%2b": "+",
+  "%2C": ",",
+  "%2c": ",",
+  "%3B": ";",
+  "%3b": ";",
   "%21": "!",
   "%24": "$",
   "%27": "'",
-  "%28": "(", "%29": ")",
-  "%2A": "*", "%2a": "*",
+  "%28": "(",
+  "%29": ")",
+  "%2A": "*",
+  "%2a": "*",
 };
 
 // Characters allowed unencoded in fragment: pchar / "/" / "?" (RFC 3986 3.5)
@@ -78,24 +84,37 @@ const FRAGMENT_SAFE_MAP = QUERY_SAFE_MAP;
 // Characters allowed unencoded in authority: userinfo@host:port
 const AUTHORITY_SAFE = /%(3A|40|2D|2E|5F|7E|21|24|26|27|28|29|2A|2B|2C|3B|3D|5B|5D)/gi;
 const AUTHORITY_SAFE_MAP: Record<string, string> = {
-  "%3A": ":", "%3a": ":",
+  "%3A": ":",
+  "%3a": ":",
   "%40": "@",
-  "%2D": "-", "%2d": "-",
-  "%2E": ".", "%2e": ".",
-  "%5F": "_", "%5f": "_",
-  "%7E": "~", "%7e": "~",
+  "%2D": "-",
+  "%2d": "-",
+  "%2E": ".",
+  "%2e": ".",
+  "%5F": "_",
+  "%5f": "_",
+  "%7E": "~",
+  "%7e": "~",
   "%21": "!",
   "%24": "$",
   "%26": "&",
   "%27": "'",
-  "%28": "(", "%29": ")",
-  "%2A": "*", "%2a": "*",
-  "%2B": "+", "%2b": "+",
-  "%2C": ",", "%2c": ",",
-  "%3B": ";", "%3b": ";",
-  "%3D": "=", "%3d": "=",
-  "%5B": "[", "%5b": "[",
-  "%5D": "]", "%5d": "]",
+  "%28": "(",
+  "%29": ")",
+  "%2A": "*",
+  "%2a": "*",
+  "%2B": "+",
+  "%2b": "+",
+  "%2C": ",",
+  "%2c": ",",
+  "%3B": ";",
+  "%3b": ";",
+  "%3D": "=",
+  "%3d": "=",
+  "%5B": "[",
+  "%5b": "[",
+  "%5D": "]",
+  "%5d": "]",
 };
 
 function encodeAuthority(value: string): string {
@@ -106,10 +125,7 @@ function encodeAuthority(value: string): string {
 }
 
 function encodeQuery(value: string): string {
-  return encodeURIComponent(value).replace(
-    QUERY_SAFE,
-    (match) => QUERY_SAFE_MAP[match] ?? match,
-  );
+  return encodeURIComponent(value).replace(QUERY_SAFE, (match) => QUERY_SAFE_MAP[match] ?? match);
 }
 
 function encodeFragment(value: string): string {
@@ -129,8 +145,6 @@ function normalizePath(path: string): string {
 
   for (const seg of segments) {
     if (seg === "." || seg === "") {
-      // skip empty segments (except we need to preserve leading slash)
-      continue;
     } else if (seg === "..") {
       // Pop the last segment if possible
       if (result.length > 0 && result[result.length - 1] !== "..") {
@@ -156,13 +170,7 @@ export class URI {
   readonly query: string;
   readonly fragment: string;
 
-  constructor(
-    scheme: string,
-    authority: string,
-    path: string,
-    query: string,
-    fragment: string,
-  ) {
+  constructor(scheme: string, authority: string, path: string, query: string, fragment: string) {
     this.scheme = scheme;
     this.authority = authority;
     this.path = path;
@@ -178,13 +186,7 @@ export class URI {
     if (!match) {
       return new URI("", "", "", "", "");
     }
-    return new URI(
-      match[2] ?? "",
-      match[4] ?? "",
-      match[5] ?? "",
-      match[7] ?? "",
-      match[9] ?? "",
-    );
+    return new URI(match[2] ?? "", match[4] ?? "", match[5] ?? "", match[7] ?? "", match[9] ?? "");
   }
 
   /**
@@ -195,7 +197,7 @@ export class URI {
     let normalized = path;
 
     // Detect Windows path: C:\ or C:/
-    if (/^[a-zA-Z]:[\\\/]/.test(normalized)) {
+    if (/^[a-zA-Z]:[\\/]/.test(normalized)) {
       // Normalize backslashes to forward slashes
       normalized = normalized.replace(/\\/g, "/");
       // Ensure leading slash for URI path component

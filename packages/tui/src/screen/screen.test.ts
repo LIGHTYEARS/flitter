@@ -11,15 +11,13 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
-import { Cell } from "./cell.js";
-import { TextStyle } from "./text-style.js";
-import { Color } from "./color.js";
+import { describe, it } from "node:test";
 import { ScreenBuffer } from "./buffer.js";
+import { Cell } from "./cell.js";
+import { Color } from "./color.js";
 import { Screen } from "./screen.js";
-import type { DirtyRegion } from "./screen.js";
+import { TextStyle } from "./text-style.js";
 
 // ════════════════════════════════════════════════════
 //  ScreenBuffer 测试
@@ -209,10 +207,7 @@ describe("ScreenBuffer", () => {
 
     for (let y = 0; y < 3; y++) {
       for (let x = 0; x < 4; x++) {
-        assert.ok(
-          dst.getCell(x, y).equals(src.getCell(x, y)),
-          `copyTo 后 (${x},${y}) 应相等`
-        );
+        assert.ok(dst.getCell(x, y).equals(src.getCell(x, y)), `copyTo 后 (${x},${y}) 应相等`);
       }
     }
   });
@@ -231,10 +226,7 @@ describe("ScreenBuffer", () => {
 
     for (let y = 0; y < 5; y++) {
       for (let x = 0; x < 5; x++) {
-        assert.ok(
-          src2.getCell(x, y).equals(src.getCell(x, y)),
-          `往返后 (${x},${y}) 应一致`
-        );
+        assert.ok(src2.getCell(x, y).equals(src.getCell(x, y)), `往返后 (${x},${y}) 应一致`);
       }
     }
   });
@@ -561,7 +553,7 @@ describe("Screen", () => {
     assert.equal(dirty.length, 3);
     assert.deepEqual(
       dirty.map((r) => r.y),
-      [1, 4, 7]
+      [1, 4, 7],
     );
   });
 

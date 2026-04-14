@@ -5,38 +5,38 @@
 import { Color } from "../src/screen/color.js";
 import { TextStyle } from "../src/screen/text-style.js";
 import { AppColorScheme } from "../src/widgets/color-scheme.js";
-import { Theme } from "../src/widgets/theme.js";
-import { Text } from "../src/widgets/text.js";
 import { Column } from "../src/widgets/column.js";
+import { Text } from "../src/widgets/text.js";
+import { Theme } from "../src/widgets/theme.js";
 
 // ── 颜色系统 ──────────────────────────────────
 
 // ANSI 16 色
-const red = Color.red();
-const brightCyan = Color.brightCyan();
+const _red = Color.red();
+const _brightCyan = Color.brightCyan();
 
 // 256 色
-const orange = Color.indexed(208);
+const _orange = Color.indexed(208);
 
 // 24 位真彩色
-const custom = Color.rgb(100, 200, 255);
+const _custom = Color.rgb(100, 200, 255);
 
 // ── 文本样式 ──────────────────────────────────
 
 // 基础样式
-const bold = new TextStyle({ bold: true });
-const error = new TextStyle({
+const _bold = new TextStyle({ bold: true });
+const _error = new TextStyle({
   foreground: Color.red(),
   bold: true,
 });
 
 // 样式组合
 const base = new TextStyle({ foreground: Color.white(), bold: true });
-const derived = base.copyWith({ italic: true }); // 保留 bold + white，追加 italic
+const _derived = base.copyWith({ italic: true }); // 保留 bold + white，追加 italic
 
 // 样式合并（非默认值覆盖）
 const overlay = new TextStyle({ foreground: Color.green() });
-const merged = base.merge(overlay); // bold + green（green 覆盖 white）
+const _merged = base.merge(overlay); // bold + green（green 覆盖 white）
 
 // ── 配色方案 ──────────────────────────────────
 
@@ -50,7 +50,7 @@ const customScheme = darkScheme.copyWith({
 });
 
 // 从 RGB 配置创建
-const brandScheme = AppColorScheme.fromRgb({
+const _brandScheme = AppColorScheme.fromRgb({
   primary: { r: 0, g: 120, b: 215 },
   accent: { r: 255, g: 140, b: 0 },
 });
@@ -58,21 +58,17 @@ const brandScheme = AppColorScheme.fromRgb({
 // ── 主题系统 ──────────────────────────────────
 
 // 使用暗色默认主题
-const app = Theme.withDefault({
+const _app = Theme.withDefault({
   child: new Column({
-    children: [
-      new Text({ data: "使用默认主题" }),
-    ],
+    children: [new Text({ data: "使用默认主题" })],
   }),
 });
 
 // 自定义主题
-const customTheme = new Theme({
+const _customTheme = new Theme({
   data: { colorScheme: customScheme },
   child: new Column({
-    children: [
-      new Text({ data: "自定义主题" }),
-    ],
+    children: [new Text({ data: "自定义主题" })],
   }),
 });
 

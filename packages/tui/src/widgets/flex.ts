@@ -7,11 +7,11 @@
  * @module
  */
 
-import { RenderBox } from "../tree/render-box.js";
-import { BoxConstraints } from "../tree/constraints.js";
 import type { Size } from "../tree/constraints.js";
-import { ParentData } from "../tree/types.js";
+import { BoxConstraints } from "../tree/constraints.js";
+import { RenderBox } from "../tree/render-box.js";
 import type { RenderObject } from "../tree/render-object.js";
+import { ParentData } from "../tree/types.js";
 
 // ════════════════════════════════════════════════════
 //  类型别名
@@ -182,9 +182,7 @@ export class RenderFlex extends RenderBox {
    * @returns 主轴方向的最大约束值
    */
   private _getMainAxisConstraint(constraints: BoxConstraints): number {
-    return this.direction === "horizontal"
-      ? constraints.maxWidth
-      : constraints.maxHeight;
+    return this.direction === "horizontal" ? constraints.maxWidth : constraints.maxHeight;
   }
 
   /**
@@ -194,9 +192,7 @@ export class RenderFlex extends RenderBox {
    * @returns 交叉轴方向的最大约束值
    */
   private _getCrossAxisConstraint(constraints: BoxConstraints): number {
-    return this.direction === "horizontal"
-      ? constraints.maxHeight
-      : constraints.maxWidth;
+    return this.direction === "horizontal" ? constraints.maxHeight : constraints.maxWidth;
   }
 
   /**
@@ -232,15 +228,12 @@ export class RenderFlex extends RenderBox {
         0,
         maxMain,
         maxCross,
-        false // 非 tight
+        false, // 非 tight
       );
       (child as RenderBox).layout(childConstraints);
       const childSize = (child as RenderBox).size;
       allocatedMainAxis += this._getMainAxisSize(childSize);
-      crossAxisExtent = Math.max(
-        crossAxisExtent,
-        this._getCrossAxisSize(childSize)
-      );
+      crossAxisExtent = Math.max(crossAxisExtent, this._getCrossAxisSize(childSize));
     }
 
     // ── 计算剩余空间 ───────────────────────────────
@@ -260,32 +253,22 @@ export class RenderFlex extends RenderBox {
         isTight ? childMainAxis : 0,
         childMainAxis,
         maxCross,
-        isTight
+        isTight,
       );
       (child as RenderBox).layout(childConstraints);
       const childSize = (child as RenderBox).size;
       allocatedMainAxis += this._getMainAxisSize(childSize);
-      crossAxisExtent = Math.max(
-        crossAxisExtent,
-        this._getCrossAxisSize(childSize)
-      );
+      crossAxisExtent = Math.max(crossAxisExtent, this._getCrossAxisSize(childSize));
     }
 
     // ── 确定自身尺寸 ──────────────────────────────
-    const mainAxisFinal =
-      this.mainAxisSize === "max" ? maxMain : allocatedMainAxis;
+    const mainAxisFinal = this.mainAxisSize === "max" ? maxMain : allocatedMainAxis;
 
     // 交叉轴 clamp 到约束范围
     const crossAxisFinal =
       this.direction === "horizontal"
-        ? Math.max(
-            constraints.minHeight,
-            Math.min(crossAxisExtent, constraints.maxHeight)
-          )
-        : Math.max(
-            constraints.minWidth,
-            Math.min(crossAxisExtent, constraints.maxWidth)
-          );
+        ? Math.max(constraints.minHeight, Math.min(crossAxisExtent, constraints.maxHeight))
+        : Math.max(constraints.minWidth, Math.min(crossAxisExtent, constraints.maxWidth));
 
     if (this.direction === "horizontal") {
       this.size = constraints.constrain(mainAxisFinal, crossAxisFinal);
@@ -374,7 +357,7 @@ export class RenderFlex extends RenderBox {
     minMain: number,
     maxMain: number,
     maxCross: number,
-    tightMain: boolean
+    tightMain: boolean,
   ): BoxConstraints {
     const isStretch = this.crossAxisAlignment === "stretch";
 

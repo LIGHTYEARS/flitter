@@ -21,7 +21,7 @@
  * @module
  */
 
-import { SelectionArea, type SelectionPosition } from "./selection-area.js";
+import type { SelectionArea, SelectionPosition } from "./selection-area.js";
 
 /**
  * 选区保活边界。
@@ -131,7 +131,7 @@ export class SelectionKeepAliveBoundary {
    */
   private _selectionTouchesSelectable(
     selection: { anchor: SelectionPosition; extent: SelectionPosition },
-    selectableId: string
+    selectableId: string,
   ): boolean {
     // 直接引用检查
     if (

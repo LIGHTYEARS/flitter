@@ -21,9 +21,7 @@ export function map<T, R>(fn: (value: T) => R): OperatorFunction<T, R> {
     });
 }
 
-export function filter<T>(
-  predicate: (value: T) => boolean,
-): OperatorFunction<T, T> {
+export function filter<T>(predicate: (value: T) => boolean): OperatorFunction<T, T> {
   return (source) =>
     new Observable<T>((observer) => {
       const sub = source.subscribe({
@@ -41,9 +39,7 @@ export function filter<T>(
     });
 }
 
-export function distinctUntilChanged<T>(
-  compare?: (a: T, b: T) => boolean,
-): OperatorFunction<T, T> {
+export function distinctUntilChanged<T>(compare?: (a: T, b: T) => boolean): OperatorFunction<T, T> {
   return (source) =>
     new Observable<T>((observer) => {
       let hasValue = false;

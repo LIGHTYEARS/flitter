@@ -67,12 +67,14 @@ export async function spawn(
             return;
           }
           // Non-zero exit code -- resolve, don't reject
+          const exitCodeFromError =
+            typeof (error as unknown as { status?: unknown }).status === "number"
+              ? (error as unknown as { status: number }).status
+              : (child.exitCode ?? 1);
           resolve({
             stdout: (stdout ?? "") as string,
             stderr: (stderr ?? "") as string,
-            exitCode: typeof (error as any).status === "number"
-              ? (error as any).status
-              : (child.exitCode ?? 1),
+            exitCode: exitCodeFromError,
           });
           return;
         }

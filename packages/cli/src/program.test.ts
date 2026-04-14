@@ -4,10 +4,11 @@
  * 覆盖 Commander.js 命令树创建: createProgram 返回值、版本输出、
  * 全局选项解析、子命令注册、未知命令处理
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
-import { createProgram } from "./program";
+import { describe, it } from "node:test";
 import { Command } from "commander";
+import { createProgram } from "./program";
 
 describe("createProgram", () => {
   // ─── 基础结构 ─────────────────────────────────────────────

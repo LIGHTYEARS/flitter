@@ -1,8 +1,9 @@
 /**
  * isContextOverflow — unit tests
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { isContextOverflow } from "./overflow";
 
 describe("isContextOverflow", () => {
@@ -17,10 +18,7 @@ describe("isContextOverflow", () => {
 
   // OpenAI patterns
   it("should detect 'maximum context length'", () => {
-    assert.equal(
-      isContextOverflow("This model's maximum context length is 128000 tokens"),
-      true,
-    );
+    assert.equal(isContextOverflow("This model's maximum context length is 128000 tokens"), true);
   });
 
   it("should detect 'Request too large'", () => {
@@ -28,17 +26,11 @@ describe("isContextOverflow", () => {
   });
 
   it("should detect 'reduce the length'", () => {
-    assert.equal(
-      isContextOverflow("Please reduce the length of the messages or completion"),
-      true,
-    );
+    assert.equal(isContextOverflow("Please reduce the length of the messages or completion"), true);
   });
 
   it("should detect 'tokens exceeds'", () => {
-    assert.equal(
-      isContextOverflow("150000 tokens exceeds the 128000 token limit"),
-      true,
-    );
+    assert.equal(isContextOverflow("150000 tokens exceeds the 128000 token limit"), true);
   });
 
   // Gemini patterns

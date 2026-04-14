@@ -1,5 +1,5 @@
 export {
-  FuzzyMatcher,
   type FuzzyMatchConfig,
+  FuzzyMatcher,
   type FuzzyMatchResult,
 } from "./fuzzy-search";

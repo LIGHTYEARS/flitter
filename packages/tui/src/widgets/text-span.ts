@@ -20,7 +20,7 @@
  * @module
  */
 
-import { TextStyle } from "../screen/text-style.js";
+import type { TextStyle } from "../screen/text-style.js";
 
 /**
  * 样式化文本树节点。

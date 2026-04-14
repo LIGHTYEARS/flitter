@@ -16,12 +16,12 @@
  * @module
  */
 
-import { StatelessWidget, type BuildContext } from "../tree/stateless-widget.js";
+import type { TextStyle } from "../screen/text-style.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
+import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
-import { TextStyle } from "../screen/text-style.js";
-import { TextSpan } from "./text-span.js";
 import { RichText } from "./rich-text.js";
+import { TextSpan } from "./text-span.js";
 
 /** Text 构造函数参数。 */
 interface TextArgs {

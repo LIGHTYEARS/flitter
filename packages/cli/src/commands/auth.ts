@@ -2,8 +2,8 @@
  * 认证命令处理器
  *
  * 处理 `flitter login` 和 `flitter logout` 命令。
- * login 优先级: 环境变量 FLITTER_API_KEY > 交互式 API Key 输入 > OAuth PKCE 流程。
- * logout 清除本地存储的所有凭据。
+ * login 支持多 Provider: API Key 直接输入 / OAuth 浏览器流程。
+ * logout 清除指定 Provider 或所有凭据。
  *
  * 逆向参考: eF0() (login) / tF0() (logout) in cli-entrypoint.js:1032-1052
  *
@@ -16,77 +16,144 @@
  * program.command("logout").action(() => handleLogout(deps, context));
  * ```
  */
-import type { CliContext } from "../context";
+
 import type { SecretStorage } from "@flitter/flitter";
 import {
+  AnthropicOAuthProvider,
+  GitHubCopilotOAuthProvider,
+  getOAuthProviders,
+  OpenAICodexOAuthProvider,
+  registerOAuthProvider,
+} from "@flitter/llm";
+import {
   getApiKeyFromEnv,
-  validateApiKey,
-  storeApiKey,
   promptApiKey,
+  promptProviderSelection,
+  storeApiKey,
+  validateApiKey,
 } from "../auth/api-key";
-import { performOAuth } from "../auth/oauth";
+import type { CliContext } from "../context";
 
-/**
- * 服务容器接口 (login/logout 所需的最小子集)
- *
- * 实际类型定义在 @flitter/flitter 的 container.ts
- */
-export interface AuthCommandDeps {
-  /** 秘密存储服务 */
-  secrets: SecretStorage;
-  /** API 服务器 URL */
-  ampURL: string;
+let providersRegistered = false;
+
+function ensureOAuthProviders(): void {
+  if (providersRegistered) return;
+  registerOAuthProvider(new AnthropicOAuthProvider());
+  registerOAuthProvider(new OpenAICodexOAuthProvider());
+  registerOAuthProvider(new GitHubCopilotOAuthProvider());
+  providersRegistered = true;
 }
+
+export interface AuthCommandDeps {
+  secrets: SecretStorage;
+}
+
+const AUTH_METHODS = [
+  { id: "api-key", name: "API Key (直接输入)" },
+  { id: "anthropic", name: "Anthropic (Claude Pro/Max OAuth)" },
+  { id: "openai-codex", name: "OpenAI (ChatGPT Plus/Pro OAuth)" },
+  { id: "github-copilot", name: "GitHub Copilot (Device Code)" },
+] as const;
 
 /**
  * 处理 login 命令
  *
- * 认证优先级 (逆向 eF0):
+ * 认证流程:
  * 1. 环境变量 FLITTER_API_KEY → 直接存储
- * 2. 交互式 API Key 输入 → 验证格式 → 存储
- * 3. OAuth PKCE 浏览器流程 → 存储 token
+ * 2. 交互式选择认证方式:
+ *    a. API Key 直接输入 → 验证格式 → 存储
+ *    b. OAuth Provider → 浏览器/设备码认证 → 存储 credentials
  *
  * @param deps - 认证所需的依赖服务
  * @param context - CLI 运行上下文
  */
-export async function handleLogin(
-  deps: AuthCommandDeps,
-  context: CliContext,
-): Promise<void> {
-  const { secrets, ampURL } = deps;
+export async function handleLogin(deps: AuthCommandDeps, context: CliContext): Promise<void> {
+  const { secrets } = deps;
+  ensureOAuthProviders();
 
-  // 1. 检查环境变量
   const envKey = getApiKeyFromEnv();
   if (envKey) {
     if (validateApiKey(envKey)) {
-      await storeApiKey(secrets, ampURL, envKey);
+      await storeApiKey(secrets, "default", envKey);
       process.stderr.write("Logged in using FLITTER_API_KEY environment variable.\n");
       return;
     }
     process.stderr.write("Warning: FLITTER_API_KEY has invalid format, ignoring.\n");
   }
 
-  // 2. 交互式输入 (仅 TTY 模式)
-  if (context.isTTY) {
-    const key = await promptApiKey();
-    if (key) {
-      if (validateApiKey(key)) {
-        await storeApiKey(secrets, ampURL, key);
-        process.stderr.write("API key saved successfully.\n");
-        return;
-      }
-      process.stderr.write("Invalid API key format. Expected 'sk-' or 'flitter-' prefix.\n");
-    }
+  if (!context.isTTY) {
+    process.stderr.write("No API key found. Set FLITTER_API_KEY or run in a TTY terminal.\n");
+    process.exitCode = 1;
+    return;
   }
 
-  // 3. OAuth PKCE 流程
-  process.stderr.write("Starting OAuth authentication...\n");
-  const result = await performOAuth(ampURL);
-  if (result.success && result.token) {
-    await secrets.set("oauthToken", result.token, ampURL);
-    process.stderr.write("OAuth authentication successful.\n");
-  } else {
-    process.stderr.write(`Authentication failed: ${result.error ?? "unknown error"}\n`);
+  const method = await promptProviderSelection(AUTH_METHODS);
+  if (!method) {
+    process.stderr.write("Login cancelled.\n");
+    return;
+  }
+
+  if (method === "api-key") {
+    const key = await promptApiKey();
+    if (key) {
+      await storeApiKey(secrets, "default", key);
+      process.stderr.write("API key saved successfully.\n");
+      return;
+    }
+    process.stderr.write("No key entered.\n");
+    return;
+  }
+
+  const provider = getOAuthProviders().find((p) => p.id === method);
+  if (!provider) {
+    process.stderr.write(`Unknown auth method: ${method}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  process.stderr.write(`Starting ${provider.name} authentication...\n`);
+  try {
+    const credentials = await provider.login({
+      onAuth: (info) => {
+        defaultOpenBrowser(info.url);
+        process.stderr.write("Opening browser for authentication...\n");
+        if (info.instructions) {
+          process.stderr.write(`${info.instructions}\n`);
+        }
+        process.stderr.write(`If browser doesn't open, visit: ${info.url}\n`);
+      },
+      onPrompt: async (prompt) => {
+        const { createInterface } = await import("node:readline/promises");
+        const rl = createInterface({ input: process.stdin, output: process.stderr });
+        try {
+          const answer = await rl.question(`${prompt.message} `);
+          return answer.trim();
+        } finally {
+          rl.close();
+        }
+      },
+      onProgress: (msg) => {
+        process.stderr.write(`${msg}\n`);
+      },
+      onManualCodeInput: async () => {
+        const { createInterface } = await import("node:readline/promises");
+        const rl = createInterface({ input: process.stdin, output: process.stderr });
+        try {
+          const code = await rl.question("Enter authorization code: ");
+          return code.trim();
+        } finally {
+          rl.close();
+        }
+      },
+    });
+
+    await secrets.set("oauthCredentials", JSON.stringify(credentials), provider.id);
+    const apiKey = provider.getApiKey(credentials);
+    await storeApiKey(secrets, provider.id, apiKey);
+    process.stderr.write(`${provider.name} authentication successful.\n`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Authentication failed: ${message}\n`);
     process.exitCode = 1;
   }
 }
@@ -95,20 +162,27 @@ export async function handleLogin(
  * 处理 logout 命令
  *
  * 清除所有已存储的凭据 (API Key + OAuth tokens)。
- * 逆向参考: tF0() in cli-entrypoint.js:~1052
- *
- * @param deps - 认证所需的依赖服务
- * @param context - CLI 运行上下文
  */
-export async function handleLogout(
-  deps: AuthCommandDeps,
-  context: CliContext,
-): Promise<void> {
-  const { secrets, ampURL } = deps;
-  void context;
+export async function handleLogout(deps: AuthCommandDeps, _context: CliContext): Promise<void> {
+  const { secrets } = deps;
 
-  // 删除所有认证凭据
-  await secrets.delete("apiKey", ampURL);
-  await secrets.delete("oauthToken", ampURL);
+  await secrets.delete("apiKey", "default");
+  const providers = getOAuthProviders();
+  for (const provider of providers) {
+    await secrets.delete("oauthCredentials", provider.id);
+    await secrets.delete("apiKey", provider.id);
+  }
   process.stderr.write("Logged out. All credentials have been removed.\n");
+}
+
+async function defaultOpenBrowser(url: string): Promise<void> {
+  const { execFile } = await import("node:child_process");
+  const cmd =
+    process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+
+  if (process.platform === "win32") {
+    execFile(cmd, ["/c", "start", "", url]);
+  } else {
+    execFile(cmd, [url]);
+  }
 }

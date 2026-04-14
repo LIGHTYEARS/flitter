@@ -78,19 +78,18 @@ const PermissionEntryBaseSchema = z.object({
   message: z.string().optional(),
 });
 
-export const PermissionEntrySchema = PermissionEntryBaseSchema
-  .refine(
-    (entry) => entry.action !== "delegate" || (entry.to !== undefined && entry.to !== ""),
-    { message: "action 'delegate' requires 'to' field", path: ["to"] },
-  )
-  .refine(
-    (entry) => entry.action === "delegate" || entry.to === undefined,
-    { message: "'to' field only allowed with action 'delegate'", path: ["to"] },
-  )
-  .refine(
-    (entry) => entry.action === "reject" || entry.message === undefined,
-    { message: "'message' field only allowed with action 'reject'", path: ["message"] },
-  );
+export const PermissionEntrySchema = PermissionEntryBaseSchema.refine(
+  (entry) => entry.action !== "delegate" || (entry.to !== undefined && entry.to !== ""),
+  { message: "action 'delegate' requires 'to' field", path: ["to"] },
+)
+  .refine((entry) => entry.action === "delegate" || entry.to === undefined, {
+    message: "'to' field only allowed with action 'delegate'",
+    path: ["to"],
+  })
+  .refine((entry) => entry.action === "reject" || entry.message === undefined, {
+    message: "'message' field only allowed with action 'reject'",
+    path: ["message"],
+  });
 
 export type PermissionEntry = z.infer<typeof PermissionEntrySchema>;
 

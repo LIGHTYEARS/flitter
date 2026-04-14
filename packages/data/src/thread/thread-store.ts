@@ -11,20 +11,36 @@
  * const subject = store.getThread(id);
  * ```
  */
-import type { ThreadSnapshot, ThreadMessage } from "@flitter/schemas";
+import type { ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject } from "@flitter/util";
 import type { ThreadEntry, ThreadStoreOptions } from "./types";
+
+/**
+ * Extended fields that may appear on ThreadSnapshot beyond the strict schema.
+ * These originate from the reverse-engineered amp-cli data format.
+ */
+interface ThreadSnapshotExtended {
+  created?: number;
+  originThreadID?: string;
+  mainThreadID?: string;
+  archived?: boolean;
+  creatorUserID?: string;
+  draft?: boolean;
+}
 
 /**
  * 计算用户最后交互时间
  * 从 HqR (skills-agents-system.js:3250-3252) 翻译
  */
-export function computeUserLastInteractedAt(thread: { created?: number; messages: Array<{ role: string; meta?: { sentAt?: number } }> }): number {
-  const created = (thread as any).created ?? 0;
+export function computeUserLastInteractedAt(thread: {
+  created?: number;
+  messages: Array<{ role: string; meta?: { sentAt?: number } }>;
+}): number {
+  const created = thread.created ?? 0;
   const sentTimes = thread.messages
     .filter((m) => m.role === "user" && m.meta?.sentAt !== undefined)
     .map((m) => m.meta!.sentAt!);
-  return Math.max(created, ...sentTimes.length > 0 ? sentTimes : [0]);
+  return Math.max(created, ...(sentTimes.length > 0 ? sentTimes : [0]));
 }
 
 /**
@@ -32,36 +48,49 @@ export function computeUserLastInteractedAt(thread: { created?: number; messages
  * 从 fuT (skills-agents-system.js:3281-3303) 翻译
  */
 export function snapshotToEntry(thread: ThreadSnapshot): ThreadEntry {
+  const ext = thread as ThreadSnapshot & ThreadSnapshotExtended;
   return {
     id: thread.id,
     v: thread.v,
-    created: (thread as any).created ?? 0,
+    created: ext.created ?? 0,
     title: thread.title ?? null,
-    userLastInteractedAt: computeUserLastInteractedAt(thread as any),
+    userLastInteractedAt: computeUserLastInteractedAt(ext),
     messageCount: thread.messages.length,
     env: thread.env,
-    originThreadID: (thread as any).originThreadID,
-    mainThreadID: (thread as any).mainThreadID,
+    originThreadID: ext.originThreadID,
+    mainThreadID: ext.mainThreadID,
     relationships: [...(thread.relationships ?? [])],
     summaryStats: {
       messageCount: thread.messages.length,
     },
     agentMode: thread.agentMode,
-    usesDtw: !!(thread.meta && typeof thread.meta === "object" && (thread.meta as any).usesDtw === true),
-    archived: (thread as any).archived,
-    creatorUserID: typeof (thread as any).creatorUserID === "string" ? (thread as any).creatorUserID : undefined,
+    usesDtw: !!(
+      thread.meta &&
+      typeof thread.meta === "object" &&
+      (thread.meta as Record<string, unknown>).usesDtw === true
+    ),
+    archived: ext.archived,
+    creatorUserID: typeof ext.creatorUserID === "string" ? ext.creatorUserID : undefined,
     meta: extractMeta(thread),
   };
 }
 
 function extractMeta(thread: ThreadSnapshot): ThreadEntry["meta"] | undefined {
   if (!thread.meta || typeof thread.meta !== "object") return undefined;
-  const m = thread.meta as any;
-  const validVisibilities = ["private", "public_unlisted", "public_discoverable", "thread_workspace_shared"];
-  if (!validVisibilities.includes(m.visibility)) return undefined;
+  const m = thread.meta as Record<string, unknown>;
+  const validVisibilities = [
+    "private",
+    "public_unlisted",
+    "public_discoverable",
+    "thread_workspace_shared",
+  ];
+  if (typeof m.visibility !== "string" || !validVisibilities.includes(m.visibility))
+    return undefined;
   return {
     visibility: m.visibility,
-    sharedGroupIDs: Array.isArray(m.sharedGroupIDs) ? m.sharedGroupIDs.filter((s: unknown) => typeof s === "string") : [],
+    sharedGroupIDs: Array.isArray(m.sharedGroupIDs)
+      ? m.sharedGroupIDs.filter((s: unknown) => typeof s === "string")
+      : [],
   };
 }
 
@@ -69,7 +98,11 @@ function extractMeta(thread: ThreadSnapshot): ThreadEntry["meta"] | undefined {
  * ThreadEntry 深度相等比较
  * 从 T4 (skills-agents-system.js:3305-3308) 翻译
  */
-export function entryEquals(a: ThreadEntry, b: ThreadEntry, opts: { includeVersion?: boolean } = {}): boolean {
+export function entryEquals(
+  a: ThreadEntry,
+  b: ThreadEntry,
+  opts: { includeVersion?: boolean } = {},
+): boolean {
   if (a === b) return true;
   return (
     a.id === b.id &&
@@ -117,7 +150,10 @@ export class ThreadStore {
    * 缓存线程快照 + 更新 ThreadEntry 索引
    * 从 azT.setCachedThread 翻译
    */
-  setCachedThread(thread: ThreadSnapshot, opts: { scheduleUpload?: boolean } = {}): BehaviorSubject<ThreadSnapshot> {
+  setCachedThread(
+    thread: ThreadSnapshot,
+    opts: { scheduleUpload?: boolean } = {},
+  ): BehaviorSubject<ThreadSnapshot> {
     const existing = this.threadSubjects.get(thread.id);
     if (existing) {
       existing.next(thread);
@@ -207,7 +243,10 @@ export class ThreadStore {
   // ─── 内部方法 ────────────────────────────────────────
 
   private syncThreadEntryFromThread(thread: ThreadSnapshot): void {
-    if (thread.messages.length === 0 && !(thread as any).draft) {
+    if (
+      thread.messages.length === 0 &&
+      !(thread as ThreadSnapshot & ThreadSnapshotExtended).draft
+    ) {
       this.deleteThreadEntry(thread.id);
     } else {
       this.upsertThreadEntry(snapshotToEntry(thread));

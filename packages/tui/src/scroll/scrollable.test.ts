@@ -6,11 +6,11 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import type { KeyEvent } from "../vt/types.js";
 import { ScrollController } from "./scroll-controller.js";
 import { ScrollKeyHandler } from "./scroll-key-handler.js";
 import { Scrollable } from "./scrollable.js";
-import type { KeyEvent, MouseEvent } from "../vt/types.js";
 
 // ════════════════════════════════════════════════════
 //  辅助工具
@@ -19,7 +19,7 @@ import type { KeyEvent, MouseEvent } from "../vt/types.js";
 /** 创建 KeyEvent 快捷方法 */
 function key(
   k: string,
-  mods?: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean }
+  mods?: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean },
 ): KeyEvent {
   return {
     type: "key",

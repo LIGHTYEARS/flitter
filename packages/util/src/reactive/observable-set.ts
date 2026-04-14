@@ -2,7 +2,7 @@
  * ObservableSet - observable Set collection
  */
 import type { IDisposable } from "./disposable";
-import { Observable } from "./observable";
+import type { Observable } from "./observable";
 import { BehaviorSubject } from "./subject";
 
 export class ObservableSet<T> extends Set<T> implements IDisposable {

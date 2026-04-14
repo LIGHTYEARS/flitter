@@ -4,8 +4,8 @@
  * Spawns a child process via `child_process.spawn` with shell: true.
  * Supports configurable timeout, abort signal cancellation, and output truncation.
  */
-import { spawn as cpSpawn, type ChildProcess } from "node:child_process";
-import type { ToolSpec, ToolResult, ToolContext } from "../types";
+import { type ChildProcess, spawn as cpSpawn } from "node:child_process";
+import type { ToolContext, ToolResult, ToolSpec } from "../types";
 
 // ─── Constants ───────────────────────────────────────────
 
@@ -41,8 +41,14 @@ export function truncateOutput(output: string): string {
     return output;
   }
 
-  const marker = "\n\n[output truncated -- " +
-    (output.length - MAX_OUTPUT_LENGTH + "[output truncated --  chars omitted]".length + "\n\n\n\n".length).toString() +
+  const marker =
+    "\n\n[output truncated -- " +
+    (
+      output.length -
+      MAX_OUTPUT_LENGTH +
+      "[output truncated --  chars omitted]".length +
+      "\n\n\n\n".length
+    ).toString() +
     " chars omitted]\n\n";
 
   // Recalculate with actual marker length
@@ -198,18 +204,14 @@ export const BashTool: ToolSpec = {
       },
       description: {
         type: "string",
-        description:
-          "A brief description of what the command does, for logging purposes.",
+        description: "A brief description of what the command does, for logging purposes.",
       },
     },
     required: ["command"],
     additionalProperties: false,
   },
 
-  async execute(
-    args: Record<string, unknown>,
-    context: ToolContext,
-  ): Promise<ToolResult> {
+  async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
     // ── Validate command ───────────────────────────────
     const command = args.command;
     if (typeof command !== "string" || command.trim().length === 0) {
@@ -256,8 +258,7 @@ export const BashTool: ToolSpec = {
       // ── Timeout annotation ─────────────────────────
       if (result.timedOut) {
         toolResult.content =
-          (toolResult.content || "") +
-          `\n\nCommand timed out after ${timeout}ms`;
+          (toolResult.content || "") + `\n\nCommand timed out after ${timeout}ms`;
       }
 
       return toolResult;

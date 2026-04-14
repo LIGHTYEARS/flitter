@@ -1,8 +1,9 @@
 /**
  * Tests for OAuth callback server.
  */
-import { describe, it, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
+import { afterEach, describe, it } from "node:test";
 import { startCallbackServer } from "./callback-server";
 
 describe("startCallbackServer", () => {

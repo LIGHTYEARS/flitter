@@ -78,10 +78,7 @@ export class Scrollable {
    * @param viewportHeight - 视口高度
    * @returns maxScrollExtent，不小于 0
    */
-  static computeMaxScrollExtent(
-    childHeight: number,
-    viewportHeight: number
-  ): number {
+  static computeMaxScrollExtent(childHeight: number, viewportHeight: number): number {
     return Math.max(0, childHeight - viewportHeight);
   }
 }

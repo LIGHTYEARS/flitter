@@ -6,18 +6,14 @@
  *
  * 逆向参考: FVT/zVT in process-runner.js
  */
-import { describe, it, beforeEach, afterEach, mock } from "node:test";
+
 import assert from "node:assert/strict";
-import { writeFile, unlink, mkdtemp } from "node:fs/promises";
+import { mkdtemp, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  compareVersions,
-  computeSHA256,
-  detectInstallMethod,
-  checkForUpdate,
-} from "./checker";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { UpdateInfo } from "./checker";
+import { checkForUpdate, compareVersions, computeSHA256, detectInstallMethod } from "./checker";
 
 // ─── compareVersions ────────────────────────────────────────
 
@@ -65,8 +61,7 @@ describe("computeSHA256", () => {
     // sha256sum of "hello world\n"
     assert.equal(
       hash,
-      "a948904f2f0f479b8f8564e9d7a7b3f53d43c6b8e7a7e8f2e5a9c6d0f1e2b3a4"
-        .length > 0
+      "a948904f2f0f479b8f8564e9d7a7b3f53d43c6b8e7a7e8f2e5a9c6d0f1e2b3a4".length > 0
         ? hash // 只验证是 64 位十六进制字符串
         : "",
     );
@@ -161,7 +156,7 @@ describe("checkForUpdate", () => {
       new Response(JSON.stringify(mockInfo), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      })) as any;
+      })) as unknown as typeof globalThis.fetch;
 
     const result = await checkForUpdate("1.0.0", {
       checkUrl: "https://update.example.com/latest",
@@ -180,7 +175,7 @@ describe("checkForUpdate", () => {
       new Response(JSON.stringify(mockInfo), {
         status: 200,
         headers: { "Content-Type": "application/json" },
-      })) as any;
+      })) as unknown as typeof globalThis.fetch;
 
     const result = await checkForUpdate("1.0.0");
     assert.equal(result, null);
@@ -190,7 +185,7 @@ describe("checkForUpdate", () => {
     // fetch 不应被调用
     globalThis.fetch = (async () => {
       throw new Error("fetch should not be called");
-    }) as any;
+    }) as unknown as typeof globalThis.fetch;
 
     const result = await checkForUpdate("1.0.0", {
       updateMode: "disabled",
@@ -200,7 +195,7 @@ describe("checkForUpdate", () => {
 
   it("HTTP 错误时返回 null", async () => {
     globalThis.fetch = (async () =>
-      new Response("Not Found", { status: 404 })) as any;
+      new Response("Not Found", { status: 404 })) as unknown as typeof globalThis.fetch;
 
     const result = await checkForUpdate("1.0.0");
     assert.equal(result, null);

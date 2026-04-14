@@ -12,30 +12,36 @@
  * registerBuiltinTools(toolRegistry);
  * ```
  */
-import type { ContainerOptions } from "./container";
-import { ConfigService, type ConfigServiceOptions } from "@flitter/data";
-import { FileSettingsStorage } from "@flitter/data";
-import { ThreadStore } from "@flitter/data";
-import { ThreadPersistence, type ThreadPersistenceOptions } from "@flitter/data";
-import { SkillService, type SkillServiceOptions } from "@flitter/data";
-import { ContextManager, type ContextManagerOptions } from "@flitter/data";
-import { discoverGuidanceFiles, type GuidanceLoadOptions } from "@flitter/data";
-import { ToolRegistry } from "@flitter/agent-core";
-import { PermissionEngine, DEFAULT_PERMISSION_RULES } from "@flitter/agent-core";
+
 import type { PermissionEngineOpts } from "@flitter/agent-core";
-import { MCPServerManager, type MCPServerManagerOptions } from "@flitter/llm";
 import {
-  ReadTool,
-  WriteTool,
-  EditTool,
   BashTool,
-  GrepTool,
-  GlobTool,
+  EditTool,
   FuzzyFindTool,
+  GlobTool,
+  GrepTool,
+  PermissionEngine,
+  ReadTool,
+  ToolRegistry,
+  WriteTool,
 } from "@flitter/agent-core";
+import {
+  ConfigService,
+  type ConfigServiceOptions,
+  ContextManager,
+  type ContextManagerOptions,
+  discoverGuidanceFiles,
+  type GuidanceLoadOptions,
+  SkillService,
+  type SkillServiceOptions,
+  ThreadPersistence,
+  type ThreadPersistenceOptions,
+  ThreadStore,
+} from "@flitter/data";
+import { MCPServerManager, type MCPServerManagerOptions } from "@flitter/llm";
+import type { ToolApprovalRequest } from "@flitter/schemas";
 import { Subject } from "@flitter/util";
-import type { ToolApprovalRequest, Config } from "@flitter/schemas";
-import type { GuidanceLoader } from "./container";
+import type { ContainerOptions, GuidanceLoader } from "./container";
 
 /**
  * 创建 ConfigService 实例
@@ -108,7 +114,7 @@ export function createMCPServerManager(configService: ConfigService): MCPServerM
   const managerOpts: MCPServerManagerOptions = {
     getConfig: () => {
       const config = configService.get();
-      return (config.settings as any)?.mcpServers ?? {};
+      return config.settings.mcpServers ?? {};
     },
   };
   return new MCPServerManager(managerOpts);

@@ -11,12 +11,11 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-
+import { describe, it } from "node:test";
+import { Cell } from "./cell.js";
 import { Color } from "./color.js";
 import { TextStyle } from "./text-style.js";
-import { Cell } from "./cell.js";
 
 // ════════════════════════════════════════════════════
 //  Color 测试
@@ -165,8 +164,8 @@ describe("TextStyle", () => {
     });
     const merged = base.merge(overlay);
 
-    assert.equal(merged.bold, true);       // 来自 base
-    assert.equal(merged.italic, true);     // 来自 overlay
+    assert.equal(merged.bold, true); // 来自 base
+    assert.equal(merged.italic, true); // 来自 overlay
     assert.ok(merged.foreground.equals(Color.blue())); // overlay 覆盖
   });
 

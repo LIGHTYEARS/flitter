@@ -2,7 +2,7 @@
  * ObservableMap - observable Map collection
  */
 import type { IDisposable } from "./disposable";
-import { Observable } from "./observable";
+import type { Observable } from "./observable";
 import { BehaviorSubject } from "./subject";
 
 export class ObservableMap<K, V> extends Map<K, V> implements IDisposable {

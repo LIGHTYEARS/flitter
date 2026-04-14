@@ -19,7 +19,7 @@
  */
 
 import type { Widget } from "../tree/widget.js";
-import { OverlayEntry } from "./overlay-entry.js";
+import type { OverlayEntry } from "./overlay-entry.js";
 
 /** Overlay 插入选项。 */
 export interface OverlayInsertOptions {
@@ -133,7 +133,7 @@ export class OverlayState {
    * @param context - 传递给 builder 的构建上下文
    * @returns 所有 entry 构建产生的 Widget 数组
    */
-  buildEntries(context?: any): Widget[] {
+  buildEntries(context?: unknown): Widget[] {
     const widgets: Widget[] = [];
     for (const entry of this._entries) {
       widgets.push(entry.builder(context));

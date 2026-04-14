@@ -5,15 +5,10 @@
  * 支持 Thinking (thinkingConfig)、Function Calls、Image Input。
  * Gemini 使用 role:"user"/"model" 而非 "assistant"。
  */
-import type {
-  Message,
-  AssistantContentBlock,
-  Usage,
-} from "@flitter/schemas";
+import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "../../transformers/message-transformer";
 import { BaseToolTransformer } from "../../transformers/tool-transformer";
-import type { StreamDelta, SystemPromptBlock, ToolDefinition } from "../../types";
-import { TransformState } from "../../types";
+import type { StreamDelta, SystemPromptBlock, ToolDefinition, TransformState } from "../../types";
 
 // ─── Gemini 原生类型 ──────────────────────────────────
 
@@ -57,13 +52,15 @@ export interface GeminiUsageMetadata {
 }
 
 export interface GeminiStreamChunk {
-  candidates?: [{
-    content: {
-      role: "model";
-      parts: GeminiPart[];
-    };
-    finishReason?: "STOP" | "MAX_TOKENS" | "SAFETY" | "RECITATION" | "OTHER";
-  }];
+  candidates?: [
+    {
+      content: {
+        role: "model";
+        parts: GeminiPart[];
+      };
+      finishReason?: "STOP" | "MAX_TOKENS" | "SAFETY" | "RECITATION" | "OTHER";
+    },
+  ];
   usageMetadata?: GeminiUsageMetadata;
   modelVersion?: string;
 }
@@ -109,10 +106,7 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
   /**
    * Flitter Message[] → Gemini contents + systemInstruction
    */
-  toProviderMessages(
-    messages: Message[],
-    systemPrompt: SystemPromptBlock[],
-  ): GeminiContent[] {
+  toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): GeminiContent[] {
     // Note: systemInstruction is returned via getSystemInstruction()
     // This method returns only the contents array
     const raw: GeminiContent[] = [];
@@ -193,7 +187,9 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
 
   // ─── Private: Message conversion ──────────────────────
 
-  private _convertUserParts(msg: { content: ReadonlyArray<{ type: string; [key: string]: unknown }> }): GeminiPart[] {
+  private _convertUserParts(msg: {
+    content: ReadonlyArray<{ type: string; [key: string]: unknown }>;
+  }): GeminiPart[] {
     const parts: GeminiPart[] = [];
 
     for (const block of msg.content) {
@@ -206,7 +202,11 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
         case "image":
           if (block.source && typeof block.source === "object") {
             const source = block.source as { type: string; [key: string]: unknown };
-            if (source.type === "base64" && typeof source.mediaType === "string" && typeof source.data === "string") {
+            if (
+              source.type === "base64" &&
+              typeof source.mediaType === "string" &&
+              typeof source.data === "string"
+            ) {
               parts.push({ inlineData: { mimeType: source.mediaType, data: source.data } });
             }
             // Note: Gemini does not support URL images directly in content parts for most models
@@ -214,12 +214,17 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
           break;
         case "tool_result": {
           if (typeof block.toolUseID === "string" && block.run && typeof block.run === "object") {
-            const run = block.run as { status: string; result?: unknown; error?: { message: string } };
+            const run = block.run as {
+              status: string;
+              result?: unknown;
+              error?: { message: string };
+            };
             // We need the tool name — find it from previous context or use a placeholder
             const toolName = (block as { toolName?: string }).toolName ?? "tool";
             let content: string;
             if (run.status === "done") {
-              content = typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
+              content =
+                typeof run.result === "string" ? run.result : JSON.stringify(run.result ?? "");
             } else if (run.status === "error" && run.error) {
               content = `Error: ${run.error.message}`;
             } else {
@@ -237,7 +242,9 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
     return parts;
   }
 
-  private _convertAssistantParts(msg: { content: ReadonlyArray<AssistantContentBlock> }): GeminiPart[] {
+  private _convertAssistantParts(msg: {
+    content: ReadonlyArray<AssistantContentBlock>;
+  }): GeminiPart[] {
     const parts: GeminiPart[] = [];
 
     for (const block of msg.content) {

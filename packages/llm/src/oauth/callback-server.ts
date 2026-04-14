@@ -11,7 +11,7 @@
  * // stop() → close the server
  * ```
  */
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 
 export interface CallbackServerOptions {
   /** Port to listen on (default: 0 for auto-assign) */
@@ -42,11 +42,7 @@ export interface CallbackServerResult {
 export function startCallbackServer(
   options: CallbackServerOptions = {},
 ): Promise<CallbackServerResult> & { stop: () => void; port: Promise<number> } {
-  const {
-    port = 0,
-    path = "/callback",
-    timeout = 120_000,
-  } = options;
+  const { port = 0, path = "/callback", timeout = 120_000 } = options;
 
   let server: Server;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -72,10 +68,14 @@ export function startCallbackServer(
         reject(new Error("OAuth callback cancelled"));
         return;
       }
-      options.signal.addEventListener("abort", () => {
-        cleanup();
-        reject(new Error("OAuth callback cancelled"));
-      }, { once: true });
+      options.signal.addEventListener(
+        "abort",
+        () => {
+          cleanup();
+          reject(new Error("OAuth callback cancelled"));
+        },
+        { once: true },
+      );
     }
 
     // Timeout

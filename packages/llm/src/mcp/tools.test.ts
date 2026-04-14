@@ -1,14 +1,15 @@
 /**
  * Tests for MCP tool naming utilities.
  */
-import { describe, it } from "node:test";
+
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  sanitizeName,
+  formatToolError,
   namespacedToolName,
   parseNamespacedToolName,
+  sanitizeName,
   truncateToolResult,
-  formatToolError,
 } from "./tools";
 
 // ─── sanitizeName ─────────────────────────────────────────
@@ -61,17 +62,11 @@ describe("sanitizeName", () => {
 
 describe("namespacedToolName", () => {
   it("should create mcp__server__tool pattern", () => {
-    assert.equal(
-      namespacedToolName("myServer", "myTool"),
-      "mcp__myServer__myTool",
-    );
+    assert.equal(namespacedToolName("myServer", "myTool"), "mcp__myServer__myTool");
   });
 
   it("should sanitize server and tool names", () => {
-    assert.equal(
-      namespacedToolName("my server", "my-tool"),
-      "mcp__my_server__my_tool",
-    );
+    assert.equal(namespacedToolName("my server", "my-tool"), "mcp__my_server__my_tool");
   });
 
   it("should truncate to tool name when full name >= 64 chars", () => {
@@ -94,10 +89,7 @@ describe("namespacedToolName", () => {
   });
 
   it("should handle special characters in both names", () => {
-    assert.equal(
-      namespacedToolName("my@server", "my#tool"),
-      "mcp__my_server__my_tool",
-    );
+    assert.equal(namespacedToolName("my@server", "my#tool"), "mcp__my_server__my_tool");
   });
 });
 
@@ -164,9 +156,7 @@ describe("truncateToolResult", () => {
   });
 
   it("should pass through image content unchanged", () => {
-    const content = [
-      { type: "image" as const, data: "base64data", mimeType: "image/png" },
-    ];
+    const content = [{ type: "image" as const, data: "base64data", mimeType: "image/png" }];
     const result = truncateToolResult(content);
     assert.deepEqual(result, content);
   });
@@ -185,9 +175,7 @@ describe("truncateToolResult", () => {
 
 describe("formatToolError", () => {
   it("should extract text from content entries", () => {
-    const content = [
-      { type: "text" as const, text: "Error: something failed" },
-    ];
+    const content = [{ type: "text" as const, text: "Error: something failed" }];
     assert.equal(formatToolError("myTool", content), "Error: something failed");
   });
 

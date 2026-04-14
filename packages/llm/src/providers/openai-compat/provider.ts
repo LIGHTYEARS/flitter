@@ -14,15 +14,11 @@
  */
 import OpenAI from "openai";
 import type { LLMProvider } from "../../provider";
-import type { StreamParams, StreamDelta } from "../../types";
+import type { OpenAICompatConfig, ProviderName, StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
-import type { ProviderName, OpenAICompatConfig } from "../../types";
-import {
-  CompatTransformer,
-  CompatToolTransformer,
-} from "./transformer";
-import type { CompatStreamChunk } from "./transformer";
 import { KNOWN_COMPAT_CONFIGS, mergeWithDefaults } from "./compat";
+import type { CompatStreamChunk } from "./transformer";
+import { CompatToolTransformer, CompatTransformer } from "./transformer";
 
 // ─── OpenAICompatProvider ───────────────────────────────
 
@@ -33,11 +29,13 @@ export class OpenAICompatProvider implements LLMProvider {
   private readonly _toolTransformer = new CompatToolTransformer();
   private readonly _injectedClient?: OpenAI;
 
-  constructor(opts: {
-    name?: string;
-    client?: OpenAI;
-    config?: Partial<OpenAICompatConfig>;
-  } = {}) {
+  constructor(
+    opts: {
+      name?: string;
+      client?: OpenAI;
+      config?: Partial<OpenAICompatConfig>;
+    } = {},
+  ) {
     const knownName = opts.name ?? "openai-compat";
     this.name = knownName;
 
@@ -51,7 +49,7 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, reasoningEffort } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -60,11 +58,13 @@ export class OpenAICompatProvider implements LLMProvider {
     }
 
     // Build SDK client (injected for tests, or create on-demand)
-    const client = this._injectedClient ?? new OpenAI({
-      apiKey,
-      baseURL: this._config.baseURL,
-      defaultHeaders: this._config.headers,
-    });
+    const client =
+      this._injectedClient ??
+      new OpenAI({
+        apiKey,
+        baseURL: this._config.baseURL,
+        defaultHeaders: this._config.headers,
+      });
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -76,8 +76,12 @@ export class OpenAICompatProvider implements LLMProvider {
 
     // Build request body
     const body = this._buildRequestBody(
-      model, maxOutputTokens, chatMessages, chatTools,
-      config.settings, reasoningEffort,
+      model,
+      maxOutputTokens,
+      chatMessages,
+      chatTools,
+      config.settings,
+      reasoningEffort,
     );
 
     // Create state
@@ -100,8 +104,11 @@ export class OpenAICompatProvider implements LLMProvider {
         throw new ProviderError(
           status,
           this.name,
-          status === 408 || status === 429 ||
-            status === 500 || status === 502 || status === 503 ||
+          status === 408 ||
+            status === 429 ||
+            status === 500 ||
+            status === 502 ||
+            status === 503 ||
             status === 504,
           err.message,
         );
@@ -150,7 +157,8 @@ export class OpenAICompatProvider implements LLMProvider {
     }
 
     // Temperature from settings
-    const temperature = settings[`${this.name}.temperature`] ?? settings["openai-compat.temperature"];
+    const temperature =
+      settings[`${this.name}.temperature`] ?? settings["openai-compat.temperature"];
     if (temperature !== undefined) {
       body.temperature = temperature;
     }

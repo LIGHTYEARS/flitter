@@ -13,78 +13,63 @@
  * ```
  */
 
-// ─── 核心 API ─────────────────────────────────────────────
-export { main, getVersion } from "./main";
-export type { MainOptions } from "./main";
-export { createProgram } from "./program";
-export { resolveCliContext } from "./context";
-export type { CliContext } from "./context";
-
-// ─── 命令处理器 ───────────────────────────────────────────
-export { handleLogin, handleLogout } from "./commands/auth";
-export type { AuthCommandDeps } from "./commands/auth";
-
 // ─── 认证模块 ────────────────────────────────────────────
 export {
-  validateApiKey,
   getApiKeyFromEnv,
   hasApiKey,
-  storeApiKey,
   promptApiKey,
+  promptProviderSelection,
+  storeApiKey,
+  validateApiKey,
 } from "./auth/api-key";
-
+export type { AuthCommandDeps } from "./commands/auth";
+// ─── 命令处理器 ───────────────────────────────────────────
+export { handleLogin, handleLogout } from "./commands/auth";
+export type { ConfigCommandDeps } from "./commands/config";
 export {
-  performOAuth,
-  buildAuthUrl,
-  startOAuthCallbackServer,
-} from "./auth/oauth";
-export type { OAuthResult, OAuthHooks } from "./auth/oauth";
-
-export {
-  handleThreadsList,
-  handleThreadsNew,
-  handleThreadsContinue,
-  handleThreadsArchive,
-  handleThreadsDelete,
-} from "./commands/threads";
+  handleConfigGet,
+  handleConfigList,
+  handleConfigSet,
+} from "./commands/config";
 export type {
   ThreadsCommandDeps,
   ThreadsListOptions,
   ThreadsNewOptions,
 } from "./commands/threads";
-
 export {
-  handleConfigGet,
-  handleConfigSet,
-  handleConfigList,
-} from "./commands/config";
-export type { ConfigCommandDeps } from "./commands/config";
-
-export { handleUpdate } from "./commands/update";
+  handleThreadsArchive,
+  handleThreadsContinue,
+  handleThreadsDelete,
+  handleThreadsList,
+  handleThreadsNew,
+} from "./commands/threads";
 export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
+export { handleUpdate } from "./commands/update";
+export type { CliContext } from "./context";
+export { resolveCliContext } from "./context";
+export type { MainOptions } from "./main";
+// ─── 核心 API ─────────────────────────────────────────────
+export { getVersion, main } from "./main";
+export type { ExecuteIO } from "./modes/execute";
+export { runExecuteMode } from "./modes/execute";
+export type { HeadlessIO } from "./modes/headless";
+export { runHeadlessMode } from "./modes/headless";
+export type { RunAppOptions } from "./modes/interactive";
 
+// ─── 模式入口 ────────────────────────────────────────────
+export { launchInteractiveMode } from "./modes/interactive";
+export { createProgram } from "./program";
+export type { InstallMethod, UpdateInfo } from "./update/checker";
 // ─── 更新模块 ────────────────────────────────────────────
 export {
+  checkForUpdate,
   compareVersions,
   computeSHA256,
   detectInstallMethod,
-  checkForUpdate,
 } from "./update/checker";
-export type { UpdateInfo, InstallMethod } from "./update/checker";
-
+export type { InstallOptions } from "./update/installer";
 export {
   installBinaryUpdate,
   installWithPackageManager,
   UpdateVerificationError,
 } from "./update/installer";
-export type { InstallOptions } from "./update/installer";
-
-// ─── 模式入口 ────────────────────────────────────────────
-export { launchInteractiveMode } from "./modes/interactive";
-export type { RunAppOptions } from "./modes/interactive";
-
-export { runHeadlessMode } from "./modes/headless";
-export type { HeadlessIO } from "./modes/headless";
-
-export { runExecuteMode } from "./modes/execute";
-export type { ExecuteIO } from "./modes/execute";

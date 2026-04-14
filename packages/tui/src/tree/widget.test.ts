@@ -12,10 +12,10 @@
  * @module
  */
 
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { Widget, Key, GlobalKey } from "./widget.js";
+import { describe, it } from "node:test";
 import { Element } from "./element.js";
+import { GlobalKey, Key, Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助

@@ -1,12 +1,13 @@
 /**
  * Tests for ThreadPersistence — JSON file I/O with atomic writes.
  */
-import { describe, it, beforeEach, afterEach } from "node:test";
+
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
-import * as path from "node:path";
 import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { ThreadPersistence } from "./thread-persistence";
 import { ThreadStore } from "./thread-store";
@@ -99,7 +100,11 @@ describe("ThreadPersistence", () => {
     });
 
     it("should return null for invalid schema", async () => {
-      await fsp.writeFile(path.join(tmpDir, "invalid.json"), JSON.stringify({ foo: "bar" }), "utf-8");
+      await fsp.writeFile(
+        path.join(tmpDir, "invalid.json"),
+        JSON.stringify({ foo: "bar" }),
+        "utf-8",
+      );
       const p = new ThreadPersistence({ baseDir: tmpDir });
       const loaded = await p.load("invalid");
       assert.equal(loaded, null);

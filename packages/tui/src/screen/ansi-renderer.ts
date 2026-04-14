@@ -22,7 +22,7 @@
  * @module
  */
 
-import { Screen } from "./screen.js";
+import type { Screen } from "./screen.js";
 import { TextStyle } from "./text-style.js";
 
 // ── ANSI 转义序列常量 ────────────────────────────────
@@ -41,8 +41,7 @@ export const CSI = ESC + "[";
  * @param col - 列索引 (0-based)
  * @returns CUP 序列
  */
-export const CUP = (row: number, col: number): string =>
-  `${CSI}${row + 1};${col + 1}H`;
+export const CUP = (row: number, col: number): string => `${CSI}${row + 1};${col + 1}H`;
 
 /** 光标右移 n 列 */
 export const CUF = (n: number): string => `${CSI}${n}C`;
@@ -69,8 +68,7 @@ export const CLEAR_LINE = `${CSI}2K`;
  * @param params - SGR 参数
  * @returns SGR 序列字符串
  */
-export const SGR = (...params: (string | number)[]): string =>
-  `${CSI}${params.join(";")}m`;
+export const SGR = (...params: (string | number)[]): string => `${CSI}${params.join(";")}m`;
 
 /** SGR 重置序列 */
 export const SGR_RESET = `${CSI}0m`;
@@ -262,4 +260,5 @@ export class AnsiRenderer {
 
 // 缓存 Cell.EMPTY 引用以避免循环导入问题
 import { Cell } from "./cell.js";
+
 const emptyCell = Cell.EMPTY;

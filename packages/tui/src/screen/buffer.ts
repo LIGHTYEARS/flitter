@@ -16,7 +16,7 @@
  */
 
 import { Cell } from "./cell.js";
-import { TextStyle } from "./text-style.js";
+import type { TextStyle } from "./text-style.js";
 
 /**
  * 二维单元格矩阵，终端屏幕的单层缓冲区。
@@ -183,7 +183,7 @@ export class ScreenBuffer {
   copyTo(target: ScreenBuffer): void {
     if (this.width !== target.width || this.height !== target.height) {
       throw new Error(
-        `缓冲区尺寸不匹配：源 ${this.width}x${this.height}，目标 ${target.width}x${target.height}`
+        `缓冲区尺寸不匹配：源 ${this.width}x${this.height}，目标 ${target.width}x${target.height}`,
       );
     }
     for (let y = 0; y < this.height; y++) {

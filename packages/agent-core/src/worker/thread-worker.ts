@@ -8,16 +8,10 @@
  * 3. 发出 AgentEvent 供 TUI 层消费
  * 4. 处理取消/重试/用户输入/审批
  */
-import type {
-  LLMProvider,
-  StreamParams,
-  StreamDelta,
-  SystemPromptBlock,
-  ToolDefinition,
-} from "@flitter/llm";
-import type { Config, Settings, Message, ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject, Subject } from "@flitter/util";
+import type { LLMProvider, StreamDelta, StreamParams, SystemPromptBlock } from "@flitter/llm";
+import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
+import { BehaviorSubject, Subject } from "@flitter/util";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
@@ -186,8 +180,8 @@ export class ThreadWorker {
         type: "inference:complete",
         usage: lastDelta?.usage
           ? {
-              inputTokens: (lastDelta.usage as Record<string, number>).inputTokens ?? 0,
-              outputTokens: (lastDelta.usage as Record<string, number>).outputTokens ?? 0,
+              inputTokens: (lastDelta.usage as unknown as Record<string, number>).inputTokens ?? 0,
+              outputTokens: (lastDelta.usage as unknown as Record<string, number>).outputTokens ?? 0,
             }
           : undefined,
       });
@@ -252,10 +246,7 @@ export class ThreadWorker {
   /**
    * 用户响应工具审批请求
    */
-  async userRespondToApproval(
-    toolUseId: string,
-    response: ToolApprovalResponse,
-  ): Promise<void> {
+  async userRespondToApproval(toolUseId: string, response: ToolApprovalResponse): Promise<void> {
     void toolUseId;
     void response;
     // Placeholder — requires PermissionEngine approval flow integration
@@ -310,15 +301,15 @@ export class ThreadWorker {
 
     if (last && last.role === "assistant") {
       // 更新已有 assistant 消息
-      (last as any).content = content;
+      (last as Message & { role: "assistant" }).content = content as AssistantContentBlock[];
     } else {
       // 追加新 assistant 消息
-      messages.push({
+      (messages as unknown[]).push({
         role: "assistant",
-        content: content as any,
+        content: content as AssistantContentBlock[],
         messageId: snapshot.nextMessageId ?? messages.length,
         state: { type: "streaming" },
-      } as any);
+      });
     }
 
     this.opts.updateThreadSnapshot({ ...snapshot, messages });

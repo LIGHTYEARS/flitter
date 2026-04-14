@@ -13,20 +13,17 @@
  * @module
  */
 
-import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { afterEach, beforeEach, describe, it } from "node:test";
 
 import { BuildOwner } from "./build-owner.js";
-import { PipelineOwner } from "./pipeline-owner.js";
-import { FrameScheduler } from "./frame-scheduler.js";
-import type { FramePhase } from "./frame-scheduler.js";
+import type { Key, Widget } from "./element.js";
 import { Element } from "./element.js";
-import type { Widget, Key } from "./element.js";
+import { FrameScheduler } from "./frame-scheduler.js";
+import { PipelineOwner } from "./pipeline-owner.js";
 import { RenderBox } from "./render-box.js";
-import { BoxConstraints } from "./constraints.js";
-import type { Size } from "./constraints.js";
+import type { PipelineOwnerLike } from "./types.js";
 import { setBuildOwner, setPipelineOwner } from "./types.js";
-import type { BuildOwnerLike, PipelineOwnerLike } from "./types.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -388,9 +385,13 @@ describe("FrameScheduler", () => {
   it("addFrameCallback 注册回调到正确阶段", () => {
     let paintRan = false;
 
-    scheduler.addFrameCallback("paint-only", () => {
-      paintRan = true;
-    }, "paint");
+    scheduler.addFrameCallback(
+      "paint-only",
+      () => {
+        paintRan = true;
+      },
+      "paint",
+    );
 
     scheduler.executeFrame();
 
@@ -401,9 +402,13 @@ describe("FrameScheduler", () => {
   it("removeFrameCallback 移除回调", () => {
     let callCount = 0;
 
-    scheduler.addFrameCallback("removable", () => {
-      callCount++;
-    }, "build");
+    scheduler.addFrameCallback(
+      "removable",
+      () => {
+        callCount++;
+      },
+      "build",
+    );
 
     scheduler.removeFrameCallback("removable");
 
@@ -462,10 +467,14 @@ describe("FrameScheduler", () => {
   it("requestFrame 在帧执行中标记 scheduled", () => {
     let requestedDuringFrame = false;
 
-    scheduler.addFrameCallback("during-frame", () => {
-      scheduler.requestFrame();
-      requestedDuringFrame = true;
-    }, "build");
+    scheduler.addFrameCallback(
+      "during-frame",
+      () => {
+        scheduler.requestFrame();
+        requestedDuringFrame = true;
+      },
+      "build",
+    );
 
     // executeFrame 应正常完成，不会重入执行
     scheduler.executeFrame();
@@ -478,13 +487,17 @@ describe("FrameScheduler", () => {
   it("帧完成后 scheduled 触发新帧", () => {
     let buildRunCount = 0;
 
-    scheduler.addFrameCallback("build-counter", () => {
-      buildRunCount++;
-      // 第一帧中请求新帧
-      if (buildRunCount === 1) {
-        scheduler.requestFrame();
-      }
-    }, "build");
+    scheduler.addFrameCallback(
+      "build-counter",
+      () => {
+        buildRunCount++;
+        // 第一帧中请求新帧
+        if (buildRunCount === 1) {
+          scheduler.requestFrame();
+        }
+      },
+      "build",
+    );
 
     scheduler.executeFrame();
 
@@ -530,9 +543,13 @@ describe("集成测试 — FrameScheduler + BuildOwner + PipelineOwner", () => {
     assert.equal(element.rebuildCount, 1);
 
     // 将 buildScopes 注册为 build 阶段回调
-    scheduler.addFrameCallback("build-phase", () => {
-      buildOwner.buildScopes();
-    }, "build");
+    scheduler.addFrameCallback(
+      "build-phase",
+      () => {
+        buildOwner.buildScopes();
+      },
+      "build",
+    );
 
     // 将 buildOwner 的 onNeedFrame 连接到 scheduler.requestFrame
     buildOwner.setOnNeedFrame(() => {
@@ -585,20 +602,32 @@ describe("集成测试 — FrameScheduler + BuildOwner + PipelineOwner", () => {
     pipelineOwner.updateRootConstraints({ width: 80, height: 24 });
 
     // 注册各阶段回调
-    scheduler.addFrameCallback("build", () => {
-      phaseOrder.push("build");
-      buildOwner.buildScopes();
-    }, "build");
+    scheduler.addFrameCallback(
+      "build",
+      () => {
+        phaseOrder.push("build");
+        buildOwner.buildScopes();
+      },
+      "build",
+    );
 
-    scheduler.addFrameCallback("layout", () => {
-      phaseOrder.push("layout");
-      pipelineOwner.flushLayout();
-    }, "layout");
+    scheduler.addFrameCallback(
+      "layout",
+      () => {
+        phaseOrder.push("layout");
+        pipelineOwner.flushLayout();
+      },
+      "layout",
+    );
 
-    scheduler.addFrameCallback("paint", () => {
-      phaseOrder.push("paint");
-      pipelineOwner.flushPaint();
-    }, "paint");
+    scheduler.addFrameCallback(
+      "paint",
+      () => {
+        phaseOrder.push("paint");
+        pipelineOwner.flushPaint();
+      },
+      "paint",
+    );
 
     scheduler.executeFrame();
 

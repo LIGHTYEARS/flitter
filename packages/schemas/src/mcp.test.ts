@@ -1,35 +1,27 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { z } from "zod";
 
 import {
-  JSONRPCRequestSchema,
-  JSONRPCSuccessResponseSchema,
+  GuidanceFileSchema,
+  GuidanceFileTypeSchema,
+  JSONRPCErrorCodeSchema,
   JSONRPCErrorResponseSchema,
   JSONRPCNotificationSchema,
+  JSONRPCRequestSchema,
   JSONRPCResponseSchema,
-  JSONRPCErrorCodeSchema,
+  JSONRPCSuccessResponseSchema,
+  type MCPCommandServerSpec,
+  MCPCommandServerSpecSchema,
   MCPConnectionErrorCodeSchema,
   MCPConnectionErrorSchema,
-  MCPConnectingSchema,
-  MCPAuthenticatingSchema,
-  MCPReconnectingSchema,
-  MCPConnectedSchema,
-  MCPDeniedSchema,
-  MCPAwaitingApprovalSchema,
-  MCPFailedSchema,
-  MCPBlockedByRegistrySchema,
   MCPConnectionStatusSchema,
-  MCPCommandServerSpecSchema,
-  MCPURLServerSpecSchema,
   MCPServerSpecSchema,
-  MCPTransportTypeSchema,
-  MCPToolSpecSchema,
-  MCPToolTextContentSchema,
-  MCPToolImageContentSchema,
   MCPToolContentSchema,
-  GuidanceFileTypeSchema,
-  GuidanceFileSchema,
+  MCPToolSpecSchema,
+  MCPTransportTypeSchema,
+  type MCPURLServerSpec,
+  MCPURLServerSpecSchema,
   SkillFrontmatterSchema,
   SkillSchema,
 } from "./mcp";
@@ -154,7 +146,7 @@ describe("JSONRPCResponseSchema", () => {
   it("parses a success response through the union", () => {
     const input = { jsonrpc: "2.0", id: 1, result: "ok" };
     const result = JSONRPCResponseSchema.parse(input);
-    assert.equal((result as any).result, "ok");
+    assert.equal((result as unknown as { result: unknown }).result, "ok");
   });
 
   it("parses an error response through the error schema directly", () => {
@@ -248,8 +240,8 @@ describe("MCPConnectionStatusSchema", () => {
     const input = { type: "reconnecting", attempt: 3, nextRetryMs: 5000 };
     const result = MCPConnectionStatusSchema.parse(input);
     assert.equal(result.type, "reconnecting");
-    assert.equal((result as any).attempt, 3);
-    assert.equal((result as any).nextRetryMs, 5000);
+    assert.equal((result as unknown as { attempt: number }).attempt, 3);
+    assert.equal((result as unknown as { nextRetryMs: number }).nextRetryMs, 5000);
   });
 
   it("parses 'connected' status with capabilities and serverInfo", () => {
@@ -260,7 +252,10 @@ describe("MCPConnectionStatusSchema", () => {
     };
     const result = MCPConnectionStatusSchema.parse(input);
     assert.equal(result.type, "connected");
-    assert.deepEqual((result as any).capabilities, { tools: true });
+    assert.deepEqual(
+      (result as unknown as { capabilities: Record<string, unknown> }).capabilities,
+      { tools: true },
+    );
   });
 
   it("parses 'denied' status", () => {
@@ -282,7 +277,7 @@ describe("MCPConnectionStatusSchema", () => {
     };
     const result = MCPConnectionStatusSchema.parse(input);
     assert.equal(result.type, "failed");
-    assert.equal((result as any).error.code, "network");
+    assert.equal((result as unknown as { error: { code: string } }).error.code, "network");
   });
 
   it("parses 'blocked-by-registry' status with registryUrl", () => {
@@ -292,13 +287,14 @@ describe("MCPConnectionStatusSchema", () => {
     };
     const result = MCPConnectionStatusSchema.parse(input);
     assert.equal(result.type, "blocked-by-registry");
-    assert.equal((result as any).registryUrl, "https://registry.example.com");
+    assert.equal(
+      (result as unknown as { registryUrl: string }).registryUrl,
+      "https://registry.example.com",
+    );
   });
 
   it("rejects unknown connection status type", () => {
-    assert.throws(() =>
-      MCPConnectionStatusSchema.parse({ type: "disconnected" }),
-    );
+    assert.throws(() => MCPConnectionStatusSchema.parse({ type: "disconnected" }));
   });
 });
 
@@ -360,13 +356,13 @@ describe("MCPServerSpecSchema", () => {
   it("parses a command variant", () => {
     const input = { command: "python", args: ["-m", "server"] };
     const result = MCPServerSpecSchema.parse(input);
-    assert.equal((result as any).command, "python");
+    assert.equal((result as unknown as MCPCommandServerSpec).command, "python");
   });
 
   it("parses a URL variant", () => {
     const input = { url: "http://localhost:8080" };
     const result = MCPServerSpecSchema.parse(input);
-    assert.equal((result as any).url, "http://localhost:8080");
+    assert.equal((result as unknown as MCPURLServerSpec).url, "http://localhost:8080");
   });
 });
 
@@ -440,7 +436,7 @@ describe("MCPToolContentSchema", () => {
     const input = { type: "text", text: "Hello, world!" };
     const result = MCPToolContentSchema.parse(input);
     assert.equal(result.type, "text");
-    assert.equal((result as any).text, "Hello, world!");
+    assert.equal((result as unknown as { text: string }).text, "Hello, world!");
   });
 
   it("parses image content", () => {
@@ -451,27 +447,19 @@ describe("MCPToolContentSchema", () => {
     };
     const result = MCPToolContentSchema.parse(input);
     assert.equal(result.type, "image");
-    assert.equal((result as any).data, "iVBORw0KGgo=");
-    assert.equal((result as any).mimeType, "image/png");
+    assert.equal((result as unknown as { data: string }).data, "iVBORw0KGgo=");
+    assert.equal((result as unknown as { mimeType: string }).mimeType, "image/png");
   });
 
   it("rejects unknown content type", () => {
-    assert.throws(() =>
-      MCPToolContentSchema.parse({ type: "audio", data: "abc" }),
-    );
+    assert.throws(() => MCPToolContentSchema.parse({ type: "audio", data: "abc" }));
   });
 });
 
 // ─── 15. GuidanceFile ─────────────────────────────────────
 
 describe("GuidanceFileSchema", () => {
-  const allTypes = [
-    "project",
-    "user",
-    "parent",
-    "subtree",
-    "mentioned",
-  ] as const;
+  const allTypes = ["project", "user", "parent", "subtree", "mentioned"] as const;
 
   it("accepts all 5 guidance file types", () => {
     for (const t of allTypes) {
@@ -580,7 +568,10 @@ describe("SkillSchema", () => {
     assert.deepEqual(result.builtinTools, ["Bash", "Read", "Write"]);
     assert.deepEqual(result.files, ["scripts/main.py", "templates/doc.md"]);
     assert.ok(result.mcpServers);
-    assert.equal((result.mcpServers!.lark as any).url, "https://lark-mcp.example.com");
+    assert.equal(
+      (result.mcpServers!.lark as unknown as MCPURLServerSpec).url,
+      "https://lark-mcp.example.com",
+    );
   });
 
   it("parses a minimal skill without optional fields", () => {
@@ -614,7 +605,7 @@ describe("SkillSchema", () => {
       },
     };
     const result = SkillSchema.parse(input);
-    const server = result.mcpServers!.local as any;
+    const server = result.mcpServers!.local as unknown as MCPCommandServerSpec;
     assert.equal(server.command, "node");
     assert.deepEqual(server.args, ["index.js"]);
   });
@@ -624,21 +615,15 @@ describe("SkillSchema", () => {
 
 describe("Reject invalid data", () => {
   it("rejects request with jsonrpc version 1.0", () => {
-    assert.throws(() =>
-      JSONRPCRequestSchema.parse({ jsonrpc: "1.0", id: 1, method: "x" }),
-    );
+    assert.throws(() => JSONRPCRequestSchema.parse({ jsonrpc: "1.0", id: 1, method: "x" }));
   });
 
   it("rejects request missing method field", () => {
-    assert.throws(() =>
-      JSONRPCRequestSchema.parse({ jsonrpc: "2.0", id: 1 }),
-    );
+    assert.throws(() => JSONRPCRequestSchema.parse({ jsonrpc: "2.0", id: 1 }));
   });
 
   it("rejects MCPConnectionStatus with invalid type", () => {
-    assert.throws(() =>
-      MCPConnectionStatusSchema.parse({ type: "unknown-status" }),
-    );
+    assert.throws(() => MCPConnectionStatusSchema.parse({ type: "unknown-status" }));
   });
 
   it("rejects MCPConnectionError with invalid code", () => {
@@ -672,40 +657,40 @@ describe("JSON Schema conversion", () => {
     const jsonSchema = z.toJSONSchema(JSONRPCRequestSchema);
     assert.equal(jsonSchema.type, "object");
     assert.ok(jsonSchema.properties);
-    assert.ok((jsonSchema.properties as any).jsonrpc);
-    assert.ok((jsonSchema.properties as any).method);
-    assert.ok((jsonSchema.properties as any).id);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).jsonrpc);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).method);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).id);
   });
 
   it("converts MCPToolSpecSchema to JSON Schema", () => {
     const jsonSchema = z.toJSONSchema(MCPToolSpecSchema);
     assert.equal(jsonSchema.type, "object");
-    assert.ok((jsonSchema.properties as any).name);
-    assert.ok((jsonSchema.properties as any).description);
-    assert.ok((jsonSchema.properties as any).inputSchema);
-    assert.ok((jsonSchema.properties as any).source);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).name);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).description);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).inputSchema);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).source);
   });
 
   it("converts GuidanceFileSchema to JSON Schema", () => {
     const jsonSchema = z.toJSONSchema(GuidanceFileSchema);
     assert.equal(jsonSchema.type, "object");
-    assert.ok((jsonSchema.properties as any).uri);
-    assert.ok((jsonSchema.properties as any).content);
-    assert.ok((jsonSchema.properties as any).type);
-    assert.ok((jsonSchema.properties as any).priority);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).uri);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).content);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).type);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).priority);
   });
 
   it("converts SkillFrontmatterSchema to JSON Schema", () => {
     const jsonSchema = z.toJSONSchema(SkillFrontmatterSchema);
     assert.equal(jsonSchema.type, "object");
-    assert.ok((jsonSchema.properties as any).name);
-    assert.ok((jsonSchema.properties as any).description);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).name);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).description);
   });
 
   it("converts MCPConnectionErrorSchema to JSON Schema", () => {
     const jsonSchema = z.toJSONSchema(MCPConnectionErrorSchema);
     assert.equal(jsonSchema.type, "object");
-    assert.ok((jsonSchema.properties as any).code);
-    assert.ok((jsonSchema.properties as any).message);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).code);
+    assert.ok((jsonSchema.properties as Record<string, unknown>).message);
   });
 });

@@ -7,14 +7,14 @@
  * @module
  */
 
-import { RenderBox } from "../tree/render-box.js";
 import { BoxConstraints } from "../tree/constraints.js";
+import type { Element, Widget as WidgetInterface } from "../tree/element.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { RenderObject } from "../tree/render-object.js";
+import type { RenderObjectWidget } from "../tree/render-object-element.js";
+import type { Key } from "../tree/widget.js";
 import { Widget } from "../tree/widget.js";
 import { SingleChildRenderObjectElement } from "./padding.js";
-import type { RenderObjectWidget } from "../tree/render-object-element.js";
-import type { Element, Widget as WidgetInterface } from "../tree/element.js";
-import type { RenderObject } from "../tree/render-object.js";
-import type { Key } from "../tree/widget.js";
 
 // ════════════════════════════════════════════════════
 //  RenderSizedBox
@@ -104,18 +104,22 @@ export class RenderSizedBox extends RenderBox {
 
     // 构建子约束
     const childConstraints = new BoxConstraints({
-      minWidth: this._requestedWidth !== undefined
-        ? constraints.constrain(this._requestedWidth, 0).width
-        : constraints.minWidth,
-      maxWidth: this._requestedWidth !== undefined
-        ? constraints.constrain(this._requestedWidth, 0).width
-        : constraints.maxWidth,
-      minHeight: this._requestedHeight !== undefined
-        ? constraints.constrain(0, this._requestedHeight).height
-        : constraints.minHeight,
-      maxHeight: this._requestedHeight !== undefined
-        ? constraints.constrain(0, this._requestedHeight).height
-        : constraints.maxHeight,
+      minWidth:
+        this._requestedWidth !== undefined
+          ? constraints.constrain(this._requestedWidth, 0).width
+          : constraints.minWidth,
+      maxWidth:
+        this._requestedWidth !== undefined
+          ? constraints.constrain(this._requestedWidth, 0).width
+          : constraints.maxWidth,
+      minHeight:
+        this._requestedHeight !== undefined
+          ? constraints.constrain(0, this._requestedHeight).height
+          : constraints.minHeight,
+      maxHeight:
+        this._requestedHeight !== undefined
+          ? constraints.constrain(0, this._requestedHeight).height
+          : constraints.maxHeight,
     });
 
     if (this._children.length > 0) {
@@ -124,10 +128,7 @@ export class RenderSizedBox extends RenderBox {
       this.size = child.size;
       child.offset = { x: 0, y: 0 };
     } else {
-      this.size = constraints.constrain(
-        this._requestedWidth ?? 0,
-        this._requestedHeight ?? 0,
-      );
+      this.size = constraints.constrain(this._requestedWidth ?? 0, this._requestedHeight ?? 0);
     }
   }
 }

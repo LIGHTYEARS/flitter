@@ -163,7 +163,7 @@ export class SelectionArea {
 
     this.setSelection(
       { selectableId: first.id, offset: 0 },
-      { selectableId: last.id, offset: last.getText().length }
+      { selectableId: last.id, offset: last.getText().length },
     );
   }
 
@@ -383,7 +383,7 @@ export class SelectionArea {
    */
   private _normalizeSelection(
     anchor: SelectionPosition,
-    extent: SelectionPosition
+    extent: SelectionPosition,
   ): [SelectionPosition, SelectionPosition] {
     const cmp = this.comparePositions(anchor, extent);
     if (cmp <= 0) {

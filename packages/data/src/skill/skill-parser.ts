@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import type { SkillFrontmatter, Skill, SkillFile } from "./skill-types.ts";
+import type { Skill, SkillFile, SkillFrontmatter } from "./skill-types.ts";
 
 // ---------------------------------------------------------------------------
 // Simple YAML parser (no js-yaml dependency)
@@ -264,9 +264,7 @@ export function loadSkill(dir: string): Skill {
   }
 
   if (!skillMdPath) {
-    throw new Error(
-      `No SKILL.md found in ${dir} (looked for SKILL.md and skill.md)`,
-    );
+    throw new Error(`No SKILL.md found in ${dir} (looked for SKILL.md and skill.md)`);
   }
 
   const content = fs.readFileSync(skillMdPath, "utf-8");
@@ -295,10 +293,7 @@ export function loadSkill(dir: string): Skill {
  * Skip symlinks, hidden files (starting with .), node_modules
  * Returns relative paths
  */
-export function scanSkillFiles(
-  baseDir: string,
-  subDir?: string,
-): SkillFile[] {
+export function scanSkillFiles(baseDir: string, subDir?: string): SkillFile[] {
   const currentDir = subDir ? path.join(baseDir, subDir) : baseDir;
   const files: SkillFile[] = [];
 
@@ -315,9 +310,7 @@ export function scanSkillFiles(
     // Skip node_modules
     if (entry.name === "node_modules") continue;
 
-    const relativePath = subDir
-      ? path.join(subDir, entry.name)
-      : entry.name;
+    const relativePath = subDir ? path.join(subDir, entry.name) : entry.name;
     const fullPath = path.join(baseDir, relativePath);
 
     // Skip symlinks
@@ -335,10 +328,7 @@ export function scanSkillFiles(
           size: lstat.size,
         });
       }
-    } catch {
-      // Skip entries that can't be stat'd
-      continue;
-    }
+    } catch {}
   }
 
   return files;

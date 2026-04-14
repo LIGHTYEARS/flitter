@@ -10,11 +10,7 @@ import { MODEL_REGISTRY } from "../types";
  *
  * Cost data is per 1M tokens. Returns 0 if model has no cost info.
  */
-export function calculateCost(
-  model: string,
-  inputTokens: number,
-  outputTokens: number,
-): number {
+export function calculateCost(model: string, inputTokens: number, outputTokens: number): number {
   const info = MODEL_REGISTRY[model];
   if (!info?.cost) return 0;
 

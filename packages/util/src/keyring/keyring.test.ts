@@ -1,14 +1,9 @@
-import { describe, it, after } from "node:test";
 import assert from "node:assert/strict";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import * as os from "node:os";
-import {
-  FileSecretStore,
-  NativeSecretStore,
-  createSecretStore,
-  type SecretStore,
-} from "./keyring.ts";
+import * as path from "node:path";
+import { after, describe, it } from "node:test";
+import { createSecretStore, FileSecretStore, NativeSecretStore } from "./keyring.ts";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -74,9 +69,7 @@ describe("FileSecretStore", () => {
     try {
       const store = fileStore(tmpDir);
       await store.set("mykey", "myval", "https://api.example.com/path");
-      const raw = JSON.parse(
-        fs.readFileSync(path.join(tmpDir, "secrets.json"), "utf-8"),
-      );
+      const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, "secrets.json"), "utf-8"));
       assert.ok("mykey@https://api.example.com/path" in raw);
       assert.equal(raw["mykey@https://api.example.com/path"], "myval");
     } finally {
@@ -128,10 +121,7 @@ describe("FileSecretStore", () => {
       await store.set("token", "tok_val", "https://example.com");
       await store.set("refresh", "ref_val", "https://example.com");
       assert.equal(await store.get("token", "https://example.com"), "tok_val");
-      assert.equal(
-        await store.get("refresh", "https://example.com"),
-        "ref_val",
-      );
+      assert.equal(await store.get("refresh", "https://example.com"), "ref_val");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -184,9 +174,7 @@ describe("FileSecretStore", () => {
     tmpDir = makeTmpDir();
     try {
       const nestedDir = path.join(tmpDir, "deep", "nested");
-      const store = new FileSecretStore(
-        path.join(nestedDir, "secrets.json"),
-      );
+      const store = new FileSecretStore(path.join(nestedDir, "secrets.json"));
       // get should return undefined, not throw
       const val = await store.get("k", "https://example.com");
       assert.equal(val, undefined);
@@ -222,14 +210,10 @@ describe("FileSecretStore", () => {
       const store = fileStore(tmpDir);
       // Write 5 different keys concurrently
       await Promise.all(
-        Array.from({ length: 5 }, (_, i) =>
-          store.set(`key${i}`, `val${i}`, "https://example.com"),
-        ),
+        Array.from({ length: 5 }, (_, i) => store.set(`key${i}`, `val${i}`, "https://example.com")),
       );
       // The file should be valid JSON and contain at least one of the keys
-      const raw = JSON.parse(
-        fs.readFileSync(path.join(tmpDir, "secrets.json"), "utf-8"),
-      );
+      const raw = JSON.parse(fs.readFileSync(path.join(tmpDir, "secrets.json"), "utf-8"));
       assert.equal(typeof raw, "object");
       // Due to last-writer-wins, at least the file should not be corrupt
       // and we can read all keys that are present back correctly

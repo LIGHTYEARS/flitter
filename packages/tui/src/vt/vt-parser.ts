@@ -22,14 +22,14 @@
  */
 
 import type {
-  VtEvent,
-  VtPrintEvent,
-  VtCsiEvent,
-  VtEscapeEvent,
-  VtOscEvent,
-  VtDcsEvent,
-  VtApcEvent,
   CsiParam,
+  VtApcEvent,
+  VtCsiEvent,
+  VtDcsEvent,
+  VtEscapeEvent,
+  VtEvent,
+  VtOscEvent,
+  VtPrintEvent,
 } from "./types.js";
 
 // ════════════════════════════════════════════════════

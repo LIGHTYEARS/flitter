@@ -7,11 +7,10 @@
  * @module
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { Screen } from "../screen/screen.js";
 import { FrameStatsOverlay } from "./frame-stats-overlay.js";
 import { PerformanceTracker } from "./performance-tracker.js";
-import { Screen } from "../screen/screen.js";
-import { Cell } from "../screen/cell.js";
 
 describe("FrameStatsOverlay", () => {
   let overlay: FrameStatsOverlay;

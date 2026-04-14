@@ -1,15 +1,15 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  Observable,
-  Subject,
   BehaviorSubject,
   DisposableCollection,
-  ObservableSet,
-  ObservableMap,
-  map,
-  filter,
   distinctUntilChanged,
+  filter,
+  map,
+  Observable,
+  ObservableMap,
+  ObservableSet,
+  Subject,
 } from "./index";
 
 // ─── DisposableCollection ──────────────────────────────────────────────────
@@ -18,7 +18,11 @@ describe("DisposableCollection", () => {
   it("should call dispose on IDisposable items", () => {
     const collection = new DisposableCollection();
     let disposed = false;
-    collection.add({ dispose: () => { disposed = true; } });
+    collection.add({
+      dispose: () => {
+        disposed = true;
+      },
+    });
     assert.equal(disposed, false);
     collection.dispose();
     assert.equal(disposed, true);
@@ -27,7 +31,9 @@ describe("DisposableCollection", () => {
   it("should call function disposables", () => {
     const collection = new DisposableCollection();
     let called = false;
-    collection.add(() => { called = true; });
+    collection.add(() => {
+      called = true;
+    });
     collection.dispose();
     assert.equal(called, true);
   });
@@ -42,7 +48,9 @@ describe("DisposableCollection", () => {
   it("should be idempotent — second dispose is a no-op", () => {
     const collection = new DisposableCollection();
     let count = 0;
-    collection.add(() => { count++; });
+    collection.add(() => {
+      count++;
+    });
     collection.dispose();
     collection.dispose();
     assert.equal(count, 1);
@@ -52,7 +60,9 @@ describe("DisposableCollection", () => {
     const collection = new DisposableCollection();
     collection.dispose();
     let called = false;
-    collection.add(() => { called = true; });
+    collection.add(() => {
+      called = true;
+    });
     assert.equal(called, true);
   });
 
@@ -60,7 +70,11 @@ describe("DisposableCollection", () => {
     const collection = new DisposableCollection();
     collection.dispose();
     let disposed = false;
-    collection.add({ dispose: () => { disposed = true; } });
+    collection.add({
+      dispose: () => {
+        disposed = true;
+      },
+    });
     assert.equal(disposed, true);
   });
 
@@ -98,13 +112,17 @@ describe("Observable", () => {
     const obs = new Observable<number>((observer) => {
       observer.complete();
     });
-    obs.subscribe({ complete: () => { completed = true; } });
+    obs.subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
     assert.equal(completed, true);
   });
 
   it("should stop delivering values after unsubscribe", () => {
     const values: number[] = [];
-    const obs = new Observable<number>((observer) => {
+    const _obs = new Observable<number>((observer) => {
       observer.next(1);
       observer.next(2);
       // We'll unsubscribe after first value via external control
@@ -114,7 +132,9 @@ describe("Observable", () => {
     let emitter: ((v: number) => void) | undefined;
     const obs2 = new Observable<number>((observer) => {
       emitter = (v) => observer.next(v);
-      return () => { emitter = undefined; };
+      return () => {
+        emitter = undefined;
+      };
     });
     const sub = obs2.subscribe((v) => values.push(v));
     emitter!(10);
@@ -132,20 +152,18 @@ describe("Observable", () => {
   });
 
   it("should set closed flag after complete", () => {
-    let sub: any;
     const obs = new Observable<number>((observer) => {
       observer.complete();
     });
-    sub = obs.subscribe({ complete: () => {} });
+    const sub = obs.subscribe({ complete: () => {} });
     assert.equal(sub.closed, true);
   });
 
   it("should set closed flag after error", () => {
-    let sub: any;
     const obs = new Observable<number>((observer) => {
       observer.error(new Error("test"));
     });
-    sub = obs.subscribe({ error: () => {} });
+    const sub = obs.subscribe({ error: () => {} });
     assert.equal(sub.closed, true);
   });
 
@@ -165,7 +183,11 @@ describe("Observable", () => {
     const obs = new Observable<never>((observer) => {
       observer.complete();
     });
-    obs.subscribe({ complete: () => { completed = true; } });
+    obs.subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
     assert.equal(completed, true);
   });
 });
@@ -176,7 +198,9 @@ describe("Observable.of", () => {
     let completed = false;
     Observable.of(1, 2, 3).subscribe({
       next: (v) => values.push(v),
-      complete: () => { completed = true; },
+      complete: () => {
+        completed = true;
+      },
     });
     assert.deepEqual(values, [1, 2, 3]);
     assert.equal(completed, true);
@@ -185,7 +209,9 @@ describe("Observable.of", () => {
   it("should work with zero values", () => {
     let completed = false;
     Observable.of().subscribe({
-      complete: () => { completed = true; },
+      complete: () => {
+        completed = true;
+      },
     });
     assert.equal(completed, true);
   });
@@ -197,7 +223,9 @@ describe("Observable.from", () => {
     let completed = false;
     Observable.from([10, 20, 30]).subscribe({
       next: (v) => values.push(v),
-      complete: () => { completed = true; },
+      complete: () => {
+        completed = true;
+      },
     });
     assert.deepEqual(values, [10, 20, 30]);
     assert.equal(completed, true);
@@ -216,7 +244,9 @@ describe("Observable.from", () => {
     let completed = false;
     Observable.from(Promise.resolve(42)).subscribe({
       next: (v) => values.push(v),
-      complete: () => { completed = true; },
+      complete: () => {
+        completed = true;
+      },
     });
     // Wait for promise microtask
     await new Promise((r) => setTimeout(r, 10));
@@ -232,7 +262,7 @@ describe("Observable.from", () => {
 
   it("should throw on unsupported input", () => {
     assert.throws(() => {
-      Observable.from(42 as any);
+      Observable.from(42 as unknown as Iterable<number>);
     }, /unsupported input type/);
   });
 });
@@ -285,7 +315,11 @@ describe("Subject", () => {
   it("should terminate observers on error", () => {
     const subject = new Subject<number>();
     let receivedError: unknown;
-    subject.subscribe({ error: (e) => { receivedError = e; } });
+    subject.subscribe({
+      error: (e) => {
+        receivedError = e;
+      },
+    });
     subject.error("boom");
     assert.equal(receivedError, "boom");
   });
@@ -323,7 +357,11 @@ describe("Subject", () => {
     const subject = new Subject<number>();
     subject.complete();
     let completed = false;
-    subject.subscribe({ complete: () => { completed = true; } });
+    subject.subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
     assert.equal(completed, true);
   });
 
@@ -331,7 +369,11 @@ describe("Subject", () => {
     const subject = new Subject<number>();
     subject.error("boom");
     let receivedError: unknown;
-    subject.subscribe({ error: (e) => { receivedError = e; } });
+    subject.subscribe({
+      error: (e) => {
+        receivedError = e;
+      },
+    });
     assert.equal(receivedError, "boom");
   });
 
@@ -389,7 +431,9 @@ describe("BehaviorSubject", () => {
     let completed = false;
     subject.subscribe({
       next: (v) => values.push(v),
-      complete: () => { completed = true; },
+      complete: () => {
+        completed = true;
+      },
     });
     // Should not receive the value since subject is completed
     assert.deepEqual(values, []);
@@ -412,7 +456,9 @@ describe("ObservableSet", () => {
   it("should emit current set to new subscriber", () => {
     const set = new ObservableSet([1, 2, 3]);
     let received: ReadonlySet<number> | undefined;
-    set.observable.subscribe((v) => { received = v; });
+    set.observable.subscribe((v) => {
+      received = v;
+    });
     assert.ok(received);
     assert.deepEqual([...received!], [1, 2, 3]);
   });
@@ -471,7 +517,11 @@ describe("ObservableSet", () => {
   it("should complete observable on dispose", () => {
     const set = new ObservableSet([1]);
     let completed = false;
-    set.observable.subscribe({ complete: () => { completed = true; } });
+    set.observable.subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
     set.dispose();
     assert.equal(completed, true);
   });
@@ -481,9 +531,14 @@ describe("ObservableSet", () => {
 
 describe("ObservableMap", () => {
   it("should emit current map to new subscriber", () => {
-    const m = new ObservableMap<string, number>([["a", 1], ["b", 2]]);
+    const m = new ObservableMap<string, number>([
+      ["a", 1],
+      ["b", 2],
+    ]);
     let received: ReadonlyMap<string, number> | undefined;
-    m.observable.subscribe((v) => { received = v; });
+    m.observable.subscribe((v) => {
+      received = v;
+    });
     assert.ok(received);
     assert.equal(received!.get("a"), 1);
     assert.equal(received!.get("b"), 2);
@@ -507,7 +562,10 @@ describe("ObservableMap", () => {
   });
 
   it("should emit on delete", () => {
-    const m = new ObservableMap<string, number>([["a", 1], ["b", 2]]);
+    const m = new ObservableMap<string, number>([
+      ["a", 1],
+      ["b", 2],
+    ]);
     const snapshots: [string, number][][] = [];
     m.observable.subscribe((v) => snapshots.push([...v]));
     m.delete("a");
@@ -542,7 +600,11 @@ describe("ObservableMap", () => {
   it("should complete observable on dispose", () => {
     const m = new ObservableMap<string, number>();
     let completed = false;
-    m.observable.subscribe({ complete: () => { completed = true; } });
+    m.observable.subscribe({
+      complete: () => {
+        completed = true;
+      },
+    });
     m.dispose();
     assert.equal(completed, true);
   });
@@ -563,7 +625,11 @@ describe("map operator", () => {
     let completed = false;
     Observable.of(1)
       .pipe(map((x) => x))
-      .subscribe({ complete: () => { completed = true; } });
+      .subscribe({
+        complete: () => {
+          completed = true;
+        },
+      });
     assert.equal(completed, true);
   });
 
@@ -572,7 +638,11 @@ describe("map operator", () => {
     const obs = new Observable<number>((observer) => {
       observer.error("fail");
     });
-    obs.pipe(map((x) => x)).subscribe({ error: (e) => { receivedError = e; } });
+    obs.pipe(map((x) => x)).subscribe({
+      error: (e) => {
+        receivedError = e;
+      },
+    });
     assert.equal(receivedError, "fail");
   });
 });
@@ -600,7 +670,11 @@ describe("filter operator", () => {
     let completed = false;
     Observable.of(1)
       .pipe(filter(() => false))
-      .subscribe({ complete: () => { completed = true; } });
+      .subscribe({
+        complete: () => {
+          completed = true;
+        },
+      });
     assert.equal(completed, true);
   });
 });
@@ -658,9 +732,7 @@ describe("Composed: BehaviorSubject + pipe", () => {
   it("should work with distinctUntilChanged on Subject", () => {
     const subject = new Subject<string>();
     const values: string[] = [];
-    subject
-      .pipe(distinctUntilChanged())
-      .subscribe((v) => values.push(v));
+    subject.pipe(distinctUntilChanged()).subscribe((v) => values.push(v));
     subject.next("a");
     subject.next("a");
     subject.next("b");
@@ -696,7 +768,11 @@ describe("Edge cases", () => {
     const obs = new Observable<number>(() => {
       throw new Error("subscriber exploded");
     });
-    obs.subscribe({ error: (e) => { receivedError = e; } });
+    obs.subscribe({
+      error: (e) => {
+        receivedError = e;
+      },
+    });
     assert.ok(receivedError instanceof Error);
     assert.equal((receivedError as Error).message, "subscriber exploded");
   });
@@ -741,7 +817,9 @@ describe("Edge cases", () => {
   it("Observable teardown is called on unsubscribe", () => {
     let tornDown = false;
     const obs = new Observable<number>(() => {
-      return () => { tornDown = true; };
+      return () => {
+        tornDown = true;
+      };
     });
     const sub = obs.subscribe(() => {});
     assert.equal(tornDown, false);

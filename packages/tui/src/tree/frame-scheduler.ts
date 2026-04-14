@@ -126,7 +126,7 @@ export class FrameScheduler {
     id: string,
     callback: () => void,
     phase: FramePhase,
-    priority: number = 0
+    priority: number = 0,
   ): void {
     this._callbacks.set(id, { callback, phase, priority, name: id });
   }

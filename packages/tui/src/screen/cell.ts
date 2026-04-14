@@ -82,10 +82,6 @@ export class Cell {
    * ```
    */
   equals(other: Cell): boolean {
-    return (
-      this.char === other.char &&
-      this.width === other.width &&
-      this.style.equals(other.style)
-    );
+    return this.char === other.char && this.width === other.width && this.style.equals(other.style);
   }
 }

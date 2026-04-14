@@ -1,11 +1,11 @@
-import { describe, it } from "node:test";
 import * as assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import {
-  isCjk,
-  isZeroWidth,
+  charWidth,
   codePointWidth,
   graphemeSegments,
-  charWidth,
+  isCjk,
+  isZeroWidth,
   textWidth,
 } from "./char-width.js";
 

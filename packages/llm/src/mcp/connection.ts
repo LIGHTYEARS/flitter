@@ -10,22 +10,25 @@
  */
 
 import { BehaviorSubject } from "@flitter/util";
+import type { MCPAuthProvider } from "./auth/types";
+import { createNotification, McpError, RequestManager } from "./protocol";
 import type {
-  MCPTransport,
-  JSONRPCMessage,
-  JSONRPCNotification,
-  MCPTool,
-  MCPToolResult,
-  MCPResource,
-  MCPPrompt,
   ClientCapabilities,
-  ServerCapabilities,
   ImplementationInfo,
   InitializeResult,
+  JSONRPCErrorResponse,
+  JSONRPCMessage,
+  JSONRPCNotification,
+  JSONRPCSuccessResponse,
+  MCPPrompt,
+  MCPResource,
+  MCPTool,
+  MCPToolResult,
+  MCPTransport,
+  ProtocolVersion,
+  ServerCapabilities,
 } from "./types";
-import { Method, LATEST_PROTOCOL_VERSION, ErrorCode } from "./types";
-import { RequestManager, createNotification, McpError } from "./protocol";
-import type { MCPAuthProvider } from "./auth/types";
+import { ErrorCode, LATEST_PROTOCOL_VERSION, Method } from "./types";
 
 // ─── Constants ────────────────────────────────────────────
 
@@ -107,10 +110,7 @@ export class MCPClient {
    * Connect to an MCP server via the given transport.
    * Performs: transport.start() -> initialize handshake -> notifications/initialized
    */
-  async connect(
-    transport: MCPTransport,
-    options?: { timeout?: number },
-  ): Promise<void> {
+  async connect(transport: MCPTransport, options?: { timeout?: number }): Promise<void> {
     this._transport = transport;
     this._closed = false;
 
@@ -153,7 +153,7 @@ export class MCPClient {
 
     // Set protocol version on transport if supported
     if (transport.setProtocolVersion && result.protocolVersion) {
-      transport.setProtocolVersion(result.protocolVersion as any);
+      transport.setProtocolVersion(result.protocolVersion as ProtocolVersion);
     }
 
     // Send initialized notification
@@ -164,7 +164,7 @@ export class MCPClient {
   private _handleMessage(message: JSONRPCMessage): void {
     // Response (has id + result or error)
     if ("id" in message && ("result" in message || "error" in message)) {
-      this._requestManager.handleResponse(message as any);
+      this._requestManager.handleResponse(message as JSONRPCSuccessResponse | JSONRPCErrorResponse);
       return;
     }
 
@@ -191,11 +191,7 @@ export class MCPClient {
       throw new McpError(ErrorCode.ConnectionClosed, "Client is not connected");
     }
 
-    const { message, response } = this._requestManager.request(
-      method,
-      params,
-      options,
-    );
+    const { message, response } = this._requestManager.request(method, params, options);
     await this._transport.send(message);
     return response;
   }
@@ -237,10 +233,7 @@ export class MCPClient {
     return result;
   }
 
-  async readResource(
-    uri: string,
-    signal?: AbortSignal,
-  ): Promise<{ contents: unknown[] }> {
+  async readResource(uri: string, signal?: AbortSignal): Promise<{ contents: unknown[] }> {
     const result = (await this._request(
       Method.ResourcesRead,
       { uri },
@@ -384,9 +377,7 @@ export class MCPConnection {
 
     try {
       // Create client
-      const client = this._options.createClient
-        ? this._options.createClient()
-        : new MCPClient();
+      const client = this._options.createClient ? this._options.createClient() : new MCPClient();
 
       // Create transport
       const transport = this._options.createTransport
@@ -439,7 +430,7 @@ export class MCPConnection {
     }
   }
 
-  private _createTransport(spec: MCPServerSpec): MCPTransport {
+  private _createTransport(_spec: MCPServerSpec): MCPTransport {
     // Dynamic imports would be needed in production, but for now
     // we throw if no createTransport is provided and there's no way
     // to dynamically create transports
@@ -479,7 +470,7 @@ export class MCPConnection {
       const result = await client.listTools();
       this.tools$.next(result.tools);
       this.toolsLoaded$.next(true);
-    } catch (err) {
+    } catch (_err) {
       // Keep existing tools on error, but mark as loaded
       this.toolsLoaded$.next(true);
     }
@@ -533,8 +524,7 @@ export class MCPConnection {
 
     // Calculate delay with exponential backoff
     const delay = Math.min(
-      RECONNECT_CONFIG.initialDelayMs *
-        RECONNECT_CONFIG.backoffFactor ** this._reconnectAttempt,
+      RECONNECT_CONFIG.initialDelayMs * RECONNECT_CONFIG.backoffFactor ** this._reconnectAttempt,
       RECONNECT_CONFIG.maxDelayMs,
     );
 

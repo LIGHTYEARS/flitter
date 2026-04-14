@@ -21,9 +21,11 @@
  * await launchInteractiveMode(container, context);
  * ```
  */
-import type { ServiceContainer } from "@flitter/flitter";
-import type { CliContext } from "../context";
+
 import type { ThreadWorker } from "@flitter/agent-core";
+import type { ServiceContainer } from "@flitter/flitter";
+import type { ThreadSnapshot } from "@flitter/schemas";
+import type { CliContext } from "../context";
 
 // ─── 日志 ─────────────────────────────────────────────────
 
@@ -174,12 +176,12 @@ async function resolveThread(
 
   // 创建新 thread
   const id = crypto.randomUUID();
-  container.threadStore.setCachedThread(id, {
+  container.threadStore.setCachedThread({
     id,
+    v: 0,
     messages: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  } as any);
+    relationships: [],
+  } as unknown as ThreadSnapshot);
   log.info("Created new thread", { threadId: id });
   return id;
 }
@@ -223,10 +225,7 @@ function buildWidgetTree(
  *
  * Ctrl+C 触发: cancel 当前推理 → dispose → exit
  */
-function handleShutdown(
-  worker: ThreadWorker,
-  _container: ServiceContainer,
-): void {
+function handleShutdown(worker: ThreadWorker, _container: ServiceContainer): void {
   worker.cancelInference();
   log.info("Shutdown: cancelled inference, disposing container...");
 }
@@ -247,15 +246,14 @@ function handleShutdown(
  */
 export async function launchInteractiveMode(
   container: ServiceContainer,
-  context: CliContext & { threadId?: string; ampURL?: string },
+  context: CliContext & { threadId?: string },
 ): Promise<void> {
   log.info("Launching interactive TUI mode...");
 
   // 1. 读取主题设置
   const config = container.configService.get();
   const themeName =
-    (config.settings as Record<string, unknown>)["terminal.theme"] as string ??
-    "terminal";
+    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
 
   // 2. 创建或恢复 thread
   const threadId = await resolveThread(container, context);
@@ -273,8 +271,7 @@ export async function launchInteractiveMode(
   try {
     await _runApp(app, {
       onRootElementMounted: () => {
-        const elapsed =
-          Number(process.hrtime.bigint() - startTime) / 1_000_000;
+        const elapsed = Number(process.hrtime.bigint() - startTime) / 1_000_000;
         log.info(`Boot complete: ${elapsed.toFixed(0)}ms to interactive`);
       },
     });
@@ -283,11 +280,10 @@ export async function launchInteractiveMode(
     log.info("TUI exited, cleaning up...");
     await container.asyncDispose();
 
-    // 7. 退出前输出 thread URL (如配置了 ampURL 且有消息)
+    // 7. 退出前输出 thread URL
     const thread = container.threadStore.getThreadSnapshot(threadId);
-    if (thread && (thread as any).messages?.length > 0 && context.ampURL) {
-      const url = `${context.ampURL}/threads/${threadId}`;
-      process.stdout.write(`\nThread: ${url}\n`);
+    if (thread && thread.messages?.length > 0) {
+      process.stdout.write(`\nThread: /threads/${threadId}\n`);
     }
   }
 }

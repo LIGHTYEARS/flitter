@@ -8,8 +8,8 @@
  * @module
  */
 
-import { Element } from "./element.js";
 import type { Widget } from "./element.js";
+import { Element } from "./element.js";
 
 // ════════════════════════════════════════════════════
 //  ComponentElement 抽象基类
@@ -60,10 +60,7 @@ export abstract class ComponentElement extends Element {
    * @param newWidget - 新的子 Widget，可能为 undefined
    * @returns 更新后的子元素，可能为 undefined
    */
-  updateChild(
-    child: Element | undefined,
-    newWidget: Widget | undefined,
-  ): Element | undefined {
+  updateChild(child: Element | undefined, newWidget: Widget | undefined): Element | undefined {
     // 1. 新 Widget 为 undefined → 移除旧子元素
     if (newWidget === undefined) {
       if (child !== undefined) {
@@ -74,7 +71,7 @@ export abstract class ComponentElement extends Element {
     }
 
     // 2. 旧子元素存在且可更新 → 复用
-    if (child !== undefined && child.widget.canUpdate(newWidget)) {
+    if (child?.widget.canUpdate(newWidget)) {
       child.update(newWidget);
       return child;
     }

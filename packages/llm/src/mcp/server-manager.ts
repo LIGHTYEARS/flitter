@@ -8,23 +8,10 @@
  */
 
 import { BehaviorSubject, type Subscription } from "@flitter/util";
-import type {
-  MCPTool,
-  MCPToolResult,
-  MCPResource,
-  MCPPrompt,
-} from "./types";
-import {
-  MCPConnection,
-  type MCPConnectionStatus,
-  type MCPServerSpec,
-  type MCPConnectionOptions,
-} from "./connection";
-import {
-  namespacedToolName,
-  parseNamespacedToolName,
-} from "./tools";
 import type { MCPAuthProvider } from "./auth/types";
+import { MCPConnection, type MCPConnectionStatus, type MCPServerSpec } from "./connection";
+import { namespacedToolName, parseNamespacedToolName } from "./tools";
+import type { MCPPrompt, MCPResource, MCPTool, MCPToolResult } from "./types";
 
 // ─── Types ────────────────────────────────────────────────
 
@@ -155,9 +142,7 @@ export class MCPServerManager {
     const subs: Subscription[] = [];
 
     // Subscribe to status changes
-    subs.push(
-      connection.status$.subscribe(() => this._updateServers()),
-    );
+    subs.push(connection.status$.subscribe(() => this._updateServers()));
 
     // Subscribe to tool changes
     subs.push(
@@ -168,14 +153,10 @@ export class MCPServerManager {
     );
 
     // Subscribe to resource changes
-    subs.push(
-      connection.resources$.subscribe(() => this._updateServers()),
-    );
+    subs.push(connection.resources$.subscribe(() => this._updateServers()));
 
     // Subscribe to prompt changes
-    subs.push(
-      connection.prompts$.subscribe(() => this._updateServers()),
-    );
+    subs.push(connection.prompts$.subscribe(() => this._updateServers()));
 
     this._subscriptions.set(name, subs);
 
@@ -269,10 +250,7 @@ export class MCPServerManager {
       );
     }
 
-    return connection.callTool(
-      { name: parsed.toolName, arguments: args },
-      signal,
-    );
+    return connection.callTool({ name: parsed.toolName, arguments: args }, signal);
   }
 
   /**

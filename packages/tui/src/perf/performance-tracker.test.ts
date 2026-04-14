@@ -6,9 +6,9 @@
  * @module
  */
 
-import { describe, it, expect } from "vitest";
-import { percentile, RingBuffer, PerformanceTracker } from "./performance-tracker.js";
+import { describe, expect, it } from "vitest";
 import type { FramePhase } from "../tree/frame-scheduler.js";
+import { PerformanceTracker, percentile, RingBuffer } from "./performance-tracker.js";
 
 // ── percentile 函数 ──────────────────────────────────
 

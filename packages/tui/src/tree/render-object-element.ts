@@ -7,8 +7,8 @@
  * @module
  */
 
+import type { Key, Widget } from "./element.js";
 import { Element } from "./element.js";
-import type { Widget, Key } from "./element.js";
 import type { RenderObject } from "./render-object.js";
 
 // ════════════════════════════════════════════════════
@@ -77,9 +77,7 @@ export abstract class RenderObjectElement extends Element {
    */
   override mount(parent?: Element): void {
     super.mount(parent);
-    this._renderObject = (
-      this.widget as unknown as RenderObjectWidget
-    ).createRenderObject();
+    this._renderObject = (this.widget as unknown as RenderObjectWidget).createRenderObject();
     this.insertRenderObjectChild();
     this._dirty = false;
   }
@@ -95,9 +93,7 @@ export abstract class RenderObjectElement extends Element {
    */
   override update(newWidget: Widget): void {
     super.update(newWidget);
-    (this.widget as unknown as RenderObjectWidget).updateRenderObject(
-      this._renderObject!,
-    );
+    (this.widget as unknown as RenderObjectWidget).updateRenderObject(this._renderObject!);
     this._dirty = false;
   }
 
@@ -165,7 +161,7 @@ export abstract class RenderObjectElement extends Element {
       if (current instanceof RenderObjectElement) {
         return current;
       }
-      current = (current as any)._parent;
+      current = (current as unknown as { _parent: typeof current })._parent;
     }
     return null;
   }

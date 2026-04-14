@@ -13,9 +13,10 @@
  * const enabled = registry.listEnabled(config.settings);
  * ```
  */
-import type { ToolSpec } from "./types";
-import type { Settings } from "@flitter/schemas";
+
 import type { ToolDefinition } from "@flitter/llm";
+import type { Settings } from "@flitter/schemas";
+import type { ToolSpec } from "./types";
 
 /**
  * ToolRegistry: 管理所有已注册工具

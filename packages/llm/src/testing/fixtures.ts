@@ -230,7 +230,10 @@ export const openaiReasoning: OpenAIStreamEvent[] = [
       model: "o3",
       status: "completed",
       output: [
-        { type: "reasoning", content: [{ type: "reasoning_text", text: "Thinking about this..." }] },
+        {
+          type: "reasoning",
+          content: [{ type: "reasoning_text", text: "Thinking about this..." }],
+        },
         { type: "message", content: [{ type: "output_text", text: "The answer is 42." }] },
       ],
       usage: { input_tokens: 80, output_tokens: 30 },
@@ -262,7 +265,13 @@ export const openaiToolCall: OpenAIStreamEvent[] = [
   {
     type: "response.output_item.done",
     output_index: 0,
-    item: { type: "function_call", id: "fc_001", name: "bash", arguments: '{"command":"ls -la"}', call_id: "call_001" },
+    item: {
+      type: "function_call",
+      id: "fc_001",
+      name: "bash",
+      arguments: '{"command":"ls -la"}',
+      call_id: "call_001",
+    },
   },
   {
     type: "response.completed",
@@ -270,7 +279,15 @@ export const openaiToolCall: OpenAIStreamEvent[] = [
       id: "resp_003",
       model: "gpt-4o",
       status: "completed",
-      output: [{ type: "function_call", id: "fc_001", name: "bash", arguments: '{"command":"ls -la"}', call_id: "call_001" }],
+      output: [
+        {
+          type: "function_call",
+          id: "fc_001",
+          name: "bash",
+          arguments: '{"command":"ls -la"}',
+          call_id: "call_001",
+        },
+      ],
       usage: { input_tokens: 80, output_tokens: 15 },
     },
   },
@@ -283,17 +300,21 @@ export type GeminiStreamChunk = Record<string, unknown>;
 
 export const geminiSimpleText: GeminiStreamChunk[] = [
   {
-    candidates: [{
-      content: { parts: [{ text: "Hello " }], role: "model" },
-      index: 0,
-    }],
+    candidates: [
+      {
+        content: { parts: [{ text: "Hello " }], role: "model" },
+        index: 0,
+      },
+    ],
   },
   {
-    candidates: [{
-      content: { parts: [{ text: "world!" }], role: "model" },
-      index: 0,
-      finishReason: "STOP",
-    }],
+    candidates: [
+      {
+        content: { parts: [{ text: "world!" }], role: "model" },
+        index: 0,
+        finishReason: "STOP",
+      },
+    ],
     usageMetadata: {
       promptTokenCount: 50,
       candidatesTokenCount: 5,
@@ -304,17 +325,21 @@ export const geminiSimpleText: GeminiStreamChunk[] = [
 
 export const geminiThinking: GeminiStreamChunk[] = [
   {
-    candidates: [{
-      content: { parts: [{ text: "Let me think...", thought: true }], role: "model" },
-      index: 0,
-    }],
+    candidates: [
+      {
+        content: { parts: [{ text: "Let me think...", thought: true }], role: "model" },
+        index: 0,
+      },
+    ],
   },
   {
-    candidates: [{
-      content: { parts: [{ text: "The answer is 42." }], role: "model" },
-      index: 0,
-      finishReason: "STOP",
-    }],
+    candidates: [
+      {
+        content: { parts: [{ text: "The answer is 42." }], role: "model" },
+        index: 0,
+        finishReason: "STOP",
+      },
+    ],
     usageMetadata: {
       promptTokenCount: 80,
       candidatesTokenCount: 30,
@@ -325,16 +350,20 @@ export const geminiThinking: GeminiStreamChunk[] = [
 
 export const geminiToolCall: GeminiStreamChunk[] = [
   {
-    candidates: [{
-      content: {
-        parts: [{
-          functionCall: { name: "bash", args: { command: "ls -la" } },
-        }],
-        role: "model",
+    candidates: [
+      {
+        content: {
+          parts: [
+            {
+              functionCall: { name: "bash", args: { command: "ls -la" } },
+            },
+          ],
+          role: "model",
+        },
+        index: 0,
+        finishReason: "STOP",
       },
-      index: 0,
-      finishReason: "STOP",
-    }],
+    ],
     usageMetadata: {
       promptTokenCount: 100,
       candidatesTokenCount: 15,
@@ -378,33 +407,41 @@ export const compatToolCall: CompatStreamChunk[] = [
     id: "chatcmpl-002",
     object: "chat.completion.chunk",
     model: "grok-3",
-    choices: [{
-      index: 0,
-      delta: {
-        tool_calls: [{
-          index: 0,
-          id: "call_001",
-          type: "function",
-          function: { name: "bash", arguments: "" },
-        }],
+    choices: [
+      {
+        index: 0,
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: "call_001",
+              type: "function",
+              function: { name: "bash", arguments: "" },
+            },
+          ],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   },
   {
     id: "chatcmpl-002",
     object: "chat.completion.chunk",
     model: "grok-3",
-    choices: [{
-      index: 0,
-      delta: {
-        tool_calls: [{
-          index: 0,
-          function: { arguments: '{"command":"ls -la"}' },
-        }],
+    choices: [
+      {
+        index: 0,
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              function: { arguments: '{"command":"ls -la"}' },
+            },
+          ],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   },
   {
     id: "chatcmpl-002",

@@ -1,40 +1,21 @@
-import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { z } from "zod";
 
 import {
-  UsageSchema,
-  ToolRunSchema,
-  ToolRunDoneSchema,
-  ToolRunErrorSchema,
-  ToolRunCancelledSchema,
-  ToolRunRejectedSchema,
-  ToolRunInProgressSchema,
-  MessageStateSchema,
-  MessageStateStreamingSchema,
-  MessageStateCompleteSchema,
-  MessageStateCancelledSchema,
-  MessageStateErrorSchema,
-  UserContentBlockSchema,
-  TextBlockSchema,
-  ImageBlockSchema,
-  ToolResultBlockSchema,
   AssistantContentBlockSchema,
-  TextContentBlockSchema,
-  ToolUseBlockSchema,
-  ThinkingBlockSchema,
-  RedactedThinkingBlockSchema,
-  ServerToolUseBlockSchema,
-  InfoContentBlockSchema,
-  ManualBashInvocationBlockSchema,
-  SummaryBlockSchema,
-  UserMessageSchema,
   AssistantMessageSchema,
+  CacheControlSchema,
+  FileMentionsSchema,
+  ImageSourceSchema,
+  InfoContentBlockSchema,
   InfoMessageSchema,
   MessageSchema,
-  FileMentionsSchema,
-  CacheControlSchema,
-  ImageSourceSchema,
+  MessageStateSchema,
+  ToolRunSchema,
+  UsageSchema,
+  UserContentBlockSchema,
+  UserMessageSchema,
 } from "./messages";
 
 // ─── Usage ──────────────────────────────────────────────
@@ -409,10 +390,7 @@ describe("InfoContentBlockSchema", () => {
     const result = InfoContentBlockSchema.parse(data);
     assert.equal(result.type, "summary");
     assert.equal(result.summary.type, "message");
-    assert.equal(
-      result.summary.summary,
-      "The conversation was about testing Zod schemas.",
-    );
+    assert.equal(result.summary.summary, "The conversation was about testing Zod schemas.");
   });
 });
 
@@ -710,10 +688,7 @@ describe("JSON Schema conversion", () => {
     const jsonSchema = z.toJSONSchema(UsageSchema);
     assert.ok(jsonSchema);
     assert.equal(jsonSchema.type, "object");
-    assert.ok(
-      Array.isArray(jsonSchema.required),
-      "should have required array",
-    );
+    assert.ok(Array.isArray(jsonSchema.required), "should have required array");
     const required = jsonSchema.required as string[];
     assert.ok(required.includes("model"), "model should be required");
     assert.ok(required.includes("inputTokens"), "inputTokens should be required");

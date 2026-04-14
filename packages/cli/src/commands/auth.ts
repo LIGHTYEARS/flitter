@@ -115,7 +115,9 @@ export async function handleLogin(deps: AuthCommandDeps, context: CliContext): P
   try {
     const credentials = await provider.login({
       onAuth: (info) => {
-        defaultOpenBrowser(info.url);
+        defaultOpenBrowser(info.url).catch(() => {
+          // Browser open failure is non-fatal; user sees URL below
+        });
         process.stderr.write("Opening browser for authentication...\n");
         if (info.instructions) {
           process.stderr.write(`${info.instructions}\n`);

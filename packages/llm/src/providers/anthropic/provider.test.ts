@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AssistantContentBlock, Message } from "@flitter/schemas";
-import type { SystemPromptBlock } from "../../types";
+import type { StreamDelta, SystemPromptBlock } from "../../types";
 import { TransformState } from "../../types";
 import { AnthropicProvider } from "./provider";
 import type { AnthropicSSEEvent } from "./transformer";

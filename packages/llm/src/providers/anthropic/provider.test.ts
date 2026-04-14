@@ -10,6 +10,7 @@ import { describe, it } from "node:test";
 import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock } from "../../types";
 import { TransformState } from "../../types";
+import { AnthropicProvider } from "./provider";
 import type { AnthropicSSEEvent } from "./transformer";
 import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
 
@@ -644,5 +645,27 @@ describe("AnthropicTransformer — cache usage", () => {
     assert.equal(delta.usage!.cacheCreationInputTokens, 50);
     assert.equal(delta.usage!.cacheReadInputTokens, 30);
     assert.equal(delta.usage!.totalInputTokens, 180); // 100 + 50 + 30
+  });
+});
+
+// ─── AnthropicProvider._createClient baseURL 测试 ─────
+
+describe("AnthropicProvider — _createClient baseURL", () => {
+  it("should use anthropic.baseURL from settings", () => {
+    const provider = new AnthropicProvider();
+    const client = (provider as any)._createClient(
+      "sk-test-key",
+      { "anthropic.baseURL": "https://ark.cn-beijing.volces.com/api/compatible" },
+      "claude-sonnet-4-20250514",
+    );
+    assert.equal(client.baseURL, "https://ark.cn-beijing.volces.com/api/compatible");
+  });
+
+  it("should not override baseURL when setting not present", () => {
+    const provider = new AnthropicProvider();
+    const client = (provider as any)._createClient("sk-test-key", {}, "claude-sonnet-4-20250514");
+    // When no anthropic.baseURL is set, the client uses its SDK default (not our custom URL)
+    assert.notEqual(client.baseURL, "https://ark.cn-beijing.volces.com/api/compatible");
+    assert.ok(typeof client.baseURL === "string" && client.baseURL.length > 0);
   });
 });

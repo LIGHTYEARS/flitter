@@ -282,29 +282,29 @@ describe("RenderBox -- hitTest", () => {
   // ── 9. 点在矩形内 -> true ──────────────────────────
   it("点在矩形内返回 true", () => {
     // box 占据 x:[10, 50), y:[5, 25)
-    assert.equal(box.hitTest(20, 15), true);
-    assert.equal(box.hitTest(30, 10), true);
+    assert.equal(box.containsPoint(20, 15), true);
+    assert.equal(box.containsPoint(30, 10), true);
   });
 
   // ── 10. 点在矩形外 -> false ─────────────────────────
   it("点在矩形外返回 false", () => {
-    assert.equal(box.hitTest(0, 0), false); // 左上方
-    assert.equal(box.hitTest(60, 30), false); // 右下方
-    assert.equal(box.hitTest(5, 15), false); // 左侧
-    assert.equal(box.hitTest(20, 30), false); // 下方
+    assert.equal(box.containsPoint(0, 0), false); // 左上方
+    assert.equal(box.containsPoint(60, 30), false); // 右下方
+    assert.equal(box.containsPoint(5, 15), false); // 左侧
+    assert.equal(box.containsPoint(20, 30), false); // 下方
   });
 
   // ── 11. 边界点 (offset.x, offset.y) -> true ─────────
   it("起始边界点 (offset.x, offset.y) 返回 true（inclusive）", () => {
-    assert.equal(box.hitTest(10, 5), true);
+    assert.equal(box.containsPoint(10, 5), true);
   });
 
   // ── 12. 边界点 (offset.x + width, offset.y + height) -> false
   it("终止边界点 (offset.x + width, offset.y + height) 返回 false（exclusive）", () => {
     // x: 10 + 40 = 50, y: 5 + 20 = 25
-    assert.equal(box.hitTest(50, 25), false);
-    assert.equal(box.hitTest(50, 10), false); // 右边界
-    assert.equal(box.hitTest(20, 25), false); // 下边界
+    assert.equal(box.containsPoint(50, 25), false);
+    assert.equal(box.containsPoint(50, 10), false); // 右边界
+    assert.equal(box.containsPoint(20, 25), false); // 下边界
   });
 });
 
@@ -526,12 +526,12 @@ describe("RenderBox -- 综合行为", () => {
     box.layout(BoxConstraints.tight(10, 10));
     // offset 默认 {x: 0, y: 0}
 
-    assert.equal(box.hitTest(0, 0), true);
-    assert.equal(box.hitTest(5, 5), true);
-    assert.equal(box.hitTest(9, 9), true);
-    assert.equal(box.hitTest(10, 10), false);
-    assert.equal(box.hitTest(-1, 0), false);
-    assert.equal(box.hitTest(0, -1), false);
+    assert.equal(box.containsPoint(0, 0), true);
+    assert.equal(box.containsPoint(5, 5), true);
+    assert.equal(box.containsPoint(9, 9), true);
+    assert.equal(box.containsPoint(10, 10), false);
+    assert.equal(box.containsPoint(-1, 0), false);
+    assert.equal(box.containsPoint(0, -1), false);
   });
 
   it("layout 使用松约束时 performLayout 正确处理", () => {

@@ -181,7 +181,7 @@ export abstract class RenderBox extends RenderObject {
    * @param y - 测试点的 Y 坐标
    * @returns 坐标在区域内返回 true，否则返回 false
    */
-  hitTest(x: number, y: number): boolean {
+  containsPoint(x: number, y: number): boolean {
     const localX = x - this._offset.x;
     const localY = y - this._offset.y;
     return localX >= 0 && localX < this._size.width && localY >= 0 && localY < this._size.height;

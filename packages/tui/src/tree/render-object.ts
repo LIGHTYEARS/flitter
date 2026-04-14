@@ -9,6 +9,7 @@
  * @module
  */
 
+import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
 import { getPipelineOwner, type ParentData } from "./types.js";
 
@@ -234,6 +235,65 @@ export abstract class RenderObject {
     for (const child of this._children) {
       child.paint(screen, offsetX, offsetY);
     }
+  }
+
+  // ════════════════════════════════════════════════════
+  //  命中测试
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 递归命中测试。
+   *
+   * 逆向: Dy0 in tui-widget-framework.js:1879-1921
+   *
+   * 对于拥有 size + offset 的节点（{@link RenderBox}），检查 position 是否
+   * 在 size+offset 定义的矩形范围内。命中则将自身加入 result 并逆序递归子节点。
+   * 对于无 size/offset 的节点（纯 {@link RenderObject}），直接递归子节点。
+   *
+   * children 以逆序遍历，确保后绘制（z-order 更高）的节点优先命中。
+   *
+   * @param result - 命中测试结果累积器
+   * @param position - 测试点的全局坐标
+   * @param offsetX - 父节点累积的 X 偏移（默认 0）
+   * @param offsetY - 父节点累积的 Y 偏移（默认 0）
+   * @returns 至少有一个命中返回 true，否则返回 false
+   */
+  hitTest(
+    result: HitTestResult,
+    position: { x: number; y: number },
+    offsetX = 0,
+    offsetY = 0,
+  ): boolean {
+    // RenderBox 子类拥有 _size 和 _offset，通过 runtime 检查判断
+    const self = this as Record<string, unknown>;
+    const size = self._size as { width: number; height: number } | undefined;
+    const offset = self._offset as { x: number; y: number } | undefined;
+
+    if (size && offset) {
+      const absX = offsetX + offset.x;
+      const absY = offsetY + offset.y;
+      const inX = position.x >= absX && position.x < absX + size.width;
+      const inY = position.y >= absY && position.y < absY + size.height;
+      if (inX && inY) {
+        const localPosition = {
+          x: position.x - absX,
+          y: position.y - absY,
+        };
+        result.add({ target: this, localPosition });
+        for (let i = this._children.length - 1; i >= 0; i--) {
+          this._children[i]!.hitTest(result, position, absX, absY);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    // 无 size/offset 节点: 递归子节点
+    let hit = false;
+    for (const child of this._children) {
+      if (child.hitTest(result, position, offsetX, offsetY)) hit = true;
+    }
+    return hit;
   }
 
   // ════════════════════════════════════════════════════

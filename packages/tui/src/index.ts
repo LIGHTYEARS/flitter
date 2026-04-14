@@ -2,6 +2,7 @@
 
 export * from "./editing/index.js";
 export * from "./focus/index.js";
+export * from "./gestures/index.js";
 export * from "./markdown/index.js";
 export * from "./overlay/index.js";
 export * from "./perf/index.js";

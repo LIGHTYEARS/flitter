@@ -475,7 +475,7 @@ Phase 6 (TUI Advanced) + Phase 10 (Agent Core) ──> Phase 11 (CLI)
 - Phase 6 (高级交互组件 — 依赖事件系统)
 - Phase 11 (CLI 入口 — interactive.ts stub 替换)
 
-**Plans:** 7/15 plans executed
+**Plans:** 8/15 plans executed
 
 Plans:
 - [x] 12-01-PLAN.md — InheritedWidget + InheritedElement (Wave A)
@@ -485,7 +485,7 @@ Plans:
 - [x] 12-05-PLAN.md — TuiController 终端控制器 (Wave B)
 - [x] 12-06-PLAN.md — MouseManager 鼠标事件管理器 (Wave B)
 - [x] 12-07-PLAN.md — MediaQuery InheritedWidget (Wave B)
-- [ ] 12-08-PLAN.md — WidgetsBinding 核心编排器 (Wave C)
+- [x] 12-08-PLAN.md — WidgetsBinding 核心编排器 (Wave C)
 - [ ] 12-09-PLAN.md — runApp() 顶层入口函数 (Wave C)
 - [ ] 12-10-PLAN.md — ThemeController + ConfigProvider (Wave D)
 - [ ] 12-11-PLAN.md — AppWidget + ThreadStateWidget (Wave D)

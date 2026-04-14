@@ -13,3 +13,5 @@ export {
   type KeyHandler,
   type PasteHandler,
 } from "./focus-node.js";
+
+export { FocusManager } from "./focus-manager.js";

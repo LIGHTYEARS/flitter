@@ -44,3 +44,7 @@ export type { ConfigCommandDeps } from "./commands/config";
 
 export { handleUpdate } from "./commands/update";
 export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
+
+// ─── 模式入口 ────────────────────────────────────────────
+export { launchInteractiveMode } from "./modes/interactive";
+export type { RunAppOptions } from "./modes/interactive";

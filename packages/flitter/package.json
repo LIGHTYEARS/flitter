@@ -13,7 +13,6 @@
     "@flitter/agent-core": "workspace:*",
     "@flitter/llm": "workspace:*",
     "@flitter/data": "workspace:*",
-    "@flitter/cli": "workspace:*",
     "@flitter/util": "workspace:*",
     "@flitter/schemas": "workspace:*"
   },

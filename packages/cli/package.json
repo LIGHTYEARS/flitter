@@ -17,6 +17,7 @@
     "@flitter/flitter": "workspace:*",
     "@flitter/llm": "workspace:*",
     "@flitter/tui": "workspace:*",
+    "@flitter/util": "workspace:*",
     "commander": "^14.0.3"
   },
   "keywords": [

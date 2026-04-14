@@ -10,7 +10,7 @@ import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "./transformers/message-transformer";
 import { BaseToolTransformer } from "./transformers/tool-transformer";
 import type { SystemPromptBlock, ToolDefinition } from "./types";
-import { MODEL_REGISTRY, ProviderError, TransformState } from "./types";
+import { MODEL_REGISTRY, ProviderError, TransformState, registerModel } from "./types";
 
 // ─── 辅助: 测试用 concrete 子类 ─────────────────────────
 
@@ -323,5 +323,58 @@ describe("BaseMessageTransformer", () => {
     const state = transformer.createState();
     assert.ok(state instanceof TransformState);
     assert.equal(state.getContent().length, 0);
+  });
+});
+
+// ─── registerModel 测试 ────────────────────────────────
+
+describe("registerModel", () => {
+  it("should add custom model to MODEL_REGISTRY", () => {
+    const customId = "ep-test-custom-model";
+    registerModel({
+      id: customId,
+      provider: "anthropic",
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192,
+      supportsThinking: false,
+      supportsTools: true,
+      supportsImages: false,
+      supportsCacheControl: false,
+    });
+    assert.ok(MODEL_REGISTRY[customId]);
+    assert.equal(MODEL_REGISTRY[customId].provider, "anthropic");
+    assert.equal(MODEL_REGISTRY[customId].contextWindow, 128_000);
+    // Cleanup
+    delete MODEL_REGISTRY[customId];
+  });
+
+  it("should overwrite existing model if ID matches", () => {
+    const customId = "ep-test-overwrite-model";
+    registerModel({
+      id: customId,
+      provider: "anthropic",
+      contextWindow: 100_000,
+      maxOutputTokens: 4_096,
+      supportsThinking: false,
+      supportsTools: false,
+      supportsImages: false,
+      supportsCacheControl: false,
+    });
+    assert.equal(MODEL_REGISTRY[customId].maxOutputTokens, 4_096);
+
+    registerModel({
+      id: customId,
+      provider: "anthropic",
+      contextWindow: 200_000,
+      maxOutputTokens: 16_384,
+      supportsThinking: true,
+      supportsTools: true,
+      supportsImages: false,
+      supportsCacheControl: false,
+    });
+    assert.equal(MODEL_REGISTRY[customId].maxOutputTokens, 16_384);
+    assert.equal(MODEL_REGISTRY[customId].supportsThinking, true);
+    // Cleanup
+    delete MODEL_REGISTRY[customId];
   });
 });

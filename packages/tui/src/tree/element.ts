@@ -68,6 +68,9 @@ export abstract class Element {
   /** 在元素树中的深度 */
   protected _depth: number = 0;
 
+  /** InheritedElement 依赖集合，unmount 时自动清除 */
+  protected _inheritedDependencies: Set<Element> = new Set();
+
   // ════════════════════════════════════════════════════
   //  属性访问器
   // ════════════════════════════════════════════════════
@@ -189,9 +192,19 @@ export abstract class Element {
   /**
    * 从元素树卸载。
    *
-   * 递归卸载所有子元素，清除挂载状态和父引用。
+   * 清除 InheritedElement 依赖关系，递归卸载所有子元素，清除挂载状态和父引用。
+   *
+   * 逆向参考: tui-widget-framework.js:1745-1747
    */
   unmount(): void {
+    // 清除 InheritedElement 依赖关系
+    for (const dep of this._inheritedDependencies) {
+      if ("removeDependent" in dep) {
+        (dep as Element & { removeDependent(e: Element): void }).removeDependent(this);
+      }
+    }
+    this._inheritedDependencies.clear();
+
     const copy = [...this._children];
     for (const child of copy) {
       child.unmount();
@@ -234,6 +247,40 @@ export abstract class Element {
    */
   performRebuild(): void {
     this._dirty = false;
+  }
+
+  // ════════════════════════════════════════════════════
+  //  InheritedWidget 依赖查找
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 向上查找指定 Widget 类型的 InheritedElement 并注册依赖。
+   *
+   * 沿父链向上遍历，找到 widget.constructor === widgetType 的祖先元素后，
+   * 调用 ancestor.addDependent(this) 并加入 _inheritedDependencies，返回该祖先元素。
+   *
+   * 逆向参考: tui-widget-framework.js:1753-1766
+   *
+   * @param widgetType - 目标 InheritedWidget 的构造函数
+   * @returns 匹配的 InheritedElement 祖先，未找到时返回 null
+   */
+  dependOnInheritedWidgetOfExactType(widgetType: Function): Element | null {
+    let current = this._parent;
+    while (current) {
+      if (current.widget.constructor === widgetType) {
+        if ("addDependent" in current && "removeDependent" in current) {
+          const inherited = current as Element & {
+            addDependent(e: Element): void;
+            removeDependent(e: Element): void;
+          };
+          inherited.addDependent(this);
+          this._inheritedDependencies.add(inherited);
+        }
+        return current;
+      }
+      current = current.parent ?? undefined;
+    }
+    return null;
   }
 
   // ════════════════════════════════════════════════════

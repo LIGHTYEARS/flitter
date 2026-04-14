@@ -64,6 +64,31 @@ export interface ThemeData {
 }
 
 // ════════════════════════════════════════════════════
+//  默认主题数据
+// ════════════════════════════════════════════════════
+
+/**
+ * 默认主题数据常量。
+ *
+ * Catppuccin Mocha 风格的暗色方案，与 @flitter/tui theme.ts defaultTheme 一致。
+ * 在无外部配置时作为 ThemeController 的默认值使用。
+ */
+export const defaultThemeData: ThemeData = {
+  name: "default",
+  primary: "#7C3AED",
+  secondary: "#06B6D4",
+  surface: "#1E1E2E",
+  background: "#11111B",
+  error: "#F38BA8",
+  text: "#CDD6F4",
+  mutedText: "#6C7086",
+  border: "#45475A",
+  accent: "#F5C2E7",
+  success: "#A6E3A1",
+  warning: "#F9E2AF",
+};
+
+// ════════════════════════════════════════════════════
 //  ThemeController InheritedWidget
 // ════════════════════════════════════════════════════
 

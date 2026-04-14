@@ -1,27 +1,27 @@
 /**
- * 主题系统定义。
+ * @flitter/tui - Theme 系统。
  *
- * {@link Theme} 是一个 {@link StatelessWidget}，用于向子树注入主题数据。
- * Phase 5 简化实现中使用模块级全局变量存储当前主题，
- * 后续阶段将改为基于 InheritedWidget 的上下文查找。
+ * 主题数据定义和默认主题。
+ * 运行时通过 ThemeController.of(context) 获取主题，
+ * 无 Widget 上下文时 fallback 到 defaultTheme。
+ *
+ * Phase 12-14 迁移: 从全局变量模式迁移到 InheritedWidget 模式。
+ * 不再维护全局 theme 变量，ThemeData 改为扁平化字符串色值接口，
+ * 与 ThemeController (packages/cli/src/widgets/theme-controller.ts) 对齐。
  *
  * @example
  * ```ts
- * // 使用暗色默认主题包裹子 Widget
- * const app = Theme.withDefault({ child: myWidget });
+ * import { defaultTheme, getTheme } from "./theme.js";
  *
- * // 在 build 方法中获取当前主题
- * const theme = Theme.of(context);
- * const fg = theme.colorScheme.foreground;
+ * // 直接使用默认主题
+ * const bg = defaultTheme.background;
+ *
+ * // 向后兼容的全局访问 (新代码请用 ThemeController.of(context))
+ * const theme = getTheme();
  * ```
  *
  * @module
  */
-
-import { Color } from "../screen/color.js";
-import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
-import type { Key, Widget } from "../tree/widget.js";
-import { AppColorScheme } from "./color-scheme.js";
 
 // ════════════════════════════════════════════════════
 //  ThemeData 接口
@@ -30,146 +30,77 @@ import { AppColorScheme } from "./color-scheme.js";
 /**
  * 主题数据接口。
  *
- * 包含应用的完整配色方案，未来可扩展排版、间距等属性。
+ * 定义颜色主题的完整配色方案，包含 primary/secondary/surface 等基础色
+ * 以及 error/success/warning 等语义色。所有颜色值为 CSS 十六进制字符串。
+ *
+ * 与 ThemeController (InheritedWidget) 使用的 ThemeData 接口一致。
  */
 export interface ThemeData {
-  /** 配色方案 */
-  readonly colorScheme: AppColorScheme;
+  /** 主题名称标识 */
+  name: string;
+  /** 主色调 */
+  primary: string;
+  /** 辅助色 */
+  secondary: string;
+  /** 表面色 (卡片/面板背景) */
+  surface: string;
+  /** 全局背景色 */
+  background: string;
+  /** 错误色 */
+  error: string;
+  /** 正文文本色 */
+  text: string;
+  /** 次要/弱化文本色 */
+  mutedText: string;
+  /** 边框色 */
+  border: string;
+  /** 强调色 */
+  accent: string;
+  /** 成功色 */
+  success: string;
+  /** 警告色 */
+  warning: string;
 }
 
 // ════════════════════════════════════════════════════
-//  全局主题状态
+//  默认主题
 // ════════════════════════════════════════════════════
 
 /**
- * 模块级全局主题数据。
+ * 默认主题。
  *
- * Phase 5 简化实现：所有 Theme.of() 调用返回此全局值。
- * 后续阶段将替换为 InheritedWidget 机制。
+ * 使用暗色终端配色方案，与 Catppuccin Mocha 风格对齐。
+ * 此常量不可变，作为无 Widget 上下文时的 fallback 值。
  */
-let _globalTheme: ThemeData = { colorScheme: AppColorScheme.default() };
-
-/**
- * 设置全局主题数据（仅供测试使用）。
- *
- * @param data - 新的主题数据
- */
-export function setGlobalTheme(data: ThemeData): void {
-  _globalTheme = data;
-}
-
-/**
- * 获取当前全局主题数据（仅供测试使用）。
- *
- * @returns 当前全局主题数据
- */
-export function getGlobalTheme(): ThemeData {
-  return _globalTheme;
-}
+export const defaultTheme: ThemeData = {
+  name: "default",
+  primary: "#7C3AED",
+  secondary: "#06B6D4",
+  surface: "#1E1E2E",
+  background: "#11111B",
+  error: "#F38BA8",
+  text: "#CDD6F4",
+  mutedText: "#6C7086",
+  border: "#45475A",
+  accent: "#F5C2E7",
+  success: "#A6E3A1",
+  warning: "#F9E2AF",
+};
 
 // ════════════════════════════════════════════════════
-//  Theme Widget
+//  向后兼容全局访问
 // ════════════════════════════════════════════════════
 
 /**
- * 主题 Widget。
+ * 获取主题 — 向后兼容的全局访问。
  *
- * 将 {@link ThemeData} 注入到子树中。在 {@link build} 时
- * 将自身的 data 设置为全局主题，后续子 Widget 可通过
- * {@link Theme.of} 获取主题数据。
+ * 返回 defaultTheme 作为 fallback。
+ * 优先从 InheritedWidget 获取 (需要 Widget context)，
+ * 无 context 时返回 defaultTheme。
+ *
+ * @deprecated 新代码应使用 ThemeController.of(context)
+ * @returns 默认主题数据
  */
-export class Theme extends StatelessWidget {
-  /** 主题数据 */
-  readonly data: ThemeData;
-  /** 子 Widget */
-  readonly child: Widget;
-
-  /**
-   * 创建 Theme 实例。
-   *
-   * @param options - 配置项
-   * @param options.data - 主题数据
-   * @param options.child - 子 Widget
-   * @param options.key - 可选标识键
-   */
-  constructor({ data, child, key }: { data: ThemeData; child: Widget; key?: Key }) {
-    super({ key });
-    this.data = data;
-    this.child = child;
-  }
-
-  /**
-   * 从构建上下文获取当前主题数据。
-   *
-   * Phase 5 简化实现：忽略 context 参数，直接返回全局主题。
-   * 后续阶段将通过 InheritedWidget 机制从上下文中查找。
-   *
-   * @param _context - 构建上下文（Phase 5 中未使用）
-   * @returns 当前主题数据
-   */
-  static of(_context: BuildContext): ThemeData {
-    return _globalTheme;
-  }
-
-  /**
-   * 创建暗色默认主题数据。
-   *
-   * @returns 使用 {@link AppColorScheme.default} 的暗色主题数据
-   */
-  static dark(): ThemeData {
-    return { colorScheme: AppColorScheme.default() };
-  }
-
-  /**
-   * 创建亮色主题数据。
-   *
-   * 适合浅色终端背景的预设颜色。
-   *
-   * @returns 亮色主题数据
-   */
-  static light(): ThemeData {
-    return {
-      colorScheme: new AppColorScheme({
-        foreground: Color.black(),
-        mutedForeground: Color.brightBlack(),
-        background: Color.white(),
-        cursor: Color.black(),
-        primary: Color.blue(),
-        secondary: Color.cyan(),
-        accent: Color.magenta(),
-        border: Color.brightBlack(),
-        success: Color.green(),
-        warning: Color.yellow(),
-        info: Color.cyan(),
-        destructive: Color.red(),
-        selection: Color.blue(),
-        copyHighlight: Color.yellow(),
-        tableBorder: Color.brightBlack(),
-      }),
-    };
-  }
-
-  /**
-   * 使用暗色默认主题包裹子 Widget 的便捷工厂方法。
-   *
-   * @param options - 配置项
-   * @param options.child - 子 Widget
-   * @returns 使用暗色主题的 Theme 实例
-   */
-  static withDefault({ child }: { child: Widget }): Theme {
-    return new Theme({ data: Theme.dark(), child });
-  }
-
-  /**
-   * 构建子 Widget。
-   *
-   * 将自身的主题数据设置为全局主题，然后返回子 Widget。
-   *
-   * @param context - 构建上下文
-   * @returns 子 Widget
-   */
-  build(_context: BuildContext): Widget {
-    _globalTheme = this.data;
-    return this.child;
-  }
+export function getTheme(): ThemeData {
+  return defaultTheme;
 }

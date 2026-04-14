@@ -1,13 +1,17 @@
 /**
  * 示例 05: 主题与颜色系统
- * 展示 Color、TextStyle、AppColorScheme、Theme 的用法
+ * 展示 Color、TextStyle、AppColorScheme、ThemeData 的用法
+ *
+ * Phase 12-14 迁移后，Theme 不再是 Widget 类，
+ * 改为 ThemeController (InheritedWidget) 模式注入主题。
+ * theme.ts 仅导出 ThemeData 接口和 defaultTheme 常量。
  */
 import { Color } from "../src/screen/color.js";
 import { TextStyle } from "../src/screen/text-style.js";
 import { AppColorScheme } from "../src/widgets/color-scheme.js";
 import { Column } from "../src/widgets/column.js";
 import { Text } from "../src/widgets/text.js";
-import { Theme } from "../src/widgets/theme.js";
+import { defaultTheme, type ThemeData } from "../src/widgets/theme.js";
 
 // ── 颜色系统 ──────────────────────────────────
 
@@ -44,7 +48,7 @@ const _merged = base.merge(overlay); // bold + green（green 覆盖 white）
 const darkScheme = AppColorScheme.default();
 
 // 自定义部分颜色
-const customScheme = darkScheme.copyWith({
+const _customScheme = darkScheme.copyWith({
   primary: Color.rgb(0, 120, 215),
   accent: Color.rgb(255, 140, 0),
 });
@@ -55,32 +59,31 @@ const _brandScheme = AppColorScheme.fromRgb({
   accent: { r: 255, g: 140, b: 0 },
 });
 
-// ── 主题系统 ──────────────────────────────────
+// ── 主题系统 (Phase 12-14 迁移后) ──────────────────────────────────
 
-// 使用暗色默认主题
-const _app = Theme.withDefault({
-  child: new Column({
-    children: [new Text({ data: "使用默认主题" })],
-  }),
-});
+// defaultTheme 是一个扁平化的字符串色值对象
+console.log("默认主题名称:", defaultTheme.name);
+console.log("主色调:", defaultTheme.primary);
+console.log("背景色:", defaultTheme.background);
 
-// 自定义主题
-const _customTheme = new Theme({
-  data: { colorScheme: customScheme },
-  child: new Column({
-    children: [new Text({ data: "自定义主题" })],
-  }),
-});
+// 自定义主题 (扁平 ThemeData 接口)
+const _customTheme: ThemeData = {
+  ...defaultTheme,
+  name: "custom",
+  primary: "#FF6B6B",
+  accent: "#4ECDC4",
+};
 
-// 在 build 中读取主题
-// class MyWidget extends StatelessWidget {
-//   build(context: BuildContext) {
-//     const theme = Theme.of(context);
-//     const fg = theme.colorScheme.foreground;
-//     const primary = theme.colorScheme.primary;
-//     return new Text({
-//       data: "主题色文本",
-//       style: new TextStyle({ foreground: primary }),
-//     });
-//   }
-// }
+// 在 Widget 树中使用 ThemeController (InheritedWidget):
+// import { ThemeController } from "@flitter/cli/widgets/theme-controller";
+//
+// const root = new ThemeController({
+//   data: defaultTheme,
+//   child: new Column({
+//     children: [new Text({ data: "使用默认主题" })],
+//   }),
+// });
+//
+// // 在子 Widget 的 build 方法中获取主题:
+// const theme = ThemeController.of(context);
+// const primary = theme.primary;

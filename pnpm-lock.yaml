@@ -30,6 +30,12 @@ importers:
 
   packages/agent-core:
     dependencies:
+      '@flitter/data':
+        specifier: workspace:*
+        version: link:../data
+      '@flitter/llm':
+        specifier: workspace:*
+        version: link:../llm
       '@flitter/schemas':
         specifier: workspace:*
         version: link:../schemas
@@ -58,6 +64,9 @@ importers:
       '@flitter/tui':
         specifier: workspace:*
         version: link:../tui
+      commander:
+        specifier: ^14.0.3
+        version: 14.0.3
     devDependencies:
       bun-types:
         specifier: ^1.1.0
@@ -279,6 +288,10 @@ packages:
 
   character-entities@2.0.2:
     resolution: {integrity: sha512-shx7oQ0Awen/BRIdkjkvz54PnEEI/EjwXDSIZp86/KKdbafHh1Df/RYGBhn4hbe2+uKC9FnT5UCEdyPz3ai9hQ==}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   data-uri-to-buffer@4.0.1:
     resolution: {integrity: sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==}
@@ -577,6 +590,8 @@ snapshots:
       '@types/node': 25.6.0
 
   character-entities@2.0.2: {}
+
+  commander@14.0.3: {}
 
   data-uri-to-buffer@4.0.1: {}
 

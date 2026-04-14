@@ -13,9 +13,10 @@
   },
   "dependencies": {
     "@flitter/agent-core": "workspace:*",
-    "@flitter/tui": "workspace:*",
     "@flitter/data": "workspace:*",
-    "@flitter/llm": "workspace:*"
+    "@flitter/llm": "workspace:*",
+    "@flitter/tui": "workspace:*",
+    "commander": "^14.0.3"
   },
   "keywords": [
     "cli",

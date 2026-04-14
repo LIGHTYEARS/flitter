@@ -441,3 +441,71 @@ describe("JSON Schema conversion", () => {
     assert.ok("enum" in jsonSchema || "anyOf" in jsonSchema);
   });
 });
+
+// ─── Gap Closure: Provider Config Keys ─────────────────────────
+
+describe("SettingsSchema — provider config keys (gap closure)", () => {
+  it("should accept anthropic.baseURL", () => {
+    const result = SettingsSchema.safeParse({
+      "anthropic.baseURL": "https://ark.cn-beijing.volces.com/api/compatible",
+    });
+    assert.ok(result.success);
+  });
+
+  it("should accept anthropic.apiKey", () => {
+    const result = SettingsSchema.safeParse({ "anthropic.apiKey": "sk-ark-test123" });
+    assert.ok(result.success);
+  });
+
+  it("should accept openai.baseURL", () => {
+    const result = SettingsSchema.safeParse({ "openai.baseURL": "https://custom-openai.example.com/v1" });
+    assert.ok(result.success);
+  });
+
+  it("should accept openai.apiKey", () => {
+    const result = SettingsSchema.safeParse({ "openai.apiKey": "sk-openai-test" });
+    assert.ok(result.success);
+  });
+
+  it("should accept gemini.apiKey", () => {
+    const result = SettingsSchema.safeParse({ "gemini.apiKey": "AIzaSy-test" });
+    assert.ok(result.success);
+  });
+
+  it("should accept update.url", () => {
+    const result = SettingsSchema.safeParse({
+      "update.url": "https://my-mirror.example.com/latest",
+    });
+    assert.ok(result.success);
+  });
+
+  it("should accept update.mode with valid enum values", () => {
+    for (const mode of ["auto", "warn", "disabled"]) {
+      const result = SettingsSchema.safeParse({ "update.mode": mode });
+      assert.ok(result.success, `update.mode should accept "${mode}"`);
+    }
+  });
+
+  it("should reject update.mode with invalid value", () => {
+    const result = SettingsSchema.safeParse({ "update.mode": "always" });
+    assert.ok(!result.success);
+  });
+
+  it("should include new keys in ADMIN_OVERRIDE_KEYS", () => {
+    const expected = [
+      "anthropic.baseURL",
+      "anthropic.apiKey",
+      "openai.baseURL",
+      "openai.apiKey",
+      "gemini.apiKey",
+      "update.url",
+      "update.mode",
+    ];
+    for (const key of expected) {
+      assert.ok(
+        ADMIN_OVERRIDE_KEYS.includes(key as (typeof ADMIN_OVERRIDE_KEYS)[number]),
+        `ADMIN_OVERRIDE_KEYS should contain "${key}"`,
+      );
+    }
+  });
+});

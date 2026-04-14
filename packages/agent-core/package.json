@@ -9,6 +9,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@flitter/data": "workspace:*",
+    "@flitter/llm": "workspace:*",
     "@flitter/schemas": "workspace:*",
     "@flitter/util": "workspace:*"
   },

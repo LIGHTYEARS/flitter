@@ -204,8 +204,8 @@ describe("createContainer", () => {
     const container = await createContainer(opts);
 
     expect(container.threadStore).toBeDefined();
-    // ThreadStore 应该能获取 all entries observable
-    expect(container.threadStore.allEntries$).toBeDefined();
+    // ThreadStore 应该能获取 thread entries observable
+    expect(typeof container.threadStore.observeThreadEntries).toBe("function");
 
     await container.asyncDispose();
   });

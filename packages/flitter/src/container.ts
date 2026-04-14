@@ -1,0 +1,312 @@
+/**
+ * @flitter/flitter — ServiceContainer DI 组装层
+ *
+ * createContainer(opts) 异步创建所有服务实例并连接依赖,
+ * asyncDispose() 按反序清理所有资源
+ *
+ * 逆向: X3() in claude-config-system.js:1097-1324
+ *
+ * @example
+ * ```ts
+ * import { createContainer, type ContainerOptions } from 'flitter';
+ *
+ * const container = await createContainer({
+ *   ampURL: 'https://api.example.com',
+ *   settings: mySettingsStorage,
+ *   secrets: mySecretStorage,
+ *   workspaceRoot: process.cwd(),
+ * });
+ *
+ * // 使用服务...
+ * const worker = container.createThreadWorker('thread-1');
+ *
+ * // 清理
+ * await container.asyncDispose();
+ * ```
+ */
+import type { ConfigService, ThreadStore, ThreadPersistence, SkillService,
+  FileSettingsStorage, ContextManager } from "@flitter/data";
+import type { GuidanceLoadOptions, GuidanceFile } from "@flitter/data";
+import type { MCPServerManager } from "@flitter/llm";
+import type { ToolRegistry, PermissionEngine,
+  ThreadWorker, ThreadWorkerOptions } from "@flitter/agent-core";
+import { ToolOrchestrator, type OrchestratorCallbacks } from "@flitter/agent-core";
+import { createLogger } from "@flitter/util";
+import { Subject, BehaviorSubject } from "@flitter/util";
+import type { Config, ThreadSnapshot, Message } from "@flitter/schemas";
+import {
+  createConfigService,
+  createToolRegistry,
+  registerBuiltinTools,
+  createPermissionEngine,
+  createMCPServerManager,
+  createSkillService,
+  createGuidanceLoader,
+  createThreadStore,
+  createThreadPersistence,
+  createContextManager,
+} from "./factory";
+import { ThreadWorker as ThreadWorkerImpl } from "@flitter/agent-core";
+
+const log = createLogger("container");
+
+// ── 公共类型 ────────────────────────────────────────────
+
+/**
+ * 秘密存储接口 (API Key, OAuth Token 等)
+ * 逆向: BXT (claude-config-system.js:~980)
+ */
+export interface SecretStorage {
+  /** 获取秘密值 */
+  get(key: string, scope?: string): Promise<string | undefined>;
+  /** 设置秘密值 */
+  set(key: string, value: string, scope?: string): Promise<void>;
+  /** 删除秘密值 */
+  delete(key: string, scope?: string): Promise<void>;
+}
+
+/**
+ * Guidance 文件加载器接口
+ * 封装 discoverGuidanceFiles 配置
+ */
+export interface GuidanceLoader {
+  /** 发现 guidance 文件 (AGENTS.md / CLAUDE.md) */
+  discover(opts?: Partial<GuidanceLoadOptions>): Promise<GuidanceFile[]>;
+}
+
+/**
+ * 容器创建选项
+ * 逆向: X3 参数 (claude-config-system.js:1097)
+ */
+export interface ContainerOptions {
+  /** Flitter API 服务器 URL */
+  ampURL: string;
+  /** 用户设置存储 */
+  settings: FileSettingsStorage;
+  /** 秘密存储 (API Key 等) */
+  secrets: SecretStorage;
+  /** 是否延迟认证 (TUI 模式下先启动再登录) */
+  deferAuth?: boolean;
+  /** 工作目录 */
+  workspaceRoot: string;
+  /** 数据目录 (thread 持久化路径, 可选) */
+  dataDir?: string;
+  /** 用户主目录 */
+  homeDir?: string;
+  /** 用户配置目录 (~/.config/flitter) */
+  configDir?: string;
+}
+
+/**
+ * 服务容器 — 包含所有已初始化的服务实例
+ * 逆向: X3 返回值 (claude-config-system.js:1097-1324)
+ */
+export interface ServiceContainer {
+  /** 配置服务 (三级合并 + 热重载) */
+  configService: ConfigService;
+  /** 工具注册表 (已注册 7 个内置工具) */
+  toolRegistry: ToolRegistry;
+  /** 工具执行引擎 (容器级别, 用于生命周期管理) */
+  toolOrchestrator: ToolOrchestrator;
+  /** 权限引擎 (四级决策) */
+  permissionEngine: PermissionEngine;
+  /** MCP 服务器管理器 */
+  mcpServerManager: MCPServerManager;
+  /** 技能服务 */
+  skillService: SkillService;
+  /** 线程内存存储 */
+  threadStore: ThreadStore;
+  /** 线程持久化 (如有 dataDir, 否则 null) */
+  threadPersistence: ThreadPersistence | null;
+  /** Guidance 文件加载器 */
+  guidanceLoader: GuidanceLoader;
+  /** 上下文管理器 (token 计数 + 压缩) */
+  contextManager: ContextManager;
+  /** 秘密存储引用 */
+  secrets: SecretStorage;
+  /** 设置存储引用 */
+  settings: FileSettingsStorage;
+
+  /**
+   * 创建 ThreadWorker 实例 (工厂模式)
+   * 每次调用创建新的 worker, 绑定到指定线程
+   */
+  createThreadWorker(threadId: string, opts?: Partial<ThreadWorkerOptions>): ThreadWorker;
+
+  /** 异步清理所有资源 (反序 dispose) */
+  asyncDispose(): Promise<void>;
+}
+
+// ── Disposable 接口 ─────────────────────────────────────
+
+interface Disposable {
+  dispose(): void | Promise<void>;
+}
+
+/**
+ * 创建服务容器 — 组装所有服务并连接依赖
+ *
+ * 创建顺序:
+ * 1. ConfigService (基础, 其他服务都依赖它)
+ * 2. ToolRegistry + 注册内置工具
+ * 3. PermissionEngine
+ * 4. ToolOrchestrator (容器级)
+ * 5. MCPServerManager
+ * 6. SkillService
+ * 7. GuidanceLoader
+ * 8. ThreadStore + ThreadPersistence
+ * 9. ContextManager
+ *
+ * 逆向: X3() in claude-config-system.js:1097-1324
+ */
+export async function createContainer(opts: ContainerOptions): Promise<ServiceContainer> {
+  log.info("Initializing service container...", { ampURL: opts.ampURL });
+  const disposables: Disposable[] = [];
+  let disposed = false;
+
+  try {
+    // 1. ConfigService — 所有其他服务的配置源
+    const configService = createConfigService(opts);
+    disposables.push({ dispose: () => configService.unsubscribe() });
+    log.info("ConfigService created");
+
+    // 2. ToolRegistry + 注册 7 个内置工具
+    const toolRegistry = createToolRegistry();
+    registerBuiltinTools(toolRegistry);
+    log.info("ToolRegistry created, builtin tools registered");
+
+    // 3. PermissionEngine — 四级决策
+    const permissionEngine = createPermissionEngine(configService, opts.workspaceRoot);
+    log.info("PermissionEngine created");
+
+    // 4. ToolOrchestrator — 容器级 (用于生命周期管理)
+    const noopCallbacks: OrchestratorCallbacks = {
+      getConfig: async () => configService.get(),
+      updateThread: async () => {},
+      getToolRunEnvironment: async (toolUseId, signal) => ({
+        workspaceRoot: opts.workspaceRoot,
+        abortSignal: signal,
+        readFile: async () => "",
+        writeFile: async () => {},
+      }),
+      applyHookResult: async () => ({ abortOp: false }),
+      applyPostHookResult: async () => {},
+      updateFileChanges: async () => {},
+      getDisposed$: () => new BehaviorSubject(false) as any,
+    };
+    const toolOrchestrator = new ToolOrchestrator("__container__", toolRegistry, noopCallbacks);
+    disposables.push(toolOrchestrator);
+    log.info("ToolOrchestrator created");
+
+    // 5. MCPServerManager
+    const mcpServerManager = createMCPServerManager(configService);
+    disposables.push(mcpServerManager);
+    log.info("MCPServerManager created");
+
+    // 6. SkillService
+    const skillService = createSkillService(configService);
+    log.info("SkillService created");
+
+    // 7. GuidanceLoader
+    const guidanceLoader = createGuidanceLoader(opts);
+    log.info("GuidanceLoader created");
+
+    // 8. ThreadStore + ThreadPersistence
+    const threadStore = createThreadStore();
+    log.info("ThreadStore created");
+    const threadPersistence = createThreadPersistence(opts);
+    if (threadPersistence) {
+      log.info("ThreadPersistence created", { dataDir: opts.dataDir });
+    }
+
+    // 9. ContextManager
+    const contextManager = createContextManager();
+    log.info("ContextManager created");
+
+    log.info("Service container initialized successfully.");
+
+    const container: ServiceContainer = {
+      configService,
+      toolRegistry,
+      toolOrchestrator,
+      permissionEngine,
+      mcpServerManager,
+      skillService,
+      threadStore,
+      threadPersistence,
+      guidanceLoader,
+      contextManager,
+      secrets: opts.secrets,
+      settings: opts.settings,
+
+      createThreadWorker(threadId: string, workerOpts?: Partial<ThreadWorkerOptions>): ThreadWorker {
+        // 为每个线程创建独立的 ToolOrchestrator
+        const threadCallbacks: OrchestratorCallbacks = {
+          getConfig: async () => configService.get(),
+          updateThread: async () => {},
+          getToolRunEnvironment: async (toolUseId, signal) => ({
+            workspaceRoot: opts.workspaceRoot,
+            abortSignal: signal,
+            readFile: async () => "",
+            writeFile: async () => {},
+          }),
+          applyHookResult: async () => ({ abortOp: false }),
+          applyPostHookResult: async () => {},
+          updateFileChanges: async () => {},
+          getDisposed$: () => new BehaviorSubject(false) as any,
+        };
+        const threadOrchestrator = new ToolOrchestrator(threadId, toolRegistry, threadCallbacks);
+
+        const fullOpts: ThreadWorkerOptions = {
+          getThreadSnapshot: workerOpts?.getThreadSnapshot ?? (() => ({
+            id: threadId,
+            v: 1,
+            title: null,
+            messages: [],
+            env: "local",
+            agentMode: "normal",
+            relationships: [],
+          } as any)),
+          updateThreadSnapshot: workerOpts?.updateThreadSnapshot ?? (() => {}),
+          getMessages: workerOpts?.getMessages ?? (() => []),
+          provider: workerOpts?.provider ?? (null as any),
+          toolOrchestrator: threadOrchestrator,
+          buildSystemPrompt: workerOpts?.buildSystemPrompt ?? (async () => []),
+          checkAndCompact: workerOpts?.checkAndCompact ?? (async () => null),
+          getConfig: workerOpts?.getConfig ?? (() => configService.get()),
+          toolRegistry,
+        };
+
+        return new ThreadWorkerImpl(fullOpts);
+      },
+
+      async asyncDispose() {
+        if (disposed) return;
+        disposed = true;
+        log.info("Disposing service container...");
+        // 反序清理: 最后创建的先清理
+        for (let i = disposables.length - 1; i >= 0; i--) {
+          try {
+            await disposables[i].dispose();
+          } catch (err) {
+            log.warn("Dispose error", { error: err });
+          }
+        }
+        log.info("Service container disposed.");
+      },
+    };
+
+    return container;
+  } catch (err) {
+    // Partial failure: 清理已创建的服务
+    log.error("Container initialization failed, cleaning up...", { error: err });
+    for (let i = disposables.length - 1; i >= 0; i--) {
+      try {
+        await disposables[i].dispose();
+      } catch {
+        // 忽略清理错误
+      }
+    }
+    throw err;
+  }
+}

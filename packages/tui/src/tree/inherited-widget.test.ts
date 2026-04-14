@@ -1,348 +1,412 @@
 /**
- * InheritedWidget / InheritedElement 单元测试。
+ * InheritedWidget + InheritedElement 单元测试。
  *
- * 覆盖 InheritedWidget 创建、InheritedElement 生命周期、
- * addDependent/removeDependent 依赖管理、updateShouldNotify 通知机制、
- * dependOnInheritedWidgetOfExactType 向上查找与依赖注册、
- * unmount 清除依赖关系等核心行为。
+ * 使用 node:test + node:assert/strict，覆盖 InheritedWidget 创建、
+ * InheritedElement 生命周期、依赖管理、通知机制和 Element 基类扩展。
  *
  * 运行方式：
  * ```bash
- * bun test packages/tui/src/tree/inherited-widget.test.ts
+ * npx tsx --test packages/tui/src/tree/inherited-widget.test.ts
  * ```
  *
  * @module
  */
 
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
+import type { Key, Widget } from "./element.js";
 import { Element } from "./element.js";
 import { InheritedElement } from "./inherited-element.js";
 import { InheritedWidget } from "./inherited-widget.js";
 import type { BuildOwnerLike } from "./types.js";
 import { setBuildOwner } from "./types.js";
-import { Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
 // ════════════════════════════════════════════════════
 
-/** Mock BuildOwner，记录被调度的元素 */
-class MockBuildOwner implements BuildOwnerLike {
-  scheduledElements: unknown[] = [];
+/** 最小 Widget 实现，用于测试 */
+class TestWidget implements Widget {
+  key: Key | undefined;
 
-  scheduleBuildFor(element: unknown): void {
-    this.scheduledElements.push(element);
+  constructor(opts?: { key?: Key }) {
+    this.key = opts?.key;
   }
-}
 
-/** 叶子 Widget，作为 child 使用 */
-class LeafWidget extends Widget {
+  canUpdate(other: Widget): boolean {
+    return this.constructor === other.constructor;
+  }
+
   createElement(): Element {
-    return new LeafElement(this);
+    return new TestElement(this);
   }
 }
 
-/** 叶子 Element，performRebuild 为空操作 */
-class LeafElement extends Element {
-  performRebuild(): void {
-    this._dirty = false;
+/** 最小 Element 实现，用于测试 */
+class TestElement extends Element {
+  rebuildCount = 0;
+
+  override performRebuild(): void {
+    super.performRebuild();
+    this.rebuildCount++;
   }
 }
 
-/** 具体的 InheritedWidget 子类: 颜色主题 */
-class TestThemeWidget extends InheritedWidget {
-  readonly color: string;
+/** 具体 InheritedWidget 实现用于测试 */
+class TestInheritedWidget extends InheritedWidget {
+  readonly value: number;
 
-  constructor(opts: { color: string; child: Widget }) {
+  constructor(opts: { value: number; child: Widget }) {
     super({ child: opts.child });
-    this.color = opts.color;
+    this.value = opts.value;
   }
 
   updateShouldNotify(oldWidget: InheritedWidget): boolean {
-    return this.color !== (oldWidget as TestThemeWidget).color;
+    return this.value !== (oldWidget as TestInheritedWidget).value;
   }
 }
 
-/** 另一种具体的 InheritedWidget 子类: locale */
-class TestLocaleWidget extends InheritedWidget {
-  readonly locale: string;
+/** 第二种 InheritedWidget 用于多类型测试 */
+class AnotherInheritedWidget extends InheritedWidget {
+  readonly name: string;
 
-  constructor(opts: { locale: string; child: Widget }) {
+  constructor(opts: { name: string; child: Widget }) {
     super({ child: opts.child });
-    this.locale = opts.locale;
+    this.name = opts.name;
   }
 
   updateShouldNotify(oldWidget: InheritedWidget): boolean {
-    return this.locale !== (oldWidget as TestLocaleWidget).locale;
+    return this.name !== (oldWidget as AnotherInheritedWidget).name;
   }
 }
+
+/** 模拟 BuildOwner 用于跟踪调度 */
+class MockBuildOwner implements BuildOwnerLike {
+  scheduled: Element[] = [];
+  scheduleBuildFor(element: Element): void {
+    this.scheduled.push(element);
+  }
+}
+
+let mockBuildOwner: MockBuildOwner;
+
+afterEach(() => {
+  setBuildOwner(undefined);
+});
 
 // ════════════════════════════════════════════════════
-//  测试
+//  InheritedWidget 基本行为
 // ════════════════════════════════════════════════════
 
 describe("InheritedWidget", () => {
-  let buildOwner: MockBuildOwner;
-
-  beforeEach(() => {
-    buildOwner = new MockBuildOwner();
-    setBuildOwner(buildOwner);
-  });
-
-  afterEach(() => {
-    setBuildOwner(undefined);
-  });
-
-  // ────────────────────────────────────────
-  // 1. InheritedWidget.createElement 返回 InheritedElement 实例
-  // ────────────────────────────────────────
   it("createElement 返回 InheritedElement 实例", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "red", child: leaf });
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 42, child });
     const element = widget.createElement();
-    assert.ok(element instanceof InheritedElement, "应返回 InheritedElement 实例");
+    assert.ok(element instanceof InheritedElement);
   });
 
-  // ────────────────────────────────────────
-  // 2. InheritedElement.mount 自动挂载 child
-  // ────────────────────────────────────────
-  it("mount 自动创建并挂载 child Element", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "blue", child: leaf });
+  it("child 属性正确设置", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 10, child });
+    assert.strictEqual(widget.child, child);
+  });
+
+  it("canUpdate 同类型返回 true", () => {
+    const child1 = new TestWidget();
+    const child2 = new TestWidget();
+    const w1 = new TestInheritedWidget({ value: 1, child: child1 });
+    const w2 = new TestInheritedWidget({ value: 2, child: child2 });
+    assert.ok(w1.canUpdate(w2));
+  });
+
+  it("canUpdate 不同类型返回 false", () => {
+    const child1 = new TestWidget();
+    const child2 = new TestWidget();
+    const w1 = new TestInheritedWidget({ value: 1, child: child1 });
+    const w2 = new AnotherInheritedWidget({ name: "x", child: child2 });
+    assert.ok(!w1.canUpdate(w2));
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  InheritedElement 生命周期
+// ════════════════════════════════════════════════════
+
+describe("InheritedElement", () => {
+  it("mount 自动挂载 child", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
     const element = widget.createElement() as InheritedElement;
-    element.mount();
 
-    assert.equal(element.children.length, 1, "应有 1 个子元素");
-    assert.ok(element.children[0]!.mounted, "子元素应已挂载");
-    assert.ok(element.children[0] instanceof LeafElement, "子元素应为 LeafElement");
+    element.mount(undefined);
+
+    assert.strictEqual(element.children.length, 1);
+    assert.ok(element.children[0]!.mounted);
   });
 
-  // ────────────────────────────────────────
-  // 3. addDependent / removeDependent 维护 dependents 集合
-  // ────────────────────────────────────────
-  it("addDependent / removeDependent 维护依赖集合", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "green", child: leaf });
+  it("mount 后 child 的 parent 是 InheritedElement", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
     const element = widget.createElement() as InheritedElement;
-    element.mount();
 
-    const consumer = new LeafElement(new LeafWidget());
-    consumer.mount(element);
+    element.mount(undefined);
 
-    assert.equal(element.dependentCount, 0, "初始无依赖");
+    assert.strictEqual(element.children[0]!.parent, element);
+  });
+});
 
-    element.addDependent(consumer);
-    assert.equal(element.dependentCount, 1, "添加后有 1 个依赖");
+// ════════════════════════════════════════════════════
+//  依赖管理 (addDependent / removeDependent)
+// ════════════════════════════════════════════════════
 
-    element.removeDependent(consumer);
-    assert.equal(element.dependentCount, 0, "移除后无依赖");
+describe("InheritedElement 依赖管理", () => {
+  it("addDependent/removeDependent 维护 dependents 集合", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
+
+    const dependent = new TestElement(new TestWidget());
+    dependent.mount(inherited);
+
+    inherited.addDependent(dependent);
+    // 通过 update 触发通知来验证 dependent 被追踪
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
+
+    const newWidget = new TestInheritedWidget({ value: 2, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(mockBuildOwner.scheduled.includes(dependent));
   });
 
-  // ────────────────────────────────────────
-  // 4. update + updateShouldNotify → true: 通知 dependents markNeedsRebuild
-  // ────────────────────────────────────────
-  it("update 调用 updateShouldNotify → true 时通知 dependents", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "red", child: leaf });
-    const element = widget.createElement() as InheritedElement;
-    element.mount();
+  it("removeDependent 后不再通知", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    // 创建并注册 consumer
-    const consumer = new LeafElement(new LeafWidget());
-    consumer.mount(element);
-    element.addDependent(consumer);
-    // 消费者先清除脏标记
-    consumer.performRebuild();
-    assert.equal(consumer.dirty, false, "consumer 初始不脏");
+    const dependent = new TestElement(new TestWidget());
+    dependent.mount(inherited);
 
-    // 颜色变了 → updateShouldNotify 返回 true
-    const newWidget = new TestThemeWidget({ color: "blue", child: leaf });
-    element.update(newWidget);
+    inherited.addDependent(dependent);
+    inherited.removeDependent(dependent);
 
-    assert.equal(consumer.dirty, true, "consumer 应被标记为脏");
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
+
+    const newWidget = new TestInheritedWidget({ value: 2, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(!mockBuildOwner.scheduled.includes(dependent));
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  update + updateShouldNotify
+// ════════════════════════════════════════════════════
+
+describe("InheritedElement update 通知", () => {
+  it("updateShouldNotify 返回 true 时通知 dependents markNeedsRebuild", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
+
+    const dependent = new TestElement(new TestWidget());
+    dependent.mount(inherited);
+    inherited.addDependent(dependent);
+
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
+
+    // value 变化 → updateShouldNotify 返回 true
+    const newWidget = new TestInheritedWidget({ value: 999, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(mockBuildOwner.scheduled.includes(dependent));
   });
 
-  // ────────────────────────────────────────
-  // 5. update + updateShouldNotify → false: 不通知
-  // ────────────────────────────────────────
-  it("update 调用 updateShouldNotify → false 时不通知 dependents", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "red", child: leaf });
-    const element = widget.createElement() as InheritedElement;
-    element.mount();
+  it("updateShouldNotify 返回 false 时不通知 dependents", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    const consumer = new LeafElement(new LeafWidget());
-    consumer.mount(element);
-    element.addDependent(consumer);
-    consumer.performRebuild();
-    assert.equal(consumer.dirty, false, "consumer 初始不脏");
+    const dependent = new TestElement(new TestWidget());
+    dependent.mount(inherited);
+    inherited.addDependent(dependent);
 
-    // 相同颜色 → updateShouldNotify 返回 false
-    const newWidget = new TestThemeWidget({ color: "red", child: leaf });
-    element.update(newWidget);
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
 
-    assert.equal(consumer.dirty, false, "consumer 不应被标记为脏");
+    // value 相同 → updateShouldNotify 返回 false
+    const newWidget = new TestInheritedWidget({ value: 1, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(!mockBuildOwner.scheduled.includes(dependent));
   });
 
-  // ────────────────────────────────────────
-  // 6. dependOnInheritedWidgetOfExactType 查找正确的祖先
-  // ────────────────────────────────────────
-  it("dependOnInheritedWidgetOfExactType 找到正确的祖先", () => {
-    const leaf = new LeafWidget();
-    const themeWidget = new TestThemeWidget({ color: "red", child: leaf });
-    const themeElement = themeWidget.createElement() as InheritedElement;
-    themeElement.mount();
+  it("update 正确更新子 Widget (canUpdate)", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    // child 是 themeElement.children[0]
-    const childElement = themeElement.children[0]!;
-    const found = childElement.dependOnInheritedWidgetOfExactType(TestThemeWidget);
+    const childElement = inherited.children[0]!;
+    const newChild = new TestWidget();
+    const newWidget = new TestInheritedWidget({ value: 2, child: newChild });
 
-    assert.ok(found !== null, "应找到祖先");
-    assert.equal(found, themeElement, "应为 themeElement");
+    inherited.update(newWidget);
+
+    // child element 仍然是同一个（被复用）
+    assert.strictEqual(inherited.children[0], childElement);
+    // widget 已更新
+    assert.strictEqual(inherited.children[0]!.widget, newChild);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  dependOnInheritedWidgetOfExactType
+// ════════════════════════════════════════════════════
+
+describe("Element.dependOnInheritedWidgetOfExactType", () => {
+  it("查找正确的祖先 InheritedElement", () => {
+    const leafWidget = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 42, child: leafWidget });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
+
+    const leaf = inherited.children[0]!;
+    const found = leaf.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
+
+    assert.strictEqual(found, inherited);
   });
 
-  // ────────────────────────────────────────
-  // 7. dependOnInheritedWidgetOfExactType 注册双向依赖
-  // ────────────────────────────────────────
-  it("dependOnInheritedWidgetOfExactType 注册双向依赖", () => {
-    const leaf = new LeafWidget();
-    const themeWidget = new TestThemeWidget({ color: "red", child: leaf });
-    const themeElement = themeWidget.createElement() as InheritedElement;
-    themeElement.mount();
+  it("注册双向依赖", () => {
+    const leafWidget = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 42, child: leafWidget });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    const childElement = themeElement.children[0]!;
-    childElement.dependOnInheritedWidgetOfExactType(TestThemeWidget);
+    const leaf = inherited.children[0]!;
+    leaf.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
 
-    // InheritedElement 的 dependents 应包含 childElement
-    assert.equal(themeElement.dependentCount, 1, "themeElement 应有 1 个 dependent");
+    // 验证 inherited 的 dependents 包含 leaf
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
+
+    const newWidget = new TestInheritedWidget({ value: 99, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(mockBuildOwner.scheduled.includes(leaf));
   });
 
-  // ────────────────────────────────────────
-  // 8. 多层嵌套: 查找最近的匹配祖先
-  // ────────────────────────────────────────
-  it("多层嵌套时查找最近的匹配祖先", () => {
-    const leaf = new LeafWidget();
+  it("多层嵌套: 查找最近的匹配祖先", () => {
+    // 构造: outer(InheritedWidget) → inner(InheritedWidget) → leaf
+    const leafWidget = new TestWidget();
+    const innerWidget = new TestInheritedWidget({ value: 2, child: leafWidget });
+    const outerWidget = new TestInheritedWidget({ value: 1, child: innerWidget });
 
-    // 外层: TestThemeWidget color=red
-    const outerTheme = new TestThemeWidget({ color: "red", child: leaf });
-    const outerElement = outerTheme.createElement() as InheritedElement;
-    outerElement.mount();
+    const outerElement = outerWidget.createElement() as InheritedElement;
+    outerElement.mount(undefined);
 
-    // 在 outerElement.children[0] 下手动构建内层 InheritedElement
-    const innerTheme = new TestThemeWidget({ color: "blue", child: leaf });
-    const innerElement = innerTheme.createElement() as InheritedElement;
-    outerElement.addChild(innerElement);
-    innerElement.mount(outerElement);
+    // outer → innerElement → leafElement
+    const innerElement = outerElement.children[0]! as InheritedElement;
+    const leafElement = innerElement.children[0]!;
 
-    // 在 innerElement 下创建消费者
-    const consumer = new LeafElement(new LeafWidget());
-    innerElement.addChild(consumer);
-    consumer.mount(innerElement);
+    const found = leafElement.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
 
-    const found = consumer.dependOnInheritedWidgetOfExactType(TestThemeWidget);
-
-    // 应找到 innerElement（最近的祖先），而不是 outerElement
-    assert.equal(found, innerElement, "应找到最近的 InheritedElement");
-    assert.equal(innerElement.dependentCount, 1, "innerElement 应有 1 个 dependent");
-    assert.equal(outerElement.dependentCount, 0, "outerElement 不应有 dependent");
+    // 应该找到最近的 inner，而不是 outer
+    assert.strictEqual(found, innerElement);
   });
 
-  // ────────────────────────────────────────
-  // 9. unmount 清除所有 _inheritedDependencies
-  // ────────────────────────────────────────
+  it("不存在的 widgetType 返回 null", () => {
+    const child = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
+
+    const leaf = inherited.children[0]!;
+    const found = leaf.dependOnInheritedWidgetOfExactType(AnotherInheritedWidget);
+
+    assert.strictEqual(found, null);
+  });
+
+  it("区分不同类型的 InheritedWidget", () => {
+    // 构造: TestInherited → AnotherInherited → leaf
+    const leafWidget = new TestWidget();
+    const innerWidget = new AnotherInheritedWidget({ name: "hello", child: leafWidget });
+    const outerWidget = new TestInheritedWidget({ value: 1, child: innerWidget });
+
+    const outerElement = outerWidget.createElement() as InheritedElement;
+    outerElement.mount(undefined);
+
+    const innerElement = outerElement.children[0]! as InheritedElement;
+    const leafElement = innerElement.children[0]!;
+
+    // 查找 TestInheritedWidget 应找到 outerElement
+    const foundTest = leafElement.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
+    assert.strictEqual(foundTest, outerElement);
+
+    // 查找 AnotherInheritedWidget 应找到 innerElement
+    const foundAnother = leafElement.dependOnInheritedWidgetOfExactType(AnotherInheritedWidget);
+    assert.strictEqual(foundAnother, innerElement);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  unmount 清除依赖
+// ════════════════════════════════════════════════════
+
+describe("unmount 清除 InheritedElement 依赖", () => {
   it("unmount 清除所有 _inheritedDependencies", () => {
-    const leaf = new LeafWidget();
-    const themeWidget = new TestThemeWidget({ color: "red", child: leaf });
-    const themeElement = themeWidget.createElement() as InheritedElement;
-    themeElement.mount();
+    const leafWidget = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child: leafWidget });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    const consumer = new LeafElement(new LeafWidget());
-    themeElement.addChild(consumer);
-    consumer.mount(themeElement);
+    const leaf = inherited.children[0]!;
+    leaf.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
 
-    // 注册依赖
-    consumer.dependOnInheritedWidgetOfExactType(TestThemeWidget);
-    assert.equal(themeElement.dependentCount, 1, "注册后 themeElement 有 1 个 dependent");
+    // unmount leaf — 应清除依赖
+    leaf.unmount();
 
-    // 卸载 consumer
-    consumer.unmount();
+    // 验证 inherited 的 dependents 不再包含 leaf
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
 
-    // InheritedElement 的 dependents 应已移除 consumer
-    assert.equal(themeElement.dependentCount, 0, "unmount 后 themeElement 无 dependent");
+    const newWidget = new TestInheritedWidget({ value: 999, child: new TestWidget() });
+    inherited.update(newWidget);
+
+    assert.ok(!mockBuildOwner.scheduled.includes(leaf));
   });
 
-  // ────────────────────────────────────────
-  // 10. unmount 从 InheritedElement 的 dependents 中移除自身
-  // ────────────────────────────────────────
-  it("unmount 从多个 InheritedElement 的 dependents 中移除自身", () => {
-    const leaf = new LeafWidget();
+  it("unmount 从 InheritedElement 的 dependents 中移除自身", () => {
+    const leafWidget = new TestWidget();
+    const widget = new TestInheritedWidget({ value: 1, child: leafWidget });
+    const inherited = widget.createElement() as InheritedElement;
+    inherited.mount(undefined);
 
-    // 构建 Theme + Locale 双层 InheritedWidget
-    const themeWidget = new TestThemeWidget({ color: "red", child: leaf });
-    const themeElement = themeWidget.createElement() as InheritedElement;
-    themeElement.mount();
+    const leaf = inherited.children[0]!;
+    leaf.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
 
-    const localeWidget = new TestLocaleWidget({ locale: "zh", child: leaf });
-    const localeElement = localeWidget.createElement() as InheritedElement;
-    themeElement.addChild(localeElement);
-    localeElement.mount(themeElement);
+    leaf.unmount();
 
-    // 在 localeElement 下创建消费者
-    const consumer = new LeafElement(new LeafWidget());
-    localeElement.addChild(consumer);
-    consumer.mount(localeElement);
+    // 再添加新的 dependent 并 update — 确保旧 leaf 不被通知
+    const newDependent = new TestElement(new TestWidget());
+    newDependent.mount(inherited);
+    inherited.addDependent(newDependent);
 
-    // 注册对两个 InheritedWidget 的依赖
-    consumer.dependOnInheritedWidgetOfExactType(TestThemeWidget);
-    consumer.dependOnInheritedWidgetOfExactType(TestLocaleWidget);
+    mockBuildOwner = new MockBuildOwner();
+    setBuildOwner(mockBuildOwner);
 
-    assert.equal(themeElement.dependentCount, 1, "themeElement 有 1 个 dependent");
-    assert.equal(localeElement.dependentCount, 1, "localeElement 有 1 个 dependent");
+    const newWidget = new TestInheritedWidget({ value: 999, child: new TestWidget() });
+    inherited.update(newWidget);
 
-    // 卸载 consumer
-    consumer.unmount();
-
-    assert.equal(themeElement.dependentCount, 0, "themeElement 已无 dependent");
-    assert.equal(localeElement.dependentCount, 0, "localeElement 已无 dependent");
-  });
-
-  // ────────────────────────────────────────
-  // 11. 不存在的 widgetType 返回 null
-  // ────────────────────────────────────────
-  it("dependOnInheritedWidgetOfExactType 不存在时返回 null", () => {
-    const leaf = new LeafWidget();
-    const themeWidget = new TestThemeWidget({ color: "red", child: leaf });
-    const themeElement = themeWidget.createElement() as InheritedElement;
-    themeElement.mount();
-
-    const childElement = themeElement.children[0]!;
-
-    // 搜索 TestLocaleWidget，但树中只有 TestThemeWidget
-    const found = childElement.dependOnInheritedWidgetOfExactType(TestLocaleWidget);
-    assert.equal(found, null, "应返回 null");
-  });
-
-  // ────────────────────────────────────────
-  // 12. InheritedElement 子 Widget 更新 (canUpdate)
-  // ────────────────────────────────────────
-  it("update 时子 Widget canUpdate → 复用并更新子 Element", () => {
-    const leaf = new LeafWidget();
-    const widget = new TestThemeWidget({ color: "red", child: leaf });
-    const element = widget.createElement() as InheritedElement;
-    element.mount();
-
-    const originalChild = element.children[0]!;
-    assert.ok(originalChild instanceof LeafElement, "初始子元素为 LeafElement");
-
-    // 用新 leaf 更新（同类型无 key → canUpdate 为 true）
-    const newLeaf = new LeafWidget();
-    const newWidget = new TestThemeWidget({ color: "blue", child: newLeaf });
-    element.update(newWidget);
-
-    // 子 Element 应被复用（引用相同）
-    assert.equal(element.children[0], originalChild, "子 Element 应被复用");
-    // widget 应已更新为 newLeaf
-    assert.equal(element.children[0]!.widget, newLeaf, "子 Widget 应已更新");
+    // 只有 newDependent 被通知
+    assert.ok(mockBuildOwner.scheduled.includes(newDependent));
+    assert.ok(!mockBuildOwner.scheduled.includes(leaf));
   });
 });

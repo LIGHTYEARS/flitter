@@ -169,6 +169,7 @@ describe("InheritedElement 依赖管理", () => {
 
     const dependent = new TestElement(new TestWidget());
     dependent.mount(inherited);
+    dependent.performRebuild(); // 清除 dirty 标记以便 markNeedsRebuild 能生效
 
     inherited.addDependent(dependent);
     // 通过 update 触发通知来验证 dependent 被追踪
@@ -189,6 +190,7 @@ describe("InheritedElement 依赖管理", () => {
 
     const dependent = new TestElement(new TestWidget());
     dependent.mount(inherited);
+    dependent.performRebuild(); // 清除 dirty 标记
 
     inherited.addDependent(dependent);
     inherited.removeDependent(dependent);
@@ -216,6 +218,7 @@ describe("InheritedElement update 通知", () => {
 
     const dependent = new TestElement(new TestWidget());
     dependent.mount(inherited);
+    dependent.performRebuild(); // 清除 dirty 标记以便 markNeedsRebuild 能生效
     inherited.addDependent(dependent);
 
     mockBuildOwner = new MockBuildOwner();
@@ -236,6 +239,7 @@ describe("InheritedElement update 通知", () => {
 
     const dependent = new TestElement(new TestWidget());
     dependent.mount(inherited);
+    dependent.performRebuild(); // 清除 dirty 标记
     inherited.addDependent(dependent);
 
     mockBuildOwner = new MockBuildOwner();
@@ -291,6 +295,7 @@ describe("Element.dependOnInheritedWidgetOfExactType", () => {
     inherited.mount(undefined);
 
     const leaf = inherited.children[0]!;
+    leaf.performRebuild(); // 清除 dirty 标记以便 markNeedsRebuild 能生效
     leaf.dependOnInheritedWidgetOfExactType(TestInheritedWidget);
 
     // 验证 inherited 的 dependents 包含 leaf
@@ -397,6 +402,7 @@ describe("unmount 清除 InheritedElement 依赖", () => {
     // 再添加新的 dependent 并 update — 确保旧 leaf 不被通知
     const newDependent = new TestElement(new TestWidget());
     newDependent.mount(inherited);
+    newDependent.performRebuild(); // 清除 dirty 标记以便 markNeedsRebuild 能生效
     inherited.addDependent(newDependent);
 
     mockBuildOwner = new MockBuildOwner();

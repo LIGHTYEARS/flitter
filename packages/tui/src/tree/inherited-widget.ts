@@ -1,8 +1,9 @@
 /**
- * InheritedWidget --- 上下文数据注入的核心 Widget。
+ * InheritedWidget — 上下文数据注入的核心 Widget。
  *
- * InheritedWidget 扩展 Widget 接口，新增 child 属性和 updateShouldNotify(oldWidget)
- * 抽象方法。消费侧通过 element.dependOnInheritedWidgetOfExactType(MyWidget) 订阅数据变更。
+ * {@link InheritedWidget} 是 Flutter 上下文数据向下传递机制的核心。
+ * 消费侧通过 `context.dependOnInheritedWidgetOfExactType(MyWidget)` 订阅数据变更，
+ * 当数据变化时自动触发依赖方重建。
  *
  * 逆向参考: tui-widget-framework.js 中 Element.dependOnInheritedWidgetOfExactType
  *
@@ -23,27 +24,21 @@
  * @module
  */
 
-import type { Element, Widget } from "./element.js";
+import type { Widget, Key } from "./element.js";
+import type { Element } from "./element.js";
 import { InheritedElement } from "./inherited-element.js";
-import type { Key } from "./widget.js";
-
-// ════════════════════════════════════════════════════
-//  InheritedWidget 抽象基类
-// ════════════════════════════════════════════════════
 
 /**
- * InheritedWidget 抽象基类。
+ * 上下文数据注入 Widget 抽象基类。
  *
- * 继承 Widget 接口，提供数据向下传递机制。子类须实现 {@link updateShouldNotify}
- * 方法，框架在 Widget 更新时通过该方法判断是否需要通知依赖方重建。
- *
- * @see InheritedElement
+ * 子类必须实现 {@link updateShouldNotify} 方法，
+ * 返回数据是否变化以决定是否通知依赖方。
  */
 export abstract class InheritedWidget implements Widget {
   /** 可选标识键 */
   readonly key: Key | undefined;
 
-  /** 子 Widget，InheritedWidget 为单子节点模式 */
+  /** 子 Widget */
   readonly child: Widget;
 
   /**
@@ -59,27 +54,19 @@ export abstract class InheritedWidget implements Widget {
   }
 
   /**
-   * 判断当前 Widget 是否能用 other 更新。
+   * 判断当前 Widget 是否能用另一个 Widget 更新。
    *
-   * 协调规则: 类型相同且 key 相同时可更新。
+   * 协调规则: 构造函数相同且 key 相同时可更新。
    *
    * @param other - 待比较的另一个 Widget
-   * @returns 可更新时返回 true
+   * @returns 可以更新时返回 true
    */
   canUpdate(other: Widget): boolean {
-    if (this.constructor !== other.constructor) return false;
-    if (this.key !== undefined && other.key !== undefined) {
-      if ("equals" in this.key && typeof this.key.equals === "function") {
-        return this.key.equals(other.key as Key);
-      }
-      return this.key === other.key;
-    }
-    if (this.key === undefined && other.key === undefined) return true;
-    return false;
+    return other.constructor === this.constructor && other.key === this.key;
   }
 
   /**
-   * 创建与此 InheritedWidget 关联的 {@link InheritedElement}。
+   * 创建与此 InheritedWidget 关联的 InheritedElement。
    *
    * @returns 新创建的 InheritedElement 实例
    */
@@ -88,13 +75,12 @@ export abstract class InheritedWidget implements Widget {
   }
 
   /**
-   * 判断数据变更时是否需要通知依赖方重建。
+   * 判断数据是否变化，需要通知依赖方。
    *
-   * 子类必须实现此方法。当新旧 Widget 数据不同时返回 true，
-   * 框架将对所有 dependents 调用 markNeedsRebuild()。
+   * 子类必须实现此方法，比较新旧 Widget 的数据差异。
    *
-   * @param oldWidget - 更新前的旧 Widget 实例
-   * @returns 需要通知时返回 true
+   * @param oldWidget - 更新前的旧 Widget
+   * @returns 数据变化时返回 true，依赖方将被通知重建
    */
   abstract updateShouldNotify(oldWidget: InheritedWidget): boolean;
 }

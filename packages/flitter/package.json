@@ -1,5 +1,5 @@
 {
-  "name": "flitter",
+  "name": "@flitter/flitter",
   "version": "0.1.0",
   "description": "Flitter main application - assembly layer",
   "type": "module",

@@ -59,10 +59,9 @@ describe("startOAuthCallbackServer", () => {
       blockers.push(s);
     }
     try {
-      expect(() => {
-        // maxRetries=2 means only tries 49210 and 49211
-        startOAuthCallbackServer(49210, 2);
-      }).toThrow(/Failed to bind/);
+      // maxRetries=2 means only tries 49210 and 49211
+      const result = startOAuthCallbackServer(49210, 2);
+      await expect(result.port).rejects.toThrow(/Failed to bind/);
     } finally {
       for (const s of blockers) s.close();
     }

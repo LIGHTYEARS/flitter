@@ -17,7 +17,7 @@ importers:
 
   apps/flitter-cli:
     dependencies:
-      flitter:
+      '@flitter/flitter':
         specifier: workspace:*
         version: link:../../packages/flitter
     devDependencies:
@@ -58,6 +58,9 @@ importers:
       '@flitter/data':
         specifier: workspace:*
         version: link:../data
+      '@flitter/flitter':
+        specifier: workspace:*
+        version: link:../flitter
       '@flitter/llm':
         specifier: workspace:*
         version: link:../llm

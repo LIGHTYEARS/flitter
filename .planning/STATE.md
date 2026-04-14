@@ -2,23 +2,23 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 10
-status: phase_10_planned
-last_updated: "2026-04-14T08:00:00.000Z"
+current_phase: 11
+status: phase_10_complete
+last_updated: "2026-04-14T12:00:00.000Z"
 progress:
   total_phases: 11
-  completed_phases: 9
+  completed_phases: 10
   total_plans: 84
-  completed_plans: 74
-  percent: 82
+  completed_plans: 84
+  percent: 100
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 10 (planned)
-**Status:** Phase 10 Planned — Agent 核心引擎
+**Current phase:** 11 (not started)
+**Status:** Phase 10 Complete — Agent 核心引擎
 
 ---
 
@@ -28,10 +28,10 @@ progress:
 |-------|-------|
 | Phase | 10 — Agent 核心引擎 |
 | Package | `@flitter/agent-core` |
-| Status | planned |
+| Status | complete |
 | Requirements | AGNT-01..11 (11) |
 | Plans created | 10/10 |
-| Plans completed | 0/10 |
+| Plans completed | 10/10 |
 
 ---
 
@@ -49,7 +49,7 @@ progress:
 | 7b | SDK Migration + OAuth | complete | 11/11 | LLM-01..06 (SDK rewrite) |
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
-| 10 | Agent 核心引擎 | planned | 10/10 | AGNT-01..11 (11) |
+| 10 | Agent 核心引擎 | complete | 10/10 | AGNT-01..11 (11) |
 | 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
 
 ---
@@ -61,7 +61,7 @@ progress:
 | M1 | Hello TUI | complete | Phase 4 |
 | M2 | Widget 树 | complete | Phase 5 |
 | M3 | 流式对话 | complete | Phase 7b |
-| M4 | 工具调用 | pending | Phase 10 |
+| M4 | 工具调用 | complete | Phase 10 |
 | M5 | MCP 集成 | complete | Phase 8 |
 | M6 | 完整对话 | pending | Phase 11 |
 
@@ -222,17 +222,20 @@ _(none)_
   - 文件结构: packages/data/src/ — thread/ (types, store, persistence) + config/ (jsonc, settings-storage, config-service) + skill/ (types, parser, service) + guidance/ (types, loader) + context/ (token-counter, context-manager)
   - 总测试数: 2239 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242 + Phase 9: 167)
 
-- Phase 10 已规划: 10 个 plan, 5 waves
-  - Wave 1 (serial): 10-01 (Tool Types + Registry, ~20 tests) + 10-02 (ToolOrchestrator 批处理/并行, ~25 tests)
-  - Wave 2 (parallel): 10-03 (Read/Write/Edit 文件工具, ~20 tests) + 10-04 (Bash Shell 工具, ~15 tests) + 10-05 (Grep/Glob/FuzzyFind 搜索工具, ~15 tests)
-  - Wave 3 (serial): 10-06 (Permission DSL 解析器 — glob→regex 匹配, ~20 tests) + 10-07 (Permission 执行引擎 — 四级决策 + 受保护文件, ~20 tests)
-  - Wave 4 (serial): 10-08 (系统提示词组装 — 角色/环境/工具/Guidance/Skills, ~15 tests) + 10-09 (ThreadWorker 状态机 — Agent 推理循环, ~25 tests)
-  - Wave 5 (parallel): 10-10 (子代理框架 + Hook 系统, ~30 tests)
-  - 关键逆向映射: ov→ThreadWorker, FWT→ToolOrchestrator, LO→buildSystemPrompt, fwR→collectContextBlocks, wwR→batchToolsByDependency, MwR→hasResourceConflict, Vf→matchToolPattern, Xf→matchDisablePattern, yy→checkToolEnabled, jmR→getToolFilePaths, rcT→checkGuardedFile
+- Phase 10 完成: 10 个 plan 全部实现 (5 waves) — 266 个新测试, 266 总 Agent-Core 测试通过
+  - Wave 1 (serial): 10-01 (Tool Types + Registry, 20 tests) + 10-02 (ToolOrchestrator 批处理/并行, 32 tests) = 52 tests
+  - Wave 2 (parallel): 10-03 (Read/Write/Edit 文件工具, 27 tests) + 10-04 (Bash Shell 工具, 14 tests) + 10-05 (Grep/Glob/FuzzyFind 搜索工具, 27 tests) = 68 tests
+  - Wave 3 (serial): 10-06 (Permission DSL 解析器 — glob→regex 匹配, 27 tests) + 10-07 (Permission 执行引擎 — 四级决策 + 受保护文件, 25 tests) = 52 tests
+  - Wave 4 (serial): 10-08 (系统提示词组装 — 角色/环境/工具/Guidance/Skills, 16 tests) + 10-09 (ThreadWorker 状态机 — Agent 推理循环, 39 tests) = 55 tests
+  - Wave 5 (parallel): 10-10 (子代理框架 SubAgentManager, 17 tests + Hook 系统 parseHooksConfig/executePreHook/executePostHook, 22 tests) = 39 tests
+  - 关键逆向映射: ov→ThreadWorker, FWT→ToolOrchestrator, fwR→collectContextBlocks, wwR→batchToolsByDependency, MwR→hasResourceConflict, Vf→matchToolPattern, Xf→matchDisablePattern, yy→checkToolEnabled, jmR→getToolFilePaths, rcT→checkGuardedFile
   - 关键设计决策: KD-32..38 (状态机/并行执行/内置工具/权限DSL/子代理/Hook/Prompt组装)
-  - 预计新增测试: ~205 tests
+  - 文件结构: packages/agent-core/src/ — tools/ (types, registry, orchestrator, builtin/) + permissions/ (matcher, engine, guarded-files) + prompt/ (context-blocks, system-prompt) + worker/ (events, thread-worker) + subagent/ (hooks, subagent)
+  - 回调注入模式: 所有组件使用回调接口 (getConfig, getThread, etc.) 而非直接依赖服务类
+  - Milestone M4 (工具调用) 达成
+  - 总测试数: 2505 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242 + Phase 9: 167 + Phase 10: 266)
 
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 10 planned — 10/10 plans, 5 waves, KD-32..38)*
+*Last updated: 2026-04-14 (Phase 10 complete — 10/10 plans, 5 waves, 266 tests, KD-32..38, M4 达成)*

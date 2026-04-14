@@ -200,4 +200,53 @@ describe("checkForUpdate", () => {
     const result = await checkForUpdate("1.0.0");
     assert.equal(result, null);
   });
+
+  it("无 URL 配置时直接返回 null (不调用 fetch)", async () => {
+    const originalUrl = process.env.FLITTER_UPDATE_URL;
+    delete process.env.FLITTER_UPDATE_URL;
+
+    globalThis.fetch = (async () => {
+      throw new Error("fetch should not be called when no URL configured");
+    }) as unknown as typeof globalThis.fetch;
+
+    const result = await checkForUpdate("1.0.0");
+    assert.equal(result, null);
+
+    if (originalUrl !== undefined) {
+      process.env.FLITTER_UPDATE_URL = originalUrl;
+    }
+  });
+
+  it("网络错误时返回 null (try/catch)", async () => {
+    globalThis.fetch = (async () => {
+      throw new Error("DNS resolution failed");
+    }) as unknown as typeof globalThis.fetch;
+
+    const result = await checkForUpdate("1.0.0", {
+      checkUrl: "https://nonexistent.invalid/latest",
+    });
+    assert.equal(result, null);
+  });
+
+  it("使用 FLITTER_UPDATE_URL 环境变量", async () => {
+    const original = process.env.FLITTER_UPDATE_URL;
+    process.env.FLITTER_UPDATE_URL = "https://example.com/latest";
+
+    // Fetch 会因为是 mock 所以失败, 但确认 URL 被使用了
+    let calledUrl = "";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      calledUrl = typeof input === "string" ? input : input.toString();
+      throw new Error("mock network error");
+    }) as unknown as typeof globalThis.fetch;
+
+    const result = await checkForUpdate("1.0.0");
+    assert.equal(result, null); // Network failure returns null
+    assert.equal(calledUrl, "https://example.com/latest");
+
+    if (original !== undefined) {
+      process.env.FLITTER_UPDATE_URL = original;
+    } else {
+      delete process.env.FLITTER_UPDATE_URL;
+    }
+  });
 });

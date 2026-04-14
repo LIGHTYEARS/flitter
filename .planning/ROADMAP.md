@@ -319,15 +319,18 @@ _(none — foundation layer)_
 **Packages:** `@flitter/cli` + `@flitter/flitter` + `apps/flitter-cli`
 **Effort:** L | **Risk:** Medium
 **Requirements:** CLI-01, CLI-02, CLI-03, CLI-04, CLI-05
+**Plans:** 9 plans
 
-### Plans (7)
-1. Commander.js 命令树搭建（auth/thread/config/run/help 子命令） — CLI-01
-2. 交互式 TUI 模式入口（全屏 runApp + 组件组装 + 焦点系统） — CLI-02
-3. Headless JSON 流模式（stdin 管道输入 + JSON 事件流输出） — CLI-03
-4. 认证流程实现（API Key 输入 + OAuth 回调监听 + Keyring 存储） — CLI-04
-5. 自动更新实现（CDN 下载 + SHA-256 校验 + 原子文件替换） — CLI-05
-6. `@flitter/flitter` 依赖注入组装层（Service Locator + 包间连接） — CLI-02
-7. `apps/flitter-cli` 入口 shebang（`#!/usr/bin/env bun` + 全局安装配置） — CLI-01
+Plans:
+- [x] 11-01-PLAN.md — Commander.js 命令树搭建
+- [x] 11-02-PLAN.md — 交互式 TUI 模式入口
+- [x] 11-03-PLAN.md — Headless JSON 流 + Execute 模式
+- [x] 11-04-PLAN.md — 认证流程 (API Key + OAuth PKCE)
+- [x] 11-05-PLAN.md — 自动更新 (SHA-256 + 原子替换)
+- [x] 11-06-PLAN.md — DI 组装层 (ServiceContainer)
+- [x] 11-07-PLAN.md — main() 入口 + apps/flitter-cli shebang
+- [ ] 11-08-PLAN.md — Gap closure: 依赖修复 + 安全修复 (CR-01, CR-02)
+- [ ] 11-09-PLAN.md — Gap closure: main.ts 完整布线 (模式路由 + 命令注册)
 
 ### Success Criteria
 1. `flitter --help` 输出完整命令树
@@ -449,4 +452,4 @@ Phase 6 (TUI Advanced) + Phase 10 (Agent Core) ──> Phase 11 (CLI)
 ---
 
 *Roadmap created: 2026-04-12*
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-14 — Phase 11 gap closure plans 08-09 added*

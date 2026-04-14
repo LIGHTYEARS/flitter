@@ -1,16 +1,18 @@
 /**
  * Flitter CLI 主入口
  *
- * main() 异步函数是完整的 CLI 入口: 初始化 → 解析命令 → 执行 → 清理。
+ * main() 异步函数是完整的 CLI 入口: 初始化 -> 解析命令 -> 执行 -> 清理。
  *
  * 流程:
  * 1. 全局错误处理注册 (unhandledRejection)
  * 2. SIGINT/SIGTERM 信号处理
  * 3. 版本信息 + 日志初始化
  * 4. 创建 Commander 程序
- * 5. 注册子命令 action handlers
- * 6. parseAsync 解析并执行
- * 7. 异常处理 → stderr + exitCode
+ * 5. 创建 ServiceContainer (懒加载)
+ * 6. 注册子命令 action handlers (login/logout/threads/config/update)
+ * 7. 注册默认 action (模式路由: interactive/headless/execute)
+ * 8. parseAsync 解析并执行
+ * 9. finally: container.asyncDispose() 清理
  *
  * 逆向: aF0() in cli-entrypoint.js:1013-1031
  *
@@ -24,21 +26,80 @@
  * });
  * ```
  */
+import path from "node:path";
+import os from "node:os";
 import { createProgram } from "./program";
 import { createLogger } from "@flitter/util";
+import {
+  createContainer,
+  type ServiceContainer,
+  type SecretStorage,
+} from "@flitter/flitter";
+import { FileSettingsStorage } from "@flitter/data";
+import { resolveCliContext } from "./context";
+import { launchInteractiveMode } from "./modes/interactive";
+import { runHeadlessMode } from "./modes/headless";
+import { runExecuteMode } from "./modes/execute";
+import { handleLogin, handleLogout } from "./commands/auth";
+import { handleUpdate } from "./commands/update";
+import {
+  handleThreadsList,
+  handleThreadsNew,
+  handleThreadsContinue,
+  handleThreadsArchive,
+  handleThreadsDelete,
+} from "./commands/threads";
+import {
+  handleConfigGet,
+  handleConfigSet,
+  handleConfigList,
+} from "./commands/config";
 
 const log = createLogger("cli");
 
 /**
+ * 信号处理器注册守卫 (防止重复注册 — WR-02)
+ *
+ * 在多次调用 main() 的测试场景中, 防止监听器泄漏。
+ */
+let signalHandlersInstalled = false;
+
+/**
+ * 创建内存 SecretStorage (默认实现)
+ *
+ * 用于不需要持久化秘密的场景 (如测试, 或首次运行)。
+ * 作用域 key 格式: `${scope}:${key}`
+ */
+function createInMemorySecretStorage(): SecretStorage {
+  const store = new Map<string, string>();
+  return {
+    async get(key: string, scope?: string): Promise<string | undefined> {
+      return store.get(scope ? `${scope}:${key}` : key);
+    },
+    async set(key: string, value: string, scope?: string): Promise<void> {
+      store.set(scope ? `${scope}:${key}` : key, value);
+    },
+    async delete(key: string, scope?: string): Promise<void> {
+      store.delete(scope ? `${scope}:${key}` : key);
+    },
+  };
+}
+
+/**
  * main() 调用选项
  *
- * 支持注入 argv (用于测试) 和 _testThrow (用于模拟异常)
+ * 支持注入 argv (用于测试)、_testThrow (用于模拟异常)、
+ * _testContainer (跳过 createContainer)、_testSecrets (注入 SecretStorage)。
  */
 export interface MainOptions {
   /** 自定义 argv (默认 process.argv) */
   argv?: string[];
   /** 测试用: 注入异常用于验证错误处理路径 */
   _testThrow?: Error;
+  /** 测试用: 注入 ServiceContainer (跳过 createContainer) */
+  _testContainer?: ServiceContainer;
+  /** 测试用: 注入 SecretStorage */
+  _testSecrets?: SecretStorage;
 }
 
 /**
@@ -68,27 +129,24 @@ export function getVersion(): string {
  * 逆向: aF0() in cli-entrypoint.js:1013-1031
  *
  * 流程:
- * 1. 全局错误处理注册
+ * 1. 全局错误处理注册 (带守卫防止重复注册)
  * 2. 初始化日志
- * 3. 解析命令行 (Commander.js)
- * 4. 路由到子命令或默认动作
- * 5. 清理
+ * 3. 创建 Commander 程序
+ * 4. 注册所有子命令 action handlers
+ * 5. 注册默认 action (模式路由)
+ * 6. parseAsync 解析并执行
+ * 7. finally: asyncDispose 清理容器
  *
  * 退出码:
  * - 0 = 成功
  * - 1 = 用户错误
  * - 2 = 运行时错误
+ * - 130 = SIGINT (Ctrl+C)
  *
- * @param opts - 可选配置 (argv 注入用于测试)
+ * @param opts - 可选配置 (argv 注入、容器注入等, 用于测试)
  */
 export async function main(opts?: MainOptions): Promise<void> {
-  // 1. 全局错误处理 (逆向 pc0)
-  process.on("unhandledRejection", (err) => {
-    log.error("Unhandled rejection", { error: err });
-    process.exitCode = 2;
-  });
-
-  // 2. SIGINT/SIGTERM 信号处理
+  // 1. 全局错误处理 (逆向 pc0) + 信号处理器 (带守卫)
   let disposing = false;
   const handleSignal = async () => {
     if (disposing) return; // 防止重入
@@ -96,8 +154,19 @@ export async function main(opts?: MainOptions): Promise<void> {
     log.info("Signal received, shutting down...");
     process.exitCode = 130; // Standard SIGINT exit code
   };
-  process.on("SIGINT", handleSignal);
-  process.on("SIGTERM", handleSignal);
+
+  if (!signalHandlersInstalled) {
+    process.on("unhandledRejection", (err) => {
+      log.error("Unhandled rejection", { error: err });
+      process.exitCode = 2;
+    });
+    process.on("SIGINT", handleSignal);
+    process.on("SIGTERM", handleSignal);
+    signalHandlersInstalled = true;
+  }
+
+  // 容器引用 (用于 finally 清理)
+  let container: ServiceContainer | null = opts?._testContainer ?? null;
 
   try {
     // 测试注入: 模拟异常
@@ -105,24 +174,223 @@ export async function main(opts?: MainOptions): Promise<void> {
       throw opts._testThrow;
     }
 
-    // 3. 版本和日志
+    // 2. 版本和日志
     const version = getVersion();
     log.info("Starting Flitter CLI", { version });
 
-    // 4. 日志级别 (从 argv 提前检测 --verbose)
+    // 3. 日志级别 (从 argv 提前检测 --verbose)
     const argv = opts?.argv ?? process.argv;
     if (argv.includes("--verbose") || argv.includes("-v")) {
       log.info("Verbose mode enabled");
     }
 
-    // 5. 创建 Commander 程序
+    // 4. 创建 Commander 程序
     const program = createProgram(version);
 
     // 避免 Commander 在 --help/--version 时调用 process.exit
     program.exitOverride();
 
-    // 6. 解析并执行
-    await program.parseAsync(argv);
+    // ── 依赖准备 ──────────────────────────────────────────
+
+    const secrets: SecretStorage =
+      opts?._testSecrets ?? createInMemorySecretStorage();
+    const configDir = path.join(os.homedir(), ".config", "flitter");
+    const settings = new FileSettingsStorage({
+      globalPath: path.join(configDir, "settings.json"),
+    });
+    const ampURL = process.env.FLITTER_API_URL ?? "https://api.flitter.dev";
+
+    // 懒加载容器: 只在命令需要时才创建
+    async function ensureContainer(): Promise<ServiceContainer> {
+      if (!container) {
+        container = await createContainer({
+          ampURL,
+          settings,
+          secrets,
+          workspaceRoot: process.cwd(),
+          dataDir: path.join(configDir, "data"),
+          homeDir: os.homedir(),
+          configDir,
+        });
+      }
+      return container;
+    }
+
+    // ── 注册子命令 action handlers ────────────────────────
+
+    // login 命令
+    const loginCmd = program.commands.find((c) => c.name() === "login");
+    if (loginCmd) {
+      loginCmd.action(async () => {
+        const c = await ensureContainer();
+        const ctx = resolveCliContext(program);
+        await handleLogin({ secrets: c.secrets, ampURL }, ctx);
+      });
+    }
+
+    // logout 命令
+    const logoutCmd = program.commands.find((c) => c.name() === "logout");
+    if (logoutCmd) {
+      logoutCmd.action(async () => {
+        const c = await ensureContainer();
+        const ctx = resolveCliContext(program);
+        await handleLogout({ secrets: c.secrets, ampURL }, ctx);
+      });
+    }
+
+    // update 命令
+    const updateCmd = program.commands.find((c) => c.name() === "update");
+    if (updateCmd) {
+      updateCmd.action(async (cmdOpts: any) => {
+        const c = await ensureContainer();
+        const ctx = resolveCliContext(program);
+        await handleUpdate({ configService: c.configService }, ctx, {
+          targetVersion: cmdOpts?.targetVersion,
+        });
+      });
+    }
+
+    // threads 子命令
+    const threadsCmd = program.commands.find((c) => c.name() === "threads");
+    if (threadsCmd) {
+      const listCmd = threadsCmd.commands.find((c) => c.name() === "list");
+      if (listCmd) {
+        listCmd.action(async (cmdOpts: any) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsList(
+            { threadStore: c.threadStore as any },
+            ctx,
+            {
+              limit: cmdOpts?.limit ?? "20",
+              format: cmdOpts?.format ?? "table",
+            },
+          );
+        });
+      }
+      const newCmd = threadsCmd.commands.find((c) => c.name() === "new");
+      if (newCmd) {
+        newCmd.action(async (cmdOpts: any) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsNew(
+            { threadStore: c.threadStore as any },
+            ctx,
+            { model: cmdOpts?.model },
+          );
+        });
+      }
+      const continueCmd = threadsCmd.commands.find(
+        (c) => c.name() === "continue",
+      );
+      if (continueCmd) {
+        continueCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsContinue(
+            { threadStore: c.threadStore as any },
+            ctx,
+            threadId,
+          );
+        });
+      }
+      const archiveCmd = threadsCmd.commands.find(
+        (c) => c.name() === "archive",
+      );
+      if (archiveCmd) {
+        archiveCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsArchive(
+            { threadStore: c.threadStore as any },
+            ctx,
+            threadId,
+          );
+        });
+      }
+      const deleteCmd = threadsCmd.commands.find(
+        (c) => c.name() === "delete",
+      );
+      if (deleteCmd) {
+        deleteCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsDelete(
+            { threadStore: c.threadStore as any },
+            ctx,
+            threadId,
+          );
+        });
+      }
+    }
+
+    // config 子命令
+    const configCmd = program.commands.find((c) => c.name() === "config");
+    if (configCmd) {
+      const getCmd = configCmd.commands.find((c) => c.name() === "get");
+      if (getCmd) {
+        getCmd.action(async (key: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleConfigGet(
+            { configService: c.configService as any },
+            ctx,
+            key,
+          );
+        });
+      }
+      const setCmd = configCmd.commands.find((c) => c.name() === "set");
+      if (setCmd) {
+        setCmd.action(async (key: string, value: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleConfigSet(
+            { configService: c.configService as any },
+            ctx,
+            key,
+            value,
+          );
+        });
+      }
+      const listConfigCmd = configCmd.commands.find(
+        (c) => c.name() === "list",
+      );
+      if (listConfigCmd) {
+        listConfigCmd.action(async () => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleConfigList(
+            { configService: c.configService as any },
+            ctx,
+          );
+        });
+      }
+    }
+
+    // ── 默认 action: 模式路由 ─────────────────────────────
+    // 覆盖 program.ts 中的空 .action(() => {}) — Commander 最后注册的 action 生效
+    program.action(async () => {
+      const c = await ensureContainer();
+      const ctx = resolveCliContext(program);
+
+      if (ctx.headless) {
+        await runHeadlessMode(c, ctx);
+      } else if (ctx.executeMode) {
+        await runExecuteMode(c, ctx);
+      } else {
+        await launchInteractiveMode(c, { ...ctx, ampURL });
+      }
+    });
+
+    // 5. 解析并执行 (try/finally 确保容器清理)
+    try {
+      await program.parseAsync(argv);
+    } finally {
+      // 清理: 如果容器已创建, asyncDispose (幂等, 重复调用安全)
+      if (container) {
+        await container.asyncDispose();
+      }
+    }
   } catch (err) {
     // Commander exitOverride 抛出的退出异常 (help/version)
     if (

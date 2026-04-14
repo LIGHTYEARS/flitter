@@ -1,13 +1,14 @@
 /**
  * 交互式 TUI 模式入口
  *
- * 组装 Widget 组件树、启动 runApp、连接 ThreadWorker 事件到 UI。
+ * 组装真正的 Widget 组件树、启动 runApp、连接 ThreadWorker 事件到 UI。
+ * 此文件已移除所有 stub，直接使用 @flitter/tui 的 runApp 和 @flitter/cli/widgets
+ * 中的真实 Widget 类。
  *
  * 组件树:
- *   ThemeController (动态主题)
- *     └── ConfigProvider (配置注入)
- *         └── AppWidget (线程管理)
- *             └── ThreadStateWidget (对话 UI)
+ *   AppWidget (ThemeController -> ConfigProvider -> child)
+ *     └── ThreadStateWidget (对话状态)
+ *         └── InputField (文本输入)
  *
  * 逆向: _70() in html-sanitizer-repl.js:1327-1388
  *
@@ -22,10 +23,14 @@
  * ```
  */
 
-import type { ThreadWorker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import type { CliContext } from "../context";
+import type { CliContext } from "../context.js";
+import { runApp } from "@flitter/tui";
+import { AppWidget } from "../widgets/app-widget.js";
+import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
+import { InputField } from "../widgets/input-field.js";
+import type { ThemeData } from "../widgets/theme-controller.js";
 
 // ─── 日志 ─────────────────────────────────────────────────
 
@@ -41,126 +46,38 @@ const log = {
   },
 };
 
-// ─── RunApp 类型 ──────────────────────────────────────────
+// ─── 默认主题 ─────────────────────────────────────────────
 
 /**
- * runApp 选项
- * 逆向: T1T 参数 (html-sanitizer-repl.js:~1300)
- */
-export interface RunAppOptions {
-  /** 根 Element 挂载完成后回调 */
-  onRootElementMounted?: () => void;
-}
-
-/**
- * 抽象 Widget 基接口
+ * 默认终端主题数据
  *
- * 在 interactive 模块中定义轻量级 Widget 接口,
- * 运行时由 @flitter/tui 的具体类替代。
- * 此处用于类型安全的组件树组装。
- */
-export interface IWidget {
-  /** Widget 类名 (用于测试验证) */
-  readonly constructor: { name: string };
-}
-
-/**
- * runApp 函数签名: 挂载根 Widget 并启动帧调度器和渲染循环
- * 逆向: T1T (html-sanitizer-repl.js:~1300)
- */
-type RunAppFn = (widget: IWidget, opts?: RunAppOptions) => Promise<void>;
-
-/**
- * 默认 runApp 实现
+ * 使用 "terminal" 风格的暗色方案作为默认主题。
+ * 与 ThemeController InheritedWidget 使用的 ThemeData 接口兼容。
  *
- * 在真实 TUI 模式下, 此函数将由 @flitter/tui 提供的 runApp 替代。
- * 当前作为占位实现。
+ * 逆向: 默认 terminal 主题色 (html-sanitizer-repl.js)
  */
-let _runApp: RunAppFn = async (_widget: IWidget, opts?: RunAppOptions) => {
-  opts?.onRootElementMounted?.();
+export const defaultThemeData: ThemeData = {
+  name: "terminal",
+  primary: "#7aa2f7",
+  secondary: "#9ece6a",
+  surface: "#1a1b26",
+  background: "#16161e",
+  error: "#f7768e",
+  text: "#a9b1d6",
+  mutedText: "#565f89",
+  border: "#3b4261",
+  accent: "#bb9af7",
+  success: "#9ece6a",
+  warning: "#e0af68",
 };
-
-// ─── Widget 组件定义 ──────────────────────────────────────
-
-/**
- * ThemeController — 动态主题控制器
- *
- * 从 configService 读取 terminal.theme 设置, 默认 'terminal'。
- * 订阅 config 变更, 动态切换主题。
- *
- * 逆向: FJT (html-sanitizer-repl.js:~1200)
- */
-export class ThemeController implements IWidget {
-  /** 主题名称 */
-  readonly themeName: string;
-  /** 子 Widget */
-  readonly child: IWidget;
-
-  constructor(opts: { themeName: string; child: IWidget }) {
-    this.themeName = opts.themeName;
-    this.child = opts.child;
-  }
-}
-
-/**
- * ConfigProvider — 配置注入 (InheritedWidget 模式)
- *
- * 向子树提供 configService 引用。
- * 逆向: UJT (html-sanitizer-repl.js:~1250)
- */
-export class ConfigProvider implements IWidget {
-  /** 配置服务引用 */
-  readonly configService: unknown;
-  /** 子 Widget */
-  readonly child: IWidget;
-
-  constructor(opts: { configService: unknown; child: IWidget }) {
-    this.configService = opts.configService;
-    this.child = opts.child;
-  }
-}
-
-/**
- * AppWidget — 主应用 Widget (StatefulWidget)
- *
- * 管理 ThreadPool / ThreadHandle 生命周期。
- * 逆向: QJT (html-sanitizer-repl.js:~900)
- */
-export class AppWidget implements IWidget {
-  /** 服务容器引用 */
-  readonly container: ServiceContainer;
-  /** ThreadWorker 引用 */
-  readonly worker: ThreadWorker;
-
-  constructor(opts: { container: ServiceContainer; worker: ThreadWorker }) {
-    this.container = opts.container;
-    this.worker = opts.worker;
-  }
-}
-
-/**
- * ThreadStateWidget — 会话状态 Widget (StatefulWidget)
- *
- * 连接 ThreadWorker 事件流到对话 UI。
- * ThreadWorker 事件通过 agentEvents$ 驱动 UI 更新。
- * 逆向: Z8R (html-sanitizer-repl.js:~1100)
- */
-export class ThreadStateWidget implements IWidget {
-  /** ThreadWorker 引用 */
-  readonly worker: ThreadWorker;
-
-  constructor(opts: { worker: ThreadWorker }) {
-    this.worker = opts.worker;
-  }
-}
 
 // ─── 核心函数 ─────────────────────────────────────────────
 
 /**
  * 解析要使用的 thread
  *
- * - context.threadId 指定 → 恢复已有 thread
- * - 否则 → 新建 thread
+ * - context.threadId 指定 -> 恢复已有 thread
+ * - 否则 -> 新建 thread
  *
  * 逆向: _70 内 thread 解析逻辑
  */
@@ -187,57 +104,13 @@ async function resolveThread(
 }
 
 /**
- * 组装 Widget 树
- *
- * 层级:
- *   ThemeController (动态主题)
- *     └── ConfigProvider (配置注入)
- *         └── AppWidget (线程管理)
- *             └── ThreadStateWidget (对话 UI)
- *
- * 逆向: _70 内组件树组装 (html-sanitizer-repl.js:1340-1370)
- */
-function buildWidgetTree(
-  container: ServiceContainer,
-  worker: ThreadWorker,
-  themeName: string,
-): IWidget {
-  // 最内层: AppWidget (管理线程生命周期)
-  const appWidget = new AppWidget({ container, worker });
-
-  // ConfigProvider 注入 configService
-  const configProvider = new ConfigProvider({
-    configService: container.configService,
-    child: appWidget,
-  });
-
-  // 最外层: ThemeController (动态主题)
-  const themeController = new ThemeController({
-    themeName,
-    child: configProvider,
-  });
-
-  return themeController;
-}
-
-/**
- * 处理优雅关闭
- *
- * Ctrl+C 触发: cancel 当前推理 → dispose → exit
- */
-function handleShutdown(worker: ThreadWorker, _container: ServiceContainer): void {
-  worker.cancelInference();
-  log.info("Shutdown: cancelled inference, disposing container...");
-}
-
-/**
  * 启动交互式 TUI 模式
  *
  * 完整流程:
  * 1. 读取主题设置
  * 2. 创建或恢复 thread
  * 3. 创建 ThreadWorker
- * 4. 组装 Widget 树
+ * 4. 组装真实 Widget 树 (AppWidget -> ThreadStateWidget -> InputField)
  * 5. 启动 TUI (runApp)
  * 6. 清理资源 (finally)
  * 7. 输出 thread URL (如有消息)
@@ -250,10 +123,12 @@ export async function launchInteractiveMode(
 ): Promise<void> {
   log.info("Launching interactive TUI mode...");
 
-  // 1. 读取主题设置
+  // 1. 解析主题数据
   const config = container.configService.get();
   const themeName =
-    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
+    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ??
+    "terminal";
+  const themeData: ThemeData = { ...defaultThemeData, name: themeName };
 
   // 2. 创建或恢复 thread
   const threadId = await resolveThread(container, context);
@@ -262,19 +137,42 @@ export async function launchInteractiveMode(
   // 3. 创建 ThreadWorker
   const worker = container.createThreadWorker(threadId);
 
-  // 4. 组装 Widget 树
-  const app = buildWidgetTree(container, worker, themeName);
-
-  // 5. 启动 TUI
-  const startTime = process.hrtime.bigint();
-
+  // 4-5. 组装真实 Widget 树并启动 runApp
   try {
-    await _runApp(app, {
-      onRootElementMounted: () => {
-        const elapsed = Number(process.hrtime.bigint() - startTime) / 1_000_000;
-        log.info(`Boot complete: ${elapsed.toFixed(0)}ms to interactive`);
+    await runApp(
+      new AppWidget({
+        themeData,
+        configService: container.configService,
+        child: new ThreadStateWidget({
+          threadStore: container.threadStore,
+          threadWorker: worker,
+          child: new InputField({
+            onSubmit: (text: string) => {
+              // 将用户消息追加到线程快照
+              const snapshot = container.threadStore.getThreadSnapshot(threadId);
+              if (snapshot) {
+                container.threadStore.setCachedThread({
+                  ...snapshot,
+                  messages: [
+                    ...snapshot.messages,
+                    { role: "user", content: [{ type: "text", text }] },
+                  ],
+                } as ThreadSnapshot);
+              }
+              // 触发推理循环
+              worker.runInference();
+            },
+          }),
+        }),
+      }),
+      {
+        onRootElementMounted: (rootElement) => {
+          // 将根元素绑定到容器，供后续逻辑使用
+          log.info("Root element mounted");
+          (container as any)._rootElement = rootElement;
+        },
       },
-    });
+    );
   } finally {
     // 6. 清理
     log.info("TUI exited, cleaning up...");
@@ -293,17 +191,9 @@ export async function launchInteractiveMode(
 /**
  * 测试用内部方法导出
  *
- * 允许测试替换 runApp 实现和直接调用内部函数
+ * 允许测试直接调用内部函数进行验证
  */
 export const _testing = {
-  /** 替换 runApp 实现 (用于测试 mock) */
-  setRunApp: (fn: RunAppFn) => {
-    _runApp = fn;
-  },
   /** 暴露 resolveThread 供测试直接调用 */
   resolveThread,
-  /** 暴露 buildWidgetTree 供测试直接调用 */
-  buildWidgetTree,
-  /** 暴露 handleShutdown 供测试验证 */
-  handleShutdown,
 };

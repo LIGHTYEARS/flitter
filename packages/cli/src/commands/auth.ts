@@ -95,12 +95,12 @@ export async function handleLogin(deps: AuthCommandDeps, context: CliContext): P
 
   if (method === "api-key") {
     const key = await promptApiKey();
-    if (key) {
+    if (key && validateApiKey(key)) {
       await storeApiKey(secrets, "default", key);
       process.stderr.write("API key saved successfully.\n");
       return;
     }
-    process.stderr.write("No key entered.\n");
+    process.stderr.write(key ? "Invalid API key format.\n" : "No key entered.\n");
     return;
   }
 

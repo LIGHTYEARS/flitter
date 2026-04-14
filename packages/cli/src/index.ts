@@ -45,6 +45,22 @@ export type { ConfigCommandDeps } from "./commands/config";
 export { handleUpdate } from "./commands/update";
 export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
 
+// ─── 更新模块 ────────────────────────────────────────────
+export {
+  compareVersions,
+  computeSHA256,
+  detectInstallMethod,
+  checkForUpdate,
+} from "./update/checker";
+export type { UpdateInfo, InstallMethod } from "./update/checker";
+
+export {
+  installBinaryUpdate,
+  installWithPackageManager,
+  UpdateVerificationError,
+} from "./update/installer";
+export type { InstallOptions } from "./update/installer";
+
 // ─── 模式入口 ────────────────────────────────────────────
 export { launchInteractiveMode } from "./modes/interactive";
 export type { RunAppOptions } from "./modes/interactive";

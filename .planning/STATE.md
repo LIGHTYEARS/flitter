@@ -3,22 +3,22 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 11
-status: phase_10_complete
-last_updated: "2026-04-14T12:00:00.000Z"
+status: phase_11_planned
+last_updated: "2026-04-14T14:00:00.000Z"
 progress:
   total_phases: 11
   completed_phases: 10
-  total_plans: 84
+  total_plans: 91
   completed_plans: 84
-  percent: 100
+  percent: 92
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 11 (not started)
-**Status:** Phase 10 Complete — Agent 核心引擎
+**Current phase:** 11 (planned)
+**Status:** Phase 11 Planned — CLI 入口与端到端集成
 
 ---
 
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 10 — Agent 核心引擎 |
-| Package | `@flitter/agent-core` |
-| Status | complete |
-| Requirements | AGNT-01..11 (11) |
-| Plans created | 10/10 |
-| Plans completed | 10/10 |
+| Phase | 11 — CLI 入口与端到端集成 |
+| Package | `@flitter/cli` + `@flitter/flitter` + `apps/flitter-cli` |
+| Status | planned |
+| Requirements | CLI-01..05 (5) |
+| Plans created | 7/7 |
+| Plans completed | 0/7 |
 
 ---
 
@@ -50,7 +50,7 @@ progress:
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | complete | 10/10 | AGNT-01..11 (11) |
-| 11 | CLI 入口与端到端集成 | not_started | 0/7 | CLI-01..05 (5) |
+| 11 | CLI 入口与端到端集成 | planned | 0/7 | CLI-01..05 (5) |
 
 ---
 
@@ -117,6 +117,13 @@ progress:
 | KD-36 | 子代理共享 ThreadStore + 独立 ToolOrchestrator，超时可取消，嵌套深度限制=1 | Phase 10 | 2026-04-14 |
 | KD-37 | Hook 系统: PreToolUse/PostToolUse/Notification 三类 hook，shell 命令执行，环境变量传递 | Phase 10 | 2026-04-14 |
 | KD-38 | Prompt 组装: 基础角色 + 环境信息 + 工具列表 + Guidance + Skills 多段拼接, cache_control 分段 | Phase 10 | 2026-04-14 |
+| KD-39 | Commander.js 命令树: flitter [message] / login / logout / threads / config / update | Phase 11 | 2026-04-14 |
+| KD-40 | 模式判定: TTY → interactive, !TTY/--execute → execute, --headless → JSON 流 | Phase 11 | 2026-04-14 |
+| KD-41 | DI 容器: 函数式 createContainer() 返回服务对象 + asyncDispose()，非 class-based | Phase 11 | 2026-04-14 |
+| KD-42 | TUI 组件树: ThemeController → ConfigProvider → AppWidget → ThreadStateWidget | Phase 11 | 2026-04-14 |
+| KD-43 | OAuth 认证: 复用 @flitter/llm oauth/pkce + 本地 HTTP 回调服务器 | Phase 11 | 2026-04-14 |
+| KD-44 | 自动更新: CDN 二进制 + SHA-256 校验 + 原子文件替换 + npm/pnpm fallback | Phase 11 | 2026-04-14 |
+| KD-45 | Headless JSON 流: stdin JSON Lines 输入 + stdout JSON 事件流输出 | Phase 11 | 2026-04-14 |
 
 ---
 
@@ -235,7 +242,18 @@ _(none)_
   - Milestone M4 (工具调用) 达成
   - 总测试数: 2505 (Phase 1: 315 + Phase 2: 276 + Phase 3: 270 + Phase 4: 226 + Phase 5: 133 + Phase 6: 321 + Phase 7b: 289 + Phase 8: 242 + Phase 9: 167 + Phase 10: 266)
 
+- Phase 11 计划完成: 7 个 plan 全部编写 (4 waves), ~110 tests 预估
+  - Wave 1 (基础设施, serial): 11-06 (DI 组装层 createContainer/ServiceContainer/asyncDispose, ~20 tests) + 11-01 (Commander.js 命令树 + CliContext, ~20 tests)
+  - Wave 2 (核心模式, serial): 11-02 (交互式 TUI 模式 launchInteractiveMode, ~15 tests) + 11-03 (Headless JSON 流 + Execute 模式, ~15 tests)
+  - Wave 3 (辅助功能, parallel): 11-04 (认证流程 API Key + OAuth PKCE, ~15 tests) + 11-05 (自动更新 SHA-256 + 原子替换, ~15 tests)
+  - Wave 4 (入口, serial): 11-07 (main() 入口 + apps/flitter-cli shebang + 信号处理, ~10 tests)
+  - 关键逆向映射: aF0→main, Yz0→createProgram, S8→resolveCliContext, X3→createContainer, _70→launchTuiApp, SB→runMainAction, eF0→handleLogin, tF0→handleLogout, r3R→performOAuth, pm0→createUpdateService, mm0→handleUpdateCommand
+  - 关键设计决策: KD-39..45 (Commander树/模式判定/DI容器/TUI组件树/OAuth复用/自动更新/JSON流)
+  - 包结构: @flitter/cli (commands/ + modes/ + auth/ + update/) + @flitter/flitter (container + factory) + apps/flitter-cli (bin/flitter.ts)
+  - 外部依赖: commander (Commander.js CLI 框架)
+  - Milestone M6 (完整对话) 将在 Phase 11 完成后达成
+
 ---
 
 *State initialized: 2026-04-12*
-*Last updated: 2026-04-14 (Phase 10 complete — 10/10 plans, 5 waves, 266 tests, KD-32..38, M4 达成)*
+*Last updated: 2026-04-14 (Phase 11 planned — 7/7 plans, 4 waves, ~110 tests, KD-39..45, M6 pending)*

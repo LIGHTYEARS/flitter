@@ -102,7 +102,7 @@ describe("resolveCliContext", () => {
       assert.equal(ctx.isTTY, false);
     });
 
-    it("--headless 隐含 executeMode=true 和 streamJson=true", () => {
+    it("--headless 设置 headless=true 和 streamJson=true", () => {
       Object.defineProperty(process.stdout, "isTTY", {
         value: true,
         writable: true,
@@ -115,9 +115,76 @@ describe("resolveCliContext", () => {
       });
       const program = parsedProgram(["--headless"]);
       const ctx = resolveCliContext(program);
-      assert.equal(ctx.executeMode, true);
       assert.equal(ctx.headless, true);
       assert.equal(ctx.streamJson, true);
+    });
+
+    it("stdout 非 TTY + --stream-json -> executeMode=false (streamJson 阻止 execute)", () => {
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(process.stderr, "isTTY", {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+      const program = parsedProgram(["--stream-json"]);
+      const ctx = resolveCliContext(program);
+      assert.equal(ctx.executeMode, false, "streamJson should prevent executeMode");
+    });
+
+    it("--execute 强制 executeMode=true 不受 TTY 影响", () => {
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(process.stderr, "isTTY", {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+      const program = parsedProgram(["--execute"]);
+      const ctx = resolveCliContext(program);
+      assert.equal(ctx.executeMode, true);
+    });
+
+    it("isTTY=true 仅当 stdout AND stderr 均为 TTY", () => {
+      // stdout=TTY, stderr=not TTY -> isTTY=false
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(process.stderr, "isTTY", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      const program = parsedProgram([]);
+      const ctx = resolveCliContext(program);
+      assert.equal(ctx.isTTY, false, "isTTY should require both stdout+stderr");
+      // But executeMode only checks stdout, so should be false
+      assert.equal(ctx.executeMode, false, "executeMode only checks stdout");
+    });
+
+    it("executeMode 仅检查 stdout (非 stderr)", () => {
+      // stdout=TTY, stderr=not TTY -> executeMode=false (only stdout matters)
+      Object.defineProperty(process.stdout, "isTTY", {
+        value: true,
+        writable: true,
+        configurable: true,
+      });
+      Object.defineProperty(process.stderr, "isTTY", {
+        value: undefined,
+        writable: true,
+        configurable: true,
+      });
+      const program = parsedProgram([]);
+      const ctx = resolveCliContext(program);
+      assert.equal(ctx.executeMode, false, "executeMode should only check stdout");
     });
   });
 

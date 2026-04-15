@@ -208,9 +208,11 @@ export class WidgetsBinding {
       }
 
       this.updateRootRenderObject();
+      const size = this.tui.getSize();
+      this.updateRootConstraints(size.width, size.height);
       this.mouseManager.setTui(this.tui);
       this.setupEventHandlers();
-      this.frameScheduler.requestFrame();
+      this.requestForcedPaintFrame();
 
       await this.waitForExit();
     } finally {

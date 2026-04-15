@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-04-15T08:26:50.760Z",
+  "phase": "12.1",
+  "phase_name": "close-tui-launch-gaps-dev-tty-input-cli-routing-fix-real-wid",
+  "phase_dir": ".planning/phases/12.1-close-tui-launch-gaps-dev-tty-input-cli-routing-fix-real-wid",
+  "plan": null,
+  "task": null,
+  "total_tasks": 10,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": "12.1-01", "name": "TtyInputSource /dev/tty + stdin fallback", "status": "done", "commit": "4705610"},
+    {"id": "12.1-02", "name": "RenderScrollable + Scrollable widget + barrel exports", "status": "done", "commit": "5bea64a"},
+    {"id": "12.1-03", "name": "ConversationView, InputField, StatusBar visual fidelity", "status": "done", "commit": "ae12644"},
+    {"id": "12.1-04", "name": "CLI routing S8() + ThreadStateWidget + interactive.ts", "status": "done", "commit": "c834e33"},
+    {"id": "12.1-05", "name": "E2E tmux-capture tests + bin entry point fix", "status": "done", "commit": "bfefd34"}
+  ],
+  "remaining_tasks": [
+    {"id": "post-12.1-a", "name": "Fix TuiController.getSize() — port amp Uk0() 4-layer terminal size detection", "status": "not_started"},
+    {"id": "post-12.1-b", "name": "Fix code review critical findings (CR-01, CR-02: async cleanup races in tui-controller)", "status": "not_started"},
+    {"id": "post-12.1-c", "name": "Fix code review warnings (WR-01 through WR-06)", "status": "not_started"},
+    {"id": "post-12.1-d", "name": "Human TTY verification of full TUI launch", "status": "not_started"}
+  ],
+  "blockers": [
+    {"description": "TuiController.getSize() returns height=Infinity in Bun — TUI crashes on launch", "type": "technical", "workaround": "Port amp's Uk0() + updateTerminalSize() 4-layer defense from amp-cli-reversed/framework/tui-layout-engine.js:413-426"},
+    {"description": "TuiController.cleanup() is sync but calls async deinit() — terminal left in raw mode on SIGINT", "type": "technical", "workaround": "Port amp's async signal handler pattern"}
+  ],
+  "human_actions_pending": [
+    {"action": "Verify TUI renders in real terminal after getSize() fix", "context": "No human has ever seen the TUI render successfully", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Added CLAUDE.md mandatory rule: all implementation must cross-reference amp-cli-reversed/ source", "rationale": "Phase 12.1 agents wrote naive implementations without consulting reference code, producing Infinity bug and other issues", "phase": "12.1"},
+    {"decision": "Added CLAUDE.md mandatory rule: integration verification before completion", "rationale": "100+ unit tests passed but TUI never actually launched", "phase": "12.1"}
+  ],
+  "uncommitted_files": ["CLAUDE.md", ".planning/debug/"],
+  "next_action": "Fix TuiController.getSize() by porting amp's Uk0() from amp-cli-reversed/framework/tui-layout-engine.js:413-426, then verify TUI launches in real terminal",
+  "context_notes": "Phase 12.1 plans are all marked complete but TUI does not actually launch. Root cause: getSize() returns Infinity because it uses ?? instead of amp's 4-layer defense. Secondary issues: async cleanup races (CR-01/CR-02), missing prop forwarding (fixed). CLAUDE.md created with mandatory amp cross-reference rule."
+}

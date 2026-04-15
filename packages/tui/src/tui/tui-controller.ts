@@ -3,8 +3,11 @@
  *
  * 逆向: XXT in clipboard-and-input.js:511-620
  *
- * 管理终端 raw mode、alt screen、stdin 读取、鼠标/键盘/粘贴事件分发、
+ * 管理终端 raw mode、alt screen、/dev/tty 输入读取、鼠标/键盘/粘贴事件分发、
  * 终端能力检测、信号处理 (SIGWINCH, SIGINT, SIGTERM, SIGTSTP)。
+ *
+ * 使用 TtyInputSource 从 /dev/tty 读取输入（绕过 stdin 重定向），
+ * 使用 TtyOutputTarget 写入终端输出（stdout > stderr > /dev/tty 回退）。
  *
  * 为 WidgetsBinding 提供事件源和渲染输出通道。
  *
@@ -41,6 +44,8 @@ import {
   SHOW_CURSOR,
   HIDE_CURSOR,
 } from "../screen/ansi-renderer.js";
+import { createTtyInput, createTtyOutput } from "./tty-input.js";
+import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 
 // ════════════════════════════════════════════════════
 //  类型定义
@@ -91,8 +96,10 @@ export interface CapabilityEvent {
  *
  * 逆向: XXT in clipboard-and-input.js:511-620
  *
- * 管理终端 raw mode、alt screen、stdin 读取、鼠标/键盘/粘贴事件分发、
+ * 管理终端 raw mode、alt screen、/dev/tty 输入读取、鼠标/键盘/粘贴事件分发、
  * 终端能力检测、信号处理 (SIGWINCH, SIGINT, SIGTERM, SIGTSTP)。
+ *
+ * 使用 TtyInputSource 从 /dev/tty 读取输入，TtyOutputTarget 写入终端输出。
  */
 export class TuiController {
   /** 输入解析器 */
@@ -112,6 +119,11 @@ export class TuiController {
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** /dev/tty 输入源 */
+  private ttyInput: TtyInputSource | null = null;
+  /** 终端输出目标 */
+  private ttyOutput: TtyOutputTarget | null = null;
+
   /** 键盘事件处理器 */
   private keyHandlers: ((event: KeyEvent) => void)[] = [];
   /** 鼠标事件处理器 */
@@ -127,8 +139,6 @@ export class TuiController {
   private boundHandleResize = this.handleResize.bind(this);
   /** 绑定的 cleanup 处理函数引用（用于移除监听器） */
   private boundCleanup = this.cleanup.bind(this);
-  /** 绑定的 stdin data 处理函数引用 */
-  private boundOnData: ((data: Buffer | string) => void) | null = null;
 
   constructor() {
     this.screen = new Screen(80, 24);
@@ -177,24 +187,14 @@ export class TuiController {
         }
       });
 
-      // 配置 stdin
-      if (process.stdin.isTTY) {
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
-        process.stdin.setEncoding("utf8");
-      }
+      // 创建 /dev/tty 输入源（自动路由: /dev/tty 或 stdin 回退）
+      this.ttyInput = createTtyInput();
+      this.ttyInput.on("data", (data: Buffer) => {
+        this.parser?.feed(data);
+      });
 
-      // 绑定 stdin 数据读取
-      this.boundOnData = (data: Buffer | string) => {
-        const buf = typeof data === "string" ? Buffer.from(data) : data;
-        this.parser?.feed(buf);
-      };
-      process.stdin.on("data", this.boundOnData);
-
-      // 非 TTY 环境下 unref stdin，避免阻止进程退出
-      if (!process.stdin.isTTY) {
-        process.stdin.unref();
-      }
+      // 创建终端输出目标（stdout > stderr > /dev/tty write）
+      this.ttyOutput = createTtyOutput();
 
       // 信号处理
       process.on("SIGWINCH", this.boundHandleResize);
@@ -232,6 +232,7 @@ export class TuiController {
    */
   async deinit(): Promise<void> {
     if (this.initialized) {
+      // 构建 ANSI 重置序列并一次性写入（per D-03 信号清理链）
       let seq = "";
       seq += MOUSE_OFF;
       seq += PASTE_OFF;
@@ -240,8 +241,10 @@ export class TuiController {
         seq += ALT_SCREEN_OFF;
         this.inAltScreen = false;
       }
-      if (process.stdout.writable) {
-        process.stdout.write(seq);
+      try {
+        this.ttyOutput?.stream.write(seq);
+      } catch {
+        // 输出流可能已关闭
       }
     }
 
@@ -264,21 +267,21 @@ export class TuiController {
     process.removeListener("SIGINT", this.boundCleanup);
     process.removeListener("SIGTERM", this.boundCleanup);
 
-    // 移除 stdin data 监听器
-    if (this.boundOnData) {
-      process.stdin.removeListener("data", this.boundOnData);
-      this.boundOnData = null;
+    // 释放 /dev/tty 输入源（handles setRawMode(false) + removeAllListeners + destroy）
+    try {
+      this.ttyInput?.dispose();
+    } catch {
+      // 输入流可能已关闭
     }
+    this.ttyInput = null;
 
-    // 恢复 stdin 状态
-    if (process.stdin.isTTY) {
-      try {
-        process.stdin.setRawMode(false);
-        process.stdin.pause();
-      } catch {
-        // stdin 可能已关闭
-      }
+    // 释放输出目标（关闭 /dev/tty fd，如果是 /dev/tty 输出）
+    try {
+      this.ttyOutput?.dispose();
+    } catch {
+      // 输出流可能已关闭
     }
+    this.ttyOutput = null;
 
     this.parser = null;
     this.capabilities = null;
@@ -296,7 +299,7 @@ export class TuiController {
    */
   enterAltScreen(): void {
     if (!this.inAltScreen) {
-      process.stdout.write(ALT_SCREEN_ON);
+      this.ttyOutput?.stream.write(ALT_SCREEN_ON);
       this.inAltScreen = true;
     }
   }
@@ -308,7 +311,7 @@ export class TuiController {
    */
   exitAltScreen(): void {
     if (this.inAltScreen) {
-      process.stdout.write(ALT_SCREEN_OFF);
+      this.ttyOutput?.stream.write(ALT_SCREEN_OFF);
       this.inAltScreen = false;
     }
   }
@@ -423,7 +426,7 @@ export class TuiController {
   render(): void {
     const output = this.renderer.render(this.screen);
     if (output) {
-      process.stdout.write(output);
+      this.ttyOutput?.stream.write(output);
     }
     this.screen.present();
   }
@@ -514,9 +517,7 @@ export class TuiController {
    * @private
    */
   private enableMouse(): void {
-    if (process.stdout.writable) {
-      process.stdout.write(MOUSE_ON);
-    }
+    this.ttyOutput?.stream.write(MOUSE_ON);
   }
 
   /**
@@ -525,9 +526,7 @@ export class TuiController {
    * @private
    */
   private enableBracketedPaste(): void {
-    if (process.stdout.writable) {
-      process.stdout.write(PASTE_ON);
-    }
+    this.ttyOutput?.stream.write(PASTE_ON);
   }
 
   /**

@@ -313,6 +313,13 @@ export function createStdinFallback(options?: TtyInputOptions): TtyInputSource {
           // stdin 可能不支持 raw mode
         }
         stdin.resume();
+      } else {
+        // 非 TTY 环境下 unref stdin，避免阻止进程退出
+        try {
+          stdin.unref();
+        } catch {
+          // Bun 可能不支持 unref
+        }
       }
       boundHandler = (data: Buffer | string) => {
         const buf = typeof data === "string" ? Buffer.from(data) : data;
@@ -496,5 +503,11 @@ export function createTtyInput(options?: TtyInputOptions): TtyInputSource {
   if (isBunWithTtyBug()) {
     return createStdinFallback(options);
   }
-  return createDevTtyInput(options);
+  // 尝试 /dev/tty，失败则回退到 process.stdin
+  // （CI/sandbox 环境可能没有 /dev/tty 设备）
+  try {
+    return createDevTtyInput(options);
+  } catch {
+    return createStdinFallback(options);
+  }
 }

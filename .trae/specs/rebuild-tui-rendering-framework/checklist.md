@@ -1,0 +1,6 @@
+- [ ] 基础布局组件 (`Align`, `Center`, `Spacer`) 及其 RenderObject 已实现并正确导出。
+- [ ] 装饰系统 (`BoxDecoration`, `Border`, `BorderSide`) 已实现并支持解析 Unicode 边框字符。
+- [ ] `Container` 组件成功升级，支持 `margin`、`alignment`、`decoration` 和 `constraints`，能够正确绘制终端边框。
+- [ ] `HitTestResult` 和 `RenderBox.hitTest` 逻辑完善，并支持跨层级传播。
+- [ ] `MouseRegion` 和 `GestureDetector` 组件实现，并能够响应鼠标点击和悬停事件。
+- [ ] `Viewport` 组件和 `RenderViewport` 实现，支持 `offset` 的子组件裁剪。

@@ -1,0 +1,72 @@
+=== AST Top-Level Statistics ===
+{
+  functions: 0,
+  variables: 1,
+  assignments: 221,
+  calls: 297,
+  others: 69,
+}
+
+=== Top-Level Nodes (First 30) ===
+[L14] Call: jR
+[L15] Call: O0
+[L16] Assignment: xk0
+[L20] Call: O0
+[L21] Call: rR
+[L22] Call: rR
+[L23] Call: rR
+[L24] Assignment: Sk0
+[L90] Call: rR
+[L91] Assignment: Pg
+[L92] Assignment: eA
+[L93] Call: rR
+[L94] Call: rR
+[L95] Call: unknown
+[L98] Assignment: cP
+[L99] Assignment: qk0
+[L105] Call: rR
+[L106] Call: rR
+[L107] Call: rR
+[L108] Call: rR
+[L109] Call: O0
+[L110] Call: rR
+[L111] Assignment: ix0
+[L114] Call: om
+[L115] Call: oa
+[L116] Call: lm
+[L117] Assignment: _x0
+[L118] Call: de
+[L119] Assignment: MemberExpression
+[L120] Assignment: MemberExpression
+
+=== Top-Level Nodes (Last 30) ===
+[L6972] Assignment: Pq0
+[L7084] Assignment: xq0
+[L7102] Assignment: Eq0
+[L7115] Call: oa
+[L7116] Call: L8
+[L7117] Call: L8
+[L7118] Call: O0
+[L7119] Call: Lm
+[L7120] Call: lm
+[L7121] Call: L8
+[L7122] Call: lm
+[L7123] Call: O0
+[L7124] Call: O0
+[L7136] Call: O0
+[L7137] Call: P0
+[L7138] Call: L8
+[L7139] Call: $c
+[L7140] Call: O0
+[L7141] Call: s0
+[L7142] Call: O0
+[L7143] Assignment: ZgT
+[L7198] Call: jR
+[L7199] Call: rR
+[L7200] Call: O0
+[L7201] Call: Ei
+[L7202] Call: dm
+[L7323] Call: unknown
+[L7326] Call: unknown
+[L7337] Call: unknown
+[L7350] Variable: kF0

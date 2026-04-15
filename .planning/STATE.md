@@ -2,22 +2,22 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 12.1
-status: completed
-last_updated: "2026-04-15T07:58:19.248Z"
+current_phase: 13
+status: gap_closure
+last_updated: "2026-04-15T09:30:00.000Z"
 progress:
-  total_phases: 13
+  total_phases: 20
   completed_phases: 13
   total_plans: 103
   completed_plans: 103
-  percent: 100
+  percent: 65
 ---
 
 # Flitter — Project State
 
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
-**Current phase:** 12.1
+**Current phase:** 13
 **Status:** Milestone complete
 
 ---
@@ -26,12 +26,12 @@ progress:
 
 | Field | Value |
 |-------|-------|
-| Phase | 12 — WidgetsBinding + runApp TUI 启动 |
-| Package | `@flitter/tui` + `@flitter/cli` |
-| Status | executing |
-| Requirements | TUI-06, CLI-02 |
-| Plans created | 15/15 |
-| Plans completed | 15/15 |
+| Phase | 13 — TUI Launch Blocker Fix |
+| Package | `@flitter/tui` |
+| Status | planned |
+| Requirements | GC-01, GC-02, GC-03 |
+| Plans created | 0/? |
+| Plans completed | 0/? |
 
 ---
 
@@ -50,8 +50,16 @@ progress:
 | 8 | MCP 协议集成 | complete | 6/6 | LLM-07..10 (4) |
 | 9 | 数据持久化層 | complete | 7/7 | DATA-01..05 (5) |
 | 10 | Agent 核心引擎 | complete | 10/10 | AGNT-01..11 (11) |
-| 11 | CLI 入口与端到端集成 | planned | 0/7 | CLI-01..05 (5) |
+| 11 | CLI 入口与端到端集成 | complete | 10/10 | CLI-01..05 (5) |
 | 12 | WidgetsBinding + runApp TUI 启动 | complete | 15/15 | TUI-06, CLI-02 |
+| 12.1 | Close TUI launch gaps | paused | 5/5 | GAP-01..05 |
+| **13** | **TUI Launch Blocker Fix** | **planned** | 0/? | GC-01..03 (3) |
+| 14 | LLM Provider Reliability + Security | planned | 0/? | GC-04,05 (2) |
+| 15 | MCP Transport Resilience | planned | 0/? | GC-07,08,16 (3) |
+| 16 | Agent Core Correctness | planned | 0/? | GC-06,09..12 (5) |
+| 17 | Data Layer Fidelity | planned | 0/? | GC-13..15 (3) |
+| 18 | CLI Completeness | planned | 0/? | GC-17..19 (3) |
+| 19 | Amp Cross-Reference Annotation | planned | 0/? | GC-20 (1) |
 
 ---
 

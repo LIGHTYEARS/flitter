@@ -175,12 +175,58 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-04 | 11 | CLI 入口与端到端集成 | not_started |
 | CLI-05 | 11 | CLI 入口与端到端集成 | not_started |
 
+### Gap Closure (GC) — from Amp Cross-Reference Audit
+
+- [ ] **GC-01**: TuiController.getSize() port amp's Uk0() 4-layer defense (P0)
+- [ ] **GC-02**: TuiController async cleanup — port amp's async signal handler (P0)
+- [ ] **GC-03**: RenderObject.hitTest add allowHitTestOutsideBounds (P0)
+- [ ] **GC-04**: Anthropic Provider retry/backoff + thinking budget + cache_control (P0)
+- [ ] **GC-05**: Prompt injection defense — invisible Unicode tag removal + redaction (P0)
+- [ ] **GC-06**: ThreadWorker deep port — retry/snapshots/blocked-on-user/title-gen (P0)
+- [ ] **GC-07**: MCP StreamableHTTP/SSE auth recovery (401/403) + reconnection (P0)
+- [ ] **GC-08**: MCP connection dynamic transport factory + ping/keepalive (P1)
+- [ ] **GC-09**: Permission matcher — fix inverted enable/disable precedence (P1)
+- [ ] **GC-10**: System prompt rewrite from amp source (P1)
+- [ ] **GC-11**: Context blocks mode awareness + 32KB budget (P1)
+- [ ] **GC-12**: Tool orchestrator batch conflict fix — check all batches (P1)
+- [ ] **GC-13**: ConfigService 3-tier with admin/managed scope (P1)
+- [ ] **GC-14**: Guidance loader rewrite — real YAML + picomatch + budget (P1)
+- [ ] **GC-15**: Skill parser — real YAML + file validation + path traversal check (P1)
+- [ ] **GC-16**: MCP server-manager mcpPermissions + tool cache (P1)
+- [ ] **GC-17**: CLI config/threads commands — implement stubs (P1)
+- [ ] **GC-18**: interactive.ts dynamic theme + safe typing (P1)
+- [ ] **GC-19**: execute/headless modes auth gating + error framing (P1)
+- [ ] **GC-20**: Formal `逆向:` annotations across ~130 unannotated files (P2)
+
+| Requirement | Phase | Phase Name | Status |
+|-------------|-------|------------|--------|
+| GC-01 | 13 | TUI Launch Blocker Fix | Pending |
+| GC-02 | 13 | TUI Launch Blocker Fix | Pending |
+| GC-03 | 13 | TUI Launch Blocker Fix | Pending |
+| GC-04 | 14 | LLM Provider Reliability + Security | Pending |
+| GC-05 | 14 | LLM Provider Reliability + Security | Pending |
+| GC-06 | 16 | Agent Core Correctness | Pending |
+| GC-07 | 15 | MCP Transport Resilience | Pending |
+| GC-08 | 15 | MCP Transport Resilience | Pending |
+| GC-09 | 16 | Agent Core Correctness | Pending |
+| GC-10 | 16 | Agent Core Correctness | Pending |
+| GC-11 | 16 | Agent Core Correctness | Pending |
+| GC-12 | 16 | Agent Core Correctness | Pending |
+| GC-13 | 17 | Data Layer Fidelity | Pending |
+| GC-14 | 17 | Data Layer Fidelity | Pending |
+| GC-15 | 17 | Data Layer Fidelity | Pending |
+| GC-16 | 15 | MCP Transport Resilience | Pending |
+| GC-17 | 18 | CLI Completeness | Pending |
+| GC-18 | 18 | CLI Completeness | Pending |
+| GC-19 | 18 | CLI Completeness | Pending |
+| GC-20 | 19 | Amp Cross-Reference Annotation | Pending |
+
 **Coverage:**
-- v1 requirements: 53 total
-- Mapped to phases: 53
+- v1 requirements: 53 original + 20 gap closure = 73 total
+- Mapped to phases: 73
 - Unmapped: 0
 - **Coverage: 100%**
 
 ---
 *Requirements defined: 2026-04-12*
-*Last updated: 2026-04-12 — traceability populated by roadmapper*
+*Last updated: 2026-04-15 — 20 gap closure requirements (GC-01..20) added from Amp Cross-Reference Audit*

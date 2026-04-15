@@ -518,5 +518,155 @@ Plans:
 
 ---
 
+## Gap Closure Phases (from Amp Cross-Reference Audit 2026-04-15)
+
+> **Required reading before any gap closure work:**
+> `.planning/AMP-CROSS-REFERENCE-AUDIT.md` — Full 176-file audit with specific amp references, line numbers, and divergence analysis
+
+---
+
+### Phase 13: TUI Launch Blocker Fix — getSize() + hitTest + async cleanup
+
+**Package:** `@flitter/tui`
+**Effort:** S | **Risk:** Critical
+**Goal:** Fix the three blocking issues preventing TUI from launching: getSize() Infinity bug, hitTest missing allowHitTestOutsideBounds (breaks overlays), and async cleanup races leaving terminal in raw mode. End state: `flitter` launches a real TUI in a terminal.
+**Requirements:** TUI-06 (fix)
+**Gap Closure:** CR-09, CR-10, CR-05; Flow "Interactive TUI conversation"
+**Depends on:** Phase 12.1
+
+**Tasks (~4):**
+1. Port amp's `Uk0()` 4-layer terminal size detection to `TuiController.getSize()`
+2. Fix `cleanup()` async race — port amp's async signal handler pattern
+3. Add `allowHitTestOutsideBounds` to `RenderObject.hitTest()` per amp's `Dy0`
+4. Real terminal verification — human TTY launch test
+
+---
+
+### Phase 14: LLM Provider Reliability + Security — retry, sanitization, thinking budget
+
+**Package:** `@flitter/llm`
+**Effort:** M | **Risk:** High
+**Goal:** Port amp's retry infrastructure (exponential backoff, Retry-After parsing, idempotency headers), prompt injection defense (invisible Unicode tag removal, pattern redaction), thinking budget dynamics, and cache_control to all LLM providers. Fix hardcoded values in OpenAI/Gemini.
+**Requirements:** LLM-01 (fix), LLM-06 (fix)
+**Gap Closure:** CR-01, CR-02, CR-03; Flow "LLM retry on transient error"
+**Depends on:** _(none — independent)_
+
+**Tasks (~6):**
+1. Anthropic retry layer — exponential backoff + Retry-After + maxRetries:0 + idempotency headers
+2. Anthropic thinking budget dynamics + cache_control on last message + speed mode guard
+3. Unicode sanitization — invisible tag removal (`kwT` pattern) + API key/credential redaction (`EfR`)
+4. OpenAI fixes — 409 retry status, encrypted thinking parsing, dynamic maxInputTokens
+5. Gemini fixes — Vertex AI service account auth, correct maxInputTokens (1M), provider distinction
+6. OpenAI-compat updates — add missing compat configs, wire thinkingFormat to delta processing
+
+---
+
+### Phase 15: MCP Transport Resilience — auth recovery, reconnection, permissions
+
+**Package:** `@flitter/llm` (MCP submodule)
+**Effort:** M | **Risk:** High
+**Goal:** Port amp's MCP transport resilience: OAuth re-auth on 401, insufficient_scope handling on 403, SSE reconnection with backoff, dynamic transport factory, ping/keepalive, and tool permission enforcement via mcpPermissions.
+**Requirements:** LLM-07 (fix), LLM-08 (fix), LLM-09 (fix)
+**Gap Closure:** CR-06, CR-07, CR-08, HI-06; Flow "MCP server reconnection"
+**Depends on:** _(none — independent)_
+
+**Tasks (~5):**
+1. StreamableHTTP — 401 OAuth re-auth flow + 403 insufficient_scope + SSE reconnection
+2. SSE transport — `_scheduleReconnection` with configurable attempts + 401 re-auth
+3. MCPConnection — dynamic transport factory + ping/keepalive + notification payload forwarding
+4. MCPServerManager — mcpPermissions check + includeToolsBySkill filtering + tool cache with TTL
+5. Integration tests — auth recovery E2E, reconnection E2E, permission filtering
+
+---
+
+### Phase 16: Agent Core Correctness — ThreadWorker, permissions, prompt, orchestrator
+
+**Package:** `@flitter/agent-core`
+**Effort:** XL | **Risk:** Critical
+**Goal:** Deep-port ThreadWorker from amp's `ov` class (retry/backoff/snapshots/blocked-on-user/title-gen), fix permission matcher inverted precedence, rewrite system prompt from amp source, add context-blocks mode awareness + 32KB budget, fix orchestrator batch conflict checking.
+**Requirements:** AGNT-01 (fix), AGNT-02 (fix), AGNT-06 (rewrite), AGNT-07 (fix), AGNT-08 (fix)
+**Gap Closure:** CR-04, HI-01, HI-02, HI-05, HI-07
+**Depends on:** Phase 14 (provider retry feeds ThreadWorker retry)
+
+**Tasks (~7):**
+1. ThreadWorker deep port — exponential retry (5s base/60s max/5 auto), blocked-on-user queue, title gen, message truncation on retry
+2. Permission matcher — fix enable/disable precedence to match amp's `yy`, use glob matching not string includes
+3. System prompt rewrite — derive BASE_ROLE_PROMPT from amp's actual prompt (prompt-routing.js / _preamble.js)
+4. Context blocks — add deep/smart mode distinction, 32KB byte budget with truncation, `<instructions>` tag wrapping
+5. Tool orchestrator — fix batch conflict to check ALL batches not just last, add preprocessArgs support
+6. Builtin tools — add `逆向:` references to all 7 tools, add preprocessArgs + timeout support
+7. Integration tests — retry loop E2E, permission precedence E2E, prompt assembly verification
+
+---
+
+### Phase 17: Data Layer Fidelity — config 3-tier, guidance loader, skill parser
+
+**Package:** `@flitter/data`
+**Effort:** M | **Risk:** Medium
+**Goal:** Upgrade ConfigService to 3-tier with admin/managed scope, rewrite guidance loader with real YAML parser + picomatch + byte budget + subtree type, fix skill parser with proper YAML + file validation + path traversal security.
+**Requirements:** DATA-02 (fix), DATA-03 (fix), DATA-04 (rewrite)
+**Gap Closure:** HI-03, HI-04, HI-08
+**Depends on:** _(none — independent)_
+
+**Tasks (~5):**
+1. ConfigService — add admin/managed settings tier, permission normalization (I0T), proper array merge semantics
+2. Guidance loader — replace parseSimpleYaml with real YAML parser, picomatch for glob, 32KB byte budget, subtree type, relative glob resolution, safety checks
+3. Skill parser — replace hand-rolled YAML, add jqR file size/count validation, $qR path traversal check
+4. SkillService — add 3rd discovery tier (project .flitter/skills/), align with amp's 3-tier
+5. Integration tests — 3-tier config merge, guidance discovery with complex YAML, skill validation
+
+---
+
+### Phase 18: CLI Completeness — stubs, interactive.ts, modes
+
+**Package:** `@flitter/cli`
+**Effort:** M | **Risk:** Medium
+**Goal:** Implement config/threads command handlers from amp source, fix interactive.ts with dynamic theme subscription and safe typing, add auth gating + error framing to execute/headless modes.
+**Requirements:** CLI-01 (fix), CLI-02 (fix), CLI-03 (fix)
+**Gap Closure:** HI-09, HI-10
+**Depends on:** Phase 17 (ConfigService 3-tier needed for dynamic theme)
+
+**Tasks (~5):**
+1. config command — implement handleConfigGet/Set/List from amp's `uC0`
+2. threads command — implement handleThreadsList/New/Continue/Archive/Delete from amp source
+3. interactive.ts — dynamic theme via configService.config subscription, remove unsafe casts, add inspector support
+4. execute/headless modes — add auth gating, timing instrumentation, protocol-level error framing
+5. Integration tests — config get/set roundtrip, threads CRUD, mode switching
+
+---
+
+### Phase 19: Amp Cross-Reference Annotation Pass — formalize `逆向:` across all packages
+
+**Package:** All packages
+**Effort:** L | **Risk:** Low
+**Goal:** Add formal `逆向:` annotations to ~130 source files that currently lack them. Formalize informal "Reversed: Xxx" comments in @flitter/llm. Add inline references to @flitter/schemas. Spot-check implementations during annotation and flag any additional divergences found.
+**Requirements:** _(cross-cutting quality improvement)_
+**Gap Closure:** P2 annotation debt across all packages
+**Depends on:** Phases 13-18 (annotate after fixes, not before)
+
+**Tasks (~7):**
+1. `@flitter/tui` — screen/ (6), vt/ (3), widgets/ (14), tree/ (10) annotation with amp class/function mapping
+2. `@flitter/tui` — selection/ (3), markdown/ (3), text/ (2), perf/ (1), scroll/ (5) annotation
+3. `@flitter/llm` — formalize all 38 files from "Reversed: Xxx" to `逆向:` format with specific line numbers
+4. `@flitter/util` — all 16 files: find amp counterparts and annotate
+5. `@flitter/schemas` — all 6 files: add inline `逆向:` per schema field/variant
+6. `@flitter/agent-core` — builtin tools and remaining unannotated files
+7. `@flitter/data` — all 13 files: formalize informal docstring refs to `逆向:` format
+
+---
+
+## Gap Closure Dependency Graph
+
+```
+Phase 13 (TUI blocker) ─────────────────────────────────────────────────────────┐
+Phase 14 (LLM reliability) ──> Phase 16 (Agent Core) ──> Phase 18 (CLI) ──> Phase 19 (Annotation)
+Phase 15 (MCP resilience) ─────────────────────────────────────────────────────  │
+Phase 17 (Data fidelity) ──────────────────────────> Phase 18 (CLI) ────────────┘
+```
+
+**Parallelization:** Phases 13, 14, 15, 17 are all independent and can run in parallel.
+
+---
+
 *Roadmap created: 2026-04-12*
-*Last updated: 2026-04-15 — Phase 12.1 planned (5 plans across 3 waves: 1->2->3)*
+*Last updated: 2026-04-15 — Gap closure phases 13-19 added from Amp Cross-Reference Audit*

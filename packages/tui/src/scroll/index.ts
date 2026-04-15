@@ -12,6 +12,7 @@
  */
 
 export * from "./list-view.js";
+export * from "./render-scrollable.js";
 export * from "./scroll-controller.js";
 export * from "./scroll-key-handler.js";
 export * from "./scroll-physics.js";

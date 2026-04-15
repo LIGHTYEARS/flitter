@@ -8,6 +8,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { KeyEvent } from "../vt/types.js";
+import { RenderScrollable } from "./render-scrollable.js";
 import { ScrollController } from "./scroll-controller.js";
 import { ScrollKeyHandler } from "./scroll-key-handler.js";
 import { Scrollable } from "./scrollable.js";
@@ -170,46 +171,80 @@ describe("ScrollKeyHandler", () => {
 });
 
 // ════════════════════════════════════════════════════
-//  Scrollable Widget
+//  Scrollable Widget (rewritten as SingleChildRenderObjectWidget)
 // ════════════════════════════════════════════════════
 
 describe("Scrollable", () => {
-  describe("creation", () => {
-    it("should create Scrollable with external controller", () => {
+  describe("Widget protocol", () => {
+    it("should create Scrollable with controller", () => {
       const controller = new ScrollController();
       const scrollable = new Scrollable({ controller });
       expect(scrollable).toBeDefined();
-      expect(scrollable.controller).toBe(controller);
+      expect(scrollable.scrollController).toBe(controller);
       controller.dispose();
     });
 
-    it("should create Scrollable without controller (auto-managed)", () => {
-      const scrollable = new Scrollable({});
-      expect(scrollable).toBeDefined();
-      // 无外部 controller 时, controller 为 undefined, State 内部创建
-      expect(scrollable.controller).toBeUndefined();
+    it("should accept optional child Widget", () => {
+      const controller = new ScrollController();
+      const scrollable = new Scrollable({ controller, child: undefined });
+      expect(scrollable.child).toBeUndefined();
+      controller.dispose();
     });
   });
 
-  describe("maxScrollExtent calculation", () => {
+  describe("createRenderObject", () => {
+    it("should return a RenderScrollable instance", () => {
+      const controller = new ScrollController();
+      const scrollable = new Scrollable({ controller });
+      const renderObject = scrollable.createRenderObject();
+      expect(renderObject).toBeInstanceOf(RenderScrollable);
+      controller.dispose();
+    });
+
+    it("should pass scrollController to RenderScrollable", () => {
+      const controller = new ScrollController();
+      const scrollable = new Scrollable({ controller });
+      const renderObject = scrollable.createRenderObject() as RenderScrollable;
+      expect(renderObject.scrollController).toBe(controller);
+      controller.dispose();
+    });
+  });
+
+  describe("updateRenderObject", () => {
+    it("should update scrollController on RenderScrollable", () => {
+      const controller1 = new ScrollController();
+      const controller2 = new ScrollController();
+
+      const scrollable1 = new Scrollable({ controller: controller1 });
+      const renderObject = scrollable1.createRenderObject() as RenderScrollable;
+      expect(renderObject.scrollController).toBe(controller1);
+
+      const scrollable2 = new Scrollable({ controller: controller2 });
+      scrollable2.updateRenderObject(renderObject);
+      expect(renderObject.scrollController).toBe(controller2);
+
+      controller1.dispose();
+      controller2.dispose();
+    });
+  });
+
+  describe("createElement", () => {
+    it("should return a SingleChildRenderObjectElement", () => {
+      const controller = new ScrollController();
+      const scrollable = new Scrollable({ controller });
+      const element = scrollable.createElement();
+      expect(element).toBeDefined();
+      controller.dispose();
+    });
+  });
+
+  describe("static computeMaxScrollExtent", () => {
     it("should compute maxScrollExtent = max(0, childHeight - viewportHeight)", () => {
-      // 静态验证: 当 childHeight=50, viewportHeight=20, maxScrollExtent=30
-      const maxExtent = Math.max(0, 50 - 20);
-      expect(maxExtent).toBe(30);
+      expect(Scrollable.computeMaxScrollExtent(50, 20)).toBe(30);
     });
 
     it("should have maxScrollExtent=0 when child fits viewport", () => {
-      const maxExtent = Math.max(0, 10 - 20);
-      expect(maxExtent).toBe(0);
-    });
-  });
-
-  describe("controller lifecycle", () => {
-    it("Scrollable should accept optional controller prop", () => {
-      const ctrl = new ScrollController();
-      const scrollable = new Scrollable({ controller: ctrl });
-      expect(scrollable.controller).toBe(ctrl);
-      ctrl.dispose();
+      expect(Scrollable.computeMaxScrollExtent(10, 20)).toBe(0);
     });
   });
 });

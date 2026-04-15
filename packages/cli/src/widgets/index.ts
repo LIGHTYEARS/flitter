@@ -38,3 +38,4 @@ export {
   type ConversationViewConfig,
   type Message,
 } from "./conversation-view.js";
+export { StatusBar, type StatusBarConfig } from "./status-bar.js";

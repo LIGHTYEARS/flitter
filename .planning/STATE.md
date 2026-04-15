@@ -276,6 +276,9 @@ _(none)_
   - 文件结构: @flitter/tui 新增 binding/ + focus/ + gestures/ + tui/, @flitter/cli 新增 widgets/ (ThemeController, ConfigProvider, AppWidget, ThreadStateWidget, InputField, ConversationView)
   - 目标: 替换 interactive.ts 中所有 stub，使 `flitter` CLI 启动后进入持久终端交互界面
 
+- Phase 12.1 inserted after Phase 12: Close TUI launch gaps — /dev/tty input, CLI routing fix, real widget tree, reactive ThreadState (URGENT)
+  - Root cause: Phase 12 完成后 TUI 仍无法启动，诊断出三层 gaps：(1) TuiController 使用 process.stdin 而非 /dev/tty，(2) resolveCliContext TTY 判定导致非 TTY 环境跳过 interactive mode，(3) 应用层 widget build() 返回占位符且 ConversationView 未接入 widget 树
+
 ---
 
 *State initialized: 2026-04-12*

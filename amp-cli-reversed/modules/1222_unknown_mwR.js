@@ -1,0 +1,4 @@
+async function mwR(T, R) {
+  let a = await bwR(T, R);
+  return ["Sandbox preview URLs: The user cannot open sandbox-local URLs directly, so never tell them to use raw localhost or 127.0.0.1 for sandbox web servers.", "Only share a preview URL when this environment or repo explicitly provides how to derive one.", a ? `This repo has preview instructions at \`${a}\`; read that file and follow it before sharing a preview URL, and do not invent a URL pattern.` : "If the repo has a `.agents/preview` file, read it and follow it. Otherwise, say that you do not have a configured preview URL instead of guessing.", "When you do have a preview URL, hyperlink it."].join(" ");
+}

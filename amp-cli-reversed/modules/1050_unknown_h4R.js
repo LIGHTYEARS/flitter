@@ -1,0 +1,3 @@
+function h4R(T) {
+  if (T.status === "done") return typeof T.result === "string" ? T.result : JSON.stringify(T.result);else if (T.status === "error") return `<tool_execution_error>${T.error?.message || "Unknown error"}</tool_execution_error>`;else if (T.status === "cancelled") return "<tool_call_cancelled>Tool call was cancelled by the user</tool_call_cancelled>";else if (T.status === "rejected-by-user") return "<tool_rejection>User rejected the tool call, disallowing it from running</tool_rejection>";else return `<tool_status>${T.status}</tool_status>`;
+}

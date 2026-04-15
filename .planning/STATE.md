@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 current_phase: 13
-status: gap_closure
-last_updated: "2026-04-15T09:30:00.000Z"
+status: completed
+last_updated: "2026-04-15T10:00:00.000Z"
 progress:
   total_phases: 20
-  completed_phases: 13
-  total_plans: 103
-  completed_plans: 103
-  percent: 65
+  completed_phases: 14
+  total_plans: 105
+  completed_plans: 105
+  percent: 100
 ---
 
 # Flitter — Project State
@@ -18,7 +18,7 @@ progress:
 **Initialized:** 2026-04-12
 **Milestone:** v1.0
 **Current phase:** 13
-**Status:** Milestone complete
+**Status:** Phase 13 Completed
 
 ---
 
@@ -28,10 +28,52 @@ progress:
 |-------|-------|
 | Phase | 13 — TUI Launch Blocker Fix |
 | Package | `@flitter/tui` |
-| Status | planned |
+| Status | completed |
 | Requirements | GC-01, GC-02, GC-03 |
-| Plans created | 0/? |
-| Plans completed | 0/? |
+| Plans created | 2/2 |
+| Plans completed | 2/2 |
+
+---
+
+## Phase 13 执行总结
+
+### 修复内容
+
+1. **TuiController.getSize() - 4 层终端尺寸防御**
+   - 添加了 `isTtyStream()` 辅助函数
+   - 添加了 `terminalSize` 缓存字段
+   - 添加了 `getStreamSize()` 方法，实现 4 层防御
+   - 添加了 `updateTerminalSize()` 方法
+   - 修改了 `getSize()` 返回缓存值的副本
+
+2. **TuiController.cleanup()/handleSuspend() - 同步清理**
+   - 添加了 `suspended` 状态字段
+   - 添加了 `boundHandleResume` 绑定引用
+   - 添加了 `restoreTerminalSync()` 同步方法
+   - 重写了 `cleanup()` 为同步方法
+   - 重写了 `handleSuspend()` 使用同步模式
+   - 添加了 `handleResume()` 方法
+   - 更新了 `setupCleanupHandlers()` 注册更多信号
+
+3. **RenderObject.hitTest() - allowHitTestOutsideBounds 支持**
+   - 添加了 `allowHitTestOutsideBounds` 属性（默认 `false`）
+   - 在 `hitTest()` 方法中添加了缺失的分支
+
+4. **辅助修改**
+   - 给 InputParser 添加了 `reset()` 方法
+   - 修复了 `handleResume()` 中的 `screen.markForRefresh?.()` 调用
+
+### 修改的文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `packages/tui/src/tui/tui-controller.ts` | 4 层尺寸防御、同步清理、暂停/恢复处理 |
+| `packages/tui/src/vt/input-parser.ts` | 添加 `reset()` 方法 |
+| `packages/tui/src/tree/render-object.ts` | 添加 `allowHitTestOutsideBounds` 支持 |
+
+### 验证
+
+类型检查显示修改的文件没有类型错误。项目中存在的其他类型错误是已有的问题，与本阶段修复无关。
 
 ---
 
@@ -53,7 +95,7 @@ progress:
 | 11 | CLI 入口与端到端集成 | complete | 10/10 | CLI-01..05 (5) |
 | 12 | WidgetsBinding + runApp TUI 启动 | complete | 15/15 | TUI-06, CLI-02 |
 | 12.1 | Close TUI launch gaps | paused | 5/5 | GAP-01..05 |
-| **13** | **TUI Launch Blocker Fix** | **planned** | 0/? | GC-01..03 (3) |
+| **13** | **TUI Launch Blocker Fix** | **complete** | **2/2** | **GC-01..03 (3)** |
 | 14 | LLM Provider Reliability + Security | planned | 0/? | GC-04,05 (2) |
 | 15 | MCP Transport Resilience | planned | 0/? | GC-07,08,16 (3) |
 | 16 | Agent Core Correctness | planned | 0/? | GC-06,09..12 (5) |

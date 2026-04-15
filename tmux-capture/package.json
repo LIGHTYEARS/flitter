@@ -4,6 +4,11 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.2",
+    "@babel/traverse": "^7.29.0",
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
     "@types/bun": "latest",
     "vite": "^8.0.3"
   },

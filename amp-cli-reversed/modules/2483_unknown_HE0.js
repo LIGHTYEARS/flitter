@@ -1,0 +1,17 @@
+function HE0(T) {
+  switch (T) {
+    case "working":
+      return "Waiting for response...";
+    case "streaming":
+      return "Streaming response...";
+    case "tool_use":
+    case "running_tools":
+      return "Running tools...";
+    case "awaiting_approval":
+      return "Waiting for approval...";
+    case "error":
+      return "Error";
+    case "idle":
+      return null;
+  }
+}

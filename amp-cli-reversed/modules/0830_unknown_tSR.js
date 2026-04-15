@@ -1,0 +1,32 @@
+function tSR(T, R, a) {
+  let e = {};
+  if (H(T, ["outputGcsUri"]) !== void 0) throw Error("outputGcsUri parameter is not supported in Gemini API.");
+  if (H(T, ["negativePrompt"]) !== void 0) throw Error("negativePrompt parameter is not supported in Gemini API.");
+  let t = H(T, ["numberOfImages"]);
+  if (R !== void 0 && t != null) Y(R, ["parameters", "sampleCount"], t);
+  let r = H(T, ["aspectRatio"]);
+  if (R !== void 0 && r != null) Y(R, ["parameters", "aspectRatio"], r);
+  let h = H(T, ["guidanceScale"]);
+  if (R !== void 0 && h != null) Y(R, ["parameters", "guidanceScale"], h);
+  if (H(T, ["seed"]) !== void 0) throw Error("seed parameter is not supported in Gemini API.");
+  let i = H(T, ["safetyFilterLevel"]);
+  if (R !== void 0 && i != null) Y(R, ["parameters", "safetySetting"], i);
+  let c = H(T, ["personGeneration"]);
+  if (R !== void 0 && c != null) Y(R, ["parameters", "personGeneration"], c);
+  let s = H(T, ["includeSafetyAttributes"]);
+  if (R !== void 0 && s != null) Y(R, ["parameters", "includeSafetyAttributes"], s);
+  let A = H(T, ["includeRaiReason"]);
+  if (R !== void 0 && A != null) Y(R, ["parameters", "includeRaiReason"], A);
+  let l = H(T, ["language"]);
+  if (R !== void 0 && l != null) Y(R, ["parameters", "language"], l);
+  let o = H(T, ["outputMimeType"]);
+  if (R !== void 0 && o != null) Y(R, ["parameters", "outputOptions", "mimeType"], o);
+  let n = H(T, ["outputCompressionQuality"]);
+  if (R !== void 0 && n != null) Y(R, ["parameters", "outputOptions", "compressionQuality"], n);
+  if (H(T, ["addWatermark"]) !== void 0) throw Error("addWatermark parameter is not supported in Gemini API.");
+  if (H(T, ["labels"]) !== void 0) throw Error("labels parameter is not supported in Gemini API.");
+  let p = H(T, ["imageSize"]);
+  if (R !== void 0 && p != null) Y(R, ["parameters", "sampleImageSize"], p);
+  if (H(T, ["enhancePrompt"]) !== void 0) throw Error("enhancePrompt parameter is not supported in Gemini API.");
+  return e;
+}

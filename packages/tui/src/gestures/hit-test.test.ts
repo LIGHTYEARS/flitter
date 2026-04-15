@@ -238,3 +238,109 @@ describe("RenderObject.hitTest (递归)", () => {
     expect(result.hits).toHaveLength(0);
   });
 });
+
+// ════════════════════════════════════════════════════
+//  allowHitTestOutsideBounds 测试
+// ════════════════════════════════════════════════════
+
+describe("RenderObject.hitTest — allowHitTestOutsideBounds", () => {
+  it("默认 allowHitTestOutsideBounds 为 false", () => {
+    const box = new TestRenderBox(10, 10, 0, 0);
+    expect(box.allowHitTestOutsideBounds).toBe(false);
+  });
+
+  it("allowHitTestOutsideBounds=false 时，position 在 bounds 外不命中子节点", () => {
+    // parent at (0,0), size 10x10
+    // child at (20, 20), size 5x5 (在 parent bounds 外)
+    const parent = new TestRenderBox(10, 10, 0, 0);
+    const child = new TestRenderBox(5, 5, 20, 20);
+
+    parent.adoptChild(child);
+    parent.allowHitTestOutsideBounds = false; // 默认值
+
+    // 点击 (22, 22) — 在 child bounds 内，但在 parent bounds 外
+    const result = new HitTestResult();
+    const hit = parent.hitTest(result, { x: 22, y: 22 });
+
+    // allowHitTestOutsideBounds=false 时，不应命中
+    expect(hit).toBe(false);
+    expect(result.hits).toHaveLength(0);
+  });
+
+  it("allowHitTestOutsideBounds=true 时，position 在 bounds 外仍命中子节点", () => {
+    // parent at (0,0), size 10x10
+    // child at (20, 20), size 5x5 (在 parent bounds 外)
+    const parent = new TestRenderBox(10, 10, 0, 0);
+    const child = new TestRenderBox(5, 5, 20, 20);
+
+    parent.adoptChild(child);
+    parent.allowHitTestOutsideBounds = true; // 启用边界外命中
+
+    // 点击 (22, 22) — 在 child bounds 内，但在 parent bounds 外
+    const result = new HitTestResult();
+    const hit = parent.hitTest(result, { x: 22, y: 22 });
+
+    // allowHitTestOutsideBounds=true 时，应命中 child
+    expect(hit).toBe(true);
+    expect(result.hits).toHaveLength(1);
+    expect(result.hits[0]!.target).toBe(child);
+    // localPosition = position - child.absPosition = (22, 22) - (20, 20) = (2, 2)
+    expect(result.hits[0]!.localPosition).toEqual({ x: 2, y: 2 });
+  });
+
+  it("allowHitTestOutsideBounds=true 时，parent 本身不被加入 hits", () => {
+    // parent at (0,0), size 10x10
+    // child at (20, 20), size 5x5 (在 parent bounds 外)
+    const parent = new TestRenderBox(10, 10, 0, 0);
+    const child = new TestRenderBox(5, 5, 20, 20);
+
+    parent.adoptChild(child);
+    parent.allowHitTestOutsideBounds = true;
+
+    // 点击 (22, 22) — 在 child bounds 内，但在 parent bounds 外
+    const result = new HitTestResult();
+    parent.hitTest(result, { x: 22, y: 22 });
+
+    // parent 本身不在 bounds 内，所以不应被加入 hits
+    // 只有 child 被命中
+    expect(result.hits).toHaveLength(1);
+    expect(result.hits[0]!.target).toBe(child);
+  });
+
+  it("allowHitTestOutsideBounds=true 时，子节点逆序遍历", () => {
+    // parent at (0,0), size 10x10
+    // child1 at (20, 20), size 5x5
+    // child2 at (20, 20), size 5x5 (与 child1 重叠)
+    const parent = new TestRenderBox(10, 10, 0, 0);
+    const child1 = new TestRenderBox(5, 5, 20, 20);
+    const child2 = new TestRenderBox(5, 5, 20, 20);
+
+    parent.adoptChild(child1);
+    parent.adoptChild(child2);
+    parent.allowHitTestOutsideBounds = true;
+
+    // 点击 (22, 22) — 在两个 child 的 bounds 内
+    const result = new HitTestResult();
+    parent.hitTest(result, { x: 22, y: 22 });
+
+    // 子节点逆序遍历: child2 先于 child1
+    expect(result.hits).toHaveLength(2);
+    expect(result.hits[0]!.target).toBe(child2); // 后绘制的先命中
+    expect(result.hits[1]!.target).toBe(child1);
+  });
+
+  it("allowHitTestOutsideBounds 可被设置和读取", () => {
+    const box = new TestRenderBox(10, 10, 0, 0);
+
+    // 默认 false
+    expect(box.allowHitTestOutsideBounds).toBe(false);
+
+    // 设置为 true
+    box.allowHitTestOutsideBounds = true;
+    expect(box.allowHitTestOutsideBounds).toBe(true);
+
+    // 设置回 false
+    box.allowHitTestOutsideBounds = false;
+    expect(box.allowHitTestOutsideBounds).toBe(false);
+  });
+});

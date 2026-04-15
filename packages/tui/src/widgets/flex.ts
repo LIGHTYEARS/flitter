@@ -262,7 +262,11 @@ export class RenderFlex extends RenderBox {
     }
 
     // ── 确定自身尺寸 ──────────────────────────────
-    const mainAxisFinal = this.mainAxisSize === "max" ? maxMain : allocatedMainAxis;
+    // 如果约束是无界的（Infinity），则无论 mainAxisSize 是什么，只能收缩到内容大小
+    const mainAxisFinal =
+      this.mainAxisSize === "max" && Number.isFinite(maxMain)
+        ? maxMain
+        : allocatedMainAxis;
 
     // 交叉轴 clamp 到约束范围
     const crossAxisFinal =

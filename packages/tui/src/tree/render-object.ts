@@ -42,6 +42,19 @@ export abstract class RenderObject {
   /** 在渲染树中的深度 */
   protected _depth: number = 0;
 
+  /**
+   * 是否允许命中测试穿透到本节点边界外的子节点。
+   *
+   * 逆向: allowHitTestOutsideBounds in Dy0, tui-widget-framework.js:1906
+   *
+   * 当为 true 时，即使测试点在本节点的 size 矩形外部，
+   * 仍会递归检测子节点。这对于 Overlay/Dropdown 等渲染在
+   * 父节点裁剪区域外的组件至关重要。
+   *
+   * 默认 false — 与现有行为完全兼容。
+   */
+  allowHitTestOutsideBounds = false;
+
   // ════════════════════════════════════════════════════
   //  只读属性访问器
   // ════════════════════════════════════════════════════
@@ -97,7 +110,7 @@ export abstract class RenderObject {
    *
    * @param child - 待设置的子节点
    */
-  setupParentData(_child: RenderObject): void {}
+  setupParentData(_child: RenderObject): void { }
 
   /**
    * 收养子节点。
@@ -245,6 +258,7 @@ export abstract class RenderObject {
    * 递归命中测试。
    *
    * 逆向: Dy0 in tui-widget-framework.js:1879-1921
+   * 包含 allowHitTestOutsideBounds 分支 (lines 1906-1912)
    *
    * 对于拥有 size + offset 的节点（{@link RenderBox}），检查 position 是否
    * 在 size+offset 定义的矩形范围内。命中则将自身加入 result 并逆序递归子节点。
@@ -286,6 +300,18 @@ export abstract class RenderObject {
         }
         return true;
       }
+
+      // 逆向: Dy0 lines 1906-1912 — allowHitTestOutsideBounds 分支
+      if (this.allowHitTestOutsideBounds) {
+        let childHit = false;
+        for (let i = this._children.length - 1; i >= 0; i--) {
+          if (this._children[i]!.hitTest(result, position, absX, absY)) {
+            childHit = true;
+          }
+        }
+        return childHit;
+      }
+
       return false;
     }
 

@@ -1,0 +1,3 @@
+class jH {
+  constructor() {}
+}

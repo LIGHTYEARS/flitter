@@ -52,6 +52,24 @@ import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 // ════════════════════════════════════════════════════
 
 /**
+ * 检查流是否为真实 TTY 流。
+ *
+ * 逆向: JxT in tui-layout-engine.js:409-411
+ *
+ * @param stream - 要检查的流对象
+ * @returns 如果是 TTY 流返回 true
+ */
+function isTtyStream(stream: unknown): boolean {
+  return (
+    typeof stream === "object" &&
+    stream !== null &&
+    "isTTY" in stream &&
+    (stream as any).isTTY === true &&
+    typeof (stream as any).setRawMode === "function"
+  );
+}
+
+/**
  * 终端能力信息。
  *
  * 描述终端仿真器支持的特性集。
@@ -119,6 +137,11 @@ export class TuiController {
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** 缓存的终端尺寸（amp: this.terminalSize） */
+  private terminalSize: TerminalSize = { width: 80, height: 24 };
+  /** 是否处于暂停状态 逆向: suspended field in tui-layout-engine.js */
+  private suspended = false;
+
   /** /dev/tty 输入源 */
   private ttyInput: TtyInputSource | null = null;
   /** 终端输出目标 */
@@ -139,6 +162,8 @@ export class TuiController {
   private boundHandleResize = this.handleResize.bind(this);
   /** 绑定的 cleanup 处理函数引用（用于移除监听器） */
   private boundCleanup = this.cleanup.bind(this);
+  /** 绑定的 handleResume 处理函数引用（用于移除监听器） */
+  private boundHandleResume = this.handleResume.bind(this);
 
   constructor() {
     this.screen = new Screen(80, 24);
@@ -203,6 +228,7 @@ export class TuiController {
       }
 
       // 更新尺寸并同步 Screen
+      this.updateTerminalSize();
       const size = this.getSize();
       this.screen.resize(size.width, size.height);
 
@@ -232,20 +258,8 @@ export class TuiController {
    */
   async deinit(): Promise<void> {
     if (this.initialized) {
-      // 构建 ANSI 重置序列并一次性写入（per D-03 信号清理链）
-      let seq = "";
-      seq += MOUSE_OFF;
-      seq += PASTE_OFF;
-      seq += SHOW_CURSOR;
-      if (this.inAltScreen) {
-        seq += ALT_SCREEN_OFF;
-        this.inAltScreen = false;
-      }
-      try {
-        this.ttyOutput?.stream.write(seq);
-      } catch {
-        // 输出流可能已关闭
-      }
+      // 使用同步的终端恢复方法
+      this.restoreTerminalSync();
     }
 
     // 清除能力检测计时器
@@ -266,6 +280,8 @@ export class TuiController {
     process.stdout.removeListener("resize", this.boundHandleResize);
     process.removeListener("SIGINT", this.boundCleanup);
     process.removeListener("SIGTERM", this.boundCleanup);
+    process.removeListener("exit", this.boundCleanup);
+    process.removeListener("SIGCONT", this.boundHandleResume);
 
     // 释放 /dev/tty 输入源（handles setRawMode(false) + removeAllListeners + destroy）
     try {
@@ -323,15 +339,72 @@ export class TuiController {
   /**
    * 获取当前终端尺寸。
    *
-   * 优先使用 process.stdout 的列数/行数，fallback 到 80x24。
+   * 逆向: getSize in tui-layout-engine.js (returns copy of this.terminalSize)
    *
    * @returns 终端尺寸 { width, height }
    */
   getSize(): TerminalSize {
-    return {
-      width: process.stdout.columns ?? 80,
-      height: process.stdout.rows ?? 24,
-    };
+    return { ...this.terminalSize };
+  }
+
+  /**
+   * 从流读取终端尺寸，4 层防御。
+   *
+   * 逆向: Uk0 in tui-layout-engine.js:413-426
+   *
+   * Layer 1: _refreshSize() 强制刷新
+   * Layer 2: isTTY && columns && rows 真值检查 + Number.isFinite
+   * Layer 3: getWindowSize() 备选
+   * Layer 4: 返回 null（调用方使用缓存）
+   *
+   * @param stream - 要检查的流对象
+   * @returns 终端尺寸或 null
+   */
+  private getStreamSize(stream: NodeJS.WriteStream | any): TerminalSize | null {
+    try {
+      // Layer 1: 强制刷新终端尺寸（Node.js 内部 ioctl TIOCGWINSZ）
+      stream._refreshSize?.();
+
+      // Layer 2: 真值检查（拒绝 0, undefined, null, NaN, Infinity 通过 && 短路）
+      // 额外加 Number.isFinite 防御 Bun 返回 Infinity
+      if (
+        stream.isTTY &&
+        stream.columns &&
+        stream.rows &&
+        Number.isFinite(stream.columns) &&
+        Number.isFinite(stream.rows)
+      ) {
+        return { width: stream.columns, height: stream.rows };
+      }
+
+      // Layer 3: getWindowSize() 备选（某些 Node 版本支持）
+      const ws = stream.getWindowSize?.();
+      if (ws && ws[0] > 0 && ws[1] > 0 && Number.isFinite(ws[0]) && Number.isFinite(ws[1])) {
+        return { width: ws[0], height: ws[1] };
+      }
+    } catch {
+      // Layer 4: 静默失败
+    }
+    return null;
+  }
+
+  /**
+   * 更新缓存的终端尺寸。
+   *
+   * 逆向: updateTerminalSize in tui-layout-engine.js:232-242
+   */
+  private updateTerminalSize(): void {
+    // amp checks: if (!this.tty.stdin || !JxT(this.tty.stdin))
+    if (!this.ttyInput || !isTtyStream(this.ttyInput)) {
+      this.terminalSize = { width: 80, height: 24 };
+      return;
+    }
+    // amp: let T = Uk0(process.stdout); if (T) this.terminalSize = T
+    const size = this.getStreamSize(process.stdout);
+    if (size) {
+      this.terminalSize = size;
+    }
+    // If getStreamSize returns null, keep previous cached terminalSize (amp behavior)
   }
 
   /**
@@ -459,29 +532,18 @@ export class TuiController {
   }
 
   // ════════════════════════════════════════════════════
-  //  暂停 (Ctrl+Z)
-  // ════════════════════════════════════════════════════
-
-  /**
-   * 处理终端暂停 (Ctrl+Z / SIGTSTP)。
-   *
-   * 清理终端状态后向自身发送 SIGTSTP。
-   */
-  handleSuspend(): void {
-    this.deinit();
-    process.kill(process.pid, "SIGTSTP");
-  }
-
-  // ════════════════════════════════════════════════════
   //  私有方法
   // ════════════════════════════════════════════════════
 
   /**
    * 处理终端窗口尺寸变化。
    *
+   * 逆向: handleResize in tui-layout-engine.js
+   *
    * @private
    */
   private handleResize(): void {
+    this.updateTerminalSize();
     const size = this.getSize();
     this.screen.resize(size.width, size.height);
     for (const handler of this.resizeHandlers) {
@@ -502,13 +564,18 @@ export class TuiController {
   }
 
   /**
-   * 注册 SIGINT/SIGTERM 清理 handler。
+   * 注册 SIGINT/SIGTERM/exit 清理 handler。
+   *
+   * 逆向: setupCleanupHandlers in tui-layout-engine.js:399-401
    *
    * @private
    */
   private setupCleanupHandlers(): void {
+    process.setMaxListeners(0);
     process.on("SIGINT", this.boundCleanup);
     process.on("SIGTERM", this.boundCleanup);
+    process.on("exit", this.boundCleanup);
+    process.on("SIGCONT", this.boundHandleResume);
   }
 
   /**
@@ -530,12 +597,98 @@ export class TuiController {
   }
 
   /**
-   * 信号清理回调。
+   * 同步恢复终端状态（ANSI 序列写入）。
    *
-   * @private
+   * 逆向: XXT.deinit (sync part) in clipboard-and-input.js:600-607
+   *       suspend() in tui-layout-engine.js:199-206
+   *
+   * Signal handlers (SIGINT, SIGTERM, exit) MUST use this sync method.
+   * Cannot await async functions in signal context.
+   */
+  private restoreTerminalSync(): void {
+    if (!this.initialized) return;
+    let seq = "";
+    seq += MOUSE_OFF;
+    seq += PASTE_OFF;
+    seq += SHOW_CURSOR;
+    if (this.inAltScreen) {
+      seq += ALT_SCREEN_OFF;
+      this.inAltScreen = false;
+    }
+    try {
+      // Use process.stdout.write directly (sync in signal context)
+      // amp uses process.stdout.write(T) at line 606
+      process.stdout.write(seq);
+    } catch {
+      // Output stream may be closed
+    }
+  }
+
+  /**
+   * 信号清理回调（同步）。
+   *
+   * 逆向: cleanup() in tui-layout-engine.js:402-406
    */
   private cleanup(): void {
-    this.deinit();
+    try {
+      this.restoreTerminalSync();
+      // Release tty input synchronously
+      try { this.ttyInput?.dispose(); } catch { }
+      this.ttyInput = null;
+      try { this.ttyOutput?.dispose(); } catch { }
+      this.ttyOutput = null;
+      // Remove signal listeners
+      process.removeListener("SIGWINCH", this.boundHandleResize);
+      process.stdout.removeListener("resize", this.boundHandleResize);
+      process.removeListener("SIGINT", this.boundCleanup);
+      process.removeListener("SIGTERM", this.boundCleanup);
+      process.removeListener("exit", this.boundCleanup);
+      process.removeListener("SIGCONT", this.boundHandleResume);
+      // Clear timers
+      if (this.capabilityTimeout) {
+        clearTimeout(this.capabilityTimeout);
+        this.capabilityTimeout = null;
+      }
+      this.parser = null;
+      this.capabilities = null;
+      this.initialized = false;
+    } catch { }
+  }
+
+  /**
+   * 处理终端暂停 (Ctrl+Z / SIGTSTP)。
+   *
+   * 逆向: handleSuspend() in tui-layout-engine.js:217-225
+   *       suspend() in tui-layout-engine.js:199-206
+   */
+  handleSuspend(): void {
+    if (!this.initialized || this.suspended) return;
+    // Sync terminal restore (amp's suspend() at line 199-206)
+    this.restoreTerminalSync();
+    this.ttyInput?.pause?.();
+    this.suspended = true;
+    try {
+      process.kill(0, "SIGTSTP");
+    } catch {
+      // Failed to suspend — already handled
+    }
+  }
+
+  /**
+   * 处理终端恢复 (SIGCONT)。
+   *
+   * 逆向: handleResume() in tui-layout-engine.js:226-231
+   *       resume() in tui-layout-engine.js:207-213
+   */
+  handleResume(): void {
+    if (!this.initialized || !this.suspended) return;
+    this.ttyInput?.resume?.();
+    if (this.parser) this.parser.reset();
+    this.enterAltScreen();
+    this.enableMouse();
+    this.enableBracketedPaste();
+    this.screen.needsFullRefresh = true;
+    this.suspended = false;
   }
 
   /**

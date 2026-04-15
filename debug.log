@@ -1,0 +1,13 @@
+{"timestamp":"2026-04-15T10:36:22.495Z","level":"info","name":"cli","message":"Starting Flitter CLI","args":[{"version":"0.1.0"}]}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"Initializing service container..."}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ConfigService created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ToolRegistry created, builtin tools registered"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"PermissionEngine created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ToolOrchestrator created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"MCPServerManager created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"SkillService created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"GuidanceLoader created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ThreadStore created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ThreadPersistence created","args":[{"dataDir":"/Users/bytedance/.config/flitter/data"}]}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"ContextManager created"}
+{"timestamp":"2026-04-15T10:36:22.499Z","level":"info","name":"container","message":"Service container initialized successfully."}

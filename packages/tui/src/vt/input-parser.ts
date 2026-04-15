@@ -296,6 +296,18 @@ export class InputParser {
     this.vtParser.reset();
   }
 
+  /**
+   * 重置解析器状态。
+   *
+   * 刷新 VtParser 的打印缓冲区并重置粘贴模式。
+   * 用于终端恢复后清除可能的部分解析状态。
+   */
+  reset(): void {
+    this.vtParser.reset();
+    this.pasteMode = false;
+    this.pasteBuffer = "";
+  }
+
   // ════════════════════════════════════════════════════
   //  事件发射
   // ════════════════════════════════════════════════════

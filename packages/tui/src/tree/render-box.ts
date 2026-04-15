@@ -52,6 +52,8 @@ export abstract class RenderBox extends RenderObject {
    */
   set size(value: Size) {
     if (!Number.isFinite(value.width) || !Number.isFinite(value.height)) {
+      // 记录堆栈信息以便调试
+      console.error(new Error(`尺寸必须为有限数值，收到: width=${value.width}, height=${value.height}`).stack);
       throw new Error(`尺寸必须为有限数值，收到: width=${value.width}, height=${value.height}`);
     }
     this._size = value;

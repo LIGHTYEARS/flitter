@@ -1,10 +1,15 @@
 /**
- * ThreadStateWidget — 线程/对话状态管理 Widget。
+ * ThreadStateWidget -- 线程/对话状态管理 Widget。
  *
  * {@link ThreadStateWidget} 扩展 {@link StatefulWidget}，管理线程/对话状态，
- * 监听 ThreadStore 变化并触发子树重建。
+ * 订阅 ThreadStore.observeThread() 和 ThreadWorker.events$ 变化并触发子树重建。
  *
- * 替代 interactive.ts 中的 stub ThreadStateWidget 类。
+ * build() 返回完整的 Column 布局:
+ *   Expanded > Scrollable > ConversationView (消息列表)
+ *   SizedBox (分隔线)
+ *   StatusBar (状态栏)
+ *   SizedBox (分隔线)
+ *   InputField (输入框)
  *
  * 逆向参考: Z8R (html-sanitizer-repl.js ~1100)
  *
@@ -15,7 +20,8 @@
  * const threadWidget = new ThreadStateWidget({
  *   threadStore: container.threadStore,
  *   threadWorker: worker,
- *   child: inputField,
+ *   threadId: "abc-123",
+ *   onSubmit: (text) => { ... },
  * });
  * ```
  *
@@ -23,8 +29,15 @@
  */
 
 import { StatefulWidget, State } from "@flitter/tui";
+import { Column, Expanded, SizedBox, Text } from "@flitter/tui";
+import { Scrollable, ScrollController } from "@flitter/tui";
 import type { Widget } from "@flitter/tui";
 import type { BuildContext } from "@flitter/tui";
+import type { Subscription } from "@flitter/util";
+
+import { ConversationView, type Message } from "./conversation-view.js";
+import { InputField } from "./input-field.js";
+import { StatusBar } from "./status-bar.js";
 
 // ════════════════════════════════════════════════════
 //  ThreadStateWidgetConfig 接口
@@ -33,17 +46,30 @@ import type { BuildContext } from "@flitter/tui";
 /**
  * ThreadStateWidget 配置。
  *
- * @property threadStore - 线程存储引用 (实际类型为 @flitter/data ThreadStore)
- * @property threadWorker - 线程工作器引用 (实际类型为 @flitter/agent-core ThreadWorker)
- * @property child - 子 Widget (通常是 InputField + ConversationView 组合)
+ * @property threadStore - 线程存储引用 (ThreadStore)
+ * @property threadWorker - 线程工作器引用 (ThreadWorker)
+ * @property threadId - 要观察的线程 ID
+ * @property onSubmit - 用户提交消息的回调
+ * @property modelName - 显示在状态栏的模型名 (可选)
+ * @property tokenCount - 显示在状态栏的 token 计数 (可选)
  */
 export interface ThreadStateWidgetConfig {
   /** 线程存储引用 */
-  threadStore: unknown;
+  threadStore: {
+    observeThread(id: string): { subscribe(observer: (value: unknown) => void): Subscription } | undefined;
+  };
   /** 线程工作器引用 */
-  threadWorker: unknown;
-  /** 子 Widget */
-  child: Widget;
+  threadWorker: {
+    events$: { subscribe(observer: (value: unknown) => void): Subscription };
+  };
+  /** 要观察的线程 ID */
+  threadId: string;
+  /** 用户提交消息的回调 */
+  onSubmit: (text: string) => void;
+  /** 模型名称 (显示在状态栏) */
+  modelName?: string;
+  /** Token 计数 (显示在状态栏) */
+  tokenCount?: number;
 }
 
 // ════════════════════════════════════════════════════
@@ -53,8 +79,8 @@ export interface ThreadStateWidgetConfig {
 /**
  * 线程/对话状态管理 Widget。
  *
- * 监听 ThreadStore 变化并触发子树重建。
- * 持有 threadWorker 引用，子 Widget 可通过它发送消息。
+ * 订阅 ThreadStore 和 ThreadWorker 事件流，
+ * 在数据变化时触发子树重建。
  *
  * 逆向: Z8R (html-sanitizer-repl.js ~1100)
  */
@@ -89,43 +115,168 @@ export class ThreadStateWidget extends StatefulWidget {
 /**
  * ThreadStateWidget 的状态管理。
  *
- * 在 initState 中订阅 ThreadStore 变化，在 dispose 中取消订阅。
- * build 方法返回 config.child。
+ * 在 initState 中订阅:
+ * 1. ThreadStore.observeThread(threadId) — 线程快照变化 (消息列表等)
+ * 2. ThreadWorker.events$ — 推理事件流 (inference:start/error, turn:complete)
+ *
+ * dispose 时取消两个订阅，防止内存泄漏。
+ *
+ * build 方法返回完整的 Column 布局 (per UI-SPEC):
+ *   Expanded > Scrollable > ConversationView
+ *   分隔线
+ *   StatusBar
+ *   分隔线
+ *   InputField
  *
  * 逆向: wR 基类 (tui-widget-framework.js 1784-1813)
  */
 export class ThreadStateWidgetState extends State<ThreadStateWidget> {
+  /** 线程快照订阅 */
+  private _threadSub: Subscription | null = null;
+
+  /** 事件流订阅 */
+  private _eventSub: Subscription | null = null;
+
+  /** 消息列表 (从 ThreadStore 快照转换) */
+  private _messages: Message[] = [];
+
+  /** 推理状态: idle 或 running */
+  private _inferenceState: "idle" | "running" = "idle";
+
+  /** 推理错误 */
+  private _error: Error | null = null;
+
+  /** 滚动控制器 */
+  private _scrollController: ScrollController;
+
+  constructor() {
+    super();
+    this._scrollController = new ScrollController();
+  }
+
   /**
    * 初始化状态。
    *
-   * TODO: 订阅 threadStore 变化，在数据变化时调用 setState() 触发重建。
+   * 订阅 ThreadStore 和 ThreadWorker 事件流:
+   * - threadStore.observeThread(threadId): 快照变化 -> 更新消息列表
+   * - threadWorker.events$: 推理事件 -> 更新推理状态和错误
    */
   initState(): void {
     super.initState();
-    // TODO: subscribe to threadStore changes
-    // const store = this.widget.config.threadStore;
-    // store.onChange$.subscribe(() => this.setState());
+    const { threadStore, threadWorker, threadId } = this.widget.config;
+
+    // 订阅线程快照变化 (per D-10)
+    const thread$ = threadStore.observeThread(threadId);
+    if (thread$) {
+      this._threadSub = thread$.subscribe((snapshot: unknown) => {
+        const snap = snapshot as { messages?: Array<{ role: string; content: unknown }> };
+        this.setState(() => {
+          this._messages = (snap.messages ?? []).map((m) => ({
+            role: m.role as "user" | "assistant" | "system",
+            content:
+              typeof m.content === "string"
+                ? m.content
+                : Array.isArray(m.content)
+                  ? (m.content as Array<{ type: string; text?: string }>)
+                      .filter((b) => b.type === "text")
+                      .map((b) => b.text ?? "")
+                      .join("")
+                  : "",
+          }));
+        });
+        // 自动滚动到底部 (新消息到达时)
+        if (this._scrollController.followMode) {
+          this._scrollController.scrollToBottom();
+        }
+      });
+    }
+
+    // 订阅工作器事件流 (per D-11)
+    this._eventSub = threadWorker.events$.subscribe((event: unknown) => {
+      const ev = event as { type: string; error?: Error };
+      switch (ev.type) {
+        case "inference:start":
+          this.setState(() => {
+            this._inferenceState = "running";
+          });
+          break;
+        case "inference:error":
+          this.setState(() => {
+            this._error = ev.error ?? new Error("Unknown inference error");
+            this._inferenceState = "idle";
+          });
+          break;
+        case "turn:complete":
+          this.setState(() => {
+            this._inferenceState = "idle";
+            this._error = null;
+          });
+          break;
+      }
+    });
   }
 
   /**
    * 清理资源。
    *
-   * TODO: 取消 threadStore 订阅。
+   * 取消 ThreadStore 和 ThreadWorker 订阅，
+   * 销毁 ScrollController。
    */
   dispose(): void {
-    // TODO: unsubscribe from threadStore
+    this._threadSub?.unsubscribe();
+    this._threadSub = null;
+    this._eventSub?.unsubscribe();
+    this._eventSub = null;
+    this._scrollController.dispose();
     super.dispose();
   }
 
   /**
    * 构建子 Widget 树。
    *
-   * 返回 config.child (通常是 InputField + ConversationView 组合)。
+   * 返回完整的 Column 布局 (per UI-SPEC):
+   *   Expanded > Scrollable > ConversationView (消息滚动区)
+   *   SizedBox(1) > Text (分隔线)
+   *   StatusBar (状态栏)
+   *   SizedBox(1) > Text (分隔线)
+   *   InputField (输入框)
    *
    * @param _context - 构建上下文
-   * @returns config.child
+   * @returns Column 根节点
    */
   build(_context: BuildContext): Widget {
-    return this.widget.config.child;
+    const { onSubmit, threadId, modelName, tokenCount } = this.widget.config;
+
+    return new Column({
+      children: [
+        // 消息区域 (占据全部剩余空间)
+        new Expanded({
+          child: new Scrollable({
+            controller: this._scrollController,
+            child: new ConversationView({
+              messages: this._messages,
+            }),
+          }),
+        }),
+        // 分隔线
+        new SizedBox({
+          height: 1,
+          child: new Text({ data: "\u2500".repeat(80) }),
+        }),
+        // 状态栏
+        new StatusBar({
+          modelName: modelName ?? "unknown",
+          tokenCount: tokenCount ?? 0,
+          threadId,
+        }),
+        // 分隔线
+        new SizedBox({
+          height: 1,
+          child: new Text({ data: "\u2500".repeat(80) }),
+        }),
+        // 输入框
+        new InputField({ onSubmit }),
+      ],
+    });
   }
 }

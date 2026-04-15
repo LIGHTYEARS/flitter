@@ -59,7 +59,7 @@ export interface CliContext {
 export function resolveCliContext(program: Command): CliContext {
   const opts = program.opts();
   const isTTY = Boolean(process.stdout.isTTY && process.stderr.isTTY);
-  const executeMode = Boolean(opts.execute) || !isTTY || Boolean(opts.headless);
+  const executeMode = Boolean(opts.execute) || (!process.stdout.isTTY && !Boolean(opts.streamJson));
 
   return {
     executeMode,

@@ -26,6 +26,7 @@ import { TextEditingController } from "@flitter/tui";
 import { FocusNode, type KeyEventResult } from "@flitter/tui";
 import { FocusManager } from "@flitter/tui";
 import type { KeyEvent, PasteEvent } from "@flitter/tui";
+import { Text } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  InputFieldConfig 接口
@@ -151,13 +152,7 @@ export class InputFieldState extends State<InputField> {
    * @returns Widget 占位
    */
   build(_context: BuildContext): Widget {
-    // 最小实现: 返回一个占位 Widget
-    // 实际渲染包含光标位置和文本内容
-    return {
-      key: undefined,
-      canUpdate: () => true,
-      createElement: () => (this as any)._element,
-    } as Widget;
+    return new Text({ data: this._controller.text || " " });
   }
 
   // ──────────────────────────────────────────────

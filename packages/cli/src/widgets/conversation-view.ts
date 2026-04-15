@@ -20,7 +20,7 @@
  * @module
  */
 
-import { StatefulWidget, State } from "@flitter/tui";
+import { StatefulWidget, State, Text } from "@flitter/tui";
 import type { Widget } from "@flitter/tui";
 import type { BuildContext } from "@flitter/tui";
 
@@ -129,12 +129,8 @@ export class ConversationViewState extends State<ConversationView> {
    * @returns Widget 占位
    */
   build(_context: BuildContext): Widget {
-    // 最小实现: 返回一个占位 Widget
-    // 实际渲染会包含 ScrollController 和消息 Widget 列表
-    return {
-      key: undefined,
-      canUpdate: () => true,
-      createElement: () => (this as any)._element,
-    } as Widget;
+    const messages = this.widget.config.messages;
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1].content : "";
+    return new Text({ data: lastMessage || " " });
   }
 }

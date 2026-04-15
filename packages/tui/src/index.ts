@@ -13,3 +13,5 @@ export * from "./selection/index.js";
 export * from "./tree/index.js";
 export * from "./tui/index.js";
 export * from "./vt/index.js";
+export { Text } from "./widgets/text.js";
+export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";

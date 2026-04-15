@@ -75,6 +75,14 @@ mock.module("@flitter/tui", () => ({
     dispose() {}
   },
   FocusManager: { instance: { registerNode() {}, unregisterNode() {} } },
+  Text: class Text {
+    data: string;
+    constructor(opts: { data: string }) { this.data = opts.data; }
+    key: undefined;
+    canUpdate() { return true; }
+    createElement() { return {}; }
+    build() { return {}; }
+  },
 }));
 
 /** 创建 Mock ServiceContainer */

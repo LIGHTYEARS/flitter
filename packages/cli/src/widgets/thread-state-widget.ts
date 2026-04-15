@@ -255,6 +255,8 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             controller: this._scrollController,
             child: new ConversationView({
               messages: this._messages,
+              inferenceState: this._inferenceState,
+              error: this._error,
             }),
           }),
         }),

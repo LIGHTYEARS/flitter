@@ -534,11 +534,12 @@ Plans:
 **Gap Closure:** CR-09, CR-10, CR-05; Flow "Interactive TUI conversation"
 **Depends on:** Phase 12.1
 
-**Tasks (~4):**
-1. Port amp's `Uk0()` 4-layer terminal size detection to `TuiController.getSize()`
-2. Fix `cleanup()` async race — port amp's async signal handler pattern
-3. Add `allowHitTestOutsideBounds` to `RenderObject.hitTest()` per amp's `Dy0`
-4. Real terminal verification — human TTY launch test
+**Plans:** 2 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — getSize() 4-layer defense + cleanup() async race fix (Wave 1)
+- [ ] 13-02-PLAN.md — hitTest allowHitTestOutsideBounds + real terminal verification (Wave 2)
+
 
 ---
 

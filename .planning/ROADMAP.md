@@ -507,14 +507,14 @@ Plans:
 **Goal:** Fix the three-layer gap preventing `flitter` CLI from launching a working interactive TUI session. Layer 1: TuiController uses process.stdin instead of /dev/tty. Layer 2: resolveCliContext TTY logic diverges from amp's S8(). Layer 3: Application-layer widgets return placeholders and ConversationView is not wired into the widget tree. End state: `flitter` launches a real TUI with visible conversation UI.
 **Requirements**: GAP-01, GAP-02, GAP-03, GAP-04, GAP-05
 **Depends on:** Phase 12
-**Plans:** 5 plans
+**Plans:** 5/5 plans complete
 
 Plans:
-- [ ] 12.1-01-PLAN.md — /dev/tty input strategy + TuiController refactor (Wave 1)
-- [ ] 12.1-02-PLAN.md — RenderScrollable + layout widget barrel exports (Wave 1)
-- [ ] 12.1-03-PLAN.md — ConversationView markdown + StatusBar + InputField visual fidelity (Wave 2)
-- [ ] 12.1-04-PLAN.md — CLI routing fix + ThreadStateWidget reactive state + layout assembly (Wave 2)
-- [ ] 12.1-05-PLAN.md — E2E tmux-capture verification + human UAT (Wave 3)
+- [x] 12.1-01-PLAN.md — /dev/tty input strategy + TuiController refactor (Wave 1)
+- [x] 12.1-02-PLAN.md — RenderScrollable + layout widget barrel exports (Wave 1)
+- [x] 12.1-03-PLAN.md — ConversationView markdown + StatusBar + InputField visual fidelity (Wave 2)
+- [x] 12.1-04-PLAN.md — CLI routing fix + ThreadStateWidget reactive state + layout assembly (Wave 2)
+- [x] 12.1-05-PLAN.md — E2E tmux-capture verification + human UAT (Wave 3)
 
 ---
 

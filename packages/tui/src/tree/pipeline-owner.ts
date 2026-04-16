@@ -43,6 +43,18 @@ export class PipelineOwner implements PipelineOwnerLike {
   }
 
   /**
+   * 当前根渲染对象是否需要重新布局。
+   *
+   * 逆向: amp JXT.hasNodesNeedingLayout (2119_unknown_JXT.js:42-44)
+   * amp 实现: Boolean(this._rootRenderObject && this._rootRenderObject.needsLayout)
+   *
+   * @returns 根渲染对象存在且 needsLayout 为 true 时返回 true
+   */
+  get hasNodesNeedingLayout(): boolean {
+    return Boolean(this._rootRenderObject && this._rootRenderObject.needsLayout);
+  }
+
+  /**
    * 获取根渲染对象。
    *
    * @returns 当前根渲染对象，未设置时返回 undefined

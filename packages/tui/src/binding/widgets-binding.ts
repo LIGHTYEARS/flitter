@@ -560,6 +560,7 @@ export class WidgetsBinding {
     this.shouldPaintCurrentFrame =
       this.forcePaintOnNextFrame ||
       this.buildOwner.hasDirtyElements ||
+      this.pipelineOwner.hasNodesNeedingLayout ||
       this.pipelineOwner.hasNodesNeedingPaint;
     this.didPaintCurrentFrame = false;
     this.forcePaintOnNextFrame = false;
@@ -601,13 +602,17 @@ export class WidgetsBinding {
   /**
    * 将渲染树绘制到 Screen 缓冲区。
    *
-   * 找到根渲染对象后调用其 paint 方法。
+   * 逆向: amp d9 — R.clear(), R.clearCursor(), this.renderRenderObject(T, R, 0, 0)
+   *
+   * 找到根渲染对象后，先清除 screen back buffer（防止旧帧残留），
+   * 再调用其 paint 方法。
    */
   private renderRenderObject(): void {
     const rootRO = this.pipelineOwner.rootRenderObject;
     if (!rootRO) return;
 
     const screen = this.tui.getScreen();
+    screen.clear();
     rootRO.paint(screen, 0, 0);
   }
 

@@ -12,7 +12,7 @@ import { FocusNode } from "./focus-node.js";
 describe("FocusNode", () => {
   // 每个测试前重置静态回调
   beforeEach(() => {
-    FocusNode.setRequestFocusCallback(null as any);
+    FocusNode.setRequestFocusCallback(null);
   });
 
   // ──────────────────────────────────────────────
@@ -160,7 +160,7 @@ describe("FocusNode", () => {
     test("canRequestFocus set to false auto-unfocuses", () => {
       const node = new FocusNode();
       const unfocusCalled = mock(() => true);
-      FocusNode.setRequestFocusCallback(unfocusCalled as any);
+      FocusNode.setRequestFocusCallback(unfocusCalled as (node: FocusNode | null) => boolean);
 
       node._setFocus(true);
       node.canRequestFocus = false;
@@ -229,7 +229,7 @@ describe("FocusNode", () => {
   describe("requestFocus delegation", () => {
     test("requestFocus delegates to static _requestFocusCallback", () => {
       const callback = mock(() => true);
-      FocusNode.setRequestFocusCallback(callback as any);
+      FocusNode.setRequestFocusCallback(callback as (node: FocusNode | null) => boolean);
 
       const node = new FocusNode();
       const result = node.requestFocus();
@@ -240,7 +240,7 @@ describe("FocusNode", () => {
 
     test("requestFocus returns false when canRequestFocus is false", () => {
       const callback = mock(() => true);
-      FocusNode.setRequestFocusCallback(callback as any);
+      FocusNode.setRequestFocusCallback(callback as (node: FocusNode | null) => boolean);
 
       const node = new FocusNode({ canRequestFocus: false });
       const result = node.requestFocus();
@@ -328,7 +328,10 @@ describe("FocusNode", () => {
     test("removeKeyHandler removes a handler by reference", () => {
       const node = new FocusNode();
       let callCount = 0;
-      const handler: KeyHandler = () => { callCount++; return "ignored"; };
+      const handler: KeyHandler = () => {
+        callCount++;
+        return "ignored";
+      };
 
       node.addKeyHandler(handler);
       node._handleKeyEvent({ key: "a", code: "KeyA", type: "keydown" } as KeyEvent);
@@ -342,7 +345,10 @@ describe("FocusNode", () => {
     test("removeKeyHandler only removes first occurrence", () => {
       const node = new FocusNode();
       let callCount = 0;
-      const handler: KeyHandler = () => { callCount++; return "ignored"; };
+      const handler: KeyHandler = () => {
+        callCount++;
+        return "ignored";
+      };
 
       node.addKeyHandler(handler);
       node.addKeyHandler(handler); // added twice

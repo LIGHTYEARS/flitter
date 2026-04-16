@@ -1,6 +1,7 @@
 // @flitter/tui - Flutter-for-Terminal UI framework
 
 export * from "./binding/index.js";
+export * from "./debug/index.js";
 export * from "./editing/index.js";
 export * from "./focus/index.js";
 export * from "./gestures/index.js";
@@ -20,8 +21,18 @@ export { Row } from "./widgets/row.js";
 export { Expanded, Flexible } from "./widgets/flexible.js";
 export { SizedBox } from "./widgets/sized-box.js";
 export { Padding } from "./widgets/padding.js";
-export { Container } from "./widgets/container.js";
+export { Container, ContainerRenderObject } from "./widgets/container.js";
 export { RichText } from "./widgets/rich-text.js";
 export { TextSpan } from "./widgets/text-span.js";
 export { Stack, Positioned } from "./widgets/stack.js";
 export { EdgeInsets } from "./widgets/edge-insets.js";
+export { Align, RenderPositionedBox } from "./widgets/align.js";
+export { Center } from "./widgets/center.js";
+export { Spacer } from "./widgets/spacer.js";
+export { BorderSide } from "./widgets/border-side.js";
+export { Border } from "./widgets/border.js";
+export { BoxDecoration } from "./widgets/box-decoration.js";
+export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";
+export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
+export { GestureDetector } from "./widgets/gesture-detector.js";
+export { ClipScreen, RenderViewport, Viewport, RenderViewportWithPosition, ViewportWithPosition } from "./widgets/viewport.js";

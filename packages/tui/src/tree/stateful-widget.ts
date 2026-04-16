@@ -219,6 +219,10 @@ export class StatefulElement extends ComponentElement {
    * @param parent - 父元素，根节点为 undefined
    */
   override mount(parent?: Element): void {
+    // 逆向: amp sXT.mount (chunk-005.js:164284-164286)
+    // Set parent first so initState can use findAncestorStateOfType.
+    // amp sets parent via addChild before mount; we set it here to match.
+    this._parent = parent ?? undefined;
     this._state = (this.widget as StatefulWidget).createState();
     this._state._mount(this.widget as StatefulWidget, this);
     this._state.initState();

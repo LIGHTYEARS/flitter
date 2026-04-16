@@ -24,6 +24,7 @@ export { Column } from "./widgets/column.js";
 export { Container, ContainerRenderObject } from "./widgets/container.js";
 export { EdgeInsets } from "./widgets/edge-insets.js";
 export { Expanded, Flexible } from "./widgets/flexible.js";
+export { Focus, FocusState } from "./widgets/focus.js";
 export { GestureDetector } from "./widgets/gesture-detector.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
 export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";

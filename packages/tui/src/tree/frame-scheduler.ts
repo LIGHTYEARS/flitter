@@ -11,6 +11,10 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
+
+const log = logger.scoped("frame");
+
 /**
  * 帧阶段类型。
  *
@@ -90,6 +94,11 @@ export class FrameScheduler {
    * 启用帧节流时，会在必要时延迟执行以满足最小帧间隔。
    */
   requestFrame(): void {
+    log.debug("requestFrame", {
+      inProgress: this._frameInProgress,
+      scheduled: this._frameScheduled,
+      pendingTimer: this._pendingFrameTimer !== null,
+    });
     if (this._frameInProgress) {
       this._frameScheduled = true;
       return;
@@ -178,6 +187,7 @@ export class FrameScheduler {
    */
   private _runFrame(): void {
     this._frameInProgress = true;
+    log.debug("frameStart");
     this._frameScheduled = false;
     this._lastFrameTimestamp = Date.now();
 
@@ -194,6 +204,7 @@ export class FrameScheduler {
       cb();
     }
 
+    log.debug("frameEnd");
     this._frameInProgress = false;
   }
 

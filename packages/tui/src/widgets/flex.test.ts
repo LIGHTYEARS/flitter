@@ -28,6 +28,37 @@ import { FlexParentData, RenderFlex } from "./flex.js";
  * 可实例化的 RenderBox 测试子类，用于模拟具有固定首选尺寸的子节点。
  *
  * 在 performLayout 中，将尺寸设为首选宽高经约束限定后的结果。
+ * 固有尺寸直接返回给定的固定值，供 intrinsic size 测试使用。
+ */
+class FixedSizeBox extends RenderBox {
+  private _w: number;
+  private _h: number;
+  constructor(w: number, h: number) {
+    super();
+    this._w = w;
+    this._h = h;
+  }
+  performLayout(): void {
+    this.size = this._constraints!.constrain(this._w, this._h);
+  }
+  override getMinIntrinsicWidth(_h: number): number {
+    return this._w;
+  }
+  override getMaxIntrinsicWidth(_h: number): number {
+    return this._w;
+  }
+  override getMinIntrinsicHeight(_w: number): number {
+    return this._h;
+  }
+  override getMaxIntrinsicHeight(_w: number): number {
+    return this._h;
+  }
+}
+
+/**
+ * 可实例化的 RenderBox 测试子类，用于模拟具有固定首选尺寸的子节点。
+ *
+ * 在 performLayout 中，将尺寸设为首选宽高经约束限定后的结果。
  */
 class TestRenderBox extends RenderBox {
   private preferredWidth: number;
@@ -659,5 +690,87 @@ describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
     assert.equal(Number.isInteger(h2), true, `child2 height should be integer, got ${h2}`);
     assert.equal(Number.isInteger(h3), true, `child3 height should be integer, got ${h3}`);
     assert.equal(h1 + h2 + h3, 25, "total should equal container height");
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  RenderFlex — intrinsic sizes (amp s1T alignment)
+// ════════════════════════════════════════════════════
+
+describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
+  it("Row: getMinIntrinsicWidth = sum of non-flex children minWidths", () => {
+    const flex = new RenderFlex({ direction: "horizontal" });
+    const fixed1 = new FixedSizeBox(10, 5);
+    const fixed2 = new FixedSizeBox(20, 5);
+    const flexChild = new FixedSizeBox(30, 5);
+
+    flex.adoptChild(fixed1);
+    flex.adoptChild(fixed2);
+    flex.adoptChild(flexChild);
+    (flexChild.parentData as FlexParentData).flex = 1;
+
+    // non-flex: 10 + 20 = 30; flex child contributes 0 for min
+    assert.equal(flex.getMinIntrinsicWidth(Infinity), 30);
+  });
+
+  it("Row: getMaxIntrinsicWidth = sum of ALL children maxWidths", () => {
+    const flex = new RenderFlex({ direction: "horizontal" });
+    const fixed1 = new FixedSizeBox(10, 5);
+    const fixed2 = new FixedSizeBox(20, 5);
+    const flexChild = new FixedSizeBox(30, 5);
+
+    flex.adoptChild(fixed1);
+    flex.adoptChild(fixed2);
+    flex.adoptChild(flexChild);
+    (flexChild.parentData as FlexParentData).flex = 1;
+
+    // All children: 10 + 20 + 30 = 60
+    assert.equal(flex.getMaxIntrinsicWidth(Infinity), 60);
+  });
+
+  it("Row: getMinIntrinsicHeight = max of children minHeights (cross axis)", () => {
+    const flex = new RenderFlex({ direction: "horizontal" });
+    const child1 = new FixedSizeBox(10, 3);
+    const child2 = new FixedSizeBox(10, 7);
+
+    flex.adoptChild(child1);
+    flex.adoptChild(child2);
+
+    assert.equal(flex.getMinIntrinsicHeight(Infinity), 7);
+  });
+
+  it("Column: getMinIntrinsicHeight = sum of non-flex children minHeights", () => {
+    const flex = new RenderFlex({ direction: "vertical" });
+    const fixed1 = new FixedSizeBox(10, 5);
+    const flexChild = new FixedSizeBox(10, 8);
+
+    flex.adoptChild(fixed1);
+    flex.adoptChild(flexChild);
+    (flexChild.parentData as FlexParentData).flex = 1;
+
+    assert.equal(flex.getMinIntrinsicHeight(Infinity), 5);
+  });
+
+  it("Column: getMaxIntrinsicHeight = sum of ALL children maxHeights", () => {
+    const flex = new RenderFlex({ direction: "vertical" });
+    const fixed1 = new FixedSizeBox(10, 5);
+    const flexChild = new FixedSizeBox(10, 8);
+
+    flex.adoptChild(fixed1);
+    flex.adoptChild(flexChild);
+    (flexChild.parentData as FlexParentData).flex = 1;
+
+    assert.equal(flex.getMaxIntrinsicHeight(Infinity), 13);
+  });
+
+  it("Column: getMinIntrinsicWidth = max of all children (cross axis)", () => {
+    const flex = new RenderFlex({ direction: "vertical" });
+    const child1 = new FixedSizeBox(15, 5);
+    const child2 = new FixedSizeBox(25, 5);
+
+    flex.adoptChild(child1);
+    flex.adoptChild(child2);
+
+    assert.equal(flex.getMinIntrinsicWidth(Infinity), 25);
   });
 });

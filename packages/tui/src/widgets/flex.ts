@@ -397,4 +397,107 @@ export class RenderFlex extends RenderBox {
       });
     }
   }
+
+  // ════════════════════════════════════════════════════
+  //  内在尺寸 (Intrinsic sizes)
+  //  逆向: amp s1T (layout_widgets.js:480-600)
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 水平: sum of non-flex children minWidth (flex children contribute 0)
+   * 垂直: max of all children minWidth (cross-axis)
+   */
+  override getMinIntrinsicWidth(height: number): number {
+    if (this.direction === "horizontal") {
+      let sum = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          const pd = child.parentData as FlexParentData;
+          if (pd.flex === 0) {
+            sum += child.getMinIntrinsicWidth(height);
+          }
+        }
+      }
+      return sum;
+    }
+    let max = 0;
+    for (const child of this._children) {
+      if (child instanceof RenderBox) {
+        max = Math.max(max, child.getMinIntrinsicWidth(height));
+      }
+    }
+    return max;
+  }
+
+  /**
+   * 水平: sum of ALL children maxWidth
+   * 垂直: max of all children maxWidth
+   */
+  override getMaxIntrinsicWidth(height: number): number {
+    if (this.direction === "horizontal") {
+      let sum = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          sum += child.getMaxIntrinsicWidth(height);
+        }
+      }
+      return sum;
+    }
+    let max = 0;
+    for (const child of this._children) {
+      if (child instanceof RenderBox) {
+        max = Math.max(max, child.getMaxIntrinsicWidth(height));
+      }
+    }
+    return max;
+  }
+
+  /**
+   * 水平: max of all children minHeight (cross-axis)
+   * 垂直: sum of non-flex children minHeight
+   */
+  override getMinIntrinsicHeight(width: number): number {
+    if (this.direction === "horizontal") {
+      let max = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          max = Math.max(max, child.getMinIntrinsicHeight(width));
+        }
+      }
+      return max;
+    }
+    let sum = 0;
+    for (const child of this._children) {
+      if (child instanceof RenderBox) {
+        const pd = child.parentData as FlexParentData;
+        if (pd.flex === 0) {
+          sum += child.getMinIntrinsicHeight(width);
+        }
+      }
+    }
+    return sum;
+  }
+
+  /**
+   * 水平: max of all children maxHeight
+   * 垂直: sum of ALL children maxHeight
+   */
+  override getMaxIntrinsicHeight(width: number): number {
+    if (this.direction === "horizontal") {
+      let max = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          max = Math.max(max, child.getMaxIntrinsicHeight(width));
+        }
+      }
+      return max;
+    }
+    let sum = 0;
+    for (const child of this._children) {
+      if (child instanceof RenderBox) {
+        sum += child.getMaxIntrinsicHeight(width);
+      }
+    }
+    return sum;
+  }
 }

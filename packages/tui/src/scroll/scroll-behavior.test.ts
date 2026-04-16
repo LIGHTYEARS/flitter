@@ -127,6 +127,12 @@ describe("ScrollBehavior — vertical key bindings (amp P1T alignment)", () => {
     assert.equal(controller.offset, 100);
   });
 
+  it("G (uppercase char from real terminal) scrolls to bottom", () => {
+    // Real terminals send 'G' as key (not 'g' with shift modifier)
+    behavior.handleKeyEvent(makeKeyEvent("G"));
+    assert.equal(controller.offset, 100);
+  });
+
   it("returns ignored for unrecognized keys", () => {
     const result = behavior.handleKeyEvent(makeKeyEvent("x"));
     assert.equal(result, "ignored");
@@ -239,6 +245,11 @@ describe("ScrollBehavior — horizontal key bindings (amp P1T alignment)", () =>
 
   it("G (shift+g) scrolls to right edge", () => {
     behavior.handleKeyEvent(makeKeyEvent("g", { shift: true }));
+    assert.equal(controller.offset, 100);
+  });
+
+  it("G (uppercase char from real terminal) scrolls to right edge", () => {
+    behavior.handleKeyEvent(makeKeyEvent("G"));
     assert.equal(controller.offset, 100);
   });
 

@@ -179,6 +179,11 @@ export class ScrollBehavior {
         }
         return "handled";
 
+      case "G":
+        // 真实终端中 Shift+g 产生字符 "G"（无 shift modifier）
+        this._controller.scrollToBottom();
+        return "handled";
+
       default:
         return "ignored";
     }
@@ -223,6 +228,11 @@ export class ScrollBehavior {
         } else {
           this._controller.scrollToTop();
         }
+        return "handled";
+
+      case "G":
+        // 真实终端中 Shift+g 产生字符 "G"（无 shift modifier）
+        this._controller.scrollToBottom();
         return "handled";
 
       default:

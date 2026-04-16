@@ -479,14 +479,18 @@ describe("RenderBox -- 综合行为", () => {
     // 初始 needsPaint 为 true
     assert.equal(box.needsPaint, true);
 
+    // Attach so markNeedsPaint works (amp vH guard: if (!_attached) return)
+    box.attach();
+
     // 手动清除 paint 标记来测试 layout 是否重新设置它
     box.paint(mockScreen, 0, 0);
 
-    // 此时 needsPaint 仍为 true，因为还未 layout
-    // 先 layout 一次
-    box.layout(BoxConstraints.tight(80, 24));
+    // 此时 needsPaint 已被 paint() 清除为 false
+    assert.equal(box.needsPaint, false);
 
     // layout 后应标记 needsPaint
+    box.layout(BoxConstraints.tight(80, 24));
+
     assert.equal(box.needsPaint, true);
   });
 

@@ -166,6 +166,39 @@ export abstract class RenderObject {
     }
   }
 
+  /**
+   * 替换全部子节点列表。
+   *
+   * 逆向: amp renderObject.replaceChildren — 用于 MultiChildRenderObjectElement
+   * 协调后同步渲染树子节点顺序。
+   *
+   * 先 drop 不在新列表中的旧子节点，再 adopt 不在旧列表中的新子节点，
+   * 最后将 _children 设置为新列表的顺序。
+   *
+   * @param newChildren - 新的子节点列表
+   */
+  replaceChildren(newChildren: RenderObject[]): void {
+    const oldSet = new Set(this._children);
+    const newSet = new Set(newChildren);
+
+    // Drop children not in new list
+    for (const old of oldSet) {
+      if (!newSet.has(old)) {
+        this.dropChild(old);
+      }
+    }
+
+    // Adopt children not in old list
+    for (const nw of newChildren) {
+      if (!oldSet.has(nw)) {
+        this.adoptChild(nw);
+      }
+    }
+
+    // Set the exact order
+    this._children = [...newChildren];
+  }
+
   // ════════════════════════════════════════════════════
   //  生命周期
   // ════════════════════════════════════════════════════
@@ -205,10 +238,12 @@ export abstract class RenderObject {
    * 则通知全局管线所有者调度布局。
    */
   markNeedsLayout(): void {
+    if (this._needsLayout) return;
+    if (!this._attached) return;
     this._needsLayout = true;
     if (this._parent != null) {
       this._parent.markNeedsLayout();
-    } else if (this._attached) {
+    } else {
       getPipelineOwner()?.requestLayout(this);
     }
   }
@@ -219,6 +254,8 @@ export abstract class RenderObject {
    * 通知全局管线所有者调度绘制。
    */
   markNeedsPaint(): void {
+    if (this._needsPaint) return;
+    if (!this._attached) return;
     this._needsPaint = true;
     getPipelineOwner()?.requestPaint(this);
   }

@@ -26,6 +26,12 @@ class TestRenderObject extends RenderObject {
   performLayout(): void {
     // no-op for testing
   }
+
+  /** Helper to simulate layout/paint completion — clears dirty flags without pipeline work. */
+  clearDirty(): void {
+    this._needsLayout = false;
+    this._needsPaint = false;
+  }
 }
 
 class MockPipelineOwner implements PipelineOwnerLike {
@@ -207,6 +213,8 @@ describe("RenderObject — 脏标记", () => {
   it("markNeedsLayout 在根节点调用 PipelineOwner.requestLayout", () => {
     const root = new TestRenderObject();
     root.attach();
+    // Simulate layout completion to clear dirty flag before testing re-dirtying
+    root.clearDirty();
 
     // 清除 attach 过程中可能产生的请求
     mockOwner.layoutRequests = [];
@@ -221,6 +229,8 @@ describe("RenderObject — 脏标记", () => {
   it("markNeedsPaint 调用 PipelineOwner.requestPaint", () => {
     const node = new TestRenderObject();
     node.attach();
+    // Simulate paint completion to clear dirty flag before testing re-dirtying
+    node.clearDirty();
 
     // 清除 attach 过程中可能产生的请求
     mockOwner.paintRequests = [];
@@ -510,6 +520,11 @@ describe("RenderObject — 补充测试", () => {
     child.adoptChild(grandchild);
     root.attach();
 
+    // Simulate layout completion on all nodes to clear dirty flags
+    root.clearDirty();
+    child.clearDirty();
+    grandchild.clearDirty();
+
     // 清除 attach 过程中的请求
     mockOwner.layoutRequests = [];
 
@@ -545,5 +560,89 @@ describe("RenderObject — 补充测试", () => {
     assert.equal(visited.length, 1);
     assert.equal(visited[0], child);
     assert.ok(!visited.includes(grandchild));
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  markNeedsLayout guards (amp vH alignment)
+// ════════════════════════════════════════════════════
+
+describe("RenderObject — markNeedsLayout guards (amp vH alignment)", () => {
+  let mockOwner: MockPipelineOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockPipelineOwner();
+    setPipelineOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setPipelineOwner(undefined);
+  });
+
+  it("markNeedsLayout short-circuits when already dirty", () => {
+    const parent = new TestRenderObject();
+    const child = new TestRenderObject();
+    parent.adoptChild(child);
+    parent.attach();
+
+    // Clear dirty flags to simulate post-layout state
+    parent.clearDirty();
+    child.clearDirty();
+
+    // First call sets dirty
+    mockOwner.layoutRequests = [];
+    child.markNeedsLayout();
+    const firstCallCount = mockOwner.layoutRequests.length;
+
+    // Second call should short-circuit — no additional requests
+    mockOwner.layoutRequests = [];
+    child.markNeedsLayout();
+    assert.equal(mockOwner.layoutRequests.length, 0, "should not propagate when already dirty");
+  });
+
+  it("markNeedsLayout is no-op when not attached", () => {
+    const node = new TestRenderObject();
+    // node is NOT attached
+    mockOwner.layoutRequests = [];
+    node.markNeedsLayout();
+    assert.equal(mockOwner.layoutRequests.length, 0, "should not request layout when detached");
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  markNeedsPaint guards (amp vH alignment)
+// ════════════════════════════════════════════════════
+
+describe("RenderObject — markNeedsPaint guards (amp vH alignment)", () => {
+  let mockOwner: MockPipelineOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockPipelineOwner();
+    setPipelineOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setPipelineOwner(undefined);
+  });
+
+  it("markNeedsPaint short-circuits when already dirty", () => {
+    const node = new TestRenderObject();
+    node.attach();
+    // node starts with _needsPaint = true, so first call would short-circuit too
+    // Clear dirty to simulate post-paint state, then trigger once
+    node.clearDirty();
+    node.markNeedsPaint();
+    mockOwner.paintRequests = [];
+
+    node.markNeedsPaint();
+    assert.equal(mockOwner.paintRequests.length, 0, "should not request paint when already dirty");
+  });
+
+  it("markNeedsPaint is no-op when not attached", () => {
+    const node = new TestRenderObject();
+    // NOT attached
+    mockOwner.paintRequests = [];
+    node.markNeedsPaint();
+    assert.equal(mockOwner.paintRequests.length, 0, "should not request paint when detached");
   });
 });

@@ -516,7 +516,9 @@ export class WidgetsBinding {
     const { width, height } = this.pendingResizeEvent;
     this.pendingResizeEvent = null;
 
-    // 更新 MediaQuery data — 通知依赖方重建
+    if (!this.rootElement) return;
+
+    // 逆向: d9.processResizeIfPending (2120_ForExit_d9.js:116-138)
     const capabilities = this.tui.getCapabilities() ?? {
       emojiWidth: false,
       syncOutput: false,
@@ -524,10 +526,23 @@ export class WidgetsBinding {
       colorPaletteNotifications: false,
       xtversion: null,
     };
-    this.currentMediaQueryData = new MediaQueryData(
+    const newMediaQueryData = new MediaQueryData(
       { width, height },
       capabilities,
     );
+    this.currentMediaQueryData = newMediaQueryData;
+
+    // 逆向: d9 lines 127-132 — t.widget instanceof I9, new I9({data, child: t.widget.child}), t.update(r)
+    // Create a new MediaQuery widget with updated data and push it via rootElement.update()
+    // so InheritedWidget's updateShouldNotify fires and all dependents are notified.
+    const rootWidget = this.rootElement.widget;
+    if (rootWidget instanceof MediaQuery) {
+      const newRootWidget = new MediaQuery({
+        data: newMediaQueryData,
+        child: rootWidget.child,
+      });
+      this.rootElement.update(newRootWidget);
+    }
 
     // 清除 mouse hover 状态 (resize 时旧的坐标无效)
     this.mouseManager.clearHoverState();
@@ -535,10 +550,8 @@ export class WidgetsBinding {
     // 更新根约束
     this.updateRootConstraints(width, height);
 
-    // 标记根元素需要重建 (MediaQuery data 变化)
-    if (this.rootElement) {
-      this.rootElement.markNeedsRebuild();
-    }
+    // 标记根元素需要重建
+    this.rootElement.markNeedsRebuild();
 
     // 强制绘制
     this.forcePaintOnNextFrame = true;

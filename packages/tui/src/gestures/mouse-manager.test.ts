@@ -9,13 +9,16 @@
  * - reestablishHoverState
  * - dispose
  * - 多层 RenderObject 命中测试
+ * - dispatch: click 事件分发 + opaque 传播阻断
  */
 
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Screen } from "../screen/screen.js";
 import { RenderBox } from "../tree/render-box.js";
+import { setPipelineOwner } from "../tree/types.js";
 import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent as TermMouseEvent } from "../vt/types.js";
+import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { MouseManager } from "./mouse-manager.js";
 
 // ════════════════════════════════════════════════════
@@ -64,8 +67,18 @@ function createMockTui(): TuiController {
 
 describe("MouseManager", () => {
   beforeEach(() => {
+    // 设置 pipeline owner 以支持 RenderObject 操作
+    setPipelineOwner({
+      requestLayout: () => {},
+      requestPaint: () => {},
+      removeFromQueues: () => {},
+    });
     // 每个测试前 dispose 确保干净状态
     MouseManager.instance.dispose();
+  });
+
+  afterEach(() => {
+    setPipelineOwner(undefined);
   });
 
   // ════════════════════════════════════════════════════
@@ -231,5 +244,131 @@ describe("MouseManager", () => {
     const targets = mm.lastHoverTargets;
     expect(targets.length).toBe(1);
     expect(targets[0]!.target).toBe(root);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  MouseManager dispatch 测试
+// ════════════════════════════════════════════════════
+
+describe("MouseManager dispatch", () => {
+  let mm: MouseManager;
+
+  beforeEach(() => {
+    setPipelineOwner({
+      requestLayout: () => {},
+      requestPaint: () => {},
+      removeFromQueues: () => {},
+    });
+    MouseManager.instance.dispose();
+    mm = MouseManager.instance;
+  });
+
+  afterEach(() => {
+    mm.dispose();
+    setPipelineOwner(undefined);
+  });
+
+  test("press 事件分发 click 到 RenderMouseRegion", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    let clickCount = 0;
+    const region = new RenderMouseRegion({
+      onClick: () => {
+        clickCount++;
+      },
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(40, 10);
+
+    mm.setRootRenderObject(root);
+
+    // 在 region 区域内点击 (20, 8)
+    mm.handleMouseEvent(createMouseEvent(20, 8));
+
+    expect(clickCount).toBe(1);
+  });
+
+  test("opaque RenderMouseRegion 阻止事件向下层传播", () => {
+    // 构建两个重叠的 RenderMouseRegion 节点
+    // outer (0,0 80x24, opaque=true) 包含 inner (10,5 20x5, opaque=true)
+    // 命中测试以 ancestor-first 顺序返回 [outer, inner]
+    // outer 是第一个命中目标；outer.opaque=true 阻断对 inner 的分发
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    let outerClicks = 0;
+    let innerClicks = 0;
+
+    const outer = new RenderMouseRegion({
+      onClick: () => {
+        outerClicks++;
+      },
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(outer);
+    outer.setOffset(0, 0);
+    outer.setSize(80, 24);
+
+    const inner = new RenderMouseRegion({
+      onClick: () => {
+        innerClicks++;
+      },
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    outer.adoptChild(inner);
+    inner.setOffset(10, 5);
+    inner.setSize(20, 5);
+
+    mm.setRootRenderObject(root);
+
+    // 点击 inner 区域内 (15, 7)
+    // 命中列表: [root, outer, inner]（ancestor-first）
+    // _findMouseTargets: [outer, inner]
+    // outer 先收到 click；outer.opaque=true 阻断分发，inner 不收到 click
+    mm.handleMouseEvent(createMouseEvent(15, 7));
+
+    expect(outerClicks).toBe(1);
+    expect(innerClicks).toBe(0);
+  });
+
+  test("removeRegion 不抛异常", () => {
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: false,
+    });
+    // 移除从未添加过 hover 状态的 region，应静默处理
+    expect(() => mm.removeRegion(region)).not.toThrow();
   });
 });

@@ -24,7 +24,9 @@ import { logger } from "../debug/logger.js";
 import type { RenderObject } from "../tree/render-object.js";
 import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent } from "../vt/types.js";
+import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { type HitTestEntry, HitTestResult } from "./hit-test.js";
+import { createClickEvent } from "./mouse-event-helpers.js";
 
 const log = logger.scoped("mouse");
 
@@ -67,6 +69,38 @@ export class MouseManager {
 
   /** 最后已知的鼠标位置，用于 reestablishHoverState */
   private _lastMousePosition: { x: number; y: number } | null = null;
+
+  /** 当前处于 hover 状态的 RenderMouseRegion 集合 */
+  private _hoveredRegions = new Set<RenderMouseRegion>();
+
+  /** 当前拖拽目标列表 */
+  private _dragTargets: Array<{
+    target: RenderMouseRegion;
+    localPosition: { x: number; y: number };
+    globalOffset: { x: number; y: number };
+  }> = [];
+
+  /** 最后一次拖拽位置 */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 4 (_handleDrag)
+  private _lastDragPosition: { x: number; y: number } | null = null;
+
+  /** 各按键最后一次点击时间（用于双击检测） */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
+  private _lastClickTime = new Map<string, number>();
+
+  /** 各按键最后一次点击位置（用于双击检测） */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
+  private _lastClickPosition = new Map<string, { x: number; y: number }>();
+
+  /** 各按键当前连击计数 */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
+  private _currentClickCount = new Map<string, number>();
+
+  /** 双击最大间隔时间（毫秒） */
+  static readonly DOUBLE_CLICK_TIME = 500;
+
+  /** 双击最大距离（字符数） */
+  static readonly DOUBLE_CLICK_DISTANCE = 2;
 
   // ════════════════════════════════════════════════════
   //  单例
@@ -172,10 +206,104 @@ export class MouseManager {
 
     const result = HitTestResult.hitTest(this._rootRenderObject, position);
     this._lastHoverTargets = [...result.hits];
-    log.debug("hitTest", { hits: result.hits.length });
+    const mouseTargets = this._findMouseTargets(result.hits);
+    log.debug("hitTest", { hits: result.hits.length, mouseTargets: mouseTargets.length });
 
-    // 鼠标事件分发到命中的 RenderObject
-    // 具体分发逻辑 (click/hover/scroll) 由 Widget 层处理
+    switch (event.action) {
+      case "press":
+        if (event.button === "left" || event.button === "middle" || event.button === "right") {
+          this._handleClick(event, position, mouseTargets);
+          if (event.button === "left") {
+            this._dragTargets = [];
+            for (const { target, localPosition } of mouseTargets) {
+              const globalOffset = {
+                x: position.x - localPosition.x,
+                y: position.y - localPosition.y,
+              };
+              this._dragTargets.push({ target, localPosition, globalOffset });
+              if (target.opaque) break;
+            }
+          }
+        }
+        break;
+      case "release":
+        // Implemented in Task 4
+        this._dragTargets = [];
+        this._lastDragPosition = null;
+        break;
+      case "wheel_up":
+      case "wheel_down":
+        // Implemented in Task 5
+        break;
+      case "move":
+        // Implemented in Task 3
+        break;
+    }
+  }
+
+  // ════════════════════════════════════════════════════
+  //  鼠标目标过滤
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 从命中条目中筛选出 RenderMouseRegion 实例。
+   *
+   * 逆向: ha._findMouseTargets (2026_tail_anonymous.js:158451-158458)
+   */
+  private _findMouseTargets(
+    hits: readonly HitTestEntry[],
+  ): Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> {
+    // 逆向: ha._findMouseTargets (2026_tail_anonymous.js:158451-158458)
+    const targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> =
+      [];
+    for (const hit of hits) {
+      if (hit.target instanceof RenderMouseRegion) {
+        targets.push({ target: hit.target, localPosition: hit.localPosition });
+      }
+    }
+    return targets;
+  }
+
+  /**
+   * 处理点击事件，创建并分发 click 事件到命中目标。
+   *
+   * 逆向: ha._handleClick (2026_tail_anonymous.js:158343-158357)
+   */
+  private _handleClick(
+    raw: MouseEvent,
+    position: { x: number; y: number },
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: ha._handleClick (2026_tail_anonymous.js:158343-158357)
+    const clickCount = this._calculateClickCount(position, raw.button);
+    for (const { target, localPosition } of targets) {
+      const event = createClickEvent(raw, position, localPosition, clickCount);
+      target.handleMouseEvent(event);
+      if (target.opaque) break;
+    }
+  }
+
+  /**
+   * 计算点击次数（单击 vs 双击）。
+   *
+   * Stub — full implementation in Task 6.
+   *
+   * 逆向: ha._calculateClickCount (2026_tail_anonymous.js:158484-158500)
+   */
+  private _calculateClickCount(_position: { x: number; y: number }, _button = "left"): number {
+    return 1;
+  }
+
+  /**
+   * 从 hover 状态集合中移除指定区域。
+   *
+   * 逆向: ha.removeRegion (2026_tail_anonymous.js:158480-158482)
+   *
+   * @param region - 要移除的 RenderMouseRegion 实例
+   */
+  removeRegion(region: RenderMouseRegion): void {
+    // 逆向: ha.removeRegion (2026_tail_anonymous.js:158480-158482)
+    this._hoveredRegions.delete(region);
   }
 
   // ════════════════════════════════════════════════════

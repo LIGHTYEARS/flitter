@@ -8,8 +8,11 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type { Element } from "./element.js";
 import type { BuildOwnerLike } from "./types.js";
+
+const log = logger.scoped("build");
 
 /**
  * 构建所有者，管理元素树的脏标记调度与重建流程。
@@ -54,6 +57,10 @@ export class BuildOwner implements BuildOwnerLike {
    */
   scheduleBuildFor(element: unknown): void {
     this._dirtyElements.add(element as Element);
+    log.debug("scheduleBuildFor", {
+      element: (element as Element).constructor?.name,
+      dirty: this._dirtyElements.size,
+    });
     this._onNeedFrame?.();
   }
 
@@ -65,6 +72,7 @@ export class BuildOwner implements BuildOwnerLike {
    * 脏元素，则继续迭代处理，最多迭代 10 轮。
    */
   buildScopes(): void {
+    log.debug("buildScopes", { dirty: this._dirtyElements.size });
     let iterations = 0;
     const maxIterations = 10;
 

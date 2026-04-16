@@ -101,15 +101,12 @@ export class MouseManager {
   private _lastDragPosition: { x: number; y: number } | null = null;
 
   /** 各按键最后一次点击时间（用于双击检测） */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
   private _lastClickTime = new Map<string, number>();
 
   /** 各按键最后一次点击位置（用于双击检测） */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
   private _lastClickPosition = new Map<string, { x: number; y: number }>();
 
   /** 各按键当前连击计数 */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 6 (_calculateClickCount)
   private _currentClickCount = new Map<string, number>();
 
   /** 双击最大间隔时间（毫秒） */
@@ -117,6 +114,14 @@ export class MouseManager {
 
   /** 双击最大距离（字符数） */
   static readonly DOUBLE_CLICK_DISTANCE = 2;
+
+  /**
+   * 双击最大距离的平方（避免 sqrt 运算）。
+   *
+   * 逆向: ha.DOUBLE_CLICK_DISTANCE_SQUARED (2026_tail_anonymous.js:158219)
+   */
+  static readonly DOUBLE_CLICK_DISTANCE_SQUARED =
+    MouseManager.DOUBLE_CLICK_DISTANCE * MouseManager.DOUBLE_CLICK_DISTANCE;
 
   /**
    * 滚动会话超时（毫秒）。
@@ -551,14 +556,53 @@ export class MouseManager {
   }
 
   /**
-   * 计算点击次数（单击 vs 双击）。
+   * 计算点击次数（单击 vs 双击 vs 三击…）。
    *
-   * Stub — full implementation in Task 6.
+   * 逆向: ha._calculateClickCount (2026_tail_anonymous.js:158501-158509)
    *
-   * 逆向: ha._calculateClickCount (2026_tail_anonymous.js:158484-158500)
+   * 算法:
+   * 1. 获取当前时间和上次点击时间差
+   * 2. 若时间差 <= DOUBLE_CLICK_TIME 且位置在 DOUBLE_CLICK_DISTANCE 内，则连击数 +1
+   * 3. 否则重置为 1
+   * 4. 更新 _lastClickTime、_lastClickPosition、_currentClickCount
    */
-  private _calculateClickCount(_position: { x: number; y: number }, _button = "left"): number {
-    return 1;
+  private _calculateClickCount(position: { x: number; y: number }, button = "left"): number {
+    // 逆向: ha._calculateClickCount (2026_tail_anonymous.js:158501-158509)
+    const now = Date.now();
+    const lastTime = this._lastClickTime.get(button) ?? 0;
+    const elapsed = now - lastTime;
+    const lastPos = this._lastClickPosition.get(button);
+
+    let count: number;
+    if (
+      lastPos &&
+      elapsed <= MouseManager.DOUBLE_CLICK_TIME &&
+      this._isWithinDoubleClickDistance(position, lastPos)
+    ) {
+      count = (this._currentClickCount.get(button) ?? 0) + 1;
+    } else {
+      count = 1;
+    }
+
+    this._lastClickTime.set(button, now);
+    this._lastClickPosition.set(button, position);
+    this._currentClickCount.set(button, count);
+    return count;
+  }
+
+  /**
+   * 检查两个位置是否在双击距离内（使用距离平方避免 sqrt）。
+   *
+   * 逆向: ha._isWithinDoubleClickDistance (2026_tail_anonymous.js:158510-158514)
+   */
+  private _isWithinDoubleClickDistance(
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+  ): boolean {
+    // 逆向: ha._isWithinDoubleClickDistance (2026_tail_anonymous.js:158510-158514)
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return dx * dx + dy * dy <= MouseManager.DOUBLE_CLICK_DISTANCE_SQUARED;
   }
 
   /**
@@ -633,6 +677,9 @@ export class MouseManager {
     this._tui = null;
     this._lastHoverTargets = [];
     this._lastMousePosition = null;
+    this._lastClickTime.clear();
+    this._lastClickPosition.clear();
+    this._currentClickCount.clear();
     MouseManager._instance = null;
   }
 }

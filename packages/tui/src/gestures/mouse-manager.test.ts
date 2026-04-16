@@ -649,6 +649,44 @@ describe("MouseManager dispatch", () => {
     expect(scrollEvents[0]!.direction).toBe("down");
   });
 
+  // ════════════════════════════════════════════════════
+  //  _calculateClickCount: 双击检测 (Task 6)
+  // ════════════════════════════════════════════════════
+
+  test("rapid clicks at same position increment clickCount", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const clickCounts: number[] = [];
+    const region = new RenderMouseRegion({
+      onClick: (e) => {
+        clickCounts.push(e.clickCount);
+      },
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(0, 0);
+    region.setSize(80, 24);
+
+    mm.setRootRenderObject(root);
+
+    // Three rapid presses at the same position (5, 3)
+    // All happen synchronously within ~0ms, well within DOUBLE_CLICK_TIME=500ms
+    // Distance is 0, well within DOUBLE_CLICK_DISTANCE=2
+    mm.handleMouseEvent(createMouseEvent(5, 3));
+    mm.handleMouseEvent(createMouseEvent(5, 3));
+    mm.handleMouseEvent(createMouseEvent(5, 3));
+
+    expect(clickCounts).toEqual([1, 2, 3]);
+  });
+
   test("move within hovered region dispatches hover event (not enter again)", () => {
     const root = new TestRenderBox();
     root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });

@@ -624,9 +624,9 @@ export class MouseManager {
   /**
    * 清除当前悬停状态。
    *
-   * 逆向: mouseManager.clearHoverState in tui-render-pipeline.js:108
+   * 逆向: ha.clearHoverState (2026_tail_anonymous.js:158477-158478)
    *
-   * 在终端 resize 时调用，清空 hover 目标列表。
+   * 在终端 resize 时调用，清空 hover 状态和拖拽目标。
    *
    * @example
    * ```ts
@@ -634,6 +634,8 @@ export class MouseManager {
    * ```
    */
   clearHoverState(): void {
+    this._hoveredRegions.clear();
+    this._dragTargets = [];
     this._lastHoverTargets = [];
   }
 
@@ -673,13 +675,18 @@ export class MouseManager {
    * ```
    */
   dispose(): void {
+    // 逆向: ha.dispose (2026_tail_anonymous.js:158515-158516)
+    this.clearHoverState();
     this._rootRenderObject = null;
     this._tui = null;
     this._lastHoverTargets = [];
     this._lastMousePosition = null;
+    this._lastDragPosition = null;
     this._lastClickTime.clear();
     this._lastClickPosition.clear();
     this._currentClickCount.clear();
+    this._scrollSessionTarget = null;
+    this._scrollSessionLastEvent = 0;
     MouseManager._instance = null;
   }
 }

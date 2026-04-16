@@ -174,6 +174,171 @@ GestureDetector(props: {
 })
 ```
 
+---
+
+## EdgeInsets
+
+间距值对象。
+
+```ts
+EdgeInsets.all(value: number): EdgeInsets
+EdgeInsets.symmetric(opts: { horizontal?: number; vertical?: number }): EdgeInsets
+EdgeInsets.horizontal(value: number): EdgeInsets
+EdgeInsets.vertical(value: number): EdgeInsets
+EdgeInsets.only(opts: { left?: number; top?: number; right?: number; bottom?: number }): EdgeInsets
+EdgeInsets.zero: EdgeInsets
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `left` | `number` | 左间距 |
+| `top` | `number` | 上间距 |
+| `right` | `number` | 右间距 |
+| `bottom` | `number` | 下间距 |
+| `horizontal` | `number` | left + right |
+| `vertical` | `number` | top + bottom |
+
+---
+
+## BoxDecoration
+
+容器装饰。
+
+```ts
+new BoxDecoration(opts?: {
+  color?: Color;
+  border?: Border;
+})
+```
+
+---
+
+## Border / BorderSide
+
+边框定义。
+
+```ts
+new BorderSide(color?: Color, width?: number, style?: "rounded" | "solid")
+// 默认: color=Color.black(), width=1, style="rounded"
+
+Border.all(side: BorderSide): Border
+new Border(opts?: { top?, bottom?, left?, right?: BorderSide })
+```
+
+---
+
+## Color
+
+终端颜色。
+
+```ts
+Color.default(): Color
+Color.black(): Color       // 至 Color.brightWhite() 共 16 色
+Color.indexed(n: number): Color     // 0-255
+Color.rgb(r: number, g: number, b: number): Color  // 0-255 each
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `kind` | `"default" \| "named" \| "index" \| "rgb"` | 颜色模式 |
+| `index` | `number` | 索引值 |
+| `r`, `g`, `b` | `number` | RGB 分量 |
+
+---
+
+## ScrollController
+
+滚动状态控制器。
+
+```ts
+new ScrollController()
+```
+
+| 方法 | 说明 |
+|------|------|
+| `jumpTo(offset)` | 跳转到偏移量 |
+| `scrollUp(lines?)` | 上滚 |
+| `scrollDown(lines?)` | 下滚 |
+| `scrollToTop()` | 滚到顶部 |
+| `scrollToBottom()` | 滚到底部 |
+| `scrollPageUp(viewportSize)` | 上翻一页 |
+| `scrollPageDown(viewportSize)` | 下翻一页 |
+| `animateTo(target, duration?)` | 动画滚动（默认 200ms） |
+| `enableFollowMode()` | 开启自动跟随 |
+| `disableFollowMode()` | 关闭自动跟随 |
+| `addListener(fn)` | 监听偏移变化 |
+| `dispose()` | 释放资源 |
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `offset` | `number` | 当前偏移 |
+| `maxScrollExtent` | `number` | 最大滚动范围 |
+| `atTop` | `boolean` | 是否在顶部 |
+| `atBottom` | `boolean` | 是否在底部 |
+| `followMode` | `boolean` | 是否自动跟随 |
+
+---
+
+## TextEditingController
+
+文本编辑状态控制器。
+
+```ts
+new TextEditingController(opts?: { text?: string; width?: number })
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `text` | `string` | 当前文本 |
+| `cursorPosition` | `number` | 光标位置 |
+| `cursorLine` | `number` | 光标行号 |
+| `cursorColumn` | `number` | 光标列号 |
+| `lineCount` | `number` | 总行数 |
+| `hasSelection` | `boolean` | 是否有选区 |
+| `graphemes` | `string[]` | 字素数组 |
+
+| 方法 | 说明 |
+|------|------|
+| `insertText(text)` | 插入文本 |
+| `deleteText(count?)` | 向后删除 |
+| `deleteForward(count?)` | 向前删除 |
+| `deleteWordLeft()` | 删除左侧单词 |
+| `deleteWordRight()` | 删除右侧单词 |
+| `deleteToLineEnd()` | 删除到行尾 |
+| `moveCursorLeft/Right/Up/Down()` | 移动光标 |
+| `moveCursorToLineStart/End()` | 移到行首/尾 |
+| `moveCursorToStart/End()` | 移到文档首/尾 |
+| `moveCursorWordBoundary(dir)` | 按单词移动 |
+| `setSelectionRange(start, end)` | 设置选区 |
+| `clearSelection()` | 清除选区 |
+| `addListener(fn)` | 监听变化 |
+| `dispose()` | 释放资源 |
+
+---
+
+## FocusNode
+
+焦点节点。
+
+```ts
+new FocusNode(opts?: {
+  debugLabel?: string;
+  canRequestFocus?: boolean;
+  skipTraversal?: boolean;
+  onKey?: (event: KeyEvent) => "handled" | "ignored";
+  onPaste?: (event: PasteEvent) => "handled" | "ignored";
+})
+```
+
+| 方法/属性 | 说明 |
+|----------|------|
+| `requestFocus()` | 请求焦点 |
+| `unfocus()` | 失去焦点 |
+| `hasPrimaryFocus` | 是否是当前主焦点 |
+| `hasFocus` | 自身或子节点是否持有焦点 |
+| `addListener(fn)` | 监听焦点变化 |
+| `dispose()` | 释放资源 |
+
 :::warning
-以上 API 签名为概要描述。具体参数类型和默认值请参考源码中的 TypeScript 类型定义。
+以上 API 签名基于源码整理。具体参数类型和默认值请参考 `packages/tui/src/` 中的 TypeScript 类型定义。
 :::

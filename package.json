@@ -17,7 +17,9 @@
     "lint:fix": "biome lint --write .",
     "format": "biome format .",
     "format:fix": "biome format --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "docs:dev": "cd website && pnpm run dev",
+    "docs:build": "cd website && pnpm run build"
   },
   "keywords": [
     "flitter",

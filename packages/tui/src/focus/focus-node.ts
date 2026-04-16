@@ -203,6 +203,33 @@ export class FocusNode {
     this._onPasteCallback = handler;
   }
 
+  /**
+   * 注册一个键盘事件处理器。
+   *
+   * 对齐 amp l8.addKeyHandler (2103_unknown_l8.js:137-139)。
+   * 相同的 handler 可以注册多次；按注册顺序调用。
+   *
+   * @param handler - 键盘事件处理函数
+   */
+  addKeyHandler(handler: KeyHandler): void {
+    this._keyHandlers.push(handler);
+  }
+
+  /**
+   * 移除第一个匹配的键盘事件处理器。
+   *
+   * 对齐 amp l8.removeKeyHandler (2103_unknown_l8.js:140-143)。
+   * 使用 indexOf+splice 移除第一次出现；handler 不存在时为 no-op。
+   *
+   * @param handler - 要移除的键盘事件处理函数
+   */
+  removeKeyHandler(handler: KeyHandler): void {
+    const idx = this._keyHandlers.indexOf(handler);
+    if (idx !== -1) {
+      this._keyHandlers.splice(idx, 1);
+    }
+  }
+
   // ──────────────────────────────────────────────
   // 静态方法
   // ──────────────────────────────────────────────

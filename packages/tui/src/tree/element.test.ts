@@ -16,6 +16,9 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { Key, Widget } from "./element.js";
 import { Element } from "./element.js";
+import type { StatefulElement } from "./stateful-widget.js";
+import { State, StatefulWidget } from "./stateful-widget.js";
+import type { BuildContext } from "./stateless-widget.js";
 import type { BuildOwnerLike } from "./types.js";
 import { setBuildOwner } from "./types.js";
 
@@ -573,5 +576,137 @@ describe("Element — 补充测试", () => {
 
     assert.ok(element instanceof TestElement);
     assert.equal(element.widget, widget);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  findAncestorWidgetOfType / findAncestorStateOfType
+// ════════════════════════════════════════════════════
+
+/** 用于 findAncestorWidgetOfType 测试的特殊 Widget */
+class SpecialWidget implements Widget {
+  key: Key | undefined;
+  canUpdate(other: Widget): boolean {
+    return this.constructor === other.constructor;
+  }
+  createElement(): Element {
+    return new SpecialElement(this);
+  }
+}
+
+describe("Element — findAncestorWidgetOfType (amp qm alignment)", () => {
+  let mockOwner: MockBuildOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockBuildOwner();
+    setBuildOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setBuildOwner(undefined);
+  });
+
+  it("finds the nearest ancestor widget of the given type", () => {
+    const rootWidget = new SpecialWidget();
+    const childWidget = new TestWidget();
+    const grandchildWidget = new TestWidget();
+
+    const root = new SpecialElement(rootWidget);
+    const child = new TestElement(childWidget);
+    const grandchild = new TestElement(grandchildWidget);
+
+    root.mount();
+    child.mount(root);
+    root.addChild(child);
+    grandchild.mount(child);
+    child.addChild(grandchild);
+
+    const found = grandchild.findAncestorWidgetOfType(SpecialWidget);
+    assert.ok(found !== null);
+    assert.ok(found instanceof SpecialWidget);
+    assert.equal(found, rootWidget);
+  });
+
+  it("returns null when no ancestor of the given type exists", () => {
+    const rootWidget = new TestWidget();
+    const childWidget = new TestWidget();
+
+    const root = new TestElement(rootWidget);
+    const child = new TestElement(childWidget);
+
+    root.mount();
+    child.mount(root);
+    root.addChild(child);
+
+    const found = child.findAncestorWidgetOfType(SpecialWidget);
+    assert.equal(found, null);
+  });
+});
+
+describe("Element — findAncestorStateOfType (amp Ib alignment)", () => {
+  let mockOwner: MockBuildOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockBuildOwner();
+    setBuildOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setBuildOwner(undefined);
+  });
+
+  it("finds the nearest ancestor state of the given type", () => {
+    class TestState extends State<TestStatefulWidget> {
+      build(_context: BuildContext): Widget {
+        return this.widget.child;
+      }
+    }
+    class TestStatefulWidget extends StatefulWidget {
+      child: Widget;
+      constructor(child: Widget) {
+        super({});
+        this.child = child;
+      }
+      createState(): State {
+        return new TestState();
+      }
+    }
+
+    const leafWidget = new TestWidget();
+    const statefulWidget = new TestStatefulWidget(leafWidget);
+
+    // Create the StatefulElement and mount it
+    const statefulElement = statefulWidget.createElement() as StatefulElement;
+    statefulElement.mount();
+
+    // The stateful element creates its child during mount/rebuild.
+    // Walk down to find the leaf element.
+    const leafElement = statefulElement.children[0]!;
+    assert.ok(leafElement !== undefined, "stateful element should have a child");
+
+    const found = leafElement.findAncestorStateOfType(TestState);
+    assert.ok(found !== null);
+    assert.ok(found instanceof TestState);
+  });
+
+  it("returns null when no ancestor has a matching state", () => {
+    class OtherState extends State {
+      build(_context: BuildContext): Widget {
+        throw new Error("unused");
+      }
+    }
+
+    const rootWidget = new TestWidget();
+    const childWidget = new TestWidget();
+
+    const root = new TestElement(rootWidget);
+    const child = new TestElement(childWidget);
+
+    root.mount();
+    child.mount(root);
+    root.addChild(child);
+
+    const found = child.findAncestorStateOfType(OtherState);
+    assert.equal(found, null);
   });
 });

@@ -310,6 +310,48 @@ export abstract class Element {
   }
 
   /**
+   * 向上查找指定类型的祖先 Widget。
+   *
+   * 逆向: amp qm.findAncestorWidgetOfType (0537_unknown_qm.js:84-91)
+   * — 遍历父链检查 element.widget instanceof T。
+   * 不注册依赖关系（与 dependOnInheritedWidgetOfExactType 不同）。
+   *
+   * @param type - 目标 Widget 的构造函数
+   * @returns 匹配的祖先 Widget，未找到时返回 null
+   */
+  findAncestorWidgetOfType<T extends Widget>(type: new (...args: unknown[]) => T): T | null {
+    let current = this._parent;
+    while (current !== undefined) {
+      if (current.widget instanceof type) {
+        return current.widget as T;
+      }
+      current = current._parent;
+    }
+    return null;
+  }
+
+  /**
+   * 向上查找指定类型的祖先 State。
+   *
+   * 逆向: amp Ib.findAncestorStateOfType (0539_unknown_Ib.js:23-28)
+   * — 遍历父链找 StatefulElement，检查 element.state instanceof T。
+   * 使用 "state" in current 鸭子类型检查避免循环依赖。
+   *
+   * @param type - 目标 State 的构造函数
+   * @returns 匹配的祖先 State，未找到时返回 null
+   */
+  findAncestorStateOfType<T>(type: new (...args: unknown[]) => T): T | null {
+    let current = this._parent;
+    while (current !== undefined) {
+      if ("state" in current && (current as unknown as { state: unknown }).state instanceof type) {
+        return (current as unknown as { state: T }).state;
+      }
+      current = current._parent;
+    }
+    return null;
+  }
+
+  /**
    * 查找关联的渲染对象。
    *
    * 如果当前元素有渲染对象则直接返回，否则深度优先搜索子元素。

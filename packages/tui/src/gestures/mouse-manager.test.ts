@@ -46,12 +46,13 @@ function createMouseEvent(
   x: number,
   y: number,
   action: "press" | "release" | "move" = "press",
+  button: "left" | "right" | "middle" | "none" = "left",
 ): TermMouseEvent {
   return {
     type: "mouse",
     x,
     y,
-    button: "left" as const,
+    button,
     action,
     modifiers: { shift: false, ctrl: false, alt: false, meta: false },
   };
@@ -463,6 +464,107 @@ describe("MouseManager dispatch", () => {
       modifiers: { shift: false, ctrl: false, alt: false, meta: false },
     });
     expect(events).toEqual(["enter", "exit"]);
+  });
+
+  // ════════════════════════════════════════════════════
+  //  _handleRelease 和 _handleDrag 分发 (Task 4)
+  // ════════════════════════════════════════════════════
+
+  test("release dispatches to current targets when no drag active", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    let releaseEventType: string | undefined;
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: (e) => {
+        releaseEventType = e.type;
+      },
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // Send release without any preceding press (no drag targets)
+    mm.handleMouseEvent(createMouseEvent(15, 8, "release"));
+
+    expect(releaseEventType).toBe("release");
+  });
+
+  test("drag dispatches to original press targets", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const dragEvents: Array<{ type: string }> = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: (e) => {
+        dragEvents.push({ type: e.type });
+      },
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // Press to capture drag targets
+    mm.handleMouseEvent(createMouseEvent(15, 8, "press", "left"));
+
+    // Move with button held (drag)
+    mm.handleMouseEvent(createMouseEvent(16, 9, "move", "left"));
+
+    expect(dragEvents.length).toBe(1);
+    expect(dragEvents[0]!.type).toBe("drag");
+  });
+
+  test("release after drag dispatches to drag targets (original press target)", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const receivedTypes: string[] = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: (e) => {
+        receivedTypes.push(e.type);
+      },
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // Press to capture drag targets
+    mm.handleMouseEvent(createMouseEvent(15, 8, "press", "left"));
+
+    // Release at same position — should dispatch to drag targets
+    mm.handleMouseEvent(createMouseEvent(15, 8, "release", "left"));
+
+    expect(receivedTypes).toContain("release");
   });
 
   test("move within hovered region dispatches hover event (not enter again)", () => {

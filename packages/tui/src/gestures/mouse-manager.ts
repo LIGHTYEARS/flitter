@@ -26,7 +26,12 @@ import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent } from "../vt/types.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { type HitTestEntry, HitTestResult } from "./hit-test.js";
-import { createBaseEvent, createClickEvent } from "./mouse-event-helpers.js";
+import {
+  createBaseEvent,
+  createClickEvent,
+  createDragEvent,
+  createReleaseEvent,
+} from "./mouse-event-helpers.js";
 
 const log = logger.scoped("mouse");
 
@@ -91,7 +96,6 @@ export class MouseManager {
   }> = [];
 
   /** 最后一次拖拽位置 */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: used in Task 4 (_handleDrag)
   private _lastDragPosition: { x: number; y: number } | null = null;
 
   /** 各按键最后一次点击时间（用于双击检测） */
@@ -237,7 +241,7 @@ export class MouseManager {
         }
         break;
       case "release":
-        // Implemented in Task 4
+        this._handleRelease(event, position, mouseTargets);
         this._dragTargets = [];
         this._lastDragPosition = null;
         break;
@@ -247,7 +251,7 @@ export class MouseManager {
         break;
       case "move":
         this._handleMove(event, position, mouseTargets);
-        // _handleDrag when button is held is implemented in Task 4
+        if (event.button !== "none") this._handleDrag(event, position, mouseTargets);
         break;
     }
   }
@@ -292,6 +296,66 @@ export class MouseManager {
       target.handleMouseEvent(event);
       if (target.opaque) break;
     }
+  }
+
+  /**
+   * 处理鼠标释放事件，分发 release 事件到命中目标。
+   *
+   * 逆向: ha._handleRelease (2026_tail_anonymous.js:158291-158318)
+   *
+   * 算法:
+   * - 如果有拖拽目标 (_dragTargets.length > 0)：release 发到原始拖拽目标，
+   *   使用 globalOffset 计算 localPosition
+   * - 否则：release 发到当前命中目标，遇到 opaque 则停止传播
+   */
+  private _handleRelease(
+    raw: MouseEvent,
+    position: { x: number; y: number },
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: ha._handleRelease (2026_tail_anonymous.js:158291-158318)
+    // Skip global release callbacks (not implemented in this phase)
+    if (this._dragTargets.length > 0) {
+      // Release goes to original drag targets using globalOffset to compute localPos
+      for (const { target, globalOffset } of this._dragTargets) {
+        const localPosition = { x: position.x - globalOffset.x, y: position.y - globalOffset.y };
+        const event = createReleaseEvent(raw, position, localPosition);
+        target.handleMouseEvent(event);
+      }
+    } else {
+      // Release goes to current hit targets with opaque propagation stop
+      for (const { target, localPosition } of targets) {
+        const event = createReleaseEvent(raw, position, localPosition);
+        target.handleMouseEvent(event);
+        if (target.opaque) break;
+      }
+    }
+  }
+
+  /**
+   * 处理拖拽事件，分发 drag 事件到原始拖拽目标。
+   *
+   * 逆向: ha._handleDrag (2026_tail_anonymous.js:158320-158341)
+   *
+   * 算法:
+   * - 计算 deltaX/deltaY（相对 _lastDragPosition，首次为 0）
+   * - 发到 _dragTargets 中的所有目标
+   * - 更新 _lastDragPosition
+   */
+  private _handleDrag(
+    raw: MouseEvent,
+    position: { x: number; y: number },
+    _targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: ha._handleDrag (2026_tail_anonymous.js:158320-158341)
+    const deltaX = this._lastDragPosition ? position.x - this._lastDragPosition.x : 0;
+    const deltaY = this._lastDragPosition ? position.y - this._lastDragPosition.y : 0;
+    for (const { target, globalOffset } of this._dragTargets) {
+      const localPosition = { x: position.x - globalOffset.x, y: position.y - globalOffset.y };
+      const event = createDragEvent(raw, position, localPosition, deltaX, deltaY);
+      target.handleMouseEvent(event);
+    }
+    this._lastDragPosition = position;
   }
 
   /**

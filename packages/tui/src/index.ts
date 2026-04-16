@@ -19,6 +19,7 @@ export { Border } from "./widgets/border.js";
 export { BorderSide } from "./widgets/border-side.js";
 export { BoxDecoration } from "./widgets/box-decoration.js";
 export { Center } from "./widgets/center.js";
+export { ClipBox, RenderClipBox } from "./widgets/clip-box.js";
 export { Column } from "./widgets/column.js";
 export { Container, ContainerRenderObject } from "./widgets/container.js";
 export { EdgeInsets } from "./widgets/edge-insets.js";

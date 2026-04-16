@@ -34,6 +34,10 @@ export class TextSpan {
   readonly style?: TextStyle;
   /** 子 TextSpan 节点列表 */
   readonly children?: TextSpan[];
+  /** OSC 8 超链接 URL。逆向: amp G.hyperlink */
+  readonly url?: string;
+  /** 点击回调。逆向: amp G.onClick */
+  readonly onTap?: () => void;
 
   /**
    * 创建 TextSpan 实例。
@@ -42,11 +46,21 @@ export class TextSpan {
    * @param options.text - 文本内容
    * @param options.style - 文本样式
    * @param options.children - 子节点列表
+   * @param options.url - OSC 8 超链接 URL
+   * @param options.onTap - 点击回调
    */
-  constructor(options: { text?: string; style?: TextStyle; children?: TextSpan[] }) {
+  constructor(options: {
+    text?: string;
+    style?: TextStyle;
+    children?: TextSpan[];
+    url?: string;
+    onTap?: () => void;
+  }) {
     this.text = options.text;
     this.style = options.style;
     this.children = options.children;
+    this.url = options.url;
+    this.onTap = options.onTap;
   }
 
   /**

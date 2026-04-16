@@ -43,6 +43,8 @@ interface LayoutGlyph {
   style: TextStyle;
   /** 显示宽度 */
   width: number;
+  /** 来源 TextSpan 引用，用于 hit-testing */
+  span: TextSpan;
 }
 
 /** 文本对齐方式 */
@@ -314,7 +316,9 @@ export class RenderParagraph extends RenderBox {
         // 追加 … 字素
         const ellipsisStyle =
           lastLine.length > 0 ? lastLine[lastLine.length - 1]!.style : TextStyle.NORMAL;
-        lastLine.push({ grapheme: "…", style: ellipsisStyle, width: 1 });
+        const ellipsisSpan =
+          lastLine.length > 0 ? lastLine[lastLine.length - 1]!.span : this._textSpan;
+        lastLine.push({ grapheme: "…", style: ellipsisStyle, width: 1, span: ellipsisSpan });
         lines[lines.length - 1] = lastLine;
       }
     }
@@ -387,7 +391,7 @@ export class RenderParagraph extends RenderBox {
       const segments = graphemeSegments(span.text);
       for (const seg of segments) {
         const w = charWidth(seg);
-        out.push({ grapheme: seg, style: effectiveStyle, width: w });
+        out.push({ grapheme: seg, style: effectiveStyle, width: w, span });
       }
     }
 

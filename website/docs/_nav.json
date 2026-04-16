@@ -1,0 +1,22 @@
+[
+  {
+    "text": "指南",
+    "link": "/guide/introduction",
+    "activeMatch": "/guide/"
+  },
+  {
+    "text": "TUI 框架",
+    "link": "/tui/overview",
+    "activeMatch": "/tui/"
+  },
+  {
+    "text": "架构",
+    "link": "/architecture/monorepo",
+    "activeMatch": "/architecture/"
+  },
+  {
+    "text": "API",
+    "link": "/api/tui-widgets",
+    "activeMatch": "/api/"
+  }
+]

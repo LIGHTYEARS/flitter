@@ -646,3 +646,38 @@ describe("RenderObject — markNeedsPaint guards (amp vH alignment)", () => {
     assert.equal(mockOwner.paintRequests.length, 0, "should not request paint when detached");
   });
 });
+
+describe("RenderObject — attach/detach idempotency (amp vH alignment)", () => {
+  it("attach is idempotent — second call does not recurse children", () => {
+    const parent = new TestRenderObject();
+    const child = new TestRenderObject();
+    parent.adoptChild(child);
+
+    let childAttachCount = 0;
+    const origAttach = child.attach.bind(child);
+    child.attach = () => { childAttachCount++; origAttach(); };
+
+    parent.attach(); // first attach
+    const afterFirst = childAttachCount;
+
+    parent.attach(); // second attach — should be no-op
+    assert.equal(childAttachCount, afterFirst, "second attach should not recurse into children");
+  });
+
+  it("detach is idempotent — second call does not recurse children", () => {
+    const parent = new TestRenderObject();
+    const child = new TestRenderObject();
+    parent.adoptChild(child);
+    parent.attach();
+
+    let childDetachCount = 0;
+    const origDetach = child.detach.bind(child);
+    child.detach = () => { childDetachCount++; origDetach(); };
+
+    parent.detach(); // first detach
+    const afterFirst = childDetachCount;
+
+    parent.detach(); // second detach — should be no-op
+    assert.equal(childDetachCount, afterFirst, "second detach should not recurse into children");
+  });
+});

@@ -209,6 +209,7 @@ export abstract class RenderObject {
    * 设置 attached = true，递归挂载所有子节点。
    */
   attach(): void {
+    if (this._attached) return;
     this._attached = true;
     for (const child of this._children) {
       child.attach();
@@ -221,6 +222,7 @@ export abstract class RenderObject {
    * 设置 attached = false，递归卸载所有子节点。
    */
   detach(): void {
+    if (!this._attached) return;
     this._attached = false;
     for (const child of this._children) {
       child.detach();

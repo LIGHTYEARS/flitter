@@ -8,6 +8,36 @@
 
 **Tech Stack:** TypeScript, Bun test runner, `node:test` + `node:assert/strict`
 
+**MANDATORY: tmux e2e verification for every task.** After each task's unit tests pass, you MUST verify with the interactive TUI demo via tmux:
+
+```bash
+# 1. Start tmux session with the interactive demo
+tmux new-session -d -s flitter-e2e -x 100 -y 30 'bun run examples/tui-interactive-demo.ts'
+sleep 2
+
+# 2. Capture screenshot — verify layout renders correctly, no ghost artifacts
+tmux capture-pane -t flitter-e2e -p
+
+# 3. Simulate mouse click on a button region (column 5, row 8)
+#    and capture again — verify click count increments
+tmux send-keys -t flitter-e2e -l $'\x1b[<0;5;8M'   # SGR mouse press
+tmux send-keys -t flitter-e2e -l $'\x1b[<0;5;8m'   # SGR mouse release
+sleep 0.5
+tmux capture-pane -t flitter-e2e -p
+
+# 4. For tasks that affect resize (Task 4, 5): resize the tmux pane
+#    tmux resize-pane -t flitter-e2e -x 60 -y 20
+#    sleep 1
+#    tmux capture-pane -t flitter-e2e -p
+
+# 5. Quit and cleanup
+tmux send-keys -t flitter-e2e 'q'
+sleep 0.5
+tmux kill-session -t flitter-e2e 2>/dev/null
+```
+
+The tmux e2e test is NOT optional. Unit tests with mocks verify code structure; only real terminal execution verifies behavior (per CLAUDE.md rule #2). If the demo crashes, produces visual artifacts, or mouse events stop working, the task is NOT complete — debug and fix before committing.
+
 **Amp References:**
 - `vH` = RenderObject base: `amp-cli-reversed/modules/0533_unknown_vH.js`
 - `O9` = RenderBox: `amp-cli-reversed/chunk-005.js:157645-157761`
@@ -148,7 +178,11 @@ Expected: All ~1223 tests PASS.
 
 Note: The guards change the behavior of `markNeedsLayout` — it no longer unconditionally sets `_needsLayout = true`. Code that calls `markNeedsLayout` before `attach()` (e.g., in `adoptChild`) now has `_needsLayout` remain at its default `true` value. Since `_needsLayout` defaults to `true` on construction, this is safe — newly created nodes already need layout.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Verify the interactive demo launches, renders correctly, responds to mouse clicks, and quits cleanly. If anything breaks, this task introduced a regression — fix before committing.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/tui/src/tree/render-object.ts packages/tui/src/tree/render-object.test.ts
@@ -250,7 +284,11 @@ Expected: All tests PASS.
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Verify the interactive demo renders correctly and responds to mouse clicks.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add packages/tui/src/tree/render-object.ts packages/tui/src/tree/render-object.test.ts
@@ -349,7 +387,11 @@ Expected: All tests PASS.
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Verify the interactive demo renders correctly and responds to mouse clicks.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/tui/src/tree/render-object.ts packages/tui/src/tree/render-object.test.ts packages/tui/src/tree/types.ts
@@ -499,7 +541,11 @@ describe("PipelineOwner — layout queue tracking", () => {
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Verify the interactive demo renders correctly and responds to mouse clicks.
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add packages/tui/src/tree/pipeline-owner.ts packages/tui/src/binding/widgets-binding.ts packages/tui/src/tree/pipeline-owner.test.ts
@@ -638,13 +684,42 @@ Check that `MediaQuery` widget exposes a `child` property. Read `packages/tui/sr
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 5: Integration test — run interactive demo, resize terminal**
+- [ ] **Step 5: tmux e2e verification with resize**
 
-Run: `bun run examples/tui-interactive-demo.ts`
-- Resize the terminal window
-- Verify the UI redraws correctly at the new size
-- Verify buttons remain clickable after resize
-- Press 'q' to quit
+This task specifically affects resize behavior, so the tmux e2e MUST include resize testing:
+
+```bash
+tmux new-session -d -s flitter-resize -x 100 -y 30 'bun run examples/tui-interactive-demo.ts'
+sleep 2
+
+# Verify initial render
+tmux capture-pane -t flitter-resize -p
+
+# Click a button before resize
+tmux send-keys -t flitter-resize -l $'\x1b[<0;5;8M'
+tmux send-keys -t flitter-resize -l $'\x1b[<0;5;8m'
+sleep 0.5
+tmux capture-pane -t flitter-resize -p
+# Expected: Click registered
+
+# Resize terminal
+tmux resize-pane -t flitter-resize -x 60 -y 20
+sleep 1
+tmux capture-pane -t flitter-resize -p
+# Expected: UI redraws at new size, no ghost artifacts, no crash
+
+# Click after resize — verify mouse still works
+tmux send-keys -t flitter-resize -l $'\x1b[<0;5;8M'
+tmux send-keys -t flitter-resize -l $'\x1b[<0;5;8m'
+sleep 0.5
+tmux capture-pane -t flitter-resize -p
+# Expected: Click count increments
+
+# Quit
+tmux send-keys -t flitter-resize 'q'
+sleep 0.5
+tmux kill-session -t flitter-resize 2>/dev/null
+```
 
 - [ ] **Step 6: Commit**
 
@@ -816,7 +891,11 @@ Expected: All tests PASS including the re-parenting depth test.
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Depth changes affect build queue ordering, which can cause subtle rendering issues — verify the demo renders all widgets correctly.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/tui/src/tree/render-object.ts packages/tui/src/tree/element.ts packages/tui/src/tree/render-object.test.ts
@@ -949,7 +1028,11 @@ Expected: All tests PASS.
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: tmux e2e verification**
+
+Run the tmux e2e sequence from the plan header. Flex space changes affect button layout — verify buttons render with correct widths, no fractional-position artifacts, and spacing looks clean.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 git add packages/tui/src/widgets/flex.ts packages/tui/src/widgets/flex.test.ts
@@ -1097,13 +1180,40 @@ For each override found, apply the same pattern: compute `absX = offsetX + this.
 Run: `cd packages/tui && bun test`
 Expected: All tests PASS.
 
-- [ ] **Step 7: Integration test — run interactive demo**
+- [ ] **Step 7: tmux e2e verification (CRITICAL for this task)**
 
-Run: `bun run examples/tui-interactive-demo.ts`
-- Verify all widgets render at correct positions
-- Click buttons — verify they respond (hit-test coordinates must still work)
-- Hover — verify enter/exit events work
-- Press 'q' to quit
+This task changes the paint contract for ALL render objects — thorough e2e is essential:
+
+```bash
+tmux new-session -d -s flitter-paint -x 100 -y 30 'bun run examples/tui-interactive-demo.ts'
+sleep 2
+
+# Verify initial render — all widgets at correct positions
+tmux capture-pane -t flitter-paint -p
+# Expected: Title bar at top, buttons in correct row, GestureDetector area visible, footer at bottom
+
+# Test click on first button
+tmux send-keys -t flitter-paint -l $'\x1b[<0;5;8M'
+tmux send-keys -t flitter-paint -l $'\x1b[<0;5;8m'
+sleep 0.5
+tmux capture-pane -t flitter-paint -p
+# Expected: "Last event: Clicked ..." — hit-test coordinates must still work under new offset convention
+
+# Test hover enter/exit by moving mouse across a button boundary
+tmux send-keys -t flitter-paint -l $'\x1b[<35;5;8M'   # SGR move
+sleep 0.2
+tmux send-keys -t flitter-paint -l $'\x1b[<35;30;8M'  # SGR move to different area
+sleep 0.5
+tmux capture-pane -t flitter-paint -p
+# Expected: Event log shows enter/exit events
+
+# Quit
+tmux send-keys -t flitter-paint 'q'
+sleep 0.5
+tmux kill-session -t flitter-paint 2>/dev/null
+```
+
+If buttons render at wrong positions, clicks don't register, or hover events fire on wrong regions, the offset convention change has a bug. Fix before committing.
 
 - [ ] **Step 8: Commit**
 
@@ -1147,5 +1257,41 @@ Tasks 1-3 are tightly coupled (all in render-object.ts) and should be done in or
 After all 8 tasks are complete:
 
 1. Run full test suite: `cd packages/tui && bun test`
-2. Run interactive demo: `bun run examples/tui-interactive-demo.ts`
-3. Verify: click, hover, resize, no flicker, no ghost artifacts, 'q' quits cleanly
+2. **MANDATORY tmux e2e test** — run the full sequence described in the plan header:
+
+```bash
+# Full e2e regression: launch, screenshot, click, resize, quit
+tmux new-session -d -s flitter-final -x 100 -y 30 'bun run examples/tui-interactive-demo.ts'
+sleep 2
+
+# Verify initial render
+tmux capture-pane -t flitter-final -p
+# Expected: Title bar, event log, 4 buttons with borders, GestureDetector tap area, footer
+
+# Test click on first button (approx column 5, row 8)
+tmux send-keys -t flitter-final -l $'\x1b[<0;5;8M'
+tmux send-keys -t flitter-final -l $'\x1b[<0;5;8m'
+sleep 0.5
+tmux capture-pane -t flitter-final -p
+# Expected: "Last event: Clicked ..." and button shows "(1)"
+
+# Test resize
+tmux resize-pane -t flitter-final -x 60 -y 20
+sleep 1
+tmux capture-pane -t flitter-final -p
+# Expected: UI redraws at new size, no ghost artifacts, no crash
+
+# Test click still works after resize
+tmux send-keys -t flitter-final -l $'\x1b[<0;5;8M'
+tmux send-keys -t flitter-final -l $'\x1b[<0;5;8m'
+sleep 0.5
+tmux capture-pane -t flitter-final -p
+# Expected: Click count increments, event log updates
+
+# Quit
+tmux send-keys -t flitter-final 'q'
+sleep 0.5
+tmux kill-session -t flitter-final 2>/dev/null
+```
+
+3. If ANY of the above checks fail, the plan is NOT complete — investigate and fix.

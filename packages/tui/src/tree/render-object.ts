@@ -39,8 +39,8 @@ export abstract class RenderObject {
   /** 是否已挂载到渲染树 */
   protected _attached: boolean = false;
 
-  /** 在渲染树中的深度 */
-  protected _depth: number = 0;
+  /** 在渲染树中的深度（缓存值，undefined 表示需要重新计算） */
+  protected _cachedDepth: number | undefined = undefined;
 
   /**
    * 是否允许命中测试穿透到本节点边界外的子节点。
@@ -96,7 +96,23 @@ export abstract class RenderObject {
 
   /** 在渲染树中的深度。 */
   get depth(): number {
-    return this._depth;
+    if (this._cachedDepth === undefined) {
+      this._cachedDepth = this._parent ? this._parent.depth + 1 : 0;
+    }
+    return this._cachedDepth;
+  }
+
+  /**
+   * 递归清除深度缓存。
+   *
+   * 逆向: vH._invalidateDepth (0533_unknown_vH.js:34-37)
+   * 当节点被重新收养时调用，确保子树深度在下次访问时重新计算。
+   */
+  protected _invalidateDepth(): void {
+    this._cachedDepth = undefined;
+    for (const child of this._children) {
+      child._invalidateDepth();
+    }
   }
 
   // ════════════════════════════════════════════════════
@@ -123,7 +139,7 @@ export abstract class RenderObject {
    */
   adoptChild(child: RenderObject): void {
     child._parent = this;
-    child._depth = this._depth + 1;
+    child._invalidateDepth();
     this.setupParentData(child);
     this._children.push(child);
     if (this._attached) {
@@ -151,6 +167,7 @@ export abstract class RenderObject {
       this._children.splice(index, 1);
     }
     child._parent = null;
+    child._invalidateDepth();
     this.markNeedsLayout();
   }
 

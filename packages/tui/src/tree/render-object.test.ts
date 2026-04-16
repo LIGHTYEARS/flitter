@@ -676,6 +676,71 @@ describe("RenderObject — markNeedsPaint guards (amp vH alignment)", () => {
   });
 });
 
+describe("RenderObject — depth invalidation (amp vH alignment)", () => {
+  let mockOwner: MockPipelineOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockPipelineOwner();
+    setPipelineOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setPipelineOwner(undefined);
+  });
+
+  it("depth updates correctly when subtree is re-parented", () => {
+    const root = new TestRenderObject();
+    const middle = new TestRenderObject();
+    const leaf = new TestRenderObject();
+
+    root.adoptChild(middle);
+    middle.adoptChild(leaf);
+    root.attach();
+
+    assert.equal(root.depth, 0);
+    assert.equal(middle.depth, 1);
+    assert.equal(leaf.depth, 2);
+
+    // Re-parent: move middle (with leaf) from root to a deeper parent
+    root.dropChild(middle);
+    const deepParent = new TestRenderObject();
+    // Build a chain: root -> a -> b -> c -> d -> deepParent
+    let current: TestRenderObject = root;
+    for (let i = 0; i < 4; i++) {
+      const next = new TestRenderObject();
+      current.adoptChild(next);
+      current = next;
+    }
+    // current is at depth 4
+    current.adoptChild(middle);
+
+    assert.equal(middle.depth, 5, "middle depth should update after re-parenting");
+    assert.equal(leaf.depth, 6, "leaf depth should cascade after re-parenting");
+  });
+
+  it("depth is 0 for root node", () => {
+    const root = new TestRenderObject();
+    assert.equal(root.depth, 0);
+  });
+
+  it("depth recalculates after dropping and re-adopting", () => {
+    const parent1 = new TestRenderObject();
+    const parent2 = new TestRenderObject();
+    const deep = new TestRenderObject();
+    parent2.adoptChild(deep); // build depth chain first
+    const child = new TestRenderObject();
+
+    parent1.adoptChild(child);
+    assert.equal(child.depth, 1);
+
+    parent1.dropChild(child);
+    parent2.adoptChild(child);
+    // parent2 is at depth 0, so child should be at depth 1 (not 2)
+    // But deep is at depth 1, so re-check
+    assert.equal(child.depth, 1);
+  });
+});
+
 describe("RenderObject — attach/detach idempotency (amp vH alignment)", () => {
   it("attach is idempotent — second call does not recurse children", () => {
     const parent = new TestRenderObject();

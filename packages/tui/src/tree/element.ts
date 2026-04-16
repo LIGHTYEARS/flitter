@@ -65,8 +65,8 @@ export abstract class Element {
   /** 是否已挂载到元素树 */
   protected _mounted: boolean = false;
 
-  /** 在元素树中的深度 */
-  protected _depth: number = 0;
+  /** 在元素树中的深度（缓存值，undefined 表示需要重新计算） */
+  protected _cachedDepth: number | undefined = undefined;
 
   /** InheritedElement 依赖集合，unmount 时自动清除 */
   protected _inheritedDependencies: Set<Element> = new Set();
@@ -107,7 +107,10 @@ export abstract class Element {
 
   /** 在元素树中的深度。 */
   get depth(): number {
-    return this._depth;
+    if (this._cachedDepth === undefined) {
+      this._cachedDepth = this._parent ? this._parent.depth + 1 : 0;
+    }
+    return this._cachedDepth;
   }
 
   /** 关联的渲染对象，基类默认返回 undefined，RenderObjectElement 子类会覆盖。 */
@@ -141,7 +144,7 @@ export abstract class Element {
    */
   addChild(child: Element): void {
     child._parent = this;
-    child._depth = this._depth + 1;
+    child._cachedDepth = undefined; // invalidate — will recompute lazily
     this._children.push(child);
   }
 
@@ -185,7 +188,7 @@ export abstract class Element {
    */
   mount(parent?: Element): void {
     this._parent = parent ?? undefined;
-    this._depth = parent ? parent.depth + 1 : 0;
+    this._cachedDepth = undefined; // will compute lazily from parent
     this._mounted = true;
   }
 

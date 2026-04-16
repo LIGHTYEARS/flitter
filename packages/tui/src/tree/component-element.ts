@@ -36,6 +36,23 @@ export abstract class ComponentElement extends Element {
   abstract build(): Widget;
 
   /**
+   * 用新 Widget 更新当前元素。
+   *
+   * 逆向: amp R1T.update (chunk-006.js:428) — update() calls rebuild()
+   *
+   * Flutter/amp 的 ComponentElement.update 在替换 Widget 引用后
+   * 立即触发 rebuild，使子树能感知新 props。Flitter 之前缺少此 override，
+   * 导致 StatelessWidget（如 Text）被父级 updateChildren 更新后
+   * 不会重新 build()，子 RichText/RenderParagraph 保持旧数据。
+   *
+   * @param newWidget - 新的 Widget 实例
+   */
+  override update(newWidget: Widget): void {
+    super.update(newWidget);
+    this.performRebuild();
+  }
+
+  /**
    * 执行重新构建。
    *
    * 1. 调用父类 performRebuild 清除脏标记

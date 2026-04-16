@@ -84,19 +84,7 @@ export class StatelessElement extends ComponentElement {
   build(): WidgetInterface {
     return (this.widget as StatelessWidget).build(this as unknown as BuildContext);
   }
-
-  /**
-   * 用新 Widget 更新当前元素。
-   *
-   * 逆向: amp StatelessElement.update — super.update(T) → rebuild()
-   *
-   * 更新 Widget 引用后触发重新构建，使子树反映新 Widget 的配置。
-   *
-   * @param newWidget - 新的 Widget 实例
-   */
-  override update(newWidget: WidgetInterface): void {
-    super.update(newWidget);
-    this._dirty = true;
-    this.performRebuild();
-  }
+  // NOTE: update() is inherited from ComponentElement, which calls
+  // super.update(newWidget) → performRebuild(). No override needed.
+  // 逆向: amp R1T.update (chunk-006.js:428) — super.update(T), rebuild()
 }

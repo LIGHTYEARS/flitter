@@ -239,16 +239,18 @@ export class StatefulElement extends ComponentElement {
   /**
    * 用新 Widget 更新当前元素。
    *
-   * 通知 State 配置变化，调用父类 update 更新 Widget 引用，
-   * 然后标记为脏并执行重建。
+   * 逆向: amp sXT.update (chunk-005.js:164292)
+   * amp: super.update(T), state._update(statefulWidget), rebuild()
+   *
+   * 先通知 State 配置变化（didUpdateWidget），然后调用父类 update
+   * 更新 Widget 引用并触发 performRebuild()。
    *
    * @param newWidget - 新的 Widget 实例
    */
   override update(newWidget: WidgetInterface): void {
     this._state._update(newWidget as StatefulWidget);
     super.update(newWidget);
-    this._dirty = true;
-    this.performRebuild();
+    // super.update() = ComponentElement.update() which calls performRebuild()
   }
 
   /**

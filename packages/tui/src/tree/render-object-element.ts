@@ -78,6 +78,11 @@ export abstract class RenderObjectElement extends Element {
   override mount(parent?: Element): void {
     super.mount(parent);
     this._renderObject = (this.widget as unknown as RenderObjectWidget).createRenderObject();
+    // 逆向: amp RenderObjectElement.mount (chunk-005.js:164087)
+    // amp calls _renderObject.attach() immediately after creation.
+    // This sets _attached=true, enabling markNeedsLayout/markNeedsPaint
+    // to propagate correctly during subsequent frames.
+    this._renderObject.attach();
     this.insertRenderObjectChild();
     this._dirty = false;
   }

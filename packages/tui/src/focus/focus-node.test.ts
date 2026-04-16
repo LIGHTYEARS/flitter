@@ -6,6 +6,7 @@
  */
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { KeyEvent, PasteEvent } from "../vt/types.js";
+import type { KeyHandler } from "./focus-node.js";
 import { FocusNode } from "./focus-node.js";
 
 describe("FocusNode", () => {
@@ -300,6 +301,62 @@ describe("FocusNode", () => {
       node.removeListener(listener);
       node._setFocus(false);
       expect(listener).toHaveBeenCalledTimes(1); // no additional call
+    });
+  });
+
+  // ──────────────────────────────────────────────
+  // addKeyHandler / removeKeyHandler (amp l8 alignment)
+  // ──────────────────────────────────────────────
+
+  describe("addKeyHandler / removeKeyHandler", () => {
+    test("addKeyHandler appends a handler that receives key events", () => {
+      const node = new FocusNode();
+      let receivedEvent: KeyEvent | null = null;
+      const handler: KeyHandler = (event) => {
+        receivedEvent = event;
+        return "handled";
+      };
+
+      node.addKeyHandler(handler);
+
+      const event: KeyEvent = { key: "a", code: "KeyA", type: "keydown" } as KeyEvent;
+      const result = node._handleKeyEvent(event);
+      expect(result).toBe("handled");
+      expect(receivedEvent).toBe(event);
+    });
+
+    test("removeKeyHandler removes a handler by reference", () => {
+      const node = new FocusNode();
+      let callCount = 0;
+      const handler: KeyHandler = () => { callCount++; return "ignored"; };
+
+      node.addKeyHandler(handler);
+      node._handleKeyEvent({ key: "a", code: "KeyA", type: "keydown" } as KeyEvent);
+      expect(callCount).toBe(1);
+
+      node.removeKeyHandler(handler);
+      node._handleKeyEvent({ key: "b", code: "KeyB", type: "keydown" } as KeyEvent);
+      expect(callCount).toBe(1); // handler should not be called after removal
+    });
+
+    test("removeKeyHandler only removes first occurrence", () => {
+      const node = new FocusNode();
+      let callCount = 0;
+      const handler: KeyHandler = () => { callCount++; return "ignored"; };
+
+      node.addKeyHandler(handler);
+      node.addKeyHandler(handler); // added twice
+      node.removeKeyHandler(handler); // removes first
+
+      node._handleKeyEvent({ key: "a", code: "KeyA", type: "keydown" } as KeyEvent);
+      expect(callCount).toBe(1); // one copy should remain after removing first
+    });
+
+    test("removeKeyHandler is no-op for unknown handler", () => {
+      const node = new FocusNode();
+      const handler: KeyHandler = () => "ignored";
+      // Should not throw
+      expect(() => node.removeKeyHandler(handler)).not.toThrow();
     });
   });
 });

@@ -404,100 +404,205 @@ export class RenderFlex extends RenderBox {
   // ════════════════════════════════════════════════════
 
   /**
-   * 水平: sum of non-flex children minWidth (flex children contribute 0)
-   * 垂直: max of all children minWidth (cross-axis)
+   * 返回最小固有宽度。
+   *
+   * - 水平 (main axis): 非弹性子节点的 minWidth 求和，弹性子节点按比例贡献
+   *   (max(childMinWidth/flex) * totalFlex)。逆向: amp s1T line 480-501。
+   * - 垂直 (cross axis): 所有子节点 minWidth 取最大值。
+   *
+   * @param height - 可用高度约束
    */
   override getMinIntrinsicWidth(height: number): number {
     if (this.direction === "horizontal") {
-      let sum = 0;
+      // 逆向: amp s1T line 480-501
+      // 非弹性子节点求和；弹性子节点按 max(childMin/flex)*totalFlex 贡献
+      let nonFlexSum = 0;
+      let totalFlex = 0;
+      let maxFlexRatio = 0;
       for (const child of this._children) {
         if (child instanceof RenderBox) {
           const pd = child.parentData as FlexParentData;
-          if (pd.flex === 0) {
-            sum += child.getMinIntrinsicWidth(height);
+          const flex = pd.flex;
+          if (flex > 0) {
+            totalFlex += flex;
+            maxFlexRatio = Math.max(maxFlexRatio, child.getMinIntrinsicWidth(height) / flex);
+          } else {
+            nonFlexSum += child.getMinIntrinsicWidth(height);
           }
         }
       }
-      return sum;
-    }
-    let max = 0;
-    for (const child of this._children) {
-      if (child instanceof RenderBox) {
-        max = Math.max(max, child.getMinIntrinsicWidth(height));
+      return nonFlexSum + maxFlexRatio * totalFlex;
+    } else {
+      // 交叉轴: max of all children
+      let max = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          max = Math.max(max, child.getMinIntrinsicWidth(height));
+        }
       }
+      return max;
     }
-    return max;
   }
 
   /**
-   * 水平: sum of ALL children maxWidth
-   * 垂直: max of all children maxWidth
+   * 返回最大固有宽度。
+   *
+   * - 水平 (main axis): 非弹性子节点的 maxWidth 求和，弹性子节点按比例贡献。
+   *   逆向: amp s1T line 502-523。
+   * - 垂直 (cross axis): 所有子节点 maxWidth 取最大值。
+   *
+   * @param height - 可用高度约束
    */
   override getMaxIntrinsicWidth(height: number): number {
     if (this.direction === "horizontal") {
-      let sum = 0;
+      // 逆向: amp s1T line 502-523
+      let nonFlexSum = 0;
+      let totalFlex = 0;
+      let maxFlexRatio = 0;
       for (const child of this._children) {
         if (child instanceof RenderBox) {
-          sum += child.getMaxIntrinsicWidth(height);
+          const pd = child.parentData as FlexParentData;
+          const flex = pd.flex;
+          if (flex > 0) {
+            totalFlex += flex;
+            maxFlexRatio = Math.max(maxFlexRatio, child.getMaxIntrinsicWidth(height) / flex);
+          } else {
+            nonFlexSum += child.getMaxIntrinsicWidth(height);
+          }
         }
       }
-      return sum;
-    }
-    let max = 0;
-    for (const child of this._children) {
-      if (child instanceof RenderBox) {
-        max = Math.max(max, child.getMaxIntrinsicWidth(height));
+      return nonFlexSum + maxFlexRatio * totalFlex;
+    } else {
+      // 交叉轴: max of all children
+      let max = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          max = Math.max(max, child.getMaxIntrinsicWidth(height));
+        }
       }
+      return max;
     }
-    return max;
   }
 
   /**
-   * 水平: max of all children minHeight (cross-axis)
-   * 垂直: sum of non-flex children minHeight
+   * 返回最小固有高度。
+   *
+   * - 水平 (cross axis): 估算每个子节点在其分配宽度下的 minHeight，取最大值。
+   *   逆向: amp s1T line 564-585。
+   * - 垂直 (main axis): 非弹性子节点的 minHeight 求和，弹性子节点按比例贡献。
+   *   逆向: amp s1T line 586-599。
+   *
+   * @param width - 可用宽度约束
    */
   override getMinIntrinsicHeight(width: number): number {
     if (this.direction === "horizontal") {
+      // 逆向: amp s1T line 564-585
+      // 估算非弹性子节点总宽度，计算剩余空间分配给弹性子节点
+      let totalFlex = 0;
+      let nonFlexWidthSum = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          const pd = child.parentData as FlexParentData;
+          if (pd.flex > 0) {
+            totalFlex += pd.flex;
+          } else {
+            nonFlexWidthSum += child.getMinIntrinsicWidth(0);
+          }
+        }
+      }
+      const freeWidth = Math.max(0, width - nonFlexWidthSum);
       let max = 0;
       for (const child of this._children) {
         if (child instanceof RenderBox) {
-          max = Math.max(max, child.getMinIntrinsicHeight(width));
+          const pd = child.parentData as FlexParentData;
+          let childWidth = width;
+          if (pd.flex > 0 && totalFlex > 0) {
+            childWidth = (freeWidth / totalFlex) * pd.flex;
+          }
+          max = Math.max(max, child.getMinIntrinsicHeight(childWidth));
         }
       }
       return max;
-    }
-    let sum = 0;
-    for (const child of this._children) {
-      if (child instanceof RenderBox) {
-        const pd = child.parentData as FlexParentData;
-        if (pd.flex === 0) {
-          sum += child.getMinIntrinsicHeight(width);
+    } else {
+      // 逆向: amp s1T line 586-599
+      // 主轴: 非弹性求和 + 弹性按比例贡献
+      let nonFlexSum = 0;
+      let totalFlex = 0;
+      let maxFlexRatio = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          const pd = child.parentData as FlexParentData;
+          const flex = pd.flex;
+          if (flex > 0) {
+            totalFlex += flex;
+            maxFlexRatio = Math.max(maxFlexRatio, child.getMinIntrinsicHeight(width) / flex);
+          } else {
+            nonFlexSum += child.getMinIntrinsicHeight(width);
+          }
         }
       }
+      return nonFlexSum + maxFlexRatio * totalFlex;
     }
-    return sum;
   }
 
   /**
-   * 水平: max of all children maxHeight
-   * 垂直: sum of ALL children maxHeight
+   * 返回最大固有高度。
+   *
+   * - 水平 (cross axis): 估算每个子节点在其分配宽度下的 maxHeight，取最大值。
+   *   逆向: amp s1T line 524-562。
+   * - 垂直 (main axis): 非弹性子节点的 maxHeight 求和，弹性子节点按比例贡献。
+   *   逆向: amp s1T line 548-562。
+   *
+   * @param width - 可用宽度约束
    */
   override getMaxIntrinsicHeight(width: number): number {
     if (this.direction === "horizontal") {
+      // 逆向: amp s1T line 524-548
+      // 估算非弹性子节点总宽度，计算剩余空间分配给弹性子节点
+      let totalFlex = 0;
+      let nonFlexWidthSum = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          const pd = child.parentData as FlexParentData;
+          if (pd.flex > 0) {
+            totalFlex += pd.flex;
+          } else {
+            nonFlexWidthSum += child.getMaxIntrinsicWidth(0);
+          }
+        }
+      }
+      const freeWidth = Math.max(0, width - nonFlexWidthSum);
       let max = 0;
       for (const child of this._children) {
         if (child instanceof RenderBox) {
-          max = Math.max(max, child.getMaxIntrinsicHeight(width));
+          const pd = child.parentData as FlexParentData;
+          let childWidth = width;
+          if (pd.flex > 0 && totalFlex > 0) {
+            childWidth = (freeWidth / totalFlex) * pd.flex;
+          }
+          max = Math.max(max, child.getMaxIntrinsicHeight(childWidth));
         }
       }
       return max;
-    }
-    let sum = 0;
-    for (const child of this._children) {
-      if (child instanceof RenderBox) {
-        sum += child.getMaxIntrinsicHeight(width);
+    } else {
+      // 逆向: amp s1T line 548-562
+      // 主轴: 非弹性求和 + 弹性按比例贡献
+      let nonFlexSum = 0;
+      let totalFlex = 0;
+      let maxFlexRatio = 0;
+      for (const child of this._children) {
+        if (child instanceof RenderBox) {
+          const pd = child.parentData as FlexParentData;
+          const flex = pd.flex;
+          if (flex > 0) {
+            totalFlex += flex;
+            maxFlexRatio = Math.max(maxFlexRatio, child.getMaxIntrinsicHeight(width) / flex);
+          } else {
+            nonFlexSum += child.getMaxIntrinsicHeight(width);
+          }
+        }
       }
+      return nonFlexSum + maxFlexRatio * totalFlex;
     }
-    return sum;
   }
 }

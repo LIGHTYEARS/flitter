@@ -698,7 +698,7 @@ describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
 // ════════════════════════════════════════════════════
 
 describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
-  it("Row: getMinIntrinsicWidth = sum of non-flex children minWidths", () => {
+  it("Row: getMinIntrinsicWidth = sum of non-flex children minWidths + flex proportional contribution", () => {
     const flex = new RenderFlex({ direction: "horizontal" });
     const fixed1 = new FixedSizeBox(10, 5);
     const fixed2 = new FixedSizeBox(20, 5);
@@ -709,11 +709,11 @@ describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
     flex.adoptChild(flexChild);
     (flexChild.parentData as FlexParentData).flex = 1;
 
-    // non-flex: 10 + 20 = 30; flex child contributes 0 for min
-    assert.equal(flex.getMinIntrinsicWidth(Infinity), 30);
+    // amp: e=30 (non-flex), totalFlex=1, r=max(30/1)=30, result = 30 + 30*1 = 60
+    assert.equal(flex.getMinIntrinsicWidth(Infinity), 60);
   });
 
-  it("Row: getMaxIntrinsicWidth = sum of ALL children maxWidths", () => {
+  it("Row: getMaxIntrinsicWidth = non-flex sum + flex proportional contribution", () => {
     const flex = new RenderFlex({ direction: "horizontal" });
     const fixed1 = new FixedSizeBox(10, 5);
     const fixed2 = new FixedSizeBox(20, 5);
@@ -724,7 +724,7 @@ describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
     flex.adoptChild(flexChild);
     (flexChild.parentData as FlexParentData).flex = 1;
 
-    // All children: 10 + 20 + 30 = 60
+    // amp: e=30 (non-flex), totalFlex=1, r=max(30/1)=30, result = 30 + 30*1 = 60
     assert.equal(flex.getMaxIntrinsicWidth(Infinity), 60);
   });
 
@@ -739,7 +739,7 @@ describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
     assert.equal(flex.getMinIntrinsicHeight(Infinity), 7);
   });
 
-  it("Column: getMinIntrinsicHeight = sum of non-flex children minHeights", () => {
+  it("Column: getMinIntrinsicHeight = sum of non-flex children minHeights + flex proportional contribution", () => {
     const flex = new RenderFlex({ direction: "vertical" });
     const fixed1 = new FixedSizeBox(10, 5);
     const flexChild = new FixedSizeBox(10, 8);
@@ -748,10 +748,11 @@ describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
     flex.adoptChild(flexChild);
     (flexChild.parentData as FlexParentData).flex = 1;
 
-    assert.equal(flex.getMinIntrinsicHeight(Infinity), 5);
+    // amp: e=5 (non-flex), totalFlex=1, r=max(8/1)=8, result = 5 + 8*1 = 13
+    assert.equal(flex.getMinIntrinsicHeight(Infinity), 13);
   });
 
-  it("Column: getMaxIntrinsicHeight = sum of ALL children maxHeights", () => {
+  it("Column: getMaxIntrinsicHeight = non-flex sum + flex proportional contribution", () => {
     const flex = new RenderFlex({ direction: "vertical" });
     const fixed1 = new FixedSizeBox(10, 5);
     const flexChild = new FixedSizeBox(10, 8);
@@ -760,6 +761,7 @@ describe("RenderFlex — intrinsic sizes (amp s1T alignment)", () => {
     flex.adoptChild(flexChild);
     (flexChild.parentData as FlexParentData).flex = 1;
 
+    // amp: e=5 (non-flex), totalFlex=1, r=max(8/1)=8, result = 5 + 8*1 = 13
     assert.equal(flex.getMaxIntrinsicHeight(Infinity), 13);
   });
 

@@ -241,13 +241,31 @@ export class RenderFlex extends RenderBox {
     const spacePerFlex = totalFlex > 0 ? freeMainAxis / totalFlex : 0;
 
     // ── Pass 2: 布局弹性子节点 ─────────────────────
+    // 逆向: amp s1T line 402 — Math.floor for intermediate, remainder for last
+    let allocatedFlexSpace = 0;
+    const flexChildren: RenderBox[] = [];
     for (const child of this._children) {
+      const pd = child.parentData as FlexParentData;
+      if (pd.flex > 0) {
+        flexChildren.push(child as RenderBox);
+      }
+    }
+
+    for (let i = 0; i < flexChildren.length; i++) {
+      const child = flexChildren[i]!;
       const pd = child.parentData as FlexParentData;
       const flex = pd.flex;
 
-      if (flex <= 0) continue;
+      let childMainAxis: number;
+      if (i < flexChildren.length - 1) {
+        // Intermediate children: floor to integer
+        childMainAxis = Math.floor(spacePerFlex * flex);
+      } else {
+        // Last child: gets the remainder to avoid drift
+        childMainAxis = freeMainAxis - allocatedFlexSpace;
+      }
+      allocatedFlexSpace += childMainAxis;
 
-      const childMainAxis = spacePerFlex * flex;
       const isTight = pd.fit === "tight";
       const childConstraints = this._buildChildConstraints(
         isTight ? childMainAxis : 0,
@@ -255,8 +273,8 @@ export class RenderFlex extends RenderBox {
         maxCross,
         isTight,
       );
-      (child as RenderBox).layout(childConstraints);
-      const childSize = (child as RenderBox).size;
+      child.layout(childConstraints);
+      const childSize = child.size;
       allocatedMainAxis += this._getMainAxisSize(childSize);
       crossAxisExtent = Math.max(crossAxisExtent, this._getCrossAxisSize(childSize));
     }

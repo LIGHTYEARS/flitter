@@ -584,3 +584,89 @@ describe("RenderFlex -- 额外覆盖", () => {
     assert.equal(flex.mainAxisSize, "max");
   });
 });
+
+// ════════════════════════════════════════════════════
+//  整数空间分配 (amp s1T line 402)
+// ════════════════════════════════════════════════════
+
+describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
+  it("flex children get integer main-axis sizes, last child gets remainder", () => {
+    const child1 = new TestRenderBox(0, 10);
+    const child2 = new TestRenderBox(0, 10);
+    const child3 = new TestRenderBox(0, 10);
+
+    const flex = createFlex(
+      { direction: "horizontal", mainAxisSize: "max" },
+      [
+        { box: child1, flex: 1, fit: "tight" },
+        { box: child2, flex: 1, fit: "tight" },
+        { box: child3, flex: 1, fit: "tight" },
+      ],
+    );
+
+    // Layout with width=100 — 100/3 = 33.333... per child
+    // Expected: 33, 33, 34 (last gets remainder)
+    const constraints = BoxConstraints.tight(100, 10);
+    flex.layout(constraints);
+
+    const w1 = child1.size.width;
+    const w2 = child2.size.width;
+    const w3 = child3.size.width;
+
+    assert.equal(Number.isInteger(w1), true, `child1 width should be integer, got ${w1}`);
+    assert.equal(Number.isInteger(w2), true, `child2 width should be integer, got ${w2}`);
+    assert.equal(Number.isInteger(w3), true, `child3 width should be integer, got ${w3}`);
+    assert.equal(w1 + w2 + w3, 100, "total should equal container width");
+    // First two should be floor(100/3) = 33, last gets 100 - 33 - 33 = 34
+    assert.equal(w1, 33);
+    assert.equal(w2, 33);
+    assert.equal(w3, 34);
+  });
+
+  it("evenly divisible flex allocation produces equal sizes", () => {
+    const child1 = new TestRenderBox(0, 10);
+    const child2 = new TestRenderBox(0, 10);
+
+    const flex = createFlex(
+      { direction: "horizontal", mainAxisSize: "max" },
+      [
+        { box: child1, flex: 1, fit: "tight" },
+        { box: child2, flex: 1, fit: "tight" },
+      ],
+    );
+
+    // 80 / 2 = 40 — evenly divisible, no remainder issue
+    const constraints = BoxConstraints.tight(80, 10);
+    flex.layout(constraints);
+
+    assert.equal(child1.size.width, 40);
+    assert.equal(child2.size.width, 40);
+  });
+
+  it("vertical flex also uses integer allocation", () => {
+    const child1 = new TestRenderBox(10, 0);
+    const child2 = new TestRenderBox(10, 0);
+    const child3 = new TestRenderBox(10, 0);
+
+    const flex = createFlex(
+      { direction: "vertical", mainAxisSize: "max" },
+      [
+        { box: child1, flex: 1, fit: "tight" },
+        { box: child2, flex: 1, fit: "tight" },
+        { box: child3, flex: 1, fit: "tight" },
+      ],
+    );
+
+    const constraints = BoxConstraints.tight(10, 25);
+    flex.layout(constraints);
+
+    const h1 = child1.size.height;
+    const h2 = child2.size.height;
+    const h3 = child3.size.height;
+
+    assert.equal(Number.isInteger(h1), true, `child1 height should be integer, got ${h1}`);
+    assert.equal(Number.isInteger(h2), true, `child2 height should be integer, got ${h2}`);
+    assert.equal(Number.isInteger(h3), true, `child3 height should be integer, got ${h3}`);
+    assert.equal(h1 + h2 + h3, 25, "total should equal container height");
+  });
+});

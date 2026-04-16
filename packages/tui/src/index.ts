@@ -1,5 +1,6 @@
 // @flitter/tui - Flutter-for-Terminal UI framework
 
+export * from "./actions/index.js";
 export * from "./binding/index.js";
 export * from "./debug/index.js";
 export * from "./editing/index.js";

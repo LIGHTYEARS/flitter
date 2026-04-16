@@ -371,4 +371,157 @@ describe("MouseManager dispatch", () => {
     // 移除从未添加过 hover 状态的 region，应静默处理
     expect(() => mm.removeRegion(region)).not.toThrow();
   });
+
+  // ════════════════════════════════════════════════════
+  //  _handleMove: enter / exit / hover 分发
+  // ════════════════════════════════════════════════════
+
+  test("move into a region dispatches enter event", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    let enterCount = 0;
+    let enterEventType: string | undefined;
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: (e) => {
+        enterCount++;
+        enterEventType = e.type;
+      },
+      onExit: null,
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // 鼠标移入区域
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 15,
+      y: 8,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+
+    expect(enterCount).toBe(1);
+    expect(enterEventType).toBe("enter");
+  });
+
+  test("move out of a region dispatches exit event", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const events: string[] = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: () => {
+        events.push("enter");
+      },
+      onExit: () => {
+        events.push("exit");
+      },
+      onHover: null,
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // 先移入区域
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 15,
+      y: 8,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+    expect(events).toEqual(["enter"]);
+
+    // 再移出区域
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 5,
+      y: 2,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+    expect(events).toEqual(["enter", "exit"]);
+  });
+
+  test("move within hovered region dispatches hover event (not enter again)", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const events: string[] = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: () => {
+        events.push("enter");
+      },
+      onExit: null,
+      onHover: () => {
+        events.push("hover");
+      },
+      onScroll: null,
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(10, 5);
+    region.setSize(20, 10);
+
+    mm.setRootRenderObject(root);
+
+    // 第一次移入 — 应触发 enter，不触发 hover
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 15,
+      y: 8,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+    expect(events).toEqual(["enter"]);
+
+    // 区域内继续移动 — 应触发 hover，不再触发 enter
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 16,
+      y: 9,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+    expect(events).toEqual(["enter", "hover"]);
+
+    // 再次在区域内移动
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 17,
+      y: 10,
+      button: "none",
+      action: "move",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+    expect(events).toEqual(["enter", "hover", "hover"]);
+  });
 });

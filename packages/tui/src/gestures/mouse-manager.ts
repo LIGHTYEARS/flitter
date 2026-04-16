@@ -26,7 +26,7 @@ import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent } from "../vt/types.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { type HitTestEntry, HitTestResult } from "./hit-test.js";
-import { createClickEvent } from "./mouse-event-helpers.js";
+import { createBaseEvent, createClickEvent } from "./mouse-event-helpers.js";
 
 const log = logger.scoped("mouse");
 
@@ -72,6 +72,16 @@ export class MouseManager {
 
   /** 当前处于 hover 状态的 RenderMouseRegion 集合 */
   private _hoveredRegions = new Set<RenderMouseRegion>();
+
+  /**
+   * _handleMove 用于避免 GC 的临时集合 (scratch sets)。
+   *
+   * 逆向: ha._scratchCurrentRegions / _scratchExitedRegions / _scratchEnteredRegions
+   * (2026_tail_anonymous.js:158393-158435)
+   */
+  private _scratchCurrentRegions = new Set<RenderMouseRegion>();
+  private _scratchExitedRegions = new Set<RenderMouseRegion>();
+  private _scratchEnteredRegions = new Set<RenderMouseRegion>();
 
   /** 当前拖拽目标列表 */
   private _dragTargets: Array<{
@@ -236,7 +246,8 @@ export class MouseManager {
         // Implemented in Task 5
         break;
       case "move":
-        // Implemented in Task 3
+        this._handleMove(event, position, mouseTargets);
+        // _handleDrag when button is held is implemented in Task 4
         break;
     }
   }
@@ -281,6 +292,78 @@ export class MouseManager {
       target.handleMouseEvent(event);
       if (target.opaque) break;
     }
+  }
+
+  /**
+   * 处理鼠标移动事件，分发 enter/exit/hover 事件到命中目标。
+   *
+   * 逆向: ha._handleMove (2026_tail_anonymous.js:158393-158435)
+   *
+   * 算法:
+   * 1. 计算当前帧的命中目标集合 (currentRegions)
+   * 2. 退出集合 = 上次 hover 中、当前未命中的区域
+   * 3. 进入集合 = 当前命中、但上次未 hover 的区域
+   * 4. 分发 exit 事件 (注意: exit 的 localPosition 使用全局坐标 R — amp 原始行为)
+   * 5. 分发 enter 事件 (使用实际 localPosition)
+   * 6. 分发 hover 事件 (仅对已经处于 hover 状态的区域，即上次就 hover 的)
+   * 7. 用当前集合替换 _hoveredRegions
+   */
+  private _handleMove(
+    raw: MouseEvent,
+    position: { x: number; y: number },
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: ha._handleMove (2026_tail_anonymous.js:158393-158435)
+
+    // Step 1: 构建当前帧命中的 region 集合
+    const currentRegions = this._scratchCurrentRegions;
+    const exitedRegions = this._scratchExitedRegions;
+    const enteredRegions = this._scratchEnteredRegions;
+
+    currentRegions.clear();
+    for (const { target } of targets) currentRegions.add(target);
+
+    // Step 2: 退出集合 = 上次 hover 中、当前未命中的区域
+    exitedRegions.clear();
+    for (const region of this._hoveredRegions) {
+      if (!currentRegions.has(region)) exitedRegions.add(region);
+    }
+
+    // Step 3: 进入集合 = 当前命中、但上次未 hover 的区域
+    enteredRegions.clear();
+    for (const region of currentRegions) {
+      if (!this._hoveredRegions.has(region)) enteredRegions.add(region);
+    }
+
+    // Step 4: 分发 exit 事件
+    // 逆向: amp 对 exit 事件使用 Ol(T, R, R) — localPosition 与 position 相同 (全局坐标)
+    for (const region of exitedRegions) {
+      if (region.onExit) {
+        const event = { type: "exit" as const, ...createBaseEvent(raw, position, position) };
+        region.handleMouseEvent(event);
+      }
+    }
+
+    // Step 5: 分发 enter 事件 (使用实际 localPosition)
+    for (const { target, localPosition } of targets) {
+      if (enteredRegions.has(target) && target.onEnter) {
+        const event = { type: "enter" as const, ...createBaseEvent(raw, position, localPosition) };
+        target.handleMouseEvent(event);
+      }
+    }
+
+    // Step 6: 分发 hover 事件 (仅对已经 hover 的区域)
+    // 逆向: amp 检查 this._hoveredRegions.has(i) — 即上次就在 hover 状态的区域
+    for (const { target, localPosition } of targets) {
+      if (target.onHover && this._hoveredRegions.has(target)) {
+        const event = { type: "hover" as const, ...createBaseEvent(raw, position, localPosition) };
+        target.handleMouseEvent(event);
+      }
+    }
+
+    // Step 7: 用当前集合替换 _hoveredRegions
+    this._hoveredRegions.clear();
+    for (const region of currentRegions) this._hoveredRegions.add(region);
   }
 
   /**

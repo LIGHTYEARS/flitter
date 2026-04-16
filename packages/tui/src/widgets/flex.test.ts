@@ -595,14 +595,11 @@ describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
     const child2 = new TestRenderBox(0, 10);
     const child3 = new TestRenderBox(0, 10);
 
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "max" },
-      [
-        { box: child1, flex: 1, fit: "tight" },
-        { box: child2, flex: 1, fit: "tight" },
-        { box: child3, flex: 1, fit: "tight" },
-      ],
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "max" }, [
+      { box: child1, flex: 1, fit: "tight" },
+      { box: child2, flex: 1, fit: "tight" },
+      { box: child3, flex: 1, fit: "tight" },
+    ]);
 
     // Layout with width=100 — 100/3 = 33.333... per child
     // Expected: 33, 33, 34 (last gets remainder)
@@ -627,13 +624,10 @@ describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
     const child1 = new TestRenderBox(0, 10);
     const child2 = new TestRenderBox(0, 10);
 
-    const flex = createFlex(
-      { direction: "horizontal", mainAxisSize: "max" },
-      [
-        { box: child1, flex: 1, fit: "tight" },
-        { box: child2, flex: 1, fit: "tight" },
-      ],
-    );
+    const flex = createFlex({ direction: "horizontal", mainAxisSize: "max" }, [
+      { box: child1, flex: 1, fit: "tight" },
+      { box: child2, flex: 1, fit: "tight" },
+    ]);
 
     // 80 / 2 = 40 — evenly divisible, no remainder issue
     const constraints = BoxConstraints.tight(80, 10);
@@ -648,14 +642,11 @@ describe("RenderFlex — integer space allocation (amp s1T alignment)", () => {
     const child2 = new TestRenderBox(10, 0);
     const child3 = new TestRenderBox(10, 0);
 
-    const flex = createFlex(
-      { direction: "vertical", mainAxisSize: "max" },
-      [
-        { box: child1, flex: 1, fit: "tight" },
-        { box: child2, flex: 1, fit: "tight" },
-        { box: child3, flex: 1, fit: "tight" },
-      ],
-    );
+    const flex = createFlex({ direction: "vertical", mainAxisSize: "max" }, [
+      { box: child1, flex: 1, fit: "tight" },
+      { box: child2, flex: 1, fit: "tight" },
+      { box: child3, flex: 1, fit: "tight" },
+    ]);
 
     const constraints = BoxConstraints.tight(10, 25);
     flex.layout(constraints);

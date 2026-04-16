@@ -21,7 +21,7 @@
  */
 
 import type { KeyEvent, PasteEvent } from "../vt/types.js";
-import { FocusNode, type KeyEventResult } from "./focus-node.js";
+import { FocusNode } from "./focus-node.js";
 
 /**
  * FocusManager -- 焦点树管理器单例。
@@ -67,8 +67,9 @@ export class FocusManager {
       debugLabel: "Root Focus Scope",
       canRequestFocus: false,
     });
-    const callback = ((node: FocusNode | null) =>
-      this.requestFocus(node)) as ((node: FocusNode | null) => boolean) & {
+    const callback = ((node: FocusNode | null) => this.requestFocus(node)) as ((
+      node: FocusNode | null,
+    ) => boolean) & {
       __focusManager?: FocusManager;
     };
     callback.__focusManager = this;
@@ -271,11 +272,9 @@ export class FocusManager {
   focusPrevious(): boolean {
     const nodes = this.findAllFocusableNodes();
     if (nodes.length === 0) return false;
-    if (!this._primaryFocus)
-      return this.requestFocus(nodes[nodes.length - 1] ?? null);
+    if (!this._primaryFocus) return this.requestFocus(nodes[nodes.length - 1] ?? null);
     const idx = nodes.indexOf(this._primaryFocus);
-    if (idx === -1)
-      return this.requestFocus(nodes[nodes.length - 1] ?? null);
+    if (idx === -1) return this.requestFocus(nodes[nodes.length - 1] ?? null);
     const prev = idx === 0 ? nodes.length - 1 : idx - 1;
     return this.requestFocus(nodes[prev] ?? null);
   }
@@ -366,8 +365,7 @@ export class FocusManager {
    */
   private _findPreviousFocusableNode(): FocusNode | null {
     while (this._primaryFocusStack.length > 0) {
-      const top =
-        this._primaryFocusStack[this._primaryFocusStack.length - 1]!;
+      const top = this._primaryFocusStack[this._primaryFocusStack.length - 1]!;
       if (top.parent && top.canRequestFocus && !top.skipTraversal) return top;
       this._primaryFocusStack.pop();
     }

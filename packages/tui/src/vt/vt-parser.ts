@@ -117,9 +117,6 @@ export class VtParser {
   /** 当前参数的子参数列表 */
   private currentSubparams: number[] = [];
 
-  /** 是否正在累积子参数 */
-  private inSubparam: boolean = false;
-
   /** 私有标记字符（?、<、=、>） */
   private privateMarker: string = "";
 
@@ -429,24 +426,6 @@ export class VtParser {
     this.utf8Remaining = 0;
     this.flushPrint();
     this.state = "apc_string";
-    this.stringData = "";
-    this.escInString = false;
-  }
-
-  /** 进入 SOS string 状态 */
-  private enterSosString(): void {
-    this.utf8Remaining = 0;
-    this.flushPrint();
-    this.state = "sos_string";
-    this.stringData = "";
-    this.escInString = false;
-  }
-
-  /** 进入 PM string 状态 */
-  private enterPmString(): void {
-    this.utf8Remaining = 0;
-    this.flushPrint();
-    this.state = "pm_string";
     this.stringData = "";
     this.escInString = false;
   }

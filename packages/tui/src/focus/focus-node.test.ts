@@ -4,9 +4,9 @@
  * 验证焦点树节点的完整行为: 构造参数、树结构管理、焦点状态、
  * 事件处理、listener 通知和 dispose 清理。
  */
-import { describe, test, expect, beforeEach, mock } from "bun:test";
-import { FocusNode } from "./focus-node.js";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { KeyEvent, PasteEvent } from "../vt/types.js";
+import { FocusNode } from "./focus-node.js";
 
 describe("FocusNode", () => {
   // 每个测试前重置静态回调

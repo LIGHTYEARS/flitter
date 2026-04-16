@@ -26,9 +26,8 @@
  * @module
  */
 
+import type { Element, Widget } from "../tree/element.js";
 import { InheritedWidget } from "../tree/inherited-widget.js";
-import type { Widget } from "../tree/element.js";
-import type { Element } from "../tree/element.js";
 import type { TerminalCapabilities } from "../tui/tui-controller.js";
 
 // ════════════════════════════════════════════════════
@@ -65,10 +64,7 @@ export class MediaQueryData {
    * @param size - 终端尺寸 { width, height }
    * @param capabilities - 终端能力信息
    */
-  constructor(
-    size: { width: number; height: number },
-    capabilities: TerminalCapabilities,
-  ) {
+  constructor(size: { width: number; height: number }, capabilities: TerminalCapabilities) {
     this.size = size;
     this.capabilities = capabilities;
   }

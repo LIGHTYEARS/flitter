@@ -5,9 +5,9 @@
  * 环境变量控制、默认 stderr 输出。
  */
 
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { Logger, type LogBackend, LOG_LEVELS } from "./logger.js";
+import { LOG_LEVELS, type LogBackend, Logger } from "./logger.js";
 
 describe("Logger", () => {
   let captured: Array<{ level: string; msg: string; args: unknown[] }>;

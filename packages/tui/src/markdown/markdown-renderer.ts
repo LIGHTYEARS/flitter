@@ -181,7 +181,7 @@ export class MarkdownRenderer {
   /**
    * 渲染标题节点。
    */
-  private _renderHeading(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
+  private _renderHeading(node: MarkdownNode, _parentStyle: TextStyle | undefined): TextSpan[] {
     const level = node.level ?? 1;
     const prefix = "#".repeat(level) + " ";
     const boldStyle = new TextStyle({ bold: true });

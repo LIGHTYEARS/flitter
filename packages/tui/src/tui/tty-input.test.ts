@@ -13,7 +13,7 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, mock, beforeEach, afterEach } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 
 // ════════════════════════════════════════════════════
 //  isBunWithTtyBug 测试
@@ -193,8 +193,10 @@ describe("createTtyOutput", () => {
     const output = createTtyOutput();
     assert.ok(output.stream, "应有 stream");
     assert.ok(typeof output.stream.write === "function", "stream 应有 write 方法");
-    assert.ok(["stdout", "stderr", "dev-tty"].includes(output.target),
-      `target 应为 stdout/stderr/dev-tty 之一，实际为 ${output.target}`);
+    assert.ok(
+      ["stdout", "stderr", "dev-tty"].includes(output.target),
+      `target 应为 stdout/stderr/dev-tty 之一，实际为 ${output.target}`,
+    );
     assert.equal(typeof output.dispose, "function", "应有 dispose 方法");
     // Clean up
     output.dispose();

@@ -212,7 +212,7 @@ export class ListView {
    * @param viewportHeight - 视口高度（行数）
    * @param viewportWidth - 视口宽度（列数）
    */
-  performLayout(viewportHeight: number, viewportWidth: number): void {
+  performLayout(viewportHeight: number, _viewportWidth: number): void {
     // 空列表快速路径
     if (this._itemCount === 0) {
       this._controller.updateMaxScrollExtent(0);

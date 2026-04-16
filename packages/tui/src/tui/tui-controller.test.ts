@@ -14,10 +14,10 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { TuiController } from "./tui-controller.js";
 import { Screen } from "../screen/screen.js";
-import type { KeyEvent, MouseEvent as TermMouseEvent, PasteEvent } from "../vt/types.js";
+import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TerminalSize } from "./tui-controller.js";
+import { TuiController } from "./tui-controller.js";
 
 /**
  * 辅助函数：创建 TuiController 并确保测试后清理。

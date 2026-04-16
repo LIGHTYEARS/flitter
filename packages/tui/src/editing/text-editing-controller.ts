@@ -24,7 +24,7 @@
  * ```
  */
 
-import { charWidth, graphemeSegments } from "../text/char-width.js";
+import { graphemeSegments } from "../text/char-width.js";
 import type { LayoutPosition } from "./text-layout-engine.js";
 import { TextLayoutEngine } from "./text-layout-engine.js";
 
@@ -124,14 +124,10 @@ export class TextEditingController {
   private _cursorPosition: number = 0;
   /** 垂直移动记忆列 (grapheme index in line) */
   private _preferredColumn: number = 0;
-  /** 垂直滚动偏移 */
-  private _vScrollOffset: number = 0;
   /** 文本布局引擎 */
   private _layoutEngine: TextLayoutEngine;
   /** 变更监听器 */
   private _listeners: Array<() => void> = [];
-  /** 是否已释放 */
-  private _disposed: boolean = false;
 
   // ── 选区字段 (还原自逆向代码 wc._selectionBase/Extent) ──
 

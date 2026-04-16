@@ -16,14 +16,13 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, beforeEach, afterEach } from "node:test";
-import { runApp } from "./run-app.js";
-import type { RunAppOptions } from "./run-app.js";
-import { WidgetsBinding } from "./widgets-binding.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { FocusManager } from "../focus/focus-manager.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
+import type { Element, Widget } from "../tree/element.js";
 import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
-import type { Widget, Element } from "../tree/element.js";
+import { runApp } from "./run-app.js";
+import { WidgetsBinding } from "./widgets-binding.js";
 
 // ════════════════════════════════════════════════════
 //  辅助: 重置所有单例 (每个测试前)
@@ -51,7 +50,7 @@ function resetAllSingletons(): void {
 function createMockWidget(): Widget {
   return {
     key: undefined,
-    canUpdate(other: Widget): boolean {
+    canUpdate(_other: Widget): boolean {
       return true;
     },
     createElement(): Element {
@@ -102,15 +101,11 @@ describe("runApp", () => {
       capturedCallback = fn;
     };
 
-    const onMounted = (element: Element) => {};
+    const onMounted = (_element: Element) => {};
     await runApp(createMockWidget(), { onRootElementMounted: onMounted });
 
     assert.ok(callbackSet, "应调用 setRootElementMountedCallback");
-    assert.strictEqual(
-      capturedCallback,
-      onMounted,
-      "应传递 onRootElementMounted 回调",
-    );
+    assert.strictEqual(capturedCallback, onMounted, "应传递 onRootElementMounted 回调");
   });
 
   it("无 options 时不调用 setRootElementMountedCallback", async () => {
@@ -127,11 +122,7 @@ describe("runApp", () => {
 
     await runApp(createMockWidget());
 
-    assert.strictEqual(
-      callbackSet,
-      false,
-      "无 options 时不应调用 setRootElementMountedCallback",
-    );
+    assert.strictEqual(callbackSet, false, "无 options 时不应调用 setRootElementMountedCallback");
   });
 
   it("runApp 返回 Promise<void> (异步函数签名)", async () => {

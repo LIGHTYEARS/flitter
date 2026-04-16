@@ -11,12 +11,12 @@
  * @module
  */
 
-import { describe, test, expect } from "bun:test";
-import { MediaQueryData, MediaQuery } from "./media-query.js";
-import { InheritedElement } from "../tree/inherited-element.js";
+import { describe, expect, test } from "bun:test";
+import type { Key, Widget } from "../tree/element.js";
 import { Element } from "../tree/element.js";
-import type { Widget, Key } from "../tree/element.js";
+import { InheritedElement } from "../tree/inherited-element.js";
 import type { TerminalCapabilities } from "../tui/tui-controller.js";
+import { MediaQuery, MediaQueryData } from "./media-query.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助
@@ -58,11 +58,7 @@ class DummyWidget implements Widget {
   }
 }
 
-class DummyElement extends Element {
-  constructor(widget: Widget) {
-    super(widget);
-  }
-}
+class DummyElement extends Element {}
 
 // ════════════════════════════════════════════════════
 //  MediaQueryData 测试
@@ -165,10 +161,7 @@ describe("MediaQuery", () => {
     });
     // 使用相同值的新对象
     const newMq = new MediaQuery({
-      data: new MediaQueryData(
-        { width: 100, height: 30 },
-        { ...caps },
-      ),
+      data: new MediaQueryData({ width: 100, height: 30 }, { ...caps }),
       child,
     });
     expect(newMq.updateShouldNotify(oldMq)).toBe(false);
@@ -199,9 +192,7 @@ describe("MediaQuery", () => {
     const childElement = child.createElement();
     childElement.mount(undefined);
 
-    expect(() => MediaQuery.of(childElement)).toThrow(
-      "MediaQuery not found in ancestor tree",
-    );
+    expect(() => MediaQuery.of(childElement)).toThrow("MediaQuery not found in ancestor tree");
   });
 
   test("sizeOf: 便捷方法正确返回 size", () => {

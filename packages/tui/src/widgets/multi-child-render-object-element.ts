@@ -5,6 +5,8 @@
  * 管理一组子元素，并将对应的渲染对象同步到父渲染对象的子节点列表中。
  * Row / Column / Stack 等多子节点 Widget 共用此元素类型。
  *
+ * 逆向: chunk-005.js:164140-164086 (QO class)
+ *
  * @module
  */
 
@@ -65,9 +67,11 @@ function isParentDataWidget(widget: unknown): widget is ParentDataWidgetLike {
 /**
  * 多子节点渲染对象元素。
  *
+ * 逆向: QO class in chunk-005.js:164140-164086
+ *
  * 管理一组子元素，并将对应的渲染对象同步到父渲染对象的子节点列表中。
  * 在挂载时为每个子 Widget 创建元素并收养其渲染对象；
- * 如果子 Widget 是 ParentDataWidget（如 Flexible），还会将父数据写入渲染对象。
+ * 在更新时使用 {@link updateChildren} 协调算法复用现有元素。
  */
 export class MultiChildRenderObjectElement extends RenderObjectElement {
   /** 子元素列表。 */
@@ -79,6 +83,8 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
 
   /**
    * 挂载到元素树。
+   *
+   * 逆向: QO.mount
    *
    * 1. 调用父类 mount 创建渲染对象
    * 2. 为每个子 Widget 创建元素、挂载并收养其渲染对象
@@ -95,17 +101,17 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
   /**
    * 用新 Widget 更新当前元素。
    *
-   * 简化的协调策略：移除所有旧子节点，重新挂载新子节点。
+   * 逆向: QO.update in chunk-005.js:164157-164161
+   *
+   * 使用 {@link updateChildren} 协调算法进行差分更新，
+   * 复用 canUpdate 匹配的现有元素及其渲染对象。
    *
    * @param newWidget - 新的 Widget 实例
    */
   override update(newWidget: Widget): void {
     super.update(newWidget);
-    // 移除所有旧子节点
-    this._unmountChildren();
-    // 挂载新子节点
     const widget = this.widget as unknown as MultiChildRenderObjectWidget;
-    this._mountChildren(widget.children);
+    this.updateChildren(this._childElements, [...widget.children]);
   }
 
   /**
@@ -119,20 +125,203 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
   }
 
   // ════════════════════════════════════════════════════
+  //  updateChildren — 核心协调算法
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 协调子元素列表。
+   *
+   * 逆向: QO.updateChildren in chunk-005.js:164162-164077
+   *
+   * 使用 Flutter 风格的两端扫描 + 中间 key-matching 算法：
+   * 1. 从头部扫描，匹配 canUpdate → 复用 Element（及其 RenderObject）
+   * 2. 从尾部扫描，同理
+   * 3. 中间部分：
+   *    a. 旧列表已耗尽 → 插入新元素
+   *    b. 新列表已耗尽 → 移除旧元素
+   *    c. 否则 → key-matching 或 keyless 线性扫描
+   * 4. 同步渲染对象子节点顺序
+   *
+   * @param oldElements - 当前子元素列表（会被修改）
+   * @param newWidgets - 新的子 Widget 列表
+   */
+  private updateChildren(oldElements: Element[], newWidgets: Widget[]): void {
+    // 展开 ParentDataWidget，得到实际 Widget
+    const resolvedNewWidgets: Widget[] = [];
+    const parentDataWidgets: (ParentDataWidgetLike | undefined)[] = [];
+    for (const w of newWidgets) {
+      if (isParentDataWidget(w)) {
+        parentDataWidgets.push(w);
+        resolvedNewWidgets.push(w.child);
+      } else {
+        parentDataWidgets.push(undefined);
+        resolvedNewWidgets.push(w);
+      }
+    }
+
+    const result: Element[] = [];
+    let oldStart = 0;
+    let newStart = 0;
+    let oldEnd = oldElements.length - 1;
+    let newEnd = resolvedNewWidgets.length - 1;
+
+    // ── 阶段 1: 从头部扫描，canUpdate 匹配则复用 ──
+    while (oldStart <= oldEnd && newStart <= newEnd) {
+      const oldElem = oldElements[oldStart];
+      const newWidget = resolvedNewWidgets[newStart];
+      if (!oldElem || !newWidget || !oldElem.widget.canUpdate(newWidget)) break;
+      if (oldElem.widget !== newWidget) oldElem.update(newWidget);
+      result.push(oldElem);
+      oldStart++;
+      newStart++;
+    }
+
+    // ── 阶段 2: 从尾部扫描，canUpdate 匹配则复用 ──
+    const tail: Element[] = [];
+    while (oldStart <= oldEnd && newStart <= newEnd) {
+      const oldElem = oldElements[oldEnd];
+      const newWidget = resolvedNewWidgets[newEnd];
+      if (!oldElem || !newWidget || !oldElem.widget.canUpdate(newWidget)) break;
+      if (oldElem.widget !== newWidget) oldElem.update(newWidget);
+      tail.unshift(oldElem);
+      oldEnd--;
+      newEnd--;
+    }
+
+    // ── 阶段 3: 处理中间部分 ──
+    if (oldStart > oldEnd) {
+      // 3a: 旧列表已耗尽 → 插入新元素
+      for (let i = newStart; i <= newEnd; i++) {
+        const w = resolvedNewWidgets[i];
+        if (w) {
+          const elem = this._createChildElement(w);
+          result.push(elem);
+        }
+      }
+    } else if (newStart > newEnd) {
+      // 3b: 新列表已耗尽 → 移除旧元素
+      for (let i = oldStart; i <= oldEnd; i++) {
+        const elem = oldElements[i];
+        if (elem) this._deactivateChild(elem);
+      }
+    } else {
+      // 3c: 中间段 — key-matching + keyless 线性扫描
+      // 逆向: chunk-005.js:158026-158069
+
+      // 建立 key → element 索引
+      const keyedOldElements = new Map<string, Element>();
+      const keyedOldIndices = new Map<string, number>();
+      for (let i = oldStart; i <= oldEnd; i++) {
+        const elem = oldElements[i];
+        if (elem?.widget.key) {
+          const keyStr = elem.widget.key.toString();
+          keyedOldElements.set(keyStr, elem);
+          keyedOldIndices.set(keyStr, i);
+        }
+      }
+
+      for (let i = newStart; i <= newEnd; i++) {
+        const newWidget = resolvedNewWidgets[i];
+        if (!newWidget) continue;
+
+        let matched: Element | undefined;
+
+        if (newWidget.key) {
+          // key-based matching
+          const keyStr = newWidget.key.toString();
+          matched = keyedOldElements.get(keyStr);
+          if (matched) {
+            keyedOldElements.delete(keyStr);
+            const idx = keyedOldIndices.get(keyStr);
+            if (idx !== undefined) (oldElements as any)[idx] = null;
+
+            if (matched.widget === newWidget) {
+              // same widget instance, no update needed
+            } else if (matched.widget.canUpdate(newWidget)) {
+              matched.update(newWidget);
+            } else {
+              this._deactivateChild(matched);
+              matched = this._createChildElement(newWidget);
+            }
+          } else {
+            matched = this._createChildElement(newWidget);
+          }
+        } else {
+          // keyless — linear scan for canUpdate match
+          let found = false;
+          for (let j = oldStart; j <= oldEnd; j++) {
+            const candidate = oldElements[j];
+            if (candidate && !candidate.widget.key) {
+              if (candidate.widget === newWidget) {
+                matched = candidate;
+                (oldElements as any)[j] = null;
+                found = true;
+                break;
+              } else if (candidate.widget.canUpdate(newWidget)) {
+                matched = candidate;
+                (oldElements as any)[j] = null;
+                matched.update(newWidget);
+                found = true;
+                break;
+              }
+            }
+          }
+          if (!found) {
+            matched = this._createChildElement(newWidget);
+          }
+        }
+
+        if (matched) result.push(matched);
+      }
+
+      // Deactivate remaining unmatched old elements
+      for (let i = oldStart; i <= oldEnd; i++) {
+        const elem = oldElements[i];
+        if (elem) this._deactivateChild(elem);
+      }
+      for (const elem of keyedOldElements.values()) {
+        this._deactivateChild(elem);
+      }
+    }
+
+    // 合并尾部
+    result.push(...tail);
+
+    // ── 阶段 4: 同步渲染对象子节点顺序 ──
+    // 逆向: chunk-005.js:158071-158076
+    this._childElements = result;
+    if (this._renderObject) {
+      const newRenderChildren: import("../tree/render-object.js").RenderObject[] = [];
+      for (const elem of result) {
+        const ro = elem.findRenderObject();
+        if (ro) newRenderChildren.push(ro);
+      }
+
+      const oldRenderChildren = this._renderObject.children;
+      if (
+        oldRenderChildren.length !== newRenderChildren.length ||
+        oldRenderChildren.some((ro, idx) => ro !== newRenderChildren[idx])
+      ) {
+        this._renderObject.replaceChildren(newRenderChildren);
+      }
+    }
+
+    // ── 阶段 5: 应用 ParentData ──
+    for (let i = 0; i < result.length; i++) {
+      const pdw = parentDataWidgets[i];
+      if (pdw) {
+        const childRO = result[i]?.findRenderObject();
+        if (childRO) pdw.applyParentData(childRO);
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════
   //  内部方法
   // ════════════════════════════════════════════════════
 
   /**
-   * 挂载子 Widget 列表。
-   *
-   * 对于每个子 Widget：
-   * - 如果是 ParentDataWidget，则使用其内部 child 创建元素，
-   *   挂载后再应用父数据到子渲染对象
-   * - 否则直接创建元素并挂载
-   *
-   * 子元素的 mount() 会自动通过 insertRenderObjectChild() 将子渲染对象
-   * 收养到最近的 RenderObjectElement 祖先（即本元素）的渲染对象中，
-   * 因此无需手动调用 adoptChild。
+   * 挂载子 Widget 列表（首次 mount 使用）。
    *
    * @param childWidgets - 子 Widget 列表
    */
@@ -152,8 +341,6 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
       childElement.mount(this);
       this.addChild(childElement);
 
-      // 子元素的 mount() 已通过 insertRenderObjectChild() 完成 adoptChild，
-      // 此处仅需在 ParentDataWidget 场景下设置弹性属性
       if (parentDataWidget) {
         const childRO = childElement.findRenderObject();
         if (childRO) {
@@ -166,9 +353,6 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
 
   /**
    * 卸载所有子元素。
-   *
-   * 子元素的 unmount() 会自动通过 removeRenderObjectChild() 将子渲染对象
-   * 从父渲染对象中移除，因此无需手动调用 dropChild。
    */
   private _unmountChildren(): void {
     for (const childElem of this._childElements) {
@@ -179,12 +363,32 @@ export class MultiChildRenderObjectElement extends RenderObjectElement {
   }
 
   /**
+   * 创建子元素并挂载。
+   *
+   * 逆向: QO.createChildElement in chunk-005.js:158078-158081
+   */
+  private _createChildElement(widget: Widget): Element {
+    const elem = widget.createElement();
+    this.addChild(elem);
+    elem.mount(this);
+    return elem;
+  }
+
+  /**
+   * 停用并卸载子元素。
+   *
+   * 逆向: QO.deactivateChild in chunk-005.js:158082-158084
+   */
+  private _deactivateChild(elem: Element): void {
+    elem.unmount();
+    this.removeChild(elem);
+  }
+
+  /**
    * 覆盖基类的 insertRenderObjectChild，
    * 多子节点元素自行管理子渲染对象的收养，不需要基类的自动收养逻辑。
    */
   override insertRenderObjectChild(): void {
-    // 多子节点元素在 mount 中由 findAncestorRenderObjectElement 完成
-    // 自身渲染对象插入到祖先的逻辑
     const ancestor = this.findAncestorRenderObjectElement();
     if (
       ancestor !== null &&

@@ -47,7 +47,10 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
    *
    * 1. 调用父类 mount（创建自身渲染对象并插入渲染树）
    * 2. 如果 Widget 有子 Widget，创建子元素并挂载
-   * 3. 将子元素的渲染对象收养到自身渲染对象下
+   *
+   * 子元素的渲染对象在 childElement.mount(this) 过程中通过
+   * RenderObjectElement.insertRenderObjectChild() 自动收养到本元素
+   * 的渲染对象下，无需再次显式调用 adoptChild。
    *
    * @param parent - 父元素
    */
@@ -59,12 +62,6 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
       childElement.mount(this);
       this.addChild(childElement);
       this._child = childElement;
-
-      // 收养子元素的渲染对象
-      const childRO = childElement.findRenderObject();
-      if (childRO !== undefined && this._renderObject !== undefined) {
-        this._renderObject.adoptChild(childRO);
-      }
     }
     this._dirty = false;
   }
@@ -86,17 +83,12 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
   /**
    * 从元素树卸载。
    *
-   * 1. 从渲染对象中移除子渲染对象
-   * 2. 卸载并移除子元素
-   * 3. 调用父类 unmount
+   * 卸载并移除子元素，然后调用父类 unmount。
+   * 子元素的渲染对象在 child.unmount() 过程中通过
+   * removeRenderObjectChild() 自动从父渲染对象中移除。
    */
   override unmount(): void {
     if (this._child !== undefined) {
-      // 先移除子渲染对象
-      const childRO = this._child.findRenderObject();
-      if (childRO !== undefined && this._renderObject !== undefined) {
-        this._renderObject.dropChild(childRO);
-      }
       this._child.unmount();
       this.removeChild(this._child);
       this._child = undefined;
@@ -115,13 +107,9 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
     child: Element | undefined,
     newWidget: WidgetInterface | undefined,
   ): Element | undefined {
-    // 移除旧子
+    // 移除旧子 — child.unmount() 中 removeRenderObjectChild 自动处理 RO 移除
     if (newWidget === undefined) {
       if (child !== undefined) {
-        const childRO = child.findRenderObject();
-        if (childRO !== undefined && this._renderObject !== undefined) {
-          this._renderObject.dropChild(childRO);
-        }
         child.unmount();
         this.removeChild(child);
       }
@@ -134,12 +122,10 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
       return child;
     }
 
-    // 替换
+    // 替换 — 卸载旧子，创建新子
+    // child.unmount() 中 removeRenderObjectChild 自动从 this._renderObject 中移除旧 RO
+    // newElement.mount(this) 中 insertRenderObjectChild 自动将新 RO 收养到 this._renderObject
     if (child !== undefined) {
-      const oldRO = child.findRenderObject();
-      if (oldRO !== undefined && this._renderObject !== undefined) {
-        this._renderObject.dropChild(oldRO);
-      }
       child.unmount();
       this.removeChild(child);
     }
@@ -147,11 +133,6 @@ export class SingleChildRenderObjectElement extends RenderObjectElement {
     const newElement = newWidget.createElement();
     newElement.mount(this);
     this.addChild(newElement);
-
-    const newRO = newElement.findRenderObject();
-    if (newRO !== undefined && this._renderObject !== undefined) {
-      this._renderObject.adoptChild(newRO);
-    }
 
     return newElement;
   }

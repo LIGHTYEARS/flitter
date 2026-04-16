@@ -18,9 +18,9 @@
  */
 
 import * as assert from "node:assert/strict";
-import { describe, it } from "node:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { describe, it } from "node:test";
 import { defaultTheme, getTheme, type ThemeData } from "./theme.js";
 
 // ════════════════════════════════════════════════════
@@ -51,15 +51,8 @@ describe("defaultTheme", () => {
   // 1. defaultTheme 包含所有 12 个必需字段
   it("包含所有 12 个必需字段", () => {
     for (const field of REQUIRED_FIELDS) {
-      assert.ok(
-        field in defaultTheme,
-        `defaultTheme 缺少字段: ${field}`,
-      );
-      assert.notEqual(
-        defaultTheme[field],
-        undefined,
-        `defaultTheme.${field} 不应为 undefined`,
-      );
+      assert.ok(field in defaultTheme, `defaultTheme 缺少字段: ${field}`);
+      assert.notEqual(defaultTheme[field], undefined, `defaultTheme.${field} 不应为 undefined`);
     }
     assert.equal(REQUIRED_FIELDS.length, 12);
   });
@@ -116,25 +109,13 @@ describe("theme.ts 源码分析", () => {
 
   // 6. theme.ts 不再有全局可变 theme 变量 (let _globalTheme / setGlobalTheme)
   it("不再有全局可变 theme 变量", () => {
-    assert.ok(
-      !source.includes("let _globalTheme"),
-      "不应包含 'let _globalTheme' 全局可变变量",
-    );
-    assert.ok(
-      !source.includes("setGlobalTheme"),
-      "不应导出 setGlobalTheme 函数",
-    );
-    assert.ok(
-      !source.includes("getGlobalTheme"),
-      "不应导出 getGlobalTheme 函数",
-    );
+    assert.ok(!source.includes("let _globalTheme"), "不应包含 'let _globalTheme' 全局可变变量");
+    assert.ok(!source.includes("setGlobalTheme"), "不应导出 setGlobalTheme 函数");
+    assert.ok(!source.includes("getGlobalTheme"), "不应导出 getGlobalTheme 函数");
   });
 
   // 7. getTheme 标记为 @deprecated (JSDoc)
   it("getTheme 标记为 @deprecated", () => {
-    assert.ok(
-      source.includes("@deprecated"),
-      "getTheme 的 JSDoc 应包含 @deprecated 标记",
-    );
+    assert.ok(source.includes("@deprecated"), "getTheme 的 JSDoc 应包含 @deprecated 标记");
   });
 });

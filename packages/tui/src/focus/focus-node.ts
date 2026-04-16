@@ -87,9 +87,7 @@ export class FocusNode {
    * 静态回调，由 FocusManager 初始化时设置。
    * requestFocus/unfocus 通过此回调委托给 FocusManager。
    */
-  private static _requestFocusCallback:
-    | ((node: FocusNode | null) => boolean)
-    | null = null;
+  private static _requestFocusCallback: ((node: FocusNode | null) => boolean) | null = null;
 
   private _debugId: string;
   private _parent: FocusNode | null = null;

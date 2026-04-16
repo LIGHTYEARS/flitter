@@ -9,6 +9,7 @@
     "apps/*"
   ],
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "build": "bun build packages/*/src/index.ts --outdir=dist",
     "test": "bun test",
     "check": "biome check .",

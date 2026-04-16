@@ -13,22 +13,17 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, beforeEach, afterEach } from "node:test";
-import { WidgetsBinding } from "./widgets-binding.js";
-import { FrameScheduler } from "../tree/frame-scheduler.js";
-import { BuildOwner } from "../tree/build-owner.js";
-import { PipelineOwner } from "../tree/pipeline-owner.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { FocusManager } from "../focus/focus-manager.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
+import { BuildOwner } from "../tree/build-owner.js";
+import type { Element, Widget } from "../tree/element.js";
+import { FrameScheduler } from "../tree/frame-scheduler.js";
+import { PipelineOwner } from "../tree/pipeline-owner.js";
+import { getBuildOwner, getPipelineOwner, setBuildOwner, setPipelineOwner } from "../tree/types.js";
 import { TuiController } from "../tui/tui-controller.js";
-import {
-  getBuildOwner,
-  getPipelineOwner,
-  setBuildOwner,
-  setPipelineOwner,
-} from "../tree/types.js";
-import type { Widget, Element } from "../tree/element.js";
 import type { KeyEvent } from "../vt/types.js";
+import { WidgetsBinding } from "./widgets-binding.js";
 
 // ════════════════════════════════════════════════════
 //  辅助: 重置所有单例 (每个测试前)
@@ -252,10 +247,7 @@ describe("WidgetsBinding", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     // 第二次调用应该抛异常
-    await assert.rejects(
-      () => binding.runApp(mockWidget),
-      { message: /already running/i },
-    );
+    await assert.rejects(() => binding.runApp(mockWidget), { message: /already running/i });
 
     binding.stop();
     await runPromise;
@@ -456,10 +448,7 @@ describe("WidgetsBinding", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     assert.ok(mountedElement !== null, "rootElement should be mounted");
-    assert.ok(
-      (mountedElement as any).mounted === true,
-      "rootElement should have mounted=true",
-    );
+    assert.ok((mountedElement as any).mounted === true, "rootElement should have mounted=true");
 
     binding.stop();
     await runPromise;

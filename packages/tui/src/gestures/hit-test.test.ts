@@ -14,11 +14,10 @@
  * - 空渲染树: hitTest 返回空 hits
  */
 import { describe, expect, it } from "bun:test";
-import { HitTestResult, type HitTestEntry } from "./hit-test.js";
+import type { Screen } from "../screen/screen.js";
 import { RenderBox } from "../tree/render-box.js";
 import { RenderObject } from "../tree/render-object.js";
-import type { BoxConstraints } from "../tree/constraints.js";
-import type { Screen } from "../screen/screen.js";
+import { HitTestResult } from "./hit-test.js";
 
 // ════════════════════════════════════════════════════
 //  测试用辅助类
@@ -26,12 +25,7 @@ import type { Screen } from "../screen/screen.js";
 
 /** 具体的 RenderBox 子类，用于测试 */
 class TestRenderBox extends RenderBox {
-  constructor(
-    width: number,
-    height: number,
-    offsetX = 0,
-    offsetY = 0,
-  ) {
+  constructor(width: number, height: number, offsetX = 0, offsetY = 0) {
     super();
     this._size = { width, height };
     this._offset = { x: offsetX, y: offsetY };
@@ -82,8 +76,8 @@ describe("HitTestResult", () => {
 
       result.addWithPaintOffset(
         target,
-        { x: 5, y: 3 },   // offset
-        { x: 8, y: 7 },   // position
+        { x: 5, y: 3 }, // offset
+        { x: 8, y: 7 }, // position
       );
 
       expect(result.hits).toHaveLength(1);

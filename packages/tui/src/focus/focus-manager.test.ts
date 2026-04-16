@@ -4,10 +4,10 @@
  * 验证焦点管理器单例的完整行为: 单例模式、rootScope 构造、
  * 焦点切换、事件冒泡路由、Tab 导航、焦点历史栈回退和 dispose。
  */
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import type { KeyEvent, PasteEvent } from "../vt/types.js";
 import { FocusManager } from "./focus-manager.js";
 import { FocusNode } from "./focus-node.js";
-import type { KeyEvent, PasteEvent } from "../vt/types.js";
 
 describe("FocusManager", () => {
   let fm: FocusManager;

@@ -126,7 +126,7 @@ export abstract class RenderObject {
    *
    * @param child - 待设置的子节点
    */
-  setupParentData(_child: RenderObject): void { }
+  setupParentData(_child: RenderObject): void {}
 
   /**
    * 收养子节点。

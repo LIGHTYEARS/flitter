@@ -122,9 +122,6 @@ export class AutocompleteController {
   /** @internal debounce 间隔 */
   private _debounceMs: number = 100;
 
-  /** @internal 异步请求 generation 计数器 */
-  private _generationId: number = 0;
-
   /** @internal 是否已释放 */
   private _disposed: boolean = false;
 

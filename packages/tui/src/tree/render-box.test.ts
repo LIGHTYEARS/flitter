@@ -525,6 +525,45 @@ describe("RenderBox -- 综合行为", () => {
     assert.equal(grandchildCall.offsetY, 8);
   });
 
+  // ── Task 8: amp O9 paint offset convention 等价验证 ──
+  it("paint 偏移约定与 amp O9 等价: performPaint 收到节点绝对位置", () => {
+    // Amp 约定: paint(T, R, a) 中 R = 父绝对位置, 节点自行计算 R + this.offset
+    // Flitter 约定: paint(screen, offsetX, offsetY) 中 offsetX = 节点自身绝对位置
+    // 验证: 三层嵌套中 performPaint 收到的坐标 = 节点绝对位置 = 所有祖先 offset 之和
+    const root = new PaintTrackingRenderBox();
+    const a = new PaintTrackingRenderBox();
+    const b = new PaintTrackingRenderBox();
+
+    root.adoptChild(a);
+    a.adoptChild(b);
+
+    root.layout(BoxConstraints.tight(100, 100));
+    a.layout(BoxConstraints.tight(80, 80));
+    b.layout(BoxConstraints.tight(60, 60));
+
+    root.offset = { x: 0, y: 0 };
+    a.offset = { x: 5, y: 3 };
+    b.offset = { x: 2, y: 1 };
+
+    root.paint(mockScreen, 0, 0);
+
+    // root.performPaint 收到 (0, 0) — root 绝对位置
+    const rootCall = root.paintCalls[root.paintCalls.length - 1];
+    assert.equal(rootCall.offsetX, 0);
+    assert.equal(rootCall.offsetY, 0);
+
+    // a.performPaint 收到 (5, 3) — a 的绝对位置 = 0 + 5, 0 + 3
+    const aCall = a.paintCalls[a.paintCalls.length - 1];
+    assert.equal(aCall.offsetX, 5);
+    assert.equal(aCall.offsetY, 3);
+
+    // b.performPaint 收到 (7, 4) — b 的绝对位置 = 5 + 2, 3 + 1
+    // Amp 中同样: grandparent_abs(0) + parent.offset(5) + child.offset(2) = 7
+    const bCall = b.paintCalls[b.paintCalls.length - 1];
+    assert.equal(bCall.offsetX, 7);
+    assert.equal(bCall.offsetY, 4);
+  });
+
   it("hitTest 在 offset 为 (0, 0) 时仍然正确", () => {
     const box = new TestRenderBox();
     box.layout(BoxConstraints.tight(10, 10));

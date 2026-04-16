@@ -11,14 +11,12 @@
  * - 多层 RenderObject 命中测试
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
-import { MouseManager } from "./mouse-manager.js";
-import { HitTestResult } from "./hit-test.js";
-import { RenderObject } from "../tree/render-object.js";
-import { RenderBox } from "../tree/render-box.js";
-import type { MouseEvent as TermMouseEvent } from "../vt/types.js";
-import type { TuiController } from "../tui/tui-controller.js";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { Screen } from "../screen/screen.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { TuiController } from "../tui/tui-controller.js";
+import type { MouseEvent as TermMouseEvent } from "../vt/types.js";
+import { MouseManager } from "./mouse-manager.js";
 
 // ════════════════════════════════════════════════════
 //  测试用 RenderBox 子类
@@ -30,10 +28,7 @@ class TestRenderBox extends RenderBox {
   }
 
   /** 设置测试用尺寸和偏移 */
-  setTestBounds(
-    size: { width: number; height: number },
-    offset: { x: number; y: number },
-  ): void {
+  setTestBounds(size: { width: number; height: number }, offset: { x: number; y: number }): void {
     this._size = size;
     this._offset = offset;
   }

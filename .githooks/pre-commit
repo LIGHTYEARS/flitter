@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Pre-commit hook: run Biome check on staged files for all packages
+# Biome's --staged flag checks only git-staged files, keeping commits fast.
+
+set -euo pipefail
+
+# Use bunx to run the project-local Biome
+exec bunx biome check --staged --no-errors-on-unmatched --colors=force

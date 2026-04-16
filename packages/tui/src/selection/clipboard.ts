@@ -22,7 +22,7 @@
  * @module
  */
 
-import { type ChildProcess, spawn } from "child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 
 /** 剪贴板策略类型 */
 export type ClipboardStrategy = "pbcopy" | "wl-copy" | "xclip" | "osc52";

@@ -15,7 +15,7 @@
  * @module
  */
 
-import type { Widget, Element } from "../tree/element.js";
+import type { Element, Widget } from "../tree/element.js";
 import { WidgetsBinding } from "./widgets-binding.js";
 
 /**
@@ -61,10 +61,7 @@ export interface RunAppOptions {
  * });
  * ```
  */
-export async function runApp(
-  widget: Widget,
-  options?: RunAppOptions,
-): Promise<void> {
+export async function runApp(widget: Widget, options?: RunAppOptions): Promise<void> {
   const binding = WidgetsBinding.instance;
   if (options?.onRootElementMounted) {
     binding.setRootElementMountedCallback(options.onRootElementMounted);

@@ -175,11 +175,24 @@ export class BoxConstraints {
   /**
    * 将给定的宽高限定在当前约束范围 [min, max] 内。
    *
+   * 逆向: o0.constrain (0534_unknown_o0.js:31-34) — 含 isFinite 断言
+   *
    * @param width - 期望宽度
    * @param height - 期望高度
    * @returns 限定后的尺寸
+   * @throws 当 width 或 height 为非有限值时抛出错误
    */
   constrain(width: number, height: number): Size {
+    if (!Number.isFinite(width)) {
+      throw new Error(
+        `BoxConstraints.constrain received infinite width: ${width}. This indicates a layout bug where a widget is not properly calculating its desired size.`,
+      );
+    }
+    if (!Number.isFinite(height)) {
+      throw new Error(
+        `BoxConstraints.constrain received infinite height: ${height}. This indicates a layout bug where a widget is not properly calculating its desired size.`,
+      );
+    }
     return {
       width: clamp(width, this.minWidth, this.maxWidth),
       height: clamp(height, this.minHeight, this.maxHeight),

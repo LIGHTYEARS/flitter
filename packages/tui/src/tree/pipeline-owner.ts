@@ -51,7 +51,7 @@ export class PipelineOwner implements PipelineOwnerLike {
    * @returns 根渲染对象存在且 needsLayout 为 true 时返回 true
    */
   get hasNodesNeedingLayout(): boolean {
-    return Boolean(this._rootRenderObject && this._rootRenderObject.needsLayout);
+    return Boolean(this._rootRenderObject?.needsLayout);
   }
 
   /**

@@ -25,8 +25,9 @@
  */
 
 import { ScreenBuffer } from "./buffer.js";
-import type { Cell } from "./cell.js";
-import type { TextStyle } from "./text-style.js";
+import { Cell } from "./cell.js";
+import type { Color } from "./color.js";
+import { TextStyle } from "./text-style.js";
 
 /**
  * 脏区域描述：一行中发生变化的单元格集合。
@@ -134,6 +135,71 @@ export class Screen {
     if (width === 2) {
       this.markDirty(x + 1, y);
     }
+  }
+
+  /**
+   * 用指定字符+样式填充矩形区域。
+   *
+   * 逆向: amp 中 T.fill(x, y, w, h, char, style) 调用
+   *
+   * @param x - 矩形左上角 X
+   * @param y - 矩形左上角 Y
+   * @param w - 宽度
+   * @param h - 高度
+   * @param char - 填充字符
+   * @param style - 文本样式 `{ fg?, bg?, dim? }` 转换为 TextStyle
+   */
+  fill(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    char: string,
+    style: { fg?: Color; bg?: Color; dim?: boolean },
+  ): void {
+    const ts = new TextStyle({
+      foreground: style.fg,
+      background: style.bg,
+      dim: style.dim,
+    });
+    const cell = new Cell(char, ts);
+    const x0 = Math.max(0, Math.floor(x));
+    const y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.width, Math.floor(x + w));
+    const y1 = Math.min(this.height, Math.floor(y + h));
+
+    for (let row = y0; row < y1; row++) {
+      for (let col = x0; col < x1; col++) {
+        this.setCell(col, row, cell);
+      }
+    }
+  }
+
+  /**
+   * 在指定位置写入边框字符。
+   *
+   * 逆向: amp 中 T.mergeBorderChar(x, y, char, style) 调用
+   * 用于 _paintBorder 中绘制 Unicode box-drawing 字符。
+   *
+   * @param x - 列索引
+   * @param y - 行索引
+   * @param char - 边框字符
+   * @param style - 样式 `{ fg?, bg?, dim? }`
+   */
+  mergeBorderChar(
+    x: number,
+    y: number,
+    char: string,
+    style: { fg?: Color; bg?: Color; dim?: boolean },
+  ): void {
+    if (x < 0 || x >= this.width || y < 0 || y >= this.height) return;
+    const ts = new TextStyle({
+      foreground: style.fg,
+      background: style.bg,
+      dim: style.dim,
+    });
+    const cell = new Cell(char, ts);
+    this.setCell(x, y, cell);
   }
 
   /**

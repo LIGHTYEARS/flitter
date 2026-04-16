@@ -24,8 +24,7 @@
  * @module
  */
 
-import type { Widget, Key } from "./element.js";
-import type { Element } from "./element.js";
+import type { Element, Key, Widget } from "./element.js";
 import { InheritedElement } from "./inherited-element.js";
 
 /**

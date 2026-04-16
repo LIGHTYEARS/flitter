@@ -6,6 +6,7 @@
  * @module
  */
 
+export { FocusManager } from "./focus-manager.js";
 export {
   FocusNode,
   type FocusNodeOptions,
@@ -13,5 +14,3 @@ export {
   type KeyHandler,
   type PasteHandler,
 } from "./focus-node.js";
-
-export { FocusManager } from "./focus-manager.js";

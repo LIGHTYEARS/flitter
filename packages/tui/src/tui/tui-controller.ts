@@ -30,22 +30,21 @@
  * @module
  */
 
-import { InputParser } from "../vt/input-parser.js";
-import type { KeyEvent, MouseEvent as TermMouseEvent, PasteEvent } from "../vt/types.js";
-import { Screen } from "../screen/screen.js";
 import {
-  AnsiRenderer,
-  ALT_SCREEN_ON,
   ALT_SCREEN_OFF,
-  MOUSE_ON,
+  ALT_SCREEN_ON,
+  AnsiRenderer,
   MOUSE_OFF,
-  PASTE_ON,
+  MOUSE_ON,
   PASTE_OFF,
+  PASTE_ON,
   SHOW_CURSOR,
-  HIDE_CURSOR,
 } from "../screen/ansi-renderer.js";
-import { createTtyInput, createTtyOutput } from "./tty-input.js";
+import { Screen } from "../screen/screen.js";
+import { InputParser } from "../vt/input-parser.js";
+import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
+import { createTtyInput, createTtyOutput } from "./tty-input.js";
 
 // ════════════════════════════════════════════════════
 //  类型定义
@@ -132,8 +131,6 @@ export class TuiController {
   private renderer: AnsiRenderer;
   /** 终端能力信息 */
   private capabilities: TerminalCapabilities | null = null;
-  /** 能力检测 Promise resolve 函数 */
-  private capabilityResolve: (() => void) | null = null;
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -633,9 +630,13 @@ export class TuiController {
     try {
       this.restoreTerminalSync();
       // Release tty input synchronously
-      try { this.ttyInput?.dispose(); } catch { }
+      try {
+        this.ttyInput?.dispose();
+      } catch {}
       this.ttyInput = null;
-      try { this.ttyOutput?.dispose(); } catch { }
+      try {
+        this.ttyOutput?.dispose();
+      } catch {}
       this.ttyOutput = null;
       // Remove signal listeners
       process.removeListener("SIGWINCH", this.boundHandleResize);
@@ -652,7 +653,7 @@ export class TuiController {
       this.parser = null;
       this.capabilities = null;
       this.initialized = false;
-    } catch { }
+    } catch {}
   }
 
   /**

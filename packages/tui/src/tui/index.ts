@@ -16,23 +16,22 @@
  * @module
  */
 
-export { TuiController } from "./tui-controller.js";
 export type {
-  TerminalCapabilities,
-  TerminalSize,
-  CapabilityEvent,
-} from "./tui-controller.js";
-
+  TtyInputOptions,
+  TtyInputSource,
+  TtyOutputTarget,
+} from "./tty-input.js";
 export {
-  createTtyInput,
   createDevTtyInput,
   createStdinFallback,
+  createTtyInput,
   createTtyOutput,
   isBunWithTtyBug,
   stripAnsiEscapes,
 } from "./tty-input.js";
 export type {
-  TtyInputSource,
-  TtyOutputTarget,
-  TtyInputOptions,
-} from "./tty-input.js";
+  CapabilityEvent,
+  TerminalCapabilities,
+  TerminalSize,
+} from "./tui-controller.js";
+export { TuiController } from "./tui-controller.js";

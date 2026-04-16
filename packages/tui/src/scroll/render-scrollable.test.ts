@@ -6,12 +6,12 @@
  * @module
  */
 
-import { describe, expect, it, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
-import { ScrollController } from "./scroll-controller.js";
 import { RenderScrollable } from "./render-scrollable.js";
-import { Screen } from "../screen/screen.js";
+import { ScrollController } from "./scroll-controller.js";
 
 // ════════════════════════════════════════════════════
 //  Mock child RenderBox
@@ -266,12 +266,14 @@ describe("RenderScrollable", () => {
       const screen = new Screen(80, 30);
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
-      scrollable.layout(new BoxConstraints({
-        minWidth: 0,
-        maxWidth: 80,
-        minHeight: 0,
-        maxHeight: 30,
-      }));
+      scrollable.layout(
+        new BoxConstraints({
+          minWidth: 0,
+          maxWidth: 80,
+          minHeight: 0,
+          maxHeight: 30,
+        }),
+      );
       scrollable.paint(screen, 0, 0);
 
       controller.jumpTo(5);
@@ -295,12 +297,14 @@ describe("RenderScrollable", () => {
       const screen = new Screen(80, 30);
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
-      scrollable.layout(new BoxConstraints({
-        minWidth: 0,
-        maxWidth: 80,
-        minHeight: 0,
-        maxHeight: 30,
-      }));
+      scrollable.layout(
+        new BoxConstraints({
+          minWidth: 0,
+          maxWidth: 80,
+          minHeight: 0,
+          maxHeight: 30,
+        }),
+      );
       scrollable.paint(screen, 0, 0);
 
       scrollable.detach();

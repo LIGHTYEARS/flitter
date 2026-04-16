@@ -182,9 +182,7 @@ export class RenderScrollable extends RenderBox {
     }
 
     const viewportHeight = this._size.height;
-    this._scrollController.updateMaxScrollExtent(
-      Math.max(0, childHeight - viewportHeight),
-    );
+    this._scrollController.updateMaxScrollExtent(Math.max(0, childHeight - viewportHeight));
   }
 
   // ════════════════════════════════════════════════════

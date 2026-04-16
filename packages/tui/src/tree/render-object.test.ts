@@ -473,7 +473,10 @@ describe("RenderObject — dispose cleanup (amp vH alignment)", () => {
 
     mockOwner.removedFromQueues = [];
     node.dispose();
-    assert.ok(mockOwner.removedFromQueues.includes(node), "dispose should call removeFromQueues(this)");
+    assert.ok(
+      mockOwner.removedFromQueues.includes(node),
+      "dispose should call removeFromQueues(this)",
+    );
   });
 });
 
@@ -621,7 +624,7 @@ describe("RenderObject — markNeedsLayout guards (amp vH alignment)", () => {
     // First call sets dirty
     mockOwner.layoutRequests = [];
     child.markNeedsLayout();
-    const firstCallCount = mockOwner.layoutRequests.length;
+    const _firstCallCount = mockOwner.layoutRequests.length;
 
     // Second call should short-circuit — no additional requests
     mockOwner.layoutRequests = [];
@@ -703,7 +706,7 @@ describe("RenderObject — depth invalidation (amp vH alignment)", () => {
 
     // Re-parent: move middle (with leaf) from root to a deeper parent
     root.dropChild(middle);
-    const deepParent = new TestRenderObject();
+    const _deepParent = new TestRenderObject();
     // Build a chain: root -> a -> b -> c -> d -> deepParent
     let current: TestRenderObject = root;
     for (let i = 0; i < 4; i++) {
@@ -749,7 +752,10 @@ describe("RenderObject — attach/detach idempotency (amp vH alignment)", () => 
 
     let childAttachCount = 0;
     const origAttach = child.attach.bind(child);
-    child.attach = () => { childAttachCount++; origAttach(); };
+    child.attach = () => {
+      childAttachCount++;
+      origAttach();
+    };
 
     parent.attach(); // first attach
     const afterFirst = childAttachCount;
@@ -766,7 +772,10 @@ describe("RenderObject — attach/detach idempotency (amp vH alignment)", () => 
 
     let childDetachCount = 0;
     const origDetach = child.detach.bind(child);
-    child.detach = () => { childDetachCount++; origDetach(); };
+    child.detach = () => {
+      childDetachCount++;
+      origDetach();
+    };
 
     parent.detach(); // first detach
     const afterFirst = childDetachCount;

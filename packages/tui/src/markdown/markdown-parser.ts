@@ -273,7 +273,7 @@ export class MarkdownParser {
         if (tag.includes("checkbox")) {
           const parent = stack[stack.length - 1];
           if (parent && parent.type === "listItem") {
-            parent.checked = tag.includes("checked") ? true : false;
+            parent.checked = !!tag.includes("checked");
           }
         }
         break;

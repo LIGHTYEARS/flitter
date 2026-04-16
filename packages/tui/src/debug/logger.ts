@@ -64,10 +64,7 @@ const stderrBackend: LogBackend = {
  * CLI flag 集成留给 CLI 入口层处理。
  */
 function resolveLevel(): LogLevel {
-  const env = (typeof process !== "undefined"
-    ? process.env.FLITTER_LOG_LEVEL
-    : undefined
-  )
+  const env = (typeof process !== "undefined" ? process.env.FLITTER_LOG_LEVEL : undefined)
     ?.trim()
     .toLowerCase();
   if (env && env in LOG_LEVELS) return env as LogLevel;
@@ -101,8 +98,7 @@ export class Logger {
   }) {
     this._backend = opts?.backend ?? stderrBackend;
     const lvl = opts?.level;
-    this._level =
-      typeof lvl === "number" ? lvl : LOG_LEVELS[lvl ?? resolveLevel()];
+    this._level = typeof lvl === "number" ? lvl : LOG_LEVELS[lvl ?? resolveLevel()];
     this._scope = opts?.scope;
   }
 
@@ -152,13 +148,6 @@ export class Logger {
    */
   private _prefix(msg: string): string {
     return this._scope ? `[${this._scope}] ${msg}` : msg;
-  }
-
-  private _levelName(): LogLevel {
-    for (const [name, val] of Object.entries(LOG_LEVELS)) {
-      if (val === this._level) return name as LogLevel;
-    }
-    return "info";
   }
 }
 

@@ -25,15 +25,6 @@ export class InheritedElement extends Element {
   private _dependents: Set<Element> = new Set();
 
   /**
-   * 创建 InheritedElement 实例。
-   *
-   * @param widget - 关联的 InheritedWidget
-   */
-  constructor(widget: InheritedWidget) {
-    super(widget);
-  }
-
-  /**
    * 获取关联的 InheritedWidget。
    *
    * @returns 当前关联的 InheritedWidget 实例

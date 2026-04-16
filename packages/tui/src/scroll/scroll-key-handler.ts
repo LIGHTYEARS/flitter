@@ -58,9 +58,6 @@ export class ScrollKeyHandler {
   /** 每次按键滚动行数 */
   private _scrollStep: number;
 
-  /** 翻页滚动行数（备用，实际翻页使用 viewportSize / 2） */
-  private _pageScrollStep: number;
-
   /**
    * 创建滚动事件处理器。
    *

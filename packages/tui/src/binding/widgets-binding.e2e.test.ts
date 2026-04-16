@@ -16,18 +16,15 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, beforeEach, afterEach } from "node:test";
-import { WidgetsBinding } from "./widgets-binding.js";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { FocusManager } from "../focus/focus-manager.js";
 import { FocusNode } from "../focus/focus-node.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
-import { TuiController } from "../tui/tui-controller.js";
-import {
-  setBuildOwner,
-  setPipelineOwner,
-} from "../tree/types.js";
-import type { Widget, Element } from "../tree/element.js";
+import type { Element, Widget } from "../tree/element.js";
+import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
+import type { TuiController } from "../tui/tui-controller.js";
 import type { KeyEvent } from "../vt/types.js";
+import { WidgetsBinding } from "./widgets-binding.js";
 
 // ════════════════════════════════════════════════════
 //  辅助: 重置所有单例 (每个测试前)
@@ -214,10 +211,7 @@ describe("WidgetsBinding E2E", () => {
 
     // rootElement 应已挂载
     assert.ok(mountedElement !== null, "rootElement 应已挂载");
-    assert.ok(
-      (mountedElement as any).mounted === true,
-      "rootElement.mounted 应为 true",
-    );
+    assert.ok((mountedElement as any).mounted === true, "rootElement.mounted 应为 true");
 
     binding.stop();
     await runPromise;
@@ -268,11 +262,11 @@ describe("WidgetsBinding E2E", () => {
 
     // 模拟 InputField 的 FocusNode 注册行为
     const fm = FocusManager.instance;
-    let keyHandled = false;
+    let _keyHandled = false;
     const focusNode = new FocusNode({
       debugLabel: "E2E-InputField",
-      onKey: (event: KeyEvent) => {
-        keyHandled = true;
+      onKey: (_event: KeyEvent) => {
+        _keyHandled = true;
         return "handled";
       },
     });
@@ -281,11 +275,7 @@ describe("WidgetsBinding E2E", () => {
     focusNode.requestFocus();
 
     // 验证 FocusNode 注册成功: primaryFocus 应为该节点
-    assert.strictEqual(
-      fm.primaryFocus,
-      focusNode,
-      "FocusNode 应被注册为 primaryFocus",
-    );
+    assert.strictEqual(fm.primaryFocus, focusNode, "FocusNode 应被注册为 primaryFocus");
 
     // 清理
     fm.unregisterNode(focusNode);

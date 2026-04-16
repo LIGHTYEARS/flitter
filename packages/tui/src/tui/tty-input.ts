@@ -156,7 +156,7 @@ export function stripAnsiEscapes(text: string): string {
   // CSI: \x1b[ 后跟参数字节(0x30-0x3f)和中间字节(0x20-0x2f)，最后是终止字节(0x40-0x7e)
   // OSC: \x1b] 后跟任意内容，以 ST(\x1b\\) 或 BEL(\x07) 结尾
   return text
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "")       // CSI 序列
+    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "") // CSI 序列
     .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, ""); // OSC 序列
 }
 
@@ -420,7 +420,9 @@ export function createTtyOutput(): TtyOutputTarget {
     return {
       stream: process.stdout,
       target: "stdout",
-      dispose() { /* stdout 不需要关闭 */ },
+      dispose() {
+        /* stdout 不需要关闭 */
+      },
     };
   }
 
@@ -429,7 +431,9 @@ export function createTtyOutput(): TtyOutputTarget {
     return {
       stream: process.stderr,
       target: "stderr",
-      dispose() { /* stderr 不需要关闭 */ },
+      dispose() {
+        /* stderr 不需要关闭 */
+      },
     };
   }
 
@@ -472,7 +476,9 @@ export function createTtyOutput(): TtyOutputTarget {
   return {
     stream: process.stdout,
     target: "stdout",
-    dispose() { /* stdout 不需要关闭 */ },
+    dispose() {
+      /* stdout 不需要关闭 */
+    },
   };
 }
 

@@ -36,6 +36,18 @@ export interface HitTestEntry {
 }
 
 /**
+ * 鼠标目标条目。
+ *
+ * 逆向: amp hitTest 中 T.addMouseTarget(this, R) 调用
+ */
+export interface MouseTarget {
+  /** 鼠标区域渲染对象 */
+  target: RenderObject;
+  /** 命中点位置 */
+  position: { x: number; y: number };
+}
+
+/**
  * HitTestResult — 命中测试结果累积器。
  *
  * 维护命中条目列表，支持按偏移量计算局部坐标。
@@ -45,14 +57,22 @@ export interface HitTestEntry {
  */
 export class HitTestResult {
   private _hits: HitTestEntry[] = [];
+  private _mouseTargets: MouseTarget[] = [];
 
   /**
    * 获取命中条目只读列表。
-   *
-   * @returns 命中条目数组的只读视图
    */
   get hits(): readonly HitTestEntry[] {
     return this._hits;
+  }
+
+  /**
+   * 获取鼠标目标只读列表。
+   *
+   * 逆向: amp hitTest 中通过 addMouseTarget 注册的鼠标区域
+   */
+  get mouseTargets(): readonly MouseTarget[] {
+    return this._mouseTargets;
   }
 
   /**
@@ -86,6 +106,19 @@ export class HitTestResult {
   }
 
   /**
+   * 注册鼠标目标。
+   *
+   * 逆向: amp 中 `T.addMouseTarget(this, R)` 调用
+   * 用于 RenderMouseRegion.hitTest 中注册自身为鼠标事件目标
+   *
+   * @param target - 鼠标区域渲染对象
+   * @param position - 命中位置
+   */
+  addMouseTarget(target: RenderObject, position: { x: number; y: number }): void {
+    this._mouseTargets.push({ target, position });
+  }
+
+  /**
    * 静态工厂: 创建 HitTestResult 并从 root 开始命中测试。
    *
    * 逆向: oXT.hitTest in tui-widget-framework.js:1852-1856
@@ -100,10 +133,7 @@ export class HitTestResult {
    * console.log(result.hits.length); // 命中的节点数
    * ```
    */
-  static hitTest(
-    root: RenderObject,
-    position: { x: number; y: number },
-  ): HitTestResult {
+  static hitTest(root: RenderObject, position: { x: number; y: number }): HitTestResult {
     const result = new HitTestResult();
     root.hitTest(result, position);
     return result;

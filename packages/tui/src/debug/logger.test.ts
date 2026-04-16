@@ -6,6 +6,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+
 import { Logger, type LogBackend, LOG_LEVELS } from "./logger.js";
 
 describe("Logger", () => {
@@ -73,5 +74,45 @@ describe("Logger", () => {
     expect(LOG_LEVELS.error).toBeLessThan(LOG_LEVELS.warn);
     expect(LOG_LEVELS.warn).toBeLessThan(LOG_LEVELS.info);
     expect(LOG_LEVELS.info).toBeLessThan(LOG_LEVELS.debug);
+  });
+});
+
+describe("Logger — FLITTER_LOG_LEVEL env var", () => {
+  let captured: Array<{ level: string; msg: string; args: unknown[] }>;
+  let backend: LogBackend;
+
+  beforeEach(() => {
+    captured = [];
+    backend = {
+      error: (msg, ...args) => captured.push({ level: "error", msg, args }),
+      warn: (msg, ...args) => captured.push({ level: "warn", msg, args }),
+      info: (msg, ...args) => captured.push({ level: "info", msg, args }),
+      debug: (msg, ...args) => captured.push({ level: "debug", msg, args }),
+    };
+    process.env.FLITTER_LOG_LEVEL = "debug";
+  });
+
+  afterEach(() => {
+    delete process.env.FLITTER_LOG_LEVEL;
+  });
+
+  test("从 FLITTER_LOG_LEVEL=debug 解析级别，debug 消息通过", () => {
+    // No explicit level — resolveLevel() reads from env
+    const logger = new Logger({ backend });
+    logger.debug("env-driven debug");
+    logger.info("env-driven info");
+    expect(captured.length).toBe(2);
+    expect(captured[0]!.level).toBe("debug");
+    expect(captured[1]!.level).toBe("info");
+  });
+
+  test("env var 未设置时默认 info，debug 消息被过滤", () => {
+    // Override: remove env var for this test
+    delete process.env.FLITTER_LOG_LEVEL;
+    const logger = new Logger({ backend });
+    logger.debug("should not appear");
+    logger.info("should appear");
+    expect(captured.length).toBe(1);
+    expect(captured[0]!.level).toBe("info");
   });
 });

@@ -96,11 +96,13 @@ export class Logger {
 
   constructor(opts?: {
     backend?: LogBackend;
-    level?: LogLevel;
+    level?: LogLevel | number;
     scope?: string;
   }) {
     this._backend = opts?.backend ?? stderrBackend;
-    this._level = LOG_LEVELS[opts?.level ?? resolveLevel()];
+    const lvl = opts?.level;
+    this._level =
+      typeof lvl === "number" ? lvl : LOG_LEVELS[lvl ?? resolveLevel()];
     this._scope = opts?.scope;
   }
 
@@ -115,7 +117,7 @@ export class Logger {
     const childScope = this._scope ? `${this._scope}.${name}` : name;
     return new Logger({
       backend: this._backend,
-      level: this._levelName(),
+      level: this._level,
       scope: childScope,
     });
   }

@@ -18,17 +18,19 @@
  * @module
  */
 
-import { BuildOwner } from "../tree/build-owner.js";
-import { PipelineOwner } from "../tree/pipeline-owner.js";
-import { FrameScheduler } from "../tree/frame-scheduler.js";
-import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
+import { logger } from "../debug/logger.js";
 import { FocusManager } from "../focus/focus-manager.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
+import { BuildOwner } from "../tree/build-owner.js";
+import type { Element, Widget } from "../tree/element.js";
+import { FrameScheduler } from "../tree/frame-scheduler.js";
+import { PipelineOwner } from "../tree/pipeline-owner.js";
+import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
 import { TuiController } from "../tui/tui-controller.js";
-import { MediaQuery, MediaQueryData } from "../widgets/media-query.js";
-import type { Widget, Element } from "../tree/element.js";
 import type { KeyEvent } from "../vt/types.js";
-import type { RenderObject } from "../tree/render-object.js";
+import { MediaQuery, MediaQueryData } from "../widgets/media-query.js";
+
+const log = logger.scoped("paint");
 
 /**
  * WidgetsBinding — TUI 应用核心编排器单例。
@@ -351,12 +353,7 @@ export class WidgetsBinding {
    */
   private registerFrameCallbacks(): void {
     // frame-start: 帧开始，判断是否需要 paint
-    this.frameScheduler.addFrameCallback(
-      "frame-start",
-      () => this.beginFrame(),
-      "build",
-      -20,
-    );
+    this.frameScheduler.addFrameCallback("frame-start", () => this.beginFrame(), "build", -20);
 
     // resize: 处理待处理的 resize 事件
     this.frameScheduler.addFrameCallback(
@@ -367,12 +364,7 @@ export class WidgetsBinding {
     );
 
     // build: 重建脏元素
-    this.frameScheduler.addFrameCallback(
-      "build",
-      () => this.buildOwner.buildScopes(),
-      "build",
-      0,
-    );
+    this.frameScheduler.addFrameCallback("build", () => this.buildOwner.buildScopes(), "build", 0);
 
     // layout: 执行布局
     this.frameScheduler.addFrameCallback(
@@ -383,20 +375,10 @@ export class WidgetsBinding {
     );
 
     // paint: 执行绘制
-    this.frameScheduler.addFrameCallback(
-      "paint",
-      () => this.paint(),
-      "paint",
-      0,
-    );
+    this.frameScheduler.addFrameCallback("paint", () => this.paint(), "paint", 0);
 
     // render: 渲染到 stdout
-    this.frameScheduler.addFrameCallback(
-      "render",
-      () => this.render(),
-      "render",
-      0,
-    );
+    this.frameScheduler.addFrameCallback("render", () => this.render(), "render", 0);
   }
 
   // ════════════════════════════════════════════════════
@@ -526,10 +508,7 @@ export class WidgetsBinding {
       colorPaletteNotifications: false,
       xtversion: null,
     };
-    const newMediaQueryData = new MediaQueryData(
-      { width, height },
-      capabilities,
-    );
+    const newMediaQueryData = new MediaQueryData({ width, height }, capabilities);
     this.currentMediaQueryData = newMediaQueryData;
 
     // 逆向: d9 lines 127-132 — t.widget instanceof I9, new I9({data, child: t.widget.child}), t.update(r)
@@ -575,6 +554,11 @@ export class WidgetsBinding {
       this.buildOwner.hasDirtyElements ||
       this.pipelineOwner.hasNodesNeedingLayout ||
       this.pipelineOwner.hasNodesNeedingPaint;
+    log.debug("beginFrame", {
+      shouldPaint: this.shouldPaintCurrentFrame,
+      dirty: this.buildOwner.hasDirtyElements,
+      force: this.forcePaintOnNextFrame,
+    });
     this.didPaintCurrentFrame = false;
     this.forcePaintOnNextFrame = false;
   }
@@ -607,6 +591,7 @@ export class WidgetsBinding {
    */
   private render(): void {
     if (!this.didPaintCurrentFrame) return;
+    log.debug("render");
 
     // 通过 TuiController.render() 差分渲染到 stdout
     this.tui.render();

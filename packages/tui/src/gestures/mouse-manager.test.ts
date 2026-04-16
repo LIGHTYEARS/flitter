@@ -567,6 +567,88 @@ describe("MouseManager dispatch", () => {
     expect(receivedTypes).toContain("release");
   });
 
+  // ════════════════════════════════════════════════════
+  //  _handleScroll: scroll 事件分发 (Task 5)
+  // ════════════════════════════════════════════════════
+
+  test("wheel_up dispatches scroll event with direction up", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const scrollEvents: Array<{ type: string; direction?: string }> = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (e) => {
+        scrollEvents.push({ type: e.type, direction: e.direction as string });
+        return true; // handled — starts session
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(0, 0);
+    region.setSize(80, 24);
+
+    mm.setRootRenderObject(root);
+
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 5,
+      y: 3,
+      button: "none",
+      action: "wheel_up",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+
+    expect(scrollEvents.length).toBe(1);
+    expect(scrollEvents[0]!.type).toBe("scroll");
+    expect(scrollEvents[0]!.direction).toBe("up");
+  });
+
+  test("wheel_down dispatches scroll event with direction down", () => {
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const scrollEvents: Array<{ type: string; direction?: string }> = [];
+    const region = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (e) => {
+        scrollEvents.push({ type: e.type, direction: e.direction as string });
+        return true; // handled
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    root.adoptChild(region);
+    region.setOffset(0, 0);
+    region.setSize(80, 24);
+
+    mm.setRootRenderObject(root);
+
+    mm.handleMouseEvent({
+      type: "mouse",
+      x: 5,
+      y: 3,
+      button: "none",
+      action: "wheel_down",
+      modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+    });
+
+    expect(scrollEvents.length).toBe(1);
+    expect(scrollEvents[0]!.type).toBe("scroll");
+    expect(scrollEvents[0]!.direction).toBe("down");
+  });
+
   test("move within hovered region dispatches hover event (not enter again)", () => {
     const root = new TestRenderBox();
     root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });

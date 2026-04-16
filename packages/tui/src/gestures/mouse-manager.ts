@@ -24,6 +24,7 @@ import { logger } from "../debug/logger.js";
 import type { RenderObject } from "../tree/render-object.js";
 import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent } from "../vt/types.js";
+import type { MouseEvent as WidgetMouseEvent } from "../widgets/mouse-region.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { type HitTestEntry, HitTestResult } from "./hit-test.js";
 import {
@@ -31,6 +32,7 @@ import {
   createClickEvent,
   createDragEvent,
   createReleaseEvent,
+  createScrollEvent,
 } from "./mouse-event-helpers.js";
 
 const log = logger.scoped("mouse");
@@ -115,6 +117,29 @@ export class MouseManager {
 
   /** 双击最大距离（字符数） */
   static readonly DOUBLE_CLICK_DISTANCE = 2;
+
+  /**
+   * 滚动会话超时（毫秒）。
+   *
+   * 逆向: ha.SCROLL_SESSION_TIMEOUT = 200 (2026_tail_anonymous.js:158202)
+   *
+   * 在此时间内连续的滚动事件会粘连到同一目标。
+   */
+  static readonly SCROLL_SESSION_TIMEOUT = 200;
+
+  /**
+   * 当前滚动会话目标。
+   *
+   * 逆向: ha._scrollSessionTarget (2026_tail_anonymous.js:158212)
+   */
+  private _scrollSessionTarget: RenderMouseRegion | null = null;
+
+  /**
+   * 最后一次滚动事件时间戳。
+   *
+   * 逆向: ha._scrollSessionLastEvent (2026_tail_anonymous.js:158213)
+   */
+  private _scrollSessionLastEvent = 0;
 
   // ════════════════════════════════════════════════════
   //  单例
@@ -247,7 +272,8 @@ export class MouseManager {
         break;
       case "wheel_up":
       case "wheel_down":
-        // Implemented in Task 5
+        // 逆向: ha.handleMouseEvent scroll case (2026_tail_anonymous.js:158267-158268)
+        this._handleScroll(event, position, mouseTargets);
         break;
       case "move":
         this._handleMove(event, position, mouseTargets);
@@ -359,9 +385,103 @@ export class MouseManager {
   }
 
   /**
-   * 处理鼠标移动事件，分发 enter/exit/hover 事件到命中目标。
+   * 从已过滤的 mouseTargets 中进一步筛选有 onScroll 监听器的目标，
+   * 并按 depth 降序（深度截断）排序。
    *
-   * 逆向: ha._handleMove (2026_tail_anonymous.js:158393-158435)
+   * 逆向: ha._findScrollTargets (2026_tail_anonymous.js:158459-158472)
+   *
+   * 算法:
+   * - 遍历 targets（已按 ancestor-first 顺序排列）
+   * - 若当前目标 depth <= 上一个目标 depth，则截断（depth 递减说明离开了深层区域）
+   * - 仅收集有 onScroll 的目标
+   *
+   * 注意: amp 的原始实现对整个 hit list 执行 instanceof si 过滤；
+   * 此处 targets 已经是 RenderMouseRegion 列表，故省略 instanceof 检查。
+   */
+  private _findScrollTargets(
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> {
+    // 逆向: ha._findScrollTargets (2026_tail_anonymous.js:158459-158472)
+    const result: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> =
+      [];
+    let lastDepth = -1;
+    for (const entry of targets) {
+      const d = entry.target.depth;
+      if (d <= lastDepth) break; // depth-based cutoff
+      if (entry.target.onScroll) {
+        result.push({ target: entry.target, localPosition: entry.localPosition });
+      }
+      lastDepth = d;
+    }
+    return result;
+  }
+
+  /**
+   * 处理滚动事件，带会话粘连逻辑。
+   *
+   * 逆向: ha._handleScroll (2026_tail_anonymous.js:158359-158392)
+   *
+   * 算法:
+   * 1. 若当前有粘连会话目标且未超时，直接分发到该目标（优先使用 hit list 中的 localPosition，
+   *    否则用 globalToLocal 计算）
+   * 2. 否则，用 _findScrollTargets 筛选滚动目标
+   * 3. 从最深目标开始逆序尝试分发；首个返回 truthy 的目标成为新会话目标
+   * 4. 若无目标处理，重置会话
+   */
+  private _handleScroll(
+    raw: MouseEvent,
+    position: { x: number; y: number },
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: ha._handleScroll (2026_tail_anonymous.js:158359-158392)
+    const now = Date.now();
+
+    // Session stickiness: stick to previous target if still attached and within timeout
+    if (
+      this._scrollSessionTarget?.attached &&
+      now - this._scrollSessionLastEvent <= MouseManager.SCROLL_SESSION_TIMEOUT &&
+      this._scrollSessionTarget
+    ) {
+      const entry = targets.find((t) => t.target === this._scrollSessionTarget);
+      if (entry) {
+        const scrollEvent = createScrollEvent(raw, position, entry.localPosition);
+        this._scrollSessionTarget.onScroll?.(scrollEvent as unknown as WidgetMouseEvent);
+      } else {
+        const local = this._scrollSessionTarget.globalToLocal(position);
+        const scrollEvent = createScrollEvent(raw, position, { x: local.x, y: local.y });
+        this._scrollSessionTarget.onScroll?.(scrollEvent as unknown as WidgetMouseEvent);
+      }
+      this._scrollSessionLastEvent = now;
+      return;
+    }
+
+    // No active session — find scroll targets
+    const scrollTargets = this._findScrollTargets(targets);
+    if (scrollTargets.length === 0) {
+      this._scrollSessionTarget = null;
+      this._scrollSessionLastEvent = 0;
+      return;
+    }
+
+    // Dispatch in reverse order (deepest first); first truthy return starts a session
+    for (let i = scrollTargets.length - 1; i >= 0; i--) {
+      const entry = scrollTargets[i];
+      if (!entry) continue;
+      const scrollEvent = createScrollEvent(raw, position, entry.localPosition);
+      const handled = entry.target.onScroll?.(scrollEvent as unknown as WidgetMouseEvent) ?? false;
+      if (handled) {
+        this._scrollSessionTarget = entry.target;
+        this._scrollSessionLastEvent = now;
+        return;
+      }
+    }
+
+    this._scrollSessionTarget = null;
+    this._scrollSessionLastEvent = 0;
+  }
+
+  /**
+   * 处理鼠标移动事件，分发 enter/exit/hover 事件到命中目标。
    *
    * 算法:
    * 1. 计算当前帧的命中目标集合 (currentRegions)

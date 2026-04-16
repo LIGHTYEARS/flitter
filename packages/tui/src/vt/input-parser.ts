@@ -29,6 +29,7 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type {
   InputEvent,
   KeyEvent,
@@ -43,9 +44,10 @@ import type {
   VtEvent,
   VtPrintEvent,
 } from "./types.js";
-
 import { MODIFIERS_NONE, modifierFromCsiParam } from "./types.js";
 import { VtParser } from "./vt-parser.js";
+
+const log = logger.scoped("input");
 
 // ════════════════════════════════════════════════════
 //  内部辅助
@@ -496,7 +498,14 @@ export class InputParser {
     const x1 = params[1].value;
     const y1 = params[2].value;
 
-    this.emit(decodeSgrMouse(buttonByte, x1, y1, finalChar));
+    const decoded = decodeSgrMouse(buttonByte, x1, y1, finalChar);
+    log.debug("mouse", {
+      action: decoded.action,
+      button: decoded.button,
+      x: decoded.x,
+      y: decoded.y,
+    });
+    this.emit(decoded);
   }
 
   /**

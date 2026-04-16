@@ -449,6 +449,35 @@ describe("RenderObject — dispose", () => {
 });
 
 // ════════════════════════════════════════════════════
+//  dispose cleanup (amp vH alignment)
+// ════════════════════════════════════════════════════
+
+describe("RenderObject — dispose cleanup (amp vH alignment)", () => {
+  let mockOwner: MockPipelineOwner;
+
+  beforeEach(() => {
+    mockOwner = new MockPipelineOwner();
+    setPipelineOwner(mockOwner);
+  });
+
+  afterEach(() => {
+    setPipelineOwner(undefined);
+  });
+
+  it("dispose calls removeFromQueues to evict from pipeline", () => {
+    const node = new TestRenderObject();
+    node.attach();
+    // Need to clear dirty flags first so markNeedsPaint actually fires
+    node.clearDirty();
+    node.markNeedsPaint(); // enqueue into paint queue
+
+    mockOwner.removedFromQueues = [];
+    node.dispose();
+    assert.ok(mockOwner.removedFromQueues.includes(node), "dispose should call removeFromQueues(this)");
+  });
+});
+
+// ════════════════════════════════════════════════════
 //  补充边界测试
 // ════════════════════════════════════════════════════
 

@@ -385,6 +385,7 @@ export abstract class RenderObject {
    * 释放资源，移除所有子节点。
    */
   dispose(): void {
+    getPipelineOwner()?.removeFromQueues(this);
     this.removeAllChildren();
   }
 }

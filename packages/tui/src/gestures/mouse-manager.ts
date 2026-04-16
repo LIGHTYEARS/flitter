@@ -20,10 +20,13 @@
  * @module
  */
 
-import type { MouseEvent } from "../vt/types.js";
+import { logger } from "../debug/logger.js";
 import type { RenderObject } from "../tree/render-object.js";
-import { HitTestResult, type HitTestEntry } from "./hit-test.js";
 import type { TuiController } from "../tui/tui-controller.js";
+import type { MouseEvent } from "../vt/types.js";
+import { type HitTestEntry, HitTestResult } from "./hit-test.js";
+
+const log = logger.scoped("mouse");
 
 /**
  * 鼠标事件处理器。
@@ -56,6 +59,7 @@ export class MouseManager {
   private _rootRenderObject: RenderObject | null = null;
 
   /** TuiController 引用，用于获取 Screen 进行坐标转换 */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: stored for future coordinate conversion use
   private _tui: TuiController | null = null;
 
   /** 最近一次命中测试的目标列表，用于 hover 状态追踪 */
@@ -161,12 +165,14 @@ export class MouseManager {
    */
   handleMouseEvent(event: MouseEvent): void {
     if (!this._rootRenderObject) return;
+    log.debug("event", { action: event.action, x: event.x, y: event.y, button: event.button });
 
     const position = { x: event.x, y: event.y };
     this._lastMousePosition = position;
 
     const result = HitTestResult.hitTest(this._rootRenderObject, position);
     this._lastHoverTargets = [...result.hits];
+    log.debug("hitTest", { hits: result.hits.length });
 
     // 鼠标事件分发到命中的 RenderObject
     // 具体分发逻辑 (click/hover/scroll) 由 Widget 层处理
@@ -208,10 +214,7 @@ export class MouseManager {
   reestablishHoverState(): void {
     if (!this._rootRenderObject || !this._lastMousePosition) return;
 
-    const result = HitTestResult.hitTest(
-      this._rootRenderObject,
-      this._lastMousePosition,
-    );
+    const result = HitTestResult.hitTest(this._rootRenderObject, this._lastMousePosition);
     this._lastHoverTargets = [...result.hits];
   }
 

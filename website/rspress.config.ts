@@ -6,7 +6,6 @@ export default defineConfig({
   description: 'Flutter-for-Terminal AI Agent 框架',
   lang: 'zh',
   logo: '/logo.svg',
-  icon: '/logo.svg',
   themeConfig: {
     footer: {
       message: '© 2025 Flitter Project. MIT License.',

@@ -27,11 +27,12 @@
 
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import type { CliContext } from "../context.js";
 import { runApp } from "@flitter/tui";
+import type { CliContext } from "../context.js";
 import { AppWidget } from "../widgets/app-widget.js";
-import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
 import type { ThemeData } from "../widgets/theme-controller.js";
+import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
+import { ToastManager } from "../widgets/toast-manager.js";
 
 // ─── 日志 ─────────────────────────────────────────────────
 
@@ -95,7 +96,9 @@ async function resolveThread(
 
   // --continue 标志: 恢复最近的 thread
   if (context.continueThread) {
-    const listFn = (container.threadStore as unknown as { listThreads?: () => Array<{ id: string }> }).listThreads;
+    const listFn = (
+      container.threadStore as unknown as { listThreads?: () => Array<{ id: string }> }
+    ).listThreads;
     const threads = listFn?.() ?? [];
     if (threads.length > 0) {
       const latest = threads[0]; // 最近的排在前面
@@ -140,8 +143,7 @@ export async function launchInteractiveMode(
   // 1. 解析主题数据
   const config = container.configService.get();
   const themeName =
-    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ??
-    "terminal";
+    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
   const themeData: ThemeData = { ...defaultThemeData, name: themeName };
 
   // 2. 创建或恢复 thread
@@ -150,6 +152,9 @@ export async function launchInteractiveMode(
 
   // 3. 创建 ThreadWorker
   const worker = container.createThreadWorker(threadId);
+
+  // 逆向: toastController = new BQT() (chunk-006.js:34489)
+  const toastManager = new ToastManager();
 
   // 4-5. 组装真实 Widget 树并启动 runApp
   // ThreadStateWidget 拥有完整布局 (ConversationView + StatusBar + InputField)
@@ -177,21 +182,25 @@ export async function launchInteractiveMode(
             // 触发推理循环
             worker.runInference();
           },
-          modelName: (config.settings as Record<string, unknown>)["llm.model"] as string ?? "claude-sonnet-4-20250514",
+          modelName:
+            ((config.settings as Record<string, unknown>)["llm.model"] as string) ??
+            "claude-sonnet-4-20250514",
           tokenCount: 0,
+          toastManager,
         }),
       }),
       {
         onRootElementMounted: (rootElement) => {
           // 将根元素绑定到容器，供后续逻辑使用
           log.info("Root element mounted");
-          (container as any)._rootElement = rootElement;
+          (container as unknown as Record<string, unknown>)._rootElement = rootElement;
         },
       },
     );
   } finally {
     // 6. 清理
     log.info("TUI exited, cleaning up...");
+    toastManager.dispose();
     await container.asyncDispose();
 
     // 7. 退出前输出 thread URL

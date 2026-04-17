@@ -28,16 +28,26 @@
  * @module
  */
 
-import { StatefulWidget, State } from "@flitter/tui";
-import { Column, Expanded, SizedBox, Text } from "@flitter/tui";
-import { Scrollable, ScrollController } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
+import {
+  Column,
+  Expanded,
+  Positioned,
+  Scrollable,
+  ScrollController,
+  SizedBox,
+  Stack,
+  State,
+  StatefulWidget,
+  Text,
+} from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
 import { ConversationView, type Message } from "./conversation-view.js";
 import { InputField } from "./input-field.js";
 import { StatusBar } from "./status-bar.js";
+import type { ToastManager } from "./toast-manager.js";
+import { ToastOverlay } from "./toast-overlay.js";
 
 // ════════════════════════════════════════════════════
 //  ThreadStateWidgetConfig 接口
@@ -56,7 +66,9 @@ import { StatusBar } from "./status-bar.js";
 export interface ThreadStateWidgetConfig {
   /** 线程存储引用 */
   threadStore: {
-    observeThread(id: string): { subscribe(observer: (value: unknown) => void): Subscription } | undefined;
+    observeThread(
+      id: string,
+    ): { subscribe(observer: (value: unknown) => void): Subscription } | undefined;
   };
   /** 线程工作器引用 */
   threadWorker: {
@@ -70,6 +82,8 @@ export interface ThreadStateWidgetConfig {
   modelName?: string;
   /** Token 计数 (显示在状态栏) */
   tokenCount?: number;
+  /** Toast notification manager (optional, for overlay rendering) */
+  toastManager?: ToastManager;
 }
 
 // ════════════════════════════════════════════════════
@@ -245,21 +259,40 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    * @returns Column 根节点
    */
   build(_context: BuildContext): Widget {
-    const { onSubmit, threadId, modelName, tokenCount } = this.widget.config;
+    const { onSubmit, threadId, modelName, tokenCount, toastManager } = this.widget.config;
+
+    // 消息区域 (占据全部剩余空间)
+    // 逆向: Scrollable wrapping ConversationView
+    const conversationScrollable = new Scrollable({
+      controller: this._scrollController,
+      child: new ConversationView({
+        messages: this._messages,
+        inferenceState: this._inferenceState,
+        error: this._error,
+      }),
+    });
+
+    // 逆向: NQT (chunk-006.js:11009-11020) — Stack([child, Positioned(top:0, left:0, right:0, child: toastColumn)])
+    // When toastManager is provided, wrap conversation in a Stack with ToastOverlay positioned on top.
+    const mainContent = toastManager
+      ? new Expanded({
+          child: new Stack({
+            children: [
+              conversationScrollable,
+              new Positioned({
+                top: 0,
+                left: 0,
+                right: 0,
+                child: new ToastOverlay({ manager: toastManager }),
+              }),
+            ],
+          }),
+        })
+      : new Expanded({ child: conversationScrollable });
 
     return new Column({
       children: [
-        // 消息区域 (占据全部剩余空间)
-        new Expanded({
-          child: new Scrollable({
-            controller: this._scrollController,
-            child: new ConversationView({
-              messages: this._messages,
-              inferenceState: this._inferenceState,
-              error: this._error,
-            }),
-          }),
-        }),
+        mainContent,
         // 分隔线
         new SizedBox({
           height: 1,

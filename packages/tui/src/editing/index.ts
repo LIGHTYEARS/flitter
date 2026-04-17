@@ -6,6 +6,7 @@
  * @module editing
  */
 
+export * from "./render-text-field.js";
 export * from "./text-editing-controller.js";
 export * from "./text-field.js";
 export * from "./text-layout-engine.js";

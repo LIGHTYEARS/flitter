@@ -135,6 +135,14 @@ export class RenderScrollbar extends RenderBox {
     this.setSize(width, height);
   }
 
+  override getMinIntrinsicWidth(_height: number): number {
+    return this._widget.thickness;
+  }
+
+  override getMaxIntrinsicWidth(_height: number): number {
+    return this._widget.thickness;
+  }
+
   /**
    * 绘制滚动条。
    *
@@ -321,6 +329,8 @@ export interface ScrollbarProps {
   thumbColor?: Color;
   /** 轨道颜色（未指定时使用主题选中色） */
   trackColor?: Color;
+  /** 是否显示轨道背景，默认 true */
+  showTrack?: boolean;
 }
 
 // ════════════════════════════════════════════════════

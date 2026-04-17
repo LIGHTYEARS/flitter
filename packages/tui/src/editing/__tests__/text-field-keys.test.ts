@@ -134,7 +134,7 @@ describe("TextField key dispatch logic", () => {
     const ctrl = new TextEditingController({ text: "hello world" });
     ctrl.moveCursorToStart();
     _simulateKey(ctrl, makeKey("ArrowRight", MODS_ALT));
-    expect(ctrl.cursorPosition).toBeGreaterThan(0);
+    expect(ctrl.cursorPosition).toBe(5);
   });
 
   it("Alt+D deletes word right", () => {
@@ -218,7 +218,7 @@ function _simulateKey(
   } = opts;
 
   const { key, modifiers } = event;
-  const { ctrl: isCtrl, alt: isAlt, shift: isShift } = modifiers;
+  const { ctrl: isCtrl, alt: isAlt, shift: isShift, meta: isMeta } = modifiers;
   const isMultiline = maxLines !== 1;
 
   // Submit key check
@@ -226,7 +226,8 @@ function _simulateKey(
     key === submitKey.key &&
     !!isCtrl === !!submitKey.ctrl &&
     !!isAlt === !!submitKey.alt &&
-    !!isShift === !!submitKey.shift;
+    !!isShift === !!submitKey.shift &&
+    !!isMeta === !!submitKey.meta;
 
   if (!readOnly && matchesSubmit) {
     // 逆向: sP r — backslash escape: if prev char is \, delete it and insert literal newline

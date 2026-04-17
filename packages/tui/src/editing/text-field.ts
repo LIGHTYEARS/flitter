@@ -165,7 +165,7 @@ class TextFieldState extends State<TextField> {
     const submitKey: SubmitKeyConfig = props.submitKey ?? { key: "Enter" };
 
     const { key, modifiers } = event;
-    const { ctrl: isCtrl, alt: isAlt, shift: isShift } = modifiers;
+    const { ctrl: isCtrl, alt: isAlt, shift: isShift, meta: isMeta } = modifiers;
 
     // Submit key check
     // 逆向: sP — check backslash escape then call onSubmitted
@@ -173,7 +173,8 @@ class TextFieldState extends State<TextField> {
       key === submitKey.key &&
       !!isCtrl === !!submitKey.ctrl &&
       !!isAlt === !!submitKey.alt &&
-      !!isShift === !!submitKey.shift;
+      !!isShift === !!submitKey.shift &&
+      !!isMeta === !!submitKey.meta;
 
     if (!readOnly && matchesSubmit) {
       // 逆向: sP r — backslash escape: if prev char is \, delete it and insert literal newline
@@ -193,7 +194,6 @@ class TextFieldState extends State<TextField> {
     // Multiline Enter
     if (isMultiline && !readOnly && key === "Enter" && !matchesSubmit) {
       ctrl.insertText("\n");
-      if (this.mounted) this.setState();
       return "handled";
     }
 
@@ -318,8 +318,9 @@ class TextFieldState extends State<TextField> {
   // ─── Mouse handling ────────────────────────────────
 
   private _handleClick = (event: MouseEvent): void => {
+    if (!this._renderFieldRef) return;
     const clickCount = (event as MouseEvent & { clickCount?: number }).clickCount ?? 1;
-    const offset = this._renderFieldRef?.hitTestPosition(event.x, event.y) ?? 0;
+    const offset = this._renderFieldRef.hitTestPosition(event.x, event.y);
     if (clickCount === 3) {
       this._controller.selectLineAt(offset);
     } else if (clickCount === 2) {
@@ -331,7 +332,8 @@ class TextFieldState extends State<TextField> {
   };
 
   private _handleDrag = (event: MouseEvent): void => {
-    const offset = this._renderFieldRef?.hitTestPosition(event.x, event.y) ?? 0;
+    if (!this._renderFieldRef) return;
+    const offset = this._renderFieldRef.hitTestPosition(event.x, event.y);
     this._controller.setSelectionRange(this._controller.selectionRange?.start ?? offset, offset);
   };
 

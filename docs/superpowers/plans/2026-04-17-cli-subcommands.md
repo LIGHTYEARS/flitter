@@ -431,7 +431,7 @@ export async function handleThreadsList(
     return;
   }
 
-  const limit = parseInt(options.limit, 10) || 10;
+  const limit = parseInt(options.limit, 10) || 20;
   const limited = entries.slice(0, limit);
 
   if (options.format === "json") {
@@ -532,6 +532,10 @@ export async function handleThreadsNew(
   }
 
   const id = crypto.randomUUID();
+  // Note: This creates a minimal ThreadSnapshot. The full schema has more fields
+  // (messages need messageId, state, etc.) but setCachedThread accepts the partial
+  // shape since messages: [] satisfies z.array(...). If runtime Zod validation
+  // is ever added, this may need expanding.
   threadStore.setCachedThread({
     id,
     v: 0,

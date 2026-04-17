@@ -62,26 +62,29 @@ export interface InputFieldConfig {
 ```
 
 2. In `build()`, replace the hardcoded width:
+
+**Note:** `MediaQuery.of(context)` **throws** if MediaQuery is not in the ancestor tree — it does NOT return null. Use `try/catch` to handle the missing case, but don't add a truthiness check on the result (it can never be falsy; it either returns `MediaQueryData` or throws).
+
 ```ts
 // Replace: const innerWidth = DEFAULT_BORDER_INNER_WIDTH;
 // With:
 let innerWidth = this.widget.config.width ?? DEFAULT_BORDER_INNER_WIDTH;
 
-// Try MediaQuery if available (graceful fallback)
-try {
-  const mediaQuery = MediaQuery.of(context);
-  if (mediaQuery && !this.widget.config.width) {
+// Try MediaQuery if available (graceful fallback — .of() throws when absent)
+if (!this.widget.config.width) {
+  try {
+    const mediaData = MediaQuery.of(context);
     // Terminal width minus 4 for border chars and padding
-    innerWidth = Math.max(20, mediaQuery.size.width - 4);
+    innerWidth = Math.max(20, mediaData.size.width - 4);
+  } catch {
+    // MediaQuery not available in this context — use default
   }
-} catch {
-  // MediaQuery not available in this context — use default
 }
 ```
 
 3. Add import: `import { MediaQuery } from "@flitter/tui";`
 
-4. Update `build()` signature to accept context: `build(context: BuildContext): Widget`
+4. Update `build()` to use the context parameter: change `build(_context: BuildContext)` to `build(context: BuildContext)` (remove the underscore so the parameter is used)
 
 - [ ] **Step 4: Run test and existing InputField tests**
 
@@ -213,6 +216,10 @@ export class PromptHistory {
     return this._entries;
   }
 
+  get isNavigating(): boolean {
+    return this._navigating;
+  }
+
   push(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -307,6 +314,16 @@ export interface InputFieldConfig {
 
 In `InputFieldState._handleKeyEvent`:
 
+**IMPORTANT:** The `startNavigation()` call must only happen ONCE at the start of a navigation session. Calling it repeatedly would overwrite the saved draft with whatever text is currently in the field. Use `canGoForward()` as a proxy for "already navigating" — or better, check the `_navigating` flag. Since `_navigating` is private, add a getter `isNavigating` to `PromptHistory`:
+
+First, add to `PromptHistory`:
+```ts
+get isNavigating(): boolean {
+  return this._navigating;
+}
+```
+
+Then in `_handleKeyEvent`:
 ```ts
 // Add to imports:
 import type { PromptHistory } from "./prompt-history.js";
@@ -314,18 +331,20 @@ import type { PromptHistory } from "./prompt-history.js";
 // In _handleKeyEvent, before the existing key handling:
 if (event.key === "ArrowUp" && !event.modifiers.shift) {
   const history = this.widget.config.promptHistory;
-  if (history) {
-    if (!history.canGoBack() && this._controller.text === "") return "ignored";
-    if (history.canGoBack()) {
-      // Save current text as draft on first navigation
+  if (history && history.entries.length > 0) {
+    // Start navigation only once — don't overwrite draft on subsequent presses
+    if (!history.isNavigating) {
       history.startNavigation(this._controller.text);
     }
-    const prev = history.goBack();
-    this._controller.text = prev;
-    this._controller.moveCursorToEnd();
-    this._markDirty();
-    return "handled";
+    if (history.canGoBack()) {
+      const prev = history.goBack();
+      this._controller.text = prev;
+      this._controller.moveCursorToEnd();
+      this._markDirty();
+      return "handled";
+    }
   }
+  return "ignored";
 }
 
 if (event.key === "ArrowDown" && !event.modifiers.shift) {

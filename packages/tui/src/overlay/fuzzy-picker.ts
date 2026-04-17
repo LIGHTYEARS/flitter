@@ -15,6 +15,7 @@ import { Actions } from "../actions/actions.js";
 import { Intent } from "../actions/intent.js";
 import { KeyActivator } from "../actions/key-activator.js";
 import { Shortcuts } from "../actions/shortcuts.js";
+import { WidgetsBinding } from "../binding/widgets-binding.js";
 import { TextEditingController } from "../editing/text-editing-controller.js";
 import { TextField } from "../editing/text-field.js";
 import { FocusNode } from "../focus/focus-node.js";
@@ -23,6 +24,8 @@ import { TextStyle } from "../screen/text-style.js";
 import { ScrollController } from "../scroll/scroll-controller.js";
 import { ScrollViewport } from "../scroll/scrollable.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
+import { RenderBox } from "../tree/render-box.js";
+import type { RenderObject } from "../tree/render-object.js";
 import { State, StatefulWidget } from "../tree/stateful-widget.js";
 import type { BuildContext } from "../tree/stateless-widget.js";
 import { StatelessWidget } from "../tree/stateless-widget.js";
@@ -90,6 +93,110 @@ class ContextCapture extends StatelessWidget {
   build(context: BuildContext): WidgetInterface {
     this.onBuild(context);
     return this.child;
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  Scroll-into-view helpers
+// ════════════════════════════════════════════════════
+
+/**
+ * 逆向: sx0 (modules/2150_unknown_ox0.js:1)
+ * Walk up the render tree to find an ancestor with a scrollController property.
+ */
+function findEnclosingScrollable(
+  renderObject: RenderObject,
+): (RenderBox & { scrollController: ScrollController }) | null {
+  let current: RenderObject | null = renderObject.parent;
+  while (current) {
+    if (
+      "scrollController" in current &&
+      (current as RenderBox & { scrollController: ScrollController }).scrollController
+    ) {
+      return current as RenderBox & { scrollController: ScrollController };
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+/**
+ * 逆向: ox0 (modules/2150_unknown_ox0.js:9)
+ * Accumulate Y offsets from renderObject up to (not including) ancestor.
+ *
+ * In flitter, RenderScrollable applies scroll offset only during paint(),
+ * not layout(), so the result is in content-space coordinates.
+ */
+function computeRectInAncestor(
+  renderObject: RenderObject,
+  rect: { top: number; bottom: number },
+  ancestor: RenderObject,
+): { top: number; bottom: number } | null {
+  let { top, bottom } = rect;
+  let current: RenderObject | null = renderObject;
+  while (current && current !== ancestor) {
+    if (current instanceof RenderBox) {
+      const offset = current.offset;
+      top += offset.y;
+      bottom += offset.y;
+    }
+    current = current.parent;
+  }
+  if (current !== ancestor) return null;
+  return { top, bottom };
+}
+
+/**
+ * 逆向: E1T (modules/2149_unknown_E1T.js:9)
+ * Scroll a rect into view within the nearest enclosing scrollable.
+ *
+ * Adapted for flitter: since RenderScrollable does not adjust child offset
+ * by scroll position during layout (unlike amp which sets child.offset.y =
+ * -scrollOffset), itemRect coordinates are in content-space. We compare
+ * against [scrollOffset + padding, scrollOffset + viewportHeight - padding].
+ *
+ * Math equivalence with amp:
+ * - Amp scroll-up: content_Y - s < pad → content_Y < s + pad (same)
+ * - Amp new offset: s + (content_Y - s) - pad = content_Y - pad (same)
+ */
+function ensureRectVisible(
+  context: BuildContext,
+  rect: { top: number; bottom: number },
+  options: { padding?: number } = {},
+): void {
+  const padding = options.padding ?? 1;
+  const renderObject = context.findRenderObject();
+  if (!renderObject) return;
+
+  const scrollable = findEnclosingScrollable(renderObject);
+  if (!scrollable) return;
+
+  const controller = scrollable.scrollController;
+  if (!controller) return;
+
+  const itemRect = computeRectInAncestor(renderObject, rect, scrollable);
+  if (!itemRect) return;
+
+  const viewportHeight = scrollable.size.height;
+  const currentOffset = controller.offset;
+  let newOffset = currentOffset;
+
+  // Content-space visible range with padding
+  const visibleTop = currentOffset + padding;
+  const visibleBottom = currentOffset + viewportHeight - padding;
+
+  if (itemRect.top < visibleTop) {
+    newOffset = itemRect.top - padding;
+  } else if (itemRect.bottom > visibleBottom) {
+    newOffset = itemRect.bottom - viewportHeight + padding;
+  } else {
+    return; // already visible
+  }
+
+  const maxExtent = controller.maxScrollExtent;
+  newOffset = Math.max(0, Math.min(newOffset, maxExtent));
+  if (newOffset !== currentOffset) {
+    controller.jumpTo(newOffset);
   }
 }
 
@@ -228,6 +335,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
       this.selectedIndex = 0;
       this.recomputeFilteredItems();
       this.setState();
+      // 逆向: NZT line 2658 — addPostFrameCallback(ensureSelectedItemVisible)
+      WidgetsBinding.instance.frameScheduler.addPostFrameCallback(() => {
+        this.ensureSelectedItemVisible();
+      });
       // Sync to external controller
       if (this.widget.controller) {
         this.widget.controller.query = this.textController.text;
@@ -245,6 +356,8 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
 
     this.clampSelectedIndex();
     this.syncSelection();
+    // 逆向: NZT line 2668 — ensureSelectedItemVisible (direct, no postFrame)
+    this.ensureSelectedItemVisible();
   }
 
   /**
@@ -276,7 +389,7 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         ...fuzzyMatch(normalizedQuery, getLabel(item)),
       }))
       .filter((entry) => entry.matches)
-      .sort(sortItems ? (a, b) => sortItems(a, b, query) : (a, b) => b.score - a.score);
+      .sort(sortItems ? (a, b) => sortItems(a, b, normalizedQuery) : (a, b) => b.score - a.score);
 
     const filtered = scored.map((s) => s.item);
     this.cachedQuery = query;
@@ -320,6 +433,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         this.hasUserInteracted = true;
         this.selectedIndex++;
         this.setState();
+        // 逆向: NZT line 2685 — addPostFrameCallback(ensureSelectedItemVisible)
+        WidgetsBinding.instance.frameScheduler.addPostFrameCallback(() => {
+          this.ensureSelectedItemVisible();
+        });
         this.syncSelection();
       }
       return "handled";
@@ -330,6 +447,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         this.hasUserInteracted = true;
         this.selectedIndex--;
         this.setState();
+        // 逆向: NZT line 2691 — addPostFrameCallback(ensureSelectedItemVisible)
+        WidgetsBinding.instance.frameScheduler.addPostFrameCallback(() => {
+          this.ensureSelectedItemVisible();
+        });
         this.syncSelection();
       }
       return "handled";
@@ -366,6 +487,19 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
     this.widget.onSelectionChange?.(item);
   }
 
+  /**
+   * 逆向: NZT.ensureSelectedItemVisible (actions_intents.js:2740)
+   * Scroll the selected item into view within the scroll viewport.
+   */
+  private ensureSelectedItemVisible(): void {
+    const ctx = this.itemContexts[this.selectedIndex];
+    if (!ctx) return;
+    const renderObject = ctx.findRenderObject();
+    if (!renderObject || !(renderObject instanceof RenderBox)) return;
+    const itemHeight = renderObject.size?.height ?? 1;
+    ensureRectVisible(ctx, { top: 0, bottom: itemHeight }, { padding: 1 });
+  }
+
   // ── Mouse handling ──
 
   /**
@@ -396,6 +530,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
       }
     }
     this.setState();
+    // 逆向: NZT line 2761 — addPostFrameCallback(ensureSelectedItemVisible)
+    WidgetsBinding.instance.frameScheduler.addPostFrameCallback(() => {
+      this.ensureSelectedItemVisible();
+    });
     this.syncSelection();
     return this.selectedIndex !== prevIndex;
   };
@@ -564,10 +702,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
     if (this.widget.title) {
       columnChildren.push(
         new Container({
-          padding: EdgeInsets.symmetric({ horizontal: 1 }),
+          padding: EdgeInsets.symmetric({ vertical: 1, horizontal: 1 }),
           child: new Text({
             data: this.widget.title,
-            style: new TextStyle({ bold: true }),
+            style: new TextStyle({ bold: true, foreground: Color.cyan() }),
           }) as unknown as WidgetInterface,
         }) as unknown as Widget,
       );
@@ -601,7 +739,7 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
 
     return new Container({
       decoration: bgColor ? new BoxDecoration({ color: bgColor }) : undefined,
-      padding: EdgeInsets.symmetric({ horizontal: 2 }),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new Text({
         data: this.widget.getLabel(item),
         style: new TextStyle({

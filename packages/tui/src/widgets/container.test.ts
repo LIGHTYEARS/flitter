@@ -18,8 +18,8 @@ import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
 import { Container } from "./container.js";
 import { EdgeInsets } from "./edge-insets.js";
-import { Padding, RenderPadding } from "./padding.js";
-import { RenderSizedBox, SizedBox } from "./sized-box.js";
+import { RenderPadding } from "./padding.js";
+import { RenderSizedBox } from "./sized-box.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助

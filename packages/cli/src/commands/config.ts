@@ -38,10 +38,21 @@ export async function handleConfigGet(
   context: CliContext,
   key: string,
 ): Promise<void> {
-  // TODO: 实现配置值获取和输出
-  void deps;
   void context;
-  void key;
+  const configService = deps.configService;
+  if (!configService) {
+    process.stderr.write("Error: ConfigService not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const value = (configService.get().settings as Record<string, unknown>)[key];
+  if (value === undefined) {
+    process.stdout.write(`${key}: (not set)\n`);
+  } else if (typeof value === "object") {
+    process.stdout.write(`${key}: ${JSON.stringify(value, null, 2)}\n`);
+  } else {
+    process.stdout.write(`${key}: ${String(value)}\n`);
+  }
 }
 
 /**
@@ -58,11 +69,25 @@ export async function handleConfigSet(
   key: string,
   value: string,
 ): Promise<void> {
-  // TODO: 实现配置值设置
-  void deps;
   void context;
-  void key;
-  void value;
+  const configService = deps.configService;
+  if (!configService) {
+    process.stderr.write("Error: ConfigService not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  let parsed: unknown = value;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    /* keep as string */
+  }
+  if (value === "true") parsed = true;
+  if (value === "false") parsed = false;
+  configService.updateSettings("workspace", key, parsed);
+  process.stdout.write(
+    `Set ${key} = ${typeof parsed === "object" ? JSON.stringify(parsed) : String(parsed)}\n`,
+  );
 }
 
 /**
@@ -75,7 +100,21 @@ export async function handleConfigList(
   deps: ConfigCommandDeps,
   context: CliContext,
 ): Promise<void> {
-  // TODO: 实现配置列表输出 (table/json 格式)
-  void deps;
   void context;
+  const configService = deps.configService;
+  if (!configService) {
+    process.stderr.write("Error: ConfigService not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const settings = configService.get().settings as Record<string, unknown>;
+  const entries = Object.entries(settings).sort(([a], [b]) => a.localeCompare(b));
+  if (entries.length === 0) {
+    process.stdout.write("No settings configured.\n");
+    return;
+  }
+  for (const [key, value] of entries) {
+    const display = typeof value === "object" ? JSON.stringify(value) : String(value);
+    process.stdout.write(`${key}: ${display}\n`);
+  }
 }

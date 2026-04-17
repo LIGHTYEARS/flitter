@@ -1,33 +1,33 @@
 /**
  * CommandPalette — 命令面板 Widget。
  *
- * 基于 {@link AutocompleteController} 实现的命令搜索面板。
- * 内部创建 TextEditingController 用于搜索输入，
- * 通过模糊匹配过滤命令列表。
+ * 逆向: amp qZT/zZT (misc_utils.js:2529), UZT (misc_utils.js:2404),
+ *       i0R/s0R (misc_utils.js:5298)
  *
- * 还原自逆向工程代码中的命令面板模式
- * (tui-thread-widgets.js:2748 commandPaletteMode)。
+ * 使用 {@link FuzzyPicker} 提供搜索输入 + 命令列表的交互体验。
  *
  * @module command-palette
- *
- * @example
- * ```ts
- * const palette = new CommandPalette({
- *   commands: [
- *     { id: "new", label: "New Thread", action: () => createThread() },
- *     { id: "quit", label: "Quit", shortcut: "Ctrl+C", action: () => quit() },
- *   ],
- *   onDismiss: () => closePalette(),
- * });
- * ```
  */
 
-import { TextEditingController } from "../editing/text-editing-controller.js";
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
+import type { Widget as WidgetInterface } from "../tree/element.js";
 import { State, StatefulWidget } from "../tree/stateful-widget.js";
 import type { BuildContext } from "../tree/stateless-widget.js";
 import type { Widget } from "../tree/widget.js";
+import { BoxDecoration } from "../widgets/box-decoration.js";
+import { Center } from "../widgets/center.js";
+import { Container } from "../widgets/container.js";
+import { EdgeInsets } from "../widgets/edge-insets.js";
+import { Expanded } from "../widgets/flexible.js";
+import { Row } from "../widgets/row.js";
+import { SizedBox } from "../widgets/sized-box.js";
 import { Text } from "../widgets/text.js";
-import { AutocompleteController, type AutocompleteOption } from "./autocomplete-controller.js";
+import { FuzzyPicker, type ScoredItem } from "./fuzzy-picker.js";
+
+// ════════════════════════════════════════════════════
+//  Command interface
+// ════════════════════════════════════════════════════
 
 /**
  * 命令面板命令定义。
@@ -35,14 +35,20 @@ import { AutocompleteController, type AutocompleteOption } from "./autocomplete-
 export interface CommandPaletteCommand {
   /** 命令唯一标识 */
   id: string;
-  /** 显示标签 */
+  /** 显示标签（动词文本） */
   label: string;
+  /** 命令分类（名词文本，显示在左列） */
+  category?: string;
   /** 命令描述 */
   description?: string;
   /** 快捷键提示 */
   shortcut?: string;
   /** 执行动作 */
-  action: () => void;
+  action: () => void | Promise<void>;
+  /** 是否启用（默认 true） */
+  enabled?: boolean;
+  /** 排序优先级（越大越靠前） */
+  priority?: number;
 }
 
 /**
@@ -55,131 +61,169 @@ export interface CommandPaletteProps {
   onDismiss: () => void;
 }
 
+// ════════════════════════════════════════════════════
+//  CommandPalette Widget
+// ════════════════════════════════════════════════════
+
 /**
  * 命令面板 StatefulWidget。
  *
- * 提供搜索输入框 + 命令列表的交互体验。
- * 内部使用 {@link TextEditingController} 管理搜索文本，
- * 使用 {@link AutocompleteController} 管理匹配和选择。
+ * 逆向: amp qZT in misc_utils.js:2529
  */
 export class CommandPalette extends StatefulWidget {
-  /** 命令列表 */
   readonly commands: CommandPaletteCommand[];
-  /** 关闭回调 */
   readonly onDismiss: () => void;
 
-  /**
-   * 创建命令面板。
-   *
-   * @param props - 命令列表和关闭回调
-   */
   constructor(props: CommandPaletteProps) {
     super();
     this.commands = props.commands;
     this.onDismiss = props.onDismiss;
   }
 
-  /**
-   * 创建关联的 State。
-   *
-   * @returns CommandPaletteState 实例
-   */
   createState(): State<CommandPalette> {
     return new CommandPaletteState();
   }
 }
 
+// ════════════════════════════════════════════════════
+//  CommandPaletteState
+// ════════════════════════════════════════════════════
+
 /**
  * CommandPalette 状态管理。
  *
- * 管理搜索控制器和自动补全控制器的生命周期。
+ * 逆向: amp zZT (misc_utils.js:2535) + UZT.build (misc_utils.js:2404)
  */
 class CommandPaletteState extends State<CommandPalette> {
-  /** 搜索输入控制器 */
-  private _searchController!: TextEditingController;
-  /** 自动补全控制器 */
-  private _autocompleteController!: AutocompleteController;
-  /** 匹配的命令列表 */
-  private _matchedCommands: CommandPaletteCommand[] = [];
-
   /**
-   * 初始化状态。
-   *
-   * 创建搜索和自动补全控制器，绑定到命令列表。
+   * 逆向: UZT.build — 计算命令分类列最大宽度 (misc_utils.js:2410 KE0)
    */
-  override initState(): void {
-    super.initState();
-    this._searchController = new TextEditingController();
-    this._autocompleteController = new AutocompleteController();
-
-    // 初始化匹配: 总是激活 (空触发字符, minLength=0)
-    this._matchedCommands = [...this.widget.commands];
-
-    this._autocompleteController.initialize({
-      textController: this._searchController,
-      triggers: [{ char: "", minLength: 0 }],
-      optionsBuilder: (query) => this._filterCommands(query),
-      onSelected: (option) => this._executeCommand(option),
-      debounceMs: 50,
-    });
-
-    this._autocompleteController.addListener(() => {
-      this.setState();
-    });
+  private _maxCategoryWidth(): number {
+    return Math.max(0, ...this.widget.commands.map((cmd) => (cmd.category ?? "").length));
   }
 
   /**
-   * 释放资源。
+   * 命令排序比较器。
+   *
+   * 逆向: hH0 in modules/2786_unknown_hH0.js (简化版，无 follows/alias)
+   *
+   * 优先级: 精确匹配 > 模糊得分 > 显式优先级
    */
-  override dispose(): void {
-    this._autocompleteController.dispose();
-    super.dispose();
+  private _sortCommands(
+    a: ScoredItem<CommandPaletteCommand>,
+    b: ScoredItem<CommandPaletteCommand>,
+    normalizedQuery: string,
+  ): number {
+    // 1. Exact noun/verb match
+    const aCat = a.item.category?.toLowerCase() ?? "";
+    const bCat = b.item.category?.toLowerCase() ?? "";
+    const aLabel = a.item.label.toLowerCase();
+    const bLabel = b.item.label.toLowerCase();
+
+    const aExact = aCat === normalizedQuery || aLabel === normalizedQuery;
+    const bExact = bCat === normalizedQuery || bLabel === normalizedQuery;
+    if (aExact && !bExact) return -1;
+    if (!aExact && bExact) return 1;
+
+    // 2. Fuzzy score
+    if (b.score !== a.score) return b.score - a.score;
+
+    // 3. Priority
+    const aPri = a.item.priority ?? 0;
+    const bPri = b.item.priority ?? 0;
+    return bPri - aPri;
+  }
+
+  /**
+   * 渲染单个命令项。
+   *
+   * 逆向: amp HZT / i0R.renderItem (misc_utils.js:5360-5420)
+   */
+  private _buildCommandItem(
+    cmd: CommandPaletteCommand,
+    isSelected: boolean,
+    isDisabled: boolean,
+    categoryWidth: number,
+  ): WidgetInterface {
+    const children: Widget[] = [];
+
+    // Category/noun column (fixed width, muted when not selected)
+    if (categoryWidth > 0) {
+      children.push(
+        new SizedBox({
+          width: categoryWidth,
+          child: new Text({
+            data: cmd.category ?? "",
+            style: new TextStyle({
+              foreground: isSelected ? Color.white() : Color.rgb(120, 120, 120),
+            }),
+          }) as unknown as WidgetInterface,
+        }) as unknown as Widget,
+      );
+      children.push(new SizedBox({ width: 1 }) as unknown as Widget);
+    }
+
+    // Label/verb column (expanded, bold)
+    children.push(
+      new Expanded({
+        child: new Text({
+          data: cmd.label,
+          style: new TextStyle({
+            bold: true,
+            foreground: isDisabled ? Color.rgb(100, 100, 100) : Color.white(),
+          }),
+        }),
+      }) as unknown as Widget,
+    );
+
+    // Shortcut column
+    if (cmd.shortcut) {
+      children.push(
+        new Text({
+          data: cmd.shortcut,
+          style: new TextStyle({ foreground: Color.rgb(120, 120, 120) }),
+        }) as unknown as Widget,
+      );
+    }
+
+    return new Container({
+      decoration: isSelected ? new BoxDecoration({ color: Color.rgb(50, 50, 80) }) : undefined,
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      child: new Row({ children }),
+    }) as unknown as WidgetInterface;
   }
 
   /**
    * 构建面板 UI。
    *
-   * 当前返回简化的 placeholder Widget（完整 UI 渲染依赖 TextField/ListView 等组件协调）。
-   *
-   * @param context - 构建上下文
-   * @returns 子 Widget
+   * 逆向: amp UZT.build (misc_utils.js:2404-2440)
    */
-  build(_context: BuildContext): Widget {
-    // 简化实现: 返回一个描述命令面板的最小 Widget
-    // 完整实现需要 Column([ TextField(searchInput), ListView(matchedCommands) ])
-    // 这些组件在后续 plan 中实现
-    const matchCount = this._matchedCommands.length;
-    return new Text({
-      data: `Command Palette (${matchCount} commands)`,
-    });
-  }
+  build(_context: BuildContext): WidgetInterface {
+    const categoryWidth = this._maxCategoryWidth();
 
-  /**
-   * @internal 按 label 模糊匹配命令。
-   */
-  private _filterCommands(query: string): AutocompleteOption[] {
-    const q = query.toLowerCase();
-    const matches = this.widget.commands.filter(
-      (cmd) =>
-        cmd.label.toLowerCase().includes(q) ||
-        (cmd.description?.toLowerCase().includes(q) ?? false),
-    );
-    this._matchedCommands = matches;
-    return matches.map((cmd) => ({
-      label: cmd.label,
-      value: cmd.id,
-      description: cmd.description,
-    }));
-  }
-
-  /**
-   * @internal 执行选中的命令。
-   */
-  private _executeCommand(option: AutocompleteOption): void {
-    const cmd = this.widget.commands.find((c) => c.id === option.value);
-    if (cmd) {
-      cmd.action();
-    }
-    this.widget.onDismiss();
+    return new Center({
+      child: new SizedBox({
+        width: 80,
+        height: 20,
+        child: new FuzzyPicker<CommandPaletteCommand>({
+          items: this.widget.commands,
+          title: "Command Palette",
+          getLabel: (cmd) => `${cmd.category ?? ""} ${cmd.label}`.trim().toLowerCase(),
+          renderItem: (cmd, isSelected, isDisabled, _ctx) =>
+            this._buildCommandItem(cmd, isSelected, isDisabled, categoryWidth),
+          isItemDisabled: (cmd) => cmd.enabled === false,
+          sortItems: (a, b, query) => this._sortCommands(a, b, query),
+          onAccept: (cmd) => {
+            const result = cmd.action();
+            if (result instanceof Promise) {
+              result.then(() => this.widget.onDismiss());
+            } else {
+              this.widget.onDismiss();
+            }
+          },
+          onDismiss: () => this.widget.onDismiss(),
+        }),
+      }),
+    }) as unknown as WidgetInterface;
   }
 }

@@ -4,11 +4,11 @@
  * 演示 TextField 的核心功能:
  * - 多行文本输入 (maxLines=null)
  * - 光标位置、grapheme 数量和行数显示
- * - Ctrl+Enter 提交文本
+ * - Enter 提交文本
  * - 显示最后提交的文本
  *
  * 用法: bun run examples/14-text-field-demo.ts
- * 按 Ctrl+Enter 提交，Ctrl+C 退出。
+ * 按 Enter 提交，Ctrl+C 退出。
  */
 
 import { runApp } from "../src/binding/run-app.js";
@@ -102,7 +102,7 @@ class TextFieldDemoState extends State<TextFieldDemo> {
               }),
             }),
             new TextSpan({
-              text: "  Ctrl+Enter to submit, Ctrl+C to quit",
+              text: "  Enter to submit, Ctrl+C to quit",
               style: new TextStyle({ foreground: Color.rgb(150, 150, 150) }),
             }),
           ],
@@ -119,12 +119,11 @@ class TextFieldDemoState extends State<TextFieldDemo> {
       child: new TextField({
         controller: this._controller,
         autofocus: true,
-        maxLines: null,
-        minLines: 5,
+        maxLines: 1,
+        minLines: 1,
         cursorColor: Color.rgb(100, 200, 100),
         selectionColor: Color.rgb(50, 80, 150),
         onSubmitted: this._handleSubmit,
-        submitKey: { key: "Enter", ctrl: true },
       }),
     });
 
@@ -192,7 +191,7 @@ class TextFieldDemoState extends State<TextFieldDemo> {
         text: new TextSpan({
           children: [
             new TextSpan({
-              text: " Ctrl+Enter ",
+              text: " Enter ",
               style: new TextStyle({ bold: true, foreground: Color.rgb(100, 200, 100) }),
             }),
             new TextSpan({

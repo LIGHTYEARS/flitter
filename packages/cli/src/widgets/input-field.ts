@@ -27,15 +27,24 @@
  * @module
  */
 
-import { StatefulWidget, State, Column, SizedBox, Padding, EdgeInsets, RichText, TextSpan } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
-import { TextEditingController } from "@flitter/tui";
-import { FocusNode, type KeyEventResult } from "@flitter/tui";
-import { FocusManager } from "@flitter/tui";
-import type { KeyEvent, PasteEvent } from "@flitter/tui";
+import type { BuildContext, KeyEvent, PasteEvent, Widget } from "@flitter/tui";
+import {
+  Color,
+  Column,
+  EdgeInsets,
+  FocusManager,
+  FocusNode,
+  type KeyEventResult,
+  MediaQuery,
+  Padding,
+  RichText,
+  SizedBox,
+  State,
+  StatefulWidget,
+  TextEditingController,
+  TextSpan,
+  TextStyle,
+} from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  颜色常量
@@ -74,6 +83,14 @@ export interface InputFieldConfig {
   onSubmit: (text: string) => void;
   /** 占位符文本 */
   placeholder?: string;
+  /**
+   * Override inner width (number of ─ chars in the border).
+   * If undefined, uses MediaQuery terminal width - 4 (border + padding) at render time.
+   * Falls back to DEFAULT_BORDER_INNER_WIDTH (78) when MediaQuery is unavailable.
+   *
+   * 逆向: Gm.maxWidth in actions_intents.js line 704
+   */
+  width?: number;
 }
 
 // ════════════════════════════════════════════════════
@@ -183,10 +200,10 @@ export class InputFieldState extends State<InputField> {
    * - 边框颜色: 聚焦 primary (#7aa2f7), 非聚焦 border (#3b4261)
    * - 高度: 1-5 行动态调整
    *
-   * @param _context - 构建上下文
+   * @param context - 构建上下文
    * @returns Widget 树
    */
-  build(_context: BuildContext): Widget {
+  build(context: BuildContext): Widget {
     const text = this._controller.text;
     const isEmpty = !text;
     const isFocused = this._focusNode.hasFocus;
@@ -194,6 +211,21 @@ export class InputFieldState extends State<InputField> {
     // 边框颜色: primary 聚焦 / border 非聚焦
     const borderColor = isFocused ? PRIMARY_COLOR : BORDER_COLOR;
     const borderStyle = new TextStyle({ foreground: borderColor });
+
+    // ── 自适应宽度计算 ──
+    // 逆向: Gm._updateScrollOffset (actions_intents.js line 903):
+    //   c = (this.widget.maxWidth || renderObjectWidth) - border*2 - padding
+    // 我们的简化版: width prop > MediaQuery.size.width - 4 > DEFAULT_BORDER_INNER_WIDTH
+    let innerWidth = this.widget.config.width ?? DEFAULT_BORDER_INNER_WIDTH;
+
+    if (!this.widget.config.width) {
+      try {
+        const mediaData = MediaQuery.of(context);
+        innerWidth = Math.max(20, mediaData.size.width - 4);
+      } catch {
+        // MediaQuery not available — use default
+      }
+    }
 
     // 内容 Widget
     let contentWidget: Widget;
@@ -234,7 +266,7 @@ export class InputFieldState extends State<InputField> {
     const lineCount = Math.min(5, Math.max(1, (text.match(/\n/g) || []).length + 1));
 
     // 边框字符
-    const horizontalLine = "\u2500".repeat(DEFAULT_BORDER_INNER_WIDTH);
+    const horizontalLine = "\u2500".repeat(innerWidth);
     const topBorder = `\u250C${horizontalLine}\u2510`;
     const bottomBorder = `\u2514${horizontalLine}\u2518`;
 
@@ -300,11 +332,7 @@ export class InputFieldState extends State<InputField> {
     }
 
     // 普通可打印字符 (单字符，无 ctrl/meta 修饰)
-    if (
-      event.key.length === 1 &&
-      !event.modifiers.ctrl &&
-      !event.modifiers.meta
-    ) {
+    if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
       this._controller.insertText(event.key);
       this._markDirty();
       return "handled";

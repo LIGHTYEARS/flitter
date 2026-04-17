@@ -181,6 +181,9 @@ export class RenderPadding extends RenderBox {
   set padding(value: EdgeInsets) {
     if (!this._padding.equals(value)) {
       this._padding = value;
+      // Set _needsLayout directly so layout() re-runs even when unattached
+      // (markNeedsLayout() has an _attached guard for pipeline propagation).
+      this._needsLayout = true;
       this.markNeedsLayout();
     }
   }

@@ -256,45 +256,53 @@ describe("RenderSizedBox", () => {
 // ════════════════════════════════════════════════════
 
 describe("Container", () => {
-  it("仅指定 padding 时构建 Padding Widget", () => {
+  it("仅指定 padding 时布局尺寸包含 padding", () => {
+    const child = new TestRenderBox(20, 10);
     const container = new Container({
       padding: EdgeInsets.all(10),
     });
-    const built = container.build(null as never);
-    assert.ok(built instanceof Padding);
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    ro.adoptChild(child);
+    ro.layout(BoxConstraints.loose(200, 200));
+    // 20 + 20 (padding horizontal) = 40
+    assert.equal(ro.size.width, 40);
+    assert.equal(ro.size.height, 30); // 10 + 20 vertical
   });
 
-  it("仅指定尺寸时构建 SizedBox Widget", () => {
+  it("仅指定尺寸时布局尺寸等于指定值", () => {
     const container = new Container({
       width: 100,
       height: 50,
     });
-    const built = container.build(null as never);
-    assert.ok(built instanceof SizedBox);
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    ro.layout(BoxConstraints.loose(200, 200));
+    assert.equal(ro.size.width, 100);
+    assert.equal(ro.size.height, 50);
   });
 
-  it("同时指定 padding 和尺寸时外层为 Padding 内层为 SizedBox", () => {
+  it("同时指定 padding 和尺寸时布局尺寸等于指定值", () => {
+    const child = new TestRenderBox(20, 10);
     const container = new Container({
       padding: EdgeInsets.all(5),
       width: 80,
       height: 40,
     });
-    const built = container.build(null as never);
-
-    // 外层是 Padding
-    assert.ok(built instanceof Padding);
-    // 内层子 Widget 是 SizedBox
-    const paddingWidget = built as Padding;
-    assert.ok(paddingWidget.child instanceof SizedBox);
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    ro.adoptChild(child);
+    ro.layout(BoxConstraints.loose(200, 200));
+    // width/height override takes precedence
+    assert.equal(ro.size.width, 80);
+    assert.equal(ro.size.height, 40);
   });
 
-  it("仅有子 Widget 时直接返回子 Widget", () => {
-    const childSizedBox = new SizedBox({ width: 10, height: 10 });
-    const container = new Container({
-      child: childSizedBox as never,
-    });
-    const built = container.build(null as never);
-    assert.equal(built, childSizedBox);
+  it("仅有子 Widget 时布局尺寸等于子 Widget 尺寸", () => {
+    const child = new TestRenderBox(30, 15);
+    const container = new Container({});
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    ro.adoptChild(child);
+    ro.layout(BoxConstraints.loose(200, 200));
+    assert.equal(ro.size.width, 30);
+    assert.equal(ro.size.height, 15);
   });
 });
 

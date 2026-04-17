@@ -16,6 +16,7 @@
  * ```
  */
 import type { ThreadStore } from "@flitter/data";
+import type { ThreadSnapshot } from "@flitter/schemas";
 import type { CliContext } from "../context";
 
 /**
@@ -54,10 +55,42 @@ export async function handleThreadsList(
   context: CliContext,
   options: ThreadsListOptions,
 ): Promise<void> {
-  // TODO: Plan 11-02/11-03 实现 thread 列表展示
-  void deps;
   void context;
-  void options;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const entries$ = threadStore.observeThreadEntries();
+  const entries = entries$.getValue();
+  if (!entries || entries.length === 0) {
+    process.stdout.write("No threads found.\n");
+    return;
+  }
+  const limit = Number.parseInt(options.limit, 10) || 20;
+  const limited = entries.slice(0, limit);
+  if (options.format === "json") {
+    process.stdout.write(`${JSON.stringify(limited, null, 2)}\n`);
+    return;
+  }
+  const idWidth = 12;
+  const titleWidth = 40;
+  const dateWidth = 20;
+  process.stdout.write(
+    `${"ID".padEnd(idWidth)}  ${"Title".padEnd(titleWidth)}  ${"Last Active".padEnd(dateWidth)}\n`,
+  );
+  process.stdout.write(
+    `${"─".repeat(idWidth)}  ${"─".repeat(titleWidth)}  ${"─".repeat(dateWidth)}\n`,
+  );
+  for (const entry of limited) {
+    const id = (entry.id ?? "").slice(0, idWidth).padEnd(idWidth);
+    const title = (entry.title ?? "Untitled").slice(0, titleWidth).padEnd(titleWidth);
+    const date = new Date(entry.userLastInteractedAt ?? Date.now())
+      .toLocaleString()
+      .padEnd(dateWidth);
+    process.stdout.write(`${id}  ${title}  ${date}\n`);
+  }
 }
 
 /**
@@ -72,10 +105,23 @@ export async function handleThreadsNew(
   context: CliContext,
   options: ThreadsNewOptions,
 ): Promise<void> {
-  // TODO: 实现创建新 thread
-  void deps;
   void context;
   void options;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const id = crypto.randomUUID();
+  threadStore.setCachedThread({
+    id,
+    v: 0,
+    messages: [],
+    relationships: [],
+    created: Date.now(),
+  } as unknown as ThreadSnapshot);
+  process.stdout.write(`Created thread: ${id}\n`);
 }
 
 /**
@@ -90,10 +136,20 @@ export async function handleThreadsContinue(
   context: CliContext,
   threadId: string,
 ): Promise<void> {
-  // TODO: 实现继续 thread
-  void deps;
   void context;
-  void threadId;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const thread = threadStore.getThread(threadId);
+  if (!thread) {
+    process.stderr.write(`Error: Thread "${threadId}" not found\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(`Continuing thread: ${threadId}\nRun: flitter --thread-id ${threadId}\n`);
 }
 
 /**
@@ -108,10 +164,21 @@ export async function handleThreadsArchive(
   context: CliContext,
   threadId: string,
 ): Promise<void> {
-  // TODO: 实现归档 thread
-  void deps;
   void context;
-  void threadId;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const snapshot = threadStore.getThreadSnapshot(threadId);
+  if (!snapshot) {
+    process.stderr.write(`Error: Thread "${threadId}" not found\n`);
+    process.exitCode = 1;
+    return;
+  }
+  threadStore.setCachedThread({ ...snapshot, archived: true } as unknown as ThreadSnapshot);
+  process.stdout.write(`Archived thread: ${threadId}\n`);
 }
 
 /**
@@ -126,8 +193,19 @@ export async function handleThreadsDelete(
   context: CliContext,
   threadId: string,
 ): Promise<void> {
-  // TODO: 实现删除 thread
-  void deps;
   void context;
-  void threadId;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+  const exists = threadStore.getThread(threadId);
+  if (!exists) {
+    process.stderr.write(`Error: Thread "${threadId}" not found\n`);
+    process.exitCode = 1;
+    return;
+  }
+  threadStore.deleteThread(threadId);
+  process.stdout.write(`Deleted thread: ${threadId}\n`);
 }

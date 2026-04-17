@@ -19,8 +19,8 @@ features:
   - title: 三棵树架构
     details: 完整实现 Flutter 的 Widget → Element → RenderObject 三棵树架构，声明式 UI 开发体验
     icon: 🌳
-  - title: 25+ 内置 Widget
-    details: Text、Flex、Stack、ListView、TextField、Overlay 等丰富的终端 UI 组件库
+  - title: 30+ 内置 Widget
+    details: Text、Flex、Stack、ListView、TextField、Overlay、Actions/Shortcuts 等丰富的终端 UI 组件库
     icon: 🧩
   - title: 多 LLM 支持
     details: 统一接口对接 Anthropic、OpenAI、Gemini、Grok 等主流大模型

@@ -1,6 +1,6 @@
 # 内置 Widget
 
-Flitter 提供 25+ 内置 Widget，覆盖文本、布局、容器、交互、滚动等常见场景。
+Flitter 提供 30+ 内置 Widget，覆盖文本、布局、容器、交互、滚动、焦点、快捷键等常见场景。
 
 ## 文本
 
@@ -27,9 +27,36 @@ new RichText({
     ],
   }),
 })
+
+// RichText 支持对齐、溢出控制和行数限制
+new RichText({
+  text: new TextSpan({ text: '这是一段很长的文本...' }),
+  textAlign: 'center',      // "left" | "center" | "right"
+  overflow: 'ellipsis',     // "clip" | "ellipsis" | "visible"
+  maxLines: 2,              // 超过 2 行时截断并显示 …
+})
 ```
 
 TextSpan 支持嵌套——子 span 继承父 span 的样式。`toPlainText()` 方法将整个 span 树拼接为纯文本。
+
+### TextSpan 交互属性
+
+TextSpan 支持 `url` 和 `onTap`，可实现可点击的超链接文本：
+
+```ts
+new RichText({
+  text: new TextSpan({
+    children: [
+      new TextSpan({ text: '访问 ' }),
+      new TextSpan({
+        text: 'Flitter 文档',
+        url: 'https://flitter.dev',          // OSC 8 终端超链接
+        onTap: () => { openBrowser(url); },  // 点击回调
+        style: new TextStyle({ foreground: Color.cyan(), underline: true }),
+      }),
+    ],
+  }),
+})
 
 ## 布局
 
@@ -103,6 +130,7 @@ new Row({
 | `SizedBox` | 固定尺寸盒子 |
 | `Center` | 居中对齐 |
 | `Align` | 自定义对齐（widthFactor、heightFactor） |
+| `ClipBox` | 裁剪容器（子内容超出边界时裁剪） |
 
 ```ts
 // Container：最常用的容器
@@ -126,6 +154,15 @@ new SizedBox({ height: 1 })                      // 垂直间隔
 // Center：居中子节点
 new Center({
   child: new Text({ data: '居中文本' }),
+})
+
+// ClipBox：裁剪超出边界的子内容
+new ClipBox({
+  child: new SizedBox({
+    width: 20,
+    height: 3,
+    child: new Text({ data: '这段很长的文本会被裁剪到 20x3 的区域内' }),
+  }),
 })
 ```
 
@@ -281,11 +318,69 @@ sc.addListener(() => {
 sc.dispose();
 ```
 
+### Scrollbar
+
+滚动条 Widget，使用 Unicode 块元素（`▁▂▃▄▅▆▇█`）实现 1/8 字符精度的滑块渲染。支持鼠标交互：
+
+- 点击轨道上方 → 上翻一页
+- 点击轨道下方 → 下翻一页
+- 拖拽滑块 → 按比例滚动
+
+```ts
+const controller = new ScrollController();
+
+new Row({
+  children: [
+    new Expanded({
+      child: new ListView({
+        itemCount: 100,
+        itemBuilder: (i) => new Text({ data: `Item ${i}` }),
+        controller,
+      }),
+    }),
+    new Scrollbar({
+      controller,
+      getScrollInfo: () => ({
+        totalContentHeight: 100,
+        viewportHeight: 24,
+        scrollOffset: controller.offset,
+      }),
+      thickness: 1,                          // 宽度（默认 1）
+      thumbColor: Color.rgb(150, 150, 150),  // 滑块颜色
+      trackColor: Color.rgb(60, 60, 60),     // 轨道颜色
+      showTrack: true,                       // 是否显示轨道背景
+    }),
+  ],
+})
+```
+
+### ScrollBehavior
+
+`ScrollBehavior` 提供开箱即用的 vim 风格键盘滚动绑定：
+
+```ts
+const controller = new ScrollController();
+const behavior = new ScrollBehavior(controller, {
+  scrollStep: 3,      // 方向键/vim 键每次滚动行数
+  pageScrollStep: 10,  // PageUp/PageDown 滚动行数
+});
+```
+
+| 按键 | 动作 |
+|------|------|
+| `↑` / `k` | 上滚 scrollStep 行 |
+| `↓` / `j` | 下滚 scrollStep 行 |
+| `PageUp` / `Ctrl+U` | 上翻一页 |
+| `PageDown` / `Ctrl+D` | 下翻一页 |
+| `Home` / `g` | 滚到顶部 |
+| `End` / `G` / `Shift+G` | 滚到底部 |
+
 ## 文本编辑
 
 | Widget | 说明 |
 |--------|------|
 | `TextField` | 可编辑文本输入框 |
+| `Scrollbar` | 滚动条指示器（支持拖拽和点击导航） |
 
 ```ts
 const ctrl = new TextEditingController({ text: '', width: 40 });
@@ -352,6 +447,7 @@ ctrl.dispose();
 | `Overlay` | 覆盖层容器 |
 | `OverlayEntry` | 覆盖层条目 |
 | `CommandPalette` | 命令面板（模糊搜索 + 快捷键显示） |
+| `FuzzyPicker` | 通用模糊搜索选择器（CommandPalette 的底层实现） |
 | `AutocompleteController` | 自动补全控制器 |
 | `LayerLink` | 锚点定位（连接 overlay 与触发元素） |
 
@@ -376,6 +472,34 @@ new CommandPalette({
   ],
   onDismiss: () => { /* 关闭面板 */ },
 })
+
+// FuzzyPicker：通用模糊搜索选择器
+new FuzzyPicker({
+  items: ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry'],
+  getLabel: (item) => item,
+  onAccept: (item, { hasUserInteracted }) => {
+    console.log(`选择了: ${item}`);
+  },
+  onDismiss: () => { /* 按 Escape 关闭 */ },
+  title: '选择水果',
+  maxRenderItems: 10,
+})
+```
+
+FuzzyPicker 内置键盘导航：`↑/↓`、`Tab/Shift+Tab`、`Ctrl+N/P` 移动选中项，`Enter` 确认，`Escape` 关闭。支持鼠标滚轮和双击确认。
+
+### fuzzyMatch
+
+`fuzzyMatch` 是 FuzzyPicker 使用的模糊匹配算法，也可独立使用：
+
+```ts
+import { fuzzyMatch } from '@flitter/tui';
+
+const result = fuzzyMatch('fp', 'FuzzyPicker');
+// { matches: true, score: 0.72 }
+
+const miss = fuzzyMatch('xyz', 'FuzzyPicker');
+// { matches: false, score: 0.05 }
 ```
 
 ## 信息查询
@@ -415,3 +539,61 @@ const fromConfig = AppColorScheme.fromRgb({
   accent: { r: 139, g: 92, b: 246 },
 });
 ```
+
+## 焦点
+
+| Widget | 说明 |
+|--------|------|
+| `Focus` | 焦点管理 Widget（自动创建和管理 FocusNode） |
+
+```ts
+// Focus Widget：声明式焦点管理
+new Focus({
+  autofocus: true,               // 自动获取焦点
+  onFocusChange: (hasFocus) => {
+    console.log(hasFocus ? '获得焦点' : '失去焦点');
+  },
+  onKey: (event) => {
+    if (event.key === 'Enter') return 'handled';
+    return 'ignored';
+  },
+  child: new Text({ data: '可聚焦内容' }),
+})
+
+// 使用外部 FocusNode
+const node = new FocusNode({ debugLabel: 'my-input' });
+new Focus({
+  focusNode: node,               // 接管外部节点的生命周期
+  child: myWidget,
+})
+```
+
+`Focus` 是一个纯副作用 Widget——它不改变子节点的渲染，只负责在 Widget 树中注册焦点节点。详见 [焦点系统](./focus-system) 页面。
+
+## 快捷键与 Actions
+
+| Widget | 说明 |
+|--------|------|
+| `Shortcuts` | 按键 → Intent 映射 |
+| `Actions` | Intent → Action 映射 |
+
+```ts
+import { Actions, Shortcuts, KeyActivator, Intent, Action } from '@flitter/tui';
+
+// 定义 Intent 和 Action
+class SaveIntent extends Intent {}
+class SaveAction extends Action<SaveIntent> {
+  invoke() { save(); return 'handled'; }
+}
+
+// 在 Widget 树中组装
+new Actions({
+  actions: new Map([[SaveIntent, new SaveAction()]]),
+  child: new Shortcuts({
+    shortcuts: new Map([[KeyActivator.ctrl('s'), new SaveIntent()]]),
+    child: myEditor,
+  }),
+})
+```
+
+详见 [Actions 与 Shortcuts](./actions-shortcuts) 页面。

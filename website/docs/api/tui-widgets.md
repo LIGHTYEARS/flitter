@@ -28,8 +28,18 @@ Text(text: string, props?: {
 ```ts
 RichText(props: {
   text: TextSpan;
+  textAlign?: TextAlign;      // "left" | "center" | "right"，默认 "left"
+  overflow?: TextOverflow;    // "clip" | "ellipsis" | "visible"，默认 "clip"
+  maxLines?: number;          // 最大行数，undefined = 无限制
 })
 ```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `text` | `TextSpan` | 根文本片段 |
+| `textAlign` | `TextAlign` | 文本对齐方式 |
+| `overflow` | `TextOverflow` | 溢出处理（`"ellipsis"` 仅在设置 `maxLines` 时生效） |
+| `maxLines` | `number` | 最大行数限制 |
 
 ---
 
@@ -155,9 +165,14 @@ TextField(props: {
 ```ts
 MouseRegion(props: {
   child: Widget;
+  onClick?: (event: MouseEvent) => void;
   onEnter?: (event: MouseEvent) => void;
   onExit?: (event: MouseEvent) => void;
   onHover?: (event: MouseEvent) => void;
+  onScroll?: (event: MouseEvent) => void;
+  onDrag?: (event: MouseEvent) => void;
+  onRelease?: (event: MouseEvent) => void;
+  opaque?: boolean;     // 默认 true，阻止事件穿透
 })
 ```
 
@@ -338,6 +353,273 @@ new FocusNode(opts?: {
 | `hasFocus` | 自身或子节点是否持有焦点 |
 | `addListener(fn)` | 监听焦点变化 |
 | `dispose()` | 释放资源 |
+
+## Scrollbar
+
+滚动条指示器，支持鼠标交互和 1/8 字符精度渲染。
+
+```ts
+Scrollbar(props: {
+  controller: ScrollController;
+  getScrollInfo: () => ScrollInfo;
+  thickness?: number;       // 默认 1
+  thumbColor?: Color;       // 默认 rgb(150,150,150)
+  trackColor?: Color;       // 默认 rgb(60,60,60)
+  showTrack?: boolean;      // 默认 true
+})
+```
+
+```ts
+interface ScrollInfo {
+  totalContentHeight: number;
+  viewportHeight: number;
+  scrollOffset: number;
+}
+```
+
+---
+
+## ClipBox
+
+裁剪容器，将子节点的绘制限制在自身边界内。
+
+```ts
+ClipBox(props?: {
+  child?: Widget;
+})
+```
+
+---
+
+## FuzzyPicker
+
+通用模糊搜索选择器。
+
+```ts
+FuzzyPicker<T>(props: {
+  items: T[];
+  getLabel: (item: T) => string;
+  onAccept: (item: T, info: { hasUserInteracted: boolean }) => void;
+  onDismiss?: () => void;
+  onSelectionChange?: (item: T | null) => void;
+  renderItem?: (item: T, isSelected: boolean, isDisabled: boolean, ctx: BuildContext) => Widget;
+  sortItems?: (a: ScoredItem<T>, b: ScoredItem<T>, query: string) => number;
+  filterItem?: (item: T, query: string) => boolean;
+  isItemDisabled?: (item: T) => boolean;
+  normalizeQuery?: (query: string) => string;
+  title?: string;
+  maxRenderItems?: number;
+  controller?: FuzzyPickerController;
+})
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `items` | `T[]` | 候选项列表 |
+| `getLabel` | `(item: T) => string` | 获取显示文本 |
+| `onAccept` | `Function` | 确认选择回调 |
+| `onDismiss` | `Function` | 关闭回调（Escape） |
+| `renderItem` | `Function` | 自定义渲染（可选） |
+| `filterItem` | `Function` | 自定义前置过滤（在模糊评分之前） |
+| `isItemDisabled` | `Function` | 禁用项判断 |
+| `title` | `string` | 标题 |
+| `maxRenderItems` | `number` | 最大渲染条目数 |
+
+### fuzzyMatch
+
+```ts
+function fuzzyMatch(query: string, label: string): FuzzyMatchResult
+
+interface FuzzyMatchResult {
+  matches: boolean;   // score > 0.15
+  score: number;      // 0.0–1.0
+}
+```
+
+---
+
+## Focus
+
+焦点管理 Widget。
+
+```ts
+Focus(props: {
+  child: Widget;
+  focusNode?: FocusNode;
+  autofocus?: boolean;              // 默认 false
+  canRequestFocus?: boolean;        // 默认 true
+  skipTraversal?: boolean;          // 默认 false
+  onKey?: (event: KeyEvent) => KeyEventResult;
+  onPaste?: (event: PasteEvent) => KeyEventResult;
+  onFocusChange?: (hasFocus: boolean) => void;
+  debugLabel?: string;
+})
+```
+
+---
+
+## Intent
+
+用户意图基类，Actions 系统的核心。
+
+```ts
+abstract class Intent {}
+```
+
+继承创建自定义 Intent：
+
+```ts
+class SaveIntent extends Intent {}
+class NavigateIntent extends Intent {
+  constructor(public readonly direction: 'up' | 'down') { super(); }
+}
+```
+
+---
+
+## Action
+
+响应 Intent 的处理器基类。
+
+```ts
+abstract class Action<T extends Intent> {
+  abstract invoke(intent: T): 'handled' | 'ignored' | void;
+  isEnabled(intent: T): boolean;        // 默认 true
+  consumesKey(intent: T): boolean;      // 默认 true
+}
+```
+
+---
+
+## Actions
+
+在 Widget 树中注册 Intent → Action 映射。
+
+```ts
+Actions(props: {
+  actions: Map<IntentConstructor, Action>;
+  child: Widget;
+  dispatcher?: ActionDispatcher;
+})
+```
+
+| 静态方法 | 说明 |
+|----------|------|
+| `Actions.invoke(context, intent)` | 查找并调用 Action（找不到时抛异常） |
+| `Actions.maybeInvoke(context, intent)` | 安全版本（返回 null） |
+| `Actions.find(context, intent)` | 查找 Action |
+| `Actions.maybeFind(context, intent)` | 安全查找 |
+| `Actions.handler(context, intent)` | 获取可调用回调（null 表示不可用） |
+
+---
+
+## Shortcuts
+
+在 Widget 树中注册 KeyActivator → Intent 映射。
+
+```ts
+Shortcuts(props: {
+  shortcuts: Map<KeyActivator, Intent>;
+  child: Widget;
+  manager?: ShortcutManager;
+  focusNode?: FocusNode;
+  debugLabel?: string;
+})
+```
+
+---
+
+## KeyActivator
+
+按键组合描述器。
+
+```ts
+new KeyActivator(key: string, modifiers?: {
+  shift?: boolean;
+  ctrl?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+})
+```
+
+| 工厂方法 | 说明 |
+|----------|------|
+| `KeyActivator.key(k)` | 单键 |
+| `KeyActivator.ctrl(k)` | Ctrl + 键 |
+| `KeyActivator.shift(k)` | Shift + 键 |
+| `KeyActivator.alt(k)` | Alt + 键 |
+| `KeyActivator.meta(k)` | Meta + 键 |
+
+| 方法 | 说明 |
+|------|------|
+| `accepts(event: KeyEvent)` | 精确匹配 key + 修饰键 |
+| `modifierNames()` | 返回修饰键名称数组 |
+
+---
+
+## ShortcutManager
+
+快捷键映射管理器。
+
+```ts
+new ShortcutManager(shortcuts?: Map<KeyActivator, Intent>)
+```
+
+| 方法 | 说明 |
+|------|------|
+| `handleKeyEvent(event)` | 匹配按键，返回 `Intent \| null` |
+| `addShortcut(activator, intent)` | 添加映射 |
+| `removeShortcut(activator)` | 移除映射 |
+| `getAllShortcuts()` | 获取所有映射的副本 |
+| `copyWith(additional)` | 创建合并后的新 Manager |
+
+---
+
+## ScrollBehavior
+
+vim 风格键盘滚动行为。
+
+```ts
+new ScrollBehavior(controller: ScrollController, options?: {
+  scrollStep?: number;       // 默认 3
+  pageScrollStep?: number;   // 默认 10
+  axisDirection?: 'vertical' | 'horizontal';  // 默认 "vertical"
+})
+```
+
+| 方法 | 说明 |
+|------|------|
+| `handleKeyEvent(event)` | 匹配按键并执行滚动 |
+| `handleScrollDelta(delta)` | 直接应用滚动偏移 |
+
+---
+
+## TextSpan
+
+文本片段，用于 RichText 的子节点。
+
+```ts
+new TextSpan(options?: {
+  text?: string;
+  style?: TextStyle;
+  children?: TextSpan[];
+  url?: string;            // OSC 8 终端超链接
+  onTap?: () => void;      // 点击回调
+})
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `text` | `string` | 文本内容 |
+| `style` | `TextStyle` | 文本样式 |
+| `children` | `TextSpan[]` | 子片段 |
+| `url` | `string` | 超链接 URL |
+| `onTap` | `() => void` | 点击回调 |
+
+| 方法 | 说明 |
+|------|------|
+| `toPlainText()` | 整个 span 树拼接为纯文本 |
+| `visitTextSpan(visitor)` | 遍历 span 树 |
 
 :::warning
 以上 API 签名基于源码整理。具体参数类型和默认值请参考 `packages/tui/src/` 中的 TypeScript 类型定义。

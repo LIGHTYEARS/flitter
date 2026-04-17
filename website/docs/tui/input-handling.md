@@ -68,3 +68,40 @@ GestureDetector({
 - 焦点节点接收键盘事件
 - Tab 键在可聚焦节点间切换
 - `TextField` 等 Widget 自动管理焦点
+- `Focus` Widget 提供声明式焦点管理
+
+## 双击检测
+
+MouseManager 内置双击检测（`_calculateClickCount`），在 300ms 窗口内的连续点击会累加 `clickCount`。该计数通过 `GlobalClickInfo` 传递给全局点击回调。
+
+## 全局鼠标回调
+
+`MouseManager` 支持注册全局回调，在所有 MouseRegion 之前触发：
+
+```ts
+// 全局释放回调（在 per-target 释放之前触发）
+MouseManager.instance.addGlobalReleaseCallback(() => {
+  console.log('鼠标释放');
+});
+
+// 全局点击回调（包含完整命中信息）
+MouseManager.instance.addGlobalClickCallback((info) => {
+  console.log(`点击位置: (${info.globalPosition.x}, ${info.globalPosition.y})`);
+  console.log(`点击次数: ${info.clickCount}`);  // 双击为 2
+  console.log(`命中目标数: ${info.mouseTargets.length}`);
+});
+```
+
+### GlobalClickInfo
+
+```ts
+interface GlobalClickInfo {
+  event: MouseEvent;
+  globalPosition: { x: number; y: number };
+  mouseTargets: Array<{
+    target: RenderMouseRegion;
+    localPosition: { x: number; y: number };
+  }>;
+  clickCount: number;    // 1 = 单击, 2 = 双击, 3 = 三击...
+}
+```

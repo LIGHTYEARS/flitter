@@ -43,8 +43,10 @@ runApp(
 | 输入解析 | `vt/` | VT/ANSI 输入解析、SGR 鼠标 |
 | 终端控制 | `tui/` | TuiController、raw mode、resize |
 | 手势系统 | `gestures/` | MouseManager、HitTest |
-| 内置 Widget | `widgets/` | 25+ 预置组件 |
-| 滚动系统 | `scroll/` | ScrollController、ListView |
+| 内置 Widget | `widgets/` | 30+ 预置组件 |
+| 滚动系统 | `scroll/` | ScrollController、ListView、Scrollbar、ScrollBehavior |
 | 文本编辑 | `editing/` | TextEditingController、TextField |
-| 弹层系统 | `overlay/` | Overlay、CommandPalette |
+| 弹层系统 | `overlay/` | Overlay、CommandPalette、FuzzyPicker |
+| 焦点系统 | `focus/` | FocusNode、FocusManager |
+| Actions 系统 | `actions/` | Actions、Shortcuts、Intent、KeyActivator |
 | Markdown | `markdown/` | MarkdownParser、MarkdownRenderer |

@@ -1,6 +1,6 @@
 # 示例程序
 
-Flitter 提供了 9 个独立的 TUI 示例，覆盖框架的各项核心能力。每个示例都可以直接用 `bun run` 执行。
+Flitter 提供了 11 个独立的 TUI 示例，覆盖框架的各项核心能力。每个示例都可以直接用 `bun run` 执行。
 
 ## 综合展示
 
@@ -73,3 +73,19 @@ bun run examples/tui-overlay-demo.ts
 ```
 
 展示 Overlay、OverlayEntry、LayerLink、CommandPalette 等弹层系统。
+
+## 命令面板
+
+```bash
+bun run examples/tui-command-palette-demo.ts
+```
+
+展示 CommandPalette 和 FuzzyPicker 的交互式模糊搜索、键盘导航、快捷键显示。
+
+## 调试绘制管线
+
+```bash
+bun run examples/debug-paint-pipeline.ts
+```
+
+调试工具：可视化 Widget 的 Build → Layout → Paint → Render 帧管线流程。

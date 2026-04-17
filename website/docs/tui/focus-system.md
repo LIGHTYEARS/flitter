@@ -136,6 +136,55 @@ const decorativeNode = new FocusNode({
 
 ## 与 Widget 集成
 
+### Focus Widget
+
+`Focus` Widget 提供声明式焦点管理，自动创建和管理 FocusNode 的生命周期：
+
+```ts
+// 基本用法：自动创建内部 FocusNode
+new Focus({
+  autofocus: true,                     // 自动获取焦点
+  onFocusChange: (hasFocus) => {
+    console.log(hasFocus ? '获得焦点' : '失去焦点');
+  },
+  onKey: (event) => {
+    if (event.key === 'Enter') return 'handled';
+    return 'ignored';
+  },
+  child: new Text({ data: '可聚焦内容' }),
+})
+
+// 接管外部 FocusNode
+const node = new FocusNode({ debugLabel: 'my-input' });
+new Focus({
+  focusNode: node,
+  canRequestFocus: true,
+  skipTraversal: false,
+  child: myWidget,
+})
+```
+
+`Focus` 是一个纯副作用 Widget——`build()` 直接返回 `child`，不额外包裹任何节点。它的作用是在焦点树中注册节点，自动挂载到最近的祖先 `FocusState` 下。
+
+### 动态键盘处理器
+
+FocusNode 支持动态添加/移除键盘事件处理器：
+
+```ts
+const handler = (event: KeyEvent) => {
+  if (event.key === 'Escape') return 'handled';
+  return 'ignored';
+};
+
+node.addKeyHandler(handler);
+// ... 稍后移除
+node.removeKeyHandler(handler);
+```
+
+这对于需要临时拦截按键的场景很有用（如弹层打开时拦截 Escape）。
+
+### TextField
+
 `TextField` 等可交互 Widget 内部自动管理 FocusNode：
 
 ```ts

@@ -830,12 +830,14 @@ export class TextEditingController {
   }
 
   /**
-   * 计算 grapheme offset 的布局列宽度（委托给布局引擎）
+   * 计算 grapheme offset 在行内的显示列位置（用于屏幕绘制定位）。
    *
-   * 逆向: wc._getLayoutColumnFromOffset (widget-property-system.js:1207-1214)
+   * 注意: 此方法返回 display-width 列（CJK=2），而非 grapheme 计数。
+   * 与 amp 的 wc._getLayoutColumnFromOffset 语义不同——amp 返回 grapheme 计数，
+   * 此方法返回显示宽度，供 RenderTextField 的光标和水平滚动定位使用。
    *
    * @param offset - grapheme 偏移
-   * @returns 显示列宽度（CJK=2）
+   * @returns 从行首到 offset 的显示列宽度（CJK 字符宽度=2，ASCII=1）
    */
   getLayoutColumnFromOffset(offset: number): number {
     return this._layoutEngine.getLayoutColumnFromOffset(offset);

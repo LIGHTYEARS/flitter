@@ -35,6 +35,11 @@ describe("TextEditingController.getLayoutColumnFromOffset()", () => {
     expect(ctrl.getLayoutColumnFromOffset(0)).toBe(0);
   });
 
+  it("returns display column 3 for ASCII at offset 3", () => {
+    const ctrl = new TextEditingController({ text: "hello", width: 80 });
+    expect(ctrl.getLayoutColumnFromOffset(3)).toBe(3);
+  });
+
   it("returns display column 2 for CJK char (width=2)", () => {
     const ctrl = new TextEditingController({ text: "你好", width: 80 });
     // offset 1 = after first CJK char (width 2) → display column 2

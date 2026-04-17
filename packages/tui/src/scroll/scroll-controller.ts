@@ -196,6 +196,9 @@ export class ScrollController {
   jumpTo(offset: number): void {
     if (this._disposed) return;
 
+    // 防御: NaN offset 会污染所有后续计算
+    if (Number.isNaN(offset)) return;
+
     // 取消进行中的动画
     this._cancelAnimation();
 

@@ -322,7 +322,7 @@ describe("ScrollController", () => {
   });
 
   // ════════════════════════════════════════════════════
-  //  atTop / atBottom / atEdge
+  //  edge detection
   // ════════════════════════════════════════════════════
 
   describe("edge detection", () => {
@@ -337,6 +337,97 @@ describe("ScrollController", () => {
 
     it("atEdge should be true when at top or bottom", () => {
       expect(controller.atEdge).toBe(true);
+    });
+  });
+
+  // ════════════════════════════════════════════════════
+  //  NaN guard (regression: scrollbar drag NaN offset)
+  // ════════════════════════════════════════════════════
+
+  describe("NaN guard", () => {
+    it("jumpTo(NaN) should be a no-op and not corrupt offset", () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(100);
+      controller.jumpTo(50);
+      expect(controller.offset).toBe(50);
+
+      controller.jumpTo(NaN);
+      expect(controller.offset).toBe(50);
+    });
+
+    it("jumpTo(NaN) should not notify listeners", () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(100);
+      controller.jumpTo(50);
+
+      let notified = false;
+      controller.addListener(() => {
+        notified = true;
+      });
+      controller.jumpTo(NaN);
+      expect(notified).toBe(false);
+    });
+
+    it("jumpTo(NaN) should not cancel a running animation", async () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(200);
+      controller.jumpTo(0);
+      controller.animateTo(100, 80);
+
+      // NaN should not interfere with in-progress animation
+      controller.jumpTo(NaN);
+
+      // Animation should still complete
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(controller.offset).toBe(100);
+    });
+  });
+
+  // ════════════════════════════════════════════════════
+  //  boundary scroll no-op (regression: jitter at top/bottom)
+  // ════════════════════════════════════════════════════
+
+  describe("boundary no-op", () => {
+    it("scrollUp at offset=0 should not notify listeners", () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(100);
+      // offset is 0 (initial)
+      expect(controller.offset).toBe(0);
+
+      let notified = false;
+      controller.addListener(() => {
+        notified = true;
+      });
+      controller.scrollUp(3);
+      expect(controller.offset).toBe(0);
+      expect(notified).toBe(false);
+    });
+
+    it("scrollDown at maxScrollExtent should not notify listeners", () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(100);
+      controller.jumpTo(100);
+
+      let notified = false;
+      controller.addListener(() => {
+        notified = true;
+      });
+      controller.scrollDown(3);
+      expect(controller.offset).toBe(100);
+      expect(notified).toBe(false);
+    });
+
+    it("jumpTo(-10) at offset=0 should not notify listeners", () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(100);
+
+      let notified = false;
+      controller.addListener(() => {
+        notified = true;
+      });
+      controller.jumpTo(-10);
+      expect(controller.offset).toBe(0);
+      expect(notified).toBe(false);
     });
   });
 });

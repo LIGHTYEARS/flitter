@@ -13,6 +13,7 @@
 import type { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
+import { ClipScreen } from "../widgets/viewport.js";
 import type { ScrollController } from "./scroll-controller.js";
 
 // ════════════════════════════════════════════════════
@@ -193,7 +194,10 @@ export class RenderScrollable extends RenderBox {
    * 绘制可滚动视口。
    *
    * 将子节点绘制到 screen 上，Y 坐标减去滚动偏移量。
-   * Screen 的边界检查自然处理视口裁剪。
+   * 使用 ClipScreen 裁剪到视口范围，防止内容泄漏到视口外。
+   *
+   * 逆向: g1T.paint (interactive_widgets.js:153-161)
+   * amp 使用 zm (ClipScreen) 包装 screen，限制子节点绘制在视口内。
    *
    * @param screen - 目标屏幕
    * @param offsetX - 全局 X 偏移量
@@ -205,6 +209,16 @@ export class RenderScrollable extends RenderBox {
     if (!this.child) return;
 
     const scrollOffset = Math.floor(this._scrollController.offset);
-    this.child.paint(screen, offsetX, offsetY - scrollOffset);
+
+    // 逆向: g1T.paint line 158 — 创建 ClipScreen 裁剪子节点绘制到视口范围内
+    const clipScreen = new ClipScreen(
+      screen,
+      offsetX,
+      offsetY,
+      this._size.width,
+      this._size.height,
+    );
+
+    this.child.paint(clipScreen as unknown as Screen, offsetX, offsetY - scrollOffset);
   }
 }

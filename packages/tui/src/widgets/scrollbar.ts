@@ -406,7 +406,9 @@ class ScrollbarState extends State<Scrollbar> {
     const metrics = renderObj.getMetrics();
     if (!metrics.showScrollbar) return;
 
-    const R = event.y; // 点击的 Y 坐标（相对于滚动条）
+    // 逆向: amp q1T._handleClick line 899 — R = T.localPosition.y
+    const lp = event.localPosition as { x: number; y: number } | undefined;
+    const R = lp?.y ?? 0; // 点击的 Y 坐标（相对于滚动条）
     const { thumbStartFloat: l, thumbEndFloat: o } = metrics;
 
     // 点击在拇指区域内 → 无操作
@@ -439,10 +441,14 @@ class ScrollbarState extends State<Scrollbar> {
     const { trackLength: t } = renderObj.getMetrics();
     if (t === 0 || R <= a) return;
 
+    // 逆向: amp q1T._handleDrag line 882 — T.localPosition.y
+    const lp = event.localPosition as { x: number; y: number } | undefined;
+    const eventY = lp?.y ?? 0;
+
     // 逆向: 使用 _isDragging 标志避免 null/0 歧义问题
     if (!this._isDragging) {
       this._isDragging = true;
-      this._dragStartY = event.y;
+      this._dragStartY = eventY;
       this._dragStartOffset = props.getScrollInfo().scrollOffset;
     }
 
@@ -460,7 +466,7 @@ class ScrollbarState extends State<Scrollbar> {
 
     const s = R - a; // scrollRange
     const A = c / s; // pixelsPerScrollUnit
-    const r = event.y - this._dragStartY; // dy (pixel delta)
+    const r = eventY - this._dragStartY; // dy (pixel delta)
     const l = r / A; // scroll delta
     const o = Math.round(Math.max(0, Math.min(s, this._dragStartOffset + l)));
 
@@ -485,7 +491,9 @@ class ScrollbarState extends State<Scrollbar> {
    */
   private _handleHover = (event: MouseEvent): void => {
     const prevOverThumb = this._isOverThumb;
-    this._isOverThumb = this._isPositionOverThumb(event.y);
+    // 逆向: amp q1T._handleHover line 872 — T.localPosition.y
+    const lp = event.localPosition as { x: number; y: number } | undefined;
+    this._isOverThumb = this._isPositionOverThumb(lp?.y ?? 0);
     if (prevOverThumb !== this._isOverThumb) {
       this.setState();
     }

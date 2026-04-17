@@ -20,9 +20,11 @@ import { Center } from "../widgets/center.js";
 import { Container } from "../widgets/container.js";
 import { EdgeInsets } from "../widgets/edge-insets.js";
 import { Expanded } from "../widgets/flexible.js";
+import { RichText } from "../widgets/rich-text.js";
 import { Row } from "../widgets/row.js";
 import { SizedBox } from "../widgets/sized-box.js";
 import { Text } from "../widgets/text.js";
+import { TextSpan } from "../widgets/text-span.js";
 import { FuzzyPicker, type ScoredItem } from "./fuzzy-picker.js";
 
 // ════════════════════════════════════════════════════
@@ -147,16 +149,19 @@ class CommandPaletteState extends State<CommandPalette> {
   ): WidgetInterface {
     const children: Widget[] = [];
 
-    // Category/noun column (fixed width, muted when not selected)
+    // Category/noun column (fixed width, right-aligned, muted when not selected)
     if (categoryWidth > 0) {
       children.push(
         new SizedBox({
           width: categoryWidth,
-          child: new Text({
-            data: cmd.category ?? "",
-            style: new TextStyle({
-              foreground: isSelected ? Color.white() : Color.rgb(120, 120, 120),
+          child: new RichText({
+            text: new TextSpan({
+              text: cmd.category ?? "",
+              style: new TextStyle({
+                foreground: isSelected ? Color.white() : Color.rgb(120, 120, 120),
+              }),
             }),
+            textAlign: "right",
           }) as unknown as WidgetInterface,
         }) as unknown as Widget,
       );

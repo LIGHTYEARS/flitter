@@ -176,6 +176,16 @@ class TextFieldState extends State<TextField> {
       !!isShift === !!submitKey.shift;
 
     if (!readOnly && matchesSubmit) {
+      // 逆向: sP r — backslash escape: if prev char is \, delete it and insert literal newline
+      if (key === "Enter") {
+        const graphemes = ctrl.graphemes;
+        const pos = ctrl.cursorPosition;
+        if (pos > 0 && graphemes[pos - 1] === "\\") {
+          ctrl.deleteText(1);
+          ctrl.insertText("\n");
+          return "handled";
+        }
+      }
       props.onSubmitted?.(ctrl.text);
       return "handled";
     }
@@ -190,10 +200,11 @@ class TextFieldState extends State<TextField> {
     // Backspace
     if (key === "Backspace") {
       if (!readOnly) {
-        if (isAlt) {
-          ctrl.deleteWordLeft();
-        } else if (ctrl.cursorPosition === 0 && !ctrl.hasSelection) {
+        // 逆向: sP r — position-0 check FIRST, then Alt (matches amp lines 1042-1049)
+        if (ctrl.cursorPosition === 0 && !ctrl.hasSelection) {
           props.onBackspaceWhenEmpty?.();
+        } else if (isAlt) {
+          ctrl.deleteWordLeft();
         } else {
           ctrl.deleteSelectedOrText(1);
         }

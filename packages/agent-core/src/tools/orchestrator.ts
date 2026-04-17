@@ -11,10 +11,11 @@
  * ```
  */
 
-import type { Config, Settings } from "@flitter/schemas";
+import type { Config } from "@flitter/schemas";
 import type { Observable } from "@flitter/util";
+import type { AgentEvent } from "../worker/events";
 import type { ToolRegistry } from "./registry";
-import type { ToolContext, ToolResult, ToolSpec } from "./types";
+import type { ToolContext, ToolResult } from "./types";
 
 // ─── ToolUse 类型 ──────────────────────────────────────────
 
@@ -83,6 +84,13 @@ export interface OrchestratorCallbacks {
 
   /** 获取 disposed 信号 */
   getDisposed$(): Observable<boolean>;
+
+  /**
+   * Emit tool lifecycle events (tool:start, tool:complete) to the TUI layer.
+   * 逆向: FWT uses callbacks.updateThread with status "in-progress"/"done".
+   * Flitter adds explicit AgentEvent types for clearer TUI separation.
+   */
+  onToolEvent?: (event: AgentEvent) => void;
 }
 
 // ─── 资源冲突检测 ──────────────────────────────────────────
@@ -276,6 +284,14 @@ export class ToolOrchestrator {
     const abortController = new AbortController();
     this.runningTools.set(toolUse.id, { abort: abortController });
 
+    // 逆向: FWT emits updateThread({ status: "in-progress" }) here.
+    // Flitter additionally emits a separate tool:start AgentEvent for the TUI layer.
+    this.callbacks.onToolEvent?.({
+      type: "tool:start",
+      toolUseId: toolUse.id,
+      toolName: toolUse.name,
+    });
+
     try {
       // 4. 通知 in-progress
       await this.callbacks.updateThread({
@@ -371,6 +387,14 @@ export class ToolOrchestrator {
     } finally {
       // 11. 清理 runningTools
       this.runningTools.delete(toolUse.id);
+
+      // Emit tool:complete regardless of success or error (try/finally guarantees this).
+      // 逆向: FWT resolves the toolCompletionResolvers in the terminal-status handler.
+      // Flitter emits a separate tool:complete AgentEvent for the TUI layer.
+      this.callbacks.onToolEvent?.({
+        type: "tool:complete",
+        toolUseId: toolUse.id,
+      });
     }
   }
 

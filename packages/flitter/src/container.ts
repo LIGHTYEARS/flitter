@@ -254,6 +254,13 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
         threadId: string,
         workerOpts?: Partial<ThreadWorkerOptions>,
       ): ThreadWorker {
+        // Deferred reference to the worker's events$ Subject.
+        // The orchestrator is created before the worker, so we use a closure
+        // that captures a mutable reference, assigned after worker construction.
+        // 逆向: amp's ov.createOrchestratorCallbacks() has direct access to
+        // `this` (the ThreadWorker), so no deferred pattern is needed there.
+        let workerRef: ThreadWorkerImpl | null = null;
+
         // 为每个线程创建独立的 ToolOrchestrator
         const threadCallbacks: OrchestratorCallbacks = {
           getConfig: async () => configService.get(),
@@ -268,6 +275,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           applyPostHookResult: async () => {},
           updateFileChanges: async () => {},
           getDisposed$: () => new BehaviorSubject(false),
+          onToolEvent: (event) => {
+            workerRef?.events$.next(event);
+          },
         };
         const threadOrchestrator = new ToolOrchestrator(threadId, toolRegistry, threadCallbacks);
 
@@ -294,7 +304,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           toolRegistry,
         };
 
-        return new ThreadWorkerImpl(fullOpts);
+        const worker = new ThreadWorkerImpl(fullOpts);
+        workerRef = worker;
+        return worker;
       },
 
       async asyncDispose() {

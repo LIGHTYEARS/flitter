@@ -45,6 +45,7 @@ import type { Subscription } from "@flitter/util";
 
 import { ConversationView, type Message } from "./conversation-view.js";
 import { InputField } from "./input-field.js";
+import { PromptHistory } from "./prompt-history.js";
 import { StatusBar } from "./status-bar.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
@@ -159,6 +160,9 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
 
   /** 推理错误 */
   private _error: Error | null = null;
+
+  /** Prompt history for up/down arrow navigation */
+  private _promptHistory = new PromptHistory();
 
   /** 滚动控制器 */
   private _scrollController: ScrollController;
@@ -310,7 +314,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           child: new Text({ data: "\u2500".repeat(80) }),
         }),
         // 输入框
-        new InputField({ onSubmit }),
+        new InputField({ onSubmit, promptHistory: this._promptHistory }),
       ],
     });
   }

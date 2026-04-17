@@ -45,6 +45,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import type { PromptHistory } from "./prompt-history.js";
 
 // ════════════════════════════════════════════════════
 //  颜色常量
@@ -91,6 +92,13 @@ export interface InputFieldConfig {
    * 逆向: Gm.maxWidth in actions_intents.js line 704
    */
   width?: number;
+  /**
+   * Prompt history for up/down arrow navigation (optional).
+   *
+   * 逆向: NavigateToPromptHistoryIntent (DM) in actions_intents.js;
+   * navigateHistoryPrevious / navigateHistoryNext in chunk-006.js:34950-34960
+   */
+  promptHistory?: PromptHistory;
 }
 
 // ════════════════════════════════════════════════════
@@ -308,6 +316,43 @@ export class InputFieldState extends State<InputField> {
    * @returns 处理结果
    */
   private _handleKeyEvent(event: KeyEvent): KeyEventResult {
+    // ── History navigation (ArrowUp / ArrowDown) ──
+    // 逆向: navigateHistoryPrevious / navigateHistoryNext in chunk-006.js:34950-34960
+    // In amp, ArrowUp on the first line of the TextField returns "ignored",
+    // which bubbles up to the intent system that triggers NavigateToPromptHistoryIntent.
+    // We simplify: single-line InputField handles ArrowUp/Down directly.
+
+    if (event.key === "ArrowUp" && !event.modifiers.shift) {
+      const history = this.widget.config.promptHistory;
+      if (history && history.entries.length > 0) {
+        // CRITICAL: startNavigation() must only be called ONCE at the start of
+        // a navigation session. Calling it on every ArrowUp would overwrite the
+        // saved draft. Check isNavigating before calling it.
+        if (!history.isNavigating) {
+          history.startNavigation(this._controller.text);
+        }
+        if (history.canGoBack()) {
+          const prev = history.goBack();
+          this._controller.text = prev;
+          this._controller.moveCursorToEnd();
+          this._markDirty();
+          return "handled";
+        }
+      }
+      return "ignored";
+    }
+
+    if (event.key === "ArrowDown" && !event.modifiers.shift) {
+      const history = this.widget.config.promptHistory;
+      if (history?.canGoForward()) {
+        const next = history.goForward();
+        this._controller.text = next;
+        this._controller.moveCursorToEnd();
+        this._markDirty();
+        return "handled";
+      }
+    }
+
     // Shift+Enter: 插入换行
     if (event.key === "Enter" && event.modifiers.shift) {
       this._controller.insertText("\n");
@@ -316,13 +361,16 @@ export class InputFieldState extends State<InputField> {
     }
 
     // Enter (无 Shift): 提交
+    // 逆向: chunk-006.js:34961-34963 — resetHistory() called on submit
     if (event.key === "Enter" && !event.modifiers.shift) {
       const text = this._controller.text;
       if (text.trim()) {
+        this.widget.config.promptHistory?.push(text);
         this._controller.text = "";
         this.widget.config.onSubmit(text);
+        this._markDirty();
+        return "handled";
       }
-      return "handled";
     }
 
     if (event.key === "Backspace") {

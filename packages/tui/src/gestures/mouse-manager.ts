@@ -45,6 +45,18 @@ const log = logger.scoped("mouse");
 export type MouseHandler = (event: MouseEvent, entry: HitTestEntry) => void;
 
 /**
+ * 全局点击回调的参数类型。
+ *
+ * 逆向: ha._globalClickCallbacks callback argument (2026_tail_anonymous.js:158345-158350)
+ */
+export interface GlobalClickInfo {
+  event: MouseEvent;
+  globalPosition: { x: number; y: number };
+  mouseTargets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>;
+  clickCount: number;
+}
+
+/**
  * MouseManager -- 鼠标事件管理器单例。
  *
  * 逆向: ha in tui-layout-engine.js:1120
@@ -146,6 +158,20 @@ export class MouseManager {
    */
   private _scrollSessionLastEvent = 0;
 
+  /**
+   * 全局鼠标释放回调集合。
+   *
+   * 逆向: ha._globalReleaseCallbacks (2026_tail_anonymous.js:158210)
+   */
+  private _globalReleaseCallbacks = new Set<() => void>();
+
+  /**
+   * 全局鼠标点击回调集合。
+   *
+   * 逆向: ha._globalClickCallbacks (2026_tail_anonymous.js:158211)
+   */
+  private _globalClickCallbacks = new Set<(info: GlobalClickInfo) => void>();
+
   // ════════════════════════════════════════════════════
   //  单例
   // ════════════════════════════════════════════════════
@@ -205,6 +231,42 @@ export class MouseManager {
    */
   setTui(tui: TuiController): void {
     this._tui = tui;
+  }
+
+  /**
+   * 注册全局鼠标释放回调。
+   *
+   * 逆向: ha.addGlobalReleaseCallback (2026_tail_anonymous.js:158276-158278)
+   */
+  addGlobalReleaseCallback(cb: () => void): void {
+    this._globalReleaseCallbacks.add(cb);
+  }
+
+  /**
+   * 移除全局鼠标释放回调。
+   *
+   * 逆向: ha.removeGlobalReleaseCallback (2026_tail_anonymous.js:158279-158281)
+   */
+  removeGlobalReleaseCallback(cb: () => void): void {
+    this._globalReleaseCallbacks.delete(cb);
+  }
+
+  /**
+   * 注册全局鼠标点击回调。
+   *
+   * 逆向: ha.addGlobalClickCallback (2026_tail_anonymous.js:158282-158284)
+   */
+  addGlobalClickCallback(cb: (info: GlobalClickInfo) => void): void {
+    this._globalClickCallbacks.add(cb);
+  }
+
+  /**
+   * 移除全局鼠标点击回调。
+   *
+   * 逆向: ha.removeGlobalClickCallback (2026_tail_anonymous.js:158285-158287)
+   */
+  removeGlobalClickCallback(cb: (info: GlobalClickInfo) => void): void {
+    this._globalClickCallbacks.delete(cb);
   }
 
   // ════════════════════════════════════════════════════
@@ -322,6 +384,10 @@ export class MouseManager {
   ): void {
     // 逆向: ha._handleClick (2026_tail_anonymous.js:158343-158357)
     const clickCount = this._calculateClickCount(position, raw.button);
+    // 逆向: ha._handleClick — 全局点击回调在目标分发前触发 (2026_tail_anonymous.js:158345-158350)
+    for (const cb of this._globalClickCallbacks) {
+      cb({ event: raw, globalPosition: position, mouseTargets: targets, clickCount });
+    }
     for (const { target, localPosition } of targets) {
       const event = createClickEvent(raw, position, localPosition, clickCount);
       target.handleMouseEvent(event);
@@ -344,8 +410,8 @@ export class MouseManager {
     position: { x: number; y: number },
     targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
   ): void {
-    // 逆向: ha._handleRelease (2026_tail_anonymous.js:158291-158318)
-    // Skip global release callbacks (not implemented in this phase)
+    // 逆向: ha._handleRelease — 全局释放回调在目标分发前触发 (2026_tail_anonymous.js:158292)
+    for (const cb of this._globalReleaseCallbacks) cb();
     if (this._dragTargets.length > 0) {
       // Release goes to original drag targets using globalOffset to compute localPos
       for (const { target, globalOffset } of this._dragTargets) {
@@ -687,6 +753,8 @@ export class MouseManager {
     this._currentClickCount.clear();
     this._scrollSessionTarget = null;
     this._scrollSessionLastEvent = 0;
+    this._globalReleaseCallbacks.clear();
+    this._globalClickCallbacks.clear();
     MouseManager._instance = null;
   }
 }

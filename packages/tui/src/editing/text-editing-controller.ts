@@ -25,7 +25,7 @@
  */
 
 import { graphemeSegments } from "../text/char-width.js";
-import type { LayoutPosition } from "./text-layout-engine.js";
+import type { LayoutLine, LayoutPosition } from "./text-layout-engine.js";
 import { TextLayoutEngine } from "./text-layout-engine.js";
 
 /**
@@ -816,6 +816,29 @@ export class TextEditingController {
    */
   getLayoutPosition(): LayoutPosition {
     return this._layoutEngine.offsetToPosition(this._cursorPosition);
+  }
+
+  /**
+   * 获取布局行列表（委托给布局引擎）
+   *
+   * 逆向: wc._layoutEngine._lines 的公有委托，供 RenderTextField 使用
+   *
+   * @returns LayoutLine 数组（含 startOffset/endOffset/width/isHardBreak）
+   */
+  getLayoutLines(): LayoutLine[] {
+    return this._layoutEngine.getLayoutLines();
+  }
+
+  /**
+   * 计算 grapheme offset 的布局列宽度（委托给布局引擎）
+   *
+   * 逆向: wc._getLayoutColumnFromOffset (widget-property-system.js:1207-1214)
+   *
+   * @param offset - grapheme 偏移
+   * @returns 显示列宽度（CJK=2）
+   */
+  getLayoutColumnFromOffset(offset: number): number {
+    return this._layoutEngine.getLayoutColumnFromOffset(offset);
   }
 
   // ════════════════════════════════════════════════════

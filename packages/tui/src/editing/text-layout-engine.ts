@@ -36,11 +36,11 @@ export interface LayoutPosition {
 }
 
 /**
- * 布局行信息（内部使用）
+ * 布局行信息
  *
  * 还原自逆向代码 Kw._computeLines 中的行对象结构。
  */
-interface LayoutLine {
+export interface LayoutLine {
   /** 行首 grapheme 在全文 graphemes 数组中的偏移 */
   startOffset: number;
   /** 行尾 grapheme 偏移（不含，即下一行首偏移或全文末尾） */
@@ -249,6 +249,15 @@ export class TextLayoutEngine {
       }
     }
     return 0;
+  }
+
+  /**
+   * 获取布局行列表（供 TextEditingController 委托）
+   *
+   * 逆向: Kw._lines getter exposed for controller delegation
+   */
+  getLayoutLines(): LayoutLine[] {
+    return this._lines;
   }
 
   /**

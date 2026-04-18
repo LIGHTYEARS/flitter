@@ -50,6 +50,7 @@ export interface HookResult {
   type: "pre" | "post";
   toolName: string;
   toolUseId: string;
+  toolInput?: Record<string, unknown>;
   decision?: "allow" | "deny" | "ask";
   modifications?: Record<string, unknown>;
 }
@@ -314,6 +315,7 @@ export class ToolOrchestrator {
       type: "pre",
       toolName: toolUse.name,
       toolUseId: toolUse.id,
+      toolInput: toolUse.input,
     };
     const { abortOp } = await this.callbacks.applyHookResult(preHook);
     if (abortOp) {
@@ -483,6 +485,7 @@ export class ToolOrchestrator {
         type: "post",
         toolName: toolUse.name,
         toolUseId: toolUse.id,
+        toolInput: toolUse.input,
       };
       await this.callbacks.applyPostHookResult(postHook, {
         toolUseId: toolUse.id,

@@ -264,7 +264,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    * @returns Column 根节点
    */
   build(_context: BuildContext): Widget {
-    const { onSubmit, threadId, modelName, tokenCount, toastManager } = this.widget.config;
+    const { onSubmit, modelName, tokenCount, toastManager } = this.widget.config;
 
     // 消息区域 (占据全部剩余空间)
     // 逆向: Scrollable wrapping ConversationView
@@ -305,9 +305,19 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         }),
         // 状态栏
         new StatusBar({
-          modelName: modelName ?? "unknown",
-          tokenCount: tokenCount ?? 0,
-          threadId,
+          state: {
+            modelName: modelName ?? "unknown",
+            inferenceState: "idle",
+            hasStartedStreaming: false,
+            tokenUsage: {
+              inputTokens: tokenCount ?? 0,
+              outputTokens: 0,
+              maxInputTokens: 200000,
+            },
+            compactionState: "idle",
+            runningToolCount: 0,
+            waitingForApproval: false,
+          },
         }),
         // 分隔线
         new SizedBox({

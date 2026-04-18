@@ -19,23 +19,31 @@
  * @module
  */
 
-export { ThemeController, type ThemeData } from "./theme-controller.js";
+export { AppWidget, type AppWidgetConfig, AppWidgetState } from "./app-widget.js";
 export { ConfigProvider } from "./config-provider.js";
-export { AppWidget, AppWidgetState, type AppWidgetConfig } from "./app-widget.js";
-export {
-  ThreadStateWidget,
-  ThreadStateWidgetState,
-  type ThreadStateWidgetConfig,
-} from "./thread-state-widget.js";
-export {
-  InputField,
-  InputFieldState,
-  type InputFieldConfig,
-} from "./input-field.js";
 export {
   ConversationView,
-  ConversationViewState,
   type ConversationViewConfig,
+  ConversationViewState,
   type Message,
 } from "./conversation-view.js";
-export { StatusBar, type StatusBarConfig } from "./status-bar.js";
+export {
+  InputField,
+  type InputFieldConfig,
+  InputFieldState,
+} from "./input-field.js";
+export {
+  CONTEXT_DANGER,
+  CONTEXT_RECOMMENDATION,
+  CONTEXT_WARNING,
+  deriveStatusMessage,
+  StatusBar,
+  type StatusBarConfig,
+  type StatusBarState,
+} from "./status-bar.js";
+export { ThemeController, type ThemeData } from "./theme-controller.js";
+export {
+  ThreadStateWidget,
+  type ThreadStateWidgetConfig,
+  ThreadStateWidgetState,
+} from "./thread-state-widget.js";

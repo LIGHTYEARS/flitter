@@ -1,58 +1,71 @@
 /**
- * StatusBar 单元测试。
+ * StatusBar widget unit tests.
  *
- * 验证:
- * - StatusBar 继承 StatelessWidget
- * - build() 返回包含 model name 和 token count 的 Widget 树
- * - model name 文本左对齐
- * - token count 文本右对齐
- * - 使用 mutedText 色 (#565f89) 渲染状态文本
- * - 使用 surface 色 (#1a1b26) 作为背景
- *
- * 运行方式：
- * ```bash
- * npx tsx --test packages/cli/src/widgets/status-bar.test.ts
- * ```
+ * Validates:
+ * - StatusBar inherits StatelessWidget
+ * - build() renders model name, token count, and status message
+ * - Uses mutedText color (#565f89) for normal text
+ * - Uses warning/danger colors for context threshold messages
  *
  * @module
  */
 
-import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import { StatusBar, type StatusBarConfig } from "./status-bar.js";
-import { StatelessWidget, RichText, TextSpan, Row, Expanded, SizedBox, Padding } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
+import { describe, expect, it } from "bun:test";
+import type { BuildContext } from "@flitter/tui";
+import { Padding, RichText, Row, StatelessWidget } from "@flitter/tui";
+import { StatusBar, type StatusBarConfig, type StatusBarState } from "./status-bar.js";
 
 // ════════════════════════════════════════════════════
-//  辅助函数
+//  Helper types
 // ════════════════════════════════════════════════════
 
-/**
- * 递归收集 Widget 树中所有 RichText 节点。
- */
-function collectRichTexts(widget: any): any[] {
-  const results: any[] = [];
+/** Loose widget shape for tree traversal */
+interface WidgetNode {
+  children?: WidgetNode[];
+  child?: WidgetNode;
+  text?: {
+    style?: { foreground?: { kind: string; r: number; g: number; b: number } };
+    toPlainText(): string;
+  };
+}
+
+// ════════════════════════════════════════════════════
+//  Helper functions
+// ════════════════════════════════════════════════════
+
+/** Create a default idle StatusBarState */
+function makeState(overrides: Partial<StatusBarState> = {}): StatusBarState {
+  return {
+    modelName: "claude-3.5-sonnet",
+    inferenceState: "idle",
+    hasStartedStreaming: false,
+    tokenUsage: { inputTokens: 1000, outputTokens: 234, maxInputTokens: 10000 },
+    compactionState: "idle",
+    runningToolCount: 0,
+    waitingForApproval: false,
+    ...overrides,
+  };
+}
+
+/** Recursively collect all RichText nodes from a widget tree. */
+function collectRichTexts(widget: WidgetNode): RichText[] {
+  const results: RichText[] = [];
   if (widget instanceof RichText) {
     results.push(widget);
   }
-  // 检查 children 数组
   if (widget.children) {
     for (const child of widget.children) {
       results.push(...collectRichTexts(child));
     }
   }
-  // 检查 child 字段
   if (widget.child) {
     results.push(...collectRichTexts(widget.child));
   }
   return results;
 }
 
-/**
- * 递归提取 Widget 树中所有纯文本内容。
- */
-function extractPlainTexts(widget: any): string[] {
+/** Recursively extract all plain text strings from a widget tree. */
+function extractPlainTexts(widget: WidgetNode): string[] {
   const results: string[] = [];
   if (widget instanceof RichText) {
     results.push(widget.text.toPlainText());
@@ -69,76 +82,101 @@ function extractPlainTexts(widget: any): string[] {
 }
 
 // ════════════════════════════════════════════════════
-//  StatusBar 测试
+//  StatusBar tests
 // ════════════════════════════════════════════════════
 
 describe("StatusBar", () => {
   const defaultConfig: StatusBarConfig = {
-    modelName: "claude-3.5-sonnet",
-    tokenCount: 1234,
-    threadId: "thread-abc",
+    state: makeState(),
   };
 
-  it("继承 StatelessWidget", () => {
+  it("inherits StatelessWidget", () => {
     const bar = new StatusBar(defaultConfig);
-    assert.ok(bar instanceof StatelessWidget);
+    expect(bar).toBeInstanceOf(StatelessWidget);
   });
 
-  it("存储 config 属性", () => {
+  it("stores config.state properties", () => {
     const bar = new StatusBar(defaultConfig);
-    assert.equal(bar.config.modelName, "claude-3.5-sonnet");
-    assert.equal(bar.config.tokenCount, 1234);
-    assert.equal(bar.config.threadId, "thread-abc");
+    expect(bar.config.state.modelName).toBe("claude-3.5-sonnet");
+    expect(bar.config.state.tokenUsage.inputTokens).toBe(1000);
+    expect(bar.config.state.tokenUsage.outputTokens).toBe(234);
   });
 
-  it("build() 返回包含 model name 文本的 Widget 树", () => {
+  it("build() renders model name text", () => {
     const bar = new StatusBar(defaultConfig);
-    const built = bar.build({} as any);
-    const texts = extractPlainTexts(built);
+    const built = bar.build({} as unknown as BuildContext);
+    const texts = extractPlainTexts(built as unknown as WidgetNode);
     const hasModelName = texts.some((t) => t.includes("claude-3.5-sonnet"));
-    assert.ok(hasModelName, `Expected "claude-3.5-sonnet" in ${JSON.stringify(texts)}`);
+    expect(hasModelName).toBe(true);
   });
 
-  it("build() 返回包含 token count 文本的 Widget 树", () => {
+  it("build() renders total token count (input + output)", () => {
     const bar = new StatusBar(defaultConfig);
-    const built = bar.build({} as any);
-    const texts = extractPlainTexts(built);
+    const built = bar.build({} as unknown as BuildContext);
+    const texts = extractPlainTexts(built as unknown as WidgetNode);
+    // 1000 + 234 = 1234
     const hasTokenCount = texts.some((t) => t.includes("1234 tokens"));
-    assert.ok(hasTokenCount, `Expected "1234 tokens" in ${JSON.stringify(texts)}`);
+    expect(hasTokenCount).toBe(true);
   });
 
-  it("model name 左对齐 (Row 第一个子元素)", () => {
+  it("uses mutedText color (#565f89) for model name text", () => {
     const bar = new StatusBar(defaultConfig);
-    const built = bar.build({} as any);
-    // build 应返回 Padding > Row 结构
-    // Row 第一个 child 包含 model name
-    // Row 中间有 Expanded spacer
-    // Row 最后一个 child 包含 token count
-    assert.ok(built, "build() should return a widget");
-  });
+    const built = bar.build({} as unknown as BuildContext);
+    const richTexts = collectRichTexts(built as unknown as WidgetNode);
+    expect(richTexts.length).toBeGreaterThan(0);
 
-  it("使用 mutedText 色 (#565f89) 渲染文本", () => {
-    const bar = new StatusBar(defaultConfig);
-    const built = bar.build({} as any);
-    const richTexts = collectRichTexts(built);
-    assert.ok(richTexts.length > 0, "Should contain RichText widgets");
-
-    // 检查至少一个 RichText 使用了 mutedText 颜色
-    const hasMutedColor = richTexts.some((rt: any) => {
-      const style = rt.text.style;
+    const hasMutedColor = richTexts.some((rt) => {
+      const style = (rt as unknown as WidgetNode).text?.style;
       if (!style) return false;
       const fg = style.foreground;
-      // #565f89 -> rgb(86, 95, 137)
       return fg && fg.kind === "rgb" && fg.r === 0x56 && fg.g === 0x5f && fg.b === 0x89;
     });
-    assert.ok(hasMutedColor, "Should use mutedText color #565f89");
+    expect(hasMutedColor).toBe(true);
   });
 
-  it("build() 返回的顶层结构包含 Row", () => {
+  it("build() returns Padding > Row structure", () => {
     const bar = new StatusBar(defaultConfig);
-    const built = bar.build({} as any);
-    // 应该返回 Padding 包裹 Row, 或者直接是 Row
-    assert.ok(built, "build() should return a widget");
-    // 只要 build 不抛错就通过
+    const built = bar.build({} as unknown as BuildContext);
+    expect(built).toBeInstanceOf(Padding);
+    expect((built as unknown as WidgetNode).child).toBeInstanceOf(Row);
+  });
+
+  it("renders status message when state has active status", () => {
+    const config: StatusBarConfig = {
+      state: makeState({ inferenceState: "running", hasStartedStreaming: true }),
+    };
+    const bar = new StatusBar(config);
+    const built = bar.build({} as unknown as BuildContext);
+    const texts = extractPlainTexts(built as unknown as WidgetNode);
+    const hasStatus = texts.some((t) => t.includes("Streaming response..."));
+    expect(hasStatus).toBe(true);
+  });
+
+  it("does not render center status text when idle with low usage", () => {
+    const bar = new StatusBar(defaultConfig);
+    const built = bar.build({} as unknown as BuildContext);
+    const texts = extractPlainTexts(built as unknown as WidgetNode);
+    // Should only have model name and token count — no status message
+    expect(texts.length).toBe(2);
+  });
+
+  it("uses danger color for context near full message", () => {
+    const config: StatusBarConfig = {
+      state: makeState({
+        tokenUsage: { inputTokens: 9500, outputTokens: 50, maxInputTokens: 10000 },
+      }),
+    };
+    const bar = new StatusBar(config);
+    const built = bar.build({} as unknown as BuildContext);
+    const richTexts = collectRichTexts(built as unknown as WidgetNode);
+
+    // Find the status message RichText with danger color
+    const hasDangerColor = richTexts.some((rt) => {
+      const style = (rt as unknown as WidgetNode).text?.style;
+      if (!style) return false;
+      const fg = style.foreground;
+      return fg && fg.kind === "rgb" && fg.r === 0xf7 && fg.g === 0x76 && fg.b === 0x8e;
+    });
+    expect(hasDangerColor).toBe(true);
   });
 });

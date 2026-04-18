@@ -3,7 +3,7 @@
  *
  * Renders a bordered dialog at the bottom of the TUI when a tool requires
  * user permission to execute. Shows tool name, args summary, reason, and
- * Allow/Deny radio-button options navigable with keyboard.
+ * radio-button options navigable with keyboard.
  *
  * 逆向: A0R (StatefulWidget, misc_utils.js:5768) + p0R (ConfirmationWidget state,
  *        actions_intents.js:3548) + _0R/b0R (ConfirmationSelect, actions_intents.js:3813-4002)
@@ -18,11 +18,12 @@
  *     - Column: header (tool name + args), options list, footer hint
  *     - Options rendered as Row([arrow "▸"/" ", radio "●"/"○", spacer, label])
  * - Key handling: ArrowUp/k = up, ArrowDown/j = down, Enter = confirm, Escape = cancel
+ * - Alt+1..N = direct select by position (1-indexed)
  *
- * Simplification for Flitter:
- * - Two options only: Allow / Deny (amp supports up to 5 for different scope levels)
- * - No deny-with-feedback sub-form
- * - No Alt+N shortcuts (only 2 options)
+ * p0R also has a feedback sub-form (_feedbackActive):
+ * - Triggered when user selects "no-with-feedback"
+ * - Shows a text input, Enter submits with feedback text
+ * - Escape exits feedback mode without response
  *
  * @module
  */
@@ -63,10 +64,23 @@ export interface ApprovalRequest {
 }
 
 /**
+ * Scope of an approval decision.
+ *
+ * 逆向: chunk-006.js:22722-22738 createConfirmationOptions options values
+ * - "once": approve this one invocation only
+ * - "session": allow all invocations this session
+ * - "always": allow all invocations persistently
+ * - "always-guarded": allow with file-level guard (file tools only)
+ */
+export type ApprovalScope = "once" | "session" | "always" | "always-guarded";
+
+/**
  * User's response to an approval request.
  */
 export interface ApprovalResponse {
   approved: boolean;
+  scope?: ApprovalScope;
+  feedback?: string;
 }
 
 /**
@@ -152,16 +166,32 @@ export class ApprovalWidget extends StatefulWidget {
 //  Option definitions
 // ════════════════════════════════════════════════════
 
+type ApprovalOptionValue =
+  | "yes"
+  | "allow-all-session"
+  | "allow-all-persistent"
+  | "no-with-feedback";
+
 interface ApprovalOption {
-  value: "yes" | "no";
+  value: ApprovalOptionValue;
   label: string;
   color: Color;
 }
 
+/** 逆向: chunk-006.js:22722-22738 createConfirmationOptions tool-use branch */
 const APPROVAL_OPTIONS: ApprovalOption[] = [
-  { value: "yes", label: "Allow", color: SUCCESS_COLOR },
-  { value: "no", label: "Deny", color: DENY_COLOR },
+  { value: "yes", label: "Approve", color: SUCCESS_COLOR },
+  { value: "allow-all-session", label: "Allow All for This Session", color: SUCCESS_COLOR },
+  { value: "allow-all-persistent", label: "Allow All for Every Session", color: SUCCESS_COLOR },
+  { value: "no-with-feedback", label: "Deny with feedback", color: DENY_COLOR },
 ];
+
+/** Map from option value to ApprovalScope */
+const SCOPE_MAP: Record<string, ApprovalScope> = {
+  yes: "once",
+  "allow-all-session": "session",
+  "allow-all-persistent": "always",
+};
 
 // ════════════════════════════════════════════════════
 //  ApprovalWidgetState
@@ -171,24 +201,54 @@ const APPROVAL_OPTIONS: ApprovalOption[] = [
  * State for ApprovalWidget.
  *
  * 逆向: p0R (actions_intents.js:3548) + b0R (actions_intents.js:3838)
- * Combined into one state class since we don't need the feedback sub-form.
+ * Combined into one state class.
  *
  * b0R tracks selectedIndex and handles keyboard navigation.
  * - ArrowUp/k moves up, ArrowDown/j moves down
  * - Enter confirms selected option
- * - y/Y shortcuts to approve, n/N to deny
- * - Escape cancels (deny)
+ * - Alt+1..4 shortcuts for direct select (amp uses altKey+digit)
+ * - Escape cancels (null response → simple deny in amp; we emit no-feedback deny)
+ *
+ * p0R handles the feedback sub-form:
+ * - feedbackInputActive = true shows the feedback entry
+ * - Escape exits feedback mode without submitting
+ * - Enter submits the feedback text (or simple deny if empty)
  */
 export class ApprovalWidgetState extends State<ApprovalWidget> {
-  /** Currently selected option index (0 = Allow, 1 = Deny). */
+  /** Currently selected option index. */
   private _selectedIndex = 0;
 
   /**
-   * Key handler matching amp's b0R.handleKeyEvent pattern.
+   * Whether the feedback input sub-form is active.
+   * 逆向: p0R.feedbackInputActive (actions_intents.js:3549)
+   */
+  private _feedbackActive = false;
+
+  /**
+   * Current text in the feedback input.
+   * 逆向: p0R.feedbackController (actions_intents.js:3550) — we simulate with a string
+   */
+  private _feedbackText = "";
+
+  /**
+   * Key handler matching amp's b0R.handleKeyEvent + p0R.handleKeyEvent patterns.
    *
    * 逆向: b0R.handleKeyEvent (actions_intents.js:3854-3890)
+   *        p0R.handleKeyEvent (actions_intents.js:3561-3572) for Escape in feedback mode
    */
-  private _handleKey = (event: { key: string }): KeyEventResult => {
+  private _handleKey = (event: {
+    key: string;
+    altKey?: boolean;
+    shiftKey?: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
+  }): KeyEventResult => {
+    // ── Feedback mode ──
+    if (this._feedbackActive) {
+      return this._handleFeedbackKey(event);
+    }
+
+    // ── Normal navigation mode ──
     switch (event.key) {
       case "ArrowUp":
       case "k":
@@ -204,35 +264,126 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
         });
         return "handled";
 
-      case "Enter":
-        this._respond(APPROVAL_OPTIONS[this._selectedIndex].value);
+      case "Enter": {
+        const opt = APPROVAL_OPTIONS[this._selectedIndex];
+        if (opt) this._selectOption(opt.value);
         return "handled";
-
-      case "y":
-      case "Y":
-        this._respond("yes");
-        return "handled";
-
-      case "n":
-      case "N":
-        this._respond("no");
-        return "handled";
+      }
 
       case "Escape":
-        this._respond("no");
+        // amp: onSelect(null) → simple deny, no feedback
+        this._respondFull({ approved: false });
         return "handled";
 
       default:
+        // 逆向: b0R.handleKeyEvent altKey+digit selects by position (1-indexed)
+        // We use plain digit keys (1-4) as a simplified shortcut since our TUI
+        // does not expose altKey in all scenarios.
+        if (
+          event.altKey === true &&
+          !event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          event.key >= "1" &&
+          event.key <= "9"
+        ) {
+          const idx = Number.parseInt(event.key, 10) - 1;
+          if (idx < APPROVAL_OPTIONS.length) {
+            const opt = APPROVAL_OPTIONS[idx];
+            if (opt) this._selectOption(opt.value);
+          }
+          return "handled";
+        }
+        // Also support plain 1-4 for convenience
+        if (event.key >= "1" && event.key <= "4") {
+          const idx = Number.parseInt(event.key, 10) - 1;
+          if (idx < APPROVAL_OPTIONS.length) {
+            const opt = APPROVAL_OPTIONS[idx];
+            if (opt) this._selectOption(opt.value);
+          }
+          return "handled";
+        }
         return "ignored";
     }
   };
 
   /**
-   * Emit the approval response to the callback.
+   * Handle keyboard input while the feedback sub-form is active.
+   *
+   * 逆向: p0R.handleKeyEvent (Escape), Gm (TextField onSubmitted for Enter),
+   *        feedbackController text manipulation
    */
-  private _respond(value: "yes" | "no"): void {
+  private _handleFeedbackKey = (event: { key: string }): KeyEventResult => {
+    switch (event.key) {
+      case "Escape":
+        // 逆向: p0R.handleKeyEvent — Escape exits feedback mode, clears text
+        this.setState(() => {
+          this._feedbackActive = false;
+          this._feedbackText = "";
+        });
+        return "handled";
+
+      case "Enter":
+        this._submitFeedback();
+        return "handled";
+
+      case "Backspace":
+        this.setState(() => {
+          this._feedbackText = this._feedbackText.slice(0, -1);
+        });
+        return "handled";
+
+      default:
+        // Append printable characters
+        if (event.key.length === 1) {
+          this.setState(() => {
+            this._feedbackText += event.key;
+          });
+          return "handled";
+        }
+        return "ignored";
+    }
+  };
+
+  /**
+   * Select an option by value. Triggers feedback mode or emits response.
+   *
+   * 逆向: p0R.handleOptionSelect (actions_intents.js:3583-3596)
+   */
+  private _selectOption(value: ApprovalOptionValue): void {
+    if (value === "no-with-feedback") {
+      this.setState(() => {
+        this._feedbackActive = true;
+      });
+      return;
+    }
+    this._respondFull({ approved: true, scope: SCOPE_MAP[value] ?? "once" });
+  }
+
+  /**
+   * Submit the feedback text and emit a deny-with-feedback response.
+   *
+   * 逆向: p0R.submitFeedback (actions_intents.js:3575-3583)
+   * If feedback text is empty, emits a simple deny (no feedback).
+   */
+  private _submitFeedback(): void {
+    const text = this._feedbackText.trim();
+    this._feedbackText = "";
+    if (text) {
+      this._respondFull({ approved: false, feedback: text });
+    } else {
+      this._respondFull({ approved: false });
+    }
+  }
+
+  /**
+   * Emit the approval response to the callback.
+   *
+   * 逆向: p0R.handleOptionSelect calls this.widget.onResponse(...)
+   */
+  private _respondFull(response: ApprovalResponse): void {
     const { request, onRespond } = this.widget.config;
-    onRespond(request.toolUseId, { approved: value === "yes" });
+    onRespond(request.toolUseId, response);
   }
 
   /**
@@ -240,24 +391,21 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
    *
    * 逆向: b0R.build (actions_intents.js:3895-4020)
    *
-   * Structure:
-   * 1. Header: tool name + reason
-   * 2. Args summary (truncated JSON)
-   * 3. Options list (Allow/Deny radio buttons)
-   * 4. Footer hint line
-   *
-   * Wrapped in:
-   * - Column(crossAxisAlignment: "stretch", mainAxisSize: "min")
-   * - Container with BoxDecoration(border: Border.all(BorderSide(WARNING_COLOR, 1, "rounded")))
-   * - Focus with autofocus + key handler
+   * If feedback mode active, shows feedback input form.
+   * Otherwise shows main options list.
    */
   build(_context: BuildContext) {
     const { request } = this.widget.config;
 
+    // ── Feedback mode ──
+    if (this._feedbackActive) {
+      return this._buildFeedbackInput();
+    }
+
     // ── Header ──
     // 逆向: b0R.buildHeader — tool name + reason
     const headerChildren = [
-      // Tool name header (e.g. "Invoke tool Bash?")
+      // Tool name header (e.g. "Run this command?")
       // 逆向: formatToolConfirmation — generic path: `Invoke tool ${T.name}?`
       new RichText({
         text: new TextSpan({
@@ -303,10 +451,10 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
     });
 
     // ── Footer hint ──
-    // 逆向: b0R.build footer: "↑↓ navigate • Enter select • Esc cancel"
+    // 逆向: b0R.build footer hint line
     const footerHint = new RichText({
       text: new TextSpan({
-        text: "↑↓ navigate • Enter select • y approve • n deny",
+        text: "↑↓ navigate • 1-4 select • Enter confirm • Esc cancel",
         style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
       }),
     });
@@ -352,6 +500,123 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   // ────────────────────────────────────────────────────
   //  Private helpers
   // ────────────────────────────────────────────────────
+
+  /**
+   * Build the feedback input sub-form.
+   *
+   * 逆向: p0R.buildFeedbackInput (actions_intents.js:3597-3650)
+   * Shows: "✗ Denied — tell Amp what to do instead"
+   *        "› [text input placeholder]"
+   *        "Enter send  •  Esc cancel"
+   *
+   * Since @flitter/tui has no TextField, we simulate with a text cursor display.
+   */
+  private _buildFeedbackInput() {
+    // Header line: "✗ Denied — tell Amp what to do instead"
+    const headerLine = new RichText({
+      text: new TextSpan({
+        text: "",
+        style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+        children: [
+          new TextSpan({
+            text: "✗ ",
+            style: new TextStyle({ foreground: DENY_COLOR, bold: true }),
+          }),
+          new TextSpan({
+            text: "Denied",
+            style: new TextStyle({ foreground: DENY_COLOR, bold: true }),
+          }),
+          new TextSpan({
+            text: " — ",
+            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+          }),
+          new TextSpan({
+            text: "tell what to do instead",
+            style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+          }),
+        ],
+      }),
+    });
+
+    // Input row: "› <text>_"
+    const inputText =
+      this._feedbackText.length > 0 ? this._feedbackText + "█" : `e.g. "use grep instead"█`;
+    const inputRow = new Row({
+      children: [
+        new RichText({
+          text: new TextSpan({
+            text: "› ",
+            style: new TextStyle({ foreground: PRIMARY_COLOR, bold: true }),
+          }),
+        }),
+        new RichText({
+          text: new TextSpan({
+            text: inputText,
+            style: new TextStyle({
+              foreground: this._feedbackText.length > 0 ? FOREGROUND_COLOR : SECONDARY_COLOR,
+            }),
+          }),
+        }),
+      ],
+    });
+
+    // Footer hint
+    const footerLine = new RichText({
+      text: new TextSpan({
+        text: "",
+        style: new TextStyle({ foreground: SECONDARY_COLOR }),
+        children: [
+          new TextSpan({
+            text: "Enter",
+            style: new TextStyle({ foreground: PRIMARY_COLOR }),
+          }),
+          new TextSpan({
+            text: " send",
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
+          }),
+          new TextSpan({
+            text: "  •  ",
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
+          }),
+          new TextSpan({
+            text: "Esc",
+            style: new TextStyle({ foreground: PRIMARY_COLOR }),
+          }),
+          new TextSpan({
+            text: " cancel",
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
+          }),
+        ],
+      }),
+    });
+
+    const column = new Column({
+      crossAxisAlignment: "stretch",
+      mainAxisSize: "min",
+      children: [
+        headerLine,
+        new SizedBox({ height: 1 }),
+        inputRow,
+        new SizedBox({ height: 1 }),
+        footerLine,
+      ],
+    });
+
+    const container = new Container({
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      decoration: new BoxDecoration({
+        border: Border.all(new BorderSide(PRIMARY_COLOR, 1, "rounded")),
+      }),
+      child: column,
+    });
+
+    return new Focus({
+      autofocus: true,
+      onKey: this._handleKey,
+      debugLabel: "ApprovalWidget-Feedback",
+      child: container,
+    });
+  }
 
   /**
    * Format the header text based on tool name.

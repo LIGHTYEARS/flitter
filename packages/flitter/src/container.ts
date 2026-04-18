@@ -496,6 +496,12 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
 
         const worker = new ThreadWorkerImpl(fullOpts);
         workerRef = worker;
+
+        // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:259-270
+        // resume() truncates incomplete streaming messages left over from a
+        // previous session.  Idempotent — safe even for brand-new threads.
+        worker.resume();
+
         return worker;
       },
 

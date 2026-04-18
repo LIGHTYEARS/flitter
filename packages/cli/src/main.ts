@@ -173,11 +173,25 @@ export async function main(opts?: MainOptions): Promise<void> {
     // ── 依赖准备 ──────────────────────────────────────────
 
     const configDir = path.join(os.homedir(), ".config", "flitter");
-    const secrets: SecretStorage =
+    const baseSecrets: SecretStorage =
       opts?._testSecrets ?? new FileSecretStorage(path.join(configDir, "data"));
+
+    // 逆向: amp i$T apiKey flag (chunk-006.js:38263-38267) passes through to
+    // otT() which builds the secret store, with CLI --api-key taking precedence.
+    // We check for --api-key early by peeking at argv before Commander parses,
+    // then wrap the SecretStorage to return the CLI-provided key.
+    const cliApiKey = extractCliApiKey(argv);
+    const secrets: SecretStorage = cliApiKey
+      ? wrapSecretsWithApiKey(baseSecrets, cliApiKey)
+      : baseSecrets;
+
     const settings = new FileSettingsStorage({
       globalPath: path.join(configDir, "settings.json"),
     });
+
+    // 逆向: amp mode/model override is applied in S8() context builder (2002_unknown_S8.js)
+    // Flitter: peek at --model from argv before Commander parse, wire into container post-creation
+    const cliModel = extractCliModel(argv);
 
     async function ensureContainer(): Promise<ServiceContainer> {
       if (!container) {
@@ -189,6 +203,11 @@ export async function main(opts?: MainOptions): Promise<void> {
           homeDir: os.homedir(),
           configDir,
         });
+
+        // Wire --model override into config service settings
+        if (cliModel) {
+          container.configService.updateSettings("global", "internal.model", cliModel);
+        }
       }
       return container;
     }
@@ -458,4 +477,60 @@ export async function main(opts?: MainOptions): Promise<void> {
     }
     process.exitCode = process.exitCode || 1;
   }
+}
+
+// ── Helper functions for CLI flag wiring ──────────────────
+
+/**
+ * Extract --api-key value from argv before Commander parses.
+ *
+ * 逆向: amp i$T apiKey flag (chunk-006.js:38263-38267)
+ * In amp, the apiKey is passed through the parsed options object.
+ * Flitter peeks at argv to get it early for SecretStorage wrapping.
+ */
+function extractCliApiKey(argv: string[]): string | undefined {
+  const idx = argv.indexOf("--api-key");
+  if (idx !== -1 && idx + 1 < argv.length) {
+    return argv[idx + 1];
+  }
+  return undefined;
+}
+
+/**
+ * Extract --model value from argv before Commander parses.
+ *
+ * 逆向: amp uses --mode flag (chunk-006.js:38237-38243) to select model/prompt combo.
+ * Flitter uses a direct --model flag for explicit model selection.
+ */
+function extractCliModel(argv: string[]): string | undefined {
+  const idx = argv.indexOf("--model");
+  if (idx !== -1 && idx + 1 < argv.length) {
+    return argv[idx + 1];
+  }
+  return undefined;
+}
+
+/**
+ * Wrap a SecretStorage to intercept apiKey reads with a CLI-provided override.
+ *
+ * 逆向: amp's otT() builds the secret store (S8 context builder, 2002_unknown_S8.js:75).
+ * When --api-key is provided, the CLI key takes precedence over stored credentials.
+ *
+ * @param base - Underlying secret storage
+ * @param apiKey - CLI-provided API key override
+ * @returns Wrapped SecretStorage that returns the CLI key for "apiKey" reads
+ */
+function wrapSecretsWithApiKey(base: SecretStorage, apiKey: string): SecretStorage {
+  return {
+    async get(key: string, scope?: string): Promise<string | undefined> {
+      if (key === "apiKey") return apiKey;
+      return base.get(key, scope);
+    },
+    async set(key: string, value: string, scope?: string): Promise<void> {
+      return base.set(key, value, scope);
+    },
+    async delete(key: string, scope?: string): Promise<void> {
+      return base.delete(key, scope);
+    },
+  };
 }

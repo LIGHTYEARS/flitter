@@ -25,6 +25,7 @@ import type { ServiceContainer } from "@flitter/flitter";
 import type { Message, ThreadMessage } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import type { CliContext } from "../context";
+import { resolveSystemPromptText } from "../util/system-prompt";
 
 /**
  * IO 注入选项 (方便测试)
@@ -126,24 +127,62 @@ export async function runExecuteMode(
       content: [{ type: "text", text: userMessage }],
     },
   ];
-  const worker = container.createThreadWorker(threadId, {
+
+  // 逆向: R3R() system prompt override (1983_unknown_R3R.js:1-4)
+  // amp's R3R checks sp/systemPrompt from parsed CLI options and returns the override text.
+  // Flitter: if --system-prompt is set, resolve as file path first, then fall back to raw text.
+  const systemPromptOverride = context.systemPrompt
+    ? await resolveSystemPromptText(context.systemPrompt)
+    : undefined;
+
+  const workerOpts: Record<string, unknown> = {
     getMessages: () => messages,
-  });
+  };
+
+  // Wire --system-prompt: override buildSystemPrompt callback
+  if (systemPromptOverride !== undefined) {
+    workerOpts.buildSystemPrompt = async () => systemPromptOverride;
+  }
+
+  const worker = container.createThreadWorker(
+    threadId,
+    workerOpts as Parameters<typeof container.createThreadWorker>[1],
+  );
 
   try {
     // 可选: stream-json 模式
     let sub: Subscription | null = null;
-    if (context.streamJson) {
+    if (context.streamJson && !context.print) {
       sub = worker.events$.subscribe((event: AgentEvent) => {
         writeJsonLine(stdout, event);
+      });
+    }
+
+    // Wire --max-turns: subscribe to turn completion events, cancel when limit reached.
+    // runInference() is recursive (tool_use → executeTools → runInference), so we count
+    // inference:complete events to track turns.
+    let turnSub: Subscription | null = null;
+    if (context.maxTurns !== undefined) {
+      let turnCount = 0;
+      turnSub = worker.events$.subscribe((event: AgentEvent) => {
+        if (event.type === "inference:complete") {
+          turnCount++;
+          if (turnCount >= context.maxTurns!) {
+            // Max turns reached — cancel the inference to stop the recursive loop
+            worker.cancelInference();
+          }
+        }
       });
     }
 
     // 执行推理循环
     await worker.runInference();
 
-    // 非 stream-json: 输出最终文本
-    if (!context.streamJson) {
+    // --print: 输出最终 assistant 文本 (no JSON, no tool output, no intermediate text)
+    // 逆向: amp's --execute outputs last assistant text; --print is Flitter's explicit flag
+    // for this behavior (implies --execute).
+    // Non-streamJson also outputs last assistant text (backward-compatible).
+    if (!context.streamJson || context.print) {
       const snapshot = container.threadStore.getThreadSnapshot(threadId);
       const lastAssistant = snapshot?.messages
         .filter((m: ThreadMessage) => m.role === "assistant")
@@ -155,6 +194,7 @@ export async function runExecuteMode(
     }
 
     sub?.unsubscribe();
+    turnSub?.unsubscribe();
   } finally {
     await container.asyncDispose();
   }

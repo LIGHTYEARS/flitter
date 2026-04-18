@@ -32,6 +32,7 @@ import { createBuiltinCommands } from "../commands/slash-handlers.js";
 import type { SlashCommandContext } from "../commands/slash-registry.js";
 import { SlashCommandRegistry } from "../commands/slash-registry.js";
 import type { CliContext } from "../context.js";
+import { resolveSystemPromptText } from "../util/system-prompt.js";
 import { AppWidget } from "../widgets/app-widget.js";
 import { parseCommandInput } from "../widgets/command-detection.js";
 import type { ThemeData } from "../widgets/theme-controller.js";
@@ -151,7 +152,23 @@ export async function launchInteractiveMode(
   log.info("Thread resolved", { threadId });
 
   // 3. 创建 ThreadWorker
-  const worker = container.createThreadWorker(threadId);
+  // 逆向: R3R() system prompt override (1983_unknown_R3R.js:1-4)
+  // If --system-prompt is set, resolve as file path or raw text and override buildSystemPrompt.
+  const systemPromptOverride = context.systemPrompt
+    ? await resolveSystemPromptText(context.systemPrompt)
+    : undefined;
+
+  const workerOpts: Record<string, unknown> = {};
+  if (systemPromptOverride !== undefined) {
+    workerOpts.buildSystemPrompt = async () => systemPromptOverride;
+  }
+
+  const worker = container.createThreadWorker(
+    threadId,
+    Object.keys(workerOpts).length > 0
+      ? (workerOpts as Parameters<typeof container.createThreadWorker>[1])
+      : undefined,
+  );
 
   // 逆向: toastController = new BQT() (chunk-006.js:34489)
   const toastManager = new ToastManager();

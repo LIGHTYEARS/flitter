@@ -49,6 +49,15 @@ export function createProgram(version: string): Command {
     .option("--stream-json", "Output JSON event stream to stdout")
     .option("--no-color", "Disable color output")
     .option("-v, --verbose", "Enable verbose logging")
+    // ── 逆向: i$T flag definitions (chunk-006.js:38263-38279) ──
+    // amp defines apiKey, sp, systemPrompt, mode as hidden options.
+    // Flitter exposes a subset as user-facing CLI flags.
+    .option("--model <model>", "LLM model to use (e.g., claude-sonnet-4-20250514)")
+    .option("--api-key <key>", "API key (overrides stored credentials for this session)")
+    .option("--system-prompt <text>", "Custom system prompt text or file path")
+    .option("--max-turns <n>", "Maximum number of inference turns (default: unlimited)")
+    .option("-p, --print", "Output only the final assistant text (implies --execute)")
+    .option("--pipe", "Read prompt from stdin, output result to stdout (implies --execute)")
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {

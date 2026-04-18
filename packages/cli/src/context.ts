@@ -31,7 +31,7 @@ import type { Command } from "commander";
  * 由 resolveCliContext() 从 Commander 解析结果构建。
  */
 export interface CliContext {
-  /** 非交互式执行模式 (--execute 或 非 TTY 或 --headless) */
+  /** 非交互式执行模式 (--execute 或 非 TTY 或 --headless 或 --print 或 --pipe) */
   executeMode: boolean;
   /** stdout 和 stderr 是否均为 TTY */
   isTTY: boolean;
@@ -43,6 +43,26 @@ export interface CliContext {
   verbose: boolean;
   /** 用户消息 (execute 模式下由命令行参数拼接) */
   userMessage?: string;
+  /** 仅输出最终 assistant 文本 (--print/-p, 隐含 executeMode) */
+  print: boolean;
+  /** 从 stdin 读取, 结果输出到 stdout (--pipe, 隐含 executeMode) */
+  pipe: boolean;
+  /**
+   * 最大推理轮次 (--max-turns)
+   * undefined = 无限制 (0 或 NaN 或负数均视为无限制)
+   * 逆向: amp 无直接对应, Flitter 自定义扩展
+   */
+  maxTurns?: number;
+  /** LLM 模型覆盖 (--model) — 逆向: amp 通过 --mode 间接选择模型 */
+  model?: string;
+  /**
+   * 自定义系统提示文本或文件路径 (--system-prompt)
+   * 逆向: i$T sp/systemPrompt flags (chunk-006.js:38269-38279)
+   *        R3R() extraction (1983_unknown_R3R.js:1-4)
+   */
+  systemPrompt?: string;
+  /** API Key 覆盖 (--api-key) — 逆向: i$T apiKey (chunk-006.js:38263-38267) */
+  apiKey?: string;
 }
 
 /**
@@ -51,7 +71,15 @@ export interface CliContext {
  * 模式判定逻辑 (逆向 S8):
  * - --execute 或 stdout 非 TTY → execute mode
  * - --headless → headless mode (隐含 execute + streamJson)
+ * - --print 或 --pipe → 隐含 execute mode
  * - 默认 (TTY) → interactive mode
+ *
+ * --max-turns 解析逻辑:
+ * - 正整数 → 保留
+ * - 0, NaN, 负数 → undefined (无限制)
+ *
+ * 逆向: S8() in 2002_unknown_S8.js
+ *        R3R() system prompt override in 1983_unknown_R3R.js
  *
  * @param program - 已解析的 Commander.js Command 实例
  * @returns 构建的 CLI 上下文对象
@@ -59,7 +87,22 @@ export interface CliContext {
 export function resolveCliContext(program: Command): CliContext {
   const opts = program.opts();
   const isTTY = Boolean(process.stdout.isTTY && process.stderr.isTTY);
-  const executeMode = Boolean(opts.execute) || (!process.stdout.isTTY && !Boolean(opts.streamJson));
+
+  // --print and --pipe each imply executeMode
+  // 逆向: amp's --execute resolves similarly in S8 (2002_unknown_S8.js:10)
+  const printFlag = Boolean(opts.print);
+  const pipeFlag = Boolean(opts.pipe);
+  const executeMode =
+    Boolean(opts.execute) || printFlag || pipeFlag || (!process.stdout.isTTY && !opts.streamJson);
+
+  // Parse --max-turns: positive integer only, else undefined (unlimited)
+  let maxTurns: number | undefined;
+  if (opts.maxTurns !== undefined) {
+    const parsed = Number.parseInt(opts.maxTurns as string, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      maxTurns = parsed;
+    }
+  }
 
   return {
     executeMode,
@@ -68,5 +111,11 @@ export function resolveCliContext(program: Command): CliContext {
     streamJson: Boolean(opts.streamJson) || Boolean(opts.headless),
     verbose: Boolean(opts.verbose),
     userMessage: program.args.length > 0 ? program.args.join(" ") : undefined,
+    print: printFlag,
+    pipe: pipeFlag,
+    maxTurns,
+    model: opts.model as string | undefined,
+    systemPrompt: opts.systemPrompt as string | undefined,
+    apiKey: opts.apiKey as string | undefined,
   };
 }

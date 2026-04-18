@@ -57,6 +57,20 @@ export type {
   SubAgentWorkerOptions,
 } from "./subagent/subagent";
 export { SubAgentManager } from "./subagent/subagent";
+// ─── Title Generation ─────────────────────────────────
+export type {
+  GenerateTitleOptions,
+  GenerateTitleResult,
+  TitleGenerationProvider,
+  TitleGenerationResponse,
+} from "./title/generate-title";
+export {
+  extractTextFromContent,
+  generateThreadTitle,
+  TITLE_MODEL,
+  TITLE_SYSTEM_PROMPT,
+  TITLE_TOOL_DEFINITION,
+} from "./title/generate-title";
 export { BashTool } from "./tools/builtin/bash";
 export { EditTool } from "./tools/builtin/edit";
 export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";

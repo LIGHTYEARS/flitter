@@ -53,6 +53,16 @@ export interface ExecutionProfile {
   serial?: boolean;
   /** 工具访问的资源列表 */
   resourceKeys?: ResourceKey[];
+  /**
+   * 单次工具执行超时毫秒数 (默认: 120000 = 2 分钟)
+   * 超时后工具中止并返回 status="error"
+   *
+   * 逆向: amp uses network.timeout setting (chunk-001.js:4145) and
+   * MCP protocol timeout with _setupTimeout/_clearTimeout pattern
+   * (chunk-001.js:10478-10499). Flitter adds orchestrator-level
+   * enforcement via AbortController + Promise.race.
+   */
+  timeoutMs?: number;
 }
 
 // ─── 工具结果 ────────────────────────────────────────────

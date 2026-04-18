@@ -46,6 +46,7 @@ import type {
   ThreadStore,
 } from "@flitter/data";
 import type { MCPServerManager } from "@flitter/llm";
+import { getProviderForModel } from "@flitter/llm";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
 import {
@@ -195,10 +196,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       getConfig: async () => configService.get(),
       updateThread: async () => {},
       getToolRunEnvironment: async (_toolUseId, signal) => ({
-        workspaceRoot: opts.workspaceRoot,
-        abortSignal: signal,
-        readFile: async () => "",
-        writeFile: async () => {},
+        workingDirectory: opts.workspaceRoot,
+        signal,
+        threadId: "__container__",
+        config: configService.get(),
       }),
       applyHookResult: async () => ({ abortOp: false }),
       applyPostHookResult: async () => {},
@@ -266,10 +267,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           getConfig: async () => configService.get(),
           updateThread: async () => {},
           getToolRunEnvironment: async (_toolUseId, signal) => ({
-            workspaceRoot: opts.workspaceRoot,
-            abortSignal: signal,
-            readFile: async () => "",
-            writeFile: async () => {},
+            workingDirectory: opts.workspaceRoot,
+            signal,
+            threadId,
+            config: configService.get(),
           }),
           applyHookResult: async () => ({ abortOp: false }),
           applyPostHookResult: async () => {},
@@ -278,14 +279,43 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           onToolEvent: (event) => {
             workerRef?.events$.next(event);
           },
+          /**
+           * Request user approval for a tool invocation.
+           *
+           * 逆向: amp's toolService.requestApproval creates a Promise, stores
+           * the resolver in a Map keyed by toolUseId, and pushes the request
+           * onto pendingApprovals$ BehaviorSubject. The FWT.syncPendingApprovalsToThreadState
+           * method syncs these to thread state for TUI rendering.
+           *
+           * Flitter: stores the resolver in ThreadWorker._pendingApprovals and
+           * emits an approval:request AgentEvent for the TUI layer to render.
+           * When the user responds, ThreadWorker.userRespondToApproval looks up
+           * the resolver and settles this Promise.
+           */
+          requestApproval: (request) => {
+            return new Promise((resolve) => {
+              if (workerRef) {
+                workerRef._pendingApprovals.set(request.toolUseId, resolve);
+                workerRef.events$.next({
+                  type: "approval:request",
+                  toolUseId: request.toolUseId,
+                  toolName: request.toolName,
+                  args: request.args,
+                  reason: request.reason,
+                });
+              }
+            });
+          },
         };
         const threadOrchestrator = new ToolOrchestrator(threadId, toolRegistry, threadCallbacks);
 
         const fullOpts: ThreadWorkerOptions = {
           getThreadSnapshot:
             workerOpts?.getThreadSnapshot ??
-            (() =>
-              ({
+            (() => {
+              const stored = threadStore.getThreadSnapshot(threadId);
+              if (stored) return stored;
+              return {
                 id: threadId,
                 v: 1,
                 title: null,
@@ -293,10 +323,24 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
                 env: "local",
                 agentMode: "normal",
                 relationships: [],
-              }) as unknown as ThreadSnapshot),
-          updateThreadSnapshot: workerOpts?.updateThreadSnapshot ?? (() => {}),
-          getMessages: workerOpts?.getMessages ?? (() => []),
-          provider: workerOpts?.provider ?? (null as unknown as import("@flitter/llm").LLMProvider),
+              } as unknown as ThreadSnapshot;
+            }),
+          updateThreadSnapshot:
+            workerOpts?.updateThreadSnapshot ??
+            ((snapshot: ThreadSnapshot) => {
+              threadStore.setCachedThread(snapshot);
+            }),
+          getMessages:
+            workerOpts?.getMessages ??
+            (() => {
+              const snapshot = threadStore.getThreadSnapshot(threadId);
+              return (snapshot?.messages ?? []) as unknown as import("@flitter/schemas").Message[];
+            }),
+          provider:
+            workerOpts?.provider ??
+            getProviderForModel(
+              configService.get().settings["internal.model"] ?? "claude-sonnet-4-20250514",
+            ),
           toolOrchestrator: threadOrchestrator,
           buildSystemPrompt: workerOpts?.buildSystemPrompt ?? (async () => []),
           checkAndCompact: workerOpts?.checkAndCompact ?? (async () => null),

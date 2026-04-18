@@ -32,6 +32,7 @@ export type { LLMProvider, MessageTransformer, ToolTransformer } from "./provide
 
 // ─── 具体 Provider (供直接使用) ─────────────────────────
 export { AnthropicProvider } from "./providers/anthropic/provider";
+export { BedrockProvider } from "./providers/bedrock/provider";
 export { GeminiProvider } from "./providers/gemini/provider";
 export { OpenAIProvider } from "./providers/openai/provider";
 export { OpenAICompatProvider } from "./providers/openai-compat/provider";

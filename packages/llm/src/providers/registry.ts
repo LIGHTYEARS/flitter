@@ -16,6 +16,7 @@ import type { LLMProvider } from "../provider";
 import type { ModelInfo, ProviderName } from "../types";
 import { MODEL_REGISTRY } from "../types";
 import { AnthropicProvider } from "./anthropic/provider";
+import { BedrockProvider } from "./bedrock/provider";
 import { GeminiProvider } from "./gemini/provider";
 import { OpenAIProvider } from "./openai/provider";
 import { OpenAICompatProvider } from "./openai-compat/provider";
@@ -41,6 +42,8 @@ const PROVIDER_ALIASES: Record<string, ProviderName> = {
   gemini: "gemini",
   vertexai: "gemini",
   xai: "xai",
+  bedrock: "bedrock", // AWS Bedrock
+  "aws-bedrock": "bedrock", // alias
 };
 
 // ─── Public API ─────────────────────────────────────────
@@ -70,6 +73,9 @@ export function createProvider(name: ProviderName): LLMProvider {
       break;
     case "openai-compat":
       provider = new OpenAICompatProvider();
+      break;
+    case "bedrock":
+      provider = new BedrockProvider();
       break;
     default:
       provider = new OpenAICompatProvider({ name });

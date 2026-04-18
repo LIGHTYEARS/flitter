@@ -36,7 +36,7 @@ export interface SystemPromptBlock {
 // ─── Provider 名称 ────────────────────────────────────────
 
 /** 内置已知 Provider */
-export type KnownProvider = "anthropic" | "openai" | "gemini" | "openai-compat";
+export type KnownProvider = "anthropic" | "openai" | "gemini" | "openai-compat" | "bedrock";
 
 /** Provider 标识 — 已知 + 自定义字符串 (用于动态注册) */
 export type ProviderName = KnownProvider | (string & {});

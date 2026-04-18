@@ -105,4 +105,4 @@ export type {
   ThreadWorkerOptions,
   ToolApprovalResponse,
 } from "./worker/thread-worker";
-export { ThreadWorker } from "./worker/thread-worker";
+export { hasIncompleteToolUse, ThreadWorker } from "./worker/thread-worker";

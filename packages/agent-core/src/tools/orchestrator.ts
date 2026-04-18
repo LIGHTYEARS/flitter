@@ -91,6 +91,41 @@ export interface OrchestratorCallbacks {
    * Flitter adds explicit AgentEvent types for clearer TUI separation.
    */
   onToolEvent?: (event: AgentEvent) => void;
+
+  /**
+   * Check if a tool invocation is permitted by the permission engine.
+   * 逆向: amp's toolService.invokeTool calls PLT() (permission check) before
+   * executing. Returns { permitted, action, reason } where action is "ask"
+   * (prompt user), "reject" (silently deny), or "delegate" (allow).
+   */
+  checkPermission?: (
+    toolName: string,
+    args: Record<string, unknown>,
+  ) => {
+    permitted: boolean;
+    action?: "reject" | "ask" | "delegate";
+    reason?: string;
+  };
+
+  /**
+   * Request user approval for a tool invocation. Returns a Promise that
+   * resolves when the user accepts or rejects.
+   *
+   * 逆向: amp's toolService stores a Promise resolver in a Map keyed by
+   * toolUseId (`r.set(o.toolUseId, {resolve, reject})`), then pushes the
+   * request onto pendingApprovals$ BehaviorSubject. The FWT.syncPendingApprovalsToThreadState
+   * method forwards these to the thread state for TUI rendering.
+   * resolveApproval() looks up the resolver and settles the Promise.
+   *
+   * Flitter simplifies: the orchestrator creates the Promise bridge via this
+   * callback, and ThreadWorker._pendingApprovals stores the resolvers.
+   */
+  requestApproval?: (request: {
+    toolUseId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+    reason: string;
+  }) => Promise<{ accepted: boolean; feedback?: string }>;
 }
 
 // ─── 资源冲突检测 ──────────────────────────────────────────
@@ -182,6 +217,16 @@ export function batchToolsByDependency(
   return batches;
 }
 
+// ─── 超时常量 ──────────────────────────────────────────────
+
+/**
+ * 默认工具执行超时: 2 分钟
+ * 逆向: amp uses network.timeout setting (chunk-001.js:4145) and
+ * MCP protocol timeout (chunk-001.js:10478). Flitter default matches amp's
+ * default 120s MCP request timeout.
+ */
+const DEFAULT_TOOL_TIMEOUT_MS = 120_000;
+
 // ─── ToolOrchestrator ──────────────────────────────────────
 
 /**
@@ -194,6 +239,7 @@ export function batchToolsByDependency(
  * 3. 批内使用 Promise.allSettled 并行执行
  * 4. 管理运行中工具的 AbortController
  * 5. 支持单个工具取消和全部取消
+ * 6. 每个工具执行有超时 (executionProfile.timeoutMs 或 DEFAULT_TOOL_TIMEOUT_MS)
  */
 export class ToolOrchestrator {
   /** 活跃工具追踪: toolUseId → { abort: AbortController } */
@@ -205,7 +251,7 @@ export class ToolOrchestrator {
   private disposed = false;
 
   constructor(
-    private readonly threadId: string,
+    readonly _threadId: string,
     private readonly toolRegistry: ToolRegistry,
     private readonly callbacks: OrchestratorCallbacks,
   ) {}
@@ -284,6 +330,11 @@ export class ToolOrchestrator {
     const abortController = new AbortController();
     this.runningTools.set(toolUse.id, { abort: abortController });
 
+    // Per-tool timeout tracking (populated after spec is fetched)
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    // Store the timeout error so we can detect it in the catch block
+    let timeoutError: Error | undefined;
+
     // 逆向: FWT emits updateThread({ status: "in-progress" }) here.
     // Flitter additionally emits a separate tool:start AgentEvent for the TUI layer.
     this.callbacks.onToolEvent?.({
@@ -291,6 +342,57 @@ export class ToolOrchestrator {
       toolUseId: toolUse.id,
       toolName: toolUse.name,
     });
+
+    // ─── Permission check ───────────────────────────────
+    // 逆向: amp's toolService.invokeTool calls PLT() (permission check) before
+    // execution. If not permitted and action === "ask", it calls requestApproval()
+    // which creates a Promise that blocks until the user responds. If the user
+    // rejects, the tool emits "rejected-by-user" status. If action === "reject",
+    // the tool is silently denied.
+    if (this.callbacks.checkPermission) {
+      const permResult = this.callbacks.checkPermission(toolUse.name, toolUse.input);
+      if (!permResult.permitted) {
+        if (permResult.action === "ask" && this.callbacks.requestApproval) {
+          const response = await this.callbacks.requestApproval({
+            toolUseId: toolUse.id,
+            toolName: toolUse.name,
+            args: toolUse.input,
+            reason: permResult.reason ?? "Requires user approval",
+          });
+          if (!response.accepted) {
+            // 逆向: amp emits "rejected-by-user" or "error" (if feedback) then resolves
+            // the tool completion. Flitter signals rejection via updateThread + tool:complete.
+            await this.callbacks.updateThread({
+              type: "tool:data",
+              toolUseId: toolUse.id,
+              toolName: toolUse.name,
+              status: "cancelled",
+            });
+            this.runningTools.delete(toolUse.id);
+            this.callbacks.onToolEvent?.({
+              type: "tool:complete",
+              toolUseId: toolUse.id,
+            });
+            return;
+          }
+          // User approved — fall through to execute the tool
+        } else if (permResult.action === "reject") {
+          await this.callbacks.updateThread({
+            type: "tool:data",
+            toolUseId: toolUse.id,
+            toolName: toolUse.name,
+            status: "cancelled",
+          });
+          this.runningTools.delete(toolUse.id);
+          this.callbacks.onToolEvent?.({
+            type: "tool:complete",
+            toolUseId: toolUse.id,
+          });
+          return;
+        }
+        // action === "delegate" or undefined — treat as permitted, fall through
+      }
+    }
 
     try {
       // 4. 通知 in-progress
@@ -319,21 +421,50 @@ export class ToolOrchestrator {
         return;
       }
 
+      // Set up per-tool timeout.
+      // 逆向: amp uses AbortController pattern (chunk-001.js:4370) and
+      // MCP protocol _setupTimeout/_clearTimeout (chunk-001.js:10478-10499).
+      // Flitter adds orchestrator-level enforcement: if the tool doesn't finish
+      // within timeoutMs, we abort the AbortController and let the catch block
+      // emit an error result.
+      const timeoutMs = spec.executionProfile?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+      timeoutError = new Error(`Tool "${toolUse.name}" execution timeout after ${timeoutMs}ms`);
+      timeoutId = setTimeout(() => {
+        abortController.abort(timeoutError);
+      }, timeoutMs);
+
       // 6. 获取 ToolContext
       const context = await this.callbacks.getToolRunEnvironment(
         toolUse.id,
         abortController.signal,
       );
 
-      // 7. 执行工具
+      // 7. 执行工具 — race tool execution against the per-tool AbortController.
+      // When the timeout fires (or cancelTool/cancelAll is called), the
+      // abortController.abort() triggers the race to reject early.
+      //
+      // 逆向: amp passes AbortSignal to tools (chunk-001.js:4370); tools that
+      // honour the signal will self-cancel. Flitter adds a hard outer race so
+      // that tools which ignore the signal are still terminated.
       let result: ToolResult;
+      const abortPromise = new Promise<never>((_, reject) => {
+        const signal = abortController.signal;
+        if (signal.aborted) {
+          reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+          return;
+        }
+        const handler = () => {
+          reject(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
+        };
+        signal.addEventListener("abort", handler, { once: true });
+      });
       const execResult = spec.execute(toolUse.input, context);
 
       if (isObservable(execResult)) {
-        // Observable → 收集最终结果
-        result = await observableToPromise(execResult);
+        // Observable → race against abort
+        result = await Promise.race([observableToPromise(execResult), abortPromise]);
       } else {
-        result = await execResult;
+        result = await Promise.race([execResult, abortPromise]);
       }
 
       // 如果已被取消, 标记取消
@@ -371,7 +502,18 @@ export class ToolOrchestrator {
       await this.callbacks.updateFileChanges();
     } catch (err) {
       // 错误处理: 包装为 ToolResult
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      // If aborted due to timeout, use the timeout error message.
+      // 逆向: amp's MCP timeout throws a RequestTimeout error with a structured message
+      // (chunk-001.js:10491). Flitter uses a plain error string for simplicity.
+      const isTimeout =
+        abortController.signal.aborted &&
+        timeoutError !== undefined &&
+        (abortController.signal.reason === timeoutError || err === timeoutError);
+      const errorMessage = isTimeout
+        ? timeoutError!.message
+        : err instanceof Error
+          ? err.message
+          : String(err);
       const errorResult: ToolResult = {
         status: "error",
         error: errorMessage,
@@ -385,6 +527,13 @@ export class ToolOrchestrator {
         result: errorResult,
       });
     } finally {
+      // Clear the per-tool timeout to avoid dangling timers.
+      // 逆向: amp's MCP _cleanupTimeout clears and deletes from _timeoutInfo map
+      // (chunk-001.js:10498-10499). Flitter uses a simple clearTimeout.
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+
       // 11. 清理 runningTools
       this.runningTools.delete(toolUse.id);
 

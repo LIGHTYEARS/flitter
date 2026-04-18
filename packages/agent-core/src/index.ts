@@ -15,6 +15,9 @@
  * ```
  */
 
+// ─── Commands ──────────────────────────────────────────
+export type { MemoryCommandAction } from "./commands/memory-command";
+export { parseMemoryCommand } from "./commands/memory-command";
 export type { SessionTotals, TurnUsage } from "./cost/session-cost-tracker";
 // ─── Cost Tracking ────────────────────────────────────
 export { SessionCostTracker } from "./cost/session-cost-tracker";

@@ -34,6 +34,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import { buildDiffWidget } from "./diff-widget.js";
 import type { ActivityGroupItem, DisplayItem, MessageItem, ToolItem } from "./display-items.js";
 
 // ════════════════════════════════════════════════════
@@ -405,6 +406,13 @@ export class ConversationViewState extends State<ConversationView> {
     const mainRow = new RichText({
       text: new TextSpan({ children: spans }),
     });
+
+    // 逆向: chunk-004.js:21064-21067 — edit branch renders diff via cE0(T.diff, R)
+    if ((tool.kind === "edit" || tool.kind === "create-file") && tool.diff) {
+      return new Column({
+        children: [mainRow, buildDiffWidget(tool.diff)],
+      });
+    }
 
     // If there's an error message, append it below in red
     // 逆向: x3 tail array — error text in toolError color

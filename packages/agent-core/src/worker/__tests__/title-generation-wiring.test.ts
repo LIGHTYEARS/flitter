@@ -4,8 +4,7 @@
  */
 import { describe, expect, it, mock } from "bun:test";
 import type { LLMProvider, StreamDelta, StreamParams, SystemPromptBlock } from "@flitter/llm";
-import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject, Subject } from "@flitter/util";
+import type { Config, Message, ThreadSnapshot } from "@flitter/schemas";
 import type { TitleGenerationProvider } from "../../title/generate-title";
 import type { ToolOrchestrator } from "../../tools/orchestrator";
 import type { ToolRegistry } from "../../tools/registry";

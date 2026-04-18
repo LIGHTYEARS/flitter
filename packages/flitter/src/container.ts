@@ -263,7 +263,30 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     }
 
     // 9. ContextManager
-    const contextManager = createContextManager();
+    // 逆向: amp includes environment/tool context when building summaries
+    // (chunk-002.js:20586, fwR collectContextBlocks)
+    const contextManager = createContextManager({
+      getSystemContext: async () => {
+        try {
+          const config = configService.get();
+          const contextBlocks = await collectContextBlocks({
+            getConfig: () => config,
+            listSkills: () => skillService.list(),
+            workspaceRoot: opts.workspaceRoot,
+            workingDirectory: opts.workspaceRoot,
+            discoverGuidanceFiles: (loadOpts) => guidanceLoader.discover(loadOpts),
+          });
+          // Return a condensed version of the system context
+          return contextBlocks
+            .map((block) => block.text)
+            .filter((t) => t.length > 0)
+            .join("\n\n")
+            .slice(0, 2000); // Limit to avoid inflating the summary prompt
+        } catch {
+          return null;
+        }
+      },
+    });
     log.info("ContextManager created");
 
     // 10. SubAgentManager — wired to use container's createThreadWorker

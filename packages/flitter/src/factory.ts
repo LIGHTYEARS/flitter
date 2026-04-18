@@ -172,10 +172,11 @@ export function createThreadPersistence(opts: ContainerOptions): ThreadPersisten
  * 创建 ContextManager
  * 逆向: 上下文管理初始化
  */
-export function createContextManager(): ContextManager {
+export function createContextManager(opts: Partial<ContextManagerOptions> = {}): ContextManager {
   const managerOpts: ContextManagerOptions = {
     // compactFn 由上层提供 (ThreadWorker 连接 LLM)
     compactFn: async () => "",
+    ...opts,
   };
   return new ContextManager(managerOpts);
 }

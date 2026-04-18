@@ -60,6 +60,7 @@ export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 // ─── Built-in Tools ────────────────────────────────────
 export { ReadTool } from "./tools/builtin/read";
+export { createTaskTool } from "./tools/builtin/task";
 export { WriteTool } from "./tools/builtin/write";
 export type { OrchestratorCallbacks, ToolThreadEvent, ToolUseItem } from "./tools/orchestrator";
 export { ToolOrchestrator } from "./tools/orchestrator";

@@ -15,6 +15,10 @@
  * ```
  */
 
+export type { SessionTotals, TurnUsage } from "./cost/session-cost-tracker";
+// ─── Cost Tracking ────────────────────────────────────
+export { SessionCostTracker } from "./cost/session-cost-tracker";
+
 export type { PermissionEngineOpts } from "./permissions/engine";
 export { DEFAULT_PERMISSION_RULES, PermissionEngine } from "./permissions/engine";
 export { checkGuardedFile, getToolFilePaths } from "./permissions/guarded-files";

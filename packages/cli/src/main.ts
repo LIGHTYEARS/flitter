@@ -276,7 +276,11 @@ export async function main(opts?: MainOptions): Promise<void> {
         archiveCmd.action(async (threadId: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsArchive({ threadStore: c.threadStore }, ctx, threadId);
+          await handleThreadsArchive(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+          );
         });
       }
       const deleteCmd = threadsCmd.commands.find((c) => c.name() === "delete");
@@ -284,7 +288,11 @@ export async function main(opts?: MainOptions): Promise<void> {
         deleteCmd.action(async (threadId: string) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsDelete({ threadStore: c.threadStore }, ctx, threadId);
+          await handleThreadsDelete(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+          );
         });
       }
     }

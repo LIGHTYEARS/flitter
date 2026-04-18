@@ -96,14 +96,10 @@ async function resolveThread(
 
   // --continue 标志: 恢复最近的 thread
   if (context.continueThread) {
-    const listFn = (
-      container.threadStore as unknown as { listThreads?: () => Array<{ id: string }> }
-    ).listThreads;
-    const threads = listFn?.() ?? [];
-    if (threads.length > 0) {
-      const latest = threads[0]; // 最近的排在前面
-      log.info("Continuing most recent thread", { threadId: latest.id });
-      return latest.id;
+    const recentIds = container.threadStore.listRecentThreadIds(1);
+    if (recentIds.length > 0) {
+      log.info("Continuing most recent thread", { threadId: recentIds[0] });
+      return recentIds[0];
     }
   }
 
@@ -171,13 +167,16 @@ export async function launchInteractiveMode(
             // 将用户消息追加到线程快照 (per KD-47)
             const snapshot = container.threadStore.getThreadSnapshot(threadId);
             if (snapshot) {
-              container.threadStore.setCachedThread({
-                ...snapshot,
-                messages: [
-                  ...snapshot.messages,
-                  { role: "user", content: [{ type: "text", text }] },
-                ],
-              } as ThreadSnapshot);
+              container.threadStore.setCachedThread(
+                {
+                  ...snapshot,
+                  messages: [
+                    ...snapshot.messages,
+                    { role: "user", content: [{ type: "text", text }] },
+                  ],
+                } as ThreadSnapshot,
+                { scheduleUpload: true },
+              );
             }
             // 触发推理循环
             worker.runInference();

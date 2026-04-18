@@ -15,7 +15,7 @@
  * );
  * ```
  */
-import type { ThreadStore } from "@flitter/data";
+import type { ThreadPersistence, ThreadStore } from "@flitter/data";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import type { CliContext } from "../context";
 
@@ -27,6 +27,8 @@ import type { CliContext } from "../context";
 export interface ThreadsCommandDeps {
   /** Thread 存储服务 */
   threadStore?: ThreadStore;
+  /** Thread 持久化服务 (可选) */
+  threadPersistence?: ThreadPersistence | null;
 }
 
 /** threads list 命令选项 */
@@ -177,7 +179,9 @@ export async function handleThreadsArchive(
     process.exitCode = 1;
     return;
   }
-  threadStore.setCachedThread({ ...snapshot, archived: true } as unknown as ThreadSnapshot);
+  threadStore.setCachedThread({ ...snapshot, archived: true } as unknown as ThreadSnapshot, {
+    scheduleUpload: true,
+  });
   process.stdout.write(`Archived thread: ${threadId}\n`);
 }
 
@@ -207,5 +211,8 @@ export async function handleThreadsDelete(
     return;
   }
   threadStore.deleteThread(threadId);
+  if (deps.threadPersistence) {
+    await deps.threadPersistence.delete(threadId);
+  }
   process.stdout.write(`Deleted thread: ${threadId}\n`);
 }

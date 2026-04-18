@@ -28,8 +28,12 @@
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { runApp } from "@flitter/tui";
+import { createBuiltinCommands } from "../commands/slash-handlers.js";
+import type { SlashCommandContext } from "../commands/slash-registry.js";
+import { SlashCommandRegistry } from "../commands/slash-registry.js";
 import type { CliContext } from "../context.js";
 import { AppWidget } from "../widgets/app-widget.js";
+import { parseCommandInput } from "../widgets/command-detection.js";
 import type { ThemeData } from "../widgets/theme-controller.js";
 import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
 import { ToastManager } from "../widgets/toast-manager.js";
@@ -152,6 +156,11 @@ export async function launchInteractiveMode(
   // 逆向: toastController = new BQT() (chunk-006.js:34489)
   const toastManager = new ToastManager();
 
+  // Slash command registry
+  // 逆向: e0R construction in amp (2785_unknown_e0R.js:17-18)
+  const slashRegistry = new SlashCommandRegistry();
+  createBuiltinCommands(slashRegistry);
+
   // 4-5. 组装真实 Widget 树并启动 runApp
   // ThreadStateWidget 拥有完整布局 (ConversationView + StatusBar + InputField)
   try {
@@ -164,6 +173,44 @@ export async function launchInteractiveMode(
           threadWorker: worker,
           threadId,
           onSubmit: (text: string) => {
+            // Intercept slash commands before sending to LLM
+            // 逆向: amp intercepts "/" prefix in editor submit action (e0R.execute)
+            const parsed = parseCommandInput(text);
+            if (parsed) {
+              const ctx: SlashCommandContext = {
+                threadId,
+                threadStore: container.threadStore,
+                threadWorker: worker,
+                configService: container.configService,
+                showMessage: (msg: string) => {
+                  // Append as a system message in the thread for display
+                  const snapshot = container.threadStore.getThreadSnapshot(threadId);
+                  if (snapshot) {
+                    container.threadStore.setCachedThread({
+                      ...snapshot,
+                      messages: [
+                        ...snapshot.messages,
+                        {
+                          role: "assistant",
+                          content: [{ type: "text", text: msg }],
+                          state: { type: "complete" },
+                        },
+                      ],
+                      // biome-ignore lint/suspicious/noExplicitAny: state field not in schema
+                    } as any);
+                  }
+                },
+                clearInput: () => {
+                  // InputField clears on submit automatically
+                },
+              };
+              slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {
+                log.info("Slash command error", { error: err });
+              });
+              return;
+            }
+
+            // Not a slash command: send to LLM
             // 将用户消息追加到线程快照 (per KD-47)
             const snapshot = container.threadStore.getThreadSnapshot(threadId);
             if (snapshot) {

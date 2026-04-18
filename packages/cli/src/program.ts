@@ -36,6 +36,9 @@ import { Command } from "commander";
  * @returns Commander.js Command 实例
  */
 export function createProgram(version: string): Command {
+  // Helper for repeatable options (Commander.js collector)
+  const collect = (value: string, previous: string[]) => [...previous, value];
+
   const program = new Command()
     .name("flitter")
     .version(version)
@@ -111,6 +114,74 @@ export function createProgram(version: string): Command {
     .command("update")
     .description("Check for and install updates")
     .option("--target-version <version>", "Install specific version");
+
+  // ─── MCP 管理 ────────────────────────────────────────────
+
+  const mcp = program.command("mcp").description("Manage MCP servers");
+
+  mcp
+    .command("add <name> [args...]")
+    .description("Add an MCP server")
+    .option("-e, --env <KEY=VALUE>", "Environment variable (repeatable)", collect, [])
+    .option(
+      "-H, --header <KEY=VALUE>",
+      "HTTP header for URL-based servers (repeatable)",
+      collect,
+      [],
+    )
+    .option("-w, --workspace", "Save to workspace settings", false);
+
+  mcp
+    .command("list")
+    .alias("ls")
+    .description("List configured MCP servers")
+    .option("--json", "Output as JSON", false);
+
+  mcp
+    .command("remove <name>")
+    .alias("rm")
+    .description("Remove an MCP server")
+    .option("-w, --workspace", "Remove from workspace settings", false);
+
+  // ─── Permissions 管理 ───────────────────────────────────
+
+  const perms = program
+    .command("permissions")
+    .alias("permission")
+    .description("Manage permission rules");
+
+  perms
+    .command("list")
+    .alias("ls")
+    .description("List configured permission rules")
+    .option("--json", "Output as JSON", false)
+    .option("--builtin", "Show info about built-in defaults", false)
+    .option("-w, --workspace", "Show workspace-scoped rules", false);
+
+  perms
+    .command("test <tool-name> [args...]")
+    .description("Test if a tool invocation would be permitted")
+    .option("--json", "Output as JSON", false)
+    .option("-q, --quiet", "Exit code only (0=allowed, 1=denied)", false)
+    .allowUnknownOption(true);
+
+  perms
+    .command("add <action> <tool> [matchers...]")
+    .description("Add a permission rule (prepended, takes precedence)")
+    .option("-w, --workspace", "Save to workspace settings", false)
+    .allowUnknownOption(true);
+
+  // ─── Tools 检查 ──────────────────────────────────────────
+
+  const tools = program.command("tools").description("Inspect available tools");
+
+  tools
+    .command("list")
+    .alias("ls")
+    .description("List all registered tools")
+    .option("--json", "Output as JSON", false);
+
+  tools.command("show <name>").description("Show details of a specific tool");
 
   return program;
 }

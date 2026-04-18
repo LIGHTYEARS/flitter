@@ -34,6 +34,12 @@ import { createContainer, type SecretStorage, type ServiceContainer } from "@fli
 import { createLogger } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
+import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
+import {
+  handlePermissionsAdd,
+  handlePermissionsList,
+  handlePermissionsTest,
+} from "./commands/permissions";
 import {
   handleThreadsArchive,
   handleThreadsContinue,
@@ -41,6 +47,7 @@ import {
   handleThreadsList,
   handleThreadsNew,
 } from "./commands/threads";
+import { handleToolsList, handleToolsShow } from "./commands/tools";
 import { handleUpdate } from "./commands/update";
 import { resolveCliContext } from "./context";
 import { runExecuteMode } from "./modes/execute";
@@ -322,6 +329,106 @@ export async function main(opts?: MainOptions): Promise<void> {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
           await handleConfigList({ configService: c.configService }, ctx);
+        });
+      }
+    }
+
+    // mcp 子命令
+    const mcpCmd = program.commands.find((c) => c.name() === "mcp");
+    if (mcpCmd) {
+      const mcpAddCmd = mcpCmd.commands.find((c) => c.name() === "add");
+      if (mcpAddCmd) {
+        mcpAddCmd.action(async (name: string, args: string[], opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleMcpAdd({ configService: c.configService }, name, args, {
+            env: opts.env as string[] | undefined,
+            header: opts.header as string[] | undefined,
+            workspace: opts.workspace as boolean | undefined,
+          });
+        });
+      }
+      const mcpListCmd = mcpCmd.commands.find((c) => c.name() === "list");
+      if (mcpListCmd) {
+        mcpListCmd.action(async (opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleMcpList({ configService: c.configService }, { json: opts.json as boolean });
+        });
+      }
+      const mcpRemoveCmd = mcpCmd.commands.find((c) => c.name() === "remove");
+      if (mcpRemoveCmd) {
+        mcpRemoveCmd.action(async (name: string, opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleMcpRemove({ configService: c.configService }, name, {
+            workspace: opts.workspace as boolean | undefined,
+          });
+        });
+      }
+    }
+
+    // permissions 子命令
+    const permsCmd = program.commands.find((c) => c.name() === "permissions");
+    if (permsCmd) {
+      const permsListCmd = permsCmd.commands.find((c) => c.name() === "list");
+      if (permsListCmd) {
+        permsListCmd.action(async (opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handlePermissionsList(
+            { configService: c.configService, permissionEngine: c.permissionEngine },
+            {
+              json: opts.json as boolean,
+              workspace: opts.workspace as boolean,
+              builtin: opts.builtin as boolean,
+            },
+          );
+        });
+      }
+      const permsTestCmd = permsCmd.commands.find((c) => c.name() === "test");
+      if (permsTestCmd) {
+        permsTestCmd.action(
+          async (toolName: string, args: string[], opts: Record<string, unknown>) => {
+            const c = await ensureContainer();
+            await handlePermissionsTest(
+              { configService: c.configService, permissionEngine: c.permissionEngine },
+              toolName,
+              args,
+              { json: opts.json as boolean, quiet: opts.quiet as boolean },
+            );
+          },
+        );
+      }
+      const permsAddCmd = permsCmd.commands.find((c) => c.name() === "add");
+      if (permsAddCmd) {
+        permsAddCmd.action(
+          async (
+            action: string,
+            tool: string,
+            matchers: string[],
+            opts: Record<string, unknown>,
+          ) => {
+            const c = await ensureContainer();
+            await handlePermissionsAdd({ configService: c.configService }, action, tool, matchers, {
+              workspace: opts.workspace as boolean | undefined,
+            });
+          },
+        );
+      }
+    }
+
+    // tools 子命令
+    const toolsCmd = program.commands.find((c) => c.name() === "tools");
+    if (toolsCmd) {
+      const toolsListCmd = toolsCmd.commands.find((c) => c.name() === "list");
+      if (toolsListCmd) {
+        toolsListCmd.action(async (opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleToolsList({ toolRegistry: c.toolRegistry }, { json: opts.json as boolean });
+        });
+      }
+      const toolsShowCmd = toolsCmd.commands.find((c) => c.name() === "show");
+      if (toolsShowCmd) {
+        toolsShowCmd.action(async (name: string) => {
+          const c = await ensureContainer();
+          await handleToolsShow({ toolRegistry: c.toolRegistry }, name);
         });
       }
     }

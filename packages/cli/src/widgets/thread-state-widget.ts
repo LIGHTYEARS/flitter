@@ -48,7 +48,7 @@ import type { DisplayItem } from "./display-items.js";
 import { transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
-import { StatusBar, type StatusBarState } from "./status-bar.js";
+import { StatusBar } from "./status-bar.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
 

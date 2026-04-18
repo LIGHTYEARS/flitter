@@ -29,6 +29,8 @@ export {
 export type { ContextBlocksOptions } from "./prompt/context-blocks";
 // ─── Prompt Assembly ───────────────────────────────────
 export { collectContextBlocks } from "./prompt/context-blocks";
+export type { BuildSystemPromptOptions } from "./prompt/system-prompt";
+export { buildSystemPrompt } from "./prompt/system-prompt";
 export type {
   HookConfig,
   HookResult,
@@ -59,7 +61,7 @@ export { GrepTool } from "./tools/builtin/grep";
 // ─── Built-in Tools ────────────────────────────────────
 export { ReadTool } from "./tools/builtin/read";
 export { WriteTool } from "./tools/builtin/write";
-export type { OrchestratorCallbacks, ToolUseItem } from "./tools/orchestrator";
+export type { OrchestratorCallbacks, ToolThreadEvent, ToolUseItem } from "./tools/orchestrator";
 export { ToolOrchestrator } from "./tools/orchestrator";
 export { ToolRegistry } from "./tools/registry";
 // ─── Tools ─────────────────────────────────────────────
@@ -74,6 +76,7 @@ export type {
 // ─── Worker ────────────────────────────────────────────
 export type {
   AgentEvent,
+  ApprovalRequestEvent,
   CompactionCompleteEvent,
   CompactionStartEvent,
   InferenceCompleteEvent,

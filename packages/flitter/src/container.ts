@@ -29,8 +29,11 @@ import type {
   ThreadWorker,
   ThreadWorkerOptions,
   ToolRegistry,
+  ToolThreadEvent,
 } from "@flitter/agent-core";
 import {
+  buildSystemPrompt as assembleSystemPrompt,
+  collectContextBlocks,
   type OrchestratorCallbacks,
   ThreadWorker as ThreadWorkerImpl,
   ToolOrchestrator,
@@ -265,7 +268,32 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
         // 为每个线程创建独立的 ToolOrchestrator
         const threadCallbacks: OrchestratorCallbacks = {
           getConfig: async () => configService.get(),
-          updateThread: async () => {},
+          updateThread: async (event: ToolThreadEvent) => {
+            // 逆向: amp's BfR "tool:data" case calls xwT() which finds or creates
+            // a user message after the assistant message, then upserts a tool_result
+            // content block. Flitter simplifies: on "completed", append a new user
+            // message with the tool_result block so the LLM sees it on the next
+            // recursive runInference().
+            if (event.status === "completed" && event.result) {
+              const snapshot = threadStore.getThreadSnapshot(threadId);
+              if (!snapshot) return;
+              const toolResultMessage = {
+                role: "user" as const,
+                content: [
+                  {
+                    type: "tool_result" as const,
+                    tool_use_id: event.toolUseId,
+                    content: event.result.content ?? "",
+                    is_error: event.result.status === "error",
+                  },
+                ],
+              };
+              threadStore.setCachedThread({
+                ...snapshot,
+                messages: [...snapshot.messages, toolResultMessage],
+              } as unknown as ThreadSnapshot);
+            }
+          },
           getToolRunEnvironment: async (_toolUseId, signal) => ({
             workingDirectory: opts.workspaceRoot,
             signal,
@@ -342,8 +370,29 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
               configService.get().settings["internal.model"] ?? "claude-sonnet-4-20250514",
             ),
           toolOrchestrator: threadOrchestrator,
-          buildSystemPrompt: workerOpts?.buildSystemPrompt ?? (async () => []),
-          checkAndCompact: workerOpts?.checkAndCompact ?? (async () => null),
+          buildSystemPrompt:
+            workerOpts?.buildSystemPrompt ??
+            (async () => {
+              const config = configService.get();
+              const contextBlocks = await collectContextBlocks({
+                getConfig: () => config,
+                listSkills: () => skillService.list(),
+                workspaceRoot: opts.workspaceRoot,
+                workingDirectory: opts.workspaceRoot,
+                discoverGuidanceFiles: (loadOpts) => guidanceLoader.discover(loadOpts),
+              });
+              const toolDefs = toolRegistry.getToolDefinitions(config.settings);
+              return assembleSystemPrompt({
+                toolDefinitions: toolDefs,
+                contextBlocks,
+              });
+            }),
+          checkAndCompact:
+            workerOpts?.checkAndCompact ??
+            (async (snapshot: ThreadSnapshot) => {
+              const result = await contextManager.checkAndCompact(snapshot);
+              return result.compacted ? result.thread : null;
+            }),
           getConfig: workerOpts?.getConfig ?? (() => configService.get()),
           toolRegistry,
         };

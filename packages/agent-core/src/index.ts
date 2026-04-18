@@ -85,11 +85,22 @@ export type {
   InferenceErrorEvent,
   InferenceStartEvent,
   InferenceState,
+  RetryClearedEvent,
+  RetryCountdownEvent,
+  RetryStartEvent,
   ToolCompleteEvent,
   ToolDataEvent,
   ToolStartEvent,
   TurnCompleteEvent,
 } from "./worker/events";
+export {
+  isContextLimitError,
+  isNetworkError,
+  isOverloadedError,
+  isRetryableError,
+  isStreamStalledError,
+  RetryScheduler,
+} from "./worker/retry-scheduler";
 export type {
   ThreadWorkerOptions,
   ToolApprovalResponse,

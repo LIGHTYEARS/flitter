@@ -33,9 +33,13 @@ export type AgentEvent =
   | ToolStartEvent
   | ToolDataEvent
   | ToolCompleteEvent
+  | ApprovalRequestEvent
   | TurnCompleteEvent
   | CompactionStartEvent
-  | CompactionCompleteEvent;
+  | CompactionCompleteEvent
+  | RetryStartEvent
+  | RetryCountdownEvent
+  | RetryClearedEvent;
 
 /** LLM 推理开始 */
 export interface InferenceStartEvent {
@@ -80,6 +84,20 @@ export interface ToolCompleteEvent {
   toolUseId: string;
 }
 
+/**
+ * 工具审批请求事件
+ * 逆向: amp's toolService.requestApproval pushes to pendingApprovals$ BehaviorSubject,
+ * which FWT.syncPendingApprovalsToThreadState listens to. Flitter emits a discrete
+ * AgentEvent instead, so the TUI can render an ApprovalWidget.
+ */
+export interface ApprovalRequestEvent {
+  type: "approval:request";
+  toolUseId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  reason: string;
+}
+
 /** 完整 turn 完成 (无更多 tool_use, agent 回复结束) */
 export interface TurnCompleteEvent {
   type: "turn:complete";
@@ -93,4 +111,26 @@ export interface CompactionStartEvent {
 /** 上下文压缩完成 */
 export interface CompactionCompleteEvent {
   type: "compaction:complete";
+}
+
+/**
+ * Retry countdown started (error + initial delay).
+ * 逆向: amp exposes retryCountdownSeconds via status observable (1244:221-229)
+ */
+export interface RetryStartEvent {
+  type: "retry:start";
+  error: Error;
+  delaySeconds: number;
+  attempt: number;
+}
+
+/** Retry countdown tick (remaining seconds) */
+export interface RetryCountdownEvent {
+  type: "retry:countdown";
+  remainingSeconds: number;
+}
+
+/** Retry countdown cleared (manual retry or new message) */
+export interface RetryClearedEvent {
+  type: "retry:cleared";
 }

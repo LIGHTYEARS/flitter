@@ -9,12 +9,14 @@
  * 4. 处理取消/重试/用户输入/审批
  */
 import type { LLMProvider, StreamDelta, StreamParams, SystemPromptBlock } from "@flitter/llm";
+import { ProviderError } from "@flitter/llm";
 import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
+import { isContextLimitError, isRetryableError, RetryScheduler } from "./retry-scheduler";
 
 // ─── 工具审批响应 ────────────────────────────────────────
 
@@ -102,6 +104,29 @@ export class ThreadWorker {
   private subscriptions: Subscription[] = [];
   private disposed = false;
 
+  /**
+   * Retry scheduler for exponential backoff on 429/overloaded errors.
+   * 逆向: ov.ephemeralErrorRetryAttempt, ov.retryCountdownSeconds, ov.retryTimer, ov.retrySession
+   * (amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1124-1165)
+   */
+  private readonly retryScheduler = new RetryScheduler();
+
+  /**
+   * Pending approval resolvers: toolUseId → resolve function.
+   *
+   * 逆向: amp's toolService stores resolvers in a Map (`r = new Map()`) keyed
+   * by toolUseId. requestApproval() creates a Promise and stores its resolver.
+   * resolveApproval() looks up the resolver and settles the Promise.
+   *
+   * Flitter puts this Map on ThreadWorker (not a separate toolService) because
+   * the orchestrator's requestApproval callback creates the Promise, and the
+   * worker's userRespondToApproval method resolves it.
+   */
+  readonly _pendingApprovals = new Map<
+    string,
+    (response: { accepted: boolean; feedback?: string }) => void
+  >();
+
   constructor(opts: ThreadWorkerOptions) {
     this.opts = opts;
     this.inferenceState$ = new BehaviorSubject<InferenceState>("idle");
@@ -181,10 +206,14 @@ export class ThreadWorker {
         usage: lastDelta?.usage
           ? {
               inputTokens: (lastDelta.usage as unknown as Record<string, number>).inputTokens ?? 0,
-              outputTokens: (lastDelta.usage as unknown as Record<string, number>).outputTokens ?? 0,
+              outputTokens:
+                (lastDelta.usage as unknown as Record<string, number>).outputTokens ?? 0,
             }
           : undefined,
       });
+
+      // 逆向: ov.resetRetryAttempts on inference:completed
+      this.retryScheduler.resetAttempts();
 
       // ─── Step 7: 检查 tool_use ─────────────────
       const toolUses = this.extractToolUses();
@@ -201,11 +230,70 @@ export class ThreadWorker {
         this.inferenceState$.next("idle");
       }
     } catch (error) {
+      // 逆向: amp 1244_ThreadWorker_ov.js:977-1003
+      // 1. Check abort/cancelled (not an error to surface)
+      if (error instanceof Error && error.name === "AbortError") {
+        this.inferenceState$.next("cancelled");
+        return;
+      }
+
+      const err = error instanceof Error ? error : new Error(String(error));
+
+      // 2. Context-limit error — attempt compaction, then surface error
+      // 逆向: dO() check before vUT() — context limit is not retryable
+      if (isContextLimitError(err)) {
+        const snapshot = this.opts.getThreadSnapshot();
+        const compacted = await this.opts.checkAndCompact(snapshot);
+        if (compacted) {
+          this.events$.next({ type: "compaction:start" });
+          this.opts.updateThreadSnapshot(compacted);
+          this.events$.next({ type: "compaction:complete" });
+          // Re-try after compaction (once only — don't loop)
+          this.inferenceState$.next("idle");
+          return;
+        }
+        // Compaction didn't help — surface the error
+        this.inferenceState$.next("idle");
+        this.events$.next({ type: "inference:error", error: err });
+        return;
+      }
+
+      // 3. Retryable error — start countdown
+      // 逆向: vUT() check → getRetryDelaySeconds() → startRetryCountdown()
+      if (isRetryableError(err)) {
+        const computedDelay = this.retryScheduler.getRetryDelaySeconds();
+        if (computedDelay !== undefined) {
+          // 逆向: prefer provider's retry-after if available
+          const providerDelayMs = err instanceof ProviderError ? err.retryAfterMs : undefined;
+          const delay =
+            providerDelayMs !== undefined ? Math.ceil(providerDelayMs / 1000) : computedDelay;
+
+          this.events$.next({
+            type: "retry:start",
+            error: err,
+            delaySeconds: delay,
+            attempt: this.retryScheduler.currentAttempt,
+          });
+          this.retryScheduler.startCountdown(
+            delay,
+            (remaining) => {
+              if (remaining === undefined) {
+                this.events$.next({ type: "retry:cleared" });
+              } else {
+                this.events$.next({ type: "retry:countdown", remainingSeconds: remaining });
+              }
+            },
+            () => this.retry(),
+          );
+          this.inferenceState$.next("idle");
+          return;
+        }
+        // Max retries exceeded — fall through to error
+      }
+
+      // 4. Non-retryable or max-retries-exceeded — surface error
       this.inferenceState$.next("idle");
-      this.events$.next({
-        type: "inference:error",
-        error: error instanceof Error ? error : new Error(String(error)),
-      });
+      this.events$.next({ type: "inference:error", error: err });
     }
   }
 
@@ -224,13 +312,40 @@ export class ThreadWorker {
 
   /**
    * 重试上次失败/取消的推理
-   * 逆向: ov.retry (~2690-2710)
+   * 逆向: ov.retry (~1132-1140)
+   *
+   * Flow:
+   * 1. Clear retry countdown
+   * 2. Increment retry attempt counter
+   * 3. Abort any active inference
+   * 4. Truncate incomplete assistant message
+   * 5. Set state to idle, then runInference
    */
   async retry(): Promise<void> {
+    // 逆向: ov.retry — clearRetryCountdown, increment attempt, clear error
+    this.retryScheduler.clearCountdown();
+    this.retryScheduler.incrementAttempt();
+    this.events$.next({ type: "retry:cleared" });
+
     const currentState = this.inferenceState$.getValue();
     if (currentState === "cancelled") {
       this.inferenceState$.next("idle");
     }
+
+    // 逆向: ov.retry truncates incomplete assistant message
+    const snapshot = this.opts.getThreadSnapshot();
+    const lastMsg = snapshot.messages[snapshot.messages.length - 1];
+    if (
+      lastMsg?.role === "assistant" &&
+      ((lastMsg as Record<string, unknown>).state as Record<string, unknown>)?.type !== "complete"
+    ) {
+      // Truncate the incomplete assistant message
+      this.opts.updateThreadSnapshot({
+        ...snapshot,
+        messages: snapshot.messages.slice(0, -1),
+      });
+    }
+
     await this.runInference();
   }
 
@@ -245,11 +360,20 @@ export class ThreadWorker {
 
   /**
    * 用户响应工具审批请求
+   *
+   * 逆向: amp's toolService.resolveApproval(toolUseId, accepted, feedback)
+   * looks up the resolver in Map `r`, calls resolve({accepted, feedback}),
+   * removes from the map, and updates pendingApprovals$ BehaviorSubject.
+   *
+   * Flitter: looks up the resolver in _pendingApprovals and settles the Promise
+   * that the orchestrator's requestApproval callback is awaiting.
    */
   async userRespondToApproval(toolUseId: string, response: ToolApprovalResponse): Promise<void> {
-    void toolUseId;
-    void response;
-    // Placeholder — requires PermissionEngine approval flow integration
+    const resolve = this._pendingApprovals.get(toolUseId);
+    if (resolve) {
+      resolve(response.approved ? { accepted: true } : { accepted: false });
+      this._pendingApprovals.delete(toolUseId);
+    }
   }
 
   /**
@@ -264,6 +388,9 @@ export class ThreadWorker {
       this.abortController.abort();
       this.abortController = null;
     }
+
+    // 清理重试调度器
+    this.retryScheduler.dispose();
 
     // 销毁 ToolOrchestrator
     this.opts.toolOrchestrator.dispose();

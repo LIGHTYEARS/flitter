@@ -48,7 +48,7 @@ import type { DisplayItem } from "./display-items.js";
 import { transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
-import { StatusBar } from "./status-bar.js";
+import { StatusBar, type StatusBarState } from "./status-bar.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
 
@@ -157,11 +157,29 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** Display items (transformed from ThreadStore snapshot via yx0 pipeline) */
   private _items: DisplayItem[] = [];
 
-  /** 推理状态: idle 或 running */
-  private _inferenceState: "idle" | "running" = "idle";
+  /** 推理状态: idle, running, or cancelled */
+  private _inferenceState: "idle" | "running" | "cancelled" = "idle";
+
+  /** Whether the model has started streaming tokens */
+  private _hasStartedStreaming = false;
 
   /** 推理错误 */
   private _error: Error | null = null;
+
+  /** Running tool count for status bar (逆向: yB tool tracking) */
+  private _runningToolCount = 0;
+
+  /** Total input tokens consumed in this session */
+  private _totalInputTokens = 0;
+
+  /** Total output tokens consumed in this session */
+  private _totalOutputTokens = 0;
+
+  /** Compaction state for status bar */
+  private _compactionState: "idle" | "compacting" = "idle";
+
+  /** Whether waiting for user approval on a tool */
+  private _waitingForApproval = false;
 
   /** Prompt history for up/down arrow navigation */
   private _promptHistory = new PromptHistory();
@@ -206,14 +224,38 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     }
 
     // 订阅工作器事件流 (per D-11)
+    // 逆向: AB (2613_unknown_AB.js) — threadViewState derivation from events
     this._eventSub = threadWorker.events$.subscribe((event: unknown) => {
-      const ev = event as { type: string; error?: Error };
+      const ev = event as {
+        type: string;
+        error?: Error;
+        usage?: { inputTokens: number; outputTokens: number };
+      };
       switch (ev.type) {
         case "inference:start":
           this.setState(() => {
             this._inferenceState = "running";
+            this._hasStartedStreaming = false;
           });
           break;
+        case "inference:delta":
+          // First token arrived — switch from "Waiting for response" to "Streaming"
+          if (!this._hasStartedStreaming) {
+            this.setState(() => {
+              this._hasStartedStreaming = true;
+            });
+          }
+          break;
+        case "inference:complete": {
+          this.setState(() => {
+            this._inferenceState = "idle";
+            if (ev.usage) {
+              this._totalInputTokens += ev.usage.inputTokens;
+              this._totalOutputTokens += ev.usage.outputTokens;
+            }
+          });
+          break;
+        }
         case "inference:error":
           this.setState(() => {
             this._error = ev.error ?? new Error("Unknown inference error");
@@ -227,9 +269,34 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           });
           break;
         case "tool:start":
+          this.setState(() => {
+            this._runningToolCount++;
+          });
+          break;
         case "tool:complete":
-          // Force rebuild to update tool status indicators in ConversationView
-          this.setState(() => {});
+          this.setState(() => {
+            this._runningToolCount = Math.max(0, this._runningToolCount - 1);
+          });
+          break;
+        case "compaction:start":
+          this.setState(() => {
+            this._compactionState = "compacting";
+          });
+          break;
+        case "compaction:complete":
+          this.setState(() => {
+            this._compactionState = "idle";
+          });
+          break;
+        case "approval:request":
+          this.setState(() => {
+            this._waitingForApproval = true;
+          });
+          break;
+        case "approval:response":
+          this.setState(() => {
+            this._waitingForApproval = false;
+          });
           break;
       }
     });
@@ -264,7 +331,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    * @returns Column 根节点
    */
   build(_context: BuildContext): Widget {
-    const { onSubmit, modelName, tokenCount, toastManager } = this.widget.config;
+    const { onSubmit, modelName, toastManager } = this.widget.config;
 
     // 消息区域 (占据全部剩余空间)
     // 逆向: Scrollable wrapping ConversationView
@@ -303,20 +370,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           height: 1,
           child: new Text({ data: "\u2500".repeat(80) }),
         }),
-        // 状态栏
+        // 状态栏 — derive live StatusBarState from tracked fields
+        // 逆向: yB() state machine (2731_unknown_yB.js)
         new StatusBar({
           state: {
             modelName: modelName ?? "unknown",
-            inferenceState: "idle",
-            hasStartedStreaming: false,
+            inferenceState: this._inferenceState,
+            hasStartedStreaming: this._hasStartedStreaming,
             tokenUsage: {
-              inputTokens: tokenCount ?? 0,
-              outputTokens: 0,
-              maxInputTokens: 200000,
+              inputTokens: this._totalInputTokens,
+              outputTokens: this._totalOutputTokens,
+              maxInputTokens: 200000, // TODO: derive from model config
             },
-            compactionState: "idle",
-            runningToolCount: 0,
-            waitingForApproval: false,
+            compactionState: this._compactionState,
+            runningToolCount: this._runningToolCount,
+            waitingForApproval: this._waitingForApproval,
           },
         }),
         // 分隔线

@@ -47,7 +47,8 @@ export function hasIncompleteToolUse(content: AssistantContentBlock[]): boolean 
  */
 export interface ToolApprovalResponse {
   approved: boolean;
-  remember?: boolean;
+  scope?: string;
+  feedback?: string;
 }
 
 // ─── ThreadWorker 选项 ───────────────────────────────────
@@ -174,7 +175,7 @@ export class ThreadWorker {
    */
   readonly _pendingApprovals = new Map<
     string,
-    (response: { accepted: boolean; feedback?: string }) => void
+    (response: { accepted: boolean; scope?: string; feedback?: string }) => void
   >();
 
   constructor(opts: ThreadWorkerOptions) {
@@ -539,7 +540,11 @@ export class ThreadWorker {
   async userRespondToApproval(toolUseId: string, response: ToolApprovalResponse): Promise<void> {
     const resolve = this._pendingApprovals.get(toolUseId);
     if (resolve) {
-      resolve(response.approved ? { accepted: true } : { accepted: false });
+      resolve(
+        response.approved
+          ? { accepted: true, scope: response.scope }
+          : { accepted: false, feedback: response.feedback },
+      );
       this._pendingApprovals.delete(toolUseId);
     }
   }

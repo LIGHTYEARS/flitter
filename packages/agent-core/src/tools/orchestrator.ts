@@ -126,7 +126,7 @@ export interface OrchestratorCallbacks {
     toolName: string;
     args: Record<string, unknown>;
     reason: string;
-  }) => Promise<{ accepted: boolean; feedback?: string }>;
+  }) => Promise<{ accepted: boolean; scope?: string; feedback?: string }>;
 }
 
 // ─── 资源冲突检测 ──────────────────────────────────────────

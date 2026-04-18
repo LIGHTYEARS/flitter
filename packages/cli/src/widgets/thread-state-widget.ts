@@ -78,7 +78,10 @@ export interface ThreadStateWidgetConfig {
   /** 线程工作器引用 */
   threadWorker: {
     events$: { subscribe(observer: (value: unknown) => void): Subscription };
-    userRespondToApproval?(toolUseId: string, response: { approved: boolean }): Promise<void>;
+    userRespondToApproval?(
+      toolUseId: string,
+      response: { approved: boolean; scope?: string; feedback?: string },
+    ): Promise<void>;
   };
   /** 要观察的线程 ID */
   threadId: string;

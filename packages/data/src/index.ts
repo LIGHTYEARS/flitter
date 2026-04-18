@@ -1,5 +1,6 @@
 // @flitter/data — Data persistence & state layer
 
+export { getAdminSettingsPath, readAdminSettings } from "./config/admin-settings";
 export type { ConfigServiceOptions } from "./config/config-service";
 export { ConfigService } from "./config/config-service";
 export { stripJsonComments } from "./config/jsonc";

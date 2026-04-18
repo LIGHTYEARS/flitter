@@ -31,6 +31,7 @@ export {
 export type { LLMProvider, MessageTransformer, ToolTransformer } from "./provider";
 
 // ─── 具体 Provider (供直接使用) ─────────────────────────
+export type { CreateMessageResponse } from "./providers/anthropic/provider";
 export { AnthropicProvider } from "./providers/anthropic/provider";
 export { BedrockProvider } from "./providers/bedrock/provider";
 export { GeminiProvider } from "./providers/gemini/provider";

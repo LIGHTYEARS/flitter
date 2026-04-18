@@ -18,6 +18,29 @@ import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { AnthropicSSEEvent } from "./transformer";
 import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
 
+// ─── Types for createMessage ────────────────────────────
+
+/**
+ * Response shape for non-streaming createMessage calls.
+ * Matches the subset of Anthropic SDK response used by title generation.
+ * 逆向: amp-cli-reversed/modules/1344_unknown_tzT.js uses messages.create({ stream: false })
+ */
+export interface CreateMessageResponse {
+  content: Array<{
+    type: string;
+    id?: string;
+    name?: string;
+    input?: unknown;
+    text?: string;
+  }>;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
+}
+
 // ─── AnthropicProvider ──────────────────────────────────
 
 export class AnthropicProvider implements LLMProvider {
@@ -106,6 +129,81 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   // ─── Private ──────────────────────────────────────────
+
+  /**
+   * Non-streaming message creation (for title generation, etc.).
+   *
+   * 逆向: amp-cli-reversed/modules/1344_unknown_tzT.js:11-49
+   *   `await (...).messages.create({ model, max_tokens, ... }, { stream: !1, signal })`
+   *
+   * This method creates an Anthropic SDK client (or uses the injected one),
+   * then calls messages.create with stream: false.
+   */
+  async createMessage(
+    params: {
+      model: string;
+      max_tokens: number;
+      temperature: number;
+      system: string;
+      messages: Array<{ role: string; content: string }>;
+      tools: Array<{
+        name: string;
+        input_schema: Record<string, unknown>;
+      }>;
+      tool_choice: { type: string; name: string; disable_parallel_tool_use: boolean };
+    },
+    opts?: { signal?: AbortSignal },
+  ): Promise<CreateMessageResponse> {
+    // For createMessage, we need an API key. Use a minimal config approach.
+    // The caller (title generation) handles auth externally or relies on env var.
+    const client =
+      this._injectedClient ??
+      new Anthropic({
+        // Uses ANTHROPIC_API_KEY env var by default
+      });
+
+    const response = await client.messages.create(
+      {
+        model: params.model,
+        max_tokens: params.max_tokens,
+        temperature: params.temperature,
+        system: params.system,
+        messages: params.messages as Anthropic.MessageCreateParams["messages"],
+        tools: params.tools as Anthropic.MessageCreateParams["tools"],
+        tool_choice: params.tool_choice as Anthropic.MessageCreateParams["tool_choice"],
+      },
+      {
+        signal: opts?.signal,
+      },
+    );
+
+    return {
+      content: response.content.map((block) => {
+        if (block.type === "tool_use") {
+          return {
+            type: "tool_use",
+            id: block.id,
+            name: block.name,
+            input: block.input,
+          };
+        }
+        if (block.type === "text") {
+          return { type: "text", text: block.text };
+        }
+        return { type: block.type };
+      }),
+      usage: {
+        input_tokens: response.usage.input_tokens,
+        output_tokens: response.usage.output_tokens,
+        cache_creation_input_tokens: (response.usage as unknown as Record<string, unknown>)
+          .cache_creation_input_tokens as number | undefined,
+        cache_read_input_tokens: (response.usage as unknown as Record<string, unknown>)
+          .cache_read_input_tokens as number | undefined,
+      },
+    };
+  }
+
+  // ─── Private helpers ─────────────────────────────────
 
   private _createClient(
     apiKey: string,

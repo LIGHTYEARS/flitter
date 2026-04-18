@@ -18,6 +18,26 @@ import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
 import { isContextLimitError, isRetryableError, RetryScheduler } from "./retry-scheduler";
 
+// ─── 不完整 tool_use 检测 ────────────────────────────────
+
+/**
+ * Detects tool_use blocks that are marked complete but have empty or missing input.
+ * This indicates the stream ended prematurely — the LLM finished the block but
+ * no input was actually received.
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:949-951
+ *   `l.content.some(v => v.type === "tool_use" && v.complete && Object.keys(v.input ?? {}).length === 0)`
+ */
+export function hasIncompleteToolUse(content: AssistantContentBlock[]): boolean {
+  return content.some(
+    (v) =>
+      v.type === "tool_use" &&
+      (v as Record<string, unknown>).complete === true &&
+      Object.keys(((v as Record<string, unknown>).input as Record<string, unknown>) ?? {})
+        .length === 0,
+  );
+}
+
 // ─── 工具审批响应 ────────────────────────────────────────
 
 /**
@@ -105,6 +125,21 @@ export class ThreadWorker {
   private disposed = false;
 
   /**
+   * Whether resume() has already been called. Guards idempotency.
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:271
+   *   `resumed = !1;` (field declaration), set to `!0` inside resume()
+   */
+  private resumed = false;
+
+  /**
+   * Message queue: buffers user messages sent while tools are running.
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:528-561 (enqueue),
+   *        amp-cli-reversed/modules/1244_ThreadWorker_ov.js:431-437 (dequeue),
+   *        amp-cli-reversed/modules/1244_ThreadWorker_ov.js:661-662 (dequeue on turn complete)
+   */
+  private readonly messageQueue: Message[] = [];
+
+  /**
    * Retry scheduler for exponential backoff on 429/overloaded errors.
    * 逆向: ov.ephemeralErrorRetryAttempt, ov.retryCountdownSeconds, ov.retryTimer, ov.retrySession
    * (amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1124-1165)
@@ -134,6 +169,100 @@ export class ThreadWorker {
   }
 
   // ─── 公共方法 ──────────────────────────────────────
+
+  /**
+   * Resume a thread after reconnect/restart.
+   *
+   * If the last message is an assistant message in "streaming" state, it means
+   * the previous session was interrupted mid-stream. We truncate that incomplete
+   * message so the next inference starts clean.
+   *
+   * Idempotent: second call is a no-op.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:259-270
+   *   ```
+   *   if (this.resumed) return;
+   *   if (this.resumed = !0, ...)
+   *   let T = this.thread.messages.at(-1);
+   *   if (T?.role === "assistant" && T.state.type === "streaming")
+   *     this.updateThread({ type: "thread:truncate", fromIndex: this.thread.messages.length - 1 });
+   *   ```
+   */
+  resume(): void {
+    if (this.resumed) return;
+    this.resumed = true;
+
+    const snapshot = this.opts.getThreadSnapshot();
+    const lastMsg = snapshot.messages.at(-1);
+
+    if (
+      lastMsg?.role === "assistant" &&
+      ((lastMsg as Record<string, unknown>).state as Record<string, unknown>)?.type === "streaming"
+    ) {
+      // Truncate the incomplete streaming message
+      // 逆向: amp uses thread:truncate fromIndex which removes from that index onward
+      this.opts.updateThreadSnapshot({
+        ...snapshot,
+        messages: snapshot.messages.slice(0, snapshot.messages.length - 1),
+      });
+    }
+  }
+
+  /**
+   * Number of messages waiting in the queue.
+   * 逆向: amp uses thread.queuedMessages.length
+   */
+  get queuedMessageCount(): number {
+    return this.messageQueue.length;
+  }
+
+  /**
+   * Enqueue a user message. If tools are running during inference, the message
+   * is buffered and will be dequeued after the current turn completes.
+   * Otherwise, it is processed immediately (appended to the snapshot).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:528-561
+   *   ```
+   *   case "user:message-queue:enqueue":
+   *     let a = this._inferenceState.getValue();
+   *     if (IUT(this.thread, a) !== "tool-running") {
+   *       if (a === "cancelled") { this.handle({ type: "user:message-queue:dequeue" }); break; }
+   *       else if (a === "idle") { ... dequeue ... }
+   *     }
+   *   ```
+   */
+  enqueueMessage(message: Message): void {
+    const state = this.inferenceState$.getValue();
+    const toolsRunning = state === "running" && this.opts.toolOrchestrator.hasRunningTools();
+
+    if (toolsRunning) {
+      // Buffer the message — will be dequeued on turn:complete
+      this.messageQueue.push(message);
+    } else {
+      // Process immediately: append to snapshot
+      this.appendMessageToSnapshot(message);
+    }
+  }
+
+  /**
+   * Dequeue the first buffered message and append it to the thread snapshot.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:431-437
+   *   ```
+   *   case "user:message-queue:dequeue":
+   *     let a = this.thread.messages.at(-1);
+   *     if (!a) break;
+   *     if (a.role !== "user") break;
+   *     this._turnStartTime.next(Date.now()), ...
+   *     this.runInferenceAndUpdateThread({ agentStart: { ... } });
+   *   ```
+   */
+  dequeueMessage(): void {
+    if (this.messageQueue.length === 0) return;
+
+    const message = this.messageQueue.shift()!;
+    this.appendMessageToSnapshot(message);
+  }
 
   /**
    * 执行完整推理循环
@@ -227,6 +356,14 @@ export class ThreadWorker {
       } else {
         // 无 tool_use: turn 完成
         this.events$.next({ type: "turn:complete" });
+
+        // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:661-662
+        //   `if (this.thread.queuedMessages && this.thread.queuedMessages.length > 0)
+        //      this.handle({ type: "user:message-queue:dequeue" });`
+        if (this.messageQueue.length > 0) {
+          this.dequeueMessage();
+        }
+
         this.inferenceState$.next("idle");
       }
     } catch (error) {
@@ -469,5 +606,17 @@ export class ThreadWorker {
     }
 
     return toolUses;
+  }
+
+  /**
+   * Append a message to the thread snapshot.
+   * Used by enqueueMessage (immediate processing) and dequeueMessage.
+   */
+  private appendMessageToSnapshot(message: Message): void {
+    const snapshot = this.opts.getThreadSnapshot();
+    this.opts.updateThreadSnapshot({
+      ...snapshot,
+      messages: [...snapshot.messages, message] as ThreadSnapshot["messages"],
+    });
   }
 }

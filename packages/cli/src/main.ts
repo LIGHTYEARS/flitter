@@ -54,6 +54,7 @@ import { runExecuteMode } from "./modes/execute";
 import { runHeadlessMode } from "./modes/headless";
 import { launchInteractiveMode } from "./modes/interactive";
 import { createProgram } from "./program";
+import { FileSecretStorage } from "./storage/file-secret-storage.js";
 
 const log = createLogger("cli");
 
@@ -63,27 +64,6 @@ const log = createLogger("cli");
  * 在多次调用 main() 的测试场景中, 防止监听器泄漏。
  */
 let signalHandlersInstalled = false;
-
-/**
- * 创建内存 SecretStorage (默认实现)
- *
- * 用于不需要持久化秘密的场景 (如测试, 或首次运行)。
- * 作用域 key 格式: `${scope}:${key}`
- */
-function createInMemorySecretStorage(): SecretStorage {
-  const store = new Map<string, string>();
-  return {
-    async get(key: string, scope?: string): Promise<string | undefined> {
-      return store.get(scope ? `${scope}:${key}` : key);
-    },
-    async set(key: string, value: string, scope?: string): Promise<void> {
-      store.set(scope ? `${scope}:${key}` : key, value);
-    },
-    async delete(key: string, scope?: string): Promise<void> {
-      store.delete(scope ? `${scope}:${key}` : key);
-    },
-  };
-}
 
 /**
  * main() 调用选项
@@ -192,8 +172,9 @@ export async function main(opts?: MainOptions): Promise<void> {
 
     // ── 依赖准备 ──────────────────────────────────────────
 
-    const secrets: SecretStorage = opts?._testSecrets ?? createInMemorySecretStorage();
     const configDir = path.join(os.homedir(), ".config", "flitter");
+    const secrets: SecretStorage =
+      opts?._testSecrets ?? new FileSecretStorage(path.join(configDir, "data"));
     const settings = new FileSettingsStorage({
       globalPath: path.join(configDir, "settings.json"),
     });

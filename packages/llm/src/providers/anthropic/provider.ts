@@ -78,6 +78,14 @@ export class AnthropicProvider implements LLMProvider {
     } catch (err: unknown) {
       // Convert SDK errors to ProviderError
       if (err instanceof Anthropic.APIError) {
+        // Extract retry-after from headers (seconds → ms)
+        const retryAfterHeader = (err.headers as Record<string, string> | undefined)?.[
+          "retry-after"
+        ];
+        const retryAfterMs = retryAfterHeader
+          ? Number.parseFloat(retryAfterHeader) * 1000
+          : undefined;
+
         throw new ProviderError(
           err.status,
           "anthropic",
@@ -90,6 +98,7 @@ export class AnthropicProvider implements LLMProvider {
             err.status === 504 ||
             err.status === 529,
           err.message,
+          Number.isNaN(retryAfterMs) ? undefined : retryAfterMs,
         );
       }
       throw err;

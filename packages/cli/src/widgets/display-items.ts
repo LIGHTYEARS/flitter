@@ -232,6 +232,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
         });
       } else if (EDIT_TOOLS.has(block.name)) {
         // 逆向: yx0 `(p === "edit_file")` and `(p === "undo_edit")` branches
+        // 逆向: W4(m.status) guard — amp skips edit items unless status is "done"
+        if (status !== "done") continue;
         flushActivityBuffer();
         items.push({
           type: "tool",

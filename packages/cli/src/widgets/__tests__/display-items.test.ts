@@ -196,6 +196,57 @@ describe("transformThreadToDisplayItems", () => {
     });
   });
 
+  it("suppresses hidden tools like thread_status", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tu_1",
+            name: "thread_status",
+            input: {},
+            complete: true,
+          },
+        ],
+        state: { type: "complete" as const },
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            toolUseID: "tu_1",
+            run: { status: "done" as const, result: "ok" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect(items).toHaveLength(0);
+  });
+
+  it("skips edit tools that are not done (W4 guard)", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tu_1",
+            name: "Edit",
+            input: { file_path: "/tmp/a.ts", old_string: "x", new_string: "y" },
+            complete: true,
+          },
+        ],
+        state: { type: "streaming" as const },
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    // Edit with no result (in-progress) should be skipped per amp's W4 guard
+    expect(items).toHaveLength(0);
+  });
+
   it("handles in-progress tool uses without results", () => {
     const messages = [
       {

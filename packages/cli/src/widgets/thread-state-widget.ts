@@ -43,6 +43,8 @@ import {
 } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
+import type { ApprovalRequest } from "./approval-widget.js";
+import { ApprovalWidget } from "./approval-widget.js";
 import { ConversationView } from "./conversation-view.js";
 import type { DisplayItem } from "./display-items.js";
 import { transformThreadToDisplayItems } from "./display-items.js";
@@ -76,6 +78,7 @@ export interface ThreadStateWidgetConfig {
   /** 线程工作器引用 */
   threadWorker: {
     events$: { subscribe(observer: (value: unknown) => void): Subscription };
+    userRespondToApproval?(toolUseId: string, response: { approved: boolean }): Promise<void>;
   };
   /** 要观察的线程 ID */
   threadId: string;
@@ -181,6 +184,9 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** Whether waiting for user approval on a tool */
   private _waitingForApproval = false;
 
+  /** The pending approval request to display, if any */
+  private _pendingApproval: ApprovalRequest | null = null;
+
   /** Prompt history for up/down arrow navigation */
   private _promptHistory = new PromptHistory();
 
@@ -230,6 +236,10 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         type: string;
         error?: Error;
         usage?: { inputTokens: number; outputTokens: number };
+        toolUseId?: string;
+        toolName?: string;
+        args?: Record<string, unknown>;
+        reason?: string;
       };
       switch (ev.type) {
         case "inference:start":
@@ -276,6 +286,12 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         case "tool:complete":
           this.setState(() => {
             this._runningToolCount = Math.max(0, this._runningToolCount - 1);
+            // Clear pending approval if this tool completed
+            // 逆向: jetbrains_wizard.js — pendingApprovals filtered on tool completion
+            if (this._pendingApproval && ev.toolUseId === this._pendingApproval.toolUseId) {
+              this._pendingApproval = null;
+              this._waitingForApproval = false;
+            }
           });
           break;
         case "compaction:start":
@@ -291,11 +307,19 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         case "approval:request":
           this.setState(() => {
             this._waitingForApproval = true;
+            // 逆向: jetbrains_wizard.js — pendingApprovals$ pushes full request
+            this._pendingApproval = {
+              toolUseId: ev.toolUseId ?? "",
+              toolName: ev.toolName ?? "",
+              args: ev.args ?? {},
+              reason: ev.reason ?? "",
+            };
           });
           break;
         case "approval:response":
           this.setState(() => {
             this._waitingForApproval = false;
+            this._pendingApproval = null;
           });
           break;
       }
@@ -332,6 +356,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    */
   build(_context: BuildContext): Widget {
     const { onSubmit, modelName, toastManager } = this.widget.config;
+    const { threadWorker } = this.widget.config;
 
     // 消息区域 (占据全部剩余空间)
     // 逆向: Scrollable wrapping ConversationView
@@ -392,8 +417,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           height: 1,
           child: new Text({ data: "\u2500".repeat(80) }),
         }),
-        // 输入框
-        new InputField({ onSubmit, promptHistory: this._promptHistory }),
+        // 输入框 or 审批对话框
+        // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows
+        // A0R (confirmation widget) instead of input when approval is pending
+        this._pendingApproval
+          ? new ApprovalWidget({
+              request: this._pendingApproval,
+              onRespond: (toolUseId, response) => {
+                threadWorker.userRespondToApproval?.(toolUseId, response);
+                this.setState(() => {
+                  this._pendingApproval = null;
+                  this._waitingForApproval = false;
+                });
+              },
+            })
+          : new InputField({ onSubmit, promptHistory: this._promptHistory }),
       ],
     });
   }

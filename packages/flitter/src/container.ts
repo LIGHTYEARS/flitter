@@ -232,6 +232,24 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const threadPersistence = createThreadPersistence(opts);
     if (threadPersistence) {
       log.info("ThreadPersistence created", { dataDir: opts.dataDir });
+
+      // Task 1: Start auto-save — polls getDirtyThreadIds on a timer and persists
+      // 逆向: amp 1244_ThreadWorker_ov.js:248-254 (threadReadWriter auto-persist)
+      const autoSaveHandle = threadPersistence.startAutoSave(threadStore);
+      disposables.push({ dispose: () => autoSaveHandle.dispose() });
+      log.info("ThreadPersistence auto-save started");
+
+      // Task 2: Hydrate ThreadStore with previously persisted threads on startup
+      // 逆向: amp 1244_ThreadWorker_ov.js:248-254 (threadReadWriter auto-persist)
+      try {
+        const persisted = await threadPersistence.loadAll();
+        for (const thread of persisted) {
+          threadStore.setCachedThread(thread); // no scheduleUpload — don't re-dirty loaded threads
+        }
+        log.info("Loaded persisted threads", { count: persisted.length });
+      } catch (err) {
+        log.warn("Failed to load persisted threads", { error: err });
+      }
     }
 
     // 9. ContextManager
@@ -356,7 +374,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           updateThreadSnapshot:
             workerOpts?.updateThreadSnapshot ??
             ((snapshot: ThreadSnapshot) => {
-              threadStore.setCachedThread(snapshot);
+              // Task 3: scheduleUpload=true marks the thread dirty so auto-save persists it
+              // 逆向: amp 1244_ThreadWorker_ov.js:248-254 (threadReadWriter auto-persist)
+              threadStore.setCachedThread(snapshot, { scheduleUpload: true });
             }),
           getMessages:
             workerOpts?.getMessages ??

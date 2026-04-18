@@ -349,15 +349,27 @@ export class ThreadWorker {
       }
 
       // ─── Step 6: 流式完成 ──────────────────────
+      // 逆向: chunk-002.js:2213-2219 — carry model + all 4 token fields
+      const rawUsage = lastDelta?.usage as unknown as
+        | Record<string, number | undefined>
+        | undefined;
       this.events$.next({
         type: "inference:complete",
-        usage: lastDelta?.usage
+        usage: rawUsage
           ? {
-              inputTokens: (lastDelta.usage as unknown as Record<string, number>).inputTokens ?? 0,
-              outputTokens:
-                (lastDelta.usage as unknown as Record<string, number>).outputTokens ?? 0,
+              inputTokens: rawUsage.inputTokens ?? 0,
+              outputTokens: rawUsage.outputTokens ?? 0,
+              // Only include optional cache fields when they carry actual values
+              // 逆向: chunk-002.js:2217-2218 — cache fields only present when non-null
+              ...(rawUsage.cacheCreationInputTokens !== undefined && {
+                cacheCreationInputTokens: rawUsage.cacheCreationInputTokens,
+              }),
+              ...(rawUsage.cacheReadInputTokens !== undefined && {
+                cacheReadInputTokens: rawUsage.cacheReadInputTokens,
+              }),
             }
           : undefined,
+        model: streamParams.model,
       });
 
       // 逆向: ov.resetRetryAttempts on inference:completed

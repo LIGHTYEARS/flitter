@@ -55,7 +55,16 @@ export interface InferenceDeltaEvent {
 /** LLM 推理完成 (单轮流式结束) */
 export interface InferenceCompleteEvent {
   type: "inference:complete";
-  usage?: { inputTokens: number; outputTokens: number };
+  usage?: {
+    inputTokens: number;
+    outputTokens: number;
+    /** 逆向: chunk-002.js:2217 b.usage.cache_creation_input_tokens */
+    cacheCreationInputTokens?: number;
+    /** 逆向: chunk-002.js:2218 b.usage.cache_read_input_tokens */
+    cacheReadInputTokens?: number;
+  };
+  /** 逆向: chunk-002.js:2213 model name used for this inference call */
+  model?: string;
 }
 
 /** LLM 推理错误 */

@@ -13,6 +13,8 @@ import { ProviderError } from "@flitter/llm";
 import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
+import type { TitleGenerationProvider } from "../title/generate-title";
+import { extractTextFromContent, generateThreadTitle } from "../title/generate-title";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
@@ -75,6 +77,12 @@ export interface ThreadWorkerOptions {
   getConfig: () => Config;
   /** 工具注册表 */
   toolRegistry: ToolRegistry;
+  /**
+   * Optional provider for title generation (non-streaming createMessage).
+   * If not provided, title generation is silently skipped.
+   * 逆向: amp injects generateThreadTitle via deps (1244:770)
+   */
+  titleProvider?: TitleGenerationProvider;
 }
 
 // ─── ThreadWorker 类 ────────────────────────────────────
@@ -145,6 +153,13 @@ export class ThreadWorker {
    * (amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1124-1165)
    */
   private readonly retryScheduler = new RetryScheduler();
+
+  /**
+   * AbortController for in-flight title generation.
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:752
+   *   `this.ops.titleGeneration?.abort(), this.ops.titleGeneration = new AbortController()`
+   */
+  private titleGenerationAbort: AbortController | null = null;
 
   /**
    * Pending approval resolvers: toolUseId → resolve function.
@@ -286,6 +301,10 @@ export class ThreadWorker {
 
       this.inferenceState$.next("running");
       this.events$.next({ type: "inference:start" });
+
+      // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:878
+      //   `this.triggerTitleGeneration();` (called at start of inference loop)
+      this.triggerTitleGeneration();
 
       // ─── Step 1: 检查上下文压缩 ───────────────
       await this.checkCompaction();
@@ -526,6 +545,13 @@ export class ThreadWorker {
       this.abortController = null;
     }
 
+    // 取消 title generation
+    // 逆向: amp aborts ops.titleGeneration in dispose
+    if (this.titleGenerationAbort) {
+      this.titleGenerationAbort.abort();
+      this.titleGenerationAbort = null;
+    }
+
     // 清理重试调度器
     this.retryScheduler.dispose();
 
@@ -540,6 +566,83 @@ export class ThreadWorker {
   }
 
   // ─── 内部方法 ──────────────────────────────────────
+
+  /**
+   * Trigger title generation in the background (fire-and-forget).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:750-793
+   *   ```
+   *   triggerTitleGeneration() {
+   *     if (this.thread.mainThreadID !== void 0 || this.thread.title) return;
+   *     this.ops.titleGeneration?.abort(), this.ops.titleGeneration = new AbortController();
+   *     let T = this.ops.titleGeneration.signal;
+   *     ...find first user message with text...
+   *     this.deps.generateThreadTitle(t, ...)
+   *       .then(({ title, usage }) => { if (!aborted && !disposed && title) updateThread(...) })
+   *       .catch(...)
+   *   }
+   *   ```
+   *
+   * Called at the start of inference (line 878 in amp).
+   */
+  private triggerTitleGeneration(): void {
+    const snapshot = this.opts.getThreadSnapshot();
+
+    // Skip if thread already has title
+    // 逆向: `if (this.thread.mainThreadID !== void 0 || this.thread.title) return;`
+    if (snapshot.title) return;
+
+    // Skip if child thread (has mainThreadID)
+    if ((snapshot as Record<string, unknown>).mainThreadID !== undefined) return;
+
+    // Skip if no titleProvider configured
+    if (!this.opts.titleProvider) return;
+
+    // Cancel any in-flight title generation
+    // 逆向: `this.ops.titleGeneration?.abort(), this.ops.titleGeneration = new AbortController()`
+    this.titleGenerationAbort?.abort();
+    this.titleGenerationAbort = new AbortController();
+    const signal = this.titleGenerationAbort.signal;
+
+    // Find the first user message that has text content
+    // 逆向: `this.thread.messages.find(r => r.role !== "user" ? !1 : kr(r.content) ? !0 : ...)`
+    const firstUserMsg = snapshot.messages.find((msg) => {
+      if (msg.role !== "user") return false;
+      const text = extractTextFromContent(
+        msg.content as ReadonlyArray<{ type: string; text?: string }>,
+      );
+      return !!text;
+    });
+
+    if (!firstUserMsg) return;
+
+    // Fire-and-forget: generate title
+    const provider = this.opts.titleProvider;
+    const threadId = snapshot.id;
+    const content = firstUserMsg.content as ReadonlyArray<{ type: string; text?: string }>;
+
+    generateThreadTitle({
+      content,
+      threadId,
+      provider,
+      signal,
+    })
+      .then(({ title }) => {
+        if (signal.aborted || this.disposed) return;
+
+        // 逆向: `if (r !== void 0 && this.thread.title !== r) this.updateThread({ type: "title", ... })`
+        if (title !== undefined) {
+          const currentSnapshot = this.opts.getThreadSnapshot();
+          if (currentSnapshot.title !== title) {
+            this.opts.updateThreadSnapshot({ ...currentSnapshot, title });
+          }
+        }
+      })
+      .catch((_err) => {
+        // 逆向: amp logs abort vs error separately; we silently swallow both
+        // since this is fire-and-forget and errors should not break inference
+      });
+  }
 
   /**
    * 检查并执行上下文压缩

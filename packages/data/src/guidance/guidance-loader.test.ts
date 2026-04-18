@@ -468,4 +468,38 @@ TypeScript guidance`,
     assert.ok(refIdx >= 0, "referenced file found");
     assert.ok(refIdx > mainIdx, "mentioned file after referrer");
   });
+
+  it("should discover CLAUDE.md inside .claude/ subdirectory", async () => {
+    // 逆向: chunk-005.js:70814 — `patterns: ["**/.claude/**", "~/.claude/**"]`
+    const workspace = path.join(tmpDir, "workspace");
+    const claudeDir = path.join(workspace, ".claude");
+
+    await fsp.mkdir(claudeDir, { recursive: true });
+    await fsp.writeFile(path.join(claudeDir, "CLAUDE.md"), "Claude subdirectory guidance");
+
+    const files = await discoverGuidanceFiles({ workspaceRoots: [workspace] });
+
+    const found = files.find((f) => f.uri === path.join(claudeDir, "CLAUDE.md"));
+    assert.ok(found, "should discover CLAUDE.md inside .claude/ subdirectory");
+    assert.equal(found.type, "project");
+    assert.equal(found.content, "Claude subdirectory guidance");
+  });
+
+  it("should discover AGENTS.md inside .claude/ subdirectory of user config dir", async () => {
+    const configDir = path.join(tmpDir, "config");
+    const claudeDir = path.join(configDir, ".claude");
+
+    await fsp.mkdir(claudeDir, { recursive: true });
+    await fsp.writeFile(path.join(claudeDir, "AGENTS.md"), "User .claude guidance");
+
+    const files = await discoverGuidanceFiles({
+      workspaceRoots: [],
+      userConfigDir: configDir,
+    });
+
+    const found = files.find((f) => f.uri === path.join(claudeDir, "AGENTS.md"));
+    assert.ok(found, "should discover AGENTS.md inside .claude/ of user config dir");
+    assert.equal(found.type, "user");
+    assert.equal(found.content, "User .claude guidance");
+  });
 });

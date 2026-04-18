@@ -10,6 +10,15 @@ import type {
 /** Search file names — AGENTS.md takes priority over CLAUDE.md */
 const SEARCH_FILENAMES = ["AGENTS.md", "CLAUDE.md"];
 
+/**
+ * Sub-directories to also search within each candidate directory.
+ * Matches amp's .claude/** pattern (chunk-005.js:70814) and Claude Code's
+ * convention of storing CLAUDE.md inside .claude/ subdirectory.
+ *
+ * 逆向: chunk-005.js:70814 — patterns: ["**\/.claude\/**", "~\/.claude\/**"]
+ */
+const SEARCH_SUBDIRS = [".claude"];
+
 const DEFAULT_MAX_BYTES = 32768;
 
 // ---------------------------------------------------------------------------
@@ -308,10 +317,16 @@ export async function discoverGuidanceFiles(options: GuidanceLoadOptions): Promi
       signal?.throwIfAborted();
 
       if (!seenDirs.has(dir)) {
+        const type: GuidanceType = isUnderAny(dir, workspaceRootSet) ? "project" : "parent";
+        // Search in the directory itself
         for (const filename of SEARCH_FILENAMES) {
-          const filePath = path.join(dir, filename);
-          const type: GuidanceType = isUnderAny(dir, workspaceRootSet) ? "project" : "parent";
-          candidates.push({ filePath, type });
+          candidates.push({ filePath: path.join(dir, filename), type });
+        }
+        // Also search in .claude/ subdirectory (逆向: chunk-005.js:70814)
+        for (const subdir of SEARCH_SUBDIRS) {
+          for (const filename of SEARCH_FILENAMES) {
+            candidates.push({ filePath: path.join(dir, subdir, filename), type });
+          }
         }
         seenDirs.add(dir);
       }
@@ -332,11 +347,21 @@ export async function discoverGuidanceFiles(options: GuidanceLoadOptions): Promi
   if (userConfigDir) {
     const resolvedConfig = path.resolve(userConfigDir);
     if (!seenDirs.has(resolvedConfig)) {
+      // Search in the user config dir itself
       for (const filename of SEARCH_FILENAMES) {
         candidates.push({
           filePath: path.join(resolvedConfig, filename),
           type: "user",
         });
+      }
+      // Also search in .claude/ subdirectory (逆向: chunk-005.js:70814)
+      for (const subdir of SEARCH_SUBDIRS) {
+        for (const filename of SEARCH_FILENAMES) {
+          candidates.push({
+            filePath: path.join(resolvedConfig, subdir, filename),
+            type: "user",
+          });
+        }
       }
       seenDirs.add(resolvedConfig);
     }

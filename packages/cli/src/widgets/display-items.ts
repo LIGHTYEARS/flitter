@@ -2,6 +2,9 @@
 /**
  * DisplayItem types and thread-to-display-item transformer.
  *
+ * Imports generateSimpleDiff to compute unified diffs for edit tool results.
+ * 逆向: amp chunk-004.js:7793-7803 (diff field on tool result)
+ *
  * Mirrors amp's yx0() pipeline (2154_Subagent_yx0.js):
  * raw thread messages -> flat list of typed display rows.
  *
@@ -12,6 +15,8 @@
  *
  * 逆向: yx0 + ux0 (2154_Subagent_yx0.js, 2153_unknown_ux0.js)
  */
+
+import { generateSimpleDiff } from "./diff-widget.js";
 
 // ─── Display Item Types ─────────────────────────────
 
@@ -48,6 +53,8 @@ export interface ToolItem {
   // generic fallback
   args?: Record<string, unknown>;
   error?: string;
+  /** Unified diff text for edit/create-file results (逆向: amp chunk-004.js:7793-7803) */
+  diff?: string;
 }
 
 /**
@@ -235,6 +242,15 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
         // 逆向: W4(m.status) guard — amp skips edit items unless status is "done"
         if (status !== "done") continue;
         flushActivityBuffer();
+        // 逆向: amp chunk-004.js:7793-7803 — diff field on edit tool result
+        const diffText =
+          typeof block.input?.old_string === "string" && typeof block.input?.new_string === "string"
+            ? generateSimpleDiff(
+                block.input.old_string as string,
+                block.input.new_string as string,
+                (block.input.file_path as string) ?? "file",
+              )
+            : undefined;
         items.push({
           type: "tool",
           toolUseId: block.id,
@@ -246,6 +262,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             typeof block.input?.old_string === "string" ? block.input.old_string : undefined,
           newString:
             typeof block.input?.new_string === "string" ? block.input.new_string : undefined,
+          diff: diffText,
         });
       } else if (CREATE_TOOLS.has(block.name)) {
         // 逆向: yx0 `(p === "create_file")` branch

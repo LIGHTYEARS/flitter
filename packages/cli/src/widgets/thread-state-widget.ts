@@ -43,7 +43,9 @@ import {
 } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
-import { ConversationView, type Message } from "./conversation-view.js";
+import { ConversationView } from "./conversation-view.js";
+import type { DisplayItem } from "./display-items.js";
+import { transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
 import { StatusBar } from "./status-bar.js";
@@ -152,8 +154,8 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** 事件流订阅 */
   private _eventSub: Subscription | null = null;
 
-  /** 消息列表 (从 ThreadStore 快照转换) */
-  private _messages: Message[] = [];
+  /** Display items (transformed from ThreadStore snapshot via yx0 pipeline) */
+  private _items: DisplayItem[] = [];
 
   /** 推理状态: idle 或 running */
   private _inferenceState: "idle" | "running" = "idle";
@@ -187,20 +189,14 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const thread$ = threadStore.observeThread(threadId);
     if (thread$) {
       this._threadSub = thread$.subscribe((snapshot: unknown) => {
-        const snap = snapshot as { messages?: Array<{ role: string; content: unknown }> };
+        const snap = snapshot as {
+          messages?: Array<{ role: string; content: unknown; state?: unknown }>;
+        };
         this.setState(() => {
-          this._messages = (snap.messages ?? []).map((m) => ({
-            role: m.role as "user" | "assistant" | "system",
-            content:
-              typeof m.content === "string"
-                ? m.content
-                : Array.isArray(m.content)
-                  ? (m.content as Array<{ type: string; text?: string }>)
-                      .filter((b) => b.type === "text")
-                      .map((b) => b.text ?? "")
-                      .join("")
-                  : "",
-          }));
+          // 逆向: yx0() pipeline — transform raw thread messages into DisplayItems
+          this._items = transformThreadToDisplayItems(
+            (snap.messages ?? []) as Parameters<typeof transformThreadToDisplayItems>[0],
+          );
         });
         // 自动滚动到底部 (新消息到达时)
         if (this._scrollController.followMode) {
@@ -229,6 +225,11 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             this._inferenceState = "idle";
             this._error = null;
           });
+          break;
+        case "tool:start":
+        case "tool:complete":
+          // Force rebuild to update tool status indicators in ConversationView
+          this.setState(() => {});
           break;
       }
     });
@@ -270,7 +271,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const conversationScrollable = new Scrollable({
       controller: this._scrollController,
       child: new ConversationView({
-        messages: this._messages,
+        items: this._items,
         inferenceState: this._inferenceState,
         error: this._error,
       }),

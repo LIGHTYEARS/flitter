@@ -32,10 +32,17 @@ import type {
   ToolThreadEvent,
 } from "@flitter/agent-core";
 import {
+  applyHookAction,
   buildSystemPrompt as assembleSystemPrompt,
   collectContextBlocks,
   createTaskTool,
+  executePostHook,
+  executePreHook,
+  matchHookToTool,
+  matchPostExecuteHook,
+  matchPreExecuteHook,
   type OrchestratorCallbacks,
+  parseHooksConfig,
   SubAgentManager,
   ThreadWorker as ThreadWorkerImpl,
   ToolOrchestrator,
@@ -395,8 +402,112 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             threadId,
             config: configService.get(),
           }),
-          applyHookResult: async () => ({ abortOp: false }),
-          applyPostHookResult: async () => {},
+          /**
+           * Apply pre-execution hook results.
+           * 逆向: amp FWT.invokeTool (1234:258-270) calls u7R then BI.
+           * Flitter: tries declarative hooks first, then legacy hooks.
+           */
+          applyHookResult: async (hookResult) => {
+            const config = configService.get();
+            const hooksConfig = (config.settings as Record<string, unknown>)?.hooks;
+            const toolInput = hookResult.toolInput ?? {};
+
+            // 1. Try declarative hooks (new format: array with compatibilityDate)
+            if (Array.isArray(hooksConfig)) {
+              const match = matchPreExecuteHook(hooksConfig, {
+                toolName: hookResult.toolName,
+                toolInput,
+              });
+              const result = applyHookAction(match, { toolUseId: hookResult.toolUseId });
+              if (result.abortOp) {
+                if (result.userMessage) {
+                  const snapshot = threadStore.getThreadSnapshot(threadId);
+                  if (snapshot) {
+                    threadStore.setCachedThread({
+                      ...snapshot,
+                      messages: [
+                        ...snapshot.messages,
+                        {
+                          role: "user",
+                          content: [{ type: "text", text: result.userMessage }],
+                        },
+                      ],
+                    } as unknown as ThreadSnapshot);
+                  }
+                }
+                return { abortOp: true };
+              }
+            }
+
+            // 2. Try legacy hooks (old format: { PreToolUse: [...] })
+            if (hooksConfig && typeof hooksConfig === "object" && !Array.isArray(hooksConfig)) {
+              const parsed = parseHooksConfig(hooksConfig as Record<string, unknown>);
+              const preHooks = parsed.filter(
+                (h) => h.type === "PreToolUse" && matchHookToTool(h, hookResult.toolName),
+              );
+              for (const hook of preHooks) {
+                const result = await executePreHook(hook, {
+                  threadId,
+                  toolUse: { name: hookResult.toolName, input: toolInput },
+                });
+                if (result.abort) {
+                  return { abortOp: true };
+                }
+              }
+            }
+
+            return { abortOp: false };
+          },
+          /**
+           * Apply post-execution hook results.
+           * 逆向: amp FWT (1234:385-393) calls y7R then BI for post-execute.
+           */
+          applyPostHookResult: async (hookResult) => {
+            const config = configService.get();
+            const hooksConfig = (config.settings as Record<string, unknown>)?.hooks;
+
+            // 1. Declarative post-execute hooks
+            if (Array.isArray(hooksConfig)) {
+              const match = matchPostExecuteHook(hooksConfig, {
+                toolName: hookResult.toolName,
+              });
+              const result = applyHookAction(match, { toolUseId: hookResult.toolUseId });
+              if (result.redactedInput) {
+                const snapshot = threadStore.getThreadSnapshot(threadId);
+                if (snapshot) {
+                  const messages = snapshot.messages.map((msg) => {
+                    if (msg.role !== "assistant") return msg;
+                    const content = (msg.content as unknown[]).map((block) => {
+                      const b = block as Record<string, unknown>;
+                      if (b.type === "tool_use" && b.id === hookResult.toolUseId) {
+                        return { ...b, input: result.redactedInput };
+                      }
+                      return block;
+                    });
+                    return { ...msg, content };
+                  });
+                  threadStore.setCachedThread({
+                    ...snapshot,
+                    messages,
+                  } as unknown as ThreadSnapshot);
+                }
+              }
+            }
+
+            // 2. Legacy post-hooks
+            if (hooksConfig && typeof hooksConfig === "object" && !Array.isArray(hooksConfig)) {
+              const parsed = parseHooksConfig(hooksConfig as Record<string, unknown>);
+              const postHooks = parsed.filter(
+                (h) => h.type === "PostToolUse" && matchHookToTool(h, hookResult.toolName),
+              );
+              for (const hook of postHooks) {
+                await executePostHook(hook, {
+                  threadId,
+                  toolUse: { name: hookResult.toolName, input: hookResult.toolInput ?? {} },
+                });
+              }
+            }
+          },
           updateFileChanges: async () => {},
           getDisposed$: () => new BehaviorSubject(false),
           onToolEvent: (event) => {

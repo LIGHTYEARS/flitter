@@ -31,6 +31,10 @@ export type { ContextBlocksOptions } from "./prompt/context-blocks";
 export { collectContextBlocks } from "./prompt/context-blocks";
 export type { BuildSystemPromptOptions } from "./prompt/system-prompt";
 export { buildSystemPrompt } from "./prompt/system-prompt";
+export type { HookActionContext, HookActionResult } from "./subagent/hook-applicator";
+export { applyHookAction } from "./subagent/hook-applicator";
+export type { DeclarativeHook, HookMatchResult } from "./subagent/hook-matcher";
+export { matchPostExecuteHook, matchPreExecuteHook } from "./subagent/hook-matcher";
 export type {
   HookConfig,
   HookResult,

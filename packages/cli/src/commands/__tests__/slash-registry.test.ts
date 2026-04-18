@@ -5,8 +5,11 @@ import { SlashCommandRegistry } from "../slash-registry";
 function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandContext {
   return {
     threadId: "test-thread",
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
     threadStore: { getThreadSnapshot: () => null, setCachedThread: () => {} } as any,
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
     threadWorker: { runInference: () => {}, cancelInference: () => {} } as any,
+    // biome-ignore lint/suspicious/noExplicitAny: test mock
     configService: { get: () => ({ settings: {} }) } as any,
     showMessage: () => {},
     clearInput: () => {},

@@ -30,6 +30,9 @@ export type {
   GuidanceLoadOptions,
   GuidanceType,
 } from "./guidance/guidance-types";
+// Memory
+export { MemoryStore } from "./memory/memory-store";
+export type { MemoryEntry, MemoryStoreData } from "./memory/memory-types";
 export {
   loadSkill,
   parseSkillFrontmatter,

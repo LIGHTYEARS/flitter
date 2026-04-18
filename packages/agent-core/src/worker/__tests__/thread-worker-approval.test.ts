@@ -16,7 +16,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { LLMProvider } from "@flitter/llm";
 import type { Config, ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject, Subject } from "@flitter/util";
 import type { ToolOrchestrator } from "../../tools/orchestrator";
 import type { ToolRegistry } from "../../tools/registry";
 import { ThreadWorker, type ToolApprovalResponse } from "../thread-worker";
@@ -79,7 +78,11 @@ describe("ThreadWorker._pendingApprovals and userRespondToApproval", () => {
     const worker = createMinimalWorker();
 
     // Simulate the orchestrator's requestApproval callback: store a resolver
-    const approvalPromise = new Promise<{ accepted: boolean; feedback?: string }>((resolve) => {
+    const approvalPromise = new Promise<{
+      accepted: boolean;
+      scope?: string;
+      feedback?: string;
+    }>((resolve) => {
       worker._pendingApprovals.set("tu_100", resolve);
     });
 
@@ -94,7 +97,11 @@ describe("ThreadWorker._pendingApprovals and userRespondToApproval", () => {
   it("resolves pending approval with accepted: false when user rejects", async () => {
     const worker = createMinimalWorker();
 
-    const approvalPromise = new Promise<{ accepted: boolean; feedback?: string }>((resolve) => {
+    const approvalPromise = new Promise<{
+      accepted: boolean;
+      scope?: string;
+      feedback?: string;
+    }>((resolve) => {
       worker._pendingApprovals.set("tu_101", resolve);
     });
 
@@ -117,10 +124,18 @@ describe("ThreadWorker._pendingApprovals and userRespondToApproval", () => {
   it("handles multiple pending approvals independently", async () => {
     const worker = createMinimalWorker();
 
-    const promise1 = new Promise<{ accepted: boolean; feedback?: string }>((resolve) => {
+    const promise1 = new Promise<{
+      accepted: boolean;
+      scope?: string;
+      feedback?: string;
+    }>((resolve) => {
       worker._pendingApprovals.set("tu_200", resolve);
     });
-    const promise2 = new Promise<{ accepted: boolean; feedback?: string }>((resolve) => {
+    const promise2 = new Promise<{
+      accepted: boolean;
+      scope?: string;
+      feedback?: string;
+    }>((resolve) => {
       worker._pendingApprovals.set("tu_201", resolve);
     });
 
@@ -138,22 +153,24 @@ describe("ThreadWorker._pendingApprovals and userRespondToApproval", () => {
     assert.equal(worker._pendingApprovals.size, 0, "all approvals should be cleaned up");
   });
 
-  it("ignores remember field from ToolApprovalResponse (not passed to resolver)", async () => {
+  it("passes scope from ToolApprovalResponse to resolver when approved", async () => {
     const worker = createMinimalWorker();
 
-    const approvalPromise = new Promise<{ accepted: boolean; feedback?: string }>((resolve) => {
+    const approvalPromise = new Promise<{
+      accepted: boolean;
+      scope?: string;
+      feedback?: string;
+    }>((resolve) => {
       worker._pendingApprovals.set("tu_300", resolve);
     });
 
-    // ToolApprovalResponse has remember field but resolver doesn't use it
     await worker.userRespondToApproval("tu_300", {
       approved: true,
-      remember: true,
-    } as ToolApprovalResponse);
+      scope: "session",
+    } satisfies ToolApprovalResponse);
 
     const result = await approvalPromise;
     assert.equal(result.accepted, true);
-    // The remember field is consumed by the permission engine layer,
-    // not the approval Promise bridge
+    assert.equal(result.scope, "session");
   });
 });

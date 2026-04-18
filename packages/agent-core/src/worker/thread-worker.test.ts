@@ -781,7 +781,7 @@ describe("ThreadWorker — userProvideInput / userRespondToApproval", () => {
     // Should not throw
     await worker.userProvideInput("tu-1", "hello");
     await worker.userRespondToApproval("tu-1", { approved: true });
-    await worker.userRespondToApproval("tu-2", { approved: false, remember: true });
+    await worker.userRespondToApproval("tu-2", { approved: false, scope: "session" });
   });
 });
 

@@ -34,7 +34,9 @@ import type {
 import {
   buildSystemPrompt as assembleSystemPrompt,
   collectContextBlocks,
+  createTaskTool,
   type OrchestratorCallbacks,
+  SubAgentManager,
   ThreadWorker as ThreadWorkerImpl,
   ToolOrchestrator,
 } from "@flitter/agent-core";
@@ -142,6 +144,8 @@ export interface ServiceContainer {
   secrets: SecretStorage;
   /** 设置存储引用 */
   settings: FileSettingsStorage;
+  /** 子代理管理器 (Task tool) */
+  subAgentManager: SubAgentManager;
 
   /**
    * 创建 ThreadWorker 实例 (工厂模式)
@@ -262,6 +266,49 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const contextManager = createContextManager();
     log.info("ContextManager created");
 
+    // 10. SubAgentManager — wired to use container's createThreadWorker
+    // Uses deferred containerRef because container doesn't exist yet at this point.
+    // createWorker is only called at spawn() time (after construction), so this is safe.
+    // 逆向: amp 1354_unknown_wi.js (subagent inference runner)
+    let containerRef: ServiceContainer | null = null;
+
+    const subAgentManager = new SubAgentManager({
+      createWorker: (workerOpts) => {
+        if (!containerRef) throw new Error("Container not ready");
+        return containerRef.createThreadWorker(workerOpts.threadId);
+      },
+      createChildThread: (parentThreadId) => {
+        const childId = crypto.randomUUID();
+        threadStore.setCachedThread({
+          id: childId,
+          v: 1,
+          title: null,
+          messages: [],
+          env: "local",
+          agentMode: "normal",
+          relationships: [{ type: "child-of", threadId: parentThreadId }],
+        } as unknown as ThreadSnapshot);
+        return childId;
+      },
+      addMessage: (tid, msg) => {
+        const snapshot = threadStore.getThreadSnapshot(tid);
+        if (snapshot) {
+          threadStore.setCachedThread({
+            ...snapshot,
+            messages: [...snapshot.messages, msg],
+          } as unknown as ThreadSnapshot);
+        }
+      },
+      getThreadSnapshot: (tid) => threadStore.getThreadSnapshot(tid),
+    });
+    disposables.push(subAgentManager);
+    log.info("SubAgentManager created");
+
+    // Register Task tool (depends on SubAgentManager)
+    const taskTool = createTaskTool(subAgentManager);
+    toolRegistry.register(taskTool);
+    log.info("Task tool registered");
+
     log.info("Service container initialized successfully.");
 
     const container: ServiceContainer = {
@@ -277,6 +324,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       contextManager,
       secrets: opts.secrets,
       settings: opts.settings,
+      subAgentManager,
 
       createThreadWorker(
         threadId: string,
@@ -443,6 +491,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
         log.info("Service container disposed.");
       },
     };
+
+    // Wire the deferred containerRef so SubAgentManager.createWorker works
+    // 逆向: amp 1354_unknown_wi.js (subagent runner uses container.createThreadWorker)
+    containerRef = container;
 
     return container;
   } catch (err) {

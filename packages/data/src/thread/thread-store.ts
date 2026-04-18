@@ -240,6 +240,36 @@ export class ThreadStore {
     return this.threadSubjects.size;
   }
 
+  /**
+   * Return thread IDs sorted by most recently interacted, limited to `maxCount`.
+   * Used by --continue to find the latest thread.
+   *
+   * Falls back to iterating cached threads if entries haven't been loaded yet.
+   * 逆向: amp threadService.listLocalThreads() sorts by lastInteracted desc
+   */
+  listRecentThreadIds(maxCount: number): string[] {
+    const entries = this.threadEntriesState.getValue();
+    if (entries && entries.length > 0) {
+      // threadEntriesState is already sorted by userLastInteractedAt desc
+      return entries.slice(0, maxCount).map((e) => e.id);
+    }
+    // Fallback: use cached thread snapshots, sort by last message timestamp
+    const ids = this.getCachedThreadIds();
+    // Sort by most recently created message (approximate recency)
+    const withTimestamp = ids.map((id) => {
+      const snap = this.getThreadSnapshot(id);
+      const msgs = snap?.messages ?? [];
+      const lastMsg = msgs[msgs.length - 1] as (typeof msgs)[0] & {
+        createdAt?: string;
+        timestamp?: string;
+      };
+      const ts = lastMsg?.createdAt ?? lastMsg?.timestamp ?? "1970-01-01";
+      return { id, ts: new Date(ts).getTime() };
+    });
+    withTimestamp.sort((a, b) => b.ts - a.ts);
+    return withTimestamp.slice(0, maxCount).map((e) => e.id);
+  }
+
   // ─── 内部方法 ────────────────────────────────────────
 
   private syncThreadEntryFromThread(thread: ThreadSnapshot): void {

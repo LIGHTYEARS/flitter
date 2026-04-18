@@ -64,6 +64,7 @@ import {
   createToolRegistry,
   registerBuiltinTools,
 } from "./factory";
+import { syncMCPToolsToRegistry } from "./mcp-bridge";
 
 const log = createLogger("container");
 
@@ -217,6 +218,11 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const mcpServerManager = createMCPServerManager(configService);
     disposables.push(mcpServerManager);
     log.info("MCPServerManager created");
+
+    // Bridge MCP tools into ToolRegistry (reactive sync)
+    const mcpBridge = syncMCPToolsToRegistry(mcpServerManager, toolRegistry);
+    disposables.push({ dispose: () => mcpBridge.dispose() });
+    log.info("MCP tools bridge started");
 
     // 6. SkillService
     const skillService = createSkillService(configService);

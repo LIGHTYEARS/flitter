@@ -23,6 +23,7 @@
 
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
+  BrailleSpinner,
   Color,
   Column,
   MarkdownParser,
@@ -198,6 +199,18 @@ export class ConversationViewState extends State<ConversationView> {
   private _renderer!: MarkdownRenderer;
 
   /**
+   * Braille spinner for in-progress tool indicators.
+   * 逆向: Y1T._spinner = new xa() (chunk-006.js:6121)
+   */
+  private _spinner = new BrailleSpinner();
+
+  /**
+   * Animation timer for stepping the braille spinner at 200ms intervals.
+   * 逆向: Y1T._animationTimer (chunk-006.js:6122, 6147-6158)
+   */
+  private _animationTimer: ReturnType<typeof setInterval> | undefined;
+
+  /**
    * 初始化状态。
    *
    * 创建 MarkdownParser 和 MarkdownRenderer 实例。
@@ -206,13 +219,74 @@ export class ConversationViewState extends State<ConversationView> {
     super.initState();
     this._parser = new MarkdownParser();
     this._renderer = new MarkdownRenderer();
+
+    // 逆向: Y1T.initState() — if (this._isActive) this._startAnimation()
+    if (this._hasInProgress()) {
+      this._startAnimation();
+    }
   }
 
   /**
    * 清理资源。
    */
   dispose(): void {
+    // 逆向: Y1T.dispose() — this._stopAnimation(), ...
+    this._stopAnimation();
     super.dispose();
+  }
+
+  /**
+   * Check whether any current items are in-progress.
+   * Used to decide whether the spinner animation should run.
+   */
+  private _hasInProgress(): boolean {
+    const items = this.widget.config.items;
+    if (!items) return false;
+    return items.some(
+      (item) =>
+        (item.type === "activity-group" && item.hasInProgress) ||
+        (item.type === "tool" && item.status === "in-progress"),
+    );
+  }
+
+  /**
+   * Start the spinner animation (200ms interval).
+   * 逆向: Y1T._startAnimation() (chunk-006.js:6147-6153)
+   */
+  private _startAnimation(): void {
+    if (this._animationTimer) return;
+    this._animationTimer = setInterval(() => {
+      this.setState(() => {
+        this._spinner.step();
+      });
+    }, 200);
+  }
+
+  /**
+   * Stop the spinner animation.
+   * 逆向: Y1T._stopAnimation() (chunk-006.js:6155-6158)
+   */
+  private _stopAnimation(): void {
+    if (!this._animationTimer) return;
+    clearInterval(this._animationTimer);
+    this._animationTimer = undefined;
+  }
+
+  /**
+   * React to widget config changes — start/stop animation as needed.
+   * 逆向: Y1T.didUpdateWidget(T) (chunk-006.js:6129-6142)
+   */
+  didUpdateWidget(_oldWidget: ConversationView): void {
+    super.didUpdateWidget(_oldWidget);
+
+    const wasActive = this._animationTimer !== undefined;
+    const isActive = this._hasInProgress();
+
+    if (!wasActive && isActive) {
+      this._startAnimation();
+    } else if (wasActive && !isActive) {
+      this._stopAnimation();
+    }
   }
 
   /**
@@ -350,7 +424,7 @@ export class ConversationViewState extends State<ConversationView> {
    * Status icons match amp's xW() function (2820_unknown_xW.js):
    * - done: ✓  (逆向: "\u2713")
    * - error: ✕  (逆向: "\u2715")
-   * - in-progress: ⟳  (amp uses braille spinner; static fallback)
+   * - in-progress: spinner.toBraille() (animated braille spinner)
    * - cancelled/rejected: ⊘
    *
    * Status colors match amp's qr() function (2821_unknown_qr.js):
@@ -363,19 +437,30 @@ export class ConversationViewState extends State<ConversationView> {
    * @returns Tool row Widget
    */
   private _buildToolWidget(tool: ToolItem): Widget {
-    const icon = _getStatusIcon(tool.status);
-    const iconColor = _getStatusColor(tool.status);
+    const isInProgress = tool.status === "in-progress";
 
-    // 逆向: x3 build() — icon + space + toolName(bold) + children(dim)
+    // 逆向: hE0() (chunk-004.js:21002-21012) — if (e) spinner.toBraille() else statusIcon
     const spans: TextSpan[] = [];
 
-    // Status icon
-    spans.push(
-      new TextSpan({
-        text: `${icon} `,
-        style: new TextStyle({ foreground: iconColor }),
-      }),
-    );
+    // Status icon — use braille spinner for in-progress, static icon otherwise
+    if (isInProgress) {
+      // 逆向: t.toBraille() + toolRunning color (chunk-004.js:21004)
+      spans.push(
+        new TextSpan({
+          text: `${this._spinner.toBraille()} `,
+          style: new TextStyle({ foreground: TOOL_COLOR }),
+        }),
+      );
+    } else {
+      const icon = _getStatusIcon(tool.status);
+      const iconColor = _getStatusColor(tool.status);
+      spans.push(
+        new TextSpan({
+          text: `${icon} `,
+          style: new TextStyle({ foreground: iconColor }),
+        }),
+      );
+    }
 
     // Tool name (bold, tool color)
     // 逆向: new G(R, new cT({ color: h.app.toolName, bold: !0 }))
@@ -439,7 +524,7 @@ export class ConversationViewState extends State<ConversationView> {
    * Matches amp's Y1T pattern (actions_intents.js 1839-1872):
    *   {spinner|✓} {summary(toolName color)}
    *
-   * - hasInProgress → ⟳ icon in TOOL_COLOR (amp uses braille spinner)
+   * - hasInProgress → spinner.toBraille() icon in TOOL_COLOR (animated braille spinner)
    * - completed → ✓ icon in SUCCESS_COLOR
    *
    * 逆向: Y1T build() line 1846-1853
@@ -451,11 +536,10 @@ export class ConversationViewState extends State<ConversationView> {
     const spans: TextSpan[] = [];
 
     if (group.hasInProgress) {
-      // 逆向: this._spinner.toBraille() + toolRunning color
-      // Static fallback: ⟳
+      // 逆向: this._spinner.toBraille() + toolRunning color (chunk-006.js:6178)
       spans.push(
         new TextSpan({
-          text: "⟳ ",
+          text: `${this._spinner.toBraille()} `,
           style: new TextStyle({ foreground: TOOL_COLOR }),
         }),
       );
@@ -631,7 +715,7 @@ export class ConversationViewState extends State<ConversationView> {
  * 逆向: xW() function (2820_unknown_xW.js)
  * - done → "✓" (\u2713)
  * - error → "✕" (\u2715)
- * - in-progress → "⟳" (amp uses braille spinner; static fallback)
+ * - in-progress → "⟳" (fallback; callers use BrailleSpinner.toBraille() for live animation)
  * - cancelled/rejected → "⊘"
  */
 function _getStatusIcon(status: ToolItem["status"]): string {

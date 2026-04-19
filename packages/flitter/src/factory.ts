@@ -53,13 +53,41 @@ import type { ContainerOptions, GuidanceLoader } from "./container";
  * 逆向: LX (claude-config-system.js:~1110)
  */
 export function createConfigService(opts: ContainerOptions): ConfigService {
+  // Cache for settings-based apiKey lookup (avoids async read on every isSet() call)
+  let cachedSettingsApiKey: string | undefined;
+  let settingsApiKeyCached = false;
+
   const serviceOpts: ConfigServiceOptions = {
     storage: opts.settings,
     secretStorage: {
       async getToken(key, url?) {
-        return opts.secrets.get(key, url);
+        // 1. Primary: check secrets store (secrets.json)
+        const fromSecrets = await opts.secrets.get(key, url);
+        if (fromSecrets) return fromSecrets;
+
+        // 2. Fallback: check settings for anthropic.apiKey
+        // 逆向: amp's _a class (0576_unknown__a.js:8) reads ANTHROPIC_API_KEY from env.
+        // Flitter supports settings-based apiKey for compatible endpoints (e.g., ARK).
+        if (key === "apiKey") {
+          const fromSettings = await opts.settings.get("anthropic.apiKey");
+          if (typeof fromSettings === "string" && fromSettings.length > 0) {
+            cachedSettingsApiKey = fromSettings;
+            settingsApiKeyCached = true;
+            return fromSettings;
+          }
+          // 3. Env var fallback: ANTHROPIC_API_KEY
+          const fromEnv = process.env.ANTHROPIC_API_KEY;
+          if (fromEnv) return fromEnv;
+        }
+        return undefined;
       },
-      isSet(_key) {
+      isSet(key) {
+        if (key === "apiKey") {
+          // Check cached value first (populated after first getToken call)
+          if (settingsApiKeyCached && cachedSettingsApiKey) return true;
+          // Check env var
+          if (process.env.ANTHROPIC_API_KEY) return true;
+        }
         return false;
       },
     },

@@ -114,7 +114,22 @@ export class ConfigService implements IConfigService {
 
   /** 更新 settings 单键 */
   updateSettings(scope: ConfigScope, key: string, value: unknown): void {
+    // Optimistic in-memory update: apply immediately so subsequent reads see the change.
+    // The async file write + reload happens in the background.
+    const currentConfig = this.configSubject.getValue();
+    const updatedSettings = { ...currentConfig.settings, [key]: value } as Settings;
+    this.configSubject.next({ ...currentConfig, settings: updatedSettings });
+
+    // Persist to disk (fire-and-forget)
     this.storage.set(key, value, scope).then(() => this.reload());
+  }
+
+  /** Apply a runtime-only override (in-memory, never persisted to disk).
+   * Use for ephemeral CLI flags like --dangerouslyAllowAll. */
+  setRuntimeOverride(key: string, value: unknown): void {
+    const currentConfig = this.configSubject.getValue();
+    const updatedSettings = { ...currentConfig.settings, [key]: value } as Settings;
+    this.configSubject.next({ ...currentConfig, settings: updatedSettings });
   }
 
   /** 数组追加 */

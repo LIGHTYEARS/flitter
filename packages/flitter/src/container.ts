@@ -76,8 +76,9 @@ import type {
   ThreadStore,
 } from "@flitter/data";
 import type { MCPServerManager } from "@flitter/llm";
-import { getProviderForModel } from "@flitter/llm";
-import type { ThreadSnapshot } from "@flitter/schemas";
+import { getProviderForModel, registerModel } from "@flitter/llm";
+import type { ModelInfo, ProviderName } from "@flitter/llm";
+import { resolveModelName, type ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
 import {
   createConfigService,
@@ -223,6 +224,39 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const configService = createConfigService(opts);
     disposables.push({ dispose: () => configService.unsubscribe() });
     log.info("ConfigService created");
+
+    // 1a. Load initial settings from disk so config.settings is populated
+    try {
+      await configService.reload();
+    } catch {
+      // reload may fail in test environments with mock storage — continue with defaults
+    }
+
+    // 1b. Register custom models from settings["models.custom"]
+    // 逆向: amp supports custom models via provider-specific config
+    // Flitter extends with settings-based custom model registration for
+    // compatible endpoints (ARK, Azure, etc.)
+    {
+      const settings = configService.get().settings;
+      const customModels = settings["models.custom"] as
+        | Record<string, Partial<ModelInfo>>
+        | undefined;
+      if (customModels) {
+        for (const [id, info] of Object.entries(customModels)) {
+          registerModel({
+            id,
+            provider: (info.provider as ProviderName) ?? "anthropic",
+            contextWindow: info.contextWindow ?? 200_000,
+            maxOutputTokens: info.maxOutputTokens ?? 16_384,
+            supportsThinking: info.supportsThinking ?? false,
+            supportsTools: info.supportsTools ?? true,
+            supportsImages: info.supportsImages ?? false,
+            supportsCacheControl: info.supportsCacheControl ?? false,
+          });
+          log.info("Registered custom model", { id, provider: info.provider ?? "anthropic" });
+        }
+      }
+    }
 
     // 2. ToolRegistry + 注册内置工具 (Read, Write, Edit, Bash, Grep, Glob, FuzzyFind)
     const toolRegistry = createToolRegistry();
@@ -674,7 +708,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           provider:
             workerOpts?.provider ??
             getProviderForModel(
-              configService.get().settings["internal.model"] ?? "claude-sonnet-4-20250514",
+              resolveModelName(configService.get().settings),
             ),
           toolOrchestrator: threadOrchestrator,
           buildSystemPrompt:
@@ -758,3 +792,4 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     throw err;
   }
 }
+

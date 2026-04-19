@@ -11,6 +11,7 @@
 import type { LLMProvider, StreamDelta, StreamParams, SystemPromptBlock } from "@flitter/llm";
 import { ProviderError } from "@flitter/llm";
 import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@flitter/schemas";
+import { resolveModelName } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
 import type { TitleGenerationProvider } from "../title/generate-title";
@@ -376,8 +377,9 @@ export class ThreadWorker {
 
       // ─── Step 4: 构建 StreamParams ─────────────
       const messages = this.opts.getMessages();
+      const resolvedModel = resolveModelName(config.settings);
       const streamParams: StreamParams = {
-        model: config.settings["internal.model"] ?? "default",
+        model: resolvedModel,
         messages,
         systemPrompt,
         tools: toolDefs,

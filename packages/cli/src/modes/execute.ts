@@ -209,25 +209,25 @@ export async function runExecuteMode(
     workerOpts.includeCoAuthors = true;
   }
 
-  // dangerouslyAllowAll → container runtime override
+  // dangerouslyAllowAll → runtime-only override (not persisted to disk)
   if (context.dangerouslyAllowAll) {
-    container.configService.updateSettings("global", "dangerouslyAllowAll", true);
+    container.configService.setRuntimeOverride("dangerouslyAllowAll", true);
   }
 
-  // allowedTools / disallowedTools / noShellCmd → container runtime override
+  // allowedTools / disallowedTools / noShellCmd → runtime-only overrides
   if (context.allowedTools) {
-    container.configService.updateSettings("global", "tools.allowed", context.allowedTools);
+    container.configService.setRuntimeOverride("tools.allowed", context.allowedTools);
   }
   if (context.disallowedTools) {
-    container.configService.updateSettings("global", "tools.disallowed", context.disallowedTools);
+    container.configService.setRuntimeOverride("tools.disallowed", context.disallowedTools);
   }
   if (context.noShellCmd) {
-    container.configService.updateSettings("global", "tools.noShellCmd", true);
+    container.configService.setRuntimeOverride("tools.noShellCmd", true);
   }
 
-  // toolbox → container runtime override
+  // toolbox → runtime-only override
   if (context.toolbox) {
-    container.configService.updateSettings("global", "toolbox.path", context.toolbox);
+    container.configService.setRuntimeOverride("toolbox.path", context.toolbox);
   }
 
   const worker = container.createThreadWorker(
@@ -236,40 +236,49 @@ export async function runExecuteMode(
   );
 
   try {
-    // 可选: stream-json 模式
-    // 逆向: Kl0 includes thinking blocks when `includeThinking: i` is true
-    // (0297_unknown_Kl0.js:75 — `Cl0(B, _, null, {includeThinking: i})`)
-    let sub: Subscription | null = null;
-    if (context.streamJson && !context.print) {
-      sub = worker.events$.subscribe((event: AgentEvent) => {
-        // 逆向: Kl0 filters out thinking events unless `includeThinking` is true
-        // Forward-compat: "thinking" event type will be added when extended thinking lands
-        if ((event as { type: string }).type === "thinking" && !context.streamJsonThinking) {
-          return;
+    // Unified event handler for all execute-mode concerns:
+    // - stream-json output
+    // - inference error tracking
+    // - max-turns enforcement
+    let inferenceError: Error | null = null;
+    let turnCount = 0;
+    const sub = worker.events$.subscribe((event: AgentEvent) => {
+      // stream-json output
+      // 逆向: Kl0 includes thinking blocks when `includeThinking: i` is true
+      if (context.streamJson && !context.print) {
+        if (event.type === "thinking" && !context.streamJsonThinking) {
+          // skip thinking events unless explicitly requested
+        } else {
+          writeJsonLine(stdout, event);
         }
-        writeJsonLine(stdout, event);
-      });
-    }
+      }
 
-    // Wire --max-turns: subscribe to turn completion events, cancel when limit reached.
-    // runInference() is recursive (tool_use → executeTools → runInference), so we count
-    // inference:complete events to track turns.
-    let turnSub: Subscription | null = null;
-    if (context.maxTurns !== undefined) {
-      let turnCount = 0;
-      turnSub = worker.events$.subscribe((event: AgentEvent) => {
-        if (event.type === "inference:complete") {
-          turnCount++;
-          if (turnCount >= context.maxTurns!) {
-            // Max turns reached — cancel the inference to stop the recursive loop
-            worker.cancelInference();
-          }
+      // Error tracking — runInference() emits errors as events instead of throwing
+      if (event.type === "inference:error") {
+        inferenceError = event.error;
+      }
+
+      // Max-turns enforcement
+      if (context.maxTurns !== undefined && event.type === "inference:complete") {
+        turnCount++;
+        if (turnCount >= context.maxTurns) {
+          worker.cancelInference();
         }
-      });
-    }
+      }
+    });
 
     // 执行推理循环
     await worker.runInference();
+
+    // Clean up subscription
+    sub.unsubscribe();
+
+    // Surface inference errors to stderr and set exit code
+    if (inferenceError) {
+      stderr.write(`Error: ${inferenceError.message}\n`);
+      proc.exitCode = 2;
+      return;
+    }
 
     // ── --stats: output JSON { result, usage } ──
     // 逆向: Yl0.js:133-145 — when stats flag is set, output usage JSON instead of plain text
@@ -324,9 +333,6 @@ export async function runExecuteMode(
         container.threadStore.setCachedThread(updated);
       }
     }
-
-    sub?.unsubscribe();
-    turnSub?.unsubscribe();
   } finally {
     // ── --archive: archive thread after execute ──
     // 逆向: 2001_unknown_SB.js:269 — `o.threadService.archive(oT, true)`

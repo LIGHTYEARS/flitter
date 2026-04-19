@@ -113,6 +113,22 @@ export const SettingsSchema = z.object({
   "internal.fireworks.directRouting": z.boolean().optional(),
   "internal.kimi.reasoning": z.string().optional(),
 
+  // Custom model configuration
+  // Allows mapping custom endpoint IDs (e.g., "ep-XXXXX") to model metadata.
+  // 逆向: amp supports custom models via provider-specific config; Flitter extends
+  // with a generic models.custom map for compatible endpoints like ARK.
+  "models.custom": z.record(z.string(), z.object({
+    provider: z.enum(["anthropic", "openai", "gemini", "openai-compat", "bedrock"]).optional(),
+    contextWindow: z.number().optional(),
+    maxOutputTokens: z.number().optional(),
+    supportsThinking: z.boolean().optional(),
+    supportsTools: z.boolean().optional(),
+    supportsImages: z.boolean().optional(),
+    supportsCacheControl: z.boolean().optional(),
+  })).optional(),
+  // Model alias mapping: e.g., {"claude-sonnet-4": "ep-20260331120931-5lxqv"}
+  "models.alias": z.record(z.string(), z.string()).optional(),
+
   // Agent
   "agent.mode": z.enum(["smart", "fast", "deep", "auto", "rush", "large"]).optional(),
   "agent.deepReasoningEffort": z.string().optional(),
@@ -176,9 +192,35 @@ export interface Config {
 }
 
 /** 配置服务接口 */
+// ─── Model resolution helpers ─────────────────────────────
+
+/** Default model when none is configured */
+export const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+
+/**
+ * Resolve the effective model name from settings.
+ *
+ * 1. Read settings["internal.model"] (or fallback to DEFAULT_MODEL)
+ * 2. Apply alias resolution via settings["models.alias"]
+ *
+ * E.g., if internal.model = "claude-sonnet-4-20250514" and
+ *   models.alias = {"claude-sonnet-4-20250514": "ep-XXXXX"},
+ *   returns "ep-XXXXX".
+ */
+export function resolveModelName(settings: Record<string, unknown>): string {
+  const rawModel = (settings["internal.model"] as string) ?? DEFAULT_MODEL;
+  const aliases = settings["models.alias"] as Record<string, string> | undefined;
+  if (aliases && rawModel in aliases) {
+    return aliases[rawModel];
+  }
+  return rawModel;
+}
+
 export interface ConfigService {
   get(): Config;
   updateSettings(scope: ConfigScope, key: string, value: unknown): void;
+  /** Apply a runtime-only override (in-memory, never persisted to disk) */
+  setRuntimeOverride(key: string, value: unknown): void;
   appendSettings(scope: ConfigScope, key: string, value: unknown): void;
   prependSettings(scope: ConfigScope, key: string, value: unknown): void;
   deleteSettings(scope: ConfigScope, key: string): void;

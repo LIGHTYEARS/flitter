@@ -31,7 +31,7 @@ import os from "node:os";
 import path from "node:path";
 import { FileSettingsStorage } from "@flitter/data";
 import { createContainer, type SecretStorage, type ServiceContainer } from "@flitter/flitter";
-import { createLogger } from "@flitter/util";
+import { createLogger, setLogLevel } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
 import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
@@ -170,13 +170,30 @@ export async function main(opts?: MainOptions): Promise<void> {
 
     // 2. 版本和日志
     const version = getVersion();
-    log.info("Starting Flitter CLI", { version });
 
-    // 3. 日志级别 (从 argv 提前检测 --verbose)
+    // 3. 日志级别 (从 argv 提前检测 --verbose 和 execute mode flags)
     const argv = opts?.argv ?? process.argv;
-    if (argv.includes("--verbose") || argv.includes("-v")) {
-      log.info("Verbose mode enabled");
+    const isVerbose = argv.includes("--verbose") || argv.includes("-v");
+    const isExecuteMode =
+      argv.includes("--execute") ||
+      argv.includes("-e") ||
+      argv.includes("--print") ||
+      argv.includes("-p") ||
+      argv.includes("--pipe") ||
+      argv.includes("--stats") ||
+      argv.includes("--headless");
+
+    // In execute/pipe/headless mode, suppress info/debug logs to keep stderr clean.
+    // Only show warnings and errors unless --verbose is explicitly set.
+    if (isExecuteMode && !isVerbose) {
+      setLogLevel("warn");
+    } else if (isVerbose) {
+      setLogLevel("debug");
+    } else {
+      setLogLevel("info");
     }
+
+    log.info("Starting Flitter CLI", { version });
 
     // 4. 创建 Commander 程序
     const program = createProgram(version);

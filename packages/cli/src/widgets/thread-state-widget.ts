@@ -193,12 +193,51 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** Prompt history for up/down arrow navigation */
   private _promptHistory = new PromptHistory();
 
+  /**
+   * Whether to show thinking blocks in the message display.
+   *
+   * When false, content blocks with type "thinking" are filtered out
+   * from rendered messages. Toggled by /toggle-thinking-blocks or Alt+T.
+   *
+   * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:824-834
+   *   `{ id: "toggle-thinking-blocks", verb: "toggle thinking blocks",
+   *    execute: async R => { Ut.instance.toggleAll(); ... } }`
+   * 逆向: amp-cli-reversed/modules/1959_unknown_x8R.js:230
+   *   `let t = this.options.showThinkingBlocks ? R.content.map(...).filter(type === "thinking") : []`
+   * 逆向: amp-cli-reversed/modules/1472_tui_components/interactive_widgets.js:2288
+   *   `showThinkingBlocks: !this._isDenseViewEnabled`
+   */
+  private _showThinkingBlocks = true;
+
   /** 滚动控制器 */
   private _scrollController: ScrollController;
 
   constructor() {
     super();
     this._scrollController = new ScrollController();
+  }
+
+  /**
+   * Whether thinking blocks are currently shown.
+   *
+   * 逆向: amp e0R:834 — `getPromptText: R => Ut.instance.allExpanded ? "collapse" : "expand"`
+   */
+  get showThinkingBlocks(): boolean {
+    return this._showThinkingBlocks;
+  }
+
+  /**
+   * Toggle visibility of thinking blocks.
+   *
+   * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:829-831
+   *   `execute: async R => { Ut.instance.toggleAll(); ... k8.instance.requestFrame(); }`
+   *   Ut is the thinking block expansion tracker. toggleAll() flips all blocks.
+   *   k8.instance.requestFrame() triggers a re-render.
+   */
+  toggleThinkingBlocks(): void {
+    this.setState(() => {
+      this._showThinkingBlocks = !this._showThinkingBlocks;
+    });
   }
 
   /**
@@ -361,13 +400,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const { onSubmit, modelName, toastManager } = this.widget.config;
     const { threadWorker } = this.widget.config;
 
+    // Filter thinking items when showThinkingBlocks is disabled.
+    // 逆向: amp-cli-reversed/modules/1959_unknown_x8R.js:230
+    //   `let t = this.options.showThinkingBlocks ? R.content.map(...).filter(type === "thinking") : []`
+    //   When showThinkingBlocks is false, thinking blocks are filtered from display.
+    const displayItems = this._showThinkingBlocks
+      ? this._items
+      : this._items.filter((item) => item.type !== "thinking");
+
     // 消息区域 (占据全部剩余空间)
     // 逆向: Scrollable wrapping ConversationView
     const conversationScrollable = new Scrollable({
       controller: this._scrollController,
       viewportBuilder: () =>
         new ConversationView({
-          items: this._items,
+          items: displayItems,
           inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
           error: this._error,
         }),

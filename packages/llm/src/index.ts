@@ -63,3 +63,43 @@ export { MODEL_REGISTRY, ProviderError, registerModel, TransformState } from "./
 export { calculateCost } from "./utils/calculate-cost";
 export { isContextOverflow } from "./utils/overflow";
 export { sanitizeSurrogates } from "./utils/sanitize-unicode";
+
+// ─── Model Fallback Chain (Gap #26) ────────────────────
+export {
+  ModelFallbackChain,
+  isOverloadedError,
+  type FallbackChainConfig,
+  type FallbackResolution,
+  type ModelFallbackConfig,
+} from "./model-fallback";
+
+// ─── Internal API Client (Gap #18) ─────────────────────
+export {
+  ApiNotConfiguredError,
+  InternalApiClient,
+  type InternalApiClientConfig,
+  type NewsItem,
+  type UsageReport,
+} from "./api-client";
+
+// ─── Prompt Cache Tracker (Gap #29) ────────────────────
+export {
+  PromptCacheTracker,
+  type CacheControlConfig,
+  type CacheStats,
+  type CacheUsageFields,
+} from "./cache/prompt-cache";
+
+// ─── Google GenAI Live Provider (Gap #27) ───────────────
+export {
+  GoogleGenAILiveProvider,
+  type LiveConnectionState,
+  type LiveProviderConfig,
+  type LiveServerMessage,
+} from "./providers/gemini/live-provider";
+
+// ─── Vertex AI Auth (Gap #28) ──────────────────────────
+export {
+  resolveVertexAIConfig,
+  type VertexAIConfig,
+} from "./providers/gemini/provider";

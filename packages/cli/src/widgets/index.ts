@@ -68,3 +68,22 @@ export {
   type ThinkingItem,
   transformThreadToDisplayItems,
 } from "./display-items.js";
+
+// ─── Thread Picker (Gap #33) ────────────────────────────
+export {
+  createThreadPicker,
+  formatThreadLabel,
+  type ThreadPickerConfig,
+  type ThreadPickerEntry,
+} from "./thread-picker.js";
+
+// ─── Context Analyzer (Gap #34) ─────────────────────────
+export {
+  ContextAnalyzer,
+  type ContextAnalyzerConfig,
+  type ContextAnalysis,
+  type RoleTokenBreakdown,
+  analyzeContext,
+  estimateTokens,
+  formatAnalysis,
+} from "./context-analyzer.js";

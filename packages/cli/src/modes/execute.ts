@@ -147,7 +147,7 @@ export async function runExecuteMode(
   const stdin = io?.stdin ?? process.stdin;
   const stdout = io?.stdout ?? process.stdout;
   const stderr = io?.stderr ?? process.stderr;
-  const proc = io?.processRef ?? process;
+  const proc = (io?.processRef ?? process) as { exitCode?: number };
 
   // ── stream-json-input mode: multi-turn JSON Lines from stdin ──
   // 逆向: Kl0 `streamJsonInput` (0297_unknown_Kl0.js:195-209) — reads JSON Lines
@@ -209,7 +209,8 @@ export async function runExecuteMode(
     if (context.streamJson && !context.print) {
       sub = worker.events$.subscribe((event: AgentEvent) => {
         // 逆向: Kl0 filters out thinking events unless `includeThinking` is true
-        if (event.type === "thinking" && !context.streamJsonThinking) {
+        // Forward-compat: "thinking" event type will be added when extended thinking lands
+        if ((event as { type: string }).type === "thinking" && !context.streamJsonThinking) {
           return;
         }
         writeJsonLine(stdout, event);
@@ -338,7 +339,8 @@ async function runStreamJsonInputMode(
   // Subscribe to events — stream JSON Lines to stdout
   const sub: Subscription = worker.events$.subscribe((event: AgentEvent) => {
     // 逆向: Kl0 filters thinking events unless `includeThinking` is true
-    if (event.type === "thinking" && !context.streamJsonThinking) {
+    // Forward-compat: "thinking" event type will be added when extended thinking lands
+    if ((event as { type: string }).type === "thinking" && !context.streamJsonThinking) {
       return;
     }
     writeJsonLine(stdout, event);

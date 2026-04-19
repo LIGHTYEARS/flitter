@@ -36,9 +36,14 @@ import {
   applyHookAction,
   buildSystemPrompt as assembleSystemPrompt,
   collectContextBlocks,
+  createCodeReviewTool,
   createDeleteFileTool,
+  createFindThreadTool,
+  createFinderTool,
   createReadMcpResourceTool,
+  createReadThreadTool,
   createSkillTool,
+  createTaskListTool,
   createTaskTool,
   createUndoEditTool,
   executePostHook,
@@ -49,11 +54,13 @@ import {
   matchPreExecuteHook,
   type OrchestratorCallbacks,
   parseHooksConfig,
+  ReadWebPageTool,
   resolveToolboxPaths,
   SubAgentManager,
   ThreadWorker as ThreadWorkerImpl,
   ToolboxService,
   ToolOrchestrator,
+  WebSearchTool,
 } from "@flitter/agent-core";
 import type {
   ConfigService,
@@ -383,6 +390,29 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const taskTool = createTaskTool(subAgentManager);
     toolRegistry.register(taskTool);
     log.info("Task tool registered");
+
+    // Register web_search and read_web_page tools (static, no deps)
+    // 逆向: chunk-005.js:149714 (OXR — web_search), chunk-005.js:149131 (ZVR — read_web_page)
+    toolRegistry.register(WebSearchTool);
+    toolRegistry.register(ReadWebPageTool);
+    log.info("web_search and read_web_page tools registered");
+
+    // Register read_thread and find_thread tools (depends on ThreadStore)
+    // 逆向: chunk-005.js:149068 (GVR — read_thread), chunk-005.js:147050 (iGR — find_thread)
+    toolRegistry.register(createReadThreadTool(threadStore));
+    toolRegistry.register(createFindThreadTool(threadStore));
+    log.info("read_thread and find_thread tools registered");
+
+    // Register task_list tool (in-memory task store)
+    // 逆向: chunk-005.js:149274 (_XR — task_list)
+    toolRegistry.register(createTaskListTool());
+    log.info("task_list tool registered");
+
+    // Register finder and code_review tools (depends on SubAgentManager)
+    // 逆向: chunk-005.js:71165 (qe.finder), chunk-005.js:146498 (OzT — code_review)
+    toolRegistry.register(createFinderTool(subAgentManager));
+    toolRegistry.register(createCodeReviewTool(subAgentManager));
+    log.info("finder and code_review tools registered");
 
     log.info("Service container initialized successfully.");
 

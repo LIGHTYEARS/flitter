@@ -102,17 +102,24 @@ export {
   TITLE_TOOL_DEFINITION,
 } from "./title/generate-title";
 export { BashTool } from "./tools/builtin/bash";
+export { createCodeReviewTool } from "./tools/builtin/code-review";
 export { createDeleteFileTool } from "./tools/builtin/delete-file";
 export { EditTool } from "./tools/builtin/edit";
+export { createFindThreadTool } from "./tools/builtin/find-thread";
+export { createFinderTool } from "./tools/builtin/finder";
 export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 export { createReadMcpResourceTool } from "./tools/builtin/read-mcp-resource";
+export { createReadThreadTool } from "./tools/builtin/read-thread";
+export { ReadWebPageTool } from "./tools/builtin/read-web-page";
 // ─── Built-in Tools ────────────────────────────────────
 export { ReadTool } from "./tools/builtin/read";
 export { createSkillTool } from "./tools/builtin/skill-tool";
 export { createTaskTool } from "./tools/builtin/task";
+export { createTaskListTool, TaskStore } from "./tools/builtin/task-list";
 export { createUndoEditTool } from "./tools/builtin/undo-edit";
+export { WebSearchTool } from "./tools/builtin/web-search";
 export { WriteTool } from "./tools/builtin/write";
 export { FileChangeTracker } from "./tools/file-change-tracker";
 export type { FileChange } from "./tools/file-change-tracker";

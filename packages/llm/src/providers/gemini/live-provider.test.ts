@@ -1,198 +1,358 @@
 /**
- * live-provider.test.ts — GoogleGenAILiveProvider unit tests
+ * @flitter/llm — GoogleGenAILiveProvider tests
+ *
+ * Tests: connection state machine, graceful degradation, send/receive, disconnect
  */
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { GoogleGenAILiveProvider } from "./live-provider.js";
+import { GoogleGenAILiveProvider } from "./live-provider";
+import type { LiveConnectionState } from "./live-provider";
+
+// ─── Mock WebSocket ──────────────────────────────────────
+
+class MockWebSocket {
+  static instances: MockWebSocket[] = [];
+  readonly url: string;
+  readyState = 0; // CONNECTING
+  onopen: ((ev: Event) => void) | null = null;
+  onclose: ((ev: CloseEvent) => void) | null = null;
+  onmessage: ((ev: MessageEvent) => void) | null = null;
+  onerror: ((ev: Event) => void) | null = null;
+  sentMessages: string[] = [];
+  closed = false;
+
+  constructor(url: string) {
+    this.url = url;
+    MockWebSocket.instances.push(this);
+  }
+
+  send(data: string): void {
+    this.sentMessages.push(data);
+  }
+
+  close(): void {
+    this.closed = true;
+    this.readyState = 3; // CLOSED
+    if (this.onclose) {
+      this.onclose(new Event("close") as CloseEvent);
+    }
+  }
+
+  // Test helper: simulate open
+  _simulateOpen(): void {
+    this.readyState = 1; // OPEN
+    if (this.onopen) {
+      this.onopen(new Event("open"));
+    }
+  }
+
+  // Test helper: simulate error
+  _simulateError(): void {
+    if (this.onerror) {
+      this.onerror(new Event("error"));
+    }
+  }
+
+  // Test helper: simulate message
+  _simulateMessage(data: string): void {
+    if (this.onmessage) {
+      this.onmessage({ data } as MessageEvent);
+    }
+  }
+}
+
+function resetMocks(): void {
+  MockWebSocket.instances = [];
+}
+
+// ─── State Machine Tests ─────────────────────────────────
 
 describe("GoogleGenAILiveProvider", () => {
-  describe("constructor", () => {
-    it("creates with default config", () => {
-      const provider = new GoogleGenAILiveProvider();
-      assert.equal(provider.name, "gemini");
-      assert.equal(provider.connectionState, "disconnected");
+  it("should start in disconnected state", () => {
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
     });
-
-    it("creates with custom config", () => {
-      const provider = new GoogleGenAILiveProvider({
-        apiVersion: "v1alpha",
-        heartbeatIntervalMs: 5000,
-        connectionTimeoutMs: 5000,
-      });
-      assert.equal(provider.name, "gemini");
-    });
+    assert.equal(provider.state, "disconnected");
   });
 
-  describe("buildWebSocketUrl", () => {
-    it("builds public API URL with API key", () => {
-      const provider = new GoogleGenAILiveProvider({
-        apiVersion: "v1beta",
-      });
+  it("should transition to connecting then connected on successful connect", async () => {
+    resetMocks();
+    const states: LiveConnectionState[] = [];
 
-      const url = provider.buildWebSocketUrl("test-api-key");
-      assert.equal(
-        url,
-        "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=test-api-key",
-      );
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
     });
 
-    it("builds Vertex AI URL with project and location", () => {
-      const provider = new GoogleGenAILiveProvider({
-        apiVersion: "v1beta",
-        vertexAI: true,
-        project: "my-project",
-        location: "us-central1",
-      });
-
-      const url = provider.buildWebSocketUrl("dummy");
-      assert.equal(
-        url,
-        "wss://us-central1-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta.LlmBidiService/BidiGenerateContent",
-      );
+    provider.on("stateChange", (state: LiveConnectionState) => {
+      states.push(state);
     });
 
-    it("uses custom wsBaseUrl when provided", () => {
-      const provider = new GoogleGenAILiveProvider({
-        wsBaseUrl: "wss://custom.endpoint.com",
-      });
+    const connectPromise = provider.connect();
 
-      const url = provider.buildWebSocketUrl("key123");
-      assert.ok(url.startsWith("wss://custom.endpoint.com/"));
-      assert.ok(url.includes("key=key123"));
-    });
+    // MockWebSocket was created, simulate server accepting
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    ws._simulateOpen();
+
+    await connectPromise;
+
+    assert.equal(provider.state, "connected");
+    assert.deepEqual(states, ["connecting", "connected"]);
   });
 
-  describe("buildSetupMessage", () => {
-    it("builds setup message for public API", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.buildSetupMessage("gemini-2.5-flash", {
-        maxOutputTokens: 8192,
-      });
+  it("should transition to error on connection failure", async () => {
+    resetMocks();
+    const states: LiveConnectionState[] = [];
 
-      assert.deepEqual(msg, {
-        setup: {
-          model: "gemini-2.5-flash",
-          generationConfig: { maxOutputTokens: 8192 },
-        },
-      });
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
     });
 
-    it("builds setup message for Vertex AI with full path", () => {
-      const provider = new GoogleGenAILiveProvider({
-        vertexAI: true,
-        project: "my-project",
-        location: "us-central1",
-      });
-
-      const msg = provider.buildSetupMessage("gemini-2.5-pro", {});
-      assert.equal(
-        (msg.setup as Record<string, unknown>).model,
-        "projects/my-project/locations/us-central1/publishers/google/models/gemini-2.5-pro",
-      );
+    provider.on("stateChange", (state: LiveConnectionState) => {
+      states.push(state);
     });
+
+    const connectPromise = provider.connect();
+
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    ws._simulateError();
+
+    await assert.rejects(connectPromise, /WebSocket connection failed/);
+    assert.equal(provider.state, "error");
+    assert.deepEqual(states, ["connecting", "error"]);
   });
 
-  describe("parseServerMessage", () => {
-    it("parses valid JSON server message", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.parseServerMessage(
-        JSON.stringify({
-          serverContent: {
-            modelTurn: {
-              parts: [{ text: "Hello world" }],
-            },
-          },
-        }),
-      );
-
-      assert.ok(msg.serverContent);
-      assert.equal(msg.serverContent!.modelTurn!.parts![0].text, "Hello world");
+  it("should throw when WebSocket is not available (graceful degradation)", async () => {
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      // Explicitly null — signals "no WebSocket in this environment"
+      WebSocket: null,
     });
 
-    it("parses turnComplete message", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.parseServerMessage(
-        JSON.stringify({
-          serverContent: { turnComplete: true },
-        }),
-      );
-
-      assert.ok(msg.serverContent?.turnComplete);
-    });
-
-    it("parses setupComplete message", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.parseServerMessage(
-        JSON.stringify({ setupComplete: true }),
-      );
-
-      assert.ok(msg.setupComplete);
-    });
-
-    it("parses tool call message", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.parseServerMessage(
-        JSON.stringify({
-          toolCall: {
-            functionCalls: [
-              { id: "fc-1", name: "read_file", args: { path: "/tmp/test.txt" } },
-            ],
-          },
-        }),
-      );
-
-      assert.ok(msg.toolCall);
-      assert.equal(msg.toolCall!.functionCalls![0].name, "read_file");
-    });
-
-    it("returns empty object for invalid JSON", () => {
-      const provider = new GoogleGenAILiveProvider();
-      const msg = provider.parseServerMessage("not json");
-      assert.deepEqual(msg, {});
-    });
+    await assert.rejects(provider.connect(), /WebSocket is not available/);
+    assert.equal(provider.state, "error");
   });
 
-  describe("stream fallback", () => {
-    it("falls back to REST when WebSocket is unavailable", async () => {
-      // Create a provider without WebSocket support and without a createWebSocket factory.
-      // In a test environment, globalThis.WebSocket is typically undefined.
-      const restFallbackCalled: string[] = [];
-      const mockRestProvider = {
-        name: "gemini" as const,
-        async *stream() {
-          restFallbackCalled.push("called");
-          yield {
-            content: [{ type: "text" as const, text: "rest response", startTime: Date.now() }],
-            state: "complete",
-          };
-        },
-      };
+  it("should be idempotent when already connected", async () => {
+    resetMocks();
 
-      // No createWebSocket factory => if WebSocket is undefined, fallback is used
-      const provider = new GoogleGenAILiveProvider(
-        {}, // no createWebSocket
-        mockRestProvider as any,
-      );
-
-      const params = {
-        model: "gemini-2.5-flash",
-        messages: [],
-        systemPrompt: [],
-        tools: [],
-        config: {
-          settings: {},
-          secrets: { getToken: async () => "test-key" },
-        },
-        signal: new AbortController().signal,
-      };
-
-      const deltas: unknown[] = [];
-      for await (const delta of provider.stream(params as any)) {
-        deltas.push(delta);
-      }
-
-      // Whether WS is available depends on environment; but we verify no crash
-      assert.ok(deltas.length >= 0);
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
     });
+
+    const p1 = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p1;
+
+    // Second connect should be a no-op
+    await provider.connect();
+    assert.equal(provider.state, "connected");
+    assert.equal(MockWebSocket.instances.length, 1); // Only one WS created
+  });
+
+  it("should send JSON data when connected", async () => {
+    resetMocks();
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    provider.send({ type: "test", data: "hello" });
+
+    const ws = MockWebSocket.instances[0];
+    assert.equal(ws.sentMessages.length, 1);
+    assert.deepEqual(JSON.parse(ws.sentMessages[0]), { type: "test", data: "hello" });
+  });
+
+  it("should throw when sending in disconnected state", () => {
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+    });
+
+    assert.throws(() => provider.send({ data: "test" }), /Cannot send.*disconnected/);
+  });
+
+  it("should emit message events for incoming data", async () => {
+    resetMocks();
+    const received: unknown[] = [];
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    provider.on("message", (data: unknown) => {
+      received.push(data);
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    const ws = MockWebSocket.instances[0];
+    ws._simulateMessage(JSON.stringify({ type: "response", text: "hello" }));
+
+    assert.equal(received.length, 1);
+    assert.deepEqual(received[0], { type: "response", text: "hello" });
+  });
+
+  it("should handle non-JSON messages", async () => {
+    resetMocks();
+    const received: unknown[] = [];
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    provider.on("message", (data: unknown) => {
+      received.push(data);
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    const ws = MockWebSocket.instances[0];
+    ws._simulateMessage("not-json");
+
+    assert.equal(received.length, 1);
+    assert.equal(received[0], "not-json");
+  });
+
+  it("should disconnect and transition to disconnected state", async () => {
+    resetMocks();
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    provider.disconnect();
+
+    assert.equal(provider.state, "disconnected");
+    assert.equal(MockWebSocket.instances[0].closed, true);
+  });
+
+  it("should handle disconnect when already disconnected (no-op)", () => {
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+    });
+
+    // Should not throw
+    provider.disconnect();
+    assert.equal(provider.state, "disconnected");
+  });
+
+  it("should sendSetup with correct format", async () => {
+    resetMocks();
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    provider.sendSetup({
+      model: "gemini-2.0-flash",
+      systemInstruction: "You are helpful",
+      tools: [{ function_declarations: [{ name: "test" }] }],
+    });
+
+    const ws = MockWebSocket.instances[0];
+    const sent = JSON.parse(ws.sentMessages[0]);
+    assert.deepEqual(sent.setup.model, "models/gemini-2.0-flash");
+    assert.ok(sent.setup.systemInstruction);
+    assert.ok(sent.setup.tools);
+  });
+
+  it("should construct URL with API key", async () => {
+    resetMocks();
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "my-secret-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    const p = provider.connect();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    ws._simulateOpen();
+    await p;
+
+    assert.ok(ws.url.includes("key=my-secret-key"));
+  });
+
+  it("should use custom base URL when provided", async () => {
+    resetMocks();
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      baseUrl: "wss://custom-endpoint.example.com/live",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    const p = provider.connect();
+    const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+    ws._simulateOpen();
+    await p;
+
+    assert.ok(ws.url.startsWith("wss://custom-endpoint.example.com/live"));
+  });
+
+  it("should transition to disconnected on WebSocket close after connected", async () => {
+    resetMocks();
+    const states: LiveConnectionState[] = [];
+
+    const provider = new GoogleGenAILiveProvider({
+      apiKey: "test-key",
+      model: "gemini-2.0-flash",
+      WebSocket: MockWebSocket as unknown as typeof WebSocket,
+    });
+
+    provider.on("stateChange", (state: LiveConnectionState) => {
+      states.push(state);
+    });
+
+    const p = provider.connect();
+    MockWebSocket.instances[MockWebSocket.instances.length - 1]._simulateOpen();
+    await p;
+
+    // Simulate server closing connection
+    const ws = MockWebSocket.instances[0];
+    if (ws.onclose) {
+      ws.onclose(new Event("close") as CloseEvent);
+    }
+
+    assert.equal(provider.state, "disconnected");
+    assert.deepEqual(states, ["connecting", "connected", "disconnected"]);
   });
 });

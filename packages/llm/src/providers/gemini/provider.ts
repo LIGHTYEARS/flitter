@@ -19,50 +19,6 @@ import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { GeminiStreamChunk } from "./transformer";
 import { GeminiToolTransformer, GeminiTransformer } from "./transformer";
 
-// ─── Vertex AI Auth types ──────────────────────────────
-
-/**
- * Cached Vertex AI OAuth2 access token.
- *
- * 逆向: amp-cli-reversed/chunk-002.js:10446-10454 — Vertex AI auth
- *   amp uses `googleAuthOptions.credentials` for service account JSON key.
- *   The GoogleGenAI SDK handles token refresh internally when `vertexai: true`.
- *   We cache the resolved settings to avoid re-reading config on every call.
- */
-export interface VertexAIConfig {
-  project: string;
-  location: string;
-  /** Path to a service account JSON key file (optional) */
-  serviceAccountKeyFile?: string;
-}
-
-/**
- * Resolve Vertex AI configuration from settings.
- *
- * 逆向: amp-cli-reversed/chunk-002.js:10443-10454
- *   - `T.project` / env `GOOGLE_CLOUD_PROJECT`
- *   - `T.location` / env `GOOGLE_CLOUD_LOCATION`
- *   - `T.vertexai` / env `GOOGLE_GENAI_USE_VERTEXAI`
- *   - If project/location provided without API key, uses service account auth
- */
-export function resolveVertexAIConfig(
-  settings: Record<string, unknown>,
-): VertexAIConfig | null {
-  const project =
-    (settings["vertexai.project"] as string | undefined) ??
-    (settings["google.project"] as string | undefined);
-  const location =
-    (settings["vertexai.location"] as string | undefined) ??
-    (settings["google.location"] as string | undefined);
-  const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as
-    | string
-    | undefined;
-
-  if (!project || !location) return null;
-
-  return { project, location, serviceAccountKeyFile };
-}
-
 // ─── GeminiProvider ─────────────────────────────────────
 
 export class GeminiProvider implements LLMProvider {
@@ -85,16 +41,46 @@ export class GeminiProvider implements LLMProvider {
     }
 
     // Build SDK client (injected for tests, or create on-demand)
-    // 逆向: amp-cli-reversed/chunk-002.js:10443-10468
-    //   GoogleGenAI constructor: checks project/location vs apiKey mutual exclusivity,
-    //   reads GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, GOOGLE_GENAI_USE_VERTEXAI env vars.
-    //   If vertexai: true and credentials provided, apiKey is cleared.
-    const vertexConfig = resolveVertexAIConfig(config.settings as Record<string, unknown>);
-    const client =
-      this._injectedClient ??
-      (vertexConfig
-        ? this._createVertexClient(apiKey, vertexConfig)
-        : new GoogleGenAI({ apiKey }));
+    // 逆向: amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js:17-30
+    //   GoogleGenAI reads project/location from constructor args and env vars:
+    //   T.project ?? GOOGLE_CLOUD_PROJECT, T.location ?? GOOGLE_CLOUD_LOCATION
+    //   vertexai flag enables Vertex AI mode (project/location required, no apiKey)
+    const settings = config.settings as Record<string, unknown>;
+    const vertexProject =
+      (settings["vertexai.project"] as string | undefined) ??
+      (settings["google.project"] as string | undefined);
+    const vertexLocation =
+      (settings["vertexai.location"] as string | undefined) ??
+      (settings["google.location"] as string | undefined);
+    const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as
+      | string
+      | undefined;
+
+    let client: GoogleGenAI;
+    if (this._injectedClient) {
+      client = this._injectedClient;
+    } else if (vertexProject && vertexLocation) {
+      // 逆向: Vertex AI mode — project + location, optionally with service account
+      // amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js:25-28
+      const opts: Record<string, unknown> = {
+        vertexai: true,
+        project: vertexProject,
+        location: vertexLocation,
+      };
+      // If service account key file is provided, pass as googleAuthOptions
+      // 逆向: GoogleGenAI accepts googleAuthOptions.credentials for Vertex AI auth
+      if (serviceAccountKeyFile) {
+        opts.googleAuthOptions = { keyFile: serviceAccountKeyFile };
+      }
+      // Only include apiKey if no service account (they're mutually exclusive in GoogleGenAI)
+      if (!serviceAccountKeyFile && apiKey) {
+        opts.apiKey = apiKey;
+      }
+      client = new GoogleGenAI(opts as ConstructorParameters<typeof GoogleGenAI>[0]);
+    } else {
+      // Standard Gemini API mode with API key
+      client = new GoogleGenAI({ apiKey });
+    }
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -225,48 +211,5 @@ export class GeminiProvider implements LLMProvider {
       default:
         return "MEDIUM";
     }
-  }
-
-  /**
-   * Create a Vertex AI-authenticated GoogleGenAI client.
-   *
-   * 逆向: amp-cli-reversed/chunk-002.js:10446-10469
-   *   - When vertexai: true and project/location provided, GoogleGenAI SDK uses
-   *     `https://{location}-aiplatform.googleapis.com` as base URL.
-   *   - `googleAuthOptions.credentials` accepts service account key JSON.
-   *   - If serviceAccountKeyFile is provided, we read it and pass as credentials.
-   *   - The SDK handles OAuth2 token generation and refresh internally.
-   */
-  private _createVertexClient(apiKey: string, vertexConfig: VertexAIConfig): GoogleGenAI {
-    const options: Record<string, unknown> = {
-      vertexai: true,
-      project: vertexConfig.project,
-      location: vertexConfig.location,
-    };
-
-    // If service account key file is configured, read and use it.
-    // Otherwise, fall back to API key-based Vertex AI (which is also supported).
-    if (vertexConfig.serviceAccountKeyFile) {
-      try {
-        // Dynamic import of fs is needed at runtime — for now, use require
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const fs = require("node:fs");
-        const keyContent = fs.readFileSync(vertexConfig.serviceAccountKeyFile, "utf8");
-        const credentials = JSON.parse(keyContent);
-        options.googleAuthOptions = { credentials };
-      } catch (err) {
-        // If we can't read the key file, fall back to API key
-        if (typeof process !== "undefined" && process.env?.FLITTER_LOG_LEVEL === "debug") {
-          // eslint-disable-next-line no-console
-          console.error(`[llm:gemini] Failed to read service account key: ${err}`);
-        }
-        options.apiKey = apiKey;
-      }
-    } else {
-      // API key with Vertex endpoint
-      options.apiKey = apiKey;
-    }
-
-    return new GoogleGenAI(options as ConstructorParameters<typeof GoogleGenAI>[0]);
   }
 }

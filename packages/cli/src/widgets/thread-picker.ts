@@ -1,164 +1,228 @@
 /**
- * ThreadPicker — Thread selection widget using FuzzyPicker.
+ * ThreadPicker widget — fuzzy-filterable thread list for switching conversations.
  *
- * Composes FuzzyPicker from @flitter/tui with thread data to provide
- * a searchable thread selection UI. Used by /switch, /dashboard, and
- * `threads continue` commands.
+ * 逆向: amp-cli-reversed/modules/1472_tui_components/jetbrains_wizard.js:3121-3141
+ *   showStandaloneThreadPicker() shows a command palette with commandId "continue".
+ *   The palette provides thread list with filtering by workspace, fuzzy search,
+ *   and preview via threadPreviewController.
  *
- * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:202-244 — e0R "continue" command
- *   `return new wQ({ threads: i, title: "Select a thread", onSelect: h, onDismiss: t, ... })`
- *   wQ is amp's thread picker widget that wraps FuzzyPicker (we) with thread data.
+ * 逆向: amp-cli-reversed/modules/1472_tui_components/jetbrains_wizard.js:2504
+ *   filterThreadPickerByWorkspace = !0 (default: filter by workspace)
  *
- * 逆向: amp-cli-reversed/chunk-006.js:35359 — loadThreadsForPicker()
- *   loads thread entries from the store for the picker.
- * 逆向: amp-cli-reversed/chunk-006.js:35126 — unloadThreadsForPicker()
- *   cleans up loaded thread data when picker is dismissed.
+ * 逆向: amp-cli-reversed/modules/1472_tui_components/jetbrains_wizard.js:3399-3406
+ *   Palette receives: threads, previewController, isLoadingThreads, threadLoadError,
+ *   filterByWorkspace, currentWorkspace, threadViewStates
  *
  * @module
  */
 
-import { FuzzyPicker, type FuzzyPickerProps } from "@flitter/tui";
-import type { Widget as WidgetInterface } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
+import { Column, Expanded, Row, SizedBox, State, StatefulWidget, Text } from "@flitter/tui";
 
-// ─── Types ──────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────
 
-/**
- * Thread entry for the picker.
- * Minimal thread metadata needed for display and selection.
- */
 export interface ThreadPickerEntry {
-  /** Thread ID */
   id: string;
-  /** Thread title (may be auto-generated or user-set) */
   title: string;
-  /** ISO date string of last activity */
-  date: string;
-  /** Number of messages in the thread */
+  updatedAt: string;
   messageCount: number;
-  /** Whether the thread is archived */
-  archived?: boolean;
-  /** Workspace URI (for filtering) */
-  workspaceUri?: string;
+  workspace?: string;
 }
 
-/**
- * Configuration for the ThreadPicker widget.
- */
 export interface ThreadPickerConfig {
-  /** Thread entries to display */
+  /** List of threads to display */
   threads: ThreadPickerEntry[];
+  /** Whether threads are still loading */
+  isLoading: boolean;
+  /** Error from thread loading, if any */
+  loadError?: string;
+  /**
+   * 逆向: filterByWorkspace flag controls whether threads are filtered
+   * to the current workspace. Default true (matching amp).
+   */
+  filterByWorkspace: boolean;
+  /** Current workspace path (for filtering) */
+  currentWorkspace?: string;
   /** Callback when a thread is selected */
-  onSelect: (threadId: string, info: { hasUserInteracted: boolean }) => void;
-  /** Callback when the picker is dismissed without selection */
+  onSelect: (threadId: string) => void;
+  /** Callback to cancel / dismiss the picker */
   onCancel: () => void;
-  /** Title displayed at the top of the picker */
-  title?: string;
-  /** Whether thread data is still loading */
-  isLoading?: boolean;
-  /** Current thread ID (to highlight) */
-  currentThreadId?: string;
+  /** Callback to toggle workspace filter */
+  onToggleFilter?: () => void;
 }
 
-// ─── ThreadPicker ───────────────────────────────────────
+// ─── ThreadPicker ────────────────────────────────────────
 
 /**
- * Format a thread entry into a display label.
+ * ThreadPicker — renders a fuzzy-filterable list of threads.
  *
- * 逆向: amp wQ formats each thread as a compound label with
- *   title, ID, date, and message count. Exact format from
- *   e0R:227 where threads are passed to FuzzyPicker.
- *
- * @param entry - Thread entry to format
- * @returns Formatted display string
+ * 逆向: The picker in amp is part of the command palette system.
+ *   When commandId="continue", the palette populates with threads.
+ *   Here we implement a standalone widget that composes the thread
+ *   list with fuzzy filtering.
  */
-export function formatThreadLabel(entry: ThreadPickerEntry): string {
-  const id = entry.id.slice(0, 8);
-  const title = entry.title || "(untitled)";
-  const date = entry.date ? formatRelativeDate(entry.date) : "unknown";
-  const msgs = `${entry.messageCount} msg${entry.messageCount !== 1 ? "s" : ""}`;
+export class ThreadPicker extends StatefulWidget {
+  readonly config: ThreadPickerConfig;
 
-  return `${id} — ${title} — ${date} — ${msgs}`;
-}
+  constructor(config: ThreadPickerConfig) {
+    super();
+    this.config = config;
+  }
 
-/**
- * Format a date string as a relative time description.
- */
-function formatRelativeDate(isoDate: string): string {
-  try {
-    const date = new Date(isoDate);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60_000);
-    const diffHours = Math.floor(diffMs / 3_600_000);
-    const diffDays = Math.floor(diffMs / 86_400_000);
-
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  } catch {
-    return isoDate;
+  createState(): ThreadPickerState {
+    return new ThreadPickerState();
   }
 }
 
-/**
- * Create a ThreadPicker FuzzyPicker widget.
- *
- * This is a factory function that returns a configured FuzzyPicker<ThreadPickerEntry>.
- * The caller places this widget in the widget tree (e.g., as an overlay or
- * replacement for the main content area).
- *
- * 逆向: amp e0R:227 — `new wQ({ threads: i, title: "Select a thread", ... })`
- *   wQ wraps we (FuzzyPicker) with thread-specific formatting and callbacks.
- *
- * @param config - Thread picker configuration
- * @returns FuzzyPicker widget configured for thread selection
- *
- * @example
- * ```ts
- * const picker = createThreadPicker({
- *   threads: threadEntries,
- *   onSelect: (threadId) => switchToThread(threadId),
- *   onCancel: () => closePicker(),
- * });
- * ```
- */
-export function createThreadPicker(
-  config: ThreadPickerConfig,
-): WidgetInterface {
-  const {
-    threads,
-    onSelect,
-    onCancel,
-    title = "Select a thread",
-    currentThreadId,
-  } = config;
+export class ThreadPickerState extends State<ThreadPicker> {
+  private _filterText = "";
+  private _selectedIndex = 0;
 
-  // Filter out archived threads
-  const activeThreads = threads.filter((t) => !t.archived);
+  /** Get threads filtered by workspace and fuzzy text */
+  private _getFilteredThreads(): ThreadPickerEntry[] {
+    let threads = this.widget.config.threads;
 
-  // Sort by most recent first
-  const sortedThreads = [...activeThreads].sort((a, b) => {
-    const dateA = new Date(a.date).getTime();
-    const dateB = new Date(b.date).getTime();
-    return dateB - dateA;
-  });
+    // 逆向: filterByWorkspace — amp filters threads by current workspace
+    if (this.widget.config.filterByWorkspace && this.widget.config.currentWorkspace) {
+      const ws = this.widget.config.currentWorkspace;
+      threads = threads.filter((t) => !t.workspace || t.workspace === ws);
+    }
 
-  return new FuzzyPicker<ThreadPickerEntry>({
-    items: sortedThreads,
-    getLabel: formatThreadLabel,
-    onAccept: (item, info) => {
-      onSelect(item.id, info);
-    },
-    onDismiss: () => {
-      onCancel();
-    },
-    // 逆向: amp wQ highlights the current thread as disabled
-    isItemDisabled: currentThreadId
-      ? (item) => item.id === currentThreadId
-      : undefined,
-    title,
-    maxRenderItems: 20,
-  });
+    // Fuzzy text filter (case-insensitive substring match on title)
+    if (this._filterText) {
+      const lower = this._filterText.toLowerCase();
+      threads = threads.filter(
+        (t) =>
+          t.title.toLowerCase().includes(lower) || t.id.toLowerCase().includes(lower),
+      );
+    }
+
+    return threads;
+  }
+
+  /**
+   * Handle keyboard input for the picker.
+   * Called by parent widget's key handler.
+   */
+  handleKey(key: string): boolean {
+    switch (key) {
+      case "up": {
+        this.setState(() => {
+          this._selectedIndex = Math.max(0, this._selectedIndex - 1);
+        });
+        return true;
+      }
+      case "down": {
+        const max = this._getFilteredThreads().length - 1;
+        this.setState(() => {
+          this._selectedIndex = Math.min(max, this._selectedIndex + 1);
+        });
+        return true;
+      }
+      case "enter": {
+        const filtered = this._getFilteredThreads();
+        if (filtered.length > 0 && this._selectedIndex < filtered.length) {
+          this.widget.config.onSelect(filtered[this._selectedIndex].id);
+        }
+        return true;
+      }
+      case "escape": {
+        this.widget.config.onCancel();
+        return true;
+      }
+      case "tab": {
+        // 逆向: tab toggles workspace filter in amp
+        this.widget.config.onToggleFilter?.();
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  /** Update the filter text (called from parent input handler) */
+  setFilter(text: string): void {
+    this.setState(() => {
+      this._filterText = text;
+      this._selectedIndex = 0; // Reset selection on filter change
+    });
+  }
+
+  build(_context: BuildContext): Widget {
+    const { isLoading, loadError, filterByWorkspace, currentWorkspace } = this.widget.config;
+
+    if (loadError) {
+      return new Column({
+        children: [
+          new Text({ data: "Error loading threads:" }),
+          new Text({ data: loadError }),
+        ],
+      });
+    }
+
+    if (isLoading) {
+      return new Text({ data: "Loading threads..." });
+    }
+
+    const filtered = this._getFilteredThreads();
+
+    // Header with filter info
+    const headerParts: Widget[] = [
+      new Text({
+        data: `Threads${this._filterText ? ` matching "${this._filterText}"` : ""}`,
+      }),
+    ];
+
+    if (filterByWorkspace && currentWorkspace) {
+      headerParts.push(new Text({ data: ` [workspace: ${currentWorkspace}]` }));
+    }
+
+    headerParts.push(new Text({ data: ` (${filtered.length} results)` }));
+
+    // Thread list items
+    const items: Widget[] = filtered.map((thread, idx) => {
+      const isSelected = idx === this._selectedIndex;
+      const prefix = isSelected ? "> " : "  ";
+      const age = _formatRelativeTime(thread.updatedAt);
+      const display = `${prefix}${thread.title || thread.id}  (${thread.messageCount} msgs, ${age})`;
+      return new Text({ data: display });
+    });
+
+    if (items.length === 0) {
+      items.push(new Text({ data: "  No threads found" }));
+    }
+
+    return new Column({
+      children: [
+        new Row({ children: headerParts }),
+        new SizedBox({ height: 1 }),
+        new Expanded({
+          child: new Column({ children: items }),
+        }),
+        new SizedBox({ height: 1 }),
+        new Text({ data: "Enter: select | Esc: cancel | Tab: toggle workspace filter" }),
+      ],
+    });
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────
+
+function _formatRelativeTime(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = Date.now();
+    const diffMs = now - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 30) return `${diffDays}d ago`;
+    return `${Math.floor(diffDays / 30)}mo ago`;
+  } catch {
+    return dateStr;
+  }
 }

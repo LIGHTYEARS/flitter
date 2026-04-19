@@ -1,265 +1,252 @@
 /**
  * @flitter/llm — Internal API Client
  *
- * HTTP client for Flitter/amp internal API endpoints:
- * thread labels, sharing, news feed, usage reporting.
+ * Client for thread management API operations: thread label management,
+ * thread sharing/visibility, and thread listing.
  *
- * 逆向: amp-cli-reversed/chunk-005.js:5567 — `internalAPIClient: N3`
- *        amp-cli-reversed/chunk-004.js:34571 — `R.internalAPIClient.getThreadLabels({...})`
- *        amp-cli-reversed/chunk-004.js:34541 — `N3.shareThreadWithOperator({...})`
- *        amp-cli-reversed/chunk-006.js:34517 — `newsFeedReader.stream()` for RSS-based news
- *        amp-cli-reversed/chunk-006.js:35479 — `internalAPIClient.threadDisplayCostInfo({...})`
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:80229-80236
+ *   visibility types: "private" | "public_unlisted" | "public_discoverable" | "thread_workspace_shared"
+ *   amp stores threads locally and syncs to the API.
  *
- * @module
+ * 逆向: amp-cli-reversed/chunk-002.js:242-276 — shouldRetry() / retryRequest()
+ *   The API client uses the same retry pattern as the LLM providers:
+ *   retry on 408/409/429/500+ with exponential backoff.
+ *
+ * Note: This is a local-first client. In amp, threads are primarily stored on disk
+ * and optionally synced to an API. The "InternalApiClient" name reflects amp's
+ * internal architecture where threads can be synced to Anthropic's API.
  */
 
-// ─── Types ──────────────────────────────────────────────
+import { calculateBackoffMs, shouldRetryStatus } from "./model-fallback";
 
-/** A single news feed item. */
-export interface NewsItem {
+// ─── Types ───────────────────────────────────────────────
+
+/**
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:80229
+ */
+export type ThreadVisibility =
+  | "private"
+  | "public_unlisted"
+  | "public_discoverable"
+  | "thread_workspace_shared";
+
+export interface ThreadLabel {
   id: string;
-  title: string;
-  content: string;
-  date: string;
-  url?: string;
+  name: string;
+  color?: string;
 }
 
-/** Usage report payload. */
-export interface UsageReport {
-  threadId: string;
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens?: number;
-  cacheCreationInputTokens?: number;
-  durationMs: number;
+export interface ThreadSummary {
+  id: string;
+  title?: string;
+  visibility: ThreadVisibility;
+  labels: ThreadLabel[];
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
 }
 
-/** Configuration for InternalApiClient. */
-export interface InternalApiClientConfig {
-  /** Base URL for the internal API */
+export interface ShareResult {
+  shareUrl: string;
+  visibility: ThreadVisibility;
+}
+
+export interface ApiClientConfig {
+  /** Base URL for the API */
   baseUrl: string;
-  /** Authentication token (optional) */
-  authToken?: string;
-  /** Installation ID (optional, for telemetry) */
-  installationId?: string;
+  /** Authentication token */
+  authToken: string;
+  /** Maximum retries for failed requests */
+  maxRetries?: number;
+  /** Custom fetch implementation (for testing) */
+  fetch?: typeof globalThis.fetch;
+  /** Delay function (for testing) */
+  delay?: (ms: number) => Promise<void>;
 }
 
-// ─── Error ──────────────────────────────────────────────
+// ─── InternalApiClient ───────────────────────────────────
 
 /**
- * Thrown when the internal API base URL is not configured.
- */
-export class ApiNotConfiguredError extends Error {
-  constructor() {
-    super("Internal API base URL is not configured");
-    this.name = "ApiNotConfiguredError";
-    Object.setPrototypeOf(this, ApiNotConfiguredError.prototype);
-  }
-}
-
-// ─── InternalApiClient ──────────────────────────────────
-
-/**
- * HTTP client for Flitter internal API endpoints.
+ * InternalApiClient — manages thread operations against the sync API.
  *
- * All methods return Promises and will retry on 5xx server errors up to
- * {@link MAX_RETRIES} times with exponential backoff.
+ * 逆向: amp-cli-reversed/modules/0948_unknown_b7.js — HTTP client with retry,
+ *   amp-cli-reversed/modules/2026_tail_anonymous.js — thread visibility schemas
  *
- * 逆向: amp N3 object — used throughout chunk-004/005/006 for thread operations,
- *        news feed, user info, label management, task management.
- *
- * @example
- * ```ts
- * const client = new InternalApiClient({
- *   baseUrl: "https://api.example.com",
- *   authToken: "sk-...",
- * });
- * await client.setThreadLabels("thread-123", ["bug", "urgent"]);
- * const news = await client.getNewsFeed();
- * ```
+ * Provides:
+ * - Thread label CRUD
+ * - Thread visibility / sharing
+ * - Thread listing
  */
 export class InternalApiClient {
   private readonly _baseUrl: string;
-  private readonly _authToken?: string;
-  private readonly _installationId?: string;
-  private readonly _fetchFn: typeof fetch;
+  private readonly _authToken: string;
+  private readonly _maxRetries: number;
+  private readonly _fetch: typeof globalThis.fetch;
+  private readonly _delay: (ms: number) => Promise<void>;
 
-  /** Maximum retry attempts for 5xx errors */
-  static readonly MAX_RETRIES = 3;
-  /** Initial backoff delay in ms */
-  static readonly INITIAL_BACKOFF_MS = 500;
-
-  constructor(config: InternalApiClientConfig, fetchFn?: typeof fetch) {
-    this._baseUrl = config.baseUrl;
+  constructor(config: ApiClientConfig) {
+    this._baseUrl = config.baseUrl.replace(/\/$/, "");
     this._authToken = config.authToken;
-    this._installationId = config.installationId;
-    this._fetchFn = fetchFn ?? globalThis.fetch.bind(globalThis);
+    this._maxRetries = config.maxRetries ?? 2;
+    this._fetch = config.fetch ?? globalThis.fetch.bind(globalThis);
+    this._delay = config.delay ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  // ─── Public API ─────────────────────────────────────
+  // ─── Thread Label Management ──────────────────────────
 
-  /**
-   * Set labels on a thread.
-   *
-   * 逆向: amp-cli-reversed/chunk-004.js:34571
-   *   `R.internalAPIClient.getThreadLabels({ threadID })`
-   *   (amp also has setThreadLabels as a write counterpart)
-   */
-  async setThreadLabels(threadId: string, labels: string[]): Promise<void> {
-    this._ensureConfigured();
-    await this._request("PUT", `/threads/${threadId}/labels`, { labels });
+  /** List all labels for a thread */
+  async getThreadLabels(threadId: string, signal?: AbortSignal): Promise<ThreadLabel[]> {
+    const resp = await this._request("GET", `/threads/${threadId}/labels`, undefined, signal);
+    return (resp as { labels: ThreadLabel[] }).labels ?? [];
   }
 
+  /** Add a label to a thread */
+  async addThreadLabel(
+    threadId: string,
+    label: { name: string; color?: string },
+    signal?: AbortSignal,
+  ): Promise<ThreadLabel> {
+    return (await this._request(
+      "POST",
+      `/threads/${threadId}/labels`,
+      label,
+      signal,
+    )) as ThreadLabel;
+  }
+
+  /** Remove a label from a thread */
+  async removeThreadLabel(
+    threadId: string,
+    labelId: string,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this._request("DELETE", `/threads/${threadId}/labels/${labelId}`, undefined, signal);
+  }
+
+  // ─── Thread Sharing / Visibility ──────────────────────
+
   /**
-   * Share a thread with support, returning a public share URL.
+   * Change thread visibility.
    *
-   * 逆向: amp-cli-reversed/chunk-001.js:8354
-   *   `N3.shareThreadWithOperator({ threadID, ... })`
-   * 逆向: amp-cli-reversed/chunk-004.js:34541
-   *   `s = await N3.shareThreadWithOperator({...})`
+   * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:80229-80236
+   *   visibility can be: private, public_unlisted, public_discoverable, thread_workspace_shared
    */
-  async shareThreadWithSupport(threadId: string): Promise<{ shareUrl: string }> {
-    this._ensureConfigured();
-    const data = await this._request<{ shareUrl: string }>(
+  async setThreadVisibility(
+    threadId: string,
+    visibility: ThreadVisibility,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this._request("PATCH", `/threads/${threadId}`, { visibility }, signal);
+  }
+
+  /** Share a thread and get the share URL */
+  async shareThread(
+    threadId: string,
+    visibility: ThreadVisibility = "public_unlisted",
+    signal?: AbortSignal,
+  ): Promise<ShareResult> {
+    return (await this._request(
       "POST",
       `/threads/${threadId}/share`,
-      {},
-    );
-    return data;
+      { visibility },
+      signal,
+    )) as ShareResult;
   }
 
-  /**
-   * Set thread visibility (public / private / unlisted).
-   *
-   * 逆向: amp e0R commands include "visibility" at line 142 (modules/2785_unknown_e0R.js:142)
-   */
-  async setThreadVisibility(threadId: string, visibility: string): Promise<void> {
-    this._ensureConfigured();
-    await this._request("PUT", `/threads/${threadId}/visibility`, { visibility });
-  }
+  // ─── Thread Listing ───────────────────────────────────
 
-  /**
-   * Get the news feed.
-   *
-   * 逆向: amp-cli-reversed/chunk-006.js:34517-34520
-   *   `this.newsFeedReader = new UTR(R, T, "/news.rss")`
-   *   `this.newsFeedReader.stream().subscribe({ ... })`
-   *   In amp this is RSS-based; we simplify to a JSON endpoint.
-   */
-  async getNewsFeed(): Promise<NewsItem[]> {
-    this._ensureConfigured();
-    const data = await this._request<{ items: NewsItem[] }>("GET", "/news");
-    return data.items ?? [];
-  }
+  /** List threads with optional filtering */
+  async listThreads(
+    opts?: {
+      limit?: number;
+      offset?: number;
+      labelId?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<{ threads: ThreadSummary[]; total: number }> {
+    const params = new URLSearchParams();
+    if (opts?.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts?.offset !== undefined) params.set("offset", String(opts.offset));
+    if (opts?.labelId) params.set("label_id", opts.labelId);
 
-  /**
-   * Report token usage for a thread turn.
-   *
-   * 逆向: amp-cli-reversed/chunk-006.js:35479
-   *   `this.widget.dependencies.internalAPIClient.threadDisplayCostInfo({...})`
-   */
-  async reportUsage(data: UsageReport): Promise<void> {
-    this._ensureConfigured();
-    await this._request("POST", "/usage", data);
-  }
+    const query = params.toString();
+    const path = `/threads${query ? `?${query}` : ""}`;
 
-  // ─── Private ────────────────────────────────────────
-
-  private _ensureConfigured(): void {
-    if (!this._baseUrl) {
-      throw new ApiNotConfiguredError();
-    }
-  }
-
-  private _buildHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+    return (await this._request("GET", path, undefined, signal)) as {
+      threads: ThreadSummary[];
+      total: number;
     };
-    if (this._authToken) {
-      headers["Authorization"] = `Bearer ${this._authToken}`;
-    }
-    if (this._installationId) {
-      headers["X-Installation-Id"] = this._installationId;
-    }
-    return headers;
   }
 
+  /** Get thread details */
+  async getThread(threadId: string, signal?: AbortSignal): Promise<ThreadSummary> {
+    return (await this._request("GET", `/threads/${threadId}`, undefined, signal)) as ThreadSummary;
+  }
+
+  // ─── Internal Request Logic ───────────────────────────
+
   /**
-   * Make an HTTP request with retry on 5xx.
-   *
-   * 逆向: amp-cli-reversed/chunk-002.js:14116-14121 — _4R() exponential backoff
-   *   `R = m4R * y4R ** T` (base * factor^attempt), `min(R, max)`, with jitter.
+   * 逆向: amp-cli-reversed/modules/0948_unknown_b7.js — makeRequest() + shouldRetry()
+   * HTTP request with retry logic matching amp's pattern.
    */
-  private async _request<T = void>(
+  private async _request(
     method: string,
     path: string,
     body?: unknown,
-  ): Promise<T> {
+    signal?: AbortSignal,
+    retriesLeft?: number,
+  ): Promise<unknown> {
+    if (retriesLeft === undefined) retriesLeft = this._maxRetries;
+
     const url = `${this._baseUrl}${path}`;
-    const headers = this._buildHeaders();
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this._authToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
 
-    let lastError: Error | null = null;
+    const resp = await this._fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
+    });
 
-    for (let attempt = 0; attempt <= InternalApiClient.MAX_RETRIES; attempt++) {
-      try {
-        const response = await this._fetchFn(url, {
-          method,
-          headers,
-          body: body !== undefined && method !== "GET" ? JSON.stringify(body) : undefined,
-        });
-
-        if (!response.ok) {
-          const status = response.status;
-          // Retry on 5xx
-          if (status >= 500 && attempt < InternalApiClient.MAX_RETRIES) {
-            lastError = new Error(`HTTP ${status} from ${method} ${path}`);
-            await this._sleep(InternalApiClient.INITIAL_BACKOFF_MS * 2 ** attempt);
-            continue;
-          }
-          throw new Error(`HTTP ${status} from ${method} ${path}`);
-        }
-
-        // For void returns (204 or methods that don't return JSON)
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          return undefined as T;
-        }
-
-        return (await response.json()) as T;
-      } catch (err) {
-        lastError = err instanceof Error ? err : new Error(String(err));
-        // Only retry on network/5xx errors
-        if (attempt < InternalApiClient.MAX_RETRIES && this._isRetryable(err)) {
-          await this._sleep(InternalApiClient.INITIAL_BACKOFF_MS * 2 ** attempt);
-          continue;
-        }
-        throw err;
-      }
+    if (resp.ok) {
+      if (resp.status === 204) return {};
+      const text = await resp.text();
+      return text ? JSON.parse(text) : {};
     }
 
-    throw lastError ?? new Error("Request failed after all retries");
-  }
+    // Check retryability
+    const retryHeader = resp.headers.get("x-should-retry");
+    const canRetry = shouldRetryStatus(resp.status, retryHeader);
 
-  private _isRetryable(err: unknown): boolean {
-    if (err instanceof Error) {
-      const msg = err.message;
-      // 5xx errors
-      if (/HTTP 5\d\d/.test(msg)) return true;
-      // Network errors
-      if (
-        msg.includes("fetch failed") ||
-        msg.includes("ECONNREFUSED") ||
-        msg.includes("ECONNRESET") ||
-        msg.includes("ETIMEDOUT")
-      ) {
-        return true;
-      }
+    if (canRetry && retriesLeft > 0) {
+      const backoff = calculateBackoffMs(retriesLeft, this._maxRetries);
+      await this._delay(backoff);
+      return this._request(method, path, body, signal, retriesLeft - 1);
     }
-    return false;
-  }
 
-  private _sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    // Non-retryable or retries exhausted
+    const errorText = await resp.text().catch(() => "Unknown error");
+    throw new ApiClientError(resp.status, method, path, errorText);
+  }
+}
+
+// ─── Error ───────────────────────────────────────────────
+
+export class ApiClientError extends Error {
+  readonly status: number;
+  readonly method: string;
+  readonly path: string;
+
+  constructor(status: number, method: string, path: string, body: string) {
+    super(`API ${method} ${path} failed with status ${status}: ${body}`);
+    this.name = "ApiClientError";
+    this.status = status;
+    this.method = method;
+    this.path = path;
+    Object.setPrototypeOf(this, ApiClientError.prototype);
   }
 }

@@ -1,217 +1,66 @@
 /**
- * ContextAnalyzer — Token usage breakdown widget.
+ * ContextAnalyzer widget — shows token usage breakdown for the current thread.
  *
- * Reads a thread snapshot, counts tokens per role (system, user, assistant,
- * tool_use, tool_result), and displays a text-based breakdown showing
- * role -> token count -> percentage, plus total vs model limit.
+ * 逆向: amp-cli-reversed/modules/1472_tui_components/jetbrains_wizard.js:2473-2501
+ *   openContextAnalyzeModal() — creates k0R widget with deps:
+ *     { configService, agentModeOverride, buildSystemPromptDeps } or dtwAnalyze
+ *   The modal shows token budget breakdown:
+ *     - System prompt tokens
+ *     - Message history tokens
+ *     - Tool definitions tokens
+ *     - Available context window remaining
  *
- * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:274-286 — context-analyze command
- *   `{ id: "context-analyze", noun: "context", verb: "analyze",
- *    description: "Analyze context token usage",
- *    execute: async R => { R.openContextAnalyze(); } }`
- *
- * 逆向: amp-cli-reversed/chunk-003.js:11586 — context analysis fetch
- *   amp fetches `/threads/{id}/context-analysis` from DTW (remote thread worker).
- *   In local mode, amp computes context analysis locally by counting tokens.
- *   We implement the local computation path.
+ * 逆向: amp-cli-reversed/modules/1472_tui_components/jetbrains_wizard.js:5390-5415
+ *   Build: k0R widget receives { deps, thread, dtwAnalyze, onDismiss }
  *
  * @module
  */
 
-import type { Widget as WidgetInterface, BuildContext } from "@flitter/tui";
-import { Column, SizedBox, StatelessWidget, Text } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
+import { Column, Row, SizedBox, State, StatefulWidget, Text } from "@flitter/tui";
 
-// ─── Types ──────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────
 
-/** A message in the thread for analysis. */
-export interface AnalyzableMessage {
-  role: string;
-  content: unknown;
-}
-
-/** Token breakdown by role. */
-export interface RoleTokenBreakdown {
-  role: string;
-  tokenCount: number;
-  percentage: number;
-}
-
-/** Full context analysis result. */
-export interface ContextAnalysis {
-  breakdown: RoleTokenBreakdown[];
+export interface TokenBreakdown {
+  /** System prompt token count */
+  systemPromptTokens: number;
+  /** Message history token count */
+  messageTokens: number;
+  /** Tool definitions token count */
+  toolDefinitionTokens: number;
+  /** Other overhead (formatting, delimiters, etc.) */
+  overheadTokens: number;
+  /** Total tokens used */
   totalTokens: number;
-  modelLimit: number;
-  usagePercentage: number;
+  /** Maximum context window for the model */
+  contextWindow: number;
+  /** Maximum output tokens reserved */
+  maxOutputTokens: number;
 }
 
-/** Configuration for the ContextAnalyzer widget. */
 export interface ContextAnalyzerConfig {
-  /** Messages to analyze */
-  messages: AnalyzableMessage[];
-  /** Model's context window limit in tokens */
-  modelLimit: number;
-  /** Optional pre-computed token counts per role (if available) */
-  tokenCounts?: Record<string, number>;
+  /** Token usage breakdown (null while loading) */
+  breakdown: TokenBreakdown | null;
+  /** Whether analysis is in progress */
+  isLoading: boolean;
+  /** Error from analysis, if any */
+  error?: string;
+  /** Model name being analyzed */
+  modelName: string;
+  /** Callback to dismiss the modal */
+  onDismiss: () => void;
 }
 
-// ─── Token estimation ───────────────────────────────────
+// ─── ContextAnalyzer ─────────────────────────────────────
 
 /**
- * Estimate token count for a content block.
+ * ContextAnalyzer — modal widget showing context window token usage.
  *
- * This is a rough heuristic (1 token ~= 4 characters for English text).
- * For accurate counts, use the model's tokenizer.
- *
- * 逆向: amp's local context analysis uses a similar heuristic when
- *   the tokenizer is not available. The DTW path uses server-side counting.
+ * 逆向: k0R in amp — context analyze modal shows breakdown of token budget.
+ *   Triggered via openContextAnalyzeModal() which builds system prompt deps
+ *   and creates the modal widget.
  */
-export function estimateTokens(content: unknown): number {
-  if (typeof content === "string") {
-    return Math.ceil(content.length / 4);
-  }
-  if (Array.isArray(content)) {
-    return content.reduce((sum: number, block: unknown) => {
-      if (typeof block === "object" && block !== null) {
-        const b = block as Record<string, unknown>;
-        if (b.type === "text" && typeof b.text === "string") {
-          return sum + Math.ceil(b.text.length / 4);
-        }
-        if (b.type === "tool_use") {
-          const input = JSON.stringify(b.input ?? {});
-          return sum + Math.ceil(((b.name as string)?.length ?? 0) / 4) + Math.ceil(input.length / 4);
-        }
-        if (b.type === "tool_result") {
-          const resultContent = b.content;
-          if (typeof resultContent === "string") {
-            return sum + Math.ceil(resultContent.length / 4);
-          }
-          if (Array.isArray(resultContent)) {
-            return sum + estimateTokens(resultContent);
-          }
-          return sum + 10; // fallback
-        }
-        if (b.type === "thinking" && typeof b.thinking === "string") {
-          return sum + Math.ceil(b.thinking.length / 4);
-        }
-        // Other block types
-        return sum + 10;
-      }
-      return sum;
-    }, 0);
-  }
-  // Fallback for unknown content shapes
-  const str = JSON.stringify(content);
-  return Math.ceil(str.length / 4);
-}
-
-// ─── Analysis ───────────────────────────────────────────
-
-/**
- * Analyze context token usage for a set of messages.
- *
- * Groups messages by role, estimates tokens, and computes percentages.
- *
- * @param messages - Thread messages to analyze
- * @param modelLimit - Context window size in tokens
- * @param tokenCounts - Optional pre-computed counts (override estimation)
- * @returns Full analysis with breakdown
- */
-export function analyzeContext(
-  messages: AnalyzableMessage[],
-  modelLimit: number,
-  tokenCounts?: Record<string, number>,
-): ContextAnalysis {
-  const roleCounts: Record<string, number> = {};
-
-  if (tokenCounts) {
-    // Use pre-computed counts
-    Object.assign(roleCounts, tokenCounts);
-  } else {
-    // Estimate tokens per role
-    for (const msg of messages) {
-      const role = msg.role;
-      const tokens = estimateTokens(msg.content);
-      roleCounts[role] = (roleCounts[role] ?? 0) + tokens;
-    }
-  }
-
-  const totalTokens = Object.values(roleCounts).reduce((a, b) => a + b, 0);
-
-  const breakdown: RoleTokenBreakdown[] = Object.entries(roleCounts)
-    .sort((a, b) => b[1] - a[1]) // Sort by count descending
-    .map(([role, tokenCount]) => ({
-      role,
-      tokenCount,
-      percentage: totalTokens > 0 ? (tokenCount / totalTokens) * 100 : 0,
-    }));
-
-  return {
-    breakdown,
-    totalTokens,
-    modelLimit,
-    usagePercentage: modelLimit > 0 ? (totalTokens / modelLimit) * 100 : 0,
-  };
-}
-
-// ─── Formatting ─────────────────────────────────────────
-
-/**
- * Format a context analysis as a text display string.
- *
- * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:274-286
- *   amp displays context analysis as a breakdown table.
- *   We produce a simple text-based display.
- */
-export function formatAnalysis(analysis: ContextAnalysis): string {
-  const lines: string[] = [];
-
-  lines.push("Context Token Usage");
-  lines.push("═".repeat(40));
-
-  // Role breakdown
-  const maxRoleLen = Math.max(...analysis.breakdown.map((r) => r.role.length), 10);
-  for (const entry of analysis.breakdown) {
-    const role = entry.role.padEnd(maxRoleLen);
-    const count = entry.tokenCount.toLocaleString().padStart(10);
-    const pct = `${entry.percentage.toFixed(1)}%`.padStart(7);
-    const bar = "█".repeat(Math.round(entry.percentage / 5));
-    lines.push(`  ${role}  ${count}  ${pct}  ${bar}`);
-  }
-
-  lines.push("─".repeat(40));
-
-  // Total
-  const totalStr = analysis.totalTokens.toLocaleString();
-  const limitStr = analysis.modelLimit.toLocaleString();
-  const usagePct = analysis.usagePercentage.toFixed(1);
-  lines.push(`  Total: ${totalStr} / ${limitStr} tokens (${usagePct}%)`);
-
-  // Usage bar
-  const barWidth = 30;
-  const filled = Math.round((analysis.usagePercentage / 100) * barWidth);
-  const empty = barWidth - filled;
-  const usageBar = `[${"█".repeat(filled)}${"░".repeat(empty)}]`;
-  lines.push(`  ${usageBar}`);
-
-  // Warning levels
-  if (analysis.usagePercentage > 90) {
-    lines.push("  ⚠ CRITICAL: Context is nearly full!");
-  } else if (analysis.usagePercentage > 75) {
-    lines.push("  ⚠ WARNING: High context usage");
-  }
-
-  return lines.join("\n");
-}
-
-// ─── Widget ─────────────────────────────────────────────
-
-/**
- * ContextAnalyzer widget — displays token usage breakdown.
- *
- * Simple StatelessWidget that renders the analysis as text.
- * Can be placed in a dialog/overlay or inline in the conversation.
- */
-export class ContextAnalyzer extends StatelessWidget {
+export class ContextAnalyzer extends StatefulWidget {
   readonly config: ContextAnalyzerConfig;
 
   constructor(config: ContextAnalyzerConfig) {
@@ -219,19 +68,88 @@ export class ContextAnalyzer extends StatelessWidget {
     this.config = config;
   }
 
-  build(_context: BuildContext): WidgetInterface {
-    const analysis = analyzeContext(
-      this.config.messages,
-      this.config.modelLimit,
-      this.config.tokenCounts,
-    );
-    const text = formatAnalysis(analysis);
+  createState(): ContextAnalyzerState {
+    return new ContextAnalyzerState();
+  }
+}
+
+export class ContextAnalyzerState extends State<ContextAnalyzer> {
+  build(_context: BuildContext): Widget {
+    const { breakdown, isLoading, error, modelName, onDismiss } = this.widget.config;
+
+    // Title
+    const titleRow = new Row({
+      children: [
+        new Text({ data: `Context Analysis: ${modelName}` }),
+      ],
+    });
+
+    if (error) {
+      return new Column({
+        children: [
+          titleRow,
+          new SizedBox({ height: 1 }),
+          new Text({ data: `Error: ${error}` }),
+          new SizedBox({ height: 1 }),
+          new Text({ data: "Press Esc to dismiss" }),
+        ],
+      });
+    }
+
+    if (isLoading || !breakdown) {
+      return new Column({
+        children: [
+          titleRow,
+          new SizedBox({ height: 1 }),
+          new Text({ data: "Analyzing context usage..." }),
+        ],
+      });
+    }
+
+    // Calculate derived values
+    const availableInput = breakdown.contextWindow - breakdown.maxOutputTokens;
+    const usedTokens = breakdown.totalTokens;
+    const remainingTokens = Math.max(0, availableInput - usedTokens);
+    const usagePercent = availableInput > 0
+      ? Math.round((usedTokens / availableInput) * 100)
+      : 0;
+
+    // Build usage bar (simple text-based bar)
+    const barWidth = 40;
+    const filledWidth = Math.round((usagePercent / 100) * barWidth);
+    const bar = "\u2588".repeat(filledWidth) + "\u2591".repeat(barWidth - filledWidth);
+
+    // Format numbers with comma separators
+    const fmt = (n: number) => n.toLocaleString();
 
     return new Column({
       children: [
+        titleRow,
         new SizedBox({ height: 1 }),
-        new Text({ data: text }),
+        // Usage bar
+        new Text({ data: `Usage: [${bar}] ${usagePercent}%` }),
         new SizedBox({ height: 1 }),
+        // Breakdown table
+        new Text({ data: "Token Breakdown:" }),
+        new Text({ data: `  System Prompt:    ${fmt(breakdown.systemPromptTokens).padStart(10)}` }),
+        new Text({ data: `  Messages:         ${fmt(breakdown.messageTokens).padStart(10)}` }),
+        new Text({ data: `  Tool Definitions: ${fmt(breakdown.toolDefinitionTokens).padStart(10)}` }),
+        new Text({ data: `  Overhead:         ${fmt(breakdown.overheadTokens).padStart(10)}` }),
+        new Text({ data: `  ${"─".repeat(30)}` }),
+        new Text({ data: `  Total Used:       ${fmt(usedTokens).padStart(10)}` }),
+        new SizedBox({ height: 1 }),
+        // Context window info
+        new Text({ data: "Context Window:" }),
+        new Text({ data: `  Max Context:      ${fmt(breakdown.contextWindow).padStart(10)}` }),
+        new Text({ data: `  Reserved Output:  ${fmt(breakdown.maxOutputTokens).padStart(10)}` }),
+        new Text({ data: `  Available Input:  ${fmt(availableInput).padStart(10)}` }),
+        new Text({ data: `  Remaining:        ${fmt(remainingTokens).padStart(10)}` }),
+        new SizedBox({ height: 1 }),
+        // Warning if near capacity
+        ...(usagePercent > 90
+          ? [new Text({ data: "WARNING: Context window is nearly full. Consider compacting." })]
+          : []),
+        new Text({ data: "Press Esc to dismiss" }),
       ],
     });
   }

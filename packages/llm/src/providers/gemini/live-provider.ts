@@ -1,407 +1,230 @@
 /**
- * @flitter/llm — Google GenAI Live (WebSocket) Provider
+ * @flitter/llm — Google GenAI Live Provider (WebSocket streaming)
  *
- * Connects to Google's Gemini Live API via WebSocket for streaming responses.
- * Falls back gracefully to REST GeminiProvider if WebSocket is unavailable.
+ * Implements a persistent WebSocket-based streaming provider for Gemini's
+ * multimodal live API (audio/video input). This is separate from the standard
+ * generateContent REST API in provider.ts.
  *
- * 逆向: amp-cli-reversed/modules/0908_GoogleGenAI_P6T.js — P6T class
- *   P6T.connect(T) builds WebSocket URL:
- *   - Public API: `${wsBase}/ws/google.ai.generativelanguage.${version}.GenerativeService.BidiGenerateContent?key=${apiKey}`
- *   - Vertex AI: `${wsBase}/ws/google.cloud.aiplatform.${version}.LlmBidiService/BidiGenerateContent`
- *   - Ephemeral tokens: uses BidiGenerateContentConstrained + access_token param
- *   - Sends setup message with model name and config as first frame
- *   - Wraps in k6T session object with send/receive
+ * 逆向: amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js — constructor creates
+ *   this.live = new P6T(this.apiClient, l, new j6T())
+ *   Live connections use WebSocket transport with session management.
  *
- * @module
+ * Connection state machine:
+ *   disconnected → connecting → connected → error
+ *                                   ↓
+ *                              disconnected (on close/error)
+ *
+ * Note: amp does not appear to use the live API in its CLI mode — this
+ * is primarily for future extension. No direct amp CLI reference for the
+ * live streaming code path beyond the SDK constructor wiring.
  */
 
-import type { LLMProvider } from "../../provider";
-import type { StreamDelta, StreamParams } from "../../types";
-import { ProviderError, TransformState } from "../../types";
-import { GeminiProvider } from "./provider";
+import { EventEmitter } from "node:events";
 
-// ─── Types ──────────────────────────────────────────────
+// ─── Connection States ───────────────────────────────────
 
-/** WebSocket connection state */
 export type LiveConnectionState = "disconnected" | "connecting" | "connected" | "error";
 
-/** Configuration for the live provider */
+// ─── Events ──────────────────────────────────────────────
+
+export interface LiveProviderEvents {
+  stateChange: [state: LiveConnectionState, previousState: LiveConnectionState];
+  message: [data: unknown];
+  error: [error: Error];
+}
+
+// ─── Config ──────────────────────────────────────────────
+
 export interface LiveProviderConfig {
-  /** API key for authentication */
-  apiKey?: string;
-  /** API version (default: "v1beta") */
-  apiVersion?: string;
-  /** Whether using Vertex AI endpoint */
-  vertexAI?: boolean;
-  /** Vertex AI project */
-  project?: string;
-  /** Vertex AI location */
-  location?: string;
-  /** Custom WebSocket base URL */
-  wsBaseUrl?: string;
-  /** Heartbeat interval in ms (default: 30000) */
-  heartbeatIntervalMs?: number;
-  /** Connection timeout in ms (default: 10000) */
-  connectionTimeoutMs?: number;
-  /** WebSocket factory (injectable for testing) */
-  createWebSocket?: (url: string, protocols?: string[]) => WebSocket;
+  /** Gemini API key */
+  apiKey: string;
+  /** Model to use (e.g. "gemini-2.0-flash") */
+  model: string;
+  /** Base URL override (for Vertex AI or testing) */
+  baseUrl?: string;
+  /** WebSocket constructor (for testing / environments without native WebSocket; pass null to disable) */
+  WebSocket?: (new (url: string, protocols?: string | string[]) => WebSocket) | null;
 }
 
-/**
- * WebSocket message frame from the Gemini Live API.
- *
- * 逆向: amp-cli-reversed/modules/0908_GoogleGenAI_P6T.js — LOR() message handler
- *   parses server messages containing candidates with content parts.
- */
-export interface LiveServerMessage {
-  serverContent?: {
-    modelTurn?: {
-      parts?: Array<{
-        text?: string;
-        thought?: boolean;
-      }>;
-    };
-    turnComplete?: boolean;
-  };
-  toolCall?: {
-    functionCalls?: Array<{
-      id: string;
-      name: string;
-      args: Record<string, unknown>;
-    }>;
-  };
-  setupComplete?: boolean;
-}
-
-// ─── GoogleGenAILiveProvider ────────────────────────────
+// ─── LiveProvider ────────────────────────────────────────
 
 /**
- * Google Gemini Live API provider using WebSocket streaming.
+ * GoogleGenAILiveProvider — WebSocket-based streaming for Gemini Live API.
  *
- * Falls back to REST GeminiProvider when:
- * - WebSocket is not available in the runtime
- * - Connection fails or times out
- * - The model doesn't support Live API
+ * 逆向: No direct amp CLI usage of live streaming found — this is based on
+ *   the @google/genai SDK's P6T/j6T classes and their session management.
  *
- * 逆向: amp P6T class (0908_GoogleGenAI_P6T.js)
- *   - Constructs WS URL based on Vertex vs public endpoint
- *   - Sends setup frame with model + config
- *   - Receives streaming message frames
- *   - k6T session wraps the connection with send/close
+ * Provides graceful degradation: if WebSocket is unavailable in the runtime,
+ * connect() throws a clear error rather than crashing.
  */
-export class GoogleGenAILiveProvider implements LLMProvider {
-  readonly name = "gemini" as const;
-
-  private readonly _config: LiveProviderConfig;
-  private readonly _restFallback: GeminiProvider;
+export class GoogleGenAILiveProvider extends EventEmitter {
+  private _state: LiveConnectionState = "disconnected";
   private _ws: WebSocket | null = null;
-  private _connectionState: LiveConnectionState = "disconnected";
-  private _heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly _config: LiveProviderConfig;
+  private _reconnectAttempts = 0;
+  private _maxReconnectAttempts = 3;
 
-  constructor(config: LiveProviderConfig = {}, restFallback?: GeminiProvider) {
-    this._config = {
-      apiVersion: "v1beta",
-      heartbeatIntervalMs: 30_000,
-      connectionTimeoutMs: 10_000,
-      ...config,
-    };
-    this._restFallback = restFallback ?? new GeminiProvider();
+  constructor(config: LiveProviderConfig) {
+    super();
+    this._config = config;
   }
 
-  get connectionState(): LiveConnectionState {
-    return this._connectionState;
+  /** Current connection state */
+  get state(): LiveConnectionState {
+    return this._state;
   }
 
-  async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    // Determine if we can use WebSocket
-    const canUseWS = this._canUseWebSocket();
-
-    if (!canUseWS) {
-      // Fall back to REST provider
-      yield* this._restFallback.stream(params);
+  /**
+   * Connect to the Gemini Live WebSocket endpoint.
+   * Transitions: disconnected → connecting → connected (or → error)
+   */
+  async connect(): Promise<void> {
+    if (this._state === "connected" || this._state === "connecting") {
       return;
     }
 
-    try {
-      yield* this._streamViaWebSocket(params);
-    } catch (err) {
-      // If WebSocket failed during connection, fall back to REST
-      if (
-        this._connectionState === "error" ||
-        this._connectionState === "disconnected"
-      ) {
-        if (
-          typeof process !== "undefined" &&
-          process.env?.FLITTER_LOG_LEVEL === "debug"
-        ) {
-          // eslint-disable-next-line no-console
-          console.error(
-            `[llm:gemini-live] WebSocket failed, falling back to REST: ${err instanceof Error ? err.message : err}`,
-          );
-        }
-        yield* this._restFallback.stream(params);
-        return;
-      }
-      throw err;
-    } finally {
-      this._cleanup();
-    }
-  }
+    // Check WebSocket availability (graceful degradation)
+    // If WebSocket is explicitly null, it means "no WebSocket available"
+    const WS =
+      this._config.WebSocket === null
+        ? undefined
+        : (this._config.WebSocket ??
+          (typeof globalThis !== "undefined" ? (globalThis as Record<string, unknown>).WebSocket : undefined));
 
-  /**
-   * Build the WebSocket URL.
-   *
-   * 逆向: amp P6T.connect() lines 8-28
-   *   - Public: `${wsBase}/ws/google.ai.generativelanguage.${version}.GenerativeService.BidiGenerateContent?key=${apiKey}`
-   *   - Vertex: `${wsBase}/ws/google.cloud.aiplatform.${version}.LlmBidiService/BidiGenerateContent`
-   */
-  buildWebSocketUrl(apiKey: string): string {
-    const version = this._config.apiVersion ?? "v1beta";
-
-    if (this._config.vertexAI && this._config.project && this._config.location) {
-      const base =
-        this._config.wsBaseUrl ??
-        `wss://${this._config.location}-aiplatform.googleapis.com`;
-      return `${base}/ws/google.cloud.aiplatform.${version}.LlmBidiService/BidiGenerateContent`;
-    }
-
-    const base = this._config.wsBaseUrl ?? "wss://generativelanguage.googleapis.com";
-    return `${base}/ws/google.ai.generativelanguage.${version}.GenerativeService.BidiGenerateContent?key=${apiKey}`;
-  }
-
-  /**
-   * Build the setup message sent as the first WebSocket frame.
-   *
-   * 逆向: amp P6T.connect() lines 68-73
-   *   Constructs { model, config, callbacks } then serializes
-   *   without the config key for Vertex vs public.
-   */
-  buildSetupMessage(model: string, config: Record<string, unknown>): Record<string, unknown> {
-    // 逆向: amp g8() resolves model name
-    const modelName = this._config.vertexAI
-      ? `projects/${this._config.project}/locations/${this._config.location}/publishers/google/models/${model}`
-      : model;
-
-    return {
-      setup: {
-        model: modelName,
-        generationConfig: config,
-      },
-    };
-  }
-
-  /**
-   * Parse a server message from the WebSocket.
-   */
-  parseServerMessage(data: string): LiveServerMessage {
-    try {
-      return JSON.parse(data) as LiveServerMessage;
-    } catch {
-      return {};
-    }
-  }
-
-  // ─── Private ──────────────────────────────────────────
-
-  private _canUseWebSocket(): boolean {
-    // Check if WebSocket is available in the runtime
-    return (
-      typeof WebSocket !== "undefined" ||
-      this._config.createWebSocket !== undefined
-    );
-  }
-
-  private async *_streamViaWebSocket(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, config, signal } = params;
-
-    const apiKey = await config.secrets.getToken("apiKey");
-    if (!apiKey) {
-      throw new ProviderError(401, "gemini", false, "Gemini API key not configured");
-    }
-
-    const url = this.buildWebSocketUrl(apiKey);
-    const state = new TransformState();
-    let blockIndex = 0;
-    let resolve: (() => void) | null = null;
-    let reject: ((err: Error) => void) | null = null;
-    const messageQueue: LiveServerMessage[] = [];
-    let done = false;
-
-    // Connect WebSocket
-    this._connectionState = "connecting";
-
-    const ws = this._config.createWebSocket
-      ? this._config.createWebSocket(url)
-      : new WebSocket(url);
-
-    this._ws = ws;
-
-    // Wait for connection
-    await new Promise<void>((res, rej) => {
-      const timeout = setTimeout(() => {
-        this._connectionState = "error";
-        rej(new ProviderError(408, "gemini", true, "WebSocket connection timeout"));
-      }, this._config.connectionTimeoutMs);
-
-      ws.onopen = () => {
-        clearTimeout(timeout);
-        this._connectionState = "connected";
-        res();
-      };
-
-      ws.onerror = (event) => {
-        clearTimeout(timeout);
-        this._connectionState = "error";
-        rej(new ProviderError(502, "gemini", true, "WebSocket connection failed"));
-      };
-    });
-
-    // Send setup message
-    const setupMsg = this.buildSetupMessage(model, {
-      maxOutputTokens: 8192,
-    });
-    ws.send(JSON.stringify(setupMsg));
-
-    // Start heartbeat
-    // 逆向: amp k6T session keeps connection alive
-    this._startHeartbeat(ws);
-
-    // Handle incoming messages
-    ws.onmessage = (event) => {
-      const msg = this.parseServerMessage(
-        typeof event.data === "string" ? event.data : "",
+    if (!WS) {
+      this._transition("error");
+      throw new Error(
+        "WebSocket is not available in this environment. " +
+          "GoogleGenAILiveProvider requires a WebSocket implementation.",
       );
+    }
 
-      if (msg.setupComplete) {
-        // Setup acknowledged, ready for content
+    this._transition("connecting");
+
+    const baseUrl =
+      this._config.baseUrl ?? "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+
+    const url = `${baseUrl}?key=${this._config.apiKey}`;
+
+    return new Promise<void>((resolve, reject) => {
+      try {
+        this._ws = new (WS as new (url: string) => WebSocket)(url);
+      } catch (err) {
+        this._transition("error");
+        reject(
+          err instanceof Error
+            ? err
+            : new Error(`WebSocket construction failed: ${String(err)}`),
+        );
         return;
       }
 
-      messageQueue.push(msg);
-      resolve?.();
-    };
+      const onOpen = () => {
+        cleanup();
+        this._reconnectAttempts = 0;
+        this._transition("connected");
 
-    ws.onclose = () => {
-      done = true;
-      this._connectionState = "disconnected";
-      resolve?.();
-    };
+        // Send setup message
+        this._ws!.onmessage = (event: MessageEvent) => {
+          try {
+            const data = JSON.parse(String(event.data));
+            this.emit("message", data);
+          } catch {
+            this.emit("message", event.data);
+          }
+        };
 
-    ws.onerror = () => {
-      done = true;
-      this._connectionState = "error";
-      reject?.(new ProviderError(502, "gemini", true, "WebSocket error during streaming"));
-    };
+        this._ws!.onclose = () => {
+          this._ws = null;
+          this._transition("disconnected");
+        };
 
-    // Handle abort
-    const onAbort = () => {
-      done = true;
-      ws.close();
-      resolve?.();
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
+        this._ws!.onerror = (event: Event) => {
+          const error = new Error(`WebSocket error: ${String(event)}`);
+          this.emit("error", error);
+          this._ws?.close();
+          this._ws = null;
+          this._transition("error");
+        };
 
-    // Yield messages as they arrive
-    try {
-      while (!done) {
-        if (messageQueue.length === 0) {
-          await new Promise<void>((res, rej) => {
-            resolve = res;
-            reject = rej;
-          });
+        resolve();
+      };
+
+      const onError = (event: Event) => {
+        cleanup();
+        this._ws = null;
+        this._transition("error");
+        reject(new Error(`WebSocket connection failed: ${String(event)}`));
+      };
+
+      const cleanup = () => {
+        if (this._ws) {
+          this._ws.onopen = null;
+          this._ws.onerror = null;
         }
+      };
 
-        while (messageQueue.length > 0) {
-          const msg = messageQueue.shift()!;
-
-          if (msg.serverContent?.modelTurn?.parts) {
-            for (const part of msg.serverContent.modelTurn.parts) {
-              if (part.thought) {
-                // Thinking block
-                state.addBlock(blockIndex, "thinking", { thinking: part.text ?? "" });
-                state.completeBlock(blockIndex);
-                blockIndex++;
-              } else if (part.text !== undefined) {
-                // Text block
-                if (!state.blocks.has(blockIndex) || state.blocks.get(blockIndex)?.type !== "text") {
-                  state.addBlock(blockIndex, "text", { text: part.text });
-                } else {
-                  state.updateBlock(blockIndex, { text: part.text });
-                }
-              }
-            }
-
-            yield {
-              content: state.getContent(),
-              state: "streaming",
-            } as unknown as StreamDelta;
-          }
-
-          if (msg.serverContent?.turnComplete) {
-            if (state.blocks.has(blockIndex)) {
-              state.completeBlock(blockIndex);
-            }
-            yield {
-              content: state.getContent(),
-              state: "complete",
-            } as unknown as StreamDelta;
-            done = true;
-            break;
-          }
-
-          if (msg.toolCall?.functionCalls) {
-            for (const call of msg.toolCall.functionCalls) {
-              state.addBlock(blockIndex, "tool_use", {
-                id: call.id,
-                name: call.name,
-                input: call.args,
-                complete: true,
-              });
-              state.completeBlock(blockIndex);
-              blockIndex++;
-            }
-            yield {
-              content: state.getContent(),
-              state: "streaming",
-            } as unknown as StreamDelta;
-          }
-        }
-      }
-    } finally {
-      signal.removeEventListener("abort", onAbort);
-    }
+      this._ws.onopen = onOpen;
+      this._ws.onerror = onError;
+    });
   }
 
   /**
-   * Start heartbeat to keep WebSocket alive.
-   *
-   * 逆向: amp k6T session — connection lifecycle management
+   * Send a message over the WebSocket connection.
+   * @throws if not connected
    */
-  private _startHeartbeat(ws: WebSocket): void {
-    if (this._heartbeatTimer) {
-      clearInterval(this._heartbeatTimer);
+  send(data: unknown): void {
+    if (this._state !== "connected" || !this._ws) {
+      throw new Error(`Cannot send: state is "${this._state}", expected "connected"`);
     }
-    this._heartbeatTimer = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        // Send empty object as heartbeat
-        ws.send("{}");
-      }
-    }, this._config.heartbeatIntervalMs);
+    this._ws.send(JSON.stringify(data));
   }
 
-  private _cleanup(): void {
-    if (this._heartbeatTimer) {
-      clearInterval(this._heartbeatTimer);
-      this._heartbeatTimer = null;
-    }
+  /**
+   * Disconnect gracefully.
+   * Transitions: * → disconnected
+   */
+  disconnect(): void {
     if (this._ws) {
       try {
         this._ws.close();
       } catch {
-        // Ignore close errors
+        // ignore close errors
       }
       this._ws = null;
     }
-    this._connectionState = "disconnected";
+    if (this._state !== "disconnected") {
+      this._transition("disconnected");
+    }
+  }
+
+  /**
+   * Send setup configuration for the live session.
+   * Must be called after connect() succeeds.
+   */
+  sendSetup(config: {
+    model: string;
+    generationConfig?: Record<string, unknown>;
+    systemInstruction?: string;
+    tools?: unknown[];
+  }): void {
+    this.send({
+      setup: {
+        model: `models/${config.model}`,
+        generationConfig: config.generationConfig ?? {},
+        ...(config.systemInstruction
+          ? { systemInstruction: { parts: [{ text: config.systemInstruction }] } }
+          : {}),
+        ...(config.tools ? { tools: config.tools } : {}),
+      },
+    });
+  }
+
+  /** Transition state and emit event */
+  private _transition(newState: LiveConnectionState): void {
+    const prev = this._state;
+    if (prev === newState) return;
+    this._state = newState;
+    this.emit("stateChange", newState, prev);
   }
 }

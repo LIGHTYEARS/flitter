@@ -1,224 +1,434 @@
 /**
- * api-client.test.ts — InternalApiClient unit tests
+ * @flitter/llm — InternalApiClient tests
+ *
+ * Tests: thread labels, sharing, visibility, listing, retry logic
  */
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  ApiNotConfiguredError,
-  InternalApiClient,
-  type InternalApiClientConfig,
-} from "./api-client.js";
+import { ApiClientError, InternalApiClient } from "./api-client";
+import type { ThreadVisibility } from "./api-client";
 
-// ─── Mock fetch helpers ─────────────────────────────────
+// ─── Mock Fetch ──────────────────────────────────────────
 
-function createMockFetch(
-  responses: Array<{
-    status: number;
-    body?: unknown;
-    contentType?: string;
-  }>,
-): { fn: typeof fetch; calls: Array<{ url: string; init: RequestInit }> } {
-  const calls: Array<{ url: string; init: RequestInit }> = [];
+interface MockResponse {
+  status: number;
+  body?: unknown;
+  headers?: Record<string, string>;
+}
+
+function createMockFetch(responses: MockResponse[]): typeof globalThis.fetch {
   let callIndex = 0;
+  const calls: Array<{ url: string; options: RequestInit }> = [];
 
-  const fn = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-    calls.push({ url, init: init ?? {} });
-    const resp = responses[Math.min(callIndex++, responses.length - 1)];
-    return new Response(
-      resp.body !== undefined ? JSON.stringify(resp.body) : null,
-      {
-        status: resp.status,
-        headers: resp.contentType
-          ? { "Content-Type": resp.contentType }
-          : resp.body !== undefined
-            ? { "Content-Type": "application/json" }
-            : {},
-      },
-    );
+  const mockFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === "string" ? input : input.toString();
+    calls.push({ url, options: init ?? {} });
+
+    const resp = responses[callIndex] ?? responses[responses.length - 1];
+    callIndex++;
+
+    const ok = resp.status >= 200 && resp.status < 300;
+    const body = resp.body !== undefined ? JSON.stringify(resp.body) : "";
+    const headers = new Headers(resp.headers ?? {});
+
+    return {
+      ok,
+      status: resp.status,
+      headers,
+      text: async () => body,
+      json: async () => (body ? JSON.parse(body) : {}),
+    } as Response;
   };
 
-  return { fn: fn as typeof fetch, calls };
+  // Attach calls array for inspection
+  (mockFetch as unknown as { calls: typeof calls }).calls = calls;
+
+  return mockFetch as unknown as typeof globalThis.fetch;
 }
 
-function createClient(
-  config?: Partial<InternalApiClientConfig>,
-  fetchFn?: typeof fetch,
-): InternalApiClient {
-  return new InternalApiClient(
-    {
-      baseUrl: config?.baseUrl ?? "https://api.test.com",
-      authToken: config?.authToken ?? "test-token",
-      installationId: config?.installationId,
-      ...config,
-    },
-    fetchFn,
-  );
+function getCalls(
+  fetch: typeof globalThis.fetch,
+): Array<{ url: string; options: RequestInit }> {
+  return (fetch as unknown as { calls: Array<{ url: string; options: RequestInit }> }).calls;
 }
 
-// ─── Tests ───────────────────────────────────────────────
+// ─── Thread Labels ───────────────────────────────────────
 
-describe("InternalApiClient", () => {
-  describe("ApiNotConfiguredError", () => {
-    it("is thrown when baseUrl is empty", async () => {
-      const client = createClient({ baseUrl: "" });
-      await assert.rejects(
-        () => client.setThreadLabels("t1", ["bug"]),
-        (err: unknown) => {
-          assert.ok(err instanceof ApiNotConfiguredError);
-          return true;
-        },
-      );
+describe("InternalApiClient — Thread Labels", () => {
+  it("should get thread labels", async () => {
+    const labels = [{ id: "l1", name: "bug", color: "#ff0000" }];
+    const fetch = createMockFetch([{ status: 200, body: { labels } }]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
+
+    const result = await client.getThreadLabels("thread-1");
+
+    assert.deepEqual(result, labels);
+    const calls = getCalls(fetch);
+    assert.equal(calls[0].url, "https://api.example.com/threads/thread-1/labels");
+    assert.equal((calls[0].options.headers as Record<string, string>).Authorization, "Bearer token-123");
   });
 
-  describe("setThreadLabels", () => {
-    it("sends PUT request with correct path and body", async () => {
-      const { fn, calls } = createMockFetch([{ status: 204 }]);
-      const client = createClient(undefined, fn);
+  it("should add a label to a thread", async () => {
+    const label = { id: "l2", name: "feature", color: "#00ff00" };
+    const fetch = createMockFetch([{ status: 201, body: label }]);
 
-      await client.setThreadLabels("thread-123", ["bug", "urgent"]);
-
-      assert.equal(calls.length, 1);
-      assert.equal(calls[0].url, "https://api.test.com/threads/thread-123/labels");
-      assert.equal(calls[0].init.method, "PUT");
-      assert.deepEqual(JSON.parse(calls[0].init.body as string), {
-        labels: ["bug", "urgent"],
-      });
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
 
-    it("includes auth header when token is provided", async () => {
-      const { fn, calls } = createMockFetch([{ status: 204 }]);
-      const client = createClient({ authToken: "my-token" }, fn);
+    const result = await client.addThreadLabel("thread-1", { name: "feature", color: "#00ff00" });
 
-      await client.setThreadLabels("t1", []);
-
-      const headers = calls[0].init.headers as Record<string, string>;
-      assert.equal(headers["Authorization"], "Bearer my-token");
-    });
+    assert.deepEqual(result, label);
+    const calls = getCalls(fetch);
+    assert.equal(calls[0].options.method, "POST");
+    assert.equal(JSON.parse(calls[0].options.body as string).name, "feature");
   });
 
-  describe("shareThreadWithSupport", () => {
-    it("sends POST and returns shareUrl", async () => {
-      const { fn } = createMockFetch([
-        { status: 200, body: { shareUrl: "https://shared.example.com/abc" } },
-      ]);
-      const client = createClient(undefined, fn);
+  it("should remove a label from a thread", async () => {
+    const fetch = createMockFetch([{ status: 204 }]);
 
-      const result = await client.shareThreadWithSupport("t1");
-      assert.equal(result.shareUrl, "https://shared.example.com/abc");
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
+
+    await client.removeThreadLabel("thread-1", "label-1");
+
+    const calls = getCalls(fetch);
+    assert.equal(calls[0].options.method, "DELETE");
+    assert.equal(calls[0].url, "https://api.example.com/threads/thread-1/labels/label-1");
+  });
+});
+
+// ─── Thread Sharing / Visibility ─────────────────────────
+
+describe("InternalApiClient — Thread Sharing", () => {
+  it("should set thread visibility", async () => {
+    const fetch = createMockFetch([{ status: 200, body: {} }]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
+    });
+
+    await client.setThreadVisibility("thread-1", "public_unlisted");
+
+    const calls = getCalls(fetch);
+    assert.equal(calls[0].options.method, "PATCH");
+    const body = JSON.parse(calls[0].options.body as string);
+    assert.equal(body.visibility, "public_unlisted");
   });
 
-  describe("setThreadVisibility", () => {
-    it("sends PUT with visibility body", async () => {
-      const { fn, calls } = createMockFetch([{ status: 204 }]);
-      const client = createClient(undefined, fn);
+  it("should share a thread", async () => {
+    const shareResult = {
+      shareUrl: "https://example.com/share/abc",
+      visibility: "public_unlisted" as ThreadVisibility,
+    };
+    const fetch = createMockFetch([{ status: 200, body: shareResult }]);
 
-      await client.setThreadVisibility("t1", "public");
-
-      assert.equal(calls[0].init.method, "PUT");
-      assert.deepEqual(JSON.parse(calls[0].init.body as string), { visibility: "public" });
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
+
+    const result = await client.shareThread("thread-1");
+
+    assert.deepEqual(result, shareResult);
+    const calls = getCalls(fetch);
+    assert.equal(calls[0].options.method, "POST");
+    assert.equal(calls[0].url, "https://api.example.com/threads/thread-1/share");
   });
 
-  describe("getNewsFeed", () => {
-    it("returns news items from GET /news", async () => {
-      const items = [
-        { id: "n1", title: "Test News", content: "Body", date: "2026-01-01" },
-      ];
-      const { fn } = createMockFetch([{ status: 200, body: { items } }]);
-      const client = createClient(undefined, fn);
+  it("should share with custom visibility", async () => {
+    const fetch = createMockFetch([{
+      status: 200,
+      body: { shareUrl: "url", visibility: "thread_workspace_shared" },
+    }]);
 
-      const result = await client.getNewsFeed();
-      assert.equal(result.length, 1);
-      assert.equal(result[0].id, "n1");
-      assert.equal(result[0].title, "Test News");
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
 
-    it("returns empty array when items not in response", async () => {
-      const { fn } = createMockFetch([{ status: 200, body: {} }]);
-      const client = createClient(undefined, fn);
+    await client.shareThread("thread-1", "thread_workspace_shared");
 
-      const result = await client.getNewsFeed();
-      assert.deepEqual(result, []);
+    const calls = getCalls(fetch);
+    const body = JSON.parse(calls[0].options.body as string);
+    assert.equal(body.visibility, "thread_workspace_shared");
+  });
+});
+
+// ─── Thread Listing ──────────────────────────────────────
+
+describe("InternalApiClient — Thread Listing", () => {
+  it("should list threads", async () => {
+    const threadData = {
+      threads: [{
+        id: "t1",
+        title: "Test thread",
+        visibility: "private" as ThreadVisibility,
+        labels: [],
+        createdAt: "2026-01-01T00:00:00Z",
+        updatedAt: "2026-01-01T00:00:00Z",
+        messageCount: 5,
+      }],
+      total: 1,
+    };
+    const fetch = createMockFetch([{ status: 200, body: threadData }]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
+
+    const result = await client.listThreads();
+
+    assert.deepEqual(result, threadData);
   });
 
-  describe("reportUsage", () => {
-    it("sends POST to /usage with report data", async () => {
-      const { fn, calls } = createMockFetch([{ status: 204 }]);
-      const client = createClient(undefined, fn);
+  it("should pass query parameters for listing", async () => {
+    const fetch = createMockFetch([{
+      status: 200,
+      body: { threads: [], total: 0 },
+    }]);
 
-      await client.reportUsage({
-        threadId: "t1",
-        model: "claude-sonnet-4-20250514",
-        inputTokens: 1000,
-        outputTokens: 500,
-        durationMs: 2000,
-      });
-
-      assert.equal(calls[0].url, "https://api.test.com/usage");
-      assert.equal(calls[0].init.method, "POST");
-      const body = JSON.parse(calls[0].init.body as string);
-      assert.equal(body.model, "claude-sonnet-4-20250514");
-      assert.equal(body.inputTokens, 1000);
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
+
+    await client.listThreads({ limit: 10, offset: 20, labelId: "l1" });
+
+    const calls = getCalls(fetch);
+    const url = new URL(calls[0].url);
+    assert.equal(url.searchParams.get("limit"), "10");
+    assert.equal(url.searchParams.get("offset"), "20");
+    assert.equal(url.searchParams.get("label_id"), "l1");
   });
 
-  describe("retry on 5xx", () => {
-    it("retries on 500 and eventually succeeds", async () => {
-      const { fn, calls } = createMockFetch([
-        { status: 500 },
-        { status: 500 },
-        { status: 200, body: { items: [] } },
-      ]);
-      const client = new InternalApiClient(
-        { baseUrl: "https://api.test.com", authToken: "t" },
-        fn,
-      );
+  it("should get a specific thread", async () => {
+    const thread = {
+      id: "t1",
+      title: "My thread",
+      visibility: "private" as ThreadVisibility,
+      labels: [],
+      createdAt: "2026-01-01",
+      updatedAt: "2026-01-02",
+      messageCount: 3,
+    };
+    const fetch = createMockFetch([{ status: 200, body: thread }]);
 
-      const result = await client.getNewsFeed();
-      assert.deepEqual(result, []);
-      // Should have made 3 requests (2 retries + 1 success)
-      assert.equal(calls.length, 3);
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      fetch,
+      delay: async () => {},
     });
 
-    it("throws after MAX_RETRIES exceeded", async () => {
-      const { fn } = createMockFetch([
-        { status: 500 },
-        { status: 500 },
-        { status: 500 },
-        { status: 500 },
-      ]);
-      const client = new InternalApiClient(
-        { baseUrl: "https://api.test.com", authToken: "t" },
-        fn,
-      );
+    const result = await client.getThread("t1");
+    assert.deepEqual(result, thread);
+  });
+});
 
-      await assert.rejects(
-        () => client.getNewsFeed(),
-        (err: unknown) => {
-          assert.ok(err instanceof Error);
-          assert.ok(err.message.includes("500"));
-          return true;
-        },
-      );
+// ─── Retry Logic ─────────────────────────────────────────
+
+describe("InternalApiClient — Retry Logic", () => {
+  it("should retry on 429 with backoff", async () => {
+    const delays: number[] = [];
+    const fetch = createMockFetch([
+      { status: 429, body: { error: "rate limited" } },
+      { status: 429, body: { error: "rate limited" } },
+      { status: 200, body: { threads: [], total: 0 } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 2,
+      fetch,
+      delay: async (ms) => { delays.push(ms); },
     });
+
+    const result = await client.listThreads();
+
+    assert.equal(getCalls(fetch).length, 3);
+    assert.equal(delays.length, 2);
+    assert.deepEqual(result, { threads: [], total: 0 });
   });
 
-  describe("installation ID header", () => {
-    it("sends X-Installation-Id header when configured", async () => {
-      const { fn, calls } = createMockFetch([{ status: 204 }]);
-      const client = createClient(
-        { installationId: "inst-abc" },
-        fn,
-      );
+  it("should retry on 500 server error", async () => {
+    const fetch = createMockFetch([
+      { status: 500, body: { error: "internal error" } },
+      { status: 200, body: { labels: [] } },
+    ]);
 
-      await client.setThreadLabels("t1", []);
-
-      const headers = calls[0].init.headers as Record<string, string>;
-      assert.equal(headers["X-Installation-Id"], "inst-abc");
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 1,
+      fetch,
+      delay: async () => {},
     });
+
+    const result = await client.getThreadLabels("t1");
+    assert.deepEqual(result, []);
+    assert.equal(getCalls(fetch).length, 2);
+  });
+
+  it("should retry on 503 service unavailable", async () => {
+    const fetch = createMockFetch([
+      { status: 503, body: { error: "service unavailable" } },
+      { status: 200, body: { labels: [] } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 1,
+      fetch,
+      delay: async () => {},
+    });
+
+    const result = await client.getThreadLabels("t1");
+    assert.deepEqual(result, []);
+  });
+
+  it("should NOT retry on 401", async () => {
+    const fetch = createMockFetch([
+      { status: 401, body: { error: "unauthorized" } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "bad-token",
+      maxRetries: 2,
+      fetch,
+      delay: async () => {},
+    });
+
+    await assert.rejects(
+      client.listThreads(),
+      (err: unknown) => {
+        assert.ok(err instanceof ApiClientError);
+        assert.equal(err.status, 401);
+        return true;
+      },
+    );
+
+    assert.equal(getCalls(fetch).length, 1); // No retries
+  });
+
+  it("should NOT retry on 400", async () => {
+    const fetch = createMockFetch([
+      { status: 400, body: { error: "bad request" } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 2,
+      fetch,
+      delay: async () => {},
+    });
+
+    await assert.rejects(
+      client.addThreadLabel("t1", { name: "" }),
+      (err: unknown) => {
+        assert.ok(err instanceof ApiClientError);
+        assert.equal(err.status, 400);
+        return true;
+      },
+    );
+
+    assert.equal(getCalls(fetch).length, 1);
+  });
+
+  it("should respect x-should-retry header", async () => {
+    const fetch = createMockFetch([
+      { status: 400, body: { error: "temporary" }, headers: { "x-should-retry": "true" } },
+      { status: 200, body: { labels: [] } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 1,
+      fetch,
+      delay: async () => {},
+    });
+
+    const result = await client.getThreadLabels("t1");
+    assert.deepEqual(result, []);
+    assert.equal(getCalls(fetch).length, 2);
+  });
+
+  it("should throw after all retries exhausted", async () => {
+    const fetch = createMockFetch([
+      { status: 500, body: { error: "server error" } },
+      { status: 500, body: { error: "server error" } },
+      { status: 500, body: { error: "server error" } },
+    ]);
+
+    const client = new InternalApiClient({
+      baseUrl: "https://api.example.com",
+      authToken: "token-123",
+      maxRetries: 2,
+      fetch,
+      delay: async () => {},
+    });
+
+    await assert.rejects(
+      client.listThreads(),
+      (err: unknown) => {
+        assert.ok(err instanceof ApiClientError);
+        assert.equal(err.status, 500);
+        return true;
+      },
+    );
+
+    assert.equal(getCalls(fetch).length, 3); // 1 initial + 2 retries
+  });
+});
+
+// ─── ApiClientError ──────────────────────────────────────
+
+describe("ApiClientError", () => {
+  it("should have correct properties", () => {
+    const err = new ApiClientError(404, "GET", "/threads/t1", "Not found");
+    assert.equal(err.status, 404);
+    assert.equal(err.method, "GET");
+    assert.equal(err.path, "/threads/t1");
+    assert.equal(err.name, "ApiClientError");
+    assert.ok(err.message.includes("404"));
+    assert.ok(err.message.includes("GET"));
+    assert.ok(err.message.includes("/threads/t1"));
+  });
+
+  it("should be an instance of Error", () => {
+    const err = new ApiClientError(500, "POST", "/test", "error");
+    assert.ok(err instanceof Error);
+    assert.ok(err instanceof ApiClientError);
   });
 });

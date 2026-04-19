@@ -59,47 +59,31 @@ export type {
   ToolDefinition,
 } from "./types";
 export { MODEL_REGISTRY, ProviderError, registerModel, TransformState } from "./types";
+// ─── Model Fallback / Retry ───────────────────────────────
+export {
+  calculateBackoffMs,
+  isNetworkError,
+  isOverloaded,
+  isResponseIncomplete,
+  isRetryableError,
+  isStreamStalled,
+  ModelFallbackChain,
+  shouldRetryStatus,
+} from "./model-fallback";
+export type { FallbackChainOptions } from "./model-fallback";
+// ─── API Client ───────────────────────────────────────────
+export { ApiClientError, InternalApiClient } from "./api-client";
+export type {
+  ApiClientConfig,
+  ShareResult,
+  ThreadLabel,
+  ThreadSummary,
+  ThreadVisibility,
+} from "./api-client";
+// ─── Live Provider ────────────────────────────────────────
+export { GoogleGenAILiveProvider } from "./providers/gemini/live-provider";
+export type { LiveConnectionState, LiveProviderConfig, LiveProviderEvents } from "./providers/gemini/live-provider";
 // ─── Utilities ─────────────────────────────────────────
 export { calculateCost } from "./utils/calculate-cost";
 export { isContextOverflow } from "./utils/overflow";
 export { sanitizeSurrogates } from "./utils/sanitize-unicode";
-
-// ─── Model Fallback Chain (Gap #26) ────────────────────
-export {
-  ModelFallbackChain,
-  isOverloadedError,
-  type FallbackChainConfig,
-  type FallbackResolution,
-  type ModelFallbackConfig,
-} from "./model-fallback";
-
-// ─── Internal API Client (Gap #18) ─────────────────────
-export {
-  ApiNotConfiguredError,
-  InternalApiClient,
-  type InternalApiClientConfig,
-  type NewsItem,
-  type UsageReport,
-} from "./api-client";
-
-// ─── Prompt Cache Tracker (Gap #29) ────────────────────
-export {
-  PromptCacheTracker,
-  type CacheControlConfig,
-  type CacheStats,
-  type CacheUsageFields,
-} from "./cache/prompt-cache";
-
-// ─── Google GenAI Live Provider (Gap #27) ───────────────
-export {
-  GoogleGenAILiveProvider,
-  type LiveConnectionState,
-  type LiveProviderConfig,
-  type LiveServerMessage,
-} from "./providers/gemini/live-provider";
-
-// ─── Vertex AI Auth (Gap #28) ──────────────────────────
-export {
-  resolveVertexAIConfig,
-  type VertexAIConfig,
-} from "./providers/gemini/provider";

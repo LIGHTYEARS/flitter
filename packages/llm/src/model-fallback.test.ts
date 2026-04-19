@@ -1,286 +1,507 @@
 /**
- * model-fallback.test.ts — ModelFallbackChain unit tests
+ * @flitter/llm — ModelFallbackChain tests
+ *
+ * Tests: error classification, backoff calculation, retry logic, model fallback
  */
+
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  isOverloadedError,
-  ModelFallbackChain,
-} from "./model-fallback.js";
-import type { LLMProvider } from "./provider";
 import type { StreamDelta, StreamParams } from "./types";
 import { ProviderError } from "./types";
+import {
+  calculateBackoffMs,
+  isNetworkError,
+  isOverloaded,
+  isResponseIncomplete,
+  isRetryableError,
+  isStreamStalled,
+  ModelFallbackChain,
+  shouldRetryStatus,
+} from "./model-fallback";
+import type { LLMProvider } from "./provider";
 
-// ─── Helper: create a mock provider ──────────────────────
+// ─── Error Classification ────────────────────────────────
 
-function createMockProvider(
-  name: string,
-  behavior: "success" | "overloaded" | "auth-error" = "success",
-): LLMProvider {
-  return {
-    name,
-    async *stream(_params: StreamParams): AsyncGenerator<StreamDelta> {
-      if (behavior === "overloaded") {
-        throw new ProviderError(529, name, true, "Model is overloaded");
-      }
-      if (behavior === "auth-error") {
-        throw new ProviderError(401, name, false, "Unauthorized");
-      }
-      yield {
-        content: [{ type: "text", text: `response from ${name}`, startTime: Date.now() }],
-        state: "complete",
-      } as unknown as StreamDelta;
-    },
-  };
-}
-
-function createStreamParams(model: string): StreamParams {
-  return {
-    model,
-    messages: [],
-    systemPrompt: [],
-    tools: [],
-    config: {
-      settings: {},
-      secrets: { getToken: async () => "test-key" },
-    } as unknown as StreamParams["config"],
-    signal: new AbortController().signal,
-  };
-}
-
-// ─── Tests ───────────────────────────────────────────────
-
-describe("ModelFallbackChain", () => {
-  describe("resolveModel", () => {
-    it("returns candidates list for configured chain", () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "claude-opus-4-6": {
-            primary: "claude-opus-4-20250515",
-            fallbacks: ["claude-sonnet-4-20250514"],
-          },
-        },
-      });
-
-      const result = chain.resolveModel("claude-opus-4-6");
-      assert.equal(result.requested, "claude-opus-4-6");
-      assert.deepEqual(result.candidates, [
-        "claude-opus-4-20250515",
-        "claude-sonnet-4-20250514",
-      ]);
-    });
-
-    it("returns single-element array for unconfigured model", () => {
-      const chain = new ModelFallbackChain({ chains: {} });
-      const result = chain.resolveModel("gpt-4o");
-      assert.equal(result.requested, "gpt-4o");
-      assert.deepEqual(result.candidates, ["gpt-4o"]);
-    });
-
-    it("handles chain with multiple fallbacks", () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "opus": {
-            primary: "claude-opus-4-20250515",
-            fallbacks: ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
-          },
-        },
-      });
-
-      const result = chain.resolveModel("opus");
-      assert.equal(result.candidates.length, 3);
-      assert.equal(result.candidates[0], "claude-opus-4-20250515");
-      assert.equal(result.candidates[2], "claude-3-5-haiku-20241022");
-    });
-
-    it("handles chain with empty fallbacks", () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "solo": { primary: "gpt-4o", fallbacks: [] },
-        },
-      });
-
-      const result = chain.resolveModel("solo");
-      assert.deepEqual(result.candidates, ["gpt-4o"]);
-    });
+describe("isOverloaded", () => {
+  it("should detect 529 overloaded status", () => {
+    const err = new ProviderError(529, "anthropic", true, "Overloaded");
+    assert.equal(isOverloaded(err), true);
   });
 
-  describe("streamWithFallback", () => {
-    it("uses primary model when it succeeds", async () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "test-model": {
-            primary: "model-a",
-            fallbacks: ["model-b"],
-          },
-        },
-      });
+  it("should detect overloaded keyword in message", () => {
+    const err = new ProviderError(529, "anthropic", true, "The server is overloaded right now");
+    assert.equal(isOverloaded(err), true);
+  });
 
-      const providers: Record<string, LLMProvider> = {
-        "model-a": createMockProvider("model-a", "success"),
-        "model-b": createMockProvider("model-b", "success"),
-      };
+  it("should detect overload keyword in message", () => {
+    const err = new ProviderError(503, "anthropic", true, "Service overload detected");
+    assert.equal(isOverloaded(err), true);
+  });
 
-      const params = createStreamParams("test-model");
-      const deltas: StreamDelta[] = [];
-
-      for await (const delta of chain.streamWithFallback(params, (m) => providers[m])) {
-        deltas.push(delta);
-      }
-
-      assert.equal(deltas.length, 1);
-      assert.ok(
-        (deltas[0].content[0] as { text: string }).text.includes("model-a"),
-        "Should use primary model",
-      );
-    });
-
-    it("falls back when primary is overloaded", async () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "test-model": {
-            primary: "model-a",
-            fallbacks: ["model-b"],
-          },
-        },
-      });
-
-      const providers: Record<string, LLMProvider> = {
-        "model-a": createMockProvider("model-a", "overloaded"),
-        "model-b": createMockProvider("model-b", "success"),
-      };
-
-      const params = createStreamParams("test-model");
-      const deltas: StreamDelta[] = [];
-
-      for await (const delta of chain.streamWithFallback(params, (m) => providers[m])) {
-        deltas.push(delta);
-      }
-
-      assert.equal(deltas.length, 1);
-      assert.ok(
-        (deltas[0].content[0] as { text: string }).text.includes("model-b"),
-        "Should fall back to model-b",
-      );
-    });
-
-    it("throws non-overload errors immediately (no fallback)", async () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "test-model": {
-            primary: "model-a",
-            fallbacks: ["model-b"],
-          },
-        },
-      });
-
-      const providers: Record<string, LLMProvider> = {
-        "model-a": createMockProvider("model-a", "auth-error"),
-        "model-b": createMockProvider("model-b", "success"),
-      };
-
-      const params = createStreamParams("test-model");
-
-      await assert.rejects(
-        async () => {
-          for await (const _delta of chain.streamWithFallback(params, (m) => providers[m])) {
-            // consume
-          }
-        },
-        (err: unknown) => {
-          assert.ok(err instanceof ProviderError);
-          assert.equal(err.status, 401);
-          return true;
-        },
-      );
-    });
-
-    it("throws last error when all candidates are overloaded", async () => {
-      const chain = new ModelFallbackChain({
-        chains: {
-          "test-model": {
-            primary: "model-a",
-            fallbacks: ["model-b"],
-          },
-        },
-      });
-
-      const providers: Record<string, LLMProvider> = {
-        "model-a": createMockProvider("model-a", "overloaded"),
-        "model-b": createMockProvider("model-b", "overloaded"),
-      };
-
-      const params = createStreamParams("test-model");
-
-      await assert.rejects(
-        async () => {
-          for await (const _delta of chain.streamWithFallback(params, (m) => providers[m])) {
-            // consume
-          }
-        },
-        (err: unknown) => {
-          assert.ok(err instanceof ProviderError);
-          assert.equal(err.status, 529);
-          return true;
-        },
-      );
-    });
-
-    it("works with unconfigured model (passthrough)", async () => {
-      const chain = new ModelFallbackChain({ chains: {} });
-
-      const providers: Record<string, LLMProvider> = {
-        "gpt-4o": createMockProvider("gpt-4o", "success"),
-      };
-
-      const params = createStreamParams("gpt-4o");
-      const deltas: StreamDelta[] = [];
-
-      for await (const delta of chain.streamWithFallback(params, (m) => providers[m])) {
-        deltas.push(delta);
-      }
-
-      assert.equal(deltas.length, 1);
-    });
+  it("should not match unrelated errors", () => {
+    const err = new ProviderError(400, "anthropic", false, "Invalid request");
+    assert.equal(isOverloaded(err), false);
   });
 });
 
-describe("isOverloadedError", () => {
-  it("returns true for ProviderError with status 529", () => {
-    assert.ok(isOverloadedError(new ProviderError(529, "anthropic", true, "overloaded")));
+describe("isNetworkError", () => {
+  it("should detect fetch failed", () => {
+    assert.equal(isNetworkError(new Error("fetch failed")), true);
   });
 
-  it("returns true for ProviderError with status 503", () => {
-    assert.ok(isOverloadedError(new ProviderError(503, "anthropic", true, "unavailable")));
+  it("should detect ECONNREFUSED", () => {
+    assert.equal(isNetworkError(new Error("connect ECONNREFUSED 127.0.0.1:443")), true);
   });
 
-  it("returns true for ProviderError with status 429", () => {
-    assert.ok(isOverloadedError(new ProviderError(429, "anthropic", true, "rate limited")));
+  it("should detect ETIMEDOUT", () => {
+    assert.equal(isNetworkError(new Error("ETIMEDOUT")), true);
   });
 
-  it("returns false for ProviderError with status 401", () => {
-    assert.ok(!isOverloadedError(new ProviderError(401, "anthropic", false, "unauthorized")));
+  it("should detect DNS lookup failed", () => {
+    assert.equal(isNetworkError(new Error("dns lookup failed")), true);
   });
 
-  it("returns true for Error with 'overloaded' in message", () => {
-    assert.ok(isOverloadedError(new Error("Model is overloaded")));
+  it("should detect socket hang up", () => {
+    assert.equal(isNetworkError(new Error("socket hang up")), true);
   });
 
-  it("returns true for Error with 'resource_exhausted' in message", () => {
-    assert.ok(isOverloadedError(new Error("resource_exhausted")));
+  it("should not match non-Error values", () => {
+    assert.equal(isNetworkError("string error"), false);
+    assert.equal(isNetworkError(null), false);
   });
 
-  it("returns true for Error with 'rate limit' in message", () => {
-    assert.ok(isOverloadedError(new Error("Rate limit exceeded")));
+  it("should not match unrelated errors", () => {
+    assert.equal(isNetworkError(new Error("Invalid JSON")), false);
+  });
+});
+
+describe("isStreamStalled", () => {
+  it("should detect stream stalled", () => {
+    const err = new ProviderError(408, "anthropic", true, "Stream stalled");
+    assert.equal(isStreamStalled(err), true);
   });
 
-  it("returns false for regular Error", () => {
-    assert.ok(!isOverloadedError(new Error("Something else")));
+  it("should detect no data received", () => {
+    const err = new ProviderError(408, "anthropic", true, "No data received for 30s");
+    assert.equal(isStreamStalled(err), true);
   });
 
-  it("returns false for non-Error", () => {
-    assert.ok(!isOverloadedError("string error"));
-    assert.ok(!isOverloadedError(null));
-    assert.ok(!isOverloadedError(undefined));
+  it("should not match unrelated messages", () => {
+    const err = new ProviderError(400, "anthropic", false, "Bad request");
+    assert.equal(isStreamStalled(err), false);
+  });
+});
+
+describe("isResponseIncomplete", () => {
+  it("should detect response incomplete", () => {
+    const err = new ProviderError(500, "anthropic", true, "Response incomplete");
+    assert.equal(isResponseIncomplete(err), true);
+  });
+
+  it("should detect stream ended unexpectedly", () => {
+    const err = new ProviderError(500, "anthropic", true, "Stream ended unexpectedly");
+    assert.equal(isResponseIncomplete(err), true);
+  });
+
+  it("should detect stream closed before", () => {
+    const err = new ProviderError(500, "anthropic", true, "Stream closed before completion");
+    assert.equal(isResponseIncomplete(err), true);
+  });
+});
+
+describe("isRetryableError", () => {
+  it("should retry 429 rate limit", () => {
+    const err = new ProviderError(429, "anthropic", true, "Rate limited");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should retry 503 service unavailable", () => {
+    const err = new ProviderError(503, "anthropic", true, "Service unavailable");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should retry 529 overloaded", () => {
+    const err = new ProviderError(529, "anthropic", true, "Overloaded");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should retry 500 server error", () => {
+    const err = new ProviderError(500, "anthropic", true, "Internal server error");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should retry 502 bad gateway", () => {
+    const err = new ProviderError(502, "openai", true, "Bad gateway");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should retry network errors", () => {
+    assert.equal(isRetryableError(new Error("fetch failed")), true);
+    assert.equal(isRetryableError(new Error("ECONNRESET")), true);
+  });
+
+  it("should NOT retry 400 bad request", () => {
+    const err = new ProviderError(400, "anthropic", false, "Invalid request");
+    assert.equal(isRetryableError(err), false);
+  });
+
+  it("should NOT retry 401 unauthorized", () => {
+    const err = new ProviderError(401, "anthropic", false, "Unauthorized");
+    assert.equal(isRetryableError(err), false);
+  });
+
+  it("should NOT retry 403 forbidden", () => {
+    const err = new ProviderError(403, "anthropic", false, "Forbidden");
+    assert.equal(isRetryableError(err), false);
+  });
+
+  it("should NOT retry 404 not found", () => {
+    const err = new ProviderError(404, "anthropic", false, "Model not found");
+    assert.equal(isRetryableError(err), false);
+  });
+
+  it("should respect retryable flag even for 4xx", () => {
+    // A 422 that the provider marks as retryable
+    const err = new ProviderError(422, "anthropic", true, "Temporary issue");
+    assert.equal(isRetryableError(err), true);
+  });
+});
+
+// ─── shouldRetryStatus ───────────────────────────────────
+
+describe("shouldRetryStatus", () => {
+  it("should respect x-should-retry header true", () => {
+    assert.equal(shouldRetryStatus(400, "true"), true);
+  });
+
+  it("should respect x-should-retry header false", () => {
+    assert.equal(shouldRetryStatus(500, "false"), false);
+  });
+
+  it("should retry 408 timeout", () => {
+    assert.equal(shouldRetryStatus(408), true);
+  });
+
+  it("should retry 409 conflict", () => {
+    assert.equal(shouldRetryStatus(409), true);
+  });
+
+  it("should retry 429 rate limit", () => {
+    assert.equal(shouldRetryStatus(429), true);
+  });
+
+  it("should retry 500+", () => {
+    assert.equal(shouldRetryStatus(500), true);
+    assert.equal(shouldRetryStatus(502), true);
+    assert.equal(shouldRetryStatus(503), true);
+    assert.equal(shouldRetryStatus(529), true);
+  });
+
+  it("should NOT retry 400", () => {
+    assert.equal(shouldRetryStatus(400), false);
+  });
+
+  it("should NOT retry 401", () => {
+    assert.equal(shouldRetryStatus(401), false);
+  });
+});
+
+// ─── Backoff Calculation ─────────────────────────────────
+
+describe("calculateBackoffMs", () => {
+  it("should use retryAfterMs if within sane range", () => {
+    const ms = calculateBackoffMs(1, 2, 3000);
+    assert.equal(ms, 3000);
+  });
+
+  it("should ignore retryAfterMs >= 60s", () => {
+    const ms = calculateBackoffMs(1, 2, 60_000);
+    // Should fall through to exponential backoff
+    assert.ok(ms > 0 && ms < 60_000);
+  });
+
+  it("should ignore negative retryAfterMs", () => {
+    const ms = calculateBackoffMs(1, 2, -1000);
+    assert.ok(ms > 0);
+  });
+
+  it("should produce increasing delays for successive attempts", () => {
+    // attempt 0 → base 0.5s, attempt 1 → base 1s, attempt 2 → base 2s
+    // With jitter 0.75-1.0, these should be distinguishable on average
+    const delays: number[] = [];
+    for (let i = 3; i >= 0; i--) {
+      // Collect multiple samples to average out jitter
+      let sum = 0;
+      for (let j = 0; j < 100; j++) {
+        sum += calculateBackoffMs(i, 3);
+      }
+      delays.push(sum / 100);
+    }
+    // Each successive attempt should have higher average delay
+    for (let i = 1; i < delays.length; i++) {
+      assert.ok(delays[i] >= delays[i - 1] * 0.5, `delay[${i}] should be >= delay[${i - 1}]*0.5`);
+    }
+  });
+
+  it("should cap at 8 seconds base", () => {
+    // Even with many attempts, base should not exceed 8s
+    const ms = calculateBackoffMs(0, 10);
+    assert.ok(ms <= 8000);
+  });
+});
+
+// ─── ModelFallbackChain ──────────────────────────────────
+
+describe("ModelFallbackChain", () => {
+  function makeDelta(text: string): StreamDelta {
+    return {
+      content: [{ type: "text", text, startTime: Date.now() }],
+      state: "complete",
+    };
+  }
+
+  function makeParams(): StreamParams {
+    return {
+      model: "will-be-overridden",
+      messages: [],
+      systemPrompt: [],
+      tools: [],
+      config: {
+        settings: {},
+        secrets: { getToken: async () => "test-key" },
+      } as unknown as StreamParams["config"],
+      signal: new AbortController().signal,
+    };
+  }
+
+  it("should yield deltas from primary model on success", async () => {
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream(params) {
+        yield makeDelta(`from:${params.model}`);
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["primary", "fallback"],
+      provider,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    assert.equal((results[0].content[0] as { type: "text"; text: string }).text, "from:primary");
+  });
+
+  it("should fallback to next model on retryable error after retries exhausted", async () => {
+    let callCount = 0;
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream(params) {
+        callCount++;
+        if (params.model === "primary") {
+          throw new ProviderError(529, "anthropic", true, "Overloaded");
+        }
+        yield makeDelta(`from:${params.model}`);
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["primary", "fallback"],
+      provider,
+      maxRetriesPerModel: 1,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    assert.equal((results[0].content[0] as { type: "text"; text: string }).text, "from:fallback");
+    // primary called 1 (initial) + 1 (retry) = 2 times, then fallback once
+    assert.equal(callCount, 3);
+  });
+
+  it("should throw immediately on non-retryable error", async () => {
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream() {
+        throw new ProviderError(401, "anthropic", false, "Unauthorized");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["primary", "fallback"],
+      provider,
+      delay: async () => {},
+    });
+
+    await assert.rejects(
+      async () => {
+        for await (const _ of chain.stream(makeParams())) {
+          /* consume */
+        }
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof ProviderError);
+        assert.equal(err.status, 401);
+        return true;
+      },
+    );
+  });
+
+  it("should retry 429 rate limit with fallback", async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream(params) {
+        attempts++;
+        if (params.model === "model-a") {
+          throw new ProviderError(429, "anthropic", true, "Rate limited", 100);
+        }
+        yield makeDelta("ok");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["model-a", "model-b"],
+      provider,
+      maxRetriesPerModel: 0,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    // model-a called once (no retries since maxRetriesPerModel=0), model-b once
+    assert.equal(attempts, 2);
+  });
+
+  it("should retry 503 service unavailable", async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream() {
+        attempts++;
+        if (attempts <= 2) {
+          throw new ProviderError(503, "gemini", true, "Service unavailable");
+        }
+        yield makeDelta("recovered");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["model"],
+      provider,
+      maxRetriesPerModel: 2,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    assert.equal(attempts, 3); // 2 failures + 1 success
+  });
+
+  it("should throw last error when all models exhausted", async () => {
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream() {
+        throw new ProviderError(529, "anthropic", true, "Overloaded");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["model-a", "model-b"],
+      provider,
+      maxRetriesPerModel: 0,
+      delay: async () => {},
+    });
+
+    await assert.rejects(
+      async () => {
+        for await (const _ of chain.stream(makeParams())) {
+          /* consume */
+        }
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof ProviderError);
+        assert.equal(err.status, 529);
+        return true;
+      },
+    );
+  });
+
+  it("should handle network errors as retryable", async () => {
+    let attempts = 0;
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream(params) {
+        attempts++;
+        if (params.model === "primary") {
+          throw new Error("fetch failed");
+        }
+        yield makeDelta("from-fallback");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["primary", "fallback"],
+      provider,
+      maxRetriesPerModel: 0,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    assert.equal(attempts, 2);
+  });
+
+  it("should call delay between retries", async () => {
+    const delays: number[] = [];
+    let callCount = 0;
+
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream() {
+        callCount++;
+        if (callCount <= 2) {
+          throw new ProviderError(500, "anthropic", true, "Server error");
+        }
+        yield makeDelta("ok");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["model"],
+      provider,
+      maxRetriesPerModel: 2,
+      delay: async (ms) => {
+        delays.push(ms);
+      },
+    });
+
+    for await (const _ of chain.stream(makeParams())) {
+      /* consume */
+    }
+
+    assert.equal(delays.length, 2);
+    assert.ok(delays.every((d) => d > 0));
   });
 });

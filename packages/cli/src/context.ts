@@ -63,6 +63,38 @@ export interface CliContext {
   systemPrompt?: string;
   /** API Key 覆盖 (--api-key) — 逆向: i$T apiKey (chunk-006.js:38263-38267) */
   apiKey?: string;
+  /**
+   * Agent mode override (--mode)
+   * 逆向: i$T mode flag (chunk-006.js:38269) → selects agent mode (smart/fast/deep/auto)
+   */
+  agentMode?: string;
+  /**
+   * Include thinking blocks in stream JSON output (--stream-json-thinking)
+   * Implies --stream-json.
+   * 逆向: Yz0 `--stream-json-thinking` flag → Kl0 `includeThinking` param
+   */
+  streamJsonThinking?: boolean;
+  /**
+   * Read JSON Lines user messages from stdin (--stream-json-input)
+   * Requires --execute and --stream-json.
+   * 逆向: Yz0 `--stream-json-input` flag → Kl0 `streamJsonInput` param → Vl0() loop
+   */
+  streamJsonInput?: boolean;
+  /**
+   * Output JSON with result + token usage (--stats)
+   * 逆向: Yl0 `stats` param → C.usage JSON output (0300_unknown_Yl0.js:133-145)
+   */
+  stats?: boolean;
+  /**
+   * Archive thread after execute finishes (--archive)
+   * 逆向: Yl0 `labels` → NKT after execute; SB archive = threadService.archive()
+   */
+  archive?: boolean;
+  /**
+   * Labels to add to thread (-l/--label)
+   * 逆向: Kl0 `labels` → NKT post-execute label call (0297_unknown_Kl0.js:128)
+   */
+  labels?: string[];
 }
 
 /**
@@ -108,7 +140,7 @@ export function resolveCliContext(program: Command): CliContext {
     executeMode,
     isTTY,
     headless: Boolean(opts.headless),
-    streamJson: Boolean(opts.streamJson) || Boolean(opts.headless),
+    streamJson: Boolean(opts.streamJson) || Boolean(opts.headless) || Boolean(opts.streamJsonThinking),
     verbose: Boolean(opts.verbose),
     userMessage: program.args.length > 0 ? program.args.join(" ") : undefined,
     print: printFlag,
@@ -117,5 +149,16 @@ export function resolveCliContext(program: Command): CliContext {
     model: opts.model as string | undefined,
     systemPrompt: opts.systemPrompt as string | undefined,
     apiKey: opts.apiKey as string | undefined,
+    agentMode: opts.mode as string | undefined,
+    // 逆向: Yz0 `--stream-json-thinking` implies `--stream-json` (line 611-612)
+    streamJsonThinking: Boolean(opts.streamJsonThinking) || undefined,
+    // 逆向: Yz0 `--stream-json-input` requires `--execute` and `--stream-json` (line 613-614)
+    streamJsonInput: Boolean(opts.streamJsonInput) || undefined,
+    // 逆向: Yz0 `--stats` flag (line 615-616)
+    stats: Boolean(opts.stats) || undefined,
+    // 逆向: Yz0 `--archive` flag (line 617-618)
+    archive: Boolean(opts.archive) || undefined,
+    // 逆向: Yz0 `-l, --label` repeatable flag (line 619-622)
+    labels: (opts.label as string[] | undefined)?.length ? (opts.label as string[]) : undefined,
   };
 }

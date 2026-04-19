@@ -360,8 +360,8 @@ describe("ADMIN_OVERRIDE_KEYS", () => {
     }
   });
 
-  it("should have exactly 22 entries", () => {
-    assert.equal(ADMIN_OVERRIDE_KEYS.length, 22);
+  it("should have exactly 23 entries", () => {
+    assert.equal(ADMIN_OVERRIDE_KEYS.length, 23);
   });
 });
 

@@ -53,11 +53,28 @@ export function createProgram(version: string): Command {
     // amp defines apiKey, sp, systemPrompt, mode as hidden options.
     // Flitter exposes a subset as user-facing CLI flags.
     .option("--model <model>", "LLM model to use (e.g., claude-sonnet-4-20250514)")
+    .option("--mode <mode>", "Agent mode: smart, fast, deep, auto")
     .option("--api-key <key>", "API key (overrides stored credentials for this session)")
     .option("--system-prompt <text>", "Custom system prompt text or file path")
     .option("--max-turns <n>", "Maximum number of inference turns (default: unlimited)")
     .option("-p, --print", "Output only the final assistant text (implies --execute)")
     .option("--pipe", "Read prompt from stdin, output result to stdout (implies --execute)")
+    // ── 逆向: Yz0 stream-json-thinking (line 611-612) ──
+    .option(
+      "--stream-json-thinking",
+      "Include thinking blocks in stream JSON output (implies --stream-json)",
+    )
+    // ── 逆向: Yz0 stream-json-input (line 613-614) ──
+    .option(
+      "--stream-json-input",
+      "Read JSON Lines user messages from stdin (requires --execute and --stream-json)",
+    )
+    // ── 逆向: Yz0 --stats (line 615-616) ──
+    .option("--stats", "Output JSON with result and token usage data (implies --execute)")
+    // ── 逆向: Yz0 --archive (line 617-618) ──
+    .option("--archive", "Archive the thread after execute finishes")
+    // ── 逆向: Yz0 -l/--label repeatable (line 619-622) ──
+    .option("-l, --label <label>", "Add label(s) to thread (repeatable)", collect, [])
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {

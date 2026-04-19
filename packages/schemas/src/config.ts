@@ -31,6 +31,7 @@ export type SecretKey = z.infer<typeof SecretKeySchema>;
 /** Admin 可覆盖的键 */
 export const ADMIN_OVERRIDE_KEYS = [
   "agent.deepReasoningEffort",
+  "agent.mode",
   "agent.skipTitleGenerationIfMessageContains",
   "anthropic.effort",
   "anthropic.interleavedThinking.enabled",
@@ -113,6 +114,7 @@ export const SettingsSchema = z.object({
   "internal.kimi.reasoning": z.string().optional(),
 
   // Agent
+  "agent.mode": z.enum(["smart", "fast", "deep", "auto"]).optional(),
   "agent.deepReasoningEffort": z.string().optional(),
   "agent.skipTitleGenerationIfMessageContains": z.string().optional(),
   "agent.showUsageDebugInfo": z.boolean().optional(),

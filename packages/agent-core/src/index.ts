@@ -34,6 +34,17 @@ export type {
 export {
   filterValidHooks,
 } from "./hooks";
+// ─── Modes ────────────────────────────────────────────
+export type { AgentMode, AgentModeSpec, ReasoningEffort } from "./modes/index";
+export {
+  AGENT_MODES,
+  getModelForMode,
+  getModeSpec,
+  inferProviderFromModel,
+  isDeepReasoningMode,
+  isValidAgentMode,
+  resolveReasoningEffort,
+} from "./modes/index";
 export type { PermissionEngineOpts } from "./permissions/engine";
 export { DEFAULT_PERMISSION_RULES, PermissionEngine } from "./permissions/engine";
 export { checkGuardedFile, getToolFilePaths } from "./permissions/guarded-files";

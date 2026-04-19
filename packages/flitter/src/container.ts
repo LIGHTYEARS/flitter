@@ -134,7 +134,7 @@ export interface ContainerOptions {
 export interface ServiceContainer {
   /** 配置服务 (三级合并 + 热重载) */
   configService: ConfigService;
-  /** 工具注册表 (已注册 7 个内置工具) */
+  /** 工具注册表 (已注册内置工具 + 动态 MCP 工具) */
   toolRegistry: ToolRegistry;
   /** 工具执行引擎 (容器级别, 用于生命周期管理) */
   toolOrchestrator: ToolOrchestrator;
@@ -202,7 +202,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     disposables.push({ dispose: () => configService.unsubscribe() });
     log.info("ConfigService created");
 
-    // 2. ToolRegistry + 注册 7 个内置工具
+    // 2. ToolRegistry + 注册内置工具 (Read, Write, Edit, Bash, Grep, Glob, FuzzyFind)
     const toolRegistry = createToolRegistry();
     registerBuiltinTools(toolRegistry);
     log.info("ToolRegistry created, builtin tools registered");

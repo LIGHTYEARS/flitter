@@ -14,7 +14,6 @@
  * ```
  */
 import { Command } from "commander";
-import { registerPluginsCommand } from "./commands/plugins.js";
 
 /**
  * 创建 Commander.js 命令树
@@ -76,35 +75,16 @@ export function createProgram(version: string): Command {
     .option("--archive", "Archive the thread after execute finishes")
     // ── 逆向: Yz0 -l/--label repeatable (line 619-622) ──
     .option("-l, --label <label>", "Add label(s) to thread (repeatable)", collect, [])
-    // ── 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211) ──
-    // amp: type "switch", default false. Disables all command confirmation prompts.
-    .option(
-      "--dangerously-allow-all",
-      "Disable all command confirmation prompts (agent will execute all commands without asking)",
-    )
-    // ── 逆向: no direct amp equivalent; Flitter extension for tool filtering ──
-    .option(
-      "--allowedTools <list>",
-      "Comma-separated list of tool names to allow (whitelist)",
-    )
-    .option(
-      "--disallowedTools <list>",
-      "Comma-separated list of tool names to disallow (blacklist)",
-    )
-    // ── 逆向: no direct amp flag; Flitter convenience for disabling Bash tool ──
-    .option("--no-shell-cmd", "Disable the Bash/shell tool")
-    // ── 逆向: toolbox.path in amp config (chunk-005.js:158919-158922) ──
-    .option("--toolbox", "Enable ToolboxService scanning for user shell-script tools")
-    // ── 逆向: git.commit.coauthor.enabled in amp config (chunk-005.js:158815-158817) ──
-    .option(
-      "--include-co-authors",
-      "Enable git commit co-author injection (Co-Authored-By trailer)",
-    )
-    // ── Flitter extension: output format selection ──
-    .option(
-      "--output-format <fmt>",
-      "Output format: text, json, markdown (default: text)",
-    )
+    // ── CLI flag forwarding (Gap #7-12) ──
+    // 逆向: i$T dangerouslyAllowAll (chunk-006.js) → bypasses permission checks
+    .option("--dangerously-allow-all", "Bypass permission checks (dangerous)")
+    // 逆向: i$T allowedTools/disallowedTools → tool filter lists
+    .option("--allowed-tools <tools>", "Comma-separated list of allowed tools")
+    .option("--disallowed-tools <tools>", "Comma-separated list of disallowed tools")
+    .option("--disable-shell", "Disable shell command execution")
+    .option("--toolbox <path>", "Path to toolbox scripts directory")
+    .option("--include-co-authors", "Include co-author attribution in output")
+    .option("--output-format <format>", "Output format: text, json, markdown (default: text)")
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {
@@ -194,6 +174,20 @@ export function createProgram(version: string): Command {
     .description("Show usage information for a thread")
     .argument("<id>", "Thread ID or URL");
 
+  // 逆向: e0R:202-244 (dashboard/thread list in command palette)
+  threads
+    .command("dashboard")
+    .description("Show threads dashboard (table view)")
+    .option("--limit <n>", "Max threads to show", "50")
+    .option("--format <fmt>", "Output format (table|json)", "table");
+
+  // ─── Review ────────────────────────────────────────────
+
+  program
+    .command("review [diff]")
+    .description("Run AI code review on staged changes or provided diff")
+    .option("--format <fmt>", "Output format (text|json|markdown)", "text");
+
   // ─── Config 管理 ────────────────────────────────────────
 
   const config = program.command("config").description("Manage configuration");
@@ -243,25 +237,23 @@ export function createProgram(version: string): Command {
     .description("Remove an MCP server")
     .option("-w, --workspace", "Remove from workspace settings", false);
 
-  // 逆向: amp mcp doctor — diagnoses MCP server connections
-  mcp
-    .command("doctor")
-    .description("Diagnose MCP server connections (test status, latency, errors)");
+  // 逆向: jPR doctor pattern — iterate servers, test connectivity
+  mcp.command("doctor").description("Check health of all configured MCP servers");
 
-  // 逆向: amp mcp approve — approve workspace-scoped MCP server
+  // 逆向: e0R permissions-enable/disable pattern applied to MCP trust
   mcp
     .command("approve <name>")
-    .description("Approve/trust a workspace-scoped MCP server")
-    .option("-w, --workspace", "Apply to workspace settings", false);
+    .description("Add an MCP server to the trusted list");
 
-  // 逆向: amp mcp oauth — MCP server OAuth authentication
-  const mcpOauth = mcp.command("oauth").description("MCP server OAuth authentication");
+  const mcpOauth = mcp.command("oauth").description("Manage MCP OAuth authentication");
+
   mcpOauth
     .command("login <server>")
     .description("Authenticate with an MCP server via OAuth");
+
   mcpOauth
     .command("logout <server>")
-    .description("Remove OAuth credentials for an MCP server");
+    .description("Remove OAuth tokens for an MCP server");
 
   // ─── Permissions 管理 ───────────────────────────────────
 
@@ -302,29 +294,6 @@ export function createProgram(version: string): Command {
     .option("--json", "Output as JSON", false);
 
   tools.command("show <name>").description("Show details of a specific tool");
-
-  // ─── Plugins 管理 ───────────────────────────────────────
-  // 逆向: t40 in modules/2529_unknown_t40.js
-  registerPluginsCommand(program);
-
-  // ─── Review 命令 ────────────────────────────────────────
-  // 逆向: amp chunk-005.js review command — spawns ThreadWorker with review system prompt
-
-  program
-    .command("review [diff]")
-    .description("Run code review on a diff or staged changes")
-    .option("--checks <checks>", "Comma-separated list of checks to run")
-    .option("--files <files>", "Comma-separated list of files to review")
-    .option("--instructions <text>", "Additional review instructions");
-
-  // ─── Thread Dashboard ──────────────────────────────────
-  // 逆向: amp's thread picker / continue command palette (e0R:202-244)
-
-  threads
-    .command("dashboard")
-    .alias("dash")
-    .description("Interactive thread switcher (TUI fuzzy picker)")
-    .option("--limit <n>", "Max threads to show", "50");
 
   return program;
 }

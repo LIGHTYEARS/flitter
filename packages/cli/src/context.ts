@@ -96,39 +96,38 @@ export interface CliContext {
    */
   labels?: string[];
   /**
-   * Disable all command confirmation prompts (--dangerously-allow-all)
-   * 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211)
-   *        ua() sets Ms("dangerouslyAllowAll", value) (chunk-005.js:4080)
+   * Dangerously bypass all permission checks (--dangerously-allow-all)
+   * 逆向: i$T dangerouslyAllowAll → Ms("dangerouslyAllowAll", true) in e0R:1173-1183
    */
   dangerouslyAllowAll?: boolean;
   /**
-   * Comma-separated tool name whitelist (--allowedTools)
-   * Flitter extension: no direct amp flag equivalent
+   * Allowed tool names (--allowed-tools, comma-separated)
+   * 逆向: amp allows filtering tools via config; Flitter adds CLI flag
    */
   allowedTools?: string[];
   /**
-   * Comma-separated tool name blacklist (--disallowedTools)
-   * Flitter extension: no direct amp flag equivalent
+   * Disallowed tool names (--disallowed-tools, comma-separated)
+   * 逆向: amp allows filtering tools via config; Flitter adds CLI flag
    */
   disallowedTools?: string[];
   /**
-   * Disable the Bash/shell tool (--no-shell-cmd)
-   * Flitter convenience flag; equivalent to --disallowedTools Bash
+   * Disable shell command execution (--no-shell-cmd)
+   * 逆向: amp has permission rules for BashTool; this is a shorthand
    */
   noShellCmd?: boolean;
   /**
-   * Enable ToolboxService scanning (--toolbox)
-   * 逆向: toolbox.path config key (chunk-005.js:158919-158922)
+   * Toolbox scripts directory (--toolbox)
+   * 逆向: amp ToolboxService scans for shell-script tools
    */
-  toolbox?: boolean;
+  toolbox?: string;
   /**
-   * Enable git commit co-author injection (--include-co-authors)
-   * 逆向: git.commit.coauthor.enabled (chunk-005.js:158815-158817)
+   * Include co-author attribution (--include-co-authors)
+   * 逆向: no direct amp equivalent; Flitter extension
    */
   includeCoAuthors?: boolean;
   /**
-   * Output format selection (--output-format)
-   * Flitter extension: text, json, markdown
+   * Output format for execute mode (--output-format text|json|markdown)
+   * 逆向: no direct amp equivalent; Flitter extension
    */
   outputFormat?: "text" | "json" | "markdown";
 }
@@ -196,26 +195,17 @@ export function resolveCliContext(program: Command): CliContext {
     archive: Boolean(opts.archive) || undefined,
     // 逆向: Yz0 `-l, --label` repeatable flag (line 619-622)
     labels: (opts.label as string[] | undefined)?.length ? (opts.label as string[]) : undefined,
-    // 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211)
-    // ua() in chunk-005.js:4080 — set when CLI source is "cli"
+    // Gap #7-12: CLI flag forwarding
     dangerouslyAllowAll: Boolean(opts.dangerouslyAllowAll) || undefined,
-    // Flitter extension: tool whitelist/blacklist
     allowedTools: opts.allowedTools
       ? (opts.allowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
       : undefined,
     disallowedTools: opts.disallowedTools
       ? (opts.disallowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
       : undefined,
-    // Flitter convenience: --no-shell-cmd → disable Bash tool
-    // Commander with --no-X pattern stores as opts.shellCmd = false when flag is present
-    noShellCmd: opts.shellCmd === false ? true : undefined,
-    // 逆向: toolbox.path config (chunk-005.js:158919-158922)
-    toolbox: Boolean(opts.toolbox) || undefined,
-    // 逆向: git.commit.coauthor.enabled (chunk-005.js:158815-158817)
+    noShellCmd: Boolean(opts.disableShell) || undefined,
+    toolbox: opts.toolbox as string | undefined,
     includeCoAuthors: Boolean(opts.includeCoAuthors) || undefined,
-    // Flitter extension: output format
-    outputFormat: (["text", "json", "markdown"].includes(opts.outputFormat as string)
-      ? (opts.outputFormat as "text" | "json" | "markdown")
-      : undefined),
+    outputFormat: (opts.outputFormat as "text" | "json" | "markdown") ?? undefined,
   };
 }

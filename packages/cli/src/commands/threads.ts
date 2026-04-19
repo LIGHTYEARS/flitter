@@ -738,3 +738,100 @@ export async function handleThreadsUsage(
     `  Total tokens:          ${(totalInputTokens + totalOutputTokens).toLocaleString()}\n`,
   );
 }
+
+// ─── Dashboard ──────────────────────────────────────────
+
+/** threads dashboard 命令选项 */
+export interface ThreadsDashboardOptions {
+  /** 最大显示数量 */
+  limit: string;
+  /** 输出格式 (table|json) */
+  format: "table" | "json";
+}
+
+/**
+ * 处理 threads dashboard 命令
+ *
+ * 逆向: e0R:202-244 (continue command shows thread list via wQ FuzzyPicker)
+ * amp's thread list in the command palette shows ID, title, workspace, date,
+ * and message count. This CLI version provides a text table.
+ *
+ * NOTE: The full TUI FuzzyPicker composition is Agent 4's job.
+ * This handler outputs a formatted text table suitable for the terminal.
+ *
+ * @param deps - Thread 管理所需的依赖服务
+ * @param context - CLI 运行上下文
+ * @param options - 命令选项 (limit, format)
+ */
+export async function handleThreadsDashboard(
+  deps: ThreadsCommandDeps,
+  context: CliContext,
+  options: ThreadsDashboardOptions,
+): Promise<void> {
+  void context;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  const entries$ = threadStore.observeThreadEntries();
+  const entries = entries$.getValue();
+  if (!entries || entries.length === 0) {
+    process.stdout.write("No threads found.\n");
+    return;
+  }
+
+  const limit = Number.parseInt(options.limit, 10) || 50;
+  const limited = entries.slice(0, limit);
+
+  if (options.format === "json") {
+    const data = limited.map((e) => ({
+      id: e.id,
+      title: e.title || null,
+      updatedAt: new Date(e.userLastInteractedAt).toISOString(),
+      archived: e.archived ?? false,
+    }));
+    process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+    return;
+  }
+
+  // 逆向: e0R:202-244 — thread list shows title, date, status columns
+  const idWidth = 12;
+  const titleWidth = 36;
+  const dateWidth = 20;
+  const statusWidth = 10;
+  const msgsWidth = 6;
+
+  process.stdout.write(
+    `${"ID".padEnd(idWidth)}  ${"Title".padEnd(titleWidth)}  ${"Last Active".padEnd(dateWidth)}  ${"Status".padEnd(statusWidth)}  ${"Msgs".padEnd(msgsWidth)}\n`,
+  );
+  process.stdout.write(
+    `${"─".repeat(idWidth)}  ${"─".repeat(titleWidth)}  ${"─".repeat(dateWidth)}  ${"─".repeat(statusWidth)}  ${"─".repeat(msgsWidth)}\n`,
+  );
+
+  for (const entry of limited) {
+    const id = (entry.id ?? "").slice(0, idWidth).padEnd(idWidth);
+    const title = (entry.title ?? "Untitled").slice(0, titleWidth).padEnd(titleWidth);
+    const date = new Date(entry.userLastInteractedAt ?? Date.now())
+      .toLocaleString()
+      .padEnd(dateWidth);
+    const status = (entry.archived ? "archived" : "active").padEnd(statusWidth);
+    // Message count: try to get from snapshot, fall back to "?"
+    let msgCount = "?";
+    try {
+      const snapshot = threadStore.getThreadSnapshot(entry.id);
+      if (snapshot) {
+        msgCount = String(snapshot.messages?.length ?? 0);
+      }
+    } catch {
+      // ignore — not all entries have loaded snapshots
+    }
+    process.stdout.write(`${id}  ${title}  ${date}  ${status}  ${msgCount.padEnd(msgsWidth)}\n`);
+  }
+
+  if (entries.length > limit) {
+    process.stdout.write(`\n(Showing ${limit} of ${entries.length} threads)\n`);
+  }
+}

@@ -19,6 +19,37 @@ import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { GeminiStreamChunk } from "./transformer";
 import { GeminiToolTransformer, GeminiTransformer } from "./transformer";
 
+// ─── Vertex AI Config Resolution ────────────────────────
+
+export interface VertexAIConfig {
+  project: string;
+  location: string;
+  serviceAccountKeyFile?: string;
+}
+
+/**
+ * Resolve Vertex AI configuration from settings.
+ * Returns null if required fields (project + location) are missing.
+ * 逆向: GoogleGenAI constructor reads project/location with env fallbacks
+ */
+export function resolveVertexAIConfig(
+  settings: Record<string, unknown>,
+): VertexAIConfig | null {
+  const project =
+    (settings["vertexai.project"] as string | undefined) ??
+    (settings["google.project"] as string | undefined);
+  const location =
+    (settings["vertexai.location"] as string | undefined) ??
+    (settings["google.location"] as string | undefined);
+  const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as
+    | string
+    | undefined;
+
+  if (!project || !location) return null;
+
+  return { project, location, serviceAccountKeyFile };
+}
+
 // ─── GeminiProvider ─────────────────────────────────────
 
 export class GeminiProvider implements LLMProvider {

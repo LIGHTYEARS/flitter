@@ -58,3 +58,21 @@ const config = container.configService;
 ```
 
 这一层负责将所有下层包的服务组装在一起，上层（CLI）只需依赖组装层。
+
+### 已注册的核心服务
+
+| 服务 | 来源包 | 说明 |
+|------|--------|------|
+| `ConfigService` | `@flitter/data` | 多级配置管理（全局/工作区/项目） |
+| `ThreadStore` | `@flitter/data` | 会话存储与持久化 |
+| `ThreadWorkerService` | `@flitter/agent-core` | ThreadWorker 实例池管理 |
+| `ToolRegistry` | `@flitter/agent-core` | 工具注册与查找（19 内置 + 6 GitHub） |
+| `PermissionEngine` | `@flitter/agent-core` | 权限决策引擎 |
+| `PluginService` | `@flitter/agent-core` | 插件发现与生命周期管理 |
+| `MCPServerManager` | `@flitter/llm` | MCP 服务器连接管理 |
+| `TrustStore` | `@flitter/data` | MCP 服务器信任列表 |
+| `ModelFallbackChain` | `@flitter/llm` | 模型过载降级链 |
+| `ThreadNavigator` | `@flitter/data` | 线程前进/后退导航 |
+| `ThreadUploadManager` | `@flitter/data` | 线程上传管道 |
+| `SkillService` | `@flitter/data` | Skill 发现与解析 |
+| `SlashCommandRegistry` | `@flitter/cli` | 34 个斜杠命令注册表 |

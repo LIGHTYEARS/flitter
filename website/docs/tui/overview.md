@@ -44,9 +44,11 @@ runApp(
 | 终端控制 | `tui/` | TuiController、raw mode、resize |
 | 手势系统 | `gestures/` | MouseManager、HitTest |
 | 内置 Widget | `widgets/` | 30+ 预置组件 |
-| 滚动系统 | `scroll/` | ScrollController、ListView、Scrollbar、ScrollBehavior |
+| 滚动系统 | `scroll/` | ScrollController、ListView、Scrollbar、ScrollBehavior、FlingScrollPhysics、VelocityTracker |
 | 文本编辑 | `editing/` | TextEditingController、TextField |
-| 弹层系统 | `overlay/` | Overlay、CommandPalette、FuzzyPicker |
+| 弹层系统 | `overlay/` | Overlay、CommandPalette、FuzzyPicker、ConfirmDialog、PopupOverlay、PromptDialog |
 | 焦点系统 | `focus/` | FocusNode、FocusManager |
 | Actions 系统 | `actions/` | Actions、Shortcuts、Intent、KeyActivator |
 | Markdown | `markdown/` | MarkdownParser、MarkdownRenderer |
+| 主题系统 | `theme/` | ThemeRegistry、ThemeSpec、ColorPalette，8 套内置主题 + 自定义主题 |
+| 选区系统 | `selection/` | SelectionArea、Selectable、Clipboard，跨 Widget 文本选择 |

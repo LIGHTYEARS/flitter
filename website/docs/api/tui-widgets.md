@@ -621,6 +621,223 @@ new TextSpan(options?: {
 | `toPlainText()` | 整个 span 树拼接为纯文本 |
 | `visitTextSpan(visitor)` | 遍历 span 树 |
 
+---
+
+## Badge
+
+内联彩色标签。
+
+```ts
+Badge(props: {
+  count?: number;      // 数字（渲染为 [3]）
+  label?: string;      // 文本（渲染为 [NEW]）
+})
+```
+
+---
+
+## Toggle
+
+可聚焦的开关组件。
+
+```ts
+Toggle(props: {
+  value: boolean;
+  onChanged: (value: boolean) => void;
+  label?: string;
+})
+```
+
+键盘操作：Space 切换、Enter 确认。支持鼠标点击。
+
+---
+
+## ProgressBar
+
+Unicode 子字符块进度条（1/8 精度平滑渲染）。
+
+```ts
+ProgressBar(props: {
+  value: number;           // 0.0–1.0
+  color?: Color;           // 前景色
+  backgroundColor?: Color; // 背景色
+})
+```
+
+使用 `▏▎▍▌▋▊▉█` 字符实现亚字符精度，继承 `RenderBox`。
+
+---
+
+## NotificationBanner
+
+内联通知横幅。
+
+```ts
+NotificationBanner(props: {
+  type: 'info' | 'warning' | 'error' | 'success';
+  message: string;
+  onDismiss?: () => void;
+})
+```
+
+---
+
+## SplitPane
+
+可调整大小的分割布局。
+
+```ts
+SplitPane(props: {
+  direction: 'horizontal' | 'vertical';
+  ratio: number;           // 初始比例（0.0–1.0）
+  minRatio?: number;
+  maxRatio?: number;
+  onResize?: (ratio: number) => void;
+  children: [Widget, Widget];
+})
+```
+
+---
+
+## BrailleSpinner
+
+Braille 字符动画加载指示器。
+
+---
+
+## PopupOverlay
+
+模态浮层容器。
+
+```ts
+PopupOverlay(props: {
+  child: Widget;
+  onDismiss: () => void;
+})
+```
+
+提供全屏背景遮罩、居中内容、焦点捕获、Escape 键关闭。
+
+---
+
+## ConfirmDialog
+
+模态确认对话框。
+
+```ts
+ConfirmDialog(props: {
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+})
+```
+
+键盘：Y/Enter 确认，N/Escape 取消。
+
+---
+
+## PromptDialog
+
+模态文本输入对话框。
+
+```ts
+PromptDialog(props: {
+  message: string;
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+})
+```
+
+键盘：Enter 提交，Escape 取消。
+
+---
+
+## ThemeRegistry
+
+主题注册表。
+
+```ts
+class ThemeRegistry {
+  get(name: string): ThemeSpec | null;         // 查找主题（自定义优先于内置）
+  getAll(): ThemeSpec[];                        // 获取所有主题
+  getDefault(): ThemeSpec;                      // 获取默认主题（terminal）
+  registerCustom(theme: ThemeSpec): void;       // 注册自定义主题
+}
+```
+
+内置 8 套主题：`terminal`、`dark`、`light`、`catppuccin-mocha`、`solarized-dark`、`solarized-light`、`gruvbox-dark-hard`、`nord`。
+
+---
+
+## SelectionArea
+
+跨 Widget 文本选择管理器。
+
+```ts
+class SelectionArea {
+  constructor(clipboard?: Clipboard);
+  register(selectable: Selectable): void;
+  unregister(selectableId: string): void;
+  beginDrag(position: SelectionPosition): void;
+  updateDrag(position: SelectionPosition): void;
+  endDrag(): Promise<void>;        // 结束拖拽并复制到剪贴板
+  selectAll(): void;
+  copySelection(): string;
+  clear(): void;
+  isDragging(): boolean;
+  addListener(listener: () => void): () => void;
+}
+```
+
+---
+
+## Clipboard
+
+跨平台剪贴板访问。
+
+```ts
+class Clipboard {
+  writeText(text: string): Promise<void>;
+  readText(): Promise<string>;
+}
+```
+
+自动检测策略：macOS（pbcopy）→ Wayland（wl-copy）→ X11（xclip）→ OSC52。
+
+---
+
+## FlingScrollPhysics
+
+惯性滚动物理引擎。
+
+```ts
+class FlingScrollPhysics {
+  constructor(friction?: number, maxSamples?: number);
+  readonly tracker: VelocityTracker;
+  clampOffset(offset: number, min: number, max: number): number;
+  computeFlingDisplacement(velocity: number, elapsedMs: number): number;
+  computeFlingVelocity(velocity: number, elapsedMs: number): number;
+  isFlingComplete(velocity: number, elapsedMs: number, threshold?: number): boolean;
+  computeTotalFlingDistance(velocity: number): number;
+}
+```
+
+---
+
+## VelocityTracker
+
+拖拽速度估算器。
+
+```ts
+class VelocityTracker {
+  constructor(maxSamples?: number);
+  addSample(position: number, timestamp?: number): void;
+  estimateVelocity(): number;     // 线性回归估算速度（positions/ms）
+  reset(): void;
+  get sampleCount(): number;
+}
+```
+
 :::warning
 以上 API 签名基于源码整理。具体参数类型和默认值请参考 `packages/tui/src/` 中的 TypeScript 类型定义。
 :::

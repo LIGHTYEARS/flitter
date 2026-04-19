@@ -89,3 +89,36 @@ bun run examples/debug-paint-pipeline.ts
 ```
 
 调试工具：可视化 Widget 的 Build → Layout → Paint → Render 帧管线流程。
+
+## CLI Agent 使用示例
+
+除了 TUI 组件示例外，Flitter 的核心功能是作为 AI 编程助手运行。
+
+### 交互式对话
+
+```bash
+# 启动交互式 TUI（需要设置 ANTHROPIC_API_KEY）
+bun run apps/flitter-cli/src/index.ts
+```
+
+启动后可使用斜杠命令：
+- `/help` — 查看所有可用命令
+- `/model` — 切换 LLM 模型
+- `/mode` — 切换 Agent 模式（smart/fast/deep/auto）
+- `/theme` — 切换主题
+- `/compact` — 压缩上下文
+- `/cost` — 查看 Token 消耗和费用
+- `/mcp` — 管理 MCP 服务器
+
+### 单次执行
+
+```bash
+# Print 模式：单次输出
+bun run apps/flitter-cli/src/index.ts --print "列出所有 TODO"
+
+# Pipe 模式：从 stdin 读取
+cat src/main.ts | bun run apps/flitter-cli/src/index.ts --pipe "审查这段代码"
+
+# Execute 模式
+bun run apps/flitter-cli/src/index.ts --execute "重构 utils 目录"
+```

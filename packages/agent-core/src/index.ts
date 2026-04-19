@@ -21,7 +21,19 @@ export { parseMemoryCommand } from "./commands/memory-command";
 export type { SessionTotals, TurnUsage } from "./cost/session-cost-tracker";
 // ─── Cost Tracking ────────────────────────────────────
 export { SessionCostTracker } from "./cost/session-cost-tracker";
-
+// ─── Lifecycle Hooks ──────────────────────────────────
+export type { InternalHooks, LifecycleHookResult } from "./hooks";
+// ─── Admin Hook Matcher ───────────────────────────────
+export type {
+  AdminHookAction,
+  AdminHookConfig,
+  AdminHookOn,
+  PostExecuteContext,
+  PreExecuteContext,
+} from "./hooks";
+export {
+  filterValidHooks,
+} from "./hooks";
 export type { PermissionEngineOpts } from "./permissions/engine";
 export { DEFAULT_PERMISSION_RULES, PermissionEngine } from "./permissions/engine";
 export { checkGuardedFile, getToolFilePaths } from "./permissions/guarded-files";

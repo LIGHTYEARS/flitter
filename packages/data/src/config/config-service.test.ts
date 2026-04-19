@@ -320,4 +320,102 @@ describe("ConfigService", () => {
       assert.equal((service.get().settings as Record<string, unknown>).proxy, "global-only");
     });
   });
+
+  describe("settings validation (Task 9)", () => {
+    it("should accept valid settings", async () => {
+      const storage = makeStorage();
+      await storage.write("global", {
+        "anthropic.speed": "fast",
+        "anthropic.temperature": 0.7,
+      } as unknown as Partial<Settings>);
+      const service = makeService(storage);
+      await service.reload();
+      const { settings } = service.get();
+      assert.equal((settings as Record<string, unknown>)["anthropic.speed"], "fast");
+      assert.equal((settings as Record<string, unknown>)["anthropic.temperature"], 0.7);
+    });
+
+    it("should not crash on invalid settings values", async () => {
+      const storage = makeStorage();
+      // Write directly to bypass Zod partial validation in read
+      await fsp.writeFile(
+        path.join(globalDir, "settings.json"),
+        JSON.stringify({
+          "anthropic.temperature": "not-a-number",
+          proxy: "http://valid-proxy",
+        }),
+        "utf-8",
+      );
+      const service = makeService(storage);
+      // Should not throw
+      await service.reload();
+      const config = service.get();
+      // The settings object should still be populated (graceful degradation)
+      assert.ok(config.settings);
+    });
+  });
+
+  describe("config file watching integration (Task 10)", () => {
+    it("should observe config changes when file is modified", async () => {
+      const storage = makeStorage();
+      await storage.write("global", { proxy: "before" } as unknown as Partial<Settings>);
+      const service = makeService(storage);
+      await service.reload();
+
+      // Track observed changes
+      const observed: string[] = [];
+      service.observe().subscribe((config) => {
+        const proxy = (config.settings as Record<string, unknown>).proxy;
+        if (typeof proxy === "string") observed.push(proxy);
+      });
+
+      const handle = service.startWatching();
+
+      // Modify the file externally
+      await fsp.writeFile(
+        path.join(globalDir, "settings.json"),
+        JSON.stringify({ proxy: "after-modify" }),
+        "utf-8",
+      );
+
+      // Wait for fs.watch event + debounce + reload
+      await new Promise((r) => setTimeout(r, 600));
+
+      handle.dispose();
+
+      // Verify the new value was picked up
+      const finalConfig = service.get();
+      assert.equal((finalConfig.settings as Record<string, unknown>).proxy, "after-modify");
+      // Should have observed the change
+      assert.ok(observed.includes("after-modify"), "Should have observed the modified value");
+    });
+
+    it("should debounce rapid file changes", async () => {
+      const storage = makeStorage();
+      await storage.write("global", { proxy: "start" } as unknown as Partial<Settings>);
+      const service = makeService(storage);
+      await service.reload();
+
+      const handle = service.startWatching();
+
+      // Rapid successive writes
+      for (let i = 0; i < 5; i++) {
+        await fsp.writeFile(
+          path.join(globalDir, "settings.json"),
+          JSON.stringify({ proxy: `rapid-${i}` }),
+          "utf-8",
+        );
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // Wait for final debounce
+      await new Promise((r) => setTimeout(r, 600));
+      handle.dispose();
+
+      // Should have the last value
+      const config = service.get();
+      const proxy = (config.settings as Record<string, unknown>).proxy;
+      assert.ok(typeof proxy === "string" && proxy.startsWith("rapid-"));
+    });
+  });
 });

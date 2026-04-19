@@ -12,8 +12,36 @@
  * ```
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject } from "@flitter/util";
+import { BehaviorSubject, createLogger } from "@flitter/util";
+import type { ThreadUploadManager } from "./thread-upload";
 import type { ThreadEntry, ThreadStoreOptions } from "./types";
+
+const log = createLogger("thread-store");
+
+/**
+ * Thread visibility levels.
+ * 逆向: amp e0R:529-588 — setVisibility command uses these levels
+ */
+export type ThreadVisibility =
+  | "private"
+  | "public_unlisted"
+  | "public_discoverable"
+  | "thread_workspace_shared";
+
+/**
+ * Exclusive sync read/writer for a thread.
+ * 逆向: azT.exclusiveSyncReadWriter() — lines 188-220
+ */
+export interface ThreadExclusiveReadWriter {
+  /** Read current snapshot. Throws if disposed. */
+  read(): ThreadSnapshot;
+  /** Write a full snapshot. Throws if disposed. */
+  write(thread: ThreadSnapshot): void;
+  /** Apply an update function to the current snapshot (immutable). Throws if disposed. */
+  update(fn: (draft: ThreadSnapshot) => Partial<ThreadSnapshot> | void): ThreadSnapshot;
+  /** Release the exclusive lock. */
+  asyncDispose(): Promise<void>;
+}
 
 /**
  * Extended fields that may appear on ThreadSnapshot beyond the strict schema.
@@ -137,6 +165,18 @@ export class ThreadStore {
   private readonly maxThreads: number | null;
   readonly uploadThrottleMs: number;
 
+  /**
+   * Exclusive locks set — prevents double-lock on same thread.
+   * 逆向: azT.exclusiveLocks = new Set() — line 5
+   */
+  private exclusiveLocks = new Set<string>();
+
+  /**
+   * Optional upload manager — wired in via setUploadManager().
+   * 逆向: azT has upload pipeline inline; we extract it to ThreadUploadManager
+   */
+  private uploadManager: ThreadUploadManager | null = null;
+
   constructor(options: ThreadStoreOptions = {}) {
     this.maxThreads =
       options.maxThreads === undefined || options.maxThreads === null
@@ -147,15 +187,40 @@ export class ThreadStore {
   }
 
   /**
+   * Wire the upload manager into the store.
+   * After wiring, markDirty() will also call uploadManager.markDirty().
+   */
+  setUploadManager(manager: ThreadUploadManager): void {
+    this.uploadManager = manager;
+  }
+
+  /**
    * 缓存线程快照 + 更新 ThreadEntry 索引
    * 从 azT.setCachedThread 翻译
+   *
+   * Task 11: When new snapshot has more messages, auto-update userLastInteractedAt.
+   * 逆向: azT.syncThreadEntryFromThread — updates entry from snapshot
    */
   setCachedThread(
     thread: ThreadSnapshot,
     opts: { scheduleUpload?: boolean } = {},
   ): BehaviorSubject<ThreadSnapshot> {
     const existing = this.threadSubjects.get(thread.id);
+
+    // Task 11: detect newer messages for auto-updating userLastInteractedAt
+    // 逆向: azT.syncThreadEntryFromThread updates entry from snapshot
     if (existing) {
+      const oldSnapshot = existing.getValue();
+      if (thread.messages.length > oldSnapshot.messages.length) {
+        // Auto-update the thread entry's userLastInteractedAt
+        const existingEntry = this.threadEntriesByID.get(thread.id);
+        if (existingEntry) {
+          const now = Date.now();
+          const updated = { ...existingEntry, userLastInteractedAt: now };
+          this.threadEntriesByID.set(thread.id, updated);
+          log.debug("Auto-updated userLastInteractedAt", { threadId: thread.id });
+        }
+      }
       existing.next(thread);
     } else {
       this.threadSubjects.set(thread.id, new BehaviorSubject(thread));
@@ -182,6 +247,10 @@ export class ThreadStore {
     const existed = this.threadSubjects.delete(id);
     this.threadEntriesByID.delete(id);
     this._dirtyThreads.delete(id);
+    this.exclusiveLocks.delete(id);
+    if (this.uploadManager) {
+      this.uploadManager.removeThread(id);
+    }
     if (this.threadEntriesLoaded) this.emitCurrentThreadEntries();
     return existed;
   }
@@ -196,9 +265,15 @@ export class ThreadStore {
     return this.threadEntriesState;
   }
 
-  /** 标记线程待持久化 */
+  /** 标记线程待持久化，同时通知 upload manager
+   * 逆向: azT.markDirty(T) — line 84-85 (also calls scheduleUploadFlush)
+   */
   markDirty(id: string): void {
     this._dirtyThreads.add(id);
+    // Task 1: Wire markDirty to upload manager
+    if (this.uploadManager) {
+      this.uploadManager.markDirty(id);
+    }
   }
 
   /** 获取所有 dirty 线程 ID */
@@ -271,6 +346,105 @@ export class ThreadStore {
   }
 
   // ─── 内部方法 ────────────────────────────────────────
+
+  /**
+   * Set thread visibility level.
+   * Updates thread meta, marks dirty (which triggers upload via Task 1).
+   * 逆向: amp e0R:529-588 — visibility command pattern
+   *
+   * Task 2: Thread visibility system (Gap #22)
+   */
+  setVisibility(
+    threadId: string,
+    level: ThreadVisibility,
+  ): void {
+    const subject = this.threadSubjects.get(threadId);
+    if (!subject) {
+      throw new Error(`Thread ${threadId} not found`);
+    }
+
+    const snapshot = subject.getValue();
+    const currentMeta = (snapshot.meta ?? {}) as Record<string, unknown>;
+    const updatedMeta = { ...currentMeta, visibility: level };
+    const updatedSnapshot: ThreadSnapshot = {
+      ...snapshot,
+      meta: updatedMeta as ThreadSnapshot["meta"],
+      v: snapshot.v + 1,
+    };
+
+    this.setCachedThread(updatedSnapshot, { scheduleUpload: true });
+    log.debug("Set thread visibility", { threadId, level });
+  }
+
+  /**
+   * Exclusive sync read/writer for a thread.
+   * Prevents double-lock. The returned object provides read/write/update/asyncDispose.
+   * 逆向: azT.exclusiveSyncReadWriter(T, R) — lines 188-220
+   *
+   * Task 3: Exclusive sync read/writer (Gap #25)
+   */
+  exclusiveSyncReadWriter(
+    threadId: string,
+    opts: { scheduleUpload?: boolean } = {},
+  ): ThreadExclusiveReadWriter {
+    // 逆向: azT line 189 — throw if already locked
+    if (this.exclusiveLocks.has(threadId)) {
+      throw new Error(`Thread ${threadId} already has an exclusive read-writer`);
+    }
+
+    const subject = this.threadSubjects.get(threadId);
+    if (!subject) {
+      throw new Error(`Thread ${threadId} not found`);
+    }
+
+    // 逆向: azT line 196
+    this.exclusiveLocks.add(threadId);
+
+    const scheduleUpload = opts.scheduleUpload !== false;
+    let disposed = false;
+
+    // 逆向: azT.writeCachedThread — line 31-32
+    const writeFn = (thread: ThreadSnapshot): ThreadSnapshot => {
+      return this.setCachedThread(thread, { scheduleUpload }).getValue();
+    };
+
+    return {
+      read: (): ThreadSnapshot => {
+        if (disposed) throw new Error("thread exclusive read-writer was disposed");
+        return subject.getValue();
+      },
+      write: (thread: ThreadSnapshot): void => {
+        if (disposed) throw new Error("thread exclusive read-writer was disposed");
+        writeFn(thread);
+      },
+      update: (fn: (draft: ThreadSnapshot) => Partial<ThreadSnapshot> | void): ThreadSnapshot => {
+        if (disposed) throw new Error("thread exclusive read-writer was disposed");
+        const current = subject.getValue();
+        // Apply update function — if it returns partial, merge; if void, assume in-place mutation pattern
+        const result = fn(current);
+        let updated: ThreadSnapshot;
+        if (result && typeof result === "object") {
+          updated = { ...current, ...result };
+        } else {
+          // Caller mutated nothing or used a different pattern; re-read
+          updated = current;
+        }
+        return writeFn(updated);
+      },
+      asyncDispose: async (): Promise<void> => {
+        if (disposed) return;
+        disposed = true;
+        this.exclusiveLocks.delete(threadId);
+      },
+    };
+  }
+
+  /** Check if a thread has an exclusive lock */
+  hasExclusiveLock(threadId: string): boolean {
+    return this.exclusiveLocks.has(threadId);
+  }
+
+  // ─── 以下为原内部方法 ────────────────────────────────
 
   private syncThreadEntryFromThread(thread: ThreadSnapshot): void {
     if (

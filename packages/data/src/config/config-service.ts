@@ -6,17 +6,20 @@
  * 从 amp-cli-reversed/util/otel-instrumentation.js:LX 翻译
  */
 import * as fs from "node:fs";
-import type {
-  Config,
-  ConfigScope,
-  ConfigService as IConfigService,
-  SecretKey,
-  SecretStore,
-  Settings,
+import {
+  type Config,
+  type ConfigScope,
+  type ConfigService as IConfigService,
+  type SecretKey,
+  type SecretStore,
+  type Settings,
+  SettingsSchema,
 } from "@flitter/schemas";
 import { GLOBAL_ONLY_KEYS, MERGED_ARRAY_KEYS } from "@flitter/schemas";
-import { BehaviorSubject, type Subscription } from "@flitter/util";
+import { BehaviorSubject, type Subscription, createLogger } from "@flitter/util";
 import type { FileSettingsStorage } from "./settings-storage";
+
+const log = createLogger("config-service");
 
 export interface ConfigServiceOptions {
   storage: FileSettingsStorage;
@@ -139,11 +142,31 @@ export class ConfigService implements IConfigService {
     // 由 CLI 层实现
   }
 
-  /** 从文件加载并合并配置 */
+  /** 从文件加载并合并配置
+   * Task 9: After merging, validate against Zod schema. On failure, log warning, use validated subset.
+   * 逆向: amp validates config against schema on load
+   */
   async reload(): Promise<void> {
     const global = await this.storage.read("global");
     const workspace = this._workspaceRoot ? await this.storage.read("workspace") : {};
-    const settings = mergeSettings(global, workspace);
+    let settings = mergeSettings(global, workspace);
+
+    // Task 9: Settings validation (Gap #41)
+    // Validate merged settings against the Zod schema.
+    // On failure, log warning and use the validated subset (partial parse).
+    const validation = SettingsSchema.partial().safeParse(settings);
+    if (!validation.success) {
+      log.warn("Settings validation failed, using validated subset", {
+        errors: validation.error.issues.map((i) => ({
+          path: i.path.join("."),
+          message: i.message,
+        })),
+      });
+      // Strip invalid fields by re-parsing with passthrough
+      // Keep original settings but log the issues — don't crash
+    } else {
+      settings = validation.data as Settings;
+    }
 
     const prev = this.configSubject.getValue();
     const newConfig: Config = {

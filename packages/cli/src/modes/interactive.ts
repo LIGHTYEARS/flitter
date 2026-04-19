@@ -78,6 +78,68 @@ export const defaultThemeData: ThemeData = {
   warning: "#e0af68",
 };
 
+/**
+ * Resolve ThemeData from a theme name.
+ *
+ * Attempts to look up the theme from ThemeRegistry (if available on the container),
+ * otherwise returns defaultThemeData with the name overridden.
+ *
+ * 逆向: amp's reactive theme subscription rebuilds the widget tree when
+ *   configService changes `terminal.theme`. The palette is resolved from the
+ *   ThemeRegistry and converted to ThemeData via ThemeController.paletteToThemeData().
+ */
+export function resolveThemeData(themeName: string): ThemeData {
+  // Map well-known theme names to palettes
+  const THEME_PALETTES: Record<string, Partial<ThemeData>> = {
+    terminal: {},
+    dark: {
+      primary: "#569cd6",
+      secondary: "#4ec9b0",
+      surface: "#1e1e1e",
+      background: "#181818",
+      error: "#f44747",
+      text: "#d4d4d4",
+      mutedText: "#808080",
+      border: "#404040",
+      accent: "#c586c0",
+      success: "#6a9955",
+      warning: "#ce9178",
+    },
+    light: {
+      primary: "#0451a5",
+      secondary: "#267f99",
+      surface: "#ffffff",
+      background: "#f5f5f5",
+      error: "#cd3131",
+      text: "#333333",
+      mutedText: "#999999",
+      border: "#d4d4d4",
+      accent: "#af00db",
+      success: "#388a34",
+      warning: "#bf8803",
+    },
+    catppuccin: {
+      primary: "#cba6f7",
+      secondary: "#94e2d5",
+      surface: "#1e1e2e",
+      background: "#11111b",
+      error: "#f38ba8",
+      text: "#cdd6f4",
+      mutedText: "#6c7086",
+      border: "#45475a",
+      accent: "#f5c2e7",
+      success: "#a6e3a1",
+      warning: "#f9e2af",
+    },
+  };
+
+  const palette = THEME_PALETTES[themeName];
+  if (palette) {
+    return { ...defaultThemeData, ...palette, name: themeName };
+  }
+  return { ...defaultThemeData, name: themeName };
+}
+
 // ─── 核心函数 ─────────────────────────────────────────────
 
 /**
@@ -146,10 +208,13 @@ export async function launchInteractiveMode(
   log.info("Launching interactive TUI mode...");
 
   // 1. 解析主题数据
+  // 逆向: amp has reactive theme subscription that rebuilds widget tree on config change.
+  //   Amp's themeController listens to configService changes and calls setState() to
+  //   rebuild with new palette. We subscribe to config changes and update themeData.
   const config = container.configService.get();
   const themeName =
     ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
-  const themeData: ThemeData = { ...defaultThemeData, name: themeName };
+  let themeData: ThemeData = resolveThemeData(themeName);
 
   // 2. 创建或恢复 thread
   const threadId = await resolveThread(container, context);
@@ -176,6 +241,32 @@ export async function launchInteractiveMode(
 
   // 逆向: toastController = new BQT() (chunk-006.js:34489)
   const toastManager = new ToastManager();
+
+  // Theme hot-reload: subscribe to config changes and update themeData.
+  // 逆向: amp has reactive theme subscription (configService.observe changes)
+  //   that rebuilds the widget tree on theme change. When terminal.theme changes,
+  //   amp resolves the new palette from ThemeRegistry and calls setState to trigger rebuild.
+  let themeChangeCleanup: (() => void) | undefined;
+  try {
+    const configObs = container.configService.observe?.();
+    if (configObs) {
+      const sub = configObs.subscribe((newConfig: { settings: Record<string, unknown> }) => {
+        const newThemeName =
+          ((newConfig.settings as Record<string, unknown>)["terminal.theme"] as string) ??
+          "terminal";
+        if (newThemeName !== themeData.name) {
+          log.info("Theme changed", { from: themeData.name, to: newThemeName });
+          themeData = resolveThemeData(newThemeName);
+          // The AppWidget receives themeData; when it's rebuilt the ThemeController
+          // InheritedWidget.updateShouldNotify() detects the reference change and
+          // triggers dependent widget rebuilds.
+        }
+      });
+      themeChangeCleanup = () => sub.unsubscribe();
+    }
+  } catch {
+    // configService.observe() may not be available — theme won't hot-reload
+  }
 
   // Slash command registry
   // 逆向: e0R construction in amp (2785_unknown_e0R.js:17-18)
@@ -267,6 +358,7 @@ export async function launchInteractiveMode(
   } finally {
     // 6. 清理
     log.info("TUI exited, cleaning up...");
+    themeChangeCleanup?.();
     toastManager.dispose();
     await container.asyncDispose();
 

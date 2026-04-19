@@ -62,6 +62,9 @@ import {
   ToolOrchestrator,
   WebSearchTool,
 } from "@flitter/agent-core";
+// Direct imports to avoid worktree symlink resolution issues with new files
+import type { CliToolFilters } from "../../agent-core/src/tools/registry";
+import { ThreadWorkerService } from "../../agent-core/src/worker/thread-worker-service";
 import type {
   ConfigService,
   ContextManager,
@@ -135,6 +138,8 @@ export interface ContainerOptions {
   homeDir?: string;
   /** 用户配置目录 (~/.config/flitter) */
   configDir?: string;
+  /** CLI-level tool filters (--allowedTools, --disallowedTools, --disableShellCommand) */
+  cliToolFilters?: CliToolFilters;
 }
 
 /**
@@ -170,8 +175,15 @@ export interface ServiceContainer {
   subAgentManager: SubAgentManager;
 
   /**
+   * ThreadWorkerService: manages ThreadWorker instances by thread ID.
+   * 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
+   */
+  threadWorkerService: ThreadWorkerService;
+
+  /**
    * 创建 ThreadWorker 实例 (工厂模式)
    * 每次调用创建新的 worker, 绑定到指定线程
+   * Delegates to ThreadWorkerService for lifecycle management.
    */
   createThreadWorker(threadId: string, opts?: Partial<ThreadWorkerOptions>): ThreadWorker;
 
@@ -215,6 +227,11 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // 2. ToolRegistry + 注册内置工具 (Read, Write, Edit, Bash, Grep, Glob, FuzzyFind)
     const toolRegistry = createToolRegistry();
     registerBuiltinTools(toolRegistry);
+
+    // 2a. Apply CLI-level tool filters if provided
+    if (opts.cliToolFilters) {
+      toolRegistry.setCliFilters(opts.cliToolFilters);
+    }
     log.info("ToolRegistry created, builtin tools registered");
 
     // 2b. FileChangeTracker + undo_edit / delete_file tools
@@ -416,6 +433,11 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
 
     log.info("Service container initialized successfully.");
 
+    // 11. ThreadWorkerService — lifecycle management for ThreadWorker instances
+    // 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
+    // The factory is set up with a deferred containerRef pattern below.
+    let threadWorkerService: ThreadWorkerService | null = null;
+
     const container: ServiceContainer = {
       configService,
       toolRegistry,
@@ -430,6 +452,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       secrets: opts.secrets,
       settings: opts.settings,
       subAgentManager,
+      threadWorkerService: null as unknown as ThreadWorkerService, // set below
 
       createThreadWorker(
         threadId: string,
@@ -711,6 +734,15 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // Wire the deferred containerRef so SubAgentManager.createWorker works
     // 逆向: amp 1354_unknown_wi.js (subagent runner uses container.createThreadWorker)
     containerRef = container;
+
+    // Wire ThreadWorkerService — uses container.createThreadWorker as its factory
+    // 逆向: QWT uses container's deps to create workers
+    threadWorkerService = new ThreadWorkerService(
+      (threadId) => container.createThreadWorker(threadId),
+    );
+    container.threadWorkerService = threadWorkerService;
+    disposables.push(threadWorkerService);
+    log.info("ThreadWorkerService created");
 
     return container;
   } catch (err) {

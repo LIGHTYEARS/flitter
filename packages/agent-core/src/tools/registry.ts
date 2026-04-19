@@ -19,12 +19,33 @@ import type { Settings } from "@flitter/schemas";
 import type { ToolSpec } from "./types";
 
 /**
+ * CLI-level filter options. Applied ON TOP of config-level filters.
+ *
+ * 逆向: amp-cli-reversed/modules/1737_EarliestNonDisabledTool_$mR.js
+ *   - yy() checks spec.source + config tools.disable/tools.enable
+ *   - CLI flags further restrict via allowed/disallowed/noShellCmd
+ * 逆向: amp checks `--allowedTools`, `--disallowedTools`, `--disableShellCommand`
+ *   in the CLI entry and passes them to the tool service.
+ */
+export interface CliToolFilters {
+  /** If set, only include tools whose names are in this list */
+  allowed?: string[];
+  /** If set, exclude tools whose names are in this list */
+  disallowed?: string[];
+  /** If true, exclude the "Bash" tool (shell command) */
+  noShellCmd?: boolean;
+}
+
+/**
  * ToolRegistry: 管理所有已注册工具
  * 逆向: FWT 中的工具查找部分 + yy 的 enable/disable 逻辑
  */
 export class ToolRegistry {
   /** 内部工具存储 */
   private readonly tools: Map<string, ToolSpec> = new Map();
+
+  /** CLI-level filters — layered on top of config-level filters */
+  private cliFilters: CliToolFilters = {};
 
   /**
    * 注册工具
@@ -61,11 +82,30 @@ export class ToolRegistry {
   }
 
   /**
+   * Set CLI-level filters.
+   *
+   * These are applied ON TOP of config-level tools.disable/tools.enable.
+   * 逆向: amp CLI passes --allowedTools, --disallowedTools, --disableShellCommand
+   *   to the tool service which stores them as filter predicates.
+   */
+  setCliFilters(opts: CliToolFilters): void {
+    this.cliFilters = { ...opts };
+  }
+
+  /** Get current CLI filters (for testing / inspection) */
+  getCliFilters(): CliToolFilters {
+    return { ...this.cliFilters };
+  }
+
+  /**
    * 返回当前启用的工具列表
    * 过滤逻辑 (逆向 yy):
    * 1. 如果 spec.isEnabled 存在且返回 false → 排除
    * 2. 如果 config.tools?.disable 包含匹配名称 → 排除
    * 3. 如果 config.tools?.enable 存在且不包含匹配名称 → 排除
+   * 4. CLI allowed filter: if set, only include those in the list
+   * 5. CLI disallowed filter: if set, exclude those in the list
+   * 6. CLI noShellCmd: if true, exclude "Bash"
    */
   listEnabled(config: Settings): ToolSpec[] {
     return this.list().filter((spec) => {
@@ -83,6 +123,21 @@ export class ToolRegistry {
       // config 启用白名单 (如果存在, 只允许白名单中的工具)
       const enabled = config["tools.enable"];
       if (enabled && !enabled.includes(spec.name)) {
+        return false;
+      }
+
+      // CLI allowed filter — layered on top of config
+      if (this.cliFilters.allowed && !this.cliFilters.allowed.includes(spec.name)) {
+        return false;
+      }
+
+      // CLI disallowed filter
+      if (this.cliFilters.disallowed?.includes(spec.name)) {
+        return false;
+      }
+
+      // CLI noShellCmd filter
+      if (this.cliFilters.noShellCmd && spec.name === "Bash") {
         return false;
       }
 

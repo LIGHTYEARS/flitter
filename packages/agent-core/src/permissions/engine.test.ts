@@ -379,3 +379,209 @@ describe("DEFAULT_PERMISSION_RULES", () => {
     assert.ok((writeRule!.matches!.file_path as string).includes("${workspaceRoot}"));
   });
 });
+
+// ─── PermissionEngine: dangerouslyAllowAll (Gap #7) ───
+
+describe("PermissionEngine — dangerouslyAllowAll bypass", () => {
+  it("dangerouslyAllowAll=true bypasses ALL checks, returns permitted=true", () => {
+    const { engine } = createEngine({
+      settings: {
+        dangerouslyAllowAll: true,
+        "guardedFiles.allowlist": ["/workspace/**"],
+      } as Partial<Settings>,
+      workspaceRoot: "/workspace",
+    });
+    // Even guarded files should be bypassed
+    const result = engine.checkPermission("Write", { file_path: "/etc/passwd" });
+    assert.equal(result.permitted, true);
+    assert.ok(result.reason.includes("dangerouslyAllowAll"));
+  });
+
+  it("dangerouslyAllowAll=true allows Bash without ask", () => {
+    const { engine } = createEngine({
+      settings: { dangerouslyAllowAll: true } as Partial<Settings>,
+    });
+    const result = engine.checkPermission("Bash", { command: "rm -rf /" });
+    assert.equal(result.permitted, true);
+  });
+
+  it("dangerouslyAllowAll=true allows unknown tools", () => {
+    const { engine } = createEngine({
+      settings: { dangerouslyAllowAll: true } as Partial<Settings>,
+    });
+    const result = engine.checkPermission("SomeRandomTool", {});
+    assert.equal(result.permitted, true);
+  });
+
+  it("dangerouslyAllowAll=false falls through to normal checks", () => {
+    const { engine } = createEngine({
+      settings: { dangerouslyAllowAll: false } as Partial<Settings>,
+    });
+    // Bash should still require ask
+    const result = engine.checkPermission("Bash", { command: "ls" });
+    assert.equal(result.permitted, false);
+    assert.equal(result.action, "ask");
+  });
+
+  it("dangerouslyAllowAll undefined falls through to normal checks", () => {
+    const { engine } = createEngine({ settings: {} });
+    const result = engine.checkPermission("Bash", { command: "ls" });
+    assert.equal(result.permitted, false);
+    assert.equal(result.action, "ask");
+  });
+});
+
+// ─── PermissionEngine: reevaluateBlockedTools (Gap #36) ─
+
+describe("PermissionEngine — reevaluateBlockedTools", () => {
+  it("calls approveCallback for blocked tools that are now permitted", () => {
+    const { engine } = createEngine({
+      settings: {
+        permissions: [{ tool: "Bash", action: "allow" }],
+      },
+    });
+
+    const thread = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolUseID: "tu-1",
+              run: { status: "blocked-on-user" },
+            },
+          ],
+        },
+      ] as Record<string, unknown>[],
+    };
+
+    const approved: string[] = [];
+    engine.reevaluateBlockedTools(thread, (id) => approved.push(id));
+    assert.deepEqual(approved, ["tu-1"]);
+  });
+
+  it("does NOT call approveCallback for tools still not permitted", () => {
+    // No user rule allows Bash → default is "ask"
+    const { engine } = createEngine({ settings: {} });
+
+    const thread = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolUseID: "tu-1",
+              run: { status: "blocked-on-user" },
+            },
+          ],
+        },
+      ] as Record<string, unknown>[],
+    };
+
+    const approved: string[] = [];
+    engine.reevaluateBlockedTools(thread, (id) => approved.push(id));
+    assert.deepEqual(approved, []);
+  });
+
+  it("stops at first user message with no blocked tools (optimization)", () => {
+    const { engine } = createEngine({
+      settings: {
+        permissions: [{ tool: "Bash", action: "allow" }],
+      },
+    });
+
+    const thread = {
+      messages: [
+        // Earlier blocked tool — should NOT be reached
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-old", name: "Bash", input: {} },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolUseID: "tu-old",
+              run: { status: "blocked-on-user" },
+            },
+          ],
+        },
+        // User message with no blocked tools — stops here
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "hello" },
+          ],
+        },
+        // Recent blocked tool — should be found
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-new", name: "Bash", input: {} },
+          ],
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              toolUseID: "tu-new",
+              run: { status: "blocked-on-user" },
+            },
+          ],
+        },
+      ] as Record<string, unknown>[],
+    };
+
+    const approved: string[] = [];
+    engine.reevaluateBlockedTools(thread, (id) => approved.push(id));
+    // Only tu-new should be approved, tu-old is before the non-blocked user message
+    assert.deepEqual(approved, ["tu-new"]);
+  });
+
+  it("handles empty thread gracefully", () => {
+    const { engine } = createEngine();
+    const thread = { messages: [] as Record<string, unknown>[] };
+    const approved: string[] = [];
+    engine.reevaluateBlockedTools(thread, (id) => approved.push(id));
+    assert.deepEqual(approved, []);
+  });
+
+  it("skips non-user messages", () => {
+    const { engine } = createEngine({
+      settings: { permissions: [{ tool: "Bash", action: "allow" }] },
+    });
+
+    const thread = {
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "tu-1", name: "Bash", input: {} },
+          ],
+        },
+      ] as Record<string, unknown>[],
+    };
+
+    const approved: string[] = [];
+    engine.reevaluateBlockedTools(thread, (id) => approved.push(id));
+    assert.deepEqual(approved, []);
+  });
+});

@@ -234,4 +234,68 @@ describe("ToolRegistry", () => {
       assert.equal(registry.normalizeToolName("mcp__single"), "mcp__single");
     });
   });
+
+  // ─── setCliFilters ──────────────────────────────────────────
+
+  describe("setCliFilters", () => {
+    it("allowed filter restricts to named tools only", () => {
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Write" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.setCliFilters({ allowed: ["Read", "Write"] });
+      const result = registry.listEnabled({} as Settings);
+      assert.equal(result.length, 2);
+      assert.ok(result.some((t) => t.name === "Read"));
+      assert.ok(result.some((t) => t.name === "Write"));
+      assert.ok(!result.some((t) => t.name === "Bash"));
+    });
+
+    it("disallowed filter excludes named tools", () => {
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Write" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.setCliFilters({ disallowed: ["Bash"] });
+      const result = registry.listEnabled({} as Settings);
+      assert.equal(result.length, 2);
+      assert.ok(!result.some((t) => t.name === "Bash"));
+    });
+
+    it("noShellCmd excludes Bash specifically", () => {
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.setCliFilters({ noShellCmd: true });
+      const result = registry.listEnabled({} as Settings);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Read");
+    });
+
+    it("CLI filters layer ON TOP of config filters", () => {
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Write" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      // Config disables Write
+      const config = { "tools.disable": ["Write"] } as Settings;
+      // CLI also restricts to only Read and Write
+      registry.setCliFilters({ allowed: ["Read", "Write"] });
+      const result = registry.listEnabled(config);
+      // Write is disabled by config, only Read passes both
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Read");
+    });
+
+    it("getCliFilters returns current filters", () => {
+      registry.setCliFilters({ allowed: ["Read"], noShellCmd: true });
+      const filters = registry.getCliFilters();
+      assert.deepEqual(filters.allowed, ["Read"]);
+      assert.equal(filters.noShellCmd, true);
+    });
+
+    it("empty CLI filters have no effect", () => {
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.setCliFilters({});
+      const result = registry.listEnabled({} as Settings);
+      assert.equal(result.length, 2);
+    });
+  });
 });

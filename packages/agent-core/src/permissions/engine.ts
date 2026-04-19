@@ -89,6 +89,11 @@ export class PermissionEngine {
 
   /**
    * 检查工具调用权限
+   *
+   * 逆向: amp-cli-reversed/modules/1712_unknown_fbR.js line 7 — if
+   *   dangerouslyAllowAll === true, emit [{tool:"*",action:"allow"}]
+   * 逆向: amp-cli-reversed/modules/1676_unknown_rcT.js line 2 — if
+   *   dangerouslyAllowAll, skip guarded-file check entirely
    */
   checkPermission(
     toolName: string,
@@ -97,6 +102,18 @@ export class PermissionEngine {
   ): PermissionCheckResult {
     const config = this.getConfig();
     const settings = config.settings;
+
+    // ─── Level 0: dangerouslyAllowAll bypass ─────────
+    // 逆向: fbR:7 — when true, replaces all rules with [{tool:"*",action:"allow"}]
+    // 逆向: rcT:2 — when true, skips guarded-file check
+    if ((settings as Record<string, unknown>).dangerouslyAllowAll === true) {
+      return {
+        permitted: true,
+        reason: "Allowed by dangerouslyAllowAll",
+        action: "ask", // schema requires action field; irrelevant when permitted=true
+        source: "dangerouslyAllowAll",
+      };
+    }
 
     // ─── Level 1: 受保护文件检查 ─────────────────────
     const guardedResult = this.checkGuardedFiles(toolName, args, settings);
@@ -118,6 +135,98 @@ export class PermissionEngine {
       reason: "No matching permission rule found",
       action: "ask",
     };
+  }
+
+  /**
+   * Re-evaluate tools that are currently blocked on user approval.
+   *
+   * Walks backwards through thread messages. For each user message, checks
+   * all tool_result blocks with status "blocked-on-user". If the current
+   * permission rules now allow the tool, calls approveCallback(toolUseID).
+   * Stops at the first user message that has no blocked tools (optimization).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:41-50
+   *   ```
+   *   reevaluateBlockedTools() {
+   *     if (this.isDisposed) return;
+   *     for (let T = this.thread.messages.length - 1; T >= 0; T--) {
+   *       let R = this.thread.messages[T];
+   *       if (!R || R.role !== "user") continue;
+   *       let a = !1;
+   *       for (let e of R.content)
+   *         if (e.type === "tool_result" && e.run?.status === "blocked-on-user" && e.toolUseID)
+   *           a = !0, this.checkAndApproveBlockedTool(e.toolUseID);
+   *       if (!a) break;
+   *     }
+   *   }
+   *   ```
+   */
+  reevaluateBlockedTools(
+    thread: { messages: readonly Record<string, unknown>[] },
+    approveCallback: (toolUseID: string) => void,
+  ): void {
+    const messages = thread.messages;
+
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (!msg || msg.role !== "user") continue;
+
+      const content = msg.content as Array<Record<string, unknown>> | undefined;
+      if (!content || !Array.isArray(content)) continue;
+
+      let foundBlocked = false;
+
+      for (const block of content) {
+        if (
+          block.type === "tool_result" &&
+          (block.run as Record<string, unknown> | undefined)?.status === "blocked-on-user" &&
+          block.toolUseID
+        ) {
+          foundBlocked = true;
+          const toolUseID = block.toolUseID as string;
+
+          // Find the corresponding tool_use block to get the tool name and input
+          // 逆向: amp's checkAndApproveBlockedTool calls Tn(thread, T) to find
+          // the tool_use block, then re-checks permissions with PLT()
+          const toolUse = this.findToolUseBlock(messages, toolUseID);
+          if (!toolUse) continue;
+
+          const result = this.checkPermission(
+            toolUse.name as string,
+            (toolUse.input as Record<string, unknown>) ?? {},
+          );
+
+          if (result.permitted) {
+            approveCallback(toolUseID);
+          }
+        }
+      }
+
+      // 逆向: amp optimization — stop at first user message with no blocked tools
+      if (!foundBlocked) break;
+    }
+  }
+
+  /**
+   * Find a tool_use block by its ID across all messages.
+   * 逆向: amp's Tn(thread, toolUseID) — scans all assistant messages
+   */
+  private findToolUseBlock(
+    messages: readonly Record<string, unknown>[],
+    toolUseID: string,
+  ): Record<string, unknown> | undefined {
+    for (const msg of messages) {
+      if (msg.role !== "assistant") continue;
+      const content = msg.content as Array<Record<string, unknown>> | undefined;
+      if (!content || !Array.isArray(content)) continue;
+
+      for (const block of content) {
+        if (block.type === "tool_use" && block.id === toolUseID) {
+          return block;
+        }
+      }
+    }
+    return undefined;
   }
 
   /**

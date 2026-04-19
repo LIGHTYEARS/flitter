@@ -18,6 +18,7 @@ import { extractTextFromContent, generateThreadTitle } from "../title/generate-t
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
+import { processAssistantMessage } from "./process-assistant-message";
 import { isContextLimitError, isRetryableError, RetryScheduler } from "./retry-scheduler";
 
 // ─── 不完整 tool_use 检测 ────────────────────────────────
@@ -49,6 +50,23 @@ export interface ToolApprovalResponse {
   approved: boolean;
   scope?: string;
   feedback?: string;
+}
+
+// ─── Handoff 状态 ──────────────────────────────────────────
+
+/**
+ * Handoff state: tracks an in-progress or completed handoff.
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:119
+ *   `handoffState = new f0(void 0)`
+ * 逆向: ov.js:1287-1340 — executeHandoff sets goal, then result
+ */
+export interface HandoffState {
+  goal: string;
+  result?: {
+    newThreadID?: string;
+    error?: string;
+  };
 }
 
 // ─── ThreadWorker 选项 ───────────────────────────────────
@@ -178,6 +196,36 @@ export class ThreadWorker {
     (response: { accepted: boolean; scope?: string; feedback?: string }) => void
   >();
 
+  /**
+   * Handoff state: tracks in-progress or completed handoff.
+   * 逆向: ov.js:119 `handoffState = new f0(void 0)`
+   */
+  handoffState: HandoffState | undefined = undefined;
+
+  /**
+   * Tracked file URIs — files referenced in tool results, file mentions, etc.
+   * 逆向: ov.js:111 `trackedFiles = new Ls()`
+   */
+  readonly trackedFiles: Set<string> = new Set();
+
+  /**
+   * Snapshot OIDs from `git stash create` for auto-snapshot feature.
+   * 逆向: ov.js:19-22 `isAutoSnapshotEnabled`, ov.js:338,357,408 snapshot OIDs
+   */
+  snapshotOIDs: string[] = [];
+
+  /**
+   * Turn timing: when the current turn started.
+   * 逆向: ov.js:102 `_turnStartTime = new f0(void 0)`
+   */
+  private _turnStartTime: number | undefined = undefined;
+
+  /**
+   * Turn timing: elapsed milliseconds for the last completed turn.
+   * 逆向: ov.js:103 `_turnElapsedMs = new f0(void 0)`
+   */
+  private _turnElapsedMs: number | undefined = undefined;
+
   constructor(opts: ThreadWorkerOptions) {
     this.opts = opts;
     this.inferenceState$ = new BehaviorSubject<InferenceState>("idle");
@@ -222,6 +270,10 @@ export class ThreadWorker {
         messages: snapshot.messages.slice(0, snapshot.messages.length - 1),
       });
     }
+
+    // 逆向: ov.js:3-15 — trackFilesFromHistory is called on resume
+    // to restore the tracked files set from the persisted thread history
+    this.trackFilesFromHistory();
   }
 
   /**
@@ -303,6 +355,11 @@ export class ThreadWorker {
       this.inferenceState$.next("running");
       this.events$.next({ type: "inference:start" });
 
+      // ─── Turn timing: record start time ────────────
+      // 逆向: ov.js:406 `this._turnStartTime.next(Date.now())`
+      this._turnStartTime = Date.now();
+      this._turnElapsedMs = undefined;
+
       // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:878
       //   `this.triggerTitleGeneration();` (called at start of inference loop)
       this.triggerTitleGeneration();
@@ -376,6 +433,10 @@ export class ThreadWorker {
       // 逆向: ov.resetRetryAttempts on inference:completed
       this.retryScheduler.resetAttempts();
 
+      // ─── Step 6b: Post-process assistant message ───
+      // 逆向: IbT (modules/1087) — trim + filter empty text/thinking blocks
+      this.postProcessAssistantContent();
+
       // ─── Step 7: 检查 tool_use ─────────────────
       const toolUses = this.extractToolUses();
 
@@ -386,8 +447,20 @@ export class ThreadWorker {
         // 递归推理 (多轮)
         await this.runInference();
       } else {
+        // ─── Turn timing: record elapsed ──────────
+        // 逆向: ov.js:652-658
+        //   `let i = this._turnStartTime.getValue();
+        //    if (i !== void 0) { let c = Date.now() - i; this._turnElapsedMs.next(c); }`
+        if (this._turnStartTime !== undefined) {
+          this._turnElapsedMs = Date.now() - this._turnStartTime;
+        }
+        this._turnStartTime = undefined;
+
         // 无 tool_use: turn 完成
-        this.events$.next({ type: "turn:complete" });
+        this.events$.next({
+          type: "turn:complete",
+          turnElapsedMs: this._turnElapsedMs,
+        } as AgentEvent);
 
         // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:661-662
         //   `if (this.thread.queuedMessages && this.thread.queuedMessages.length > 0)
@@ -547,6 +620,222 @@ export class ThreadWorker {
       );
       this._pendingApprovals.delete(toolUseId);
     }
+  }
+
+  // ─── File Tracking (Gap #37) ──────────────────────────
+
+  /**
+   * Add file URIs to the tracked set.
+   *
+   * 逆向: ov.js:111 — `trackedFiles = new Ls()`
+   *   ov.js callback: `trackFiles: T => this.trackFiles(T)`
+   *   ov.js:4-15 trackFilesFromHistory scans messages
+   */
+  trackFiles(uris: string[]): void {
+    for (const uri of uris) {
+      if (uri) this.trackedFiles.add(uri);
+    }
+  }
+
+  /**
+   * Scan thread history for file paths in tool results and file mentions.
+   *
+   * 逆向: ov.js:3-15 trackFilesFromHistory()
+   *   ```
+   *   for (let T of this.thread.messages) {
+   *     if (T.role === "user" && T.fileMentions?.files)
+   *       this.trackFiles(T.fileMentions.files.map(R => R.uri).filter(R => R !== void 0));
+   *     if (T.role === "user") {
+   *       for (let R of T.content)
+   *         if (R.type === "tool_result" && R.run?.status === "done")
+   *           this.trackFiles(R.run.trackFiles ?? []);
+   *     }
+   *   }
+   *   ```
+   */
+  trackFilesFromHistory(): void {
+    const snapshot = this.opts.getThreadSnapshot();
+    for (const msg of snapshot.messages) {
+      const m = msg as Record<string, unknown>;
+      if (m.role !== "user") continue;
+
+      // File mentions
+      const fileMentions = m.fileMentions as { files?: Array<{ uri?: string }> } | undefined;
+      if (fileMentions?.files) {
+        this.trackFiles(
+          fileMentions.files.map((f) => f.uri).filter((u): u is string => u !== undefined),
+        );
+      }
+
+      // Tool result trackFiles
+      const content = m.content as Array<Record<string, unknown>> | undefined;
+      if (content && Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type === "tool_result") {
+            const run = block.run as Record<string, unknown> | undefined;
+            if (run?.status === "done") {
+              const trackFilesList = run.trackFiles as string[] | undefined;
+              if (trackFilesList) this.trackFiles(trackFilesList);
+            }
+          }
+
+          // Also extract file_path / path from tool_use input blocks
+          // This covers the common pattern of Read/Write/Edit tool results
+          if (block.type === "tool_result") {
+            // Look for file_path in corresponding tool_use blocks
+            const toolUseId = block.tool_use_id as string;
+            if (toolUseId) {
+              const toolUse = this.findToolUseInMessages(snapshot.messages, toolUseId);
+              if (toolUse) {
+                const input = toolUse.input as Record<string, unknown> | undefined;
+                if (input) {
+                  const filePath = (input.file_path ?? input.path) as string | undefined;
+                  if (filePath) this.trackedFiles.add(filePath);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Find a tool_use block by ID in messages. Helper for trackFilesFromHistory.
+   */
+  private findToolUseInMessages(
+    messages: readonly Record<string, unknown>[],
+    toolUseId: string,
+  ): Record<string, unknown> | undefined {
+    for (const msg of messages) {
+      if (msg.role !== "assistant") continue;
+      const content = msg.content as Array<Record<string, unknown>> | undefined;
+      if (!content || !Array.isArray(content)) continue;
+      for (const block of content) {
+        if (block.type === "tool_use" && block.id === toolUseId) return block;
+      }
+    }
+    return undefined;
+  }
+
+  // ─── Auto-Snapshot / Git Stash (Gap #24) ──────────────
+
+  /**
+   * Create a git stash snapshot (git stash create) before tool execution.
+   *
+   * Returns the snapshot OID (empty string if stash had nothing to save).
+   * Only runs if config.experimental?.autoSnapshot is truthy.
+   *
+   * 逆向: ov.js:19-22 `isAutoSnapshotEnabled()`
+   * 逆向: ov.js:338,357,408 — snapshot creation and storage
+   */
+  async createAutoSnapshot(): Promise<string | null> {
+    const config = this.opts.getConfig();
+    const settings = config.settings as Record<string, unknown>;
+    const autoSnapshot = settings["experimental.autoSnapshot"];
+    if (!autoSnapshot) return null;
+
+    try {
+      const { execSync } = await import("node:child_process");
+      const oid = execSync("git stash create", {
+        encoding: "utf-8",
+        timeout: 5000,
+      }).trim();
+
+      if (oid) {
+        this.snapshotOIDs.push(oid);
+        return oid;
+      }
+      return null;
+    } catch {
+      // git stash create can fail if not in a git repo — ignore
+      return null;
+    }
+  }
+
+  /**
+   * Restore to a snapshot OID using git stash apply.
+   *
+   * 逆向: ov.js:22 `async restoreToSnapshot(T) {}`
+   */
+  async restoreToSnapshot(oid: string): Promise<boolean> {
+    try {
+      const { execSync } = await import("node:child_process");
+      execSync(`git stash apply ${oid}`, {
+        encoding: "utf-8",
+        timeout: 10000,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ─── Handoff (Gap #14) ────────────────────────────────
+
+  /**
+   * Execute a handoff: create a new thread with context from the current thread.
+   *
+   * 逆向: ov.js:1287-1340
+   *   ```
+   *   async executeHandoff(T) {
+   *     this.handoffState.next({ goal: T });
+   *     try {
+   *       let { threadWorkerService: R } = await ...;
+   *       let { threadID: e } = await R.handoff(this.deps, {
+   *         threadID: this.threadID, goal: T, ... });
+   *       this.handoffState.next({ goal: T, result: { newThreadID: e } });
+   *     } catch (R) {
+   *       this.handoffState.next({ goal: T, result: { error: ... } });
+   *     }
+   *   }
+   *   ```
+   *
+   * Note: In Flitter, the actual ThreadWorkerService.handoff logic (which builds
+   * a context summary and creates a new thread) is deferred — the caller must
+   * provide a handoff executor. This method sets up the state and delegates.
+   */
+  async executeHandoff(
+    goal: string,
+    executor?: (goal: string, threadSnapshot: ThreadSnapshot) => Promise<string>,
+  ): Promise<void> {
+    this.handoffState = { goal };
+    this.events$.next({ type: "turn:complete" });
+
+    try {
+      if (!executor) {
+        // No executor provided — handoff is just a state marker
+        this.handoffState = { goal, result: { error: "No handoff executor configured" } };
+        return;
+      }
+
+      const snapshot = this.opts.getThreadSnapshot();
+      const newThreadID = await executor(goal, snapshot);
+      this.handoffState = { goal, result: { newThreadID } };
+    } catch (err) {
+      this.handoffState = {
+        goal,
+        result: { error: err instanceof Error ? err.message : String(err) },
+      };
+    }
+  }
+
+  // ─── Turn Timing (Gap #40) ────────────────────────────
+
+  /**
+   * Get the turn start time (ms since epoch).
+   * 逆向: ov.js:1344 `getTurnStartTime()`
+   */
+  getTurnStartTime(): number | undefined {
+    return this._turnStartTime;
+  }
+
+  /**
+   * Get the elapsed time of the last completed turn.
+   * 逆向: ov.js:103 `_turnElapsedMs`
+   */
+  getTurnElapsedMs(): number | undefined {
+    return this._turnElapsedMs;
   }
 
   /**
@@ -738,5 +1027,24 @@ export class ThreadWorker {
       ...snapshot,
       messages: [...snapshot.messages, message] as ThreadSnapshot["messages"],
     });
+  }
+
+  /**
+   * Post-process the latest assistant message: trim + filter empty blocks.
+   *
+   * 逆向: IbT (modules/1087_ProcessAssistantMessage_IbT.js)
+   *   Called after streaming completes, before checking tool_use blocks.
+   */
+  private postProcessAssistantContent(): void {
+    const snapshot = this.opts.getThreadSnapshot();
+    const messages = [...snapshot.messages];
+    const last = messages[messages.length - 1];
+
+    if (last && last.role === "assistant") {
+      const content = (last as Message & { role: "assistant" }).content as AssistantContentBlock[];
+      const processed = processAssistantMessage(content);
+      (last as Message & { role: "assistant" }).content = processed;
+      this.opts.updateThreadSnapshot({ ...snapshot, messages });
+    }
   }
 }

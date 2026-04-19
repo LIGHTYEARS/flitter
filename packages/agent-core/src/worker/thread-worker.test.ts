@@ -799,3 +799,220 @@ describe("ThreadWorker — Thread state updates", () => {
     assert.ok(assistantMsg);
   });
 });
+
+// ─── File Tracking (Gap #37) ─────────────────────────────
+
+describe("ThreadWorker — File Tracking", () => {
+  it("trackFiles adds URIs to the trackedFiles set", () => {
+    const { worker } = createWorker();
+    worker.trackFiles(["/path/to/file.ts", "/another/file.ts"]);
+    assert.equal(worker.trackedFiles.size, 2);
+    assert.ok(worker.trackedFiles.has("/path/to/file.ts"));
+    assert.ok(worker.trackedFiles.has("/another/file.ts"));
+  });
+
+  it("trackFiles ignores empty strings", () => {
+    const { worker } = createWorker();
+    worker.trackFiles(["", "/valid/path"]);
+    assert.equal(worker.trackedFiles.size, 1);
+    assert.ok(worker.trackedFiles.has("/valid/path"));
+  });
+
+  it("trackFiles deduplicates URIs", () => {
+    const { worker } = createWorker();
+    worker.trackFiles(["/a.ts", "/b.ts"]);
+    worker.trackFiles(["/a.ts", "/c.ts"]);
+    assert.equal(worker.trackedFiles.size, 3);
+  });
+
+  it("trackFilesFromHistory extracts file paths from tool_result done blocks", () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "tu-1", name: "Read", input: { file_path: "/src/foo.ts" } },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "tu-1",
+            run: { status: "done", trackFiles: ["/src/foo.ts"] },
+          },
+        ],
+      },
+    ] as unknown as Message[];
+    const snapshot = createSnapshot(messages);
+    const { worker } = createWorker({
+      getThreadSnapshot: () => snapshot,
+    });
+
+    worker.trackFilesFromHistory();
+    assert.ok(worker.trackedFiles.has("/src/foo.ts"));
+  });
+
+  it("trackFilesFromHistory extracts file mentions", () => {
+    const messages = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "check this" }],
+        fileMentions: { files: [{ uri: "/src/bar.ts" }, { uri: undefined }] },
+      },
+    ] as unknown as Message[];
+    const snapshot = createSnapshot(messages);
+    const { worker } = createWorker({
+      getThreadSnapshot: () => snapshot,
+    });
+
+    worker.trackFilesFromHistory();
+    assert.ok(worker.trackedFiles.has("/src/bar.ts"));
+    assert.equal(worker.trackedFiles.size, 1); // undefined is filtered
+  });
+
+  it("trackFilesFromHistory handles empty thread", () => {
+    const { worker } = createWorker();
+    // Should not throw
+    worker.trackFilesFromHistory();
+    assert.equal(worker.trackedFiles.size, 0);
+  });
+});
+
+// ─── Handoff (Gap #14) ──────────────────────────────────
+
+describe("ThreadWorker — Handoff", () => {
+  it("handoffState is initially undefined", () => {
+    const { worker } = createWorker();
+    assert.equal(worker.handoffState, undefined);
+  });
+
+  it("executeHandoff sets handoff state with goal", async () => {
+    const { worker } = createWorker();
+    await worker.executeHandoff("Fix the bug");
+    assert.ok(worker.handoffState);
+    assert.equal(worker.handoffState?.goal, "Fix the bug");
+  });
+
+  it("executeHandoff with executor sets newThreadID on success", async () => {
+    const { worker } = createWorker();
+    await worker.executeHandoff("Fix", async () => "new-thread-123");
+    assert.equal(worker.handoffState?.result?.newThreadID, "new-thread-123");
+  });
+
+  it("executeHandoff records error when executor fails", async () => {
+    const { worker } = createWorker();
+    await worker.executeHandoff("Fix", async () => {
+      throw new Error("Handoff failed");
+    });
+    assert.ok(worker.handoffState?.result?.error);
+    assert.ok(worker.handoffState?.result?.error?.includes("Handoff failed"));
+  });
+
+  it("executeHandoff without executor records error", async () => {
+    const { worker } = createWorker();
+    await worker.executeHandoff("Fix");
+    assert.ok(worker.handoffState?.result?.error?.includes("No handoff executor"));
+  });
+});
+
+// ─── Turn Timing (Gap #40) ──────────────────────────────
+
+describe("ThreadWorker — Turn Timing", () => {
+  it("turn timing is undefined before inference", () => {
+    const { worker } = createWorker();
+    assert.equal(worker.getTurnStartTime(), undefined);
+    assert.equal(worker.getTurnElapsedMs(), undefined);
+  });
+
+  it("turn timing is set after inference completes", async () => {
+    const { worker } = createWorker();
+    await worker.runInference();
+    // After a successful no-tool turn, elapsed should be set
+    assert.ok(
+      worker.getTurnElapsedMs() !== undefined,
+      "turnElapsedMs should be set after inference",
+    );
+    assert.ok(
+      worker.getTurnElapsedMs()! >= 0,
+      "turnElapsedMs should be non-negative",
+    );
+  });
+
+  it("turn:complete event includes turnElapsedMs", async () => {
+    const { worker } = createWorker();
+    const events = collectEvents(worker.events$);
+    await worker.runInference();
+
+    const turnCompleteEvent = events.find((e) => e.type === "turn:complete");
+    assert.ok(turnCompleteEvent);
+    assert.ok(
+      "turnElapsedMs" in turnCompleteEvent!,
+      "turn:complete should have turnElapsedMs",
+    );
+  });
+});
+
+// ─── Auto-Snapshot (Gap #24) ────────────────────────────
+
+describe("ThreadWorker — Auto-Snapshot", () => {
+  it("snapshotOIDs starts empty", () => {
+    const { worker } = createWorker();
+    assert.deepEqual(worker.snapshotOIDs, []);
+  });
+
+  it("createAutoSnapshot returns null when autoSnapshot is disabled", async () => {
+    const { worker } = createWorker();
+    const result = await worker.createAutoSnapshot();
+    assert.equal(result, null);
+  });
+
+  // Note: testing actual git stash create requires a git repo, which is
+  // an integration test. The unit test verifies the config guard.
+});
+
+// ─── Message Queue (Gap #23) ────────────────────────────
+
+describe("ThreadWorker — Message Queue enhancements", () => {
+  it("enqueueMessage pushes to queue when tools are running", () => {
+    const orch = createMockOrchestrator();
+    (orch as unknown as { hasRunningTools: () => boolean }).hasRunningTools = () => true;
+
+    const { worker } = createWorker({
+      toolOrchestrator: orch as unknown as ToolOrchestrator,
+    });
+
+    // Force running state
+    (worker.inferenceState$ as BehaviorSubject<InferenceState>).next("running");
+
+    const msg = { role: "user" as const, content: [{ type: "text" as const, text: "hi" }] } as Message;
+    worker.enqueueMessage(msg);
+    assert.equal(worker.queuedMessageCount, 1);
+  });
+
+  it("dequeueMessage shifts from queue and appends to snapshot", () => {
+    const orch = createMockOrchestrator();
+    (orch as unknown as { hasRunningTools: () => boolean }).hasRunningTools = () => true;
+
+    const { worker, getSnapshot } = createWorker({
+      toolOrchestrator: orch as unknown as ToolOrchestrator,
+    });
+
+    // Force running state
+    (worker.inferenceState$ as BehaviorSubject<InferenceState>).next("running");
+
+    const msg1 = { role: "user" as const, content: [{ type: "text" as const, text: "first" }] } as Message;
+    const msg2 = { role: "user" as const, content: [{ type: "text" as const, text: "second" }] } as Message;
+    worker.enqueueMessage(msg1);
+    worker.enqueueMessage(msg2);
+    assert.equal(worker.queuedMessageCount, 2);
+
+    worker.dequeueMessage();
+    assert.equal(worker.queuedMessageCount, 1);
+    const messages = getSnapshot().messages;
+    assert.ok(messages.some((m) => {
+      const content = m.content as Array<Record<string, unknown>>;
+      return content.some((c) => c.text === "first");
+    }));
+  });
+});

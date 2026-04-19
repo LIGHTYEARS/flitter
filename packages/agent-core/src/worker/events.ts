@@ -110,6 +110,11 @@ export interface ApprovalRequestEvent {
 /** 完整 turn 完成 (无更多 tool_use, agent 回复结束) */
 export interface TurnCompleteEvent {
   type: "turn:complete";
+  /**
+   * Elapsed time for this turn in milliseconds.
+   * 逆向: ov.js:652-658 — `_turnElapsedMs.next(c)` where c = Date.now() - startTime
+   */
+  turnElapsedMs?: number;
 }
 
 /** 上下文压缩开始 */

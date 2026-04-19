@@ -201,6 +201,11 @@ export {
   generatePluginRuntime,
   validateRuntimeTemplate,
 } from "./plugins/index";
+// ─── Tools — CLI Filters ─────────────────────────────────
+export type { CliToolFilters } from "./tools/registry";
+// ─── Tools — EarliestNonDisabledTool ─────────────────────
+export type { ToolUseEntry } from "./tools/earliest-non-disabled";
+export { findEarliestNonDisabledTool } from "./tools/earliest-non-disabled";
 // ─── Worker ────────────────────────────────────────────
 export type {
   AgentEvent,
@@ -229,7 +234,13 @@ export {
   RetryScheduler,
 } from "./worker/retry-scheduler";
 export type {
+  HandoffState,
   ThreadWorkerOptions,
   ToolApprovalResponse,
 } from "./worker/thread-worker";
 export { hasIncompleteToolUse, ThreadWorker } from "./worker/thread-worker";
+// ─── Worker — ProcessAssistantMessage ────────────────────
+export { processAssistantMessage } from "./worker/process-assistant-message";
+// ─── Worker — ThreadWorkerService ────────────────────────
+export type { ThreadWorkerFactory } from "./worker/thread-worker-service";
+export { ThreadWorkerService } from "./worker/thread-worker-service";

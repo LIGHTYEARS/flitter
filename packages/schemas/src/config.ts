@@ -156,6 +156,9 @@ export const SettingsSchema = z.object({
   "git.commit.ampThread.enabled": z.boolean().optional(),
   "git.commit.coauthor.enabled": z.boolean().optional(),
   "guardedFiles.allowlist": z.array(z.string()).optional(),
+
+  // Dangerous bypass — skip all permission checks
+  dangerouslyAllowAll: z.boolean().optional(),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 

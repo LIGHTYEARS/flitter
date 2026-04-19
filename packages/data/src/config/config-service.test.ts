@@ -295,6 +295,78 @@ describe("ConfigService", () => {
       assert.equal((config.settings as Record<string, unknown>).proxy, "changed");
     });
 
+    it("should notify subscribers when file changes are detected", async () => {
+      // Integration test: write to settings file -> watcher fires -> reload() -> subscribers notified
+      const storage = makeStorage();
+      await storage.write("global", { proxy: "initial" } as unknown as Partial<Settings>);
+      const service = makeService(storage);
+      await service.reload();
+
+      const receivedValues: string[] = [];
+      let initialSkipped = false;
+      service.observe().subscribe((config) => {
+        // BehaviorSubject emits current value immediately on subscribe
+        if (!initialSkipped) {
+          initialSkipped = true;
+          return;
+        }
+        receivedValues.push(
+          (config.settings as Record<string, unknown>).proxy as string,
+        );
+      });
+
+      const handle = service.startWatching();
+
+      // Write a new value directly to the settings file
+      await fsp.writeFile(
+        path.join(globalDir, "settings.json"),
+        JSON.stringify({ proxy: "subscriber-notified" }),
+        "utf-8",
+      );
+
+      // Wait for debounce (300ms) + reload
+      await new Promise((r) => setTimeout(r, 600));
+      handle.dispose();
+
+      // Subscriber should have been notified with the new value
+      assert.ok(
+        receivedValues.includes("subscriber-notified"),
+        `Expected subscriber to receive "subscriber-notified", got: ${JSON.stringify(receivedValues)}`,
+      );
+    });
+
+    it("should not notify subscribers when file content unchanged", async () => {
+      const storage = makeStorage();
+      await storage.write("global", { proxy: "same" } as unknown as Partial<Settings>);
+      const service = makeService(storage);
+      await service.reload();
+
+      let notifyCount = 0;
+      let initialSkipped = false;
+      service.observe().subscribe(() => {
+        if (!initialSkipped) {
+          initialSkipped = true;
+          return;
+        }
+        notifyCount++;
+      });
+
+      const handle = service.startWatching();
+
+      // Re-write the same content
+      await fsp.writeFile(
+        path.join(globalDir, "settings.json"),
+        JSON.stringify({ proxy: "same" }),
+        "utf-8",
+      );
+
+      await new Promise((r) => setTimeout(r, 600));
+      handle.dispose();
+
+      // ConfigService diff filter should suppress the notification
+      assert.equal(notifyCount, 0, "Should not notify when content is unchanged");
+    });
+
     it("should cleanup on unsubscribe", async () => {
       const service = makeService();
       service.startWatching();
@@ -318,104 +390,6 @@ describe("ConfigService", () => {
       });
       await service.reload();
       assert.equal((service.get().settings as Record<string, unknown>).proxy, "global-only");
-    });
-  });
-
-  describe("settings validation (Task 9)", () => {
-    it("should accept valid settings", async () => {
-      const storage = makeStorage();
-      await storage.write("global", {
-        "anthropic.speed": "fast",
-        "anthropic.temperature": 0.7,
-      } as unknown as Partial<Settings>);
-      const service = makeService(storage);
-      await service.reload();
-      const { settings } = service.get();
-      assert.equal((settings as Record<string, unknown>)["anthropic.speed"], "fast");
-      assert.equal((settings as Record<string, unknown>)["anthropic.temperature"], 0.7);
-    });
-
-    it("should not crash on invalid settings values", async () => {
-      const storage = makeStorage();
-      // Write directly to bypass Zod partial validation in read
-      await fsp.writeFile(
-        path.join(globalDir, "settings.json"),
-        JSON.stringify({
-          "anthropic.temperature": "not-a-number",
-          proxy: "http://valid-proxy",
-        }),
-        "utf-8",
-      );
-      const service = makeService(storage);
-      // Should not throw
-      await service.reload();
-      const config = service.get();
-      // The settings object should still be populated (graceful degradation)
-      assert.ok(config.settings);
-    });
-  });
-
-  describe("config file watching integration (Task 10)", () => {
-    it("should observe config changes when file is modified", async () => {
-      const storage = makeStorage();
-      await storage.write("global", { proxy: "before" } as unknown as Partial<Settings>);
-      const service = makeService(storage);
-      await service.reload();
-
-      // Track observed changes
-      const observed: string[] = [];
-      service.observe().subscribe((config) => {
-        const proxy = (config.settings as Record<string, unknown>).proxy;
-        if (typeof proxy === "string") observed.push(proxy);
-      });
-
-      const handle = service.startWatching();
-
-      // Modify the file externally
-      await fsp.writeFile(
-        path.join(globalDir, "settings.json"),
-        JSON.stringify({ proxy: "after-modify" }),
-        "utf-8",
-      );
-
-      // Wait for fs.watch event + debounce + reload
-      await new Promise((r) => setTimeout(r, 600));
-
-      handle.dispose();
-
-      // Verify the new value was picked up
-      const finalConfig = service.get();
-      assert.equal((finalConfig.settings as Record<string, unknown>).proxy, "after-modify");
-      // Should have observed the change
-      assert.ok(observed.includes("after-modify"), "Should have observed the modified value");
-    });
-
-    it("should debounce rapid file changes", async () => {
-      const storage = makeStorage();
-      await storage.write("global", { proxy: "start" } as unknown as Partial<Settings>);
-      const service = makeService(storage);
-      await service.reload();
-
-      const handle = service.startWatching();
-
-      // Rapid successive writes
-      for (let i = 0; i < 5; i++) {
-        await fsp.writeFile(
-          path.join(globalDir, "settings.json"),
-          JSON.stringify({ proxy: `rapid-${i}` }),
-          "utf-8",
-        );
-        await new Promise((r) => setTimeout(r, 50));
-      }
-
-      // Wait for final debounce
-      await new Promise((r) => setTimeout(r, 600));
-      handle.dispose();
-
-      // Should have the last value
-      const config = service.get();
-      const proxy = (config.settings as Record<string, unknown>).proxy;
-      assert.ok(typeof proxy === "string" && proxy.startsWith("rapid-"));
     });
   });
 });

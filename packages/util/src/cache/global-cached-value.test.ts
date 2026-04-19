@@ -1,255 +1,365 @@
 /**
- * Tests for GlobalCachedValue — cached async value with soft/hard TTL.
- * 逆向: amp-cli-reversed/modules/1271_GlobalCachedValue_d5T.js
+ * Tests for GlobalCachedValue — soft/hard TTL cache with background recomputation
+ *
+ * Cross-references: amp-cli-reversed/modules/1271_GlobalCachedValue_d5T.js
  */
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { GlobalCachedValue } from "./global-cached-value";
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 describe("GlobalCachedValue", () => {
-  it("should compute value on first get()", async () => {
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
+  describe("basic get/getCached", () => {
+    it("should compute value on first get()", async () => {
+      let computeCount = 0;
+      const cache = new GlobalCachedValue({
+        softTTL: 1000,
+        hardTTL: 5000,
+        compute: async () => {
+          computeCount++;
+          return 42;
+        },
+        changes: () => undefined,
+      });
+
+      const result = await cache.get();
+      assert.equal(result, 42);
+      assert.equal(computeCount, 1);
     });
-    const result = await cache.get();
-    assert.equal(result, 42);
+
+    it("should return undefined from getCached() before first computation", () => {
+      const cache = new GlobalCachedValue({
+        softTTL: 1000,
+        hardTTL: 5000,
+        compute: async () => 42,
+        changes: () => undefined,
+      });
+
+      assert.equal(cache.getCached(), undefined);
+    });
+
+    it("should return cached value from getCached() after computation", async () => {
+      const cache = new GlobalCachedValue({
+        softTTL: 1000,
+        hardTTL: 5000,
+        compute: async () => "hello",
+        changes: () => undefined,
+      });
+
+      await cache.get();
+      assert.equal(cache.getCached(), "hello");
+    });
   });
 
-  it("should return cached value within softTTL", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        return computeCount;
-      },
-      softTTL: 500,
-      hardTTL: 1000,
+  describe("TTL behavior", () => {
+    it("should return cached value within soft TTL without recomputing", async () => {
+      let computeCount = 0;
+      const cache = new GlobalCachedValue({
+        softTTL: 10_000,
+        hardTTL: 50_000,
+        compute: async () => {
+          computeCount++;
+          return computeCount;
+        },
+        changes: () => undefined,
+      });
+
+      const v1 = await cache.get();
+      assert.equal(v1, 1);
+      assert.equal(computeCount, 1);
+
+      // Still within soft TTL — should return cached
+      const v2 = await cache.get();
+      assert.equal(v2, 1);
+      assert.equal(computeCount, 1);
     });
-    const first = await cache.get();
-    assert.equal(first, 1);
-    // Immediately get again — should return cached
-    const second = await cache.get();
-    assert.equal(second, 1);
-    assert.equal(computeCount, 1);
+
+    it("should trigger background recompute when soft TTL expired", async () => {
+      let computeCount = 0;
+      let resolveCompute: (() => void) | undefined;
+      const cache = new GlobalCachedValue({
+        softTTL: 0, // soft TTL already expired
+        hardTTL: 999_999, // hard TTL not expired
+        compute: async () => {
+          computeCount++;
+          if (computeCount > 1) {
+            // Second compute blocks until we resolve
+            await new Promise<void>((r) => {
+              resolveCompute = r;
+            });
+          }
+          return computeCount;
+        },
+        changes: () => undefined,
+      });
+
+      // First get - computes
+      const v1 = await cache.get();
+      assert.equal(v1, 1);
+
+      // Second get - soft TTL expired, triggers background recompute, returns stale
+      const v2 = await cache.get();
+      assert.equal(v2, 1); // Still returns stale value
+      assert.equal(computeCount, 2); // But compute was started
+
+      // Let background compute finish
+      resolveCompute?.();
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Now should return the fresh value
+      // Need another get to see the updated value
+      const v3 = await cache.get();
+      // computeCount should be 2 still (soft TTL = 0 would trigger another,
+      // but there's a pending recompute dedup)
+      assert.ok(v3 >= 2);
+    });
+
+    it("should block on get() when hard TTL expired", async () => {
+      let computeCount = 0;
+      const cache = new GlobalCachedValue({
+        softTTL: 0,
+        hardTTL: 0, // Hard TTL immediately expired
+        compute: async () => {
+          computeCount++;
+          return computeCount * 10;
+        },
+        changes: () => undefined,
+      });
+
+      // First get computes
+      const v1 = await cache.get();
+      assert.equal(v1, 10);
+
+      // Hard TTL expired → should recompute and block
+      const v2 = await cache.get();
+      assert.equal(v2, 20);
+      assert.equal(computeCount, 2);
+    });
   });
 
-  it("should trigger background recompute past softTTL", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        return computeCount * 10;
-      },
-      softTTL: 50,
-      hardTTL: 5000,
+  describe("recompute deduplication", () => {
+    it("should not start multiple concurrent computations", async () => {
+      let computeCount = 0;
+      let resolveCompute: (() => void) | undefined;
+
+      const cache = new GlobalCachedValue({
+        softTTL: 1000,
+        hardTTL: 5000,
+        compute: async () => {
+          computeCount++;
+          await new Promise<void>((r) => {
+            resolveCompute = r;
+          });
+          return computeCount;
+        },
+        changes: () => undefined,
+      });
+
+      // Start two concurrent get() calls
+      const p1 = cache.get();
+      const p2 = cache.get();
+
+      // Only one compute should have started
+      assert.equal(computeCount, 1);
+
+      resolveCompute?.();
+      const [v1, v2] = await Promise.all([p1, p2]);
+      assert.equal(v1, v2);
+      assert.equal(computeCount, 1);
     });
-    await cache.get(); // first compute
-    assert.equal(computeCount, 1);
 
-    await delay(80); // past softTTL
+    it("should deduplicate refresh() calls", async () => {
+      let computeCount = 0;
+      let resolveCompute: (() => void) | undefined;
 
-    // This get should return stale value but trigger background recompute
-    const stale = await cache.get();
-    assert.equal(stale, 10); // still old value
+      const cache = new GlobalCachedValue({
+        softTTL: 999_999,
+        hardTTL: 999_999,
+        compute: async () => {
+          computeCount++;
+          await new Promise<void>((r) => {
+            resolveCompute = r;
+          });
+          return computeCount;
+        },
+        changes: () => undefined,
+      });
 
-    // Wait for background recompute to finish
-    await delay(50);
-    const fresh = cache.getCached();
-    assert.equal(fresh, 20); // new value from background
-    assert.ok(computeCount >= 2);
+      const p1 = cache.refresh();
+      const p2 = cache.refresh();
+
+      assert.equal(computeCount, 1);
+      resolveCompute?.();
+      await Promise.all([p1, p2]);
+      assert.equal(computeCount, 1);
+    });
   });
 
-  it("should block on recompute past hardTTL", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        return computeCount * 100;
-      },
-      softTTL: 20,
-      hardTTL: 50,
+  describe("error handling", () => {
+    it("should set lastError and clear value on computation failure", async () => {
+      let shouldFail = false;
+
+      const cache = new GlobalCachedValue({
+        softTTL: 999_999,
+        hardTTL: 999_999,
+        compute: async () => {
+          if (shouldFail) throw new Error("compute failed");
+          return "ok";
+        },
+        changes: () => undefined,
+      });
+
+      // First compute succeeds
+      const v1 = await cache.get();
+      assert.equal(v1, "ok");
+      assert.equal(cache.getCached(), "ok");
+
+      // Second compute fails
+      shouldFail = true;
+      try {
+        await cache.refresh();
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /compute failed/);
+      }
+
+      // Value should be cleared
+      assert.equal(cache.getCached(), undefined);
     });
-    await cache.get();
-    assert.equal(computeCount, 1);
 
-    await delay(80); // past hardTTL
+    it("should recompute on next get() after error (regardless of TTL)", async () => {
+      let callCount = 0;
 
-    const result = await cache.get();
-    assert.equal(result, 200); // blocked on recompute
-    assert.equal(computeCount, 2);
+      const cache = new GlobalCachedValue({
+        softTTL: 999_999,
+        hardTTL: 999_999,
+        compute: async () => {
+          callCount++;
+          if (callCount === 1) throw new Error("first fail");
+          return "recovered";
+        },
+        changes: () => undefined,
+      });
+
+      // First compute fails
+      try {
+        await cache.get();
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /first fail/);
+      }
+
+      // Even though TTLs are huge, the error forces a recompute
+      const v2 = await cache.get();
+      assert.equal(v2, "recovered");
+      assert.equal(callCount, 2);
+    });
+
+    it("should convert non-Error throws to Error", async () => {
+      const cache = new GlobalCachedValue({
+        softTTL: 0,
+        hardTTL: 0,
+        compute: async () => {
+          throw "string error";
+        },
+        changes: () => undefined,
+      });
+
+      try {
+        await cache.get();
+        assert.fail("should have thrown");
+      } catch (err) {
+        assert.ok(err instanceof Error);
+        assert.ok(err.message.includes("string error"));
+      }
+    });
   });
 
-  it("should recompute on error", async () => {
-    let callCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        callCount++;
-        if (callCount === 1) throw new Error("fail");
-        return "ok";
-      },
-      softTTL: 1000,
-      hardTTL: 5000,
+  describe("change events", () => {
+    it("should emit change events via eventsSubject", async () => {
+      const events: Array<{ old: number | undefined; new: number | undefined }> = [];
+
+      const cache = new GlobalCachedValue<number, { old: number | undefined; new: number | undefined }>({
+        softTTL: 0,
+        hardTTL: 0,
+        compute: async () => events.length + 1,
+        changes: (oldVal, newVal) => ({ old: oldVal, new: newVal }),
+      });
+
+      cache.events.subscribe((evt) => events.push(evt));
+
+      await cache.get();
+      assert.equal(events.length, 1);
+      assert.deepEqual(events[0], { old: undefined, new: 1 });
+
+      await cache.get();
+      assert.equal(events.length, 2);
+      assert.deepEqual(events[1], { old: 1, new: 2 });
     });
 
-    const result1 = await cache.get().catch((e: Error) => e.message);
-    assert.equal(result1, "fail");
+    it("should suppress event when changes() returns undefined", async () => {
+      const events: string[] = [];
 
-    // After error, next get() should recompute
-    const result = await cache.get();
-    assert.equal(result, "ok");
-    assert.equal(callCount, 2);
-  });
+      const cache = new GlobalCachedValue<number, string>({
+        softTTL: 0,
+        hardTTL: 0,
+        compute: async () => 42,
+        changes: () => undefined, // always suppress
+      });
 
-  it("should deduplicate concurrent recomputations", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        await delay(50);
-        return computeCount;
-      },
-      softTTL: 1000,
-      hardTTL: 5000,
+      cache.events.subscribe((evt) => events.push(evt));
+
+      await cache.get();
+      await cache.get();
+      assert.equal(events.length, 0);
     });
 
-    // Concurrent gets
-    const [a, b, c] = await Promise.all([cache.get(), cache.get(), cache.get()]);
-    assert.equal(a, 1);
-    assert.equal(b, 1);
-    assert.equal(c, 1);
-    assert.equal(computeCount, 1);
-  });
+    it("should emit change event on error (value becomes undefined)", async () => {
+      const events: Array<{ old: number | undefined; new: number | undefined }> = [];
+      let shouldFail = false;
 
-  it("should return undefined from getCached() before first compute", () => {
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
-    });
-    assert.equal(cache.getCached(), undefined);
-  });
+      const cache = new GlobalCachedValue<number, { old: number | undefined; new: number | undefined }>({
+        softTTL: 999_999,
+        hardTTL: 999_999,
+        compute: async () => {
+          if (shouldFail) throw new Error("fail");
+          return 42;
+        },
+        changes: (oldVal, newVal) => ({ old: oldVal, new: newVal }),
+      });
 
-  it("should return value from getCached() after compute", async () => {
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
-    });
-    await cache.get();
-    assert.equal(cache.getCached(), 42);
-  });
+      cache.events.subscribe((evt) => events.push(evt));
 
-  it("should invalidate and recompute on next get", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        return computeCount;
-      },
-      softTTL: 10000,
-      hardTTL: 50000,
-    });
-    await cache.get();
-    assert.equal(computeCount, 1);
+      await cache.get();
+      assert.equal(events.length, 1);
+      assert.deepEqual(events[0], { old: undefined, new: 42 });
 
-    cache.invalidate();
-
-    const result = await cache.get();
-    assert.equal(result, 2);
-    assert.equal(computeCount, 2);
-  });
-
-  it("should emit change events", async () => {
-    const events: unknown[] = [];
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
-      changes: (oldVal, newVal) => {
-        return { old: oldVal, new: newVal };
-      },
+      shouldFail = true;
+      try {
+        await cache.refresh();
+      } catch {
+        /* expected */
+      }
+      assert.equal(events.length, 2);
+      assert.deepEqual(events[1], { old: 42, new: undefined });
     });
 
-    cache.onChange((e) => events.push(e));
-    await cache.get();
+    it("should not throw if subscriber throws during event emission", async () => {
+      const cache = new GlobalCachedValue<number, string>({
+        softTTL: 0,
+        hardTTL: 0,
+        compute: async () => 42,
+        changes: () => "change",
+      });
 
-    assert.equal(events.length, 1);
-    assert.deepEqual(events[0], { old: undefined, new: 42 });
-  });
+      cache.events.subscribe(() => {
+        throw new Error("subscriber error");
+      });
 
-  it("should emit change event on error transition", async () => {
-    const events: unknown[] = [];
-    let shouldFail = false;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        if (shouldFail) throw new Error("boom");
-        return 42;
-      },
-      softTTL: 1000,
-      hardTTL: 5000,
-      changes: (oldVal, newVal) => ({ old: oldVal, new: newVal }),
+      // Should not propagate subscriber error
+      const val = await cache.get();
+      assert.equal(val, 42);
     });
-
-    cache.onChange((e) => events.push(e));
-    await cache.get(); // success
-    assert.equal(events.length, 1);
-
-    shouldFail = true;
-    cache.invalidate();
-    // invalidate() clears value, so old in performRecomputation will be undefined
-    const errResult = await cache.get().catch((e: Error) => e.message);
-    assert.equal(errResult, "boom");
-    assert.equal(events.length, 2);
-    // After invalidate, the stored value is already undefined, so old is undefined
-    assert.deepEqual(events[1], { old: undefined, new: undefined });
-  });
-
-  it("should not emit if changes returns undefined", async () => {
-    const events: unknown[] = [];
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
-      changes: () => undefined,
-    });
-
-    cache.onChange((e) => events.push(e));
-    await cache.get();
-    assert.equal(events.length, 0);
-  });
-
-  it("should throw after dispose", async () => {
-    const cache = new GlobalCachedValue({
-      compute: async () => 42,
-      softTTL: 1000,
-      hardTTL: 5000,
-    });
-    cache.dispose();
-    const errResult = await cache.get().catch((e: Error) => e.message);
-    assert.equal(errResult, "GlobalCachedValue is disposed");
-  });
-
-  it("refresh() should force recomputation", async () => {
-    let computeCount = 0;
-    const cache = new GlobalCachedValue({
-      compute: async () => {
-        computeCount++;
-        return computeCount;
-      },
-      softTTL: 10000,
-      hardTTL: 50000,
-    });
-    await cache.get();
-    assert.equal(computeCount, 1);
-
-    const result = await cache.refresh();
-    assert.equal(result, 2);
-    assert.equal(computeCount, 2);
   });
 });

@@ -1,271 +1,359 @@
 /**
- * @flitter/data — GitFileWatcher
+ * GitFileWatcher — watches for file changes using git ls-files polling
  *
- * Polls `git status --porcelain` at configurable interval to detect file changes.
- * 逆向: amp-cli-reversed/modules/0305_unknown_vv.js (class vv)
- * Factory: amp-cli-reversed/modules/0306_GitFileWatcher_KKT.js
+ * 逆向: amp-cli-reversed/modules/0305_unknown_vv.js (vv class — GitFileWatcher)
+ *       amp-cli-reversed/modules/0304_unknown_GKT.js (GKT — PollingFileWatcher)
+ *       amp-cli-reversed/modules/0303_unknown_FKT.js (FKT — NoOpFileWatcher)
+ *       amp-cli-reversed/modules/0306_GitFileWatcher_KKT.js (KKT — factory)
  *
- * Simplified version: uses `git status --porcelain` polling instead of amp's
- * more complex ls-files + deleted scan approach. The amp reference has three
- * watcher types:
- *   - vv (git-based, with ls-files and full status fallback)
- *   - GKT (generic polling)
- *   - FKT (no-op)
- *
- * This implementation covers the primary git-based use case.
+ * Behavior from amp reference (vv class):
+ * - Uses `git ls-files --others --exclude-standard -z` to detect new untracked files
+ * - Uses `git ls-files --deleted -z` to detect deleted files
+ * - Maintains a set of previously seen untracked files to compute diffs
+ * - Falls back to `git status --porcelain=v2 -z` on ls-files failure
+ * - Scan cooldown prevents thrashing (default 5000ms)
+ * - Callbacks list for file system event notification
+ * - Factory function (KKT) tries git first, falls back to polling, then no-op
  */
+import * as path from "node:path";
+import { spawn } from "@flitter/util";
 import { createLogger } from "@flitter/util";
 
 const log = createLogger("git-file-watcher");
 
-/**
- * File change status from git porcelain output.
- * 逆向: vv.parseStatus() parses git status output into created/deleted types
- */
-export interface GitFileChange {
-  path: string;
-  status: "M" | "A" | "D" | "??";
-}
-
-/**
- * File system event emitted on change.
- * 逆向: vv callbacks receive events with type, path, timestamp, isDirectory
- */
 export interface FileSystemEvent {
   type: "created" | "modified" | "deleted";
   path: string;
   timestamp: number;
+  isDirectory: boolean;
 }
 
-export type FileSystemEventCallback = (events: FileSystemEvent[]) => void;
+export type FileWatcherCallback = (events: FileSystemEvent[]) => void;
 
-export interface GitFileWatcherOptions {
-  /** Root path to watch (default: cwd) */
-  rootPath?: string;
-  /** Poll interval in ms (default: 5000) */
-  pollInterval?: number;
+/**
+ * FileWatcher interface — shared by GitFileWatcher, PollingFileWatcher, NoOpFileWatcher
+ * 逆向: common interface between vv, GKT, FKT classes
+ */
+export interface FileWatcher {
+  watch(dirPath: string): Promise<void>;
+  unwatch(dirPath: string): void;
+  dispose(): void;
+  onFileSystemEvent(callback: FileWatcherCallback): void;
+  offFileSystemEvent(callback: FileWatcherCallback): void;
+  getWatchedPaths(): string[];
+  isSupported(): boolean;
+}
+
+interface RepoState {
+  lastScanTime: number;
+  seenUntracked: Set<string>;
+  cancelled?: boolean;
 }
 
 /**
- * GitFileWatcher — polls git status to detect file changes.
- * 逆向: amp-cli-reversed/modules/0305_unknown_vv.js
- *
- * Lifecycle: start() -> polling -> stop() / dispose()
+ * 逆向: vv class from 0305_unknown_vv.js
+ * Git-based file watcher that uses `git ls-files` for efficient change detection.
  */
-export class GitFileWatcher {
-  private readonly rootPath: string;
-  private readonly pollInterval: number;
-  private timer: ReturnType<typeof setInterval> | null = null;
-  private callbacks: FileSystemEventCallback[] = [];
-  private lastStatus = new Map<string, string>();
-  private _disposed = false;
+export class GitFileWatcher implements FileWatcher {
+  private repos = new Map<string, RepoState>();
+  private callbacks: FileWatcherCallback[] = [];
+  private ongoingScans = new Map<string, Promise<void>>();
+  private scanCooldownMs: number;
 
-  /** Cumulative file change counts for session summary */
-  private cumulativeChanges = { created: 0, modified: 0, deleted: 0 };
-
-  constructor(options: GitFileWatcherOptions = {}) {
-    this.rootPath = options.rootPath ?? process.cwd();
-    this.pollInterval = options.pollInterval ?? 5000;
+  constructor(pollInterval = 5000) {
+    this.scanCooldownMs = pollInterval;
   }
 
   /**
-   * Start polling git status.
-   * 逆向: vv.watch(T) — initialises and starts scanning
+   * 逆向: vv.isRepo() — lines 2-9
+   * Synchronous check whether a path is inside a git work tree.
    */
-  start(): void {
-    if (this.timer) return;
-    if (this._disposed) return;
-
-    log.debug("Starting GitFileWatcher", { rootPath: this.rootPath, pollInterval: this.pollInterval });
-
-    // Do an initial scan
-    this.scan().catch((err) => {
-      log.warn("Initial git scan failed", { error: err instanceof Error ? err.message : String(err) });
-    });
-
-    this.timer = setInterval(() => {
-      this.scan().catch((err) => {
-        log.warn("Git scan failed", { error: err instanceof Error ? err.message : String(err) });
-      });
-    }, this.pollInterval);
-  }
-
-  /**
-   * Stop polling.
-   * 逆向: vv.unwatch(T) — stops scanning for a repo
-   */
-  stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  /**
-   * Register a callback for file system events.
-   * 逆向: vv.onFileSystemEvent(T) — line 41
-   */
-  onFileSystemEvent(callback: FileSystemEventCallback): void {
-    this.callbacks.push(callback);
-  }
-
-  /**
-   * Unregister a callback.
-   * 逆向: vv.offFileSystemEvent(T) — lines 43-46
-   */
-  offFileSystemEvent(callback: FileSystemEventCallback): void {
-    const idx = this.callbacks.indexOf(callback);
-    if (idx !== -1) this.callbacks.splice(idx, 1);
-  }
-
-  /**
-   * Dispose: stop polling and clear callbacks.
-   * 逆向: vv.dispose() — lines 37-39
-   */
-  dispose(): void {
-    this._disposed = true;
-    this.stop();
-    this.callbacks.length = 0;
-    this.lastStatus.clear();
-  }
-
-  /** Whether this watcher has been disposed */
-  get disposed(): boolean {
-    return this._disposed;
-  }
-
-  /** Get cumulative change counts for session summary */
-  getCumulativeChanges(): { created: number; modified: number; deleted: number } {
-    return { ...this.cumulativeChanges };
-  }
-
-  /**
-   * Force a scan now.
-   * 逆向: vv.triggerScan(T, R) — lines 59-76
-   */
-  async triggerScan(): Promise<void> {
-    await this.scan();
-  }
-
-  /**
-   * Parse git status --porcelain output into file changes.
-   * 逆向: vv.parseStatus(T) — lines 230-257
-   */
-  static parseGitStatus(output: string): GitFileChange[] {
-    const changes: GitFileChange[] = [];
-    const lines = output.split("\n");
-    for (const line of lines) {
-      if (!line || line.length < 3) continue;
-      const xy = line.substring(0, 2);
-      const filePath = line.substring(3);
-
-      if (xy === "??") {
-        changes.push({ path: filePath, status: "??" });
-      } else if (xy[0] === "A" || xy[1] === "A") {
-        changes.push({ path: filePath, status: "A" });
-      } else if (xy[0] === "D" || xy[1] === "D") {
-        changes.push({ path: filePath, status: "D" });
-      } else if (xy[0] === "M" || xy[1] === "M") {
-        changes.push({ path: filePath, status: "M" });
-      } else if (xy.trim().length > 0) {
-        // Other statuses (R, C, U, etc.) treated as modified
-        changes.push({ path: filePath, status: "M" });
-      }
-    }
-    return changes;
-  }
-
-  /**
-   * Check if a path is a git repository.
-   * 逆向: vv.isRepo(T) — lines 2-8
-   */
-  static isRepo(rootPath: string): boolean {
+  static isRepo(dirPath: string): boolean {
     try {
       const { execSync } = require("node:child_process");
-      execSync("git rev-parse --is-inside-work-tree", { cwd: rootPath, stdio: "ignore" });
+      execSync("git rev-parse --is-inside-work-tree", {
+        cwd: dirPath,
+        stdio: "ignore",
+      });
       return true;
     } catch {
       return false;
     }
   }
 
-  // ─── Internal ──────────────────────────────────────────
-
-  private async scan(): Promise<void> {
-    const { exec } = await import("node:child_process");
-
-    const output = await new Promise<string>((resolve, reject) => {
-      exec(
-        "git status --porcelain",
-        { cwd: this.rootPath, maxBuffer: 16 * 1024 * 1024 },
-        (err, stdout) => {
-          if (err) reject(err);
-          else resolve(stdout);
-        },
-      );
+  /**
+   * 逆向: vv.resolveRepoRoot() — lines 19-24
+   */
+  private async resolveRepoRoot(dirPath: string): Promise<string> {
+    const result = await spawn("git", ["rev-parse", "--show-toplevel"], {
+      cwd: dirPath,
     });
+    return result.stdout.trim();
+  }
 
-    const changes = GitFileWatcher.parseGitStatus(output);
-    const newStatus = new Map<string, string>();
-    for (const c of changes) {
-      newStatus.set(c.path, c.status);
+  /**
+   * 逆向: vv.watch() — lines 25-30
+   */
+  async watch(dirPath: string): Promise<void> {
+    const root = await this.resolveRepoRoot(dirPath);
+    if (this.repos.has(root)) return;
+    await this.initialise(root);
+  }
+
+  /**
+   * 逆向: vv.unwatch() — lines 31-34
+   */
+  unwatch(dirPath: string): void {
+    if (!this.repos.get(dirPath)) return;
+    this.repos.delete(dirPath);
+    this.ongoingScans.delete(dirPath);
+  }
+
+  /**
+   * 逆向: vv.dispose() — lines 35-38
+   */
+  dispose(): void {
+    for (const key of Array.from(this.repos.keys())) {
+      this.unwatch(key);
+    }
+    this.callbacks.length = 0;
+  }
+
+  /**
+   * 逆向: vv.onFileSystemEvent() — line 40
+   */
+  onFileSystemEvent(callback: FileWatcherCallback): void {
+    this.callbacks.push(callback);
+  }
+
+  /**
+   * 逆向: vv.offFileSystemEvent() — lines 43-46
+   */
+  offFileSystemEvent(callback: FileWatcherCallback): void {
+    const idx = this.callbacks.indexOf(callback);
+    if (idx !== -1) this.callbacks.splice(idx, 1);
+  }
+
+  /**
+   * 逆向: vv.getWatchedPaths() — lines 47-49
+   */
+  getWatchedPaths(): string[] {
+    return Array.from(this.repos.keys());
+  }
+
+  /**
+   * 逆向: vv.isSupported() — lines 50-57
+   */
+  isSupported(): boolean {
+    try {
+      const { execSync } = require("node:child_process");
+      execSync("git --version", { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * 逆向: vv.triggerScan() — lines 58-76
+   */
+  async triggerScan(dirPath: string, force = false): Promise<void> {
+    const root = await this.resolveRepoRoot(dirPath);
+    const state = this.repos.get(root);
+
+    if (!state) {
+      log.debug("First time watching repo", { repoRoot: root });
+      await this.watch(dirPath);
+      return;
     }
 
-    // Compare with last status to detect events
-    const events: FileSystemEvent[] = [];
+    const now = Date.now();
+    const elapsed = now - state.lastScanTime;
+
+    if (!force && elapsed < this.scanCooldownMs) return;
+
+    log.debug("Starting scan", { repoRoot: root, force, timeSinceLastScan: elapsed });
+    state.lastScanTime = now;
+    await this.scan(root);
+  }
+
+  /**
+   * 逆向: vv.initialise() — lines 86-101
+   */
+  private async initialise(repoRoot: string): Promise<void> {
     const now = Date.now();
 
-    // New or changed files
-    for (const [filePath, status] of newStatus) {
-      const prev = this.lastStatus.get(filePath);
-      if (!prev) {
-        // New file appeared
-        if (status === "D") {
-          events.push({ type: "deleted", path: filePath, timestamp: now });
-          this.cumulativeChanges.deleted++;
-        } else if (status === "??" || status === "A") {
-          events.push({ type: "created", path: filePath, timestamp: now });
-          this.cumulativeChanges.created++;
-        } else {
-          events.push({ type: "modified", path: filePath, timestamp: now });
-          this.cumulativeChanges.modified++;
-        }
-      } else if (prev !== status) {
-        // Status changed
-        if (status === "D") {
-          events.push({ type: "deleted", path: filePath, timestamp: now });
-          this.cumulativeChanges.deleted++;
-        } else {
-          events.push({ type: "modified", path: filePath, timestamp: now });
-          this.cumulativeChanges.modified++;
-        }
-      }
+    const result = await spawn(
+      "git",
+      ["ls-files", "--others", "--exclude-standard", "-z"],
+      { cwd: repoRoot, maxBuffer: 67_108_864 },
+    );
+
+    const seenUntracked = new Set<string>();
+    const files = result.stdout.split("\0").filter(Boolean);
+    for (const file of files) {
+      seenUntracked.add(path.resolve(repoRoot, file));
     }
 
-    // Files that disappeared from status (were cleaned up / committed)
-    for (const [filePath] of this.lastStatus) {
-      if (!newStatus.has(filePath)) {
-        // File was resolved (committed, discarded, etc.)
-        // We don't emit an event for this — it's not a deletion
-      }
-    }
+    this.repos.set(repoRoot, {
+      lastScanTime: now,
+      seenUntracked,
+    });
+  }
 
-    this.lastStatus = newStatus;
+  /**
+   * 逆向: vv.scan() — lines 102-112
+   */
+  private async scan(repoRoot: string): Promise<void> {
+    const state = this.repos.get(repoRoot);
+    if (!state || state.cancelled) return;
 
-    if (events.length > 0) {
-      log.debug("Git file changes detected", {
-        count: events.length,
-        rootPath: this.rootPath,
-      });
-      for (const cb of this.callbacks) {
-        try {
-          cb(events);
-        } catch (err) {
-          log.error("File event callback error", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+    const scanPromise = this.performScan(repoRoot);
+    this.ongoingScans.set(repoRoot, scanPromise);
+
+    try {
+      await scanPromise;
+    } finally {
+      if (this.ongoingScans.get(repoRoot) === scanPromise) {
+        this.ongoingScans.delete(repoRoot);
       }
     }
   }
+
+  /**
+   * 逆向: vv.performScan() — lines 113-167
+   * Uses git ls-files to detect new and deleted files efficiently.
+   */
+  private async performScan(repoRoot: string): Promise<void> {
+    const state = this.repos.get(repoRoot);
+    if (!state || state.cancelled) return;
+
+    const now = Date.now();
+
+    try {
+      const [untrackedResult, deletedResult] = await Promise.all([
+        spawn("git", ["ls-files", "--others", "--exclude-standard", "-z"], {
+          cwd: repoRoot,
+          timeout: 60_000,
+        }),
+        spawn("git", ["ls-files", "--deleted", "-z"], {
+          cwd: repoRoot,
+          timeout: 60_000,
+        }),
+      ]);
+
+      const untrackedFiles = untrackedResult.stdout.split("\0").filter(Boolean);
+      const deletedFiles = deletedResult.stdout.split("\0").filter(Boolean);
+
+      const currentState = this.repos.get(repoRoot);
+      if (!currentState || currentState.cancelled) return;
+
+      const events: FileSystemEvent[] = [];
+      const currentUntracked = new Set<string>();
+
+      // Detect newly created files
+      for (const file of untrackedFiles) {
+        const fullPath = path.resolve(repoRoot, file);
+        currentUntracked.add(fullPath);
+
+        if (!currentState.seenUntracked.has(fullPath)) {
+          events.push({
+            type: "created",
+            path: fullPath,
+            timestamp: now,
+            isDirectory: false,
+          });
+        }
+      }
+
+      // Detect files that disappeared from untracked set
+      for (const prevPath of currentState.seenUntracked) {
+        if (!currentUntracked.has(prevPath)) {
+          events.push({
+            type: "deleted",
+            path: prevPath,
+            timestamp: now,
+            isDirectory: false,
+          });
+        }
+      }
+
+      // Detect git-tracked deleted files
+      for (const file of deletedFiles) {
+        const fullPath = path.resolve(repoRoot, file);
+        events.push({
+          type: "deleted",
+          path: fullPath,
+          timestamp: now,
+          isDirectory: false,
+        });
+      }
+
+      // Update state
+      currentState.seenUntracked = currentUntracked;
+      currentState.lastScanTime = now;
+
+      // Notify callbacks
+      if (events.length > 0) {
+        for (const cb of this.callbacks) cb(events);
+      }
+    } catch (err) {
+      log.warn("Git ls-files scan failed", {
+        repoRoot,
+        error: err instanceof Error ? err.message : String(err),
+        duration: Date.now() - now,
+      });
+    }
+  }
+}
+
+/**
+ * 逆向: FKT class from 0303_unknown_FKT.js
+ * No-op file watcher for non-git directories.
+ */
+export class NoOpFileWatcher implements FileWatcher {
+  async watch(_dirPath: string): Promise<void> {}
+  unwatch(_dirPath: string): void {}
+  dispose(): void {}
+  onFileSystemEvent(_callback: FileWatcherCallback): void {}
+  offFileSystemEvent(_callback: FileWatcherCallback): void {}
+  getWatchedPaths(): string[] {
+    return [];
+  }
+  isSupported(): boolean {
+    return false;
+  }
+}
+
+export interface FileWatcherFactoryOptions {
+  useGit?: boolean;
+  usePolling?: boolean;
+  pollInterval?: number;
+  rootPath?: string;
+}
+
+/**
+ * 逆向: KKT function from 0306_GitFileWatcher_KKT.js
+ * Factory that picks the best file watcher for the environment.
+ */
+export function createFileWatcher(options?: FileWatcherFactoryOptions): FileWatcher {
+  // 逆向: if (T?.useGit) return new vv(T.pollInterval);
+  if (options?.useGit) {
+    return new GitFileWatcher(options.pollInterval);
+  }
+
+  const rootPath = options?.rootPath ?? process.cwd();
+
+  // 逆向: if (vv.isRepo(R)) { ... }
+  if (GitFileWatcher.isRepo(rootPath)) {
+    const watcher = new GitFileWatcher(options?.pollInterval);
+    if (watcher.isSupported()) {
+      log.info("Git repository detected, using GitFileWatcher", { rootPath });
+      return watcher;
+    }
+  }
+
+  // 逆向: return new FKT();
+  log.info("Not a git repository, using NoOpFileWatcher", { rootPath });
+  return new NoOpFileWatcher();
 }

@@ -7,6 +7,17 @@ export { stripJsonComments } from "./config/jsonc";
 export type { FileSettingsStorageOptions } from "./config/settings-storage";
 // Config
 export { FileSettingsStorage } from "./config/settings-storage";
+// Git
+export { createFileWatcher, GitFileWatcher, NoOpFileWatcher } from "./git";
+export type {
+  FileSystemEvent,
+  FileWatcher,
+  FileWatcherCallback,
+  FileWatcherFactoryOptions,
+} from "./git";
+// MCP Registry
+export { checkMcpRegistry, fetchRegistry } from "./mcp";
+export type { McpServerSpec, RegistryCheckResult } from "./mcp";
 export type {
   CompactFunction,
   CompactionResult,
@@ -16,14 +27,6 @@ export type {
 // Context
 export { ContextManager } from "./context/context-manager";
 export { countMessageTokens, countThreadTokens, countTokensApprox } from "./context/token-counter";
-// Git
-export {
-  GitFileWatcher,
-  type FileSystemEvent,
-  type FileSystemEventCallback,
-  type GitFileChange,
-  type GitFileWatcherOptions,
-} from "./git/git-file-watcher";
 // Guidance
 export {
   discoverGuidanceFiles,
@@ -38,11 +41,6 @@ export type {
   GuidanceLoadOptions,
   GuidanceType,
 } from "./guidance/guidance-types";
-// Identity
-export { getDeviceFingerprint, getOrCreateInstallationId } from "./identity/installation-id";
-// MCP
-export { McpRegistryClient, type McpRegistryClientOptions, type McpRegistryResult } from "./mcp/registry-client";
-export { TrustStore } from "./mcp/trust-store";
 // Memory
 export { MemoryStore } from "./memory/memory-store";
 export type { MemoryEntry, MemoryStoreData } from "./memory/memory-types";
@@ -71,10 +69,4 @@ export {
   snapshotToEntry,
   ThreadStore,
 } from "./thread/thread-store";
-export type { ThreadExclusiveReadWriter, ThreadVisibility } from "./thread/thread-store";
-export {
-  ThreadUploadManager,
-  type ThreadRemoteTransport,
-  type ThreadUploadManagerOptions,
-} from "./thread/thread-upload";
 export type { ThreadEntry, ThreadPersistenceOptions, ThreadStoreOptions } from "./thread/types";

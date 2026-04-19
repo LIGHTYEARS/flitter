@@ -165,6 +165,10 @@ export const ThreadSnapshotSchema = z.object({
   nextMessageId: z.number().optional(),
   meta: ThreadMetaSchema.optional(),
   env: ThreadEnvironmentSchema.optional(),
+  /** Thread labels for organization/filtering. 逆向: amp BKT() labels API */
+  labels: z.array(z.string()).optional(),
+  /** Whether this thread has been archived. 逆向: amp threadService.archive() */
+  archived: z.boolean().optional(),
 });
 export type ThreadSnapshot = z.infer<typeof ThreadSnapshotSchema>;
 

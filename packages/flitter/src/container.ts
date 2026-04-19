@@ -24,6 +24,7 @@
  * ```
  */
 
+import { homedir } from "node:os";
 import type {
   PermissionEngine,
   ThreadWorker,
@@ -48,8 +49,10 @@ import {
   matchPreExecuteHook,
   type OrchestratorCallbacks,
   parseHooksConfig,
+  resolveToolboxPaths,
   SubAgentManager,
   ThreadWorker as ThreadWorkerImpl,
+  ToolboxService,
   ToolOrchestrator,
 } from "@flitter/agent-core";
 import type {
@@ -213,6 +216,28 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createUndoEditTool(fileChangeTracker));
     toolRegistry.register(createDeleteFileTool(fileChangeTracker));
     log.info("FileChangeTracker created, undo_edit and delete_file tools registered");
+
+    // 2c. Toolbox — scan user-provided tool scripts
+    // 逆向: S5R (modules/1371_Toolbox_S5R.js) — toolbox service registration
+    const homeDir = opts.homeDir ?? homedir();
+    const config = configService.get();
+    const toolboxPaths = resolveToolboxPaths(
+      config.settings["toolbox.path"],
+      homeDir,
+    );
+    const toolboxService = new ToolboxService(toolRegistry, toolboxPaths);
+    try {
+      await toolboxService.scan();
+      log.info("ToolboxService scanned", {
+        paths: toolboxPaths,
+        toolCount: toolboxService.getStatus().toolCount,
+      });
+    } catch (err) {
+      log.warn("ToolboxService scan failed, continuing without toolbox tools", {
+        error: err,
+      });
+    }
+    disposables.push(toolboxService);
 
     // 3. PermissionEngine — 四级决策
     const permissionEngine = createPermissionEngine(configService, opts.workspaceRoot);

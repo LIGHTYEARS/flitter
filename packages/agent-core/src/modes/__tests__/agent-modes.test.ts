@@ -30,9 +30,9 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 // ─── AGENT_MODES ────────────────────────────────────────
 
 describe("AGENT_MODES", () => {
-  test("has exactly 4 modes: smart, fast, deep, auto", () => {
+  test("has exactly 6 modes: smart, fast, deep, auto, rush, large", () => {
     const keys = Object.keys(AGENT_MODES).sort();
-    expect(keys).toEqual(["auto", "deep", "fast", "smart"]);
+    expect(keys).toEqual(["auto", "deep", "fast", "large", "rush", "smart"]);
   });
 
   test("each mode has required fields", () => {
@@ -73,6 +73,16 @@ describe("getModelForMode", () => {
   test("returns claude-sonnet-4-6 for auto", () => {
     expect(getModelForMode("auto")).toBe("claude-sonnet-4-6");
   });
+
+  // 逆向: Ab.RUSH (chunk-005.js:67221-67242) — CLAUDE_HAIKU_4_5
+  test("returns claude-haiku-4-5-20251001 for rush", () => {
+    expect(getModelForMode("rush")).toBe("claude-haiku-4-5-20251001");
+  });
+
+  // 逆向: Ab.LARGE (chunk-005.js:67263-67284) — CLAUDE_OPUS_4_6
+  test("returns claude-opus-4-6 for large", () => {
+    expect(getModelForMode("large")).toBe("claude-opus-4-6");
+  });
 });
 
 // ─── isDeepReasoningMode ────────────────────────────────
@@ -103,10 +113,11 @@ describe("isValidAgentMode", () => {
     expect(isValidAgentMode("fast")).toBe(true);
     expect(isValidAgentMode("deep")).toBe(true);
     expect(isValidAgentMode("auto")).toBe(true);
+    expect(isValidAgentMode("rush")).toBe(true);
+    expect(isValidAgentMode("large")).toBe(true);
   });
 
   test("returns false for invalid strings", () => {
-    expect(isValidAgentMode("rush")).toBe(false);
     expect(isValidAgentMode("turbo")).toBe(false);
     expect(isValidAgentMode("")).toBe(false);
     expect(isValidAgentMode("SMART")).toBe(false);

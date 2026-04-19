@@ -114,7 +114,7 @@ export const SettingsSchema = z.object({
   "internal.kimi.reasoning": z.string().optional(),
 
   // Agent
-  "agent.mode": z.enum(["smart", "fast", "deep", "auto"]).optional(),
+  "agent.mode": z.enum(["smart", "fast", "deep", "auto", "rush", "large"]).optional(),
   "agent.deepReasoningEffort": z.string().optional(),
   "agent.skipTitleGenerationIfMessageContains": z.string().optional(),
   "agent.showUsageDebugInfo": z.boolean().optional(),
@@ -146,6 +146,8 @@ export const SettingsSchema = z.object({
 
   // Other
   systemPrompt: z.string().optional(),
+  /** 逆向: dangerouslyAllowAll (chunk-005.js:158771-158775) */
+  dangerouslyAllowAll: z.boolean().optional(),
   hooks: z.record(z.string(), z.unknown()).optional(),
   workspaces: z.record(z.string(), z.unknown()).optional(),
   "notifications.system.enabled": z.boolean().optional(),

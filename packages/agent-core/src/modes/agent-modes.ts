@@ -31,7 +31,7 @@
 // ─── Types ──────────────────────────────────────────────
 
 /** Agent mode identifier */
-export type AgentMode = "smart" | "fast" | "deep" | "auto";
+export type AgentMode = "smart" | "fast" | "deep" | "auto" | "rush" | "large";
 
 /** Agent mode specification */
 export interface AgentModeSpec {
@@ -111,6 +111,27 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     includeTools: [],
     deferredTools: [],
   },
+  // 逆向: Ab.RUSH (chunk-005.js:67221-67242)
+  // amp "rush" = fast model (Haiku) with animation hints
+  // Flitter maps this as alias for "fast" with same model
+  rush: {
+    key: "rush",
+    displayName: "Rush",
+    description: "Faster and cheaper for small, well-defined tasks (alias for fast)",
+    primaryModel: "claude-haiku-4-5-20251001",
+    includeTools: [],
+    deferredTools: [],
+  },
+  // 逆向: Ab.LARGE (chunk-005.js:67263-67284)
+  // amp "large" = largest context window (Opus 4.6 1M tokens)
+  large: {
+    key: "large",
+    displayName: "Large",
+    description: "The biggest context window possible, for large tasks",
+    primaryModel: "claude-opus-4-6",
+    includeTools: [],
+    deferredTools: ["code_review", "code_tour"],
+  },
 };
 
 // ─── Helpers ────────────────────────────────────────────
@@ -157,5 +178,12 @@ export function isDeepReasoningMode(mode: AgentMode): boolean {
  * @returns true if value is a valid AgentMode
  */
 export function isValidAgentMode(value: string): value is AgentMode {
-  return value === "smart" || value === "fast" || value === "deep" || value === "auto";
+  return (
+    value === "smart" ||
+    value === "fast" ||
+    value === "deep" ||
+    value === "auto" ||
+    value === "rush" ||
+    value === "large"
+  );
 }

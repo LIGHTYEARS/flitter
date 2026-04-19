@@ -95,6 +95,42 @@ export interface CliContext {
    * 逆向: Kl0 `labels` → NKT post-execute label call (0297_unknown_Kl0.js:128)
    */
   labels?: string[];
+  /**
+   * Disable all command confirmation prompts (--dangerously-allow-all)
+   * 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211)
+   *        ua() sets Ms("dangerouslyAllowAll", value) (chunk-005.js:4080)
+   */
+  dangerouslyAllowAll?: boolean;
+  /**
+   * Comma-separated tool name whitelist (--allowedTools)
+   * Flitter extension: no direct amp flag equivalent
+   */
+  allowedTools?: string[];
+  /**
+   * Comma-separated tool name blacklist (--disallowedTools)
+   * Flitter extension: no direct amp flag equivalent
+   */
+  disallowedTools?: string[];
+  /**
+   * Disable the Bash/shell tool (--no-shell-cmd)
+   * Flitter convenience flag; equivalent to --disallowedTools Bash
+   */
+  noShellCmd?: boolean;
+  /**
+   * Enable ToolboxService scanning (--toolbox)
+   * 逆向: toolbox.path config key (chunk-005.js:158919-158922)
+   */
+  toolbox?: boolean;
+  /**
+   * Enable git commit co-author injection (--include-co-authors)
+   * 逆向: git.commit.coauthor.enabled (chunk-005.js:158815-158817)
+   */
+  includeCoAuthors?: boolean;
+  /**
+   * Output format selection (--output-format)
+   * Flitter extension: text, json, markdown
+   */
+  outputFormat?: "text" | "json" | "markdown";
 }
 
 /**
@@ -160,5 +196,26 @@ export function resolveCliContext(program: Command): CliContext {
     archive: Boolean(opts.archive) || undefined,
     // 逆向: Yz0 `-l, --label` repeatable flag (line 619-622)
     labels: (opts.label as string[] | undefined)?.length ? (opts.label as string[]) : undefined,
+    // 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211)
+    // ua() in chunk-005.js:4080 — set when CLI source is "cli"
+    dangerouslyAllowAll: Boolean(opts.dangerouslyAllowAll) || undefined,
+    // Flitter extension: tool whitelist/blacklist
+    allowedTools: opts.allowedTools
+      ? (opts.allowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      : undefined,
+    disallowedTools: opts.disallowedTools
+      ? (opts.disallowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      : undefined,
+    // Flitter convenience: --no-shell-cmd → disable Bash tool
+    // Commander with --no-X pattern stores as opts.shellCmd = false when flag is present
+    noShellCmd: opts.shellCmd === false ? true : undefined,
+    // 逆向: toolbox.path config (chunk-005.js:158919-158922)
+    toolbox: Boolean(opts.toolbox) || undefined,
+    // 逆向: git.commit.coauthor.enabled (chunk-005.js:158815-158817)
+    includeCoAuthors: Boolean(opts.includeCoAuthors) || undefined,
+    // Flitter extension: output format
+    outputFormat: (["text", "json", "markdown"].includes(opts.outputFormat as string)
+      ? (opts.outputFormat as "text" | "json" | "markdown")
+      : undefined),
   };
 }

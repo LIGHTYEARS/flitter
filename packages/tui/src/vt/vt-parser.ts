@@ -117,6 +117,9 @@ export class VtParser {
   /** 当前参数的子参数列表 */
   private currentSubparams: number[] = [];
 
+  /** 是否正在解析子参数 */
+  private inSubparam: boolean = false;
+
   /** 私有标记字符（?、<、=、>） */
   private privateMarker: string = "";
 

@@ -167,7 +167,7 @@ class MouseRegionDemoState extends State<MouseRegionDemo> {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -192,7 +192,7 @@ class MouseRegionDemoState extends State<MouseRegionDemo> {
 
     // Scroll info
     const scrollInfo = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -209,7 +209,7 @@ class MouseRegionDemoState extends State<MouseRegionDemo> {
 
     // Footer
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

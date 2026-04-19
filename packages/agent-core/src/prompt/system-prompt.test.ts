@@ -136,7 +136,7 @@ describe("collectContextBlocks", () => {
 
     const guidanceBlock = blocks.find((b) => b.text.includes("<instructions"));
     assert.ok(guidanceBlock);
-    assert.deepEqual(guidanceBlock.cache_control, { type: "ephemeral" });
+    assert.deepEqual(guidanceBlock.cache_control, { type: "ephemeral", ttl: "300s" });
   });
 
   it("skills block: formats as bullet list", async () => {
@@ -252,7 +252,7 @@ describe("buildSystemPrompt", () => {
       toolDefinitions: [],
       contextBlocks: [],
     });
-    assert.deepEqual(blocks[0].cache_control, { type: "ephemeral" });
+    assert.deepEqual(blocks[0].cache_control, { type: "ephemeral", ttl: "300s" });
   });
 
   it("tool instructions block: lists tool names and descriptions", () => {

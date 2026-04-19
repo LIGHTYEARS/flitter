@@ -170,7 +170,7 @@ class LayoutDemo extends StatelessWidget {
               }),
               new Expanded({
                 child: new Padding({
-                  padding: EdgeInsets.symmetric(1, 0),
+                  padding: EdgeInsets.symmetric({ vertical: 1 }),
                   child: new Container({
                     height: 3,
                     decoration: new BoxDecoration({ color: Color.rgb(40, 60, 40) }),
@@ -315,7 +315,7 @@ class LayoutDemo extends StatelessWidget {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -334,7 +334,7 @@ class LayoutDemo extends StatelessWidget {
 
     // Footer
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

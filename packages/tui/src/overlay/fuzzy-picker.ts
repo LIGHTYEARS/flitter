@@ -658,10 +658,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         // 逆向: NZT line 2873-2878 — ContextCapture wrapping MouseRegion
         return new ContextCapture(
           new MouseRegion({
-            onClick: (event: { clickCount?: number; [key: string]: unknown }) => {
+            onClick: (event) => {
               this.handleItemClick(
                 index,
-                (event as unknown as { clickCount: number }).clickCount ?? 1,
+                event.clickCount ?? 1,
               );
             },
             child: rendered as unknown as WidgetInterface,
@@ -682,7 +682,7 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         child: new MouseRegion({
           onScroll: (event) => {
             this.handleScroll(
-              event as { type: string; direction?: string; [key: string]: unknown },
+              event as unknown as { type: string; direction?: string },
             );
           },
           opaque: false,

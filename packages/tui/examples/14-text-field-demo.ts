@@ -89,7 +89,7 @@ class TextFieldDemoState extends State<TextFieldDemo> {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric({ vertical: 0, horizontal: 1 }),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

@@ -100,7 +100,7 @@ class ListViewDemoState extends State<ListViewDemo> {
     const isEven = index % 2 === 0;
 
     return new Padding({
-      padding: EdgeInsets.symmetric(0, 0),
+      padding: EdgeInsets.symmetric({}),
       child: new RichText({
         text: new TextSpan({
           children: [

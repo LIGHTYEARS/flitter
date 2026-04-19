@@ -85,7 +85,7 @@ export function buildSystemPrompt(opts: BuildSystemPromptOptions): SystemPromptB
   blocks.push({
     type: "text",
     text: BASE_ROLE_PROMPT,
-    cache_control: { type: "ephemeral" },
+    cache_control: { type: "ephemeral", ttl: "300s" },
   });
 
   // 2. Tool instructions

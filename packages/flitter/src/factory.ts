@@ -56,14 +56,11 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
   const serviceOpts: ConfigServiceOptions = {
     storage: opts.settings,
     secretStorage: {
-      async get(key: string) {
-        return opts.secrets.get(key);
+      async getToken(key, url?) {
+        return opts.secrets.get(key, url);
       },
-      async set(key: string, value: string) {
-        await opts.secrets.set(key, value);
-      },
-      async delete(key: string) {
-        await opts.secrets.delete(key);
+      isSet(_key) {
+        return false;
       },
     },
     workspaceRoot: opts.workspaceRoot,
@@ -145,9 +142,8 @@ export function createGuidanceLoader(opts: ContainerOptions): GuidanceLoader {
   return {
     async discover(loadOpts?: Partial<GuidanceLoadOptions>) {
       return discoverGuidanceFiles({
-        startDir: loadOpts?.startDir ?? opts.workspaceRoot,
-        maxBytes: loadOpts?.maxBytes,
-        activeFile: loadOpts?.activeFile,
+        workspaceRoots: loadOpts?.workspaceRoots ?? [opts.workspaceRoot],
+        maxBytesPerFile: loadOpts?.maxBytesPerFile,
       });
     },
   };

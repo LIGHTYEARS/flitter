@@ -62,7 +62,7 @@ export type { ExecuteIO } from "./modes/execute";
 export { runExecuteMode } from "./modes/execute";
 export type { HeadlessIO } from "./modes/headless";
 export { runHeadlessMode } from "./modes/headless";
-export type { RunAppOptions } from "./modes/interactive";
+
 
 // ─── 模式入口 ────────────────────────────────────────────
 export { launchInteractiveMode } from "./modes/interactive";

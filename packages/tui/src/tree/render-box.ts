@@ -91,8 +91,7 @@ export abstract class RenderBox extends RenderObject {
     if (!Number.isFinite(width) || !Number.isFinite(height)) {
       throw new Error(`RenderBox.setSize received non-finite dimension: ${width}x${height}`);
     }
-    this._size.width = width;
-    this._size.height = height;
+    this._size = { width, height };
   }
 
   /**
@@ -124,8 +123,7 @@ export abstract class RenderBox extends RenderObject {
   setOffset(x: number, y: number): void {
     const rx = Number.isFinite(x) ? Math.round(x) : 0;
     const ry = Number.isFinite(y) ? Math.round(y) : 0;
-    this._offset.x = rx;
-    this._offset.y = ry;
+    this._offset = { x: rx, y: ry };
   }
 
   /**

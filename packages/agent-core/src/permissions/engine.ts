@@ -14,6 +14,7 @@ import type {
   PermissionCheckResult,
   PermissionContext,
   PermissionEntry,
+  PermissionMatcher,
   Settings,
   ToolApprovalRequest,
 } from "@flitter/schemas";
@@ -232,7 +233,7 @@ export class PermissionEngine {
     return rules.map((rule) => {
       if (!rule.matches) return rule;
 
-      const resolvedMatches: Record<string, unknown> = {};
+      const resolvedMatches: Record<string, PermissionMatcher> = {};
       for (const [key, value] of Object.entries(rule.matches)) {
         if (typeof value === "string" && value.includes("${workspaceRoot}")) {
           resolvedMatches[key] = value.replace(/\$\{workspaceRoot\}/g, this.workspaceRoot);

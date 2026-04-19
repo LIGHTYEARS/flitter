@@ -31,6 +31,8 @@ export interface BuildContext {
   readonly widget: WidgetInterface;
   /** 查找最近的渲染对象。 */
   findRenderObject(): RenderObject | undefined;
+  /** 向上查找指定类型的祖先 State。 */
+  findAncestorStateOfType<T>(type: new (...args: unknown[]) => T): T | null;
 }
 
 // ════════════════════════════════════════════════════

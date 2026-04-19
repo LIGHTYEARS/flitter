@@ -320,7 +320,7 @@ export class ThreadWorker {
       // ─── Step 4: 构建 StreamParams ─────────────
       const messages = this.opts.getMessages();
       const streamParams: StreamParams = {
-        model: config.settings.model ?? "default",
+        model: config.settings["internal.model"] ?? "default",
         messages,
         systemPrompt,
         tools: toolDefs,

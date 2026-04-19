@@ -273,7 +273,7 @@ export class StreamableHTTPTransport implements MCPTransport {
     (async () => {
       try {
         const reader = body
-          .pipeThrough(new TextDecoderStream())
+          .pipeThrough(new TextDecoderStream() as unknown as TransformStream<Uint8Array, string>)
           .pipeThrough(new SSEEventParser())
           .getReader();
 

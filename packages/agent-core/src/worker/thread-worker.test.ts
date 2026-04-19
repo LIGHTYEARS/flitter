@@ -371,7 +371,7 @@ describe("ThreadWorker — runInference 基础流", () => {
   it("调用 provider.stream 传入正确的 StreamParams", async () => {
     const provider = createMockProvider([createCompleteDelta("ok")]);
     const config = {
-      settings: { model: "test-model-42" } as Settings,
+      settings: { "internal.model": "test-model-42" } as Settings,
       secrets: { getToken: async () => undefined, isSet: () => false },
     } as Config;
 

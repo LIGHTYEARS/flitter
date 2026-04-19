@@ -9,10 +9,12 @@
 
 import type { RenderObject } from "./render-object.js";
 import { getBuildOwner } from "./types.js";
+import type { Widget } from "./widget.js";
 
 // Re-export the canonical Widget and Key types from widget.ts to avoid
 // duplicate interface / class divergence (type-only import breaks no cycles).
 export type { Key, Widget } from "./widget.js";
+export type { BuildContext } from "./stateless-widget.js";
 
 // ════════════════════════════════════════════════════
 //  Element 抽象基类
@@ -275,12 +277,12 @@ export abstract class Element {
    * @returns 匹配的祖先元素，未找到时返回 null
    */
   findAncestorElementOfType(type: Function): Element | null {
-    let current = this._parent;
+    let current: Element | undefined = this._parent;
     while (current !== undefined) {
       if (current instanceof (type as new (...args: unknown[]) => Element)) {
         return current;
       }
-      current = current._parent;
+      current = (current as Element)._parent;
     }
     return null;
   }

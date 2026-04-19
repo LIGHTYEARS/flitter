@@ -320,7 +320,7 @@ class TextFieldState extends State<TextField> {
   private _handleClick = (event: MouseEvent): void => {
     if (!this._renderFieldRef) return;
     const clickCount = (event as MouseEvent & { clickCount?: number }).clickCount ?? 1;
-    const offset = this._renderFieldRef.hitTestPosition(event.x, event.y);
+    const offset = this._renderFieldRef.hitTestPosition(event.x ?? 0, event.y ?? 0);
     if (clickCount === 3) {
       this._controller.selectLineAt(offset);
     } else if (clickCount === 2) {
@@ -333,7 +333,7 @@ class TextFieldState extends State<TextField> {
 
   private _handleDrag = (event: MouseEvent): void => {
     if (!this._renderFieldRef) return;
-    const offset = this._renderFieldRef.hitTestPosition(event.x, event.y);
+    const offset = this._renderFieldRef.hitTestPosition(event.x ?? 0, event.y ?? 0);
     this._controller.setSelectionRange(this._controller.selectionRange?.start ?? offset, offset);
   };
 

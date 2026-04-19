@@ -44,7 +44,7 @@ class ScrollableDemo extends StatelessWidget {
       const isEven = i % 2 === 0;
       lines.push(
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: new RichText({
             text: new TextSpan({
               children: [
@@ -72,7 +72,7 @@ class ScrollableDemo extends StatelessWidget {
 
     // 标题栏
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -97,7 +97,7 @@ class ScrollableDemo extends StatelessWidget {
 
     // 帮助栏
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

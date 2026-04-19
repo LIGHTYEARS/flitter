@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
 import { BehaviorSubject } from "@flitter/util";
-import { loadSkill, validateSkillName } from "./skill-parser.ts";
+import { loadSkill, validateSkillName } from "./skill-parser.js";
 import type {
   MCPServerSpec,
   Skill,

@@ -57,6 +57,8 @@ export interface ScrollKeyHandlerOptions {
 export class ScrollKeyHandler {
   /** 每次按键滚动行数 */
   private _scrollStep: number;
+  /** 翻页滚动行数 */
+  private _pageScrollStep: number;
 
   /**
    * 创建滚动事件处理器。

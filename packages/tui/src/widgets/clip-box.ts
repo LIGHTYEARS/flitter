@@ -88,8 +88,8 @@ export class RenderClipBox extends RenderBox {
     );
 
     const child = this._children[0] as RenderBox;
-    const cx = offsetX + child._offset.x;
-    const cy = offsetY + child._offset.y;
+    const cx = offsetX + child.offset.x;
+    const cy = offsetY + child.offset.y;
 
     child.paint(clipScreen as unknown as Screen, cx, cy);
   }

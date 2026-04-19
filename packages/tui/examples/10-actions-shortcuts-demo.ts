@@ -119,7 +119,7 @@ class ActionsDemoState extends State<ActionsDemo> {
     const logLines: Widget[] = this._log.map(
       (line, i) =>
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: new RichText({
             text: new TextSpan({
               text: `  ${line}`,
@@ -134,7 +134,7 @@ class ActionsDemoState extends State<ActionsDemo> {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -153,7 +153,7 @@ class ActionsDemoState extends State<ActionsDemo> {
 
     // Status bar
     const statusBar = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new Container({
         decoration: new BoxDecoration({
           border: Border.all(new BorderSide(Color.rgb(80, 80, 80), 1, "rounded")),
@@ -191,7 +191,7 @@ class ActionsDemoState extends State<ActionsDemo> {
 
     // Footer
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

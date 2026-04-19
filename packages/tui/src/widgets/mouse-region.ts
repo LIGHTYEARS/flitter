@@ -38,6 +38,20 @@ export interface MouseEvent {
   position: { x: number; y: number };
   /** 元素本地坐标 */
   localPosition: { x: number; y: number };
+  /** Flat x coordinate (used by some event producers) */
+  x?: number;
+  /** Flat y coordinate (used by some event producers) */
+  y?: number;
+  /** Scroll direction */
+  direction?: string;
+  /** Modifier keys state */
+  modifiers?: { shift?: boolean; ctrl?: boolean; alt?: boolean; meta?: boolean };
+  /** Number of clicks (for multi-click detection) */
+  clickCount?: number;
+  /** Mouse button identifier */
+  button?: number | string;
+  /** Timestamp */
+  timestamp?: number;
 }
 
 /** 鼠标事件回调类型 */

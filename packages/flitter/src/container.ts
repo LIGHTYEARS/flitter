@@ -463,7 +463,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
                 toolName: hookResult.toolName,
                 toolInput,
               });
-              const result = applyHookAction(match, { toolUseId: hookResult.toolUseId });
+              const result = applyHookAction(match, { toolUseID: hookResult.toolUseId });
               if (result.abortOp) {
                 if (result.userMessage) {
                   const snapshot = threadStore.getThreadSnapshot(threadId);
@@ -516,7 +516,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
               const match = matchPostExecuteHook(hooksConfig, {
                 toolName: hookResult.toolName,
               });
-              const result = applyHookAction(match, { toolUseId: hookResult.toolUseId });
+              const result = applyHookAction(match, { toolUseID: hookResult.toolUseId });
               if (result.redactedInput) {
                 const snapshot = threadStore.getThreadSnapshot(threadId);
                 if (snapshot) {
@@ -549,6 +549,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
                 await executePostHook(hook, {
                   threadId,
                   toolUse: { name: hookResult.toolName, input: hookResult.toolInput ?? {} },
+                  result: { status: "done" },
                 });
               }
             }

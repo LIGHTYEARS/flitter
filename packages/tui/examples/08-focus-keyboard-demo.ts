@@ -153,7 +153,7 @@ class FocusKeyboardDemoState extends State<FocusKeyboardDemo> {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -178,7 +178,7 @@ class FocusKeyboardDemoState extends State<FocusKeyboardDemo> {
 
     // Footer
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [

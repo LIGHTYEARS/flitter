@@ -132,7 +132,7 @@ async function buildGuidanceBlocks(opts: ContextBlocksOptions): Promise<SystemPr
       blocks.push({
         type: "text",
         text: wrappedText,
-        cache_control: { type: "ephemeral" },
+        cache_control: { type: "ephemeral", ttl: "300s" },
       });
     }
   } catch {

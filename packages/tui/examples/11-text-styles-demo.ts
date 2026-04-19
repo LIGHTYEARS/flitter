@@ -257,7 +257,7 @@ class TextStylesDemoState extends State<TextStylesDemo> {
 
     // Header
     const header = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -276,7 +276,7 @@ class TextStylesDemoState extends State<TextStylesDemo> {
 
     // Footer
     const footer = new Padding({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new RichText({
         text: new TextSpan({
           children: [
@@ -313,19 +313,19 @@ class TextStylesDemoState extends State<TextStylesDemo> {
     const scrollContent = new Column({
       children: [
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: styleSection,
         }),
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: colorSection,
         }),
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: alignSection,
         }),
         new Padding({
-          padding: EdgeInsets.symmetric(0, 1),
+          padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: overflowSection,
         }),
       ],

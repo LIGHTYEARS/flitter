@@ -16,7 +16,7 @@
  */
 
 import { Cell } from "./cell.js";
-import type { TextStyle } from "./text-style.js";
+import { TextStyle } from "./text-style.js";
 
 /**
  * 二维单元格矩阵，终端屏幕的单层缓冲区。
@@ -94,10 +94,10 @@ export class ScreenBuffer {
   }
 
   /**
-   * 在指定位置写入字符。
+   * 逆向: amp setCell (chunk-003.js:22280-22296) — 样式合并逻辑
    *
-   * 创建 `Cell(char, style, width)` 并设置到缓冲区。
-   * 当 width=2 时，同时在 x+1 位置设置续位占位符 `Cell("", style, 0)`。
+   * 当新 cell 的背景色为 default（透明）时，从已有 cell 继承背景色。
+   * 这使得子 widget 的文字能保留父 Container 的背景填充色。
    *
    * @param x - 列索引
    * @param y - 行索引
@@ -106,10 +106,26 @@ export class ScreenBuffer {
    * @param width - 显示宽度，默认为 1
    */
   writeChar(x: number, y: number, char: string, style: TextStyle, width: number = 1): void {
-    this.setCell(x, y, new Cell(char, style, width));
+    const merged = this._mergeBackground(x, y, style);
+    this.setCell(x, y, new Cell(char, merged, width));
     if (width === 2) {
-      this.setCell(x + 1, y, new Cell("", style, 0));
+      const merged2 = this._mergeBackground(x + 1, y, merged);
+      this.setCell(x + 1, y, new Cell("", merged2, 0));
     }
+  }
+
+  /**
+   * 当 style.background 为 default 时，继承已有 cell 的 background。
+   *
+   * 逆向: amp Em0 (chunk-003.js:22232-22250) — bg.type === "none" 时保留底层 bg
+   *
+   * @internal
+   */
+  private _mergeBackground(x: number, y: number, style: TextStyle): TextStyle {
+    if (!style?.background || style.background.kind !== "default") return style;
+    const existing = this.getCell(x, y);
+    if (!existing.style?.background || existing.style.background.kind === "default") return style;
+    return style.copyWith({ background: existing.style.background });
   }
 
   /**

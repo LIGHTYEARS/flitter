@@ -252,6 +252,72 @@ describe("ScreenBuffer", () => {
     assert.ok(buf.getCell(0, 1).equals(Cell.EMPTY));
     assert.ok(buf.getCell(49, 48).equals(Cell.EMPTY));
   });
+
+  // ── 逆向: amp setCell bg 合并 ─────────────────────
+
+  it("writeChar: 默认 bg 的文字继承已有 cell 的 bg", () => {
+    const buf = new ScreenBuffer(20, 5);
+    const bgColor = Color.rgb(60, 25, 50);
+    const bgStyle = new TextStyle({ background: bgColor });
+
+    // 先填充背景
+    buf.setCell(3, 1, new Cell(" ", bgStyle));
+
+    // 用只有前景色的样式写字符（bg = default）
+    const fgStyle = new TextStyle({ foreground: Color.cyan() });
+    buf.writeChar(3, 1, "A", fgStyle);
+
+    const result = buf.getCell(3, 1);
+    assert.equal(result.char, "A");
+    // 前景应为 cyan
+    assert.ok(result.style.foreground.equals(Color.cyan()));
+    // 背景应继承原有的 rgb(60,25,50)
+    assert.ok(result.style.background.equals(bgColor), "bg 应继承已有 cell 的背景色");
+  });
+
+  it("writeChar: 显式 bg 的文字覆盖已有 cell 的 bg", () => {
+    const buf = new ScreenBuffer(20, 5);
+    const oldBg = Color.rgb(60, 25, 50);
+    const newBg = Color.rgb(100, 0, 0);
+
+    buf.setCell(3, 1, new Cell(" ", new TextStyle({ background: oldBg })));
+    buf.writeChar(3, 1, "B", new TextStyle({ foreground: Color.white(), background: newBg }));
+
+    const result = buf.getCell(3, 1);
+    assert.equal(result.char, "B");
+    assert.ok(result.style.background.equals(newBg), "显式 bg 应覆盖已有的 bg");
+  });
+
+  it("writeChar: 宽字符续位也继承 bg", () => {
+    const buf = new ScreenBuffer(20, 5);
+    const bgColor = Color.rgb(25, 60, 30);
+    const bgStyle = new TextStyle({ background: bgColor });
+
+    // 填充 (4,0) 和 (5,0) 的背景
+    buf.setCell(4, 0, new Cell(" ", bgStyle));
+    buf.setCell(5, 0, new Cell(" ", bgStyle));
+
+    // 写宽字符，style 无 bg
+    buf.writeChar(4, 0, "中", new TextStyle({ bold: true }), 2);
+
+    const main = buf.getCell(4, 0);
+    assert.equal(main.char, "中");
+    assert.ok(main.style.background.equals(bgColor), "宽字符主 cell bg 应继承");
+
+    const cont = buf.getCell(5, 0);
+    assert.equal(cont.width, 0);
+    assert.ok(cont.style.background.equals(bgColor), "宽字符续位 bg 应继承");
+  });
+
+  it("writeChar: 无已有 bg 时保持 default", () => {
+    const buf = new ScreenBuffer(10, 5);
+    // 空 buffer, 全 Cell.EMPTY (bg=default)
+    buf.writeChar(0, 0, "X", new TextStyle({ foreground: Color.red() }));
+
+    const result = buf.getCell(0, 0);
+    assert.equal(result.char, "X");
+    assert.ok(result.style.background.equals(Color.default()), "无已有 bg 时保持 default");
+  });
 });
 
 // ════════════════════════════════════════════════════

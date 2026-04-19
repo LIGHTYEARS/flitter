@@ -116,6 +116,23 @@ export { createUndoEditTool } from "./tools/builtin/undo-edit";
 export { WriteTool } from "./tools/builtin/write";
 export { FileChangeTracker } from "./tools/file-change-tracker";
 export type { FileChange } from "./tools/file-change-tracker";
+// ─── GitHub Tools ─────────────────────────────────────
+export {
+  createGitHubClient,
+  createGitHubTools,
+  createReadGitHubTool,
+  createSearchGitHubTool,
+  createCommitSearchTool,
+  createListDirectoryGitHubTool,
+  createGlobGitHubTool,
+  createGitHubDiffTool,
+  createListRepositoriesTool,
+  GitHubClient,
+  resolveGitHubToken,
+  parseRepository,
+  globMatch,
+} from "./tools/github";
+export type { GitHubApiResult, GitHubFetchOptions } from "./tools/github";
 export type { OrchestratorCallbacks, ToolThreadEvent, ToolUseItem } from "./tools/orchestrator";
 export { ToolOrchestrator } from "./tools/orchestrator";
 export { ToolRegistry } from "./tools/registry";

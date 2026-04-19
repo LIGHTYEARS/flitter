@@ -3,13 +3,16 @@
  *
  * Demonstrates the widgets built for the Flitter CLI conversation UI:
  *   Mode 1: ConversationView — message list with tool items and activity groups
- *   Mode 2: ApprovalWidget — inline tool approval dialog with keyboard nav
+ *   Mode 2: ApprovalWidget — 4-option scoped approval with deny-with-feedback
  *   Mode 3: StatusBar cycling — walks through all status bar states
  *   Mode 4: ToastOverlay — fire success/error/info toasts with `t`
  *   Mode 5: ErrorDialog — modal error overlay with keyboard dismiss
+ *   Mode 6: BrailleSpinner — animated cellular automaton mapped to braille chars
+ *   Mode 7: DiffWidget — color-coded unified diff renderer with sample diffs
+ *   Mode 8: CostTracker — simulated SessionCostTracker with live USD estimation
  *
  * Run: bun run examples/tui-cli-widgets-demo.ts
- * Keys: 1-5 switch mode | q quit | mode-specific keys shown in UI
+ * Keys: 1-8 switch mode | q quit | mode-specific keys shown in UI
  *
  * @module
  */
@@ -44,7 +47,12 @@ import { ErrorDialog } from "../packages/cli/src/widgets/error-dialog.js";
 import { ConversationView } from "../packages/cli/src/widgets/conversation-view.js";
 import { transformThreadToDisplayItems } from "../packages/cli/src/widgets/display-items.js";
 import type { DisplayItem } from "../packages/cli/src/widgets/display-items.js";
+import { buildDiffWidget, generateSimpleDiff } from "../packages/cli/src/widgets/diff-widget.js";
 import { PromptHistory } from "../packages/cli/src/widgets/prompt-history.js";
+import { BrailleSpinner } from "../packages/tui/src/widgets/braille-spinner.js";
+import { SessionCostTracker } from "../packages/agent-core/src/cost/session-cost-tracker.js";
+import type { AgentEvent } from "../packages/agent-core/src/worker/events.js";
+import { Subject } from "../packages/util/src/reactive/subject.js";
 
 // ════════════════════════════════════════════════════
 //  Color constants
@@ -56,6 +64,9 @@ const HINT_FG = Color.rgb(0x56, 0x5f, 0x89);
 const ACTIVE_MODE_FG = Color.rgb(0x7a, 0xa2, 0xf7);
 const DIM_FG = Color.rgb(0x56, 0x5f, 0x89);
 const YELLOW_FG = Color.yellow();
+const FOREGROUND_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
+const SUCCESS_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
+const DENY_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
 
 // ════════════════════════════════════════════════════
 //  Mock data
@@ -274,6 +285,61 @@ const STATUS_SCENARIOS: Array<{ label: string; state: StatusBarState }> = [
 ];
 
 // ════════════════════════════════════════════════════
+//  Sample diffs for Mode 7
+// ════════════════════════════════════════════════════
+
+const SAMPLE_DIFFS = [
+  // Diff 1: Simple one-line edit
+  generateSimpleDiff(
+    'function calc(a: number, b: number) {\n  return a + b;\n}\n',
+    'function calc(a: number, b: number) {\n  return a * b;\n}\n',
+    "src/math.ts",
+  ),
+  // Diff 2: Multi-line addition
+  [
+    "--- a/src/config.ts",
+    "+++ b/src/config.ts",
+    "@@ -1,4 +1,10 @@",
+    " export const config = {",
+    "   debug: false,",
+    "+  logLevel: 'info',",
+    "+  retryAttempts: 3,",
+    "+  retryBackoff: 'exponential',",
+    "+  timeout: 30_000,",
+    "+  cache: {",
+    "+    enabled: true,",
+    "+    ttl: 300,",
+    "+  },",
+    "   apiUrl: 'https://api.example.com',",
+    " };",
+  ].join("\n"),
+  // Diff 3: Deletion
+  [
+    "--- a/src/legacy.ts",
+    "+++ b/src/legacy.ts",
+    "@@ -1,8 +1,3 @@",
+    " import { newApi } from './api';",
+    "-import { oldHelper } from './deprecated';",
+    "-import { legacyTransform } from './compat';",
+    " ",
+    "-// TODO: remove after migration",
+    "-const adapter = legacyTransform(oldHelper);",
+    "-",
+    " export function getData() {",
+    "-  return adapter.fetch();",
+    "+  return newApi.fetch();",
+    " }",
+  ].join("\n"),
+];
+
+/** Model names for cost simulation */
+const COST_MODELS = [
+  "claude-sonnet-4-20250514",
+  "claude-opus-4-6",
+  "claude-haiku-4-5-20251001",
+];
+
+// ════════════════════════════════════════════════════
 //  Mode names
 // ════════════════════════════════════════════════════
 
@@ -283,6 +349,9 @@ const MODE_NAMES = [
   "3:StatusBar",
   "4:Toasts",
   "5:ErrorDialog",
+  "6:Spinner",
+  "7:Diff",
+  "8:Cost",
 ];
 
 // ════════════════════════════════════════════════════
@@ -322,6 +391,18 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
   // ── Mode 5: Error dialog ──
   private showErrorDialog = false;
 
+  // ── Mode 6: BrailleSpinner ──
+  private spinner = new BrailleSpinner();
+  private spinnerTimer: ReturnType<typeof setInterval> | null = null;
+
+  // ── Mode 7: DiffWidget ──
+  private diffIndex = 0;
+
+  // ── Mode 8: CostTracker ──
+  private costEvents$ = new Subject<AgentEvent>();
+  private costTracker = new SessionCostTracker(this.costEvents$);
+  private costTurnCount = 0;
+
   // ── Shared status bar state ──
   private statusState: StatusBarState = STATUS_SCENARIOS[0].state;
 
@@ -331,16 +412,23 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
 
   dispose(): void {
     if (this.statusTimer) clearInterval(this.statusTimer);
+    if (this.spinnerTimer) clearInterval(this.spinnerTimer);
+    this.costTracker.dispose();
     super.dispose();
   }
 
   // ── Mode switching ──
   switchMode(newMode: number): void {
-    if (newMode < 1 || newMode > 5) return;
+    if (newMode < 1 || newMode > 8) return;
     // Stop status cycling timer when leaving mode 3
     if (this.mode === 3 && this.statusTimer) {
       clearInterval(this.statusTimer);
       this.statusTimer = null;
+    }
+    // Stop spinner timer when leaving mode 6
+    if (this.mode === 6 && this.spinnerTimer) {
+      clearInterval(this.spinnerTimer);
+      this.spinnerTimer = null;
     }
     this.setState(() => {
       this.mode = newMode;
@@ -354,6 +442,14 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
           this.statusState = STATUS_SCENARIOS[this.statusIndex].state;
         });
       }, 2000);
+    }
+    // Start spinner animation when entering mode 6
+    if (newMode === 6) {
+      this.spinnerTimer = setInterval(() => {
+        this.setState(() => {
+          this.spinner.step();
+        });
+      }, 200);
     }
     // Reset status to idle for non-cycling modes
     if (newMode !== 3) {
@@ -404,7 +500,7 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
       // Hint line
       new RichText({
         text: new TextSpan({
-          text: " Press 1-5 to switch mode | q to quit",
+          text: " Press 1-8 to switch mode | q quit",
           style: new TextStyle({ foreground: HINT_FG, dim: true }),
         }),
       }) as unknown as Widget,
@@ -508,6 +604,12 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
         return this._buildToastMode();
       case 5:
         return this._buildErrorMode();
+      case 6:
+        return this._buildSpinnerMode();
+      case 7:
+        return this._buildDiffMode();
+      case 8:
+        return this._buildCostMode();
       default:
         return new Text({ data: "Unknown mode" }) as unknown as WidgetInterface;
     }
@@ -534,7 +636,7 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
       new SizedBox({ height: 1 }) as unknown as Widget,
       new RichText({
         text: new TextSpan({
-          text: " Use Arrow keys to navigate, Enter/y/n to respond",
+          text: " Use \u2191\u2193, Enter, 1-4, or Esc. Try 'Deny with feedback' (option 4)",
           style: new TextStyle({ foreground: HINT_FG }),
         }),
       }) as unknown as Widget,
@@ -666,6 +768,166 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
     }) as unknown as WidgetInterface;
   }
 
+  /** Mode 6: BrailleSpinner — animated cellular automaton. */
+  private _buildSpinnerMode(): WidgetInterface {
+    const brailleChar = this.spinner.toBraille();
+    const liveCount = this.spinner.state.filter((v) => v).length;
+    const gen = this.spinner.generation;
+    const cellDisplay = this.spinner.state.map((v) => (v ? "●" : "○")).join(" ");
+
+    return new Column({
+      children: [
+        new RichText({
+          text: new TextSpan({
+            text: " BrailleSpinner — Cellular Automaton Demo",
+            style: new TextStyle({ foreground: YELLOW_FG, bold: true }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: " Auto-animating at 200ms. Keys: s = manual step, r = re-seed",
+            style: new TextStyle({ foreground: HINT_FG }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        // Large braille character display
+        new RichText({
+          text: new TextSpan({
+            text: `   Braille:  ${brailleChar}`,
+            style: new TextStyle({ foreground: ACTIVE_MODE_FG, bold: true }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        // Cell grid visualization
+        new RichText({
+          text: new TextSpan({
+            text: `   Cells:    ${cellDisplay}`,
+            style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Live:     ${liveCount}/8`,
+            style: new TextStyle({ foreground: liveCount >= 3 ? SUCCESS_COLOR : DENY_COLOR }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Gen:      ${gen}/${this.spinner.maxGenerations}`,
+            style: new TextStyle({ foreground: DIM_FG }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        // Neighbor map explanation
+        new RichText({
+          text: new TextSpan({
+            text: "   Rules: survive=2-3 neighbors, born=3 or 6 neighbors",
+            style: new TextStyle({ foreground: DIM_FG, dim: true }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: "   Re-seeds on stagnation, oscillation, or all dead",
+            style: new TextStyle({ foreground: DIM_FG, dim: true }),
+          }),
+        }) as unknown as Widget,
+      ],
+    }) as unknown as WidgetInterface;
+  }
+
+  /** Mode 7: DiffWidget — color-coded unified diff rendering. */
+  private _buildDiffMode(): WidgetInterface {
+    const currentDiff = SAMPLE_DIFFS[this.diffIndex];
+    const diffWidget = buildDiffWidget(currentDiff);
+
+    return new Column({
+      children: [
+        new RichText({
+          text: new TextSpan({
+            text: " DiffWidget — Color-Coded Diff Renderer",
+            style: new TextStyle({ foreground: YELLOW_FG, bold: true }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: ` Press d to cycle diffs. Showing ${this.diffIndex + 1} of ${SAMPLE_DIFFS.length}`,
+            style: new TextStyle({ foreground: HINT_FG }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        // The actual diff widget
+        diffWidget as unknown as Widget,
+      ],
+    }) as unknown as WidgetInterface;
+  }
+
+  /** Mode 8: SessionCostTracker — simulated cost accumulation. */
+  private _buildCostMode(): WidgetInterface {
+    const totals = this.costTracker.getTotals();
+    const costStr = totals.estimatedUSD !== null
+      ? `$${totals.estimatedUSD.toFixed(4)}`
+      : "unknown model";
+
+    return new Column({
+      children: [
+        new RichText({
+          text: new TextSpan({
+            text: " SessionCostTracker — Token Usage Accumulator",
+            style: new TextStyle({ foreground: YELLOW_FG, bold: true }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: " Press i = simulate inference turn, c = clear/reset",
+            style: new TextStyle({ foreground: HINT_FG }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        // Token totals
+        new RichText({
+          text: new TextSpan({
+            text: `   Input tokens:       ${totals.inputTokens.toLocaleString()}`,
+            style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Output tokens:      ${totals.outputTokens.toLocaleString()}`,
+            style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Cache write tokens: ${totals.cacheCreationInputTokens.toLocaleString()}`,
+            style: new TextStyle({ foreground: DIM_FG }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Cache read tokens:  ${totals.cacheReadInputTokens.toLocaleString()}`,
+            style: new TextStyle({ foreground: DIM_FG }),
+          }),
+        }) as unknown as Widget,
+        new SizedBox({ height: 1 }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Estimated cost:     ${costStr}`,
+            style: new TextStyle({ foreground: ACTIVE_MODE_FG, bold: true }),
+          }),
+        }) as unknown as Widget,
+        new RichText({
+          text: new TextSpan({
+            text: `   Inference turns:    ${this.costTurnCount}`,
+            style: new TextStyle({ foreground: DIM_FG }),
+          }),
+        }) as unknown as Widget,
+      ],
+    }) as unknown as WidgetInterface;
+  }
+
   // ── Bottom widget: InputField or ApprovalWidget ──
 
   private _buildBottomWidget(): WidgetInterface {
@@ -674,7 +936,15 @@ class CliWidgetsDemoState extends State<CliWidgetsDemo> {
       return new ApprovalWidget({
         request,
         onRespond: (_toolUseId, response) => {
-          const decision = response.approved ? "APPROVED" : "DENIED";
+          let decision: string;
+          if (response.approved) {
+            const scope = response.scope ?? "once";
+            decision = `APPROVED (scope: ${scope})`;
+          } else if (response.feedback) {
+            decision = `DENIED with feedback: "${response.feedback}"`;
+          } else {
+            decision = "DENIED";
+          }
           this.setState(() => {
             this.approvalLog.push(
               `${request.toolName} (${request.toolUseId}): ${decision}`,
@@ -725,16 +995,19 @@ await runApp(new CliWidgetsDemo() as unknown as WidgetInterface, {
     binding.addKeyInterceptor((event) => {
       if (!demoState) return false;
 
-      // Mode switching: number keys 1-5
+      const mode = (demoState as unknown as { mode: number }).mode;
+
+      // Mode switching: number keys 1-8
+      // In approval mode (2), keys 1-4 go to the widget; only 5-8 switch modes
       const num = Number.parseInt(event.key, 10);
-      if (num >= 1 && num <= 5 && !event.modifiers.ctrl && !event.modifiers.alt) {
-        // Don't intercept numbers when in approval mode (they'd be for the widget)
-        if (demoState && (demoState as unknown as { mode: number }).mode !== 2) {
-          demoState.switchMode(num);
-          return true;
-        }
-        // In approval mode, only intercept if not a valid approval key
-        if (num !== 1) {
+      if (num >= 1 && num <= 8 && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 2) {
+          // In approval mode, only switch for keys 5-8 (1-4 are widget shortcuts)
+          if (num >= 5) {
+            demoState.switchMode(num);
+            return true;
+          }
+        } else {
           demoState.switchMode(num);
           return true;
         }
@@ -742,14 +1015,13 @@ await runApp(new CliWidgetsDemo() as unknown as WidgetInterface, {
 
       // Ctrl+N: next mode
       if (event.key === "n" && event.modifiers.ctrl) {
-        const current = (demoState as unknown as { mode: number }).mode;
-        demoState.switchMode((current % 5) + 1);
+        demoState.switchMode((mode % 8) + 1);
         return true;
       }
 
       // t: fire toast (mode 4 only)
       if (event.key === "t" && !event.modifiers.ctrl && !event.modifiers.alt) {
-        if ((demoState as unknown as { mode: number }).mode === 4) {
+        if (mode === 4) {
           const types = ["success", "error", "info"] as const;
           const messages = [
             "Operation completed successfully",
@@ -771,7 +1043,7 @@ await runApp(new CliWidgetsDemo() as unknown as WidgetInterface, {
 
       // e: show error dialog (mode 5 only)
       if (event.key === "e" && !event.modifiers.ctrl && !event.modifiers.alt) {
-        if ((demoState as unknown as { mode: number }).mode === 5) {
+        if (mode === 5) {
           (demoState as unknown as { setState: (fn: () => void) => void }).setState(() => {
             (demoState as unknown as { showErrorDialog: boolean }).showErrorDialog = true;
           });
@@ -779,9 +1051,82 @@ await runApp(new CliWidgetsDemo() as unknown as WidgetInterface, {
         }
       }
 
+      // s: manual step spinner (mode 6 only)
+      if (event.key === "s" && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 6) {
+          (demoState as unknown as { setState: (fn: () => void) => void; spinner: BrailleSpinner }).setState(() => {
+            (demoState as unknown as { spinner: BrailleSpinner }).spinner.step();
+          });
+          return true;
+        }
+      }
+
+      // r: re-seed spinner (mode 6 only)
+      if (event.key === "r" && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 6) {
+          const sp = (demoState as unknown as { spinner: BrailleSpinner }).spinner;
+          // Force re-seed by setting generation past max
+          (demoState as unknown as { setState: (fn: () => void) => void }).setState(() => {
+            sp.generation = sp.maxGenerations;
+            sp.step();
+          });
+          return true;
+        }
+      }
+
+      // d: next diff (mode 7 only)
+      if (event.key === "d" && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 7) {
+          (demoState as unknown as { setState: (fn: () => void) => void }).setState(() => {
+            (demoState as unknown as { diffIndex: number }).diffIndex =
+              ((demoState as unknown as { diffIndex: number }).diffIndex + 1) % SAMPLE_DIFFS.length;
+          });
+          return true;
+        }
+      }
+
+      // i: simulate inference turn (mode 8 only)
+      if (event.key === "i" && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 8) {
+          const events$ = (demoState as unknown as { costEvents$: Subject<AgentEvent> }).costEvents$;
+          const model = COST_MODELS[Math.floor(Math.random() * COST_MODELS.length)];
+          events$.next({
+            type: "inference:complete",
+            usage: {
+              inputTokens: 2000 + Math.floor(Math.random() * 8000),
+              outputTokens: 200 + Math.floor(Math.random() * 2000),
+              cacheCreationInputTokens: Math.floor(Math.random() * 500),
+              cacheReadInputTokens: Math.floor(Math.random() * 5000),
+            },
+            model,
+          });
+          (demoState as unknown as { setState: (fn: () => void) => void }).setState(() => {
+            (demoState as unknown as { costTurnCount: number }).costTurnCount++;
+          });
+          return true;
+        }
+      }
+
+      // c: clear cost tracker (mode 8 only)
+      if (event.key === "c" && !event.modifiers.ctrl && !event.modifiers.alt) {
+        if (mode === 8) {
+          (demoState as unknown as { setState: (fn: () => void) => void }).setState(() => {
+            const d = demoState as unknown as {
+              costTracker: SessionCostTracker;
+              costEvents$: Subject<AgentEvent>;
+              costTurnCount: number;
+            };
+            d.costTracker.dispose();
+            d.costEvents$ = new Subject<AgentEvent>();
+            d.costTracker = new SessionCostTracker(d.costEvents$);
+            d.costTurnCount = 0;
+          });
+          return true;
+        }
+      }
+
       // q: quit (not when error dialog is showing or in approval mode)
       if (event.key === "q" && !event.modifiers.ctrl && !event.modifiers.alt) {
-        const mode = (demoState as unknown as { mode: number }).mode;
         const errorShowing = (demoState as unknown as { showErrorDialog: boolean }).showErrorDialog;
         if (mode !== 2 && !errorShowing) {
           binding.stop();

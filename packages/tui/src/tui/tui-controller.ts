@@ -40,6 +40,7 @@ import {
   PASTE_ON,
   SHOW_CURSOR,
 } from "../screen/ansi-renderer.js";
+import type { ColorDepth } from "../screen/ansi-renderer.js";
 import { Screen } from "../screen/screen.js";
 import { logger } from "../debug/logger.js";
 import { InputParser } from "../vt/input-parser.js";
@@ -85,6 +86,11 @@ export interface TerminalCapabilities {
   colorPaletteNotifications: boolean;
   /** xtversion 响应字符串，null 表示未检测到 */
   xtversion: string | null;
+  /**
+   * Detected color depth.
+   * 逆向: QXR in modules/0080_unknown_QXR.js
+   */
+  colorDepth: ColorDepth;
 }
 
 /**
@@ -103,6 +109,65 @@ export interface TerminalSize {
 export interface CapabilityEvent {
   /** 已检测到的终端能力 */
   capabilities: TerminalCapabilities;
+}
+
+// ════════════════════════════════════════════════════
+//  Color Depth Detection
+// ════════════════════════════════════════════════════
+
+/**
+ * Detect terminal color depth from environment variables.
+ *
+ * 逆向: QXR in modules/0080_unknown_QXR.js
+ *
+ * Detection order (matching amp's priority):
+ * 1. COLORTERM=truecolor or COLORTERM=24bit → truecolor
+ * 2. TERM=xterm-kitty → truecolor
+ * 3. TERM_PROGRAM iTerm.app v3+ → truecolor, Apple_Terminal → 256
+ * 4. TERM containing "256color" → 256
+ * 5. TERM matching screen/xterm/vt100/rxvt/color/ansi/cygwin/linux → 16
+ * 6. COLORTERM present → 16
+ * 7. Fallback: 16
+ */
+export function detectColorDepth(env: Record<string, string | undefined> = process.env): ColorDepth {
+  // 逆向: QXR line 37 — COLORTERM === "truecolor" → level 3
+  if (env.COLORTERM === "truecolor" || env.COLORTERM === "24bit") {
+    return "truecolor";
+  }
+
+  // 逆向: QXR line 38 — TERM === "xterm-kitty" → level 3
+  if (env.TERM === "xterm-kitty") {
+    return "truecolor";
+  }
+
+  // 逆向: QXR line 39-46 — TERM_PROGRAM checks
+  if (env.TERM_PROGRAM) {
+    const version = Number.parseInt((env.TERM_PROGRAM_VERSION || "").split(".")[0], 10);
+    switch (env.TERM_PROGRAM) {
+      case "iTerm.app":
+        return version >= 3 ? "truecolor" : "256";
+      case "Apple_Terminal":
+        return "256";
+    }
+  }
+
+  // 逆向: QXR line 48 — TERM containing 256color → level 2
+  if (/-256(color)?$/i.test(env.TERM ?? "")) {
+    return "256";
+  }
+
+  // 逆向: QXR line 49 — common TERM values → level 1
+  if (/^screen|^xterm|^vt100|^vt220|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM ?? "")) {
+    return "16";
+  }
+
+  // 逆向: QXR line 50 — COLORTERM present (any value) → level 1
+  if ("COLORTERM" in env && env.COLORTERM !== undefined) {
+    return "16";
+  }
+
+  // Fallback: basic 16-color
+  return "16";
 }
 
 // ════════════════════════════════════════════════════
@@ -234,6 +299,11 @@ export class TuiController {
       this.updateTerminalSize();
       const size = this.getSize();
       this.screen.resize(size.width, size.height);
+
+      // Detect color depth and configure renderer before first frame
+      // 逆向: QXR in modules/0080_unknown_QXR.js — detect terminal color support
+      const colorDepth = detectColorDepth();
+      this.renderer.setColorDepth(colorDepth);
 
       // 注册清理 handlers
       this.setupCleanupHandlers();
@@ -720,6 +790,7 @@ export class TuiController {
       kittyKeyboard: false,
       colorPaletteNotifications: false,
       xtversion: null,
+      colorDepth: detectColorDepth(),
     };
   }
 }

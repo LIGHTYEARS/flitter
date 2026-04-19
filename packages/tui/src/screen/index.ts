@@ -20,6 +20,7 @@
  * @module
  */
 
+export type { ColorDepth } from "./ansi-renderer.js";
 export {
   ALT_SCREEN_OFF,
   ALT_SCREEN_ON,
@@ -45,7 +46,7 @@ export {
 export { ScreenBuffer } from "./buffer.js";
 export { Cell } from "./cell.js";
 export type { ColorKind } from "./color.js";
-export { Color } from "./color.js";
+export { Color, rgbToXterm256, xterm256ToAnsi16 } from "./color.js";
 export type { DirtyRegion } from "./screen.js";
 export { Screen } from "./screen.js";
 export type { TextStyleOptions } from "./text-style.js";

@@ -25,6 +25,16 @@
 import type { Screen } from "./screen.js";
 import { TextStyle } from "./text-style.js";
 
+/**
+ * Color depth levels matching terminal capabilities.
+ *
+ * 逆向: QXR in modules/0080_unknown_QXR.js — returns 0/1/2/3 level
+ * - '16': basic 16-color ANSI (level 1)
+ * - '256': xterm 256-color palette (level 2)
+ * - 'truecolor': 24-bit RGB (level 3)
+ */
+export type ColorDepth = "16" | "256" | "truecolor";
+
 // ── ANSI 转义序列常量 ────────────────────────────────
 
 /** Escape 字符 */
@@ -95,8 +105,39 @@ export const PASTE_OFF = `${CSI}?2004l`;
  *
  * 将 {@link Screen} 的变化区域转换为最小化的 ANSI 转义序列输出字符串。
  * 渲染输出是纯字符串，不直接写入 stdout——由上层 TUI 主循环决定何时输出。
+ *
+ * Supports color depth branching:
+ * - truecolor: \x1b[38;2;R;G;Bm (default, current behavior)
+ * - 256-color: converts RGB to nearest xterm-256 palette index, \x1b[38;5;Nm
+ * - 16-color: converts to nearest ANSI color, \x1b[3Nm
+ *
+ * 逆向: Color depth branching adapts rendering to terminal capabilities
+ * detected by QXR in modules/0080_unknown_QXR.js.
  */
 export class AnsiRenderer {
+  /**
+   * Color depth for rendering. Defaults to 'truecolor' (no downgrade).
+   * Set via setColorDepth() based on TerminalCapabilities.colorDepth.
+   */
+  private colorDepth: ColorDepth = "truecolor";
+
+  /**
+   * Set the color depth for rendering.
+   *
+   * 逆向: amp adapts rendering based on detected color depth from QXR.
+   *
+   * @param depth - target color depth
+   */
+  setColorDepth(depth: ColorDepth): void {
+    this.colorDepth = depth;
+  }
+
+  /**
+   * Get current color depth.
+   */
+  getColorDepth(): ColorDepth {
+    return this.colorDepth;
+  }
   /**
    * 从 Screen 生成差分 ANSI 输出。
    *
@@ -148,15 +189,15 @@ export class AnsiRenderer {
           parts.push(CUP(y, x));
         }
 
-        // 样式处理
-        const sgrDiff = cell.style.diffSgr(currentStyle);
+        // 样式处理 — color-depth-aware SGR
+        const sgrDiff = cell.style.diffSgrAt(currentStyle, this.colorDepth);
         if (sgrDiff) {
           parts.push(`${CSI}${sgrDiff}m`);
           currentStyle = cell.style;
           needsReset = true;
         } else if (!currentStyle.equals(cell.style)) {
-          // diffSgr 返回空但样式不同——只有 equals 返回 true 才会空，这里做安全检查
-          const sgr = cell.style.toSgr();
+          // diffSgrAt 返回空但样式不同——只有 equals 返回 true 才会空，这里做安全检查
+          const sgr = cell.style.toSgrAt(this.colorDepth);
           if (sgr) {
             parts.push(`${CSI}0;${sgr}m`);
           } else {
@@ -232,8 +273,8 @@ export class AnsiRenderer {
           cursorCol = x;
         }
 
-        // 样式处理
-        const sgrDiff = cell.style.diffSgr(currentStyle);
+        // 样式处理 — color-depth-aware SGR
+        const sgrDiff = cell.style.diffSgrAt(currentStyle, this.colorDepth);
         if (sgrDiff) {
           parts.push(`${CSI}${sgrDiff}m`);
           currentStyle = cell.style;

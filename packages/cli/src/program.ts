@@ -14,6 +14,7 @@
  * ```
  */
 import { Command } from "commander";
+import { registerPluginsCommand } from "./commands/plugins.js";
 
 /**
  * 创建 Commander.js 命令树
@@ -252,6 +253,10 @@ export function createProgram(version: string): Command {
     .option("--json", "Output as JSON", false);
 
   tools.command("show <name>").description("Show details of a specific tool");
+
+  // ─── Plugins 管理 ───────────────────────────────────────
+  // 逆向: t40 in modules/2529_unknown_t40.js
+  registerPluginsCommand(program);
 
   return program;
 }

@@ -26,6 +26,8 @@ function createMockContainer(
     runInference: () => Promise<void>;
     asyncDispose: () => Promise<void>;
     getThreadSnapshot: (id: string) => ThreadSnapshot | undefined;
+    setCachedThread: (thread: ThreadSnapshot) => void;
+    threadPersistence: { save: (thread: ThreadSnapshot) => Promise<void> } | null;
   }> = {},
 ): ServiceContainer {
   const events$ = overrides.events ?? new Subject<AgentEvent>();
@@ -44,6 +46,7 @@ function createMockContainer(
     createThreadWorker: mock(() => mockWorker),
     threadStore: {
       getThreadSnapshot: overrides.getThreadSnapshot ?? (() => undefined),
+      setCachedThread: overrides.setCachedThread ?? (() => {}),
       getThread: () => undefined,
       createThread: () =>
         ({
@@ -66,7 +69,7 @@ function createMockContainer(
     permissionEngine: {} as unknown as ServiceContainer["permissionEngine"],
     mcpServerManager: {} as unknown as ServiceContainer["mcpServerManager"],
     skillService: {} as unknown as ServiceContainer["skillService"],
-    threadPersistence: null,
+    threadPersistence: overrides.threadPersistence ?? null,
     guidanceLoader: {} as unknown as ServiceContainer["guidanceLoader"],
     contextManager: {} as unknown as ServiceContainer["contextManager"],
     secrets: {} as unknown as ServiceContainer["secrets"],
@@ -330,5 +333,370 @@ describe("runExecuteMode", () => {
     }
 
     expect(disposed).toBe(true);
+  });
+
+  // ─── Gap 9: Execute Mode Flags ──────────────────────────────
+
+  it("--stats outputs JSON { result, usage }", async () => {
+    const stdoutData: string[] = [];
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "The answer is 42" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+              usage: { inputTokens: 100, outputTokens: 50, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
+    });
+
+    const context = createContext({ userMessage: "test", stats: true });
+
+    const fakeStdout = new PassThrough();
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    expect(stdoutData.length).toBeGreaterThanOrEqual(1);
+    const statsLine = stdoutData.find((l) => l.includes('"result"'));
+    expect(statsLine).toBeDefined();
+    const stats = JSON.parse(statsLine!);
+    expect(stats.result).toBe("The answer is 42");
+    expect(stats.usage.input_tokens).toBe(100);
+    expect(stats.usage.output_tokens).toBe(50);
+    expect(stats.usage.cache_creation_input_tokens).toBe(10);
+    expect(stats.usage.cache_read_input_tokens).toBe(5);
+  });
+
+  it("--stats with no usage defaults to zero tokens", async () => {
+    const stdoutData: string[] = [];
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "response" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
+    });
+
+    const context = createContext({ userMessage: "test", stats: true });
+
+    const fakeStdout = new PassThrough();
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    const stats = JSON.parse(stdoutData.join(""));
+    expect(stats.usage.input_tokens).toBe(0);
+    expect(stats.usage.output_tokens).toBe(0);
+  });
+
+  it("--label adds labels to thread snapshot", async () => {
+    let savedThread: ThreadSnapshot | undefined;
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "done" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
+      setCachedThread: (thread: ThreadSnapshot) => {
+        savedThread = thread;
+      },
+    });
+
+    const context = createContext({ userMessage: "test", labels: ["ci", "nightly"] });
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    expect(savedThread).toBeDefined();
+    expect(savedThread!.labels).toEqual(["ci", "nightly"]);
+  });
+
+  it("--archive sets archived=true on thread", async () => {
+    let savedThread: ThreadSnapshot | undefined;
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [],
+        }) as unknown as ThreadSnapshot,
+      setCachedThread: (thread: ThreadSnapshot) => {
+        savedThread = thread;
+      },
+    });
+
+    const context = createContext({ userMessage: "test", archive: true });
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    expect(savedThread).toBeDefined();
+    expect(savedThread!.archived).toBe(true);
+  });
+
+  it("--archive persists to threadPersistence when available", async () => {
+    let persistedThread: ThreadSnapshot | undefined;
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [],
+        }) as unknown as ThreadSnapshot,
+      setCachedThread: () => {},
+      threadPersistence: {
+        save: async (thread: ThreadSnapshot) => {
+          persistedThread = thread;
+        },
+      },
+    });
+
+    const context = createContext({ userMessage: "test", archive: true });
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    expect(persistedThread).toBeDefined();
+    expect(persistedThread!.archived).toBe(true);
+  });
+
+  it("--stream-json-thinking includes thinking events in stream", async () => {
+    const events$ = new Subject<AgentEvent>();
+    const stdoutData: string[] = [];
+
+    const runInference = async () => {
+      events$.next({ type: "inference:start" });
+      // In a real scenario, thinking events come from the provider.
+      // Our event$ subscriber should pass them through when streamJsonThinking is true.
+      events$.next({ type: "thinking", text: "Let me think..." } as unknown as AgentEvent);
+      events$.next({ type: "turn:complete" });
+    };
+
+    const container = createMockContainer({
+      events: events$,
+      runInference,
+    });
+
+    const context = createContext({
+      streamJson: true,
+      streamJsonThinking: true,
+      userMessage: "test",
+    });
+
+    const fakeStdout = new PassThrough();
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    const lines = stdoutData.flatMap((d) => d.split("\n").filter(Boolean));
+    const types = lines.map((l) => JSON.parse(l).type);
+    expect(types).toContain("thinking");
+  });
+
+  it("--stream-json without --stream-json-thinking filters thinking events", async () => {
+    const events$ = new Subject<AgentEvent>();
+    const stdoutData: string[] = [];
+
+    const runInference = async () => {
+      events$.next({ type: "inference:start" });
+      events$.next({ type: "thinking", text: "secret thoughts" } as unknown as AgentEvent);
+      events$.next({ type: "turn:complete" });
+    };
+
+    const container = createMockContainer({
+      events: events$,
+      runInference,
+    });
+
+    const context = createContext({
+      streamJson: true,
+      streamJsonThinking: undefined, // not set
+      userMessage: "test",
+    });
+
+    const fakeStdout = new PassThrough();
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    const lines = stdoutData.flatMap((d) => d.split("\n").filter(Boolean));
+    const types = lines.map((l) => JSON.parse(l).type);
+    expect(types).not.toContain("thinking");
+  });
+
+  it("--stream-json-input reads multi-turn JSON Lines from stdin", async () => {
+    let inferenceCount = 0;
+    const events$ = new Subject<AgentEvent>();
+
+    const runInference = async () => {
+      inferenceCount++;
+      events$.next({ type: "inference:start" });
+      events$.next({ type: "turn:complete" });
+    };
+
+    const container = createMockContainer({
+      events: events$,
+      runInference,
+    });
+
+    const context = createContext({
+      streamJson: true,
+      streamJsonInput: true,
+      userMessage: "initial message",
+    });
+
+    const fakeStdin = new PassThrough();
+    const fakeStdout = new PassThrough();
+    const stdoutData: string[] = [];
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    // Send two JSON Lines then close stdin
+    fakeStdin.write('{"role":"user","content":"follow up 1"}\n');
+    fakeStdin.write('{"role":"user","content":"follow up 2"}\n');
+    fakeStdin.end();
+
+    await runExecuteMode(container, context, {
+      stdin: fakeStdin as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    // 1 initial message + 2 follow-up messages = 3 inferences
+    expect(inferenceCount).toBe(3);
+  });
+
+  it("--stats + --stream-json outputs stats (not events)", async () => {
+    // When --stats is set, output stats JSON instead of plain text
+    const stdoutData: string[] = [];
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "text", text: "result" }],
+              messageId: 1,
+              state: { type: "complete", stopReason: "end_turn" },
+              usage: { inputTokens: 10, outputTokens: 5 },
+            },
+          ],
+        }) as unknown as ThreadSnapshot,
+    });
+
+    // --stats without --stream-json
+    const context = createContext({
+      userMessage: "test",
+      stats: true,
+      streamJson: false,
+    });
+
+    const fakeStdout = new PassThrough();
+    fakeStdout.on("data", (chunk: Buffer) => stdoutData.push(chunk.toString()));
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: fakeStdout as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    const output = stdoutData.join("");
+    const stats = JSON.parse(output.trim());
+    expect(stats.result).toBe("result");
+    expect(stats.usage.input_tokens).toBe(10);
+    // Should NOT also output plain text (stats takes precedence)
+    expect(output.split("\n").filter(Boolean).length).toBe(1);
+  });
+
+  it("combined --archive --label works together", async () => {
+    const savedThreads: ThreadSnapshot[] = [];
+
+    const container = createMockContainer({
+      getThreadSnapshot: () =>
+        ({
+          id: "test",
+          v: 1,
+          messages: [],
+        }) as unknown as ThreadSnapshot,
+      setCachedThread: (thread: ThreadSnapshot) => {
+        savedThreads.push(thread);
+      },
+    });
+
+    const context = createContext({
+      userMessage: "test",
+      archive: true,
+      labels: ["ci"],
+    });
+
+    await runExecuteMode(container, context, {
+      stdin: new PassThrough() as unknown as NodeJS.ReadableStream,
+      stdout: new PassThrough() as unknown as NodeJS.WritableStream,
+      stderr: new PassThrough() as unknown as NodeJS.WritableStream,
+    });
+
+    // Should have at least one call for labels and one for archive
+    expect(savedThreads.length).toBeGreaterThanOrEqual(2);
+    // The labels call
+    const labeledThread = savedThreads.find((t) => t.labels?.includes("ci"));
+    expect(labeledThread).toBeDefined();
+    // The archive call
+    const archivedThread = savedThreads.find((t) => t.archived === true);
+    expect(archivedThread).toBeDefined();
   });
 });

@@ -145,6 +145,31 @@ export type {
   ToolResult,
   ToolSpec,
 } from "./tools/types";
+// ─── Toolbox ──────────────────────────────────────────
+export { ToolboxService } from "./toolbox/toolbox-service";
+export { probeToolScript, parseLegacyTextFormat, textSpecToToolboxSpec, convertArgToSchema } from "./toolbox/describe";
+export type { SpawnFn } from "./toolbox/describe";
+export { executeToolboxScript, argsToTextFormat } from "./toolbox/execute";
+export type { ExecuteOptions } from "./toolbox/execute";
+export {
+  sanitizeToolName,
+  toToolboxName,
+  resolveToolboxPaths,
+  TOOLBOX_PREFIX,
+  MAX_TOOLS_PER_DIRECTORY,
+  DESCRIBE_TIMEOUT_MS,
+  MAX_OUTPUT_LENGTH as TOOLBOX_MAX_OUTPUT_LENGTH,
+  DEFAULT_EXECUTE_TIMEOUT_MS,
+} from "./toolbox/toolbox-utils";
+export type {
+  ToolboxToolSpec,
+  LegacyTextSpec,
+  ToolboxToolStatus,
+  ToolboxToolInfo,
+  ToolboxStatus,
+  DescribeResult,
+  ToolboxExecuteResult,
+} from "./toolbox/types";
 // ─── Worker ────────────────────────────────────────────
 export type {
   AgentEvent,

@@ -55,3 +55,12 @@ When a runtime bug was not caught by existing type checks or tests, you MUST —
 3. **Lesson:** If root-cause analysis revealed a non-obvious insight, save it to memory or the commit message.
 
 **Why:** "Tests pass, feature broken" is the easiest class of bug to repeat. This rule turns every such incident into a lasting improvement.
+
+### 6. Maintain HEALTH.md
+
+When your session produces meaningful code changes (new/deleted tests, bug fixes, dependency changes), update the affected sections of `HEALTH.md` before ending the session. See the "AI Agent 使用指南" section in HEALTH.md for the update protocol and data verification commands.
+
+You do NOT need to update HEALTH.md for:
+- Pure research / exploration sessions with no code changes
+- Documentation-only changes
+- Changes that don't affect the three tracked dimensions (tests, debt, dependencies)

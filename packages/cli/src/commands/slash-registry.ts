@@ -24,6 +24,24 @@ export interface SlashCommandContext {
   threadWorker: {
     runInference(): Promise<void>;
     cancelInference(): void;
+    /**
+     * Enqueue a user message for processing (used by /queue).
+     * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:528-561
+     */
+    enqueueMessage?(message: {
+      role: "user";
+      messageId: number;
+      content: Array<{ type: "text"; text: string }>;
+    }): void;
+    /**
+     * Dequeue the first buffered message and process it (used by /dequeue).
+     * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:431-437
+     */
+    dequeueMessage?(): void;
+    /**
+     * Access the message queue length (used by /dequeue to check emptiness).
+     */
+    messageQueueLength?: number;
   };
   configService: {
     get(): { settings: Record<string, unknown> };
@@ -32,6 +50,16 @@ export interface SlashCommandContext {
   showMessage: (text: string) => void;
   /** Clear the input field */
   clearInput: () => void;
+  /**
+   * Whether thinking blocks are currently shown.
+   * 逆向: Ut.instance.allExpanded (chunk-006.js:37138)
+   */
+  showThinkingBlocks?: boolean;
+  /**
+   * Toggle thinking block visibility.
+   * 逆向: Ut.instance.toggleAll() (e0R:830)
+   */
+  toggleThinkingBlocks?: () => void;
 }
 
 /**

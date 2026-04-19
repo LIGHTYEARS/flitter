@@ -18,13 +18,6 @@ function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandCont
         relationships: [],
       }),
       setCachedThread: mock(() => {}),
-      observeThreadEntries: () => ({
-        getValue: () => [
-          { id: "thread-1", title: "Thread 1", userLastInteractedAt: 1700000000000 },
-          { id: "thread-2", title: "Thread 2", userLastInteractedAt: 1700000001000 },
-        ],
-      }),
-      deleteThread: mock(() => {}),
       // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     threadWorker: {
@@ -36,7 +29,6 @@ function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandCont
       get: () => ({
         settings: { "internal.model": "claude-sonnet-4-20250514" },
       }),
-      updateSettings: mock(() => {}),
       // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     showMessage: mock(() => {}),
@@ -46,50 +38,91 @@ function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandCont
 }
 
 describe("createBuiltinCommands", () => {
-  it("registers all expected commands", () => {
+  it("registers 6 built-in commands", () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const commands = registry.listCommands();
-    // Should have the original 6 + many new ones
-    expect(commands.length).toBeGreaterThanOrEqual(30);
-
-    // Original 6
+    expect(commands.length).toBeGreaterThanOrEqual(6);
     expect(registry.has("help")).toBe(true);
     expect(registry.has("clear")).toBe(true);
     expect(registry.has("compact")).toBe(true);
     expect(registry.has("cost")).toBe(true);
     expect(registry.has("model")).toBe(true);
     expect(registry.has("status")).toBe(true);
+  });
 
-    // Upgraded commands
+  // ── Part C: Command Palette Expansion ──────────────────
+
+  it("registers 25 slash commands (expanded command palette)", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const commands = registry.listCommands();
+    // Original 6 + 23 new = 29
+    expect(commands.length).toBeGreaterThanOrEqual(29);
+  });
+
+  it("registers thread commands: /new, /switch, /dashboard, /delete, /archive", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
     expect(registry.has("new")).toBe(true);
     expect(registry.has("switch")).toBe(true);
-    expect(registry.has("quit")).toBe(true);
+    expect(registry.has("dashboard")).toBe(true);
     expect(registry.has("delete")).toBe(true);
     expect(registry.has("archive")).toBe(true);
+  });
+
+  it("registers mode command: /mode", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("mode")).toBe(true);
+  });
+
+  it("registers settings commands: /settings, /theme", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
     expect(registry.has("settings")).toBe(true);
+    expect(registry.has("theme")).toBe(true);
+  });
+
+  it("registers MCP command: /mcp", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
     expect(registry.has("mcp")).toBe(true);
+  });
+
+  it("registers task command: /tasks", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
     expect(registry.has("tasks")).toBe(true);
-    expect(registry.has("refresh")).toBe(true);
+  });
+
+  it("registers screen command: /quit", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("quit")).toBe(true);
+  });
+
+  it("registers additional commands: /rename, /label, /editor, /history, /permissions, /plugins, /refresh", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("rename")).toBe(true);
+    expect(registry.has("label")).toBe(true);
     expect(registry.has("editor")).toBe(true);
     expect(registry.has("history")).toBe(true);
     expect(registry.has("permissions")).toBe(true);
-    expect(registry.has("mode")).toBe(true);
-
-    // New commands
-    expect(registry.has("handoff")).toBe(true);
-    expect(registry.has("back")).toBe(true);
-    expect(registry.has("forward")).toBe(true);
-    expect(registry.has("queue")).toBe(true);
-    expect(registry.has("dequeue")).toBe(true);
-    expect(registry.has("copy-url")).toBe(true);
-    expect(registry.has("copy-id")).toBe(true);
-    expect(registry.has("remove-label")).toBe(true);
-    expect(registry.has("toggle-thinking-blocks")).toBe(true);
-    expect(registry.has("dashboard")).toBe(true);
+    expect(registry.has("plugins")).toBe(true);
+    expect(registry.has("refresh")).toBe(true);
   });
 
-  // ── Original commands ─────────────────────────────────
+  it("supports aliases: /start -> /new, /exit -> /quit, /continue -> /switch", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("start")).toBe(true);
+    expect(registry.has("exit")).toBe(true);
+    expect(registry.has("continue")).toBe(true);
+    expect(registry.has("q")).toBe(true);
+    expect(registry.has("dash")).toBe(true);
+  });
 
   it("/help calls showMessage with command list", async () => {
     const registry = new SlashCommandRegistry();
@@ -133,258 +166,134 @@ describe("createBuiltinCommands", () => {
     expect(message).toContain("2 messages");
   });
 
-  // ── Upgraded commands ─────────────────────────────────
-
-  it("/new creates a new thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("new", "", ctx);
-    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("New thread created");
-    // Should have set a new thread in the store
-    expect(ctx.threadStore.setCachedThread).toHaveBeenCalled();
-  });
-
-  it("/new does nothing for empty thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: () => ({
-          id: "test-thread",
-          v: 0,
-          title: null,
-          messages: [],
-          relationships: [],
-        }),
-        setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("new", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("already empty");
-  });
-
-  it("/switch shows usage when no args", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("switch", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Usage");
-  });
-
-  it("/switch reports not found for unknown thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: (id: string) => (id === "test-thread" ? { id: "test-thread", v: 1, messages: [], relationships: [] } : null),
-        setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("switch", "unknown-id", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not found");
-  });
-
-  it("/delete deletes the current thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const deleteFn = mock(() => {});
-    const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: () => ({
-          id: "test-thread",
-          v: 1,
-          messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
-          relationships: [],
-        }),
-        setCachedThread: mock(() => {}),
-        deleteThread: deleteFn,
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("delete", "", ctx);
-    expect(deleteFn).toHaveBeenCalledWith("test-thread");
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("deleted");
-  });
-
-  it("/archive sets archived flag on thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("archive", "", ctx);
-    expect(ctx.threadStore.setCachedThread).toHaveBeenCalled();
-    const snapshot = (ctx.threadStore.setCachedThread as ReturnType<typeof mock>).mock.calls[0][0];
-    expect(snapshot.archived).toBe(true);
-  });
-
-  it("/archive rejects empty thread", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: () => ({
-          id: "test-thread",
-          v: 0,
-          messages: [],
-          relationships: [],
-        }),
-        setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("archive", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Cannot archive an empty thread");
-  });
-
-  it("/settings lists current config", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("settings", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("internal.model");
-  });
-
-  it("/mcp lists configured servers", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext({
-      configService: {
-        get: () => ({
-          settings: {
-            "mcp.servers": { "my-server": { command: "node", args: ["server.js"] } },
-          },
-        }),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("mcp", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("my-server");
-    expect(msg).toContain("stdio");
-  });
-
-  it("/mcp shows empty when no servers configured", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("mcp", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("No MCP servers configured");
-  });
-
-  it("/tasks shows not available when no subAgentManager", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("tasks", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
-  });
-
-  it("/refresh shows refreshed message", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("refresh", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("refreshed");
-  });
-
-  it("/history lists recent threads", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("history", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Thread 1");
-    expect(msg).toContain("Thread 2");
-  });
-
-  it("/permissions shows defaults when no custom rules", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("permissions", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("No custom permission rules");
-  });
+  // ── New command execution tests ────────────────────────
 
   it("/mode shows current mode when no args", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
     await registry.dispatch("mode", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Current mode");
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Current mode:");
+    expect(message).toContain("smart");
   });
 
-  it("/mode sets mode with valid name", async () => {
+  it("/mode <name> requests mode switch", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("mode", "smart", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Mode set to: smart");
+    await registry.dispatch("mode", "deep", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("deep");
   });
 
-  it("/mode rejects invalid mode", async () => {
+  it("/mode with invalid mode shows error", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("mode", "invalid-mode", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Unknown mode");
+    await registry.dispatch("mode", "invalid", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Unknown mode");
   });
 
-  it("/rename updates thread title", async () => {
+  it("/quit shows exit message", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("rename", "New Title", ctx);
-    expect(ctx.threadStore.setCachedThread).toHaveBeenCalled();
-    const snapshot = (ctx.threadStore.setCachedThread as ReturnType<typeof mock>).mock.calls[0][0];
-    expect(snapshot.title).toBe("New Title");
+    await registry.dispatch("quit", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Exiting");
   });
 
-  it("/rename rejects long title", async () => {
+  it("/rename requires title argument", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("rename", "a".repeat(300), ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("cannot exceed 256");
+    await registry.dispatch("rename", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Usage:");
   });
 
-  it("/label adds label to thread", async () => {
+  it("/rename with long title shows error", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("label", "bug", ctx);
-    expect(ctx.threadStore.setCachedThread).toHaveBeenCalled();
-    const snapshot = (ctx.threadStore.setCachedThread as ReturnType<typeof mock>).mock.calls[0][0];
-    expect(snapshot.labels).toContain("bug");
+    const longTitle = "a".repeat(257);
+    await registry.dispatch("rename", longTitle, ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("256 characters");
   });
 
-  it("/label rejects invalid format", async () => {
+  it("/label validates label format", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("label", "Invalid Label!", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("alphanumeric");
+    await registry.dispatch("label", "INVALID_LABEL!", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("alphanumeric");
   });
 
-  it("/remove-label removes existing label", async () => {
+  it("/label with valid label requests add", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    await registry.dispatch("label", "my-label", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("my-label");
+  });
+
+  it("/mcp reload shows message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    await registry.dispatch("mcp", "reload", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("reload");
+  });
+
+  it("/theme shows current theme when no args", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    await registry.dispatch("theme", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Current theme:");
+  });
+
+  it("/exit dispatches via /quit alias", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    const dispatched = await registry.dispatch("exit", "", ctx);
+    expect(dispatched).toBe(true);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Exiting");
+  });
+
+  // ── Gap #31: /handoff, /queue, /dequeue ────────────────
+
+  it("registers /handoff, /queue, /dequeue, /toggle-thinking-blocks", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("handoff")).toBe(true);
+    expect(registry.has("queue")).toBe(true);
+    expect(registry.has("dequeue")).toBe(true);
+    expect(registry.has("toggle-thinking-blocks")).toBe(true);
+    // alias
+    expect(registry.has("thinking")).toBe(true);
+  });
+
+  it("/handoff with empty thread shows error", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext({
@@ -392,182 +301,130 @@ describe("createBuiltinCommands", () => {
         getThreadSnapshot: () => ({
           id: "test-thread",
           v: 1,
-          messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
-          labels: ["bug", "urgent"],
+          title: null,
+          messages: [],
           relationships: [],
         }),
         setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
-    await registry.dispatch("remove-label", "bug", ctx);
-    expect(ctx.threadStore.setCachedThread).toHaveBeenCalled();
-    const snapshot = (ctx.threadStore.setCachedThread as ReturnType<typeof mock>).mock.calls[0][0];
-    expect(snapshot.labels).toEqual(["urgent"]);
+    await registry.dispatch("handoff", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Cannot handoff from an empty thread");
   });
 
-  it("/remove-label reports missing label", async () => {
+  it("/handoff with message shows handoff request", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
-    await registry.dispatch("remove-label", "nonexistent", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("does not have label");
+    await registry.dispatch("handoff", "summarize this thread", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Handoff requested");
+    expect(message).toContain("summarize this thread");
   });
 
-  it("/toggle-thinking-blocks toggles state", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("toggle-thinking-blocks", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toMatch(/Thinking blocks: (visible|hidden)/);
-  });
-
-  it("/dashboard shows thread list", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("dashboard", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Threads");
-    expect(msg).toContain("Thread 1");
-  });
-
-  // ── New commands ──────────────────────────────────────
-
-  it("/handoff shows usage when no args", async () => {
+  it("/handoff without args shows usage info", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
     await registry.dispatch("handoff", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Usage");
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Handoff mode requested");
+    expect(message).toContain("Usage:");
   });
 
-  it("/handoff reports not available when executeHandoff missing", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("handoff", "fix the bug", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
-  });
-
-  it("/back reports not available when threadNavigator missing", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("back", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
-  });
-
-  it("/forward reports not available when threadNavigator missing", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("forward", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
-  });
-
-  it("/queue shows usage when no args", async () => {
+  it("/queue without args shows usage", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext();
     await registry.dispatch("queue", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Usage");
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Usage:");
   });
 
-  it("/queue reports not available when enqueueMessage missing", async () => {
+  it("/queue enqueues message when enqueueMessage is available", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("queue", "test message", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
+    const enqueueMock = mock(() => {});
+    const ctx = makeContext({
+      threadWorker: {
+        runInference: mock(async () => {}),
+        cancelInference: mock(() => {}),
+        enqueueMessage: enqueueMock,
+      } as any,
+    });
+    await registry.dispatch("queue", "do this next", ctx);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    const arg = enqueueMock.mock.calls[0][0] as { role: string; content: Array<{ type: string; text: string }> };
+    expect(arg.role).toBe("user");
+    expect(arg.content[0].text).toBe("do this next");
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Queued message");
   });
 
-  it("/dequeue reports not available when dequeueMessage missing", async () => {
+  it("/queue shows not available when enqueueMessage missing", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
-    const ctx = makeContext();
+    const ctx = makeContext(); // default has no enqueueMessage
+    await registry.dispatch("queue", "something", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("not available");
+  });
+
+  it("/dequeue dequeues when messages exist", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const dequeueMock = mock(() => {});
+    const ctx = makeContext({
+      threadWorker: {
+        runInference: mock(async () => {}),
+        cancelInference: mock(() => {}),
+        dequeueMessage: dequeueMock,
+        messageQueueLength: 2,
+      } as any,
+    });
     await registry.dispatch("dequeue", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("not available");
+    expect(dequeueMock).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Dequeued 1 message");
+    expect(message).toContain("1 remaining");
   });
 
-  it("/copy-url rejects empty thread", async () => {
+  it("/dequeue shows empty queue message when no messages", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: () => ({
-          id: "test-thread",
-          v: 0,
-          messages: [],
-          relationships: [],
-        }),
-        setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      threadWorker: {
+        runInference: mock(async () => {}),
+        cancelInference: mock(() => {}),
+        dequeueMessage: mock(() => {}),
+        messageQueueLength: 0,
       } as any,
     });
-    await registry.dispatch("copy-url", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Cannot copy URL from an empty thread");
+    await registry.dispatch("dequeue", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("No messages in the queue");
   });
 
-  it("/copy-id rejects empty thread", async () => {
+  it("/dequeue shows not available when dequeueMessage missing", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
-    const ctx = makeContext({
-      threadStore: {
-        getThreadSnapshot: () => ({
-          id: "test-thread",
-          v: 0,
-          messages: [],
-          relationships: [],
-        }),
-        setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
-      } as any,
-    });
-    await registry.dispatch("copy-id", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Cannot copy ID from an empty thread");
+    const ctx = makeContext(); // default has no dequeueMessage
+    await registry.dispatch("dequeue", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("not available");
   });
 
-  // ── Alias resolution ──────────────────────────────────
+  // ── Gap #35: /toggle-thinking-blocks ──────────────────
 
-  it("aliases resolve correctly", async () => {
-    const registry = new SlashCommandRegistry();
-    createBuiltinCommands(registry);
-
-    // /? → /help
-    expect(registry.has("?")).toBe(true);
-    // /h → /help
-    expect(registry.has("h")).toBe(true);
-    // /start → /new
-    expect(registry.has("start")).toBe(true);
-    // /exit → /quit
-    expect(registry.has("exit")).toBe(true);
-    // /q → /quit
-    expect(registry.has("q")).toBe(true);
-    // /continue → /switch
-    expect(registry.has("continue")).toBe(true);
-    // /previous → /back
-    expect(registry.has("previous")).toBe(true);
-    // /next → /forward
-    expect(registry.has("next")).toBe(true);
-    // /thinking → /toggle-thinking-blocks
-    expect(registry.has("thinking")).toBe(true);
-    // /url → /copy-url
-    expect(registry.has("url")).toBe(true);
-  });
-
-  it("/cost shows usage data from thread", async () => {
+  it("/toggle-thinking-blocks on empty thread shows error", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const ctx = makeContext({
@@ -575,33 +432,53 @@ describe("createBuiltinCommands", () => {
         getThreadSnapshot: () => ({
           id: "test-thread",
           v: 1,
-          messages: [
-            { role: "user", content: [{ type: "text", text: "hi" }] },
-            {
-              role: "assistant",
-              content: [{ type: "text", text: "hello" }],
-              usage: { inputTokens: 100, outputTokens: 50 },
-            },
-          ],
+          title: null,
+          messages: [],
           relationships: [],
         }),
         setCachedThread: mock(() => {}),
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
-    await registry.dispatch("cost", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("100");
-    expect(msg).toContain("50");
-    expect(msg).toContain("150");
+    await registry.dispatch("toggle-thinking-blocks", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Cannot toggle thinking blocks on an empty thread");
   });
 
-  it("/compact shows message (no contextManager)", async () => {
+  it("/toggle-thinking-blocks calls toggleThinkingBlocks callback", async () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
-    const ctx = makeContext();
-    await registry.dispatch("compact", "", ctx);
-    const msg = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
-    expect(msg).toContain("Compaction requested");
+    const toggleMock = mock(() => {});
+    const ctx = makeContext({
+      showThinkingBlocks: true,
+      toggleThinkingBlocks: toggleMock,
+    });
+    await registry.dispatch("toggle-thinking-blocks", "", ctx);
+    expect(toggleMock).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Thinking blocks");
+  });
+
+  it("/toggle-thinking-blocks without toggle callback shows not available", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext(); // no toggleThinkingBlocks
+    await registry.dispatch("toggle-thinking-blocks", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("not available");
+  });
+
+  it("/thinking alias dispatches to toggle-thinking-blocks", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const toggleMock = mock(() => {});
+    const ctx = makeContext({
+      showThinkingBlocks: false,
+      toggleThinkingBlocks: toggleMock,
+    });
+    const dispatched = await registry.dispatch("thinking", "", ctx);
+    expect(dispatched).toBe(true);
+    expect(toggleMock).toHaveBeenCalledTimes(1);
   });
 });

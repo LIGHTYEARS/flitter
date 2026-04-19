@@ -45,3 +45,13 @@ The only way to proceed past an unresolved failure is explicit user approval to 
 ### 4. Debug logging
 
 Flitter has structured debug logging gated by `FLITTER_LOG_LEVEL=debug`. See [`docs/debug-logging.md`](docs/debug-logging.md) for channels, usage, and how to add new log points.
+
+### 5. Post-fix retrospective: fix the net, not just the bug
+
+When a runtime bug was not caught by existing type checks or tests, you MUST — after fixing it — ask three questions before moving on:
+
+1. **Tests:** Add or strengthen a test so this class of bug cannot pass silently again.
+2. **Logging:** Add a debug log point (Rule 4) if it would have shortened the investigation.
+3. **Lesson:** If root-cause analysis revealed a non-obvious insight, save it to memory or the commit message.
+
+**Why:** "Tests pass, feature broken" is the easiest class of bug to repeat. This rule turns every such incident into a lasting improvement.

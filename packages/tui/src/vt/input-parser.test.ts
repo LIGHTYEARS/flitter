@@ -790,4 +790,86 @@ describe("集成测试", () => {
     assert.equal(count1, 1);
     assert.equal(count2, 1);
   });
+
+  // ── 51-54. Standalone Escape timeout mechanism ────────────
+  // 逆向: amp InputParser escape timeout (chunk-005.js:163076-163099)
+
+  it("51. standalone ESC emits Escape key event after timeout", async () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // Feed a single ESC byte (standalone)
+    parser.feed(Buffer.from([0x1b]));
+
+    // No event emitted synchronously
+    assert.equal(events.length, 0, "no event emitted synchronously");
+
+    // Wait for the 25ms timeout to fire
+    await new Promise((r) => setTimeout(r, 50));
+
+    assert.equal(events.length, 1, "Escape event emitted after timeout");
+    const evt = events[0] as KeyEvent;
+    assert.equal(evt.type, "key");
+    assert.equal(evt.key, "Escape");
+  });
+
+  it("52. ESC followed by CSI sequence does NOT emit standalone Escape", async () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // Feed ESC as standalone first
+    parser.feed(Buffer.from([0x1b]));
+
+    // Then quickly feed the rest of a CSI sequence (e.g., ESC [ A = ArrowUp)
+    parser.feed(Buffer.from("[A", "latin1"));
+
+    // Wait long enough for any timeout to fire
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Should have ArrowUp, NOT standalone Escape
+    const keyEvents = events.filter((e): e is KeyEvent => e.type === "key");
+    assert.ok(
+      keyEvents.some((e) => e.key === "ArrowUp"),
+      "ArrowUp should be emitted"
+    );
+    assert.ok(
+      !keyEvents.some((e) => e.key === "Escape"),
+      "standalone Escape should NOT be emitted when follow-up bytes arrive"
+    );
+  });
+
+  it("53. double standalone ESC resets timeout", async () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // Feed ESC twice
+    parser.feed(Buffer.from([0x1b]));
+    parser.feed(Buffer.from([0x1b]));
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Should emit exactly one Escape (second ESC clears first timeout)
+    const keyEvents = events.filter((e): e is KeyEvent => e.type === "key" && e.key === "Escape");
+    assert.equal(keyEvents.length, 1, "exactly one Escape emitted for double ESC");
+  });
+
+  it("54. reset() clears pending escape timeout", async () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // Feed standalone ESC
+    parser.feed(Buffer.from([0x1b]));
+
+    // Reset before timeout fires
+    parser.reset();
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // No Escape event should have been emitted
+    assert.equal(events.length, 0, "reset() prevents Escape emission");
+  });
 });

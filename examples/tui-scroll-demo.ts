@@ -44,8 +44,8 @@ function writeText(
 //  Setup
 // ════════════════════════════════════════════════════
 
-const W = 80;
-const H = 24;
+const W = 240;
+const H = 60;
 const screen = new Screen(W, H);
 
 const titleStyle = new TextStyle({ foreground: Color.cyan(), bold: true });

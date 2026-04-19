@@ -27,10 +27,10 @@
  * @module
  */
 
-import { StatefulWidget, State, Column, SizedBox, Padding, EdgeInsets, RichText, TextSpan } from "@flitter/tui";
+import { StatefulWidget, State, Column, SizedBox, Padding, EdgeInsets, RichText, TextSpan, MediaQuery } from "@flitter/tui";
 import { TextStyle } from "@flitter/tui";
 import { Color } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
+import type { Widget, Element } from "@flitter/tui";
 import type { BuildContext } from "@flitter/tui";
 import { TextEditingController } from "@flitter/tui";
 import { FocusNode, type KeyEventResult } from "@flitter/tui";
@@ -196,6 +196,15 @@ export class InputFieldState extends State<InputField> {
     const isEmpty = !text;
     const isFocused = this._focusNode.hasFocus;
 
+    // 逆向: amp uses I9.sizeOf(T).width for dynamic border sizing
+    // MediaQuery.sizeOf requires Element, BuildContext is Element at runtime
+    let terminalWidth = DEFAULT_BORDER_INNER_WIDTH + 2; // fallback: 80
+    try {
+      terminalWidth = MediaQuery.sizeOf(_context as unknown as Element).width;
+    } catch {
+      // MediaQuery not in ancestor tree (e.g., unit tests) — use default
+    }
+
     // 边框颜色: shell 模式使用 shellMode/shellModeHidden 色, 否则 primary/border
     // 逆向: k8R.build() (chunk-006.js:31497) — currentShellModeStatus ? MN0(R, status) : e.selectedMessage
     const shellResult = detectShellCommand(text);
@@ -245,13 +254,14 @@ export class InputFieldState extends State<InputField> {
     // 计算行数: clamp 到 1-5
     const lineCount = Math.min(5, Math.max(1, (text.match(/\n/g) || []).length + 1));
 
-    // 边框字符
-    const borderInnerWidth = this.widget.config.width ?? DEFAULT_BORDER_INNER_WIDTH;
+    // 边框字符 — 逆向: amp uses MediaQuery width for dynamic sizing
+    const borderInnerWidth = this.widget.config.width ?? (terminalWidth - 2);
     const horizontalLine = "\u2500".repeat(borderInnerWidth);
     const topBorder = `\u250C${horizontalLine}\u2510`;
     const bottomBorder = `\u2514${horizontalLine}\u2518`;
 
     return new Column({
+      mainAxisSize: "min",
       children: [
         // 顶部边框: ┌──...──┐
         new RichText({

@@ -83,8 +83,8 @@ function renderSpan(
 //  Setup
 // ════════════════════════════════════════════════════
 
-const W = 80;
-const H = 24;
+const W = 240;
+const H = 60;
 const screen = new Screen(W, H);
 
 // ════════════════════════════════════════════════════
@@ -180,7 +180,7 @@ renderSpan(
 //  Section 2: Foreground Colors (right)
 // ════════════════════════════════════════════════════
 
-drawSection(screen, 40, 2, 39, 10, "Foreground Colors", Color.yellow());
+drawSection(screen, 41, 2, 39, 10, "Foreground Colors", Color.yellow());
 
 const colors: Array<[string, Color]> = [
   ["Red", Color.red()],
@@ -261,7 +261,7 @@ for (let i = 0; i < bgColors2.length; i++) {
 //  Section 4: RichText with Nested Spans (right)
 // ════════════════════════════════════════════════════
 
-drawSection(screen, 40, 13, 39, 5, "RichText (Nested Spans)", Color.magenta());
+drawSection(screen, 41, 13, 39, 5, "RichText (Nested Spans)", Color.magenta());
 
 // A parent span with children having different styles
 const richSpan = new TextSpan({
@@ -320,7 +320,7 @@ renderSpan(screen, codeSpan, 42, 16, 36);
 //  Section 5: Multi-line Text Wrapping (bottom)
 // ════════════════════════════════════════════════════
 
-drawSection(screen, 0, 19, 79, 4, "Multi-line Text Wrapping", Color.brightCyan());
+drawSection(screen, 0, 19, 80, 4, "Multi-line Text Wrapping", Color.brightCyan());
 
 const longText =
   "Flitter is a Flutter-for-Terminal UI framework. It renders styled text " +

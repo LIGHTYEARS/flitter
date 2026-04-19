@@ -2,8 +2,11 @@
 
 export * from "./autocomplete-controller.js";
 export * from "./command-palette.js";
+export * from "./confirm-dialog.js";
 export * from "./fuzzy-match.js";
 export * from "./fuzzy-picker.js";
 export * from "./layer-link.js";
 export * from "./overlay.js";
 export * from "./overlay-entry.js";
+export * from "./popup-overlay.js";
+export * from "./prompt-dialog.js";

@@ -41,6 +41,7 @@ import {
   SHOW_CURSOR,
 } from "../screen/ansi-renderer.js";
 import { Screen } from "../screen/screen.js";
+import { logger } from "../debug/logger.js";
 import { InputParser } from "../vt/input-parser.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
@@ -58,7 +59,7 @@ import { createTtyInput, createTtyOutput } from "./tty-input.js";
  * @param stream - 要检查的流对象
  * @returns 如果是 TTY 流返回 true
  */
-function isTtyStream(stream: unknown): boolean {
+export function isTtyStream(stream: unknown): boolean {
   return (
     typeof stream === "object" &&
     stream !== null &&
@@ -119,6 +120,9 @@ export interface CapabilityEvent {
  * 使用 TtyInputSource 从 /dev/tty 读取输入，TtyOutputTarget 写入终端输出。
  */
 export class TuiController {
+  /** Scoped debug logger for terminal size + init tracing */
+  private static readonly log = logger.scoped("tui");
+
   /** 输入解析器 */
   private parser: InputParser | null = null;
   /** 是否已初始化 */
@@ -394,7 +398,12 @@ export class TuiController {
    */
   private updateTerminalSize(): void {
     // amp checks: if (!this.tty.stdin || !JxT(this.tty.stdin))
-    if (!this.ttyInput || !isTtyStream(this.ttyInput)) {
+    if (!this.ttyInput?.stdin || !isTtyStream(this.ttyInput.stdin)) {
+      TuiController.log.debug("updateTerminalSize", {
+        fallback: true,
+        reason: !this.ttyInput?.stdin ? "no stdin" : "stdin not TTY",
+        size: { width: 80, height: 24 },
+      });
       this.terminalSize = { width: 80, height: 24 };
       return;
     }
@@ -403,6 +412,10 @@ export class TuiController {
     if (size) {
       this.terminalSize = size;
     }
+    TuiController.log.debug("updateTerminalSize", {
+      fallback: false,
+      size: this.terminalSize,
+    });
     // If getStreamSize returns null, keep previous cached terminalSize (amp behavior)
   }
 

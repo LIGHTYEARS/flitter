@@ -330,7 +330,7 @@ export class StatusBar extends StatelessWidget {
       ],
     });
 
-    return new Column({ children: [topRow, middleRow, bottomRow] as Widget[] });
+    return new Column({ mainAxisSize: "min", children: [topRow, middleRow, bottomRow] as Widget[] });
   }
 
   /**

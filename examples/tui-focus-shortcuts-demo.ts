@@ -191,7 +191,7 @@ class FocusShortcutsDemoState extends State<FocusShortcutsDemo> {
       children: [
         // Title bar
         new Container({
-          width: 80,
+          width: 240,
           height: 1,
           decoration: new BoxDecoration({ color: Color.rgb(30, 60, 100) }),
           child: new Text({
@@ -255,7 +255,7 @@ class FocusShortcutsDemoState extends State<FocusShortcutsDemo> {
 
         // Footer
         new Container({
-          width: 80,
+          width: 240,
           height: 1,
           decoration: new BoxDecoration({ color: Color.rgb(40, 40, 40) }),
           child: new Text({

@@ -263,4 +263,27 @@ export class Color {
           : `48;2;${this.r};${this.g};${this.b}`;
     }
   }
+
+  /**
+   * Convert to CSS hex color string (#RRGGBB).
+   *
+   * For rgb colors, converts r/g/b components to hex.
+   * For named/index/default, returns a best-effort approximation.
+   *
+   * 逆向: used to bridge between Color palette values and ThemeData hex strings
+   *
+   * @returns CSS hex color string
+   */
+  toHex(): string {
+    switch (this.kind) {
+      case "rgb":
+        return `#${this.r.toString(16).padStart(2, "0")}${this.g.toString(16).padStart(2, "0")}${this.b.toString(16).padStart(2, "0")}`.toUpperCase();
+      case "default":
+        return "#FFFFFF";
+      case "named":
+      case "index":
+        // Best-effort: return a placeholder for non-rgb colors
+        return "#FFFFFF";
+    }
+  }
 }

@@ -180,12 +180,12 @@ class ConversationDemoState extends State<ConversationDemo> {
         // Separator + status bar
         new SizedBox({
           height: 1,
-          child: new Text({ data: "\u2500".repeat(80) }),
+          child: new Text({ data: "\u2500".repeat(240) }),
         }) as unknown as Widget,
         new StatusBar({ state: IDLE_STATUS }) as unknown as Widget,
         new SizedBox({
           height: 1,
-          child: new Text({ data: "\u2500".repeat(80) }),
+          child: new Text({ data: "\u2500".repeat(240) }),
         }) as unknown as Widget,
 
         // Input

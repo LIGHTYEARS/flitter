@@ -23,6 +23,7 @@ At the default level (`info`), all debug logs are completely silent — zero per
 | `[build]` | `logger.scoped("build")` | `src/tree/build-owner.ts` | Dirty element counts |
 | `[frame]` | `logger.scoped("frame")` | `src/tree/frame-scheduler.ts` | requestFrame / frameStart / frameEnd |
 | `[paint]` | `logger.scoped("paint")` | `src/binding/widgets-binding.ts` | beginFrame flags + render |
+| `[tui]` | `logger.scoped("tui")` | `src/tui/tui-controller.ts` | updateTerminalSize fallback/detected size |
 
 ## Adding new debug logs
 

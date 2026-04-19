@@ -10,3 +10,4 @@ pnpm-debug.log*
 *.tsbuildinfo
 .chat_history.json
 .group_members.json
+tests/e2e/captures/

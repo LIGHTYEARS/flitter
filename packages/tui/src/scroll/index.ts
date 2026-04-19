@@ -13,6 +13,7 @@
  * @module
  */
 
+export * from "./fling-scroll-physics.js";
 export * from "./list-view.js";
 export * from "./render-scrollable.js";
 export * from "./scroll-behavior.js";

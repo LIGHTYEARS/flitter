@@ -39,11 +39,11 @@ function writeText(
 }
 
 // ---------------------------------------------------------------------------
-//  Screen setup — 80x24 standard terminal
+//  Screen setup — 240x60 standard terminal
 // ---------------------------------------------------------------------------
 
-const W = 80;
-const H = 24;
+const W = 240;
+const H = 60;
 const screen = new Screen(W, H);
 
 // Shared label styles

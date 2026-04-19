@@ -17,7 +17,7 @@ import { describe, it } from "node:test";
 import { Screen } from "../screen/screen.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TerminalSize } from "./tui-controller.js";
-import { TuiController } from "./tui-controller.js";
+import { TuiController, isTtyStream } from "./tui-controller.js";
 
 /**
  * 辅助函数：创建 TuiController 并确保测试后清理。
@@ -266,5 +266,61 @@ describe("TuiController — render", () => {
       ctrl.init();
       ctrl.render();
     });
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  isTtyStream 回归测试
+// ════════════════════════════════════════════════════
+
+describe("isTtyStream — regression: wrapper vs inner stream", () => {
+  // 回归: updateTerminalSize 曾错误地将 TtyInputSource wrapper 传给 isTtyStream，
+  // 而非 wrapper.stdin。wrapper 是普通对象 (没有 isTTY/setRawMode)，
+  // 导致 isTtyStream 永远返回 false，终端尺寸始终回退到 80x24。
+  // 修复: 检查 ttyInput.stdin 而非 ttyInput 本身。
+
+  it("应拒绝 TtyInputSource wrapper 对象", () => {
+    const wrapper = {
+      stdin: null,
+      dataCallback: null,
+      earlyInputBuffer: [],
+      init() {},
+      on() {},
+      pause() {},
+      resume() {},
+      dispose() {},
+    };
+    assert.equal(isTtyStream(wrapper), false, "wrapper 不应被识别为 TTY 流");
+  });
+
+  it("应接受具有 isTTY + setRawMode 的流对象", () => {
+    const mockStream = {
+      isTTY: true,
+      setRawMode: () => {},
+      columns: 240,
+      rows: 60,
+    };
+    assert.equal(isTtyStream(mockStream), true, "具有 isTTY+setRawMode 的对象应被识别为 TTY");
+  });
+
+  it("应拒绝 null 和 undefined", () => {
+    assert.equal(isTtyStream(null), false);
+    assert.equal(isTtyStream(undefined), false);
+  });
+
+  it("应拒绝 isTTY=false 的流", () => {
+    const mockStream = {
+      isTTY: false,
+      setRawMode: () => {},
+    };
+    assert.equal(isTtyStream(mockStream), false);
+  });
+
+  it("应拒绝没有 setRawMode 的对象", () => {
+    const mockStream = {
+      isTTY: true,
+      // no setRawMode
+    };
+    assert.equal(isTtyStream(mockStream), false);
   });
 });

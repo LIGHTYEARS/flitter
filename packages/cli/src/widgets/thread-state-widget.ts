@@ -32,6 +32,7 @@ import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Column,
   Expanded,
+  MediaQuery,
   Positioned,
   Scrollable,
   ScrollController,
@@ -41,6 +42,7 @@ import {
   StatefulWidget,
   Text,
 } from "@flitter/tui";
+import type { Element } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
 import type { ApprovalRequest } from "./approval-widget.js";
@@ -361,6 +363,14 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const { onSubmit, modelName, toastManager } = this.widget.config;
     const { threadWorker } = this.widget.config;
 
+    // 逆向: amp uses I9.sizeOf(T).width for dynamic separator sizing
+    let separatorWidth = 80; // fallback
+    try {
+      separatorWidth = MediaQuery.sizeOf(_context as unknown as Element).width;
+    } catch {
+      // MediaQuery not in ancestor tree — use default
+    }
+
     // 消息区域 (占据全部剩余空间)
     // 逆向: Scrollable wrapping ConversationView
     const conversationScrollable = new Scrollable({
@@ -397,7 +407,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         // 分隔线
         new SizedBox({
           height: 1,
-          child: new Text({ data: "\u2500".repeat(80) }),
+          child: new Text({ data: "\u2500".repeat(separatorWidth) }),
         }),
         // 状态栏 — derive live StatusBarState from tracked fields
         // 逆向: yB() state machine (2731_unknown_yB.js)
@@ -419,7 +429,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         // 分隔线
         new SizedBox({
           height: 1,
-          child: new Text({ data: "\u2500".repeat(80) }),
+          child: new Text({ data: "\u2500".repeat(separatorWidth) }),
         }),
         // 输入框 or 审批对话框
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows

@@ -2,7 +2,7 @@
  * TUI Kitchen Sink — Full Widget Showcase.
  *
  * A comprehensive demo combining all @flitter/tui widget categories
- * in a single 80x24 screen. Left side: layout + decoration widgets.
+ * in a single 240x60 screen. Left side: layout + decoration widgets.
  * Right side: text + interactive + scroll APIs.
  *
  * Run: bun run examples/tui-kitchen-sink.ts
@@ -47,8 +47,8 @@ function writeText(
 //  Setup
 // ════════════════════════════════════════════════════
 
-const W = 80;
-const H = 24;
+const W = 240;
+const H = 60;
 const screen = new Screen(W, H);
 
 const titleStyle = new TextStyle({ foreground: Color.cyan(), bold: true });
@@ -61,8 +61,8 @@ const dimStyle = new TextStyle({ dim: true });
 
 // Title bar background
 const titleDeco = new BoxDecoration({ color: Color.rgb(30, 60, 100) });
-const titleRO = new ContainerRenderObject(80, 1, undefined, undefined, titleDeco);
-titleRO.layout(BoxConstraints.tight(80, 1));
+const titleRO = new ContainerRenderObject(W, 1, undefined, undefined, titleDeco);
+titleRO.layout(BoxConstraints.tight(W, 1));
 titleRO.paint(screen, 0, 0);
 writeText(screen, 2, 0, "╸ Flitter TUI Kitchen Sink — All Widget Categories ╺", titleStyle);
 

@@ -219,9 +219,79 @@ export class InputParser {
   /** 内部 VtParser 实例（用于 feed 方法） */
   private vtParser: VtParser;
 
+  // ── Escape timeout mechanism ──────────────────────
+  //
+  // 逆向: amp InputParser in chunk-005.js:163013-163099
+  //
+  // When a standalone ESC byte arrives (data.length === 1 && data[0] === 0x1b),
+  // we schedule a 25ms timeout. If no more bytes arrive within that window,
+  // we emit a standalone "Escape" key event. If more bytes arrive (the ESC was
+  // the start of an escape sequence like CSI, SS3, etc.), the timeout is
+  // cleared and the full sequence is parsed normally by the VtParser.
+
+  /**
+   * Timeout handle for pending standalone ESC detection.
+   *
+   * 逆向: amp escapeTimeout = null (chunk-005.js:163013)
+   */
+  private escapeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Whether we have a pending standalone ESC that hasn't resolved yet.
+   *
+   * 逆向: amp pendingEscape (chunk-005.js:163088)
+   */
+  private pendingEscape = false;
+
+  /**
+   * Timeout in ms to wait before treating ESC as standalone.
+   *
+   * 逆向: amp ESCAPE_TIMEOUT_MS = 25 (chunk-005.js:163014)
+   */
+  private readonly ESCAPE_TIMEOUT_MS = 25;
+
   constructor() {
     this.vtParser = new VtParser();
     this.vtParser.onEvent((evt) => this.handleVtEvent(evt));
+  }
+
+  /**
+   * Check if data is a standalone ESC byte (single 0x1b).
+   *
+   * 逆向: amp isStandaloneEscape (chunk-005.js:163084-163086)
+   */
+  private isStandaloneEscape(data: Buffer | Uint8Array): boolean {
+    return data.length === 1 && data[0] === 0x1b;
+  }
+
+  /**
+   * Schedule a timeout to emit standalone Escape if no follow-up bytes arrive.
+   *
+   * 逆向: amp scheduleEscapeTimeout (chunk-005.js:163087-163099)
+   */
+  private scheduleEscapeTimeout(): void {
+    this.pendingEscape = true;
+    this.escapeTimeout = setTimeout(() => {
+      this.pendingEscape = false;
+      // Reset the VtParser which is sitting in "escape" state waiting for more bytes
+      this.vtParser.reset();
+      // Emit standalone Escape key event
+      this.emit(keyEvent("Escape"));
+      this.escapeTimeout = null;
+    }, this.ESCAPE_TIMEOUT_MS);
+  }
+
+  /**
+   * Clear any pending escape timeout.
+   *
+   * 逆向: amp clearEscapeTimeout (chunk-005.js:163101-163103)
+   */
+  private clearEscapeTimeout(): void {
+    if (this.escapeTimeout) {
+      clearTimeout(this.escapeTimeout);
+      this.escapeTimeout = null;
+    }
+    this.pendingEscape = false;
   }
 
   // ════════════════════════════════════════════════════
@@ -267,9 +337,33 @@ export class InputParser {
    * 调用结束后自动刷新 VtParser 的打印缓冲区，确保所有
    * 可打印字符都产生事件。
    *
+   * 逆向: amp parse (chunk-005.js:163075-163082) — standalone ESC detection
+   * When a single ESC byte arrives, schedules a 25ms timeout. If no follow-up
+   * bytes arrive (confirming it's not the start of CSI/SS3/etc.), emits a
+   * standalone "Escape" key event. If more bytes come, the timeout is cleared
+   * and normal sequence parsing proceeds.
+   *
    * @param data - 原始字节数据
    */
   feed(data: Buffer | Uint8Array): void {
+    // ── Standalone ESC detection (amp pattern) ──
+    // 逆向: amp parse (chunk-005.js:163076-163081)
+    if (this.isStandaloneEscape(data)) {
+      // Clear any previous escape timeout and schedule a new one
+      this.clearEscapeTimeout();
+      this.scheduleEscapeTimeout();
+      // Still pass to VtParser so it enters escape state (waiting for follow-up)
+      this.vtParser.parse(data);
+      return;
+    }
+
+    // If we had a pending escape and more data arrived, clear the timeout —
+    // the ESC was the start of a multi-byte sequence, not standalone.
+    // 逆向: amp parse (chunk-005.js:163081)
+    if (this.escapeTimeout) {
+      this.clearEscapeTimeout();
+    }
+
     // 将数据按段切分：C0 控制字符和 DEL 单独处理，其余交给 VtParser
     let start = 0;
 
@@ -303,8 +397,12 @@ export class InputParser {
    *
    * 刷新 VtParser 的打印缓冲区并重置粘贴模式。
    * 用于终端恢复后清除可能的部分解析状态。
+   *
+   * 逆向: amp reset (chunk-005.js:163108-163109)
+   * Also clears any pending escape timeout.
    */
   reset(): void {
+    this.clearEscapeTimeout();
     this.vtParser.reset();
     this.pasteMode = false;
     this.pasteBuffer = "";

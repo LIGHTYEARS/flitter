@@ -27,8 +27,8 @@ import { BoxDecoration } from "../packages/tui/src/widgets/box-decoration.js";
 //  Constants
 // ============================================================
 
-const WIDTH = 80;
-const HEIGHT = 24;
+const WIDTH = 240;
+const HEIGHT = 60;
 
 // ============================================================
 //  Helper: write a string to the screen at (x, y)
@@ -459,7 +459,7 @@ writeText(screen, 1, footerY, " Flitter TUI ", new TextStyle({
   background: footerBg,
   bold: true,
 }));
-writeText(screen, 15, footerY, "| Screen: 80x24 | Widgets: Container, Flex, SizedBox, Align |", new TextStyle({
+writeText(screen, 15, footerY, "| Screen: 240x60 | Widgets: Container, Flex, SizedBox, Align |", new TextStyle({
   foreground: Color.brightBlack(),
   background: footerBg,
 }));

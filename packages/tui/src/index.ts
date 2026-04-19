@@ -49,3 +49,12 @@ export {
   Viewport,
   ViewportWithPosition,
 } from "./widgets/viewport.js";
+// New TUI widgets
+export { Badge } from "./widgets/badge.js";
+export { NotificationBanner } from "./widgets/notification-banner.js";
+export type { NotificationType } from "./widgets/notification-banner.js";
+export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
+export { SplitPane, SplitPaneRenderObject } from "./widgets/split-pane.js";
+export type { SplitDirection } from "./widgets/split-pane.js";
+export { Toggle } from "./widgets/toggle.js";
+export type { ToggleStyle } from "./widgets/toggle.js";

@@ -240,7 +240,7 @@ class ScrollableDemoState extends State<ScrollableDemo> {
         children: [
           // Title bar
           new Container({
-            width: 80,
+            width: 240,
             height: 1,
             decoration: new BoxDecoration({ color: Color.rgb(30, 60, 100) }),
             child: new Text({
@@ -274,7 +274,7 @@ class ScrollableDemoState extends State<ScrollableDemo> {
 
           // Footer
           new Container({
-            width: 80,
+            width: 240,
             height: 1,
             decoration: new BoxDecoration({ color: Color.rgb(40, 40, 40) }),
             child: new Text({

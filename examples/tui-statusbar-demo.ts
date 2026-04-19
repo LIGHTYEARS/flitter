@@ -241,7 +241,7 @@ class StatusBarDemoState extends State<StatusBarDemo> {
         new SizedBox({ height: 2 }) as unknown as Widget,
         new SizedBox({
           height: 1,
-          child: new Text({ data: "\u2500".repeat(80) }),
+          child: new Text({ data: "\u2500".repeat(240) }),
         }) as unknown as Widget,
         new StatusBar({ state: scenario.state }) as unknown as Widget,
       ],

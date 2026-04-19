@@ -365,11 +365,12 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     // 逆向: Scrollable wrapping ConversationView
     const conversationScrollable = new Scrollable({
       controller: this._scrollController,
-      child: new ConversationView({
-        items: this._items,
-        inferenceState: this._inferenceState,
-        error: this._error,
-      }),
+      viewportBuilder: () =>
+        new ConversationView({
+          items: this._items,
+          inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+          error: this._error,
+        }),
     });
 
     // 逆向: NQT (chunk-006.js:11009-11020) — Stack([child, Positioned(top:0, left:0, right:0, child: toastColumn)])

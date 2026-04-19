@@ -9,7 +9,8 @@
  * 仅测试可独立验证的内部函数和导出。
  */
 import assert from "node:assert/strict";
-import { describe, it, beforeEach, mock } from "node:test";
+import { describe, it, beforeEach } from "node:test";
+import { mock } from "bun:test";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { CliContext } from "../context";
 
@@ -28,25 +29,25 @@ function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): 
   };
 
   const threadStore = {
-    setCachedThread: mock.fn(() => ({})),
-    getThreadSnapshot: mock.fn((_id: string) => overrides.threadSnapshot ?? null),
-    observeThread: mock.fn((_id: string) => undefined),
+    setCachedThread: mock(() => ({})),
+    getThreadSnapshot: mock((_id: string) => overrides.threadSnapshot ?? null),
+    observeThread: mock((_id: string) => undefined),
   };
 
   const mockWorker = {
-    runInference: mock.fn(async () => {}),
-    cancelInference: mock.fn(() => {}),
-    dispose: mock.fn(() => {}),
+    runInference: mock(async () => {}),
+    cancelInference: mock(() => {}),
+    dispose: mock(() => {}),
     events$: {
-      subscribe: mock.fn(() => ({ unsubscribe: () => {}, closed: false })),
+      subscribe: mock(() => ({ unsubscribe: () => {}, closed: false })),
     },
   };
 
   const container = {
     configService,
     threadStore,
-    createThreadWorker: mock.fn((_threadId: string) => mockWorker),
-    asyncDispose: mock.fn(async () => {}),
+    createThreadWorker: mock((_threadId: string) => mockWorker),
+    asyncDispose: mock(async () => {}),
     ...((overrides.containerOverrides as Record<string, unknown>) ?? {}),
   } as unknown as ServiceContainer;
 
@@ -80,7 +81,7 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
     assert.ok(threadId);
     assert.equal(typeof threadId, "string");
     assert.ok(threadId.length > 0);
-    assert.equal((container.threadStore.setCachedThread as any).mock.callCount(), 1);
+    assert.equal((container.threadStore.setCachedThread as any).mock.calls.length, 1);
   });
 
   it("resolveThread 有 threadId 时返回该 threadId", async () => {
@@ -96,10 +97,10 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
   it("resolveThread --continue 恢复最近 thread", async () => {
     const { _testing } = await import("./interactive.js");
     const container = createMockContainer();
-    // 添加 listThreads mock
-    (container.threadStore as any).listThreads = () => [
-      { id: "recent-thread-1" },
-      { id: "older-thread-2" },
+    // 添加 listRecentThreadIds mock
+    (container.threadStore as any).listRecentThreadIds = (_n: number) => [
+      "recent-thread-1",
+      "older-thread-2",
     ];
     const context = createMockContext({ continueThread: true });
 
@@ -111,20 +112,20 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
   it("resolveThread --continue 无 threads 时创建新 thread", async () => {
     const { _testing } = await import("./interactive.js");
     const container = createMockContainer();
-    (container.threadStore as any).listThreads = () => [];
+    (container.threadStore as any).listRecentThreadIds = (_n: number) => [];
     const context = createMockContext({ continueThread: true });
 
     const threadId = await _testing.resolveThread(container, context);
 
     assert.equal(typeof threadId, "string");
     assert.ok(threadId.length > 0);
-    assert.equal((container.threadStore.setCachedThread as any).mock.callCount(), 1);
+    assert.equal((container.threadStore.setCachedThread as any).mock.calls.length, 1);
   });
 
-  it("resolveThread --continue 无 listThreads 方法时创建新 thread", async () => {
+  it("resolveThread --continue 无 listRecentThreadIds 方法时创建新 thread", async () => {
     const { _testing } = await import("./interactive.js");
     const container = createMockContainer();
-    // threadStore 没有 listThreads 方法
+    // threadStore 没有 listRecentThreadIds 方法
     const context = createMockContext({ continueThread: true });
 
     const threadId = await _testing.resolveThread(container, context);

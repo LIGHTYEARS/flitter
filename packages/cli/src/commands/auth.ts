@@ -34,14 +34,12 @@ import {
 } from "../auth/api-key";
 import type { CliContext } from "../context";
 
-let providersRegistered = false;
-
 function ensureOAuthProviders(): void {
-  if (providersRegistered) return;
+  // Always register (Map.set is idempotent) — the registry may have been
+  // cleared externally (e.g. by tests calling clearOAuthProviders).
   registerOAuthProvider(new AnthropicOAuthProvider());
   registerOAuthProvider(new OpenAICodexOAuthProvider());
   registerOAuthProvider(new GitHubCopilotOAuthProvider());
-  providersRegistered = true;
 }
 
 export interface AuthCommandDeps {

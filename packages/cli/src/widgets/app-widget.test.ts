@@ -19,7 +19,7 @@ import { AppWidget, AppWidgetState } from "./app-widget.js";
 import { ThreadStateWidget, ThreadStateWidgetState } from "./thread-state-widget.js";
 import { ThemeController, type ThemeData } from "./theme-controller.js";
 import { ConfigProvider } from "./config-provider.js";
-import { StatefulWidget, State } from "@flitter/tui";
+import { Column, StatefulWidget, State } from "@flitter/tui";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -132,32 +132,32 @@ describe("AppWidget", () => {
 
 describe("ThreadStateWidget", () => {
   it("继承 StatefulWidget", () => {
-    const child = new StubWidget();
     const widget = new ThreadStateWidget({
-      threadStore: {},
-      threadWorker: {},
-      child,
+      threadStore: { observeThread: () => undefined },
+      threadWorker: { events$: { subscribe: () => ({ unsubscribe: () => {}, closed: false }) } },
+      threadId: "test",
+      onSubmit: () => {},
     });
     expect(widget).toBeInstanceOf(StatefulWidget);
   });
 
   it("createState 返回 ThreadStateWidgetState", () => {
-    const child = new StubWidget();
     const widget = new ThreadStateWidget({
-      threadStore: {},
-      threadWorker: {},
-      child,
+      threadStore: { observeThread: () => undefined },
+      threadWorker: { events$: { subscribe: () => ({ unsubscribe: () => {}, closed: false }) } },
+      threadId: "test",
+      onSubmit: () => {},
     });
     const state = widget.createState();
     expect(state).toBeInstanceOf(ThreadStateWidgetState);
   });
 
-  it("build 返回 config.child", () => {
-    const child = new StubWidget();
+  it("build 返回 Column 布局", () => {
     const widget = new ThreadStateWidget({
-      threadStore: {},
-      threadWorker: {},
-      child,
+      threadStore: { observeThread: () => undefined },
+      threadWorker: { events$: { subscribe: () => ({ unsubscribe: () => {}, closed: false }) } },
+      threadId: "test-thread",
+      onSubmit: () => {},
     });
     const state = widget.createState() as ThreadStateWidgetState;
 
@@ -165,7 +165,7 @@ describe("ThreadStateWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never);
-    expect(built).toBe(child);
+    expect(built).toBeInstanceOf(Column);
   });
 });
 

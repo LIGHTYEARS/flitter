@@ -133,6 +133,8 @@ export class TuiController {
   private capabilities: TerminalCapabilities | null = null;
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** 能力检测 resolve 回调 */
+  private capabilityResolve: (() => void) | null = null;
 
   /** 缓存的终端尺寸（amp: this.terminalSize） */
   private terminalSize: TerminalSize = { width: 80, height: 24 };

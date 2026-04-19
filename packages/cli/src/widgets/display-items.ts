@@ -20,7 +20,7 @@ import { generateSimpleDiff } from "./diff-widget.js";
 
 // ─── Display Item Types ─────────────────────────────
 
-export type DisplayItem = MessageItem | ToolItem | ActivityGroupItem;
+export type DisplayItem = MessageItem | ToolItem | ActivityGroupItem | ThinkingItem;
 
 export interface MessageItem {
   type: "message";
@@ -77,6 +77,22 @@ export interface ActivityGroupItem {
   actions: ActivityAction[];
   summary: string;
   hasInProgress: boolean;
+  /** Whether this is a subagent activity group (逆向: chunk-006.js:28457-28786) */
+  isSubagent?: boolean;
+  /** Display label for the subagent (逆向: qv.name field) */
+  subagentLabel?: string;
+}
+
+/**
+ * A thinking block from the assistant's reasoning.
+ *
+ * 逆向: Rd class (chunk-006.js:16846-17009) — ThinkingBlock widget.
+ * Collapsed shows "✓ Thinking ▶", expanded shows full text with "▼".
+ */
+export interface ThinkingItem {
+  type: "thinking";
+  text: string;
+  isExpanded: boolean;
 }
 
 // ─── Tool classification ─────────────────────────────
@@ -114,6 +130,7 @@ const HIDDEN_TOOLS = new Set(["thread_status"]);
 interface RawContentBlock {
   type: string;
   text?: string;
+  thinking?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
@@ -183,25 +200,44 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       continue;
     }
 
-    // Extract text blocks as message items (逆向: ux0 text filtering with hidden/trim checks)
+    // Extract text blocks and thinking blocks as items
+    // 逆向: gB() in chunk-005.js:2089-2127 — iterates content blocks,
+    // accumulates text into markdown items, emits ThinkingItem for type==="thinking"
     const textParts: string[] = [];
+    const pendingItems: DisplayItem[] = [];
+
+    const flushTextParts = () => {
+      if (textParts.length === 0) return;
+      const joined = textParts.join("");
+      if (joined.trim().length > 0 &&
+        (msg.role === "user" || msg.role === "assistant" || msg.role === "system")) {
+        const contentArr = msg.content as RawContentBlock[];
+        const hasToolResults = contentArr.some((b) => b.type === "tool_result");
+        if (!hasToolResults || joined.trim()) {
+          pendingItems.push({ type: "message", role: msg.role, text: joined });
+        }
+      }
+      textParts.length = 0;
+    };
+
     for (const block of msg.content) {
       if (block.type === "text" && block.text) {
         textParts.push(block.text);
+      } else if (block.type === "thinking" && typeof block.thinking === "string") {
+        // 逆向: gB() line 2119-2124 — flush text, then emit ThinkingItem (Rd widget)
+        flushTextParts();
+        pendingItems.push({
+          type: "thinking",
+          text: block.thinking as string,
+          isExpanded: false,
+        });
       }
     }
-    if (
-      textParts.length > 0 &&
-      (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
-    ) {
-      // Only emit message item if there's actual text content.
-      // Skip user messages that only contain tool_result blocks (逆向: ux0 user branch
-      // filters out tool_result-only messages, only emitting text/image content).
-      const hasToolResults = msg.content.some((b) => b.type === "tool_result");
-      if (!hasToolResults || textParts.some((t) => t.trim())) {
-        flushActivityBuffer();
-        items.push({ type: "message", role: msg.role, text: textParts.join("") });
-      }
+    flushTextParts();
+
+    if (pendingItems.length > 0) {
+      flushActivityBuffer();
+      items.push(...pendingItems);
     }
 
     // Process tool_use blocks (逆向: yx0 main classification switch)

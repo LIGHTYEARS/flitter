@@ -3,7 +3,8 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { mock } from "bun:test";
 import type { OAuthLoginCallbacks } from "../types";
 import { GitHubCopilotOAuthProvider } from "./github-copilot";
 
@@ -106,7 +107,7 @@ describe("GitHubCopilotOAuthProvider", () => {
         endpoints: [{ api: "openai-chat", base_url: "https://proxy.githubcopilot.com" }],
       };
 
-      globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
         const urlStr =
           typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         assert.ok(urlStr.includes("githubcopilot.com"));
@@ -128,7 +129,7 @@ describe("GitHubCopilotOAuthProvider", () => {
     });
 
     it("should throw on copilot token failure", async () => {
-      globalThis.fetch = mock.fn(async () => {
+      globalThis.fetch = mock(async () => {
         return new Response("unauthorized", { status: 401 });
       }) as typeof globalThis.fetch;
 
@@ -159,7 +160,7 @@ describe("GitHubCopilotOAuthProvider", () => {
       let capturedInstructions = "";
 
       // Mock fetch to handle device code, token poll, and copilot token
-      globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
         const urlStr =
           typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         fetchCallCount++;
@@ -227,7 +228,7 @@ describe("GitHubCopilotOAuthProvider", () => {
     it("should support enterprise domain", async () => {
       let deviceCodeUrl = "";
 
-      globalThis.fetch = mock.fn(async (url: string | URL | Request) => {
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
         const urlStr =
           typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
 

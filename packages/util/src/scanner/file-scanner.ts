@@ -49,6 +49,8 @@ export interface ScanOptions {
   alwaysIncludePaths?: string[];
   /** Abort signal for cancellation */
   abortSignal?: AbortSignal;
+  /** Skip external tool detection and use NodeJS fallback (useful for testing) */
+  forceNodeJS?: boolean;
 }
 
 export interface ScanResult {
@@ -69,6 +71,7 @@ interface ResolvedOptions {
   ignorePatterns: string[];
   alwaysIncludePaths: string[];
   abortSignal: AbortSignal | undefined;
+  forceNodeJS: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,12 +370,13 @@ export class FileScanner {
       ignorePatterns: options?.ignorePatterns ?? [],
       alwaysIncludePaths: options?.alwaysIncludePaths ?? [],
       abortSignal: options?.abortSignal,
+      forceNodeJS: options?.forceNodeJS ?? false,
     };
   }
 
   /** Detect available external tools (rg / fd). Called automatically by scan(). */
   async initialize(): Promise<void> {
-    this._externalTool = await detectExternalTool();
+    this._externalTool = this._options.forceNodeJS ? null : await detectExternalTool();
     this._initialized = true;
   }
 

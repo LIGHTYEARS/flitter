@@ -10,33 +10,9 @@
 import type { RenderObject } from "./render-object.js";
 import { getBuildOwner } from "./types.js";
 
-// ════════════════════════════════════════════════════
-//  前置接口声明
-// ════════════════════════════════════════════════════
-
-/**
- * 用于标识 Widget 的键接口。
- *
- * 可选实现 {@link equals} 方法以自定义比较逻辑。
- */
-export interface Key {
-  /** 判断两个 Key 是否相等。 */
-  equals?(other: Key): boolean;
-}
-
-/**
- * Widget 最小前置声明接口。
- *
- * 在 Plan 04-05 之前作为占位使用。
- */
-export interface Widget {
-  /** 可选标识键 */
-  key: Key | undefined;
-  /** 判断当前 Widget 是否能用 other 更新。 */
-  canUpdate(other: Widget): boolean;
-  /** 创建与此 Widget 关联的 Element。 */
-  createElement(): Element;
-}
+// Re-export the canonical Widget and Key types from widget.ts to avoid
+// duplicate interface / class divergence (type-only import breaks no cycles).
+export type { Key, Widget } from "./widget.js";
 
 // ════════════════════════════════════════════════════
 //  Element 抽象基类

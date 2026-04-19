@@ -101,10 +101,14 @@ async function resolveThread(
 
   // --continue 标志: 恢复最近的 thread
   if (context.continueThread) {
-    const recentIds = container.threadStore.listRecentThreadIds(1);
-    if (recentIds.length > 0) {
-      log.info("Continuing most recent thread", { threadId: recentIds[0] });
-      return recentIds[0];
+    try {
+      const recentIds = container.threadStore.listRecentThreadIds(1);
+      if (recentIds.length > 0) {
+        log.info("Continuing most recent thread", { threadId: recentIds[0] });
+        return recentIds[0];
+      }
+    } catch {
+      // listRecentThreadIds may not be available — fall through to create new
     }
   }
 

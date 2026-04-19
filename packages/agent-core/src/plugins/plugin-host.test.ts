@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { PluginHost } from "./plugin-host";
 import type { PluginAction } from "./types";
 

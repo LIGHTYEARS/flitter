@@ -27,25 +27,16 @@
  * @module
  */
 
-import type { BuildContext, KeyEvent, PasteEvent, Widget } from "@flitter/tui";
-import {
-  Color,
-  Column,
-  EdgeInsets,
-  FocusManager,
-  FocusNode,
-  type KeyEventResult,
-  MediaQuery,
-  Padding,
-  RichText,
-  SizedBox,
-  State,
-  StatefulWidget,
-  TextEditingController,
-  TextSpan,
-  TextStyle,
-} from "@flitter/tui";
-import type { PromptHistory } from "./prompt-history.js";
+import { StatefulWidget, State, Column, SizedBox, Padding, EdgeInsets, RichText, TextSpan } from "@flitter/tui";
+import { TextStyle } from "@flitter/tui";
+import { Color } from "@flitter/tui";
+import type { Widget } from "@flitter/tui";
+import type { BuildContext } from "@flitter/tui";
+import { TextEditingController } from "@flitter/tui";
+import { FocusNode, type KeyEventResult } from "@flitter/tui";
+import { FocusManager } from "@flitter/tui";
+import type { KeyEvent, PasteEvent } from "@flitter/tui";
+import { detectShellCommand, getShellModeBorderColor } from "./command-detection.js";
 
 // ════════════════════════════════════════════════════
 //  颜色常量
@@ -84,21 +75,10 @@ export interface InputFieldConfig {
   onSubmit: (text: string) => void;
   /** 占位符文本 */
   placeholder?: string;
-  /**
-   * Override inner width (number of ─ chars in the border).
-   * If undefined, uses MediaQuery terminal width - 4 (border + padding) at render time.
-   * Falls back to DEFAULT_BORDER_INNER_WIDTH (78) when MediaQuery is unavailable.
-   *
-   * 逆向: Gm.maxWidth in actions_intents.js line 704
-   */
+  /** 历史记录导航 (optional) */
+  promptHistory?: import("./prompt-history.js").PromptHistory;
+  /** Override width for border rendering (default: derived from MediaQuery or 78) */
   width?: number;
-  /**
-   * Prompt history for up/down arrow navigation (optional).
-   *
-   * 逆向: NavigateToPromptHistoryIntent (DM) in actions_intents.js;
-   * navigateHistoryPrevious / navigateHistoryNext in chunk-006.js:34950-34960
-   */
-  promptHistory?: PromptHistory;
 }
 
 // ════════════════════════════════════════════════════
@@ -208,32 +188,24 @@ export class InputFieldState extends State<InputField> {
    * - 边框颜色: 聚焦 primary (#7aa2f7), 非聚焦 border (#3b4261)
    * - 高度: 1-5 行动态调整
    *
-   * @param context - 构建上下文
+   * @param _context - 构建上下文
    * @returns Widget 树
    */
-  build(context: BuildContext): Widget {
+  build(_context: BuildContext): Widget {
     const text = this._controller.text;
     const isEmpty = !text;
     const isFocused = this._focusNode.hasFocus;
 
-    // 边框颜色: primary 聚焦 / border 非聚焦
-    const borderColor = isFocused ? PRIMARY_COLOR : BORDER_COLOR;
-    const borderStyle = new TextStyle({ foreground: borderColor });
-
-    // ── 自适应宽度计算 ──
-    // 逆向: Gm._updateScrollOffset (actions_intents.js line 903):
-    //   c = (this.widget.maxWidth || renderObjectWidth) - border*2 - padding
-    // 我们的简化版: width prop > MediaQuery.size.width - 4 > DEFAULT_BORDER_INNER_WIDTH
-    let innerWidth = this.widget.config.width ?? DEFAULT_BORDER_INNER_WIDTH;
-
-    if (!this.widget.config.width) {
-      try {
-        const mediaData = MediaQuery.of(context);
-        innerWidth = Math.max(20, mediaData.size.width - 4);
-      } catch {
-        // MediaQuery not available — use default
-      }
+    // 边框颜色: shell 模式使用 shellMode/shellModeHidden 色, 否则 primary/border
+    // 逆向: k8R.build() (chunk-006.js:31497) — currentShellModeStatus ? MN0(R, status) : e.selectedMessage
+    const shellResult = detectShellCommand(text);
+    let borderColor: Color;
+    if (shellResult) {
+      borderColor = getShellModeBorderColor(shellResult.visibility);
+    } else {
+      borderColor = isFocused ? PRIMARY_COLOR : BORDER_COLOR;
     }
+    const borderStyle = new TextStyle({ foreground: borderColor });
 
     // 内容 Widget
     let contentWidget: Widget;
@@ -274,7 +246,8 @@ export class InputFieldState extends State<InputField> {
     const lineCount = Math.min(5, Math.max(1, (text.match(/\n/g) || []).length + 1));
 
     // 边框字符
-    const horizontalLine = "\u2500".repeat(innerWidth);
+    const borderInnerWidth = this.widget.config.width ?? DEFAULT_BORDER_INNER_WIDTH;
+    const horizontalLine = "\u2500".repeat(borderInnerWidth);
     const topBorder = `\u250C${horizontalLine}\u2510`;
     const bottomBorder = `\u2514${horizontalLine}\u2518`;
 
@@ -316,43 +289,6 @@ export class InputFieldState extends State<InputField> {
    * @returns 处理结果
    */
   private _handleKeyEvent(event: KeyEvent): KeyEventResult {
-    // ── History navigation (ArrowUp / ArrowDown) ──
-    // 逆向: navigateHistoryPrevious / navigateHistoryNext in chunk-006.js:34950-34960
-    // In amp, ArrowUp on the first line of the TextField returns "ignored",
-    // which bubbles up to the intent system that triggers NavigateToPromptHistoryIntent.
-    // We simplify: single-line InputField handles ArrowUp/Down directly.
-
-    if (event.key === "ArrowUp" && !event.modifiers.shift) {
-      const history = this.widget.config.promptHistory;
-      if (history && history.entries.length > 0) {
-        // CRITICAL: startNavigation() must only be called ONCE at the start of
-        // a navigation session. Calling it on every ArrowUp would overwrite the
-        // saved draft. Check isNavigating before calling it.
-        if (!history.isNavigating) {
-          history.startNavigation(this._controller.text);
-        }
-        if (history.canGoBack()) {
-          const prev = history.goBack();
-          this._controller.text = prev;
-          this._controller.moveCursorToEnd();
-          this._markDirty();
-          return "handled";
-        }
-      }
-      return "ignored";
-    }
-
-    if (event.key === "ArrowDown" && !event.modifiers.shift) {
-      const history = this.widget.config.promptHistory;
-      if (history?.canGoForward()) {
-        const next = history.goForward();
-        this._controller.text = next;
-        this._controller.moveCursorToEnd();
-        this._markDirty();
-        return "handled";
-      }
-    }
-
     // Shift+Enter: 插入换行
     if (event.key === "Enter" && event.modifiers.shift) {
       this._controller.insertText("\n");
@@ -361,16 +297,13 @@ export class InputFieldState extends State<InputField> {
     }
 
     // Enter (无 Shift): 提交
-    // 逆向: chunk-006.js:34961-34963 — resetHistory() called on submit
     if (event.key === "Enter" && !event.modifiers.shift) {
       const text = this._controller.text;
       if (text.trim()) {
-        this.widget.config.promptHistory?.push(text);
         this._controller.text = "";
         this.widget.config.onSubmit(text);
-        this._markDirty();
-        return "handled";
       }
+      return "handled";
     }
 
     if (event.key === "Backspace") {
@@ -380,7 +313,11 @@ export class InputFieldState extends State<InputField> {
     }
 
     // 普通可打印字符 (单字符，无 ctrl/meta 修饰)
-    if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
+    if (
+      event.key.length === 1 &&
+      !event.modifiers.ctrl &&
+      !event.modifiers.meta
+    ) {
       this._controller.insertText(event.key);
       this._markDirty();
       return "handled";

@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { afterEach, describe, it } from "node:test";
 import { spawn } from "../process.ts";
 import type { StatusEntry } from "./git.ts";
 import {
@@ -11,7 +14,33 @@ import {
   statusEntryToChangeType,
 } from "./git.ts";
 
-const FLITTER_ROOT = "/home/gem/workspace/flitter";
+// Derive the monorepo root dynamically:
+// This file is at packages/util/src/git/git.test.ts → 4 levels up
+const FLITTER_ROOT = path.resolve(import.meta.dirname ?? __dirname, "../../../../");
+
+// Temp dirs for captureGitStatus tests (clean git repos = fast, no dirty-state penalty)
+const tmpDirs: string[] = [];
+
+function makeTmpGitRepo(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "flitter-git-test-"));
+  tmpDirs.push(dir);
+  // Initialize a git repo with one commit so captureGitStatus has something to work with
+  const execSync = require("node:child_process").execFileSync;
+  execSync("git", ["init"], { cwd: dir, stdio: "ignore" });
+  execSync("git", ["config", "user.email", "test@test.com"], { cwd: dir, stdio: "ignore" });
+  execSync("git", ["config", "user.name", "Test"], { cwd: dir, stdio: "ignore" });
+  fs.writeFileSync(path.join(dir, "hello.txt"), "hello");
+  execSync("git", ["add", "."], { cwd: dir, stdio: "ignore" });
+  execSync("git", ["commit", "-m", "init"], { cwd: dir, stdio: "ignore" });
+  return dir;
+}
+
+afterEach(() => {
+  for (const dir of tmpDirs) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+  tmpDirs.length = 0;
+});
 
 // ---------------------------------------------------------------------------
 // parsePortalainStatus — unit tests
@@ -178,13 +207,15 @@ describe("getGitDiff", () => {
 // ---------------------------------------------------------------------------
 
 describe("captureGitStatus", () => {
-  it("returns available: true for the flitter repo", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+  it("returns available: true for a git repo", async () => {
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.equal(snapshot.available, true);
   });
 
   it("repositoryRoot is an absolute path", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.ok(
       snapshot.repositoryRoot.startsWith("/"),
       `Expected absolute path, got: ${snapshot.repositoryRoot}`,
@@ -192,17 +223,20 @@ describe("captureGitStatus", () => {
   });
 
   it("repositoryName is a non-empty string", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.ok(snapshot.repositoryName.length > 0, "repositoryName should be non-empty");
   });
 
   it("provider is 'git'", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.equal(snapshot.provider, "git");
   });
 
   it("branch is string or null", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.ok(
       snapshot.branch === null || typeof snapshot.branch === "string",
       "branch must be string or null",
@@ -210,7 +244,8 @@ describe("captureGitStatus", () => {
   });
 
   it("head is string or null", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.ok(
       snapshot.head === null || typeof snapshot.head === "string",
       "head must be string or null",
@@ -218,13 +253,15 @@ describe("captureGitStatus", () => {
   });
 
   it("files is an array", async () => {
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const repo = makeTmpGitRepo();
+    const snapshot = await captureGitStatus(repo);
     assert.ok(Array.isArray(snapshot.files), "files should be an array");
   });
 
   it("capturedAt is close to Date.now()", async () => {
+    const repo = makeTmpGitRepo();
     const before = Date.now();
-    const snapshot = await captureGitStatus(FLITTER_ROOT);
+    const snapshot = await captureGitStatus(repo);
     const after = Date.now();
     assert.ok(
       snapshot.capturedAt >= before && snapshot.capturedAt <= after,

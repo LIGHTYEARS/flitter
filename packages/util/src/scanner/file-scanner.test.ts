@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, it } from "node:test";
+import type { ScanOptions } from "./file-scanner.ts";
 import { FileScanner } from "./file-scanner.ts";
 
 // ---------------------------------------------------------------------------
@@ -10,6 +11,11 @@ import { FileScanner } from "./file-scanner.ts";
 // ---------------------------------------------------------------------------
 
 const tmpDirs: string[] = [];
+
+/** All test scanners use NodeJS fallback to get deterministic behavior */
+function createScanner(roots: string[], opts?: ScanOptions): FileScanner {
+  return new FileScanner(roots, { forceNodeJS: true, ...opts });
+}
 
 function makeTmpDir(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "flitter-scanner-test-"));
@@ -44,7 +50,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     touch(path.join(root, "b.ts"));
     touch(path.join(root, "c.ts"));
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root], { forceNodeJS: true });
     const result = await scanner.scan();
 
     const files = result.entries.filter((e) => !e.isDirectory);
@@ -67,7 +73,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     touch(path.join(root, "sub", "mid.ts"));
     touch(path.join(root, "sub", "deep", "bottom.ts"));
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     const result = await scanner.scan();
 
     const dirs = result.entries.filter((e) => e.isDirectory);
@@ -92,7 +98,7 @@ describe("FileScanner (NodeJS fallback)", () => {
       touch(path.join(root, `file${i}.ts`));
     }
 
-    const scanner = new FileScanner([root], { maxFiles: 5 });
+    const scanner = createScanner([root], { maxFiles: 5 });
     const result = await scanner.scan();
 
     assert.ok(result.entries.length <= 5, `Expected <=5 entries, got ${result.entries.length}`);
@@ -109,7 +115,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     touch(path.join(root, "d1", "depth1.ts")); // depth 1
     touch(path.join(root, "d1", "d2", "depth2.ts")); // depth 2
 
-    const scanner = new FileScanner([root], { maxDepth: 1 });
+    const scanner = createScanner([root], { maxDepth: 1 });
     const result = await scanner.scan();
 
     const fileNames = result.entries.filter((e) => !e.isDirectory).map((e) => e.name);
@@ -128,7 +134,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     touch(path.join(root, "b.log"));
     touch(path.join(root, "node_modules", "c.ts"));
 
-    const scanner = new FileScanner([root], {
+    const scanner = createScanner([root], {
       ignorePatterns: ["*.log", "node_modules"],
     });
     const result = await scanner.scan();
@@ -149,7 +155,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     touch(path.join(root, "normal.log"));
     touch(path.join(root, "important.log"));
 
-    const scanner = new FileScanner([root], {
+    const scanner = createScanner([root], {
       ignorePatterns: ["*.log"],
       alwaysIncludePaths: ["important.log"],
     });
@@ -167,7 +173,7 @@ describe("FileScanner (NodeJS fallback)", () => {
 
   it("empty directory returns zero entries", async () => {
     const root = makeTmpDir();
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     const result = await scanner.scan();
 
     assert.equal(result.entries.length, 0);
@@ -179,7 +185,7 @@ describe("FileScanner (NodeJS fallback)", () => {
 
   it("nonexistent root returns empty result without throwing", async () => {
     const bogus = path.join(os.tmpdir(), "flitter-scanner-nonexistent-" + Date.now());
-    const scanner = new FileScanner([bogus]);
+    const scanner = createScanner([bogus]);
     const result = await scanner.scan();
 
     assert.equal(result.entries.length, 0);
@@ -204,7 +210,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     // Abort immediately
     ac.abort();
 
-    const scanner = new FileScanner([root], { abortSignal: ac.signal });
+    const scanner = createScanner([root], { abortSignal: ac.signal });
     const result = await scanner.scan();
 
     // With immediate abort the scanner should return fewer entries than the full 200 files
@@ -231,7 +237,7 @@ describe("FileScanner (NodeJS fallback)", () => {
       return;
     }
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     const result = await scanner.scan();
 
     const names = result.entries.filter((e) => !e.isDirectory).map((e) => e.name);
@@ -254,7 +260,7 @@ describe("FileScanner (NodeJS fallback)", () => {
       return; // skip if symlinks not supported
     }
 
-    const scanner = new FileScanner([root], { followSymlinks: true });
+    const scanner = createScanner([root], { followSymlinks: true });
     const result = await scanner.scan();
 
     const names = result.entries.filter((e) => !e.isDirectory).map((e) => e.name);
@@ -270,7 +276,7 @@ describe("FileScanner (NodeJS fallback)", () => {
     const root = makeTmpDir();
     touch(path.join(root, "hello.ts"));
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     const result = await scanner.scan();
 
     for (const entry of result.entries) {
@@ -295,7 +301,7 @@ describe("FileScanner class", () => {
     touch(path.join(root1, "from1.ts"));
     touch(path.join(root2, "from2.ts"));
 
-    const scanner = new FileScanner([root1, root2]);
+    const scanner = createScanner([root1, root2]);
     const result = await scanner.scan();
 
     const names = result.entries.filter((e) => !e.isDirectory).map((e) => e.name);
@@ -311,7 +317,7 @@ describe("FileScanner class", () => {
       touch(path.join(root2, `r2_${i}.ts`));
     }
 
-    const scanner = new FileScanner([root1, root2], { maxFiles: 15 });
+    const scanner = createScanner([root1, root2], { maxFiles: 15 });
     const result = await scanner.scan();
 
     assert.ok(result.entries.length <= 15, `Expected <=15 entries, got ${result.entries.length}`);
@@ -319,7 +325,7 @@ describe("FileScanner class", () => {
   });
 
   it("initialize() can be called without error", async () => {
-    const scanner = new FileScanner(["/tmp"]);
+    const scanner = createScanner(["/tmp"]);
     await scanner.initialize();
     // No assertion needed -- just verify no throw
   });
@@ -328,7 +334,7 @@ describe("FileScanner class", () => {
     const root = makeTmpDir();
     touch(path.join(root, "auto.ts"));
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     // Deliberately skip initialize()
     const result = await scanner.scan();
 
@@ -341,7 +347,7 @@ describe("FileScanner class", () => {
     touch(path.join(root, "a.ts"));
     touch(path.join(root, "sub", "b.ts"));
 
-    const scanner = new FileScanner([root]);
+    const scanner = createScanner([root]);
     const result = await scanner.scan();
 
     assert.ok(result.scannedFiles >= 2, `Expected scannedFiles >= 2, got ${result.scannedFiles}`);
@@ -363,7 +369,7 @@ describe("glob matching", () => {
     touch(path.join(root, "src", "utils", "helper.ts"));
     touch(path.join(root, "lib", "index.ts"));
 
-    const scanner = new FileScanner([root], {
+    const scanner = createScanner([root], {
       ignorePatterns: ["src/**"],
     });
     const result = await scanner.scan();
@@ -383,7 +389,7 @@ describe("glob matching", () => {
     touch(path.join(root, "a2.ts"));
     touch(path.join(root, "abc.ts"));
 
-    const scanner = new FileScanner([root], {
+    const scanner = createScanner([root], {
       ignorePatterns: ["a?.ts"],
     });
     const result = await scanner.scan();

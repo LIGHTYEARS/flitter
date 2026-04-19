@@ -16,7 +16,7 @@
  *     - Container with BoxDecoration(background, Border.all(BorderSide(warning, 1, "rounded")))
  *     - Padding symmetric(1, 0)
  *     - Column: header (tool name + args), options list, footer hint
- *     - Options rendered as Row([arrow "▸"/" ", radio "●"/"○", spacer, label])
+ *     - Options rendered as Row([arrow "▸"/" ", radio "●"/"○", spacer, label [Alt+N]])
  * - Key handling: ArrowUp/k = up, ArrowDown/j = down, Enter = confirm, Escape = cancel
  * - Alt+1..N = direct select by position (1-indexed)
  *
@@ -24,6 +24,9 @@
  * - Triggered when user selects "no-with-feedback"
  * - Shows a text input, Enter submits with feedback text
  * - Escape exits feedback mode without response
+ *
+ * Rendering fidelity update — matches golden file:
+ *   tmux-capture/screens/amp/hitl-confirmation/plain-63x244.golden
  *
  * @module
  */
@@ -61,6 +64,10 @@ export interface ApprovalRequest {
   toolName: string;
   args: Record<string, unknown>;
   reason: string;
+  /** The command being approved (shown as preview, e.g. "sleep 60") */
+  commandPreview?: string;
+  /** Permission rule that matched (e.g. "built-in permissions rule 25: ask Bash") */
+  permissionRule?: string;
 }
 
 /**
@@ -178,7 +185,14 @@ interface ApprovalOption {
   color: Color;
 }
 
-/** 逆向: chunk-006.js:22722-22738 createConfirmationOptions tool-use branch */
+/**
+ * 逆向: chunk-006.js:22722-22738 createConfirmationOptions tool-use branch
+ * Golden: tmux-capture/screens/amp/hitl-confirmation/plain-63x244.golden
+ * - "Approve [Alt+1]"
+ * - "Allow All for This Session [Alt+2]"
+ * - "Allow All for Every Session [Alt+3]"
+ * - "Deny with feedback [Alt+4]"
+ */
 const APPROVAL_OPTIONS: ApprovalOption[] = [
   { value: "yes", label: "Approve", color: SUCCESS_COLOR },
   { value: "allow-all-session", label: "Allow All for This Session", color: SUCCESS_COLOR },
@@ -207,7 +221,7 @@ const SCOPE_MAP: Record<string, ApprovalScope> = {
  * - ArrowUp/k moves up, ArrowDown/j moves down
  * - Enter confirms selected option
  * - Alt+1..4 shortcuts for direct select (amp uses altKey+digit)
- * - Escape cancels (null response → simple deny in amp; we emit no-feedback deny)
+ * - Escape cancels (null response -> simple deny in amp; we emit no-feedback deny)
  *
  * p0R handles the feedback sub-form:
  * - feedbackInputActive = true shows the feedback entry
@@ -271,14 +285,12 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
       }
 
       case "Escape":
-        // amp: onSelect(null) → simple deny, no feedback
+        // 逆向: b0R.handleKeyEvent — Escape -> onSelect(null) -> simple deny
         this._respondFull({ approved: false });
         return "handled";
 
       default:
-        // 逆向: b0R.handleKeyEvent altKey+digit selects by position (1-indexed)
-        // We use plain digit keys (1-4) as a simplified shortcut since our TUI
-        // does not expose altKey in all scenarios.
+        // 逆向: b0R.handleKeyEvent (chunk-006.js:22869-22875) altKey+digit selects by position
         if (
           event.altKey === true &&
           !event.shiftKey &&
@@ -287,15 +299,6 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
           event.key >= "1" &&
           event.key <= "9"
         ) {
-          const idx = Number.parseInt(event.key, 10) - 1;
-          if (idx < APPROVAL_OPTIONS.length) {
-            const opt = APPROVAL_OPTIONS[idx];
-            if (opt) this._selectOption(opt.value);
-          }
-          return "handled";
-        }
-        // Also support plain 1-4 for convenience
-        if (event.key >= "1" && event.key <= "4") {
           const idx = Number.parseInt(event.key, 10) - 1;
           if (idx < APPROVAL_OPTIONS.length) {
             const opt = APPROVAL_OPTIONS[idx];
@@ -389,7 +392,19 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   /**
    * Build the approval dialog.
    *
-   * 逆向: b0R.build (actions_intents.js:3895-4020)
+   * 逆向: b0R.build (chunk-006.js:22974-23054)
+   *
+   * Layout matches golden file tmux-capture/screens/amp/hitl-confirmation/plain-63x244.golden:
+   * ╭──────────────────────────────────────╮
+   * │ Run this command?                    │
+   * │ $ sleep 60                           │
+   * │ (Matches built-in permissions rule…) │
+   * │ ▸● Approve [Alt+1]                  │
+   * │  ○ Allow All for This Session        │
+   * │  ○ Allow All for Every Session       │
+   * │  ○ Deny with feedback [Alt+4]       │
+   * │ ↑↓ navigate • Enter select • Esc    │
+   * ╰──────────────────────────────────────╯
    *
    * If feedback mode active, shows feedback input form.
    * Otherwise shows main options list.
@@ -402,93 +417,52 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
       return this._buildFeedbackInput();
     }
 
-    // ── Header ──
-    // 逆向: b0R.buildHeader — tool name + reason
-    const headerChildren = [
-      // Tool name header (e.g. "Run this command?")
-      // 逆向: formatToolConfirmation — generic path: `Invoke tool ${T.name}?`
-      new RichText({
-        text: new TextSpan({
-          text: this._formatHeader(request),
-          style: new TextStyle({ foreground: FOREGROUND_COLOR, bold: true }),
-        }),
-      }),
-    ];
-
-    // Reason line if present
-    if (request.reason) {
-      headerChildren.push(
-        new RichText({
-          text: new TextSpan({
-            text: `(${request.reason})`,
-            style: new TextStyle({ foreground: SECONDARY_COLOR }),
-          }),
-        }),
-      );
-    }
-
-    // ── Args summary ──
-    // 逆向: formatToolConfirmation — json: JSON.stringify(T.input, null, 2) for generic tools
-    const argsText = this._formatArgs(request);
-    const argsChildren =
-      argsText.length > 0
-        ? [
-            new SizedBox({ height: 1 }),
-            new RichText({
-              text: new TextSpan({
-                text: argsText,
-                style: new TextStyle({ foreground: SECONDARY_COLOR }),
-              }),
-            }),
-          ]
-        : [];
+    // ── Header section ──
+    // 逆向: b0R.buildHeader (chunk-006.js:22884-22972)
+    const headerChildren = this._buildHeaderSection(request);
 
     // ── Options list ──
-    // 逆向: b0R.build options rendering (actions_intents.js:3972-4002)
+    // 逆向: b0R.build (chunk-006.js:22979-23009) — options with ▸●/○ radio style
     const optionRows = APPROVAL_OPTIONS.map((opt, i) => {
       const isSelected = i === this._selectedIndex;
-      return this._buildOptionRow(opt, isSelected);
+      return this._buildOptionRow(opt, i, isSelected);
     });
 
     // ── Footer hint ──
-    // 逆向: b0R.build footer hint line
+    // 逆向: b0R.build (chunk-006.js:23029-23033) — "↑↓ navigate • Enter select • Esc cancel"
     const footerHint = new RichText({
       text: new TextSpan({
-        text: "↑↓ navigate • 1-4 select • Enter confirm • Esc cancel",
+        text: "\u2191\u2193 navigate \u2022 Enter select \u2022 Esc cancel",
         style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
       }),
     });
 
     // ── Assemble column ──
+    // 逆向: b0R.build (chunk-006.js:23038-23042) — Column([header, options, footer])
     const columnChildren = [
       ...headerChildren,
-      ...argsChildren,
-      new SizedBox({ height: 1 }),
       ...optionRows,
-      new SizedBox({ height: 1 }),
       footerHint,
     ];
 
-    // 逆向: b0R.build -> Column(crossAxisAlignment: "stretch", mainAxisSize: "min", children)
     const column = new Column({
       crossAxisAlignment: "stretch",
       mainAxisSize: "min",
       children: columnChildren,
     });
 
-    // 逆向: b0R.build -> Container with padding + decoration
-    // amp: padding: symmetric(1, 0) — 1 col horizontal, 0 vertical
-    // amp: decoration: BoxDecoration(background, Border.all(BorderSide(borderColor, 1, "rounded")))
+    // 逆向: b0R.build (chunk-006.js:23043-23053) — Container + BoxDecoration + Border
+    // amp: decoration: new p8(R.background, h9.all(new e9(this.widget.borderColor, 1, "rounded")))
+    // amp: padding: TR.symmetric(1, 0) — vertical=1, horizontal=0
     const container = new Container({
-      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      padding: EdgeInsets.symmetric({ vertical: 1 }),
       decoration: new BoxDecoration({
         border: Border.all(new BorderSide(WARNING_COLOR, 1, "rounded")),
       }),
       child: column,
     });
 
-    // 逆向: p0R.build -> Focus wrapper
-    // amp: new C8({ focusNode, child, autofocus: true })
+    // 逆向: b0R.build (chunk-006.js:23043-23044) — Focus wrapper
     return new Focus({
       autofocus: true,
       onKey: this._handleKey,
@@ -502,9 +476,82 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   // ────────────────────────────────────────────────────
 
   /**
+   * Build the header section of the approval dialog.
+   *
+   * 逆向: b0R.buildHeader (chunk-006.js:22884-22972)
+   * - Header text ("Run this command?" / "Allow editing file:" / etc.)
+   * - Command preview with "$ " prefix if present
+   * - Permission rule match in dim text if present
+   * - Reason line
+   */
+  private _buildHeaderSection(request: ApprovalRequest): RichText[] {
+    const children: RichText[] = [];
+
+    // Header text
+    // 逆向: chunk-006.js:22889-22893 — a.header text in foreground color
+    children.push(
+      new RichText({
+        text: new TextSpan({
+          text: this._formatHeader(request),
+          style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+        }),
+      }),
+    );
+
+    // Command preview: "$ sleep 60"
+    // 逆向: chunk-006.js:22901-22928 — command lines with "$ " prefix in success color
+    if (request.commandPreview) {
+      children.push(
+        new RichText({
+          text: new TextSpan({
+            children: [
+              new TextSpan({
+                text: "$ ",
+                style: new TextStyle({ foreground: SUCCESS_COLOR, bold: true }),
+              }),
+              new TextSpan({
+                text: request.commandPreview,
+                style: new TextStyle({ foreground: FOREGROUND_COLOR }),
+              }),
+            ],
+          }),
+        }),
+      );
+    }
+
+    // Permission rule match: "(Matches built-in permissions rule 25: ask Bash)"
+    // 逆向: chunk-006.js:22955-22960 — reason line in secondary color
+    if (request.permissionRule) {
+      children.push(
+        new RichText({
+          text: new TextSpan({
+            text: `(Matches ${request.permissionRule})`,
+            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+          }),
+        }),
+      );
+    }
+
+    // Reason line
+    // 逆向: chunk-006.js:22955-22960 — a.reason in secondary color
+    if (request.reason) {
+      children.push(
+        new RichText({
+          text: new TextSpan({
+            text: `(${request.reason})`,
+            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+          }),
+        }),
+      );
+    }
+
+    return children;
+  }
+
+  /**
    * Build the feedback input sub-form.
    *
-   * 逆向: p0R.buildFeedbackInput (actions_intents.js:3597-3650)
+   * 逆向: p0R.buildFeedbackInput (chunk-006.js:22751-22817)
    * Shows: "✗ Denied — tell Amp what to do instead"
    *        "› [text input placeholder]"
    *        "Enter send  •  Esc cancel"
@@ -513,13 +560,12 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
    */
   private _buildFeedbackInput() {
     // Header line: "✗ Denied — tell Amp what to do instead"
+    // 逆向: chunk-006.js:22752-22763
     const headerLine = new RichText({
       text: new TextSpan({
-        text: "",
-        style: new TextStyle({ foreground: FOREGROUND_COLOR }),
         children: [
           new TextSpan({
-            text: "✗ ",
+            text: "\u2717 ",
             style: new TextStyle({ foreground: DENY_COLOR, bold: true }),
           }),
           new TextSpan({
@@ -527,7 +573,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
             style: new TextStyle({ foreground: DENY_COLOR, bold: true }),
           }),
           new TextSpan({
-            text: " — ",
+            text: " \u2014 ",
             style: new TextStyle({ foreground: SECONDARY_COLOR }),
           }),
           new TextSpan({
@@ -538,14 +584,17 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
       }),
     });
 
-    // Input row: "› <text>_"
+    // Input row: "› <text>█"
+    // 逆向: chunk-006.js:22765-22779
     const inputText =
-      this._feedbackText.length > 0 ? this._feedbackText + "█" : `e.g. "use grep instead"█`;
+      this._feedbackText.length > 0
+        ? this._feedbackText + "\u2588"
+        : `e.g. "use grep instead"\u2588`;
     const inputRow = new Row({
       children: [
         new RichText({
           text: new TextSpan({
-            text: "› ",
+            text: "\u203A ",
             style: new TextStyle({ foreground: PRIMARY_COLOR, bold: true }),
           }),
         }),
@@ -561,10 +610,9 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
     });
 
     // Footer hint
+    // 逆向: chunk-006.js:22781-22795
     const footerLine = new RichText({
       text: new TextSpan({
-        text: "",
-        style: new TextStyle({ foreground: SECONDARY_COLOR }),
         children: [
           new TextSpan({
             text: "Enter",
@@ -575,7 +623,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
             style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
           }),
           new TextSpan({
-            text: "  •  ",
+            text: "  \u2022  ",
             style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
           }),
           new TextSpan({
@@ -602,8 +650,9 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
       ],
     });
 
+    // 逆向: chunk-006.js:22806-22816 — primary border for feedback mode
     const container = new Container({
-      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      padding: EdgeInsets.symmetric({ vertical: 1, horizontal: 1 }),
       decoration: new BoxDecoration({
         border: Border.all(new BorderSide(PRIMARY_COLOR, 1, "rounded")),
       }),
@@ -621,7 +670,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   /**
    * Format the header text based on tool name.
    *
-   * 逆向: formatToolConfirmation (actions_intents.js, called by p0R)
+   * 逆向: formatToolConfirmation (chunk-006.js:22654-22689)
    * - Bash: "Run this command?"
    * - Edit: "Allow editing file:"
    * - Write: "Allow creating file:"
@@ -641,73 +690,77 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   }
 
   /**
-   * Format tool args into a truncated summary string.
-   *
-   * 逆向: formatToolConfirmation — for Bash shows `$ <command>`,
-   * for generic tools shows JSON.stringify(input, null, 2) truncated to 3 lines.
-   */
-  private _formatArgs(request: ApprovalRequest): string {
-    if (request.toolName === "Bash") {
-      const cmd = (request.args as { command?: string }).command ?? "";
-      const lines = cmd.split("\n");
-      if (lines.length > 3) {
-        return `$ ${lines.slice(0, 3).join("\n")}...`;
-      }
-      return `$ ${cmd}`;
-    }
-
-    if (request.toolName === "Edit" || request.toolName === "Write") {
-      // File path is already in the header
-      return "";
-    }
-
-    // Generic: JSON summary, truncated
-    const json = JSON.stringify(request.args, null, 2);
-    const lines = json.split("\n");
-    if (lines.length > 3) {
-      return `${lines.slice(0, 3).join("\n")}...`;
-    }
-    return json;
-  }
-
-  /**
    * Build a single option row with radio-button styling.
    *
-   * 逆向: b0R.build option rendering (actions_intents.js:3972-4002)
-   * Each row: [arrow "▸"/" "] [radio "●"/"○"] [spacer] [label]
-   * Selected: primary color, bold label
-   * Unselected: secondary radio, foreground label
+   * 逆向: b0R.build (chunk-006.js:22979-23009)
+   * Each row: [arrow "▸"/" "] [radio "●"/"○"] [SizedBox(w:1)] [Expanded(label + shortcut)]
+   *
+   * Selected:
+   *   ▸● {label} [Alt+{N}]        — arrow=primary, radio=primary, label=primary+bold, hint=dim
+   * Unselected:
+   *    ○ {label}                    — no arrow, radio=secondary, label=foreground
+   *
+   * amp code:
+   * ```js
+   * let n = o ? "\u25B8" : " ",    // ▸ or space
+   *     p = o ? "\u25CF" : "\u25CB", // ● or ○
+   *     _ = A < 9 ? `${cH0}+${A + 1}` : "";  // "Alt+1" etc.
+   * ```
    */
-  private _buildOptionRow(option: ApprovalOption, isSelected: boolean): Row {
-    // Arrow indicator
+  private _buildOptionRow(option: ApprovalOption, index: number, isSelected: boolean): Row {
+    // 逆向: chunk-006.js:22982 — arrow indicator ▸ or space
+    const arrowChar = isSelected ? "\u25B8" : " ";
     const arrow = new RichText({
       text: new TextSpan({
-        text: isSelected ? "▸ " : "  ",
+        text: arrowChar,
         style: new TextStyle({ foreground: PRIMARY_COLOR }),
       }),
     });
 
-    // Radio dot
+    // 逆向: chunk-006.js:22983 — radio indicator ● or ○
+    const radioChar = isSelected ? "\u25CF" : "\u25CB";
     const radio = new RichText({
       text: new TextSpan({
-        text: isSelected ? "● " : "○ ",
+        text: radioChar,
         style: new TextStyle({
-          foreground: isSelected ? option.color : SECONDARY_COLOR,
+          foreground: isSelected ? PRIMARY_COLOR : SECONDARY_COLOR,
         }),
       }),
     });
 
-    // Label text
+    // 逆向: chunk-006.js:22995-22996 — SizedBox(width: 1) spacer
+    const spacer = new SizedBox({ width: 1 });
+
+    // 逆向: chunk-006.js:22984 — Alt+N shortcut hint (1-indexed, max 9)
+    const shortcutHint = index < 9 ? ` [Alt+${index + 1}]` : "";
+
+    // 逆向: chunk-006.js:22997-23006 — label + shortcut TextSpan
     const label = new RichText({
       text: new TextSpan({
-        text: option.label,
-        style: new TextStyle({
-          foreground: isSelected ? option.color : FOREGROUND_COLOR,
-          bold: isSelected,
-        }),
+        children: [
+          new TextSpan({
+            text: option.label,
+            style: new TextStyle({
+              foreground: isSelected ? PRIMARY_COLOR : FOREGROUND_COLOR,
+              bold: isSelected,
+            }),
+          }),
+          ...(shortcutHint
+            ? [
+                new TextSpan({
+                  text: shortcutHint,
+                  style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
+                }),
+              ]
+            : []),
+        ],
       }),
     });
 
-    return new Row({ children: [arrow, radio, label] });
+    // 逆向: chunk-006.js:22985-23008 — Row with crossAxisAlignment: "start"
+    return new Row({
+      crossAxisAlignment: "start",
+      children: [arrow, radio, spacer, label],
+    });
   }
 }

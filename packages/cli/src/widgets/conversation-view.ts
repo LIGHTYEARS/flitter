@@ -26,9 +26,15 @@ import {
   BrailleSpinner,
   Color,
   Column,
+  Expanded,
   MarkdownParser,
   MarkdownRenderer,
   RichText,
+  Row,
+  Scrollable,
+  Scrollbar,
+  ScrollController,
+  ScrollViewport,
   SizedBox,
   State,
   StatefulWidget,
@@ -36,7 +42,14 @@ import {
   TextStyle,
 } from "@flitter/tui";
 import { buildDiffWidget } from "./diff-widget.js";
-import type { ActivityGroupItem, DisplayItem, MessageItem, ToolItem } from "./display-items.js";
+import type {
+  ActivityAction,
+  ActivityGroupItem,
+  DisplayItem,
+  MessageItem,
+  ThinkingItem,
+  ToolItem,
+} from "./display-items.js";
 
 // ════════════════════════════════════════════════════
 //  Message 接口
@@ -211,6 +224,18 @@ export class ConversationViewState extends State<ConversationView> {
   private _animationTimer: ReturnType<typeof setInterval> | undefined;
 
   /**
+   * Set of item indices for expanded thinking blocks.
+   * 逆向: fJT._localExpanded + _thinkingBlockStates Map (chunk-006.js:16872, 28475)
+   */
+  private _expandedThinking: Set<number> = new Set();
+
+  /**
+   * ScrollController for conversation auto-scroll (followMode: true).
+   * 逆向: amp conversation auto-scrolls to bottom
+   */
+  private _scrollController!: ScrollController;
+
+  /**
    * 初始化状态。
    *
    * 创建 MarkdownParser 和 MarkdownRenderer 实例。
@@ -219,6 +244,8 @@ export class ConversationViewState extends State<ConversationView> {
     super.initState();
     this._parser = new MarkdownParser();
     this._renderer = new MarkdownRenderer();
+    this._scrollController = new ScrollController();
+    // followMode is true by default, which ensures new messages auto-scroll to bottom
 
     // 逆向: Y1T.initState() — if (this._isActive) this._startAnimation()
     if (this._hasInProgress()) {
@@ -232,6 +259,7 @@ export class ConversationViewState extends State<ConversationView> {
   dispose(): void {
     // 逆向: Y1T.dispose() — this._stopAnimation(), ...
     this._stopAnimation();
+    this._scrollController.dispose();
     super.dispose();
   }
 
@@ -341,6 +369,9 @@ export class ConversationViewState extends State<ConversationView> {
         case "activity-group":
           children.push(this._buildActivityGroupWidget(item));
           break;
+        case "thinking":
+          children.push(this._buildThinkingWidget(item, i));
+          break;
       }
 
       // 项目间添加 1 行间距分隔
@@ -379,7 +410,33 @@ export class ConversationViewState extends State<ConversationView> {
       children.push(this._buildErrorWidget(error));
     }
 
-    return new Column({ children });
+    // B5: Wrap conversation Column in Scrollable + Scrollbar
+    // 逆向: amp conversation auto-scrolls to bottom and has scroll indicator on right side
+    const contentColumn = new Column({ children });
+    const controller = this._scrollController;
+
+    return new Row({
+      children: [
+        new Expanded({
+          child: new Scrollable({
+            controller,
+            viewportBuilder: (_ctx, ctrl) =>
+              new ScrollViewport({
+                controller: ctrl,
+                child: contentColumn,
+              }),
+          }),
+        }),
+        new Scrollbar({
+          controller,
+          getScrollInfo: () => ({
+            totalContentHeight: controller.maxScrollExtent + 24,
+            viewportHeight: 24,
+            scrollOffset: controller.offset,
+          }),
+        }),
+      ],
+    });
   }
 
   /**
@@ -438,43 +495,344 @@ export class ConversationViewState extends State<ConversationView> {
    */
   private _buildToolWidget(tool: ToolItem): Widget {
     const isInProgress = tool.status === "in-progress";
+    const isBash = tool.kind === "bash";
 
-    // 逆向: hE0() (chunk-004.js:21002-21012) — if (e) spinner.toBraille() else statusIcon
+    // 逆向: G9R.build() (chunk-006.js:30002-30064) — F9R/G9R buildShellCommandTool
     const spans: TextSpan[] = [];
 
-    // Status icon — use braille spinner for in-progress, static icon otherwise
-    if (isInProgress) {
-      // 逆向: t.toBraille() + toolRunning color (chunk-004.js:21004)
+    if (isBash) {
+      // B1: Bash tools use "$ " prefix (bold) when complete, spinner when in-progress
+      // 逆向: chunk-006.js:30029-30040
+      //   if (c === "in-progress") { spinner + toolRunning }
+      //   else { "$ " in bold + status color }
+      if (isInProgress) {
+        spans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: TOOL_COLOR }),
+          }),
+        );
+      } else {
+        const hasNonZeroExit =
+          tool.status === "done" &&
+          typeof tool.exitCode === "number" &&
+          tool.exitCode !== 0;
+        const statusColor = hasNonZeroExit ? ERROR_COLOR_LOCAL : _getStatusColor(tool.status);
+        spans.push(
+          new TextSpan({
+            text: "$ ",
+            style: new TextStyle({ bold: true, foreground: statusColor }),
+          }),
+        );
+      }
+
+      // Command text (bold foreground) — 逆向: chunk-006.js:30041 m.push(new G(p, o))
+      const command = tool.command ?? "";
+      const cmdLines = command.split("\n");
+      const firstLine = cmdLines[0] || "";
+      const cmdStyle = new TextStyle({ bold: true });
+      if (tool.status === "cancelled") {
+        spans.push(
+          new TextSpan({
+            text: firstLine,
+            style: new TextStyle({ bold: true, strikethrough: true }),
+          }),
+        );
+      } else if (tool.status === "rejected-by-user") {
+        spans.push(
+          new TextSpan({
+            text: firstLine,
+            style: new TextStyle({ bold: true, dim: true }),
+          }),
+        );
+      } else {
+        spans.push(new TextSpan({ text: firstLine, style: cmdStyle }));
+      }
+
+      // Status suffix — 逆向: chunk-006.js:30045-30051
+      if (tool.status === "rejected-by-user") {
+        spans.push(
+          new TextSpan({
+            text: " (rejected)",
+            style: new TextStyle({ dim: true, italic: true }),
+          }),
+        );
+      } else if (tool.status === "cancelled") {
+        spans.push(
+          new TextSpan({
+            text: " (cancelled)",
+            style: new TextStyle({ foreground: CANCELLED_COLOR, italic: true }),
+          }),
+        );
+      }
+    } else {
+      // Non-bash tools: status icon + tool name + detail (original behavior)
+      if (isInProgress) {
+        spans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: TOOL_COLOR }),
+          }),
+        );
+      } else {
+        const icon = _getStatusIcon(tool.status);
+        const iconColor = _getStatusColor(tool.status);
+        spans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: iconColor }),
+          }),
+        );
+      }
+
+      // Tool name (bold, tool color)
       spans.push(
+        new TextSpan({
+          text: tool.toolName,
+          style: new TextStyle({ bold: true, foreground: TOOL_COLOR }),
+        }),
+      );
+
+      // Contextual detail (dim) — varies by tool kind
+      const detail = _getToolDetail(tool);
+      if (detail) {
+        spans.push(new TextSpan({ text: " " }));
+        spans.push(
+          new TextSpan({
+            text: detail,
+            style: new TextStyle({ foreground: DIM_COLOR }),
+          }),
+        );
+      }
+    }
+
+    const mainRow = new RichText({
+      text: new TextSpan({ children: spans }),
+    });
+
+    const columnChildren: Widget[] = [mainRow];
+
+    // 逆向: chunk-004.js:21064-21067 — edit branch renders diff via cE0(T.diff, R)
+    if ((tool.kind === "edit" || tool.kind === "create-file") && tool.diff) {
+      columnChildren.push(buildDiffWidget(tool.diff));
+    }
+
+    // B1: Bash output display — 逆向: chunk-006.js:30059
+    //   on(a.result.output, isComplete, colors) renders output below command
+    if (isBash && tool.output && tool.status !== "rejected-by-user") {
+      const outputLines = tool.output.split("\n");
+      const MAX_VISIBLE_LINES = 5;
+      const truncated = outputLines.length > MAX_VISIBLE_LINES;
+      const visibleLines = truncated
+        ? outputLines.slice(0, MAX_VISIBLE_LINES)
+        : outputLines;
+
+      const outputText = visibleLines.join("\n");
+      columnChildren.push(
+        new RichText({
+          text: new TextSpan({
+            text: `  ${outputText.split("\n").join("\n  ")}`,
+            style: new TextStyle({ foreground: DIM_COLOR }),
+          }),
+        }),
+      );
+
+      if (truncated) {
+        columnChildren.push(
+          new RichText({
+            text: new TextSpan({
+              text: `  \u25BC Show more (${outputLines.length - MAX_VISIBLE_LINES} more lines)`,
+              style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+            }),
+          }),
+        );
+      }
+    }
+
+    // Error message in red — 逆向: chunk-006.js:30056-30058
+    if (tool.error) {
+      columnChildren.push(
+        new RichText({
+          text: new TextSpan({
+            text: `  Error: ${tool.error}`,
+            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+          }),
+        }),
+      );
+    }
+
+    return columnChildren.length === 1 ? mainRow : new Column({ children: columnChildren });
+  }
+
+  /**
+   * Build an ActivityGroupItem widget — renders activity group with optional tree lines.
+   *
+   * Matches amp's Y1T pattern (actions_intents.js 1839-1872) for simple groups:
+   *   {spinner|✓} {summary(toolName color)}
+   *
+   * B3: When actions are present, renders each action with tree-line box-drawing:
+   *   ├── {statusIcon} {toolName} {detail}
+   *   ╰── {statusIcon} {toolName} {detail}
+   *
+   * When isSubagent, shows "Subagent {label}" header.
+   *
+   * 逆向: Y1T build() line 1846-1853 (summary row),
+   *        chunk-006.js:28457-28786 (subagent nested rendering via uR padding),
+   *        tree decorators ├── and ╰──
+   *
+   * @param group - ActivityGroupItem from DisplayItem[]
+   * @returns Activity group Widget
+   */
+  private _buildActivityGroupWidget(group: ActivityGroupItem): Widget {
+    // Header line: spinner/checkmark + label
+    const headerSpans: TextSpan[] = [];
+
+    if (group.hasInProgress) {
+      headerSpans.push(
         new TextSpan({
           text: `${this._spinner.toBraille()} `,
           style: new TextStyle({ foreground: TOOL_COLOR }),
         }),
       );
     } else {
-      const icon = _getStatusIcon(tool.status);
-      const iconColor = _getStatusColor(tool.status);
-      spans.push(
+      headerSpans.push(
         new TextSpan({
-          text: `${icon} `,
-          style: new TextStyle({ foreground: iconColor }),
+          text: "\u2713 ",
+          style: new TextStyle({ foreground: SUCCESS_COLOR }),
         }),
       );
     }
 
-    // Tool name (bold, tool color)
-    // 逆向: new G(R, new cT({ color: h.app.toolName, bold: !0 }))
+    // B3: Subagent header — 逆向: chunk-006.js:28457 qv class
+    if (group.isSubagent) {
+      const label = group.subagentLabel ?? "Subagent";
+      const expandIndicator = group.actions && group.actions.length > 0 ? " \u25BC" : " \u25B6";
+      headerSpans.push(
+        new TextSpan({
+          text: `Subagent ${label}`,
+          style: new TextStyle({ foreground: TOOL_COLOR }),
+        }),
+      );
+      headerSpans.push(
+        new TextSpan({
+          text: expandIndicator,
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      );
+    } else {
+      // Summary text
+      headerSpans.push(
+        new TextSpan({
+          text: group.summary,
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      );
+    }
+
+    const headerRow = new RichText({
+      text: new TextSpan({ children: headerSpans }),
+    });
+
+    // B3: If actions exist, render tree lines — 逆向: chunk-006.js:28586-28606
+    //   uR padding left:2, nested Jb (Column) with tool widgets
+    //   Tree decorators: ├── for non-last, ╰── for last
+    if (!group.actions || group.actions.length === 0) {
+      return headerRow;
+    }
+
+    const INDENT = "    "; // 4 spaces indent for nested actions
+    const actionWidgets: Widget[] = [];
+
+    for (let i = 0; i < group.actions.length; i++) {
+      const action = group.actions[i];
+      const isLast = i === group.actions.length - 1;
+      const treeChar = isLast ? "\u2570\u2500\u2500" : "\u251C\u2500\u2500"; // ╰── or ├──
+
+      const actionSpans: TextSpan[] = [];
+
+      // Tree connector
+      actionSpans.push(
+        new TextSpan({
+          text: `${INDENT}${treeChar} `,
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      );
+
+      // Status icon for action
+      if (action.status === "in-progress") {
+        actionSpans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: TOOL_COLOR }),
+          }),
+        );
+      } else {
+        const icon = _getActionStatusIcon(action.status);
+        const color = _getActionStatusColor(action.status);
+        actionSpans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: color }),
+          }),
+        );
+      }
+
+      // Tool name
+      actionSpans.push(
+        new TextSpan({
+          text: action.toolName,
+          style: new TextStyle({ foreground: TOOL_COLOR }),
+        }),
+      );
+
+      actionWidgets.push(
+        new RichText({
+          text: new TextSpan({ children: actionSpans }),
+        }),
+      );
+    }
+
+    return new Column({
+      children: [headerRow, ...actionWidgets],
+    });
+  }
+
+  /**
+   * Build a ThinkingItem widget — renders a thinking block with expand/collapse.
+   *
+   * 逆向: Rd / fJT (chunk-006.js:16846-17009) — ThinkingBlock widget.
+   * Collapsed: "✓ Thinking ▶" (SUCCESS_COLOR for ✓, DIM for text, ▶ indicator)
+   * Expanded: "✓ Thinking ▼" followed by thinking text in DIM_COLOR with 2-space indent
+   *
+   * @param item - ThinkingItem from DisplayItem[]
+   * @param itemIndex - Index in the items array, used to track expand/collapse state
+   * @returns Thinking block Widget
+   */
+  private _buildThinkingWidget(item: ThinkingItem, itemIndex: number): Widget {
+    const isExpanded = this._expandedThinking.has(itemIndex);
+
+    const spans: TextSpan[] = [];
+
+    // 逆向: fJT.build() line 16905 — "✓ " in success color for complete thinking
     spans.push(
       new TextSpan({
-        text: tool.toolName,
-        style: new TextStyle({ bold: true, foreground: TOOL_COLOR }),
+        text: "\u2713 ",
+        style: new TextStyle({ foreground: SUCCESS_COLOR }),
       }),
     );
 
-    // Contextual detail (dim) — varies by tool kind
-    // 逆向: x3 children array rendered inline after tool name
-    const detail = _getToolDetail(tool);
-    if (detail) {
+    // "Thinking" label — 逆向: chunk-006.js:16921 new G(h.header ?? "Thinking", ...)
+    spans.push(
+      new TextSpan({
+        text: "Thinking",
+        style: new TextStyle({ foreground: DIM_COLOR }),
+      }),
+    );
+
+    // Expand/collapse indicator — 逆向: chunk-006.js:16911
+    // expanded: ▼, collapsed: ▶
+    const hasContent = item.text.trim().length > 0;
+    if (hasContent) {
       spans.push(
         new TextSpan({
           text: " ",
@@ -482,88 +840,39 @@ export class ConversationViewState extends State<ConversationView> {
       );
       spans.push(
         new TextSpan({
-          text: detail,
+          text: isExpanded ? "\u25BC" : "\u25B6",
           style: new TextStyle({ foreground: DIM_COLOR }),
         }),
       );
     }
 
-    const mainRow = new RichText({
+    const headerRow = new RichText({
       text: new TextSpan({ children: spans }),
     });
 
-    // 逆向: chunk-004.js:21064-21067 — edit branch renders diff via cE0(T.diff, R)
-    if ((tool.kind === "edit" || tool.kind === "create-file") && tool.diff) {
-      return new Column({
-        children: [mainRow, buildDiffWidget(tool.diff)],
-      });
-    }
+    // If expanded, show thinking text below with 2-space indent
+    // 逆向: fJT.build() line 16996-17005 — uR padding left:2, Z3 markdown content
+    if (isExpanded && hasContent) {
+      // Indent each line by 2 spaces
+      const indentedText = item.text
+        .split("\n")
+        .map((line) => `  ${line}`)
+        .join("\n");
 
-    // If there's an error message, append it below in red
-    // 逆向: x3 tail array — error text in toolError color
-    if (tool.error) {
       return new Column({
         children: [
-          mainRow,
+          headerRow,
           new RichText({
             text: new TextSpan({
-              text: `  ${tool.error}`,
-              style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+              text: indentedText,
+              style: new TextStyle({ foreground: DIM_COLOR, italic: true }),
             }),
           }),
         ],
       });
     }
 
-    return mainRow;
-  }
-
-  /**
-   * Build an ActivityGroupItem widget — renders a collapsed activity group.
-   *
-   * Matches amp's Y1T pattern (actions_intents.js 1839-1872):
-   *   {spinner|✓} {summary(toolName color)}
-   *
-   * - hasInProgress → spinner.toBraille() icon in TOOL_COLOR (animated braille spinner)
-   * - completed → ✓ icon in SUCCESS_COLOR
-   *
-   * 逆向: Y1T build() line 1846-1853
-   *
-   * @param group - ActivityGroupItem from DisplayItem[]
-   * @returns Activity group Widget
-   */
-  private _buildActivityGroupWidget(group: ActivityGroupItem): Widget {
-    const spans: TextSpan[] = [];
-
-    if (group.hasInProgress) {
-      // 逆向: this._spinner.toBraille() + toolRunning color (chunk-006.js:6178)
-      spans.push(
-        new TextSpan({
-          text: `${this._spinner.toBraille()} `,
-          style: new TextStyle({ foreground: TOOL_COLOR }),
-        }),
-      );
-    } else {
-      // 逆向: "\u2713 " + toolSuccess color
-      spans.push(
-        new TextSpan({
-          text: "✓ ",
-          style: new TextStyle({ foreground: SUCCESS_COLOR }),
-        }),
-      );
-    }
-
-    // Summary text (逆向: new G(e, new cT({ color: R.app.toolName })))
-    spans.push(
-      new TextSpan({
-        text: group.summary,
-        style: new TextStyle({ foreground: DIM_COLOR }),
-      }),
-    );
-
-    return new RichText({
-      text: new TextSpan({ children: spans }),
-    });
+    return headerRow;
   }
 
   // ════════════════════════════════════════════════════
@@ -770,12 +1079,8 @@ function _getToolDetail(tool: ToolItem): string | null {
 
   switch (tool.kind) {
     case "bash": {
-      if (!tool.command) return null;
-      const cmd =
-        tool.command.length > MAX_DETAIL_LENGTH
-          ? tool.command.slice(0, MAX_DETAIL_LENGTH) + "..."
-          : tool.command;
-      return cmd;
+      // B1: Bash command is now rendered inline as "$ {command}" — no separate detail needed
+      return null;
     }
     case "edit":
     case "create-file": {
@@ -790,5 +1095,40 @@ function _getToolDetail(tool: ToolItem): string | null {
         ? summary.slice(0, MAX_DETAIL_LENGTH) + "..."
         : summary;
     }
+  }
+}
+
+/**
+ * Get status icon for an ActivityAction status.
+ *
+ * Uses same icon set as tool status but with the reduced status set
+ * (ActivityAction only has done/error/cancelled/in-progress).
+ */
+function _getActionStatusIcon(status: ActivityAction["status"]): string {
+  switch (status) {
+    case "done":
+      return "\u2713"; // ✓
+    case "error":
+      return "\u2715"; // ✕
+    case "in-progress":
+      return "\u27F3"; // ⟳
+    case "cancelled":
+      return "\u2298"; // ⊘
+  }
+}
+
+/**
+ * Get status color for an ActivityAction status.
+ */
+function _getActionStatusColor(status: ActivityAction["status"]): Color {
+  switch (status) {
+    case "done":
+      return SUCCESS_COLOR;
+    case "error":
+      return ERROR_COLOR_LOCAL;
+    case "in-progress":
+      return TOOL_COLOR;
+    case "cancelled":
+      return CANCELLED_COLOR;
   }
 }

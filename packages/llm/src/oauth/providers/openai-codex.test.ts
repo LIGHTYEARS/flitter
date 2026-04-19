@@ -3,7 +3,8 @@
  */
 
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
+import { mock } from "bun:test";
 import type { OAuthLoginCallbacks } from "../types";
 import { OpenAICodexOAuthProvider } from "./openai-codex";
 
@@ -48,7 +49,7 @@ describe("OpenAICodexOAuthProvider", () => {
         expires_in: 7200,
       };
 
-      globalThis.fetch = mock.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const urlStr =
           typeof url === "string" ? url : url instanceof URL ? url.toString() : url.url;
         assert.ok(urlStr.includes("auth.openai.com"));
@@ -72,7 +73,7 @@ describe("OpenAICodexOAuthProvider", () => {
     });
 
     it("should throw on refresh failure", async () => {
-      globalThis.fetch = mock.fn(async () => {
+      globalThis.fetch = mock(async () => {
         return new Response("invalid_grant", { status: 400 });
       }) as typeof globalThis.fetch;
 

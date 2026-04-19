@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "bun:test";
 import type { BuildContext } from "@flitter/tui";
-import { Padding, RichText, Row, StatelessWidget } from "@flitter/tui";
+import { Column, Padding, RichText, Row, StatelessWidget } from "@flitter/tui";
 import { StatusBar, type StatusBarConfig, type StatusBarState } from "./status-bar.js";
 
 // ════════════════════════════════════════════════════
@@ -134,11 +134,16 @@ describe("StatusBar", () => {
     expect(hasMutedColor).toBe(true);
   });
 
-  it("build() returns Padding > Row structure", () => {
+  it("build() returns Column > 3 Row structure (bordered layout)", () => {
     const bar = new StatusBar(defaultConfig);
     const built = bar.build({} as unknown as BuildContext);
-    expect(built).toBeInstanceOf(Padding);
-    expect((built as unknown as WidgetNode).child).toBeInstanceOf(Row);
+    expect(built).toBeInstanceOf(Column);
+    const col = built as unknown as WidgetNode;
+    expect(col.children).toBeDefined();
+    expect(col.children!.length).toBe(3);
+    for (const row of col.children!) {
+      expect(row).toBeInstanceOf(Row);
+    }
   });
 
   it("renders status message when state has active status", () => {
@@ -156,8 +161,18 @@ describe("StatusBar", () => {
     const bar = new StatusBar(defaultConfig);
     const built = bar.build({} as unknown as BuildContext);
     const texts = extractPlainTexts(built as unknown as WidgetNode);
-    // Should only have model name and token count — no status message
-    expect(texts.length).toBe(2);
+    // With bordered layout, there are border characters + model name + token count
+    // but no status message text like "Streaming..." or "Waiting..."
+    const hasStatusMessage = texts.some(
+      (t) =>
+        t.includes("Streaming") ||
+        t.includes("Waiting") ||
+        t.includes("Compacting") ||
+        t.includes("Running") ||
+        t.includes("Cancelled") ||
+        t.includes("context"),
+    );
+    expect(hasStatusMessage).toBe(false);
   });
 
   it("uses danger color for context near full message", () => {

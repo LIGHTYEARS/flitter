@@ -27,16 +27,17 @@ import { SingleChildRenderObjectElement } from "./padding.js";
  * 鼠标事件接口。
  *
  * 逆向: si.handleMouseEvent 中根据 T.type 分派的事件对象
+ *
+ * Events are created by mouse-event-helpers.ts with structured position fields
+ * (position: {x,y}, localPosition: {x,y}) rather than flat x/y.
  */
 export interface MouseEvent {
   /** 事件类型 */
   type: "click" | "enter" | "exit" | "hover" | "scroll" | "drag" | "release";
-  /** 鼠标 X 坐标 */
-  x: number;
-  /** 鼠标 Y 坐标 */
-  y: number;
-  /** 扩展属性 */
-  [key: string]: unknown;
+  /** 全局坐标 */
+  position: { x: number; y: number };
+  /** 元素本地坐标 */
+  localPosition: { x: number; y: number };
 }
 
 /** 鼠标事件回调类型 */

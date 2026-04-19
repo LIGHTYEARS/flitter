@@ -68,7 +68,7 @@ export async function handleMcpDoctor(deps: McpExtendedDeps): Promise<void> {
     if (deps.mcpServerManager) {
       try {
         // Try to get server status from the manager
-        const servers = deps.mcpServerManager.getServers?.() ?? [];
+        const servers = [...deps.mcpServerManager.servers$.getValue().values()];
         const server = servers.find((s: { name: string }) => s.name === name);
         if (server) {
           const status = server.status?.type ?? "unknown";
@@ -165,10 +165,10 @@ export async function handleMcpOAuthLogin(
   if (deps.mcpServerManager) {
     try {
       // Attempt to trigger OAuth through the server manager
-      const servers = deps.mcpServerManager.getServers?.() ?? [];
+      const servers = [...deps.mcpServerManager.servers$.getValue().values()];
       const server = servers.find((s: { name: string }) => s.name === serverName);
-      if (server?.startOAuth) {
-        await server.startOAuth();
+      if ((server as any)?.startOAuth) {
+        await (server as any).startOAuth();
         process.stdout.write(`OAuth login initiated for "${serverName}". Check your browser.\n`);
         return;
       }

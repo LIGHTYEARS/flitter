@@ -132,7 +132,7 @@ export class PromptDialog extends StatelessWidget {
     // Input area placeholder
     // Note: in a full wiring, this would be replaced by an InputField widget
     const inputDisplay = new Container({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 0, vertical: 1 }),
       decoration: new BoxDecoration({
         border: Border.all(new BorderSide(Color.rgb(108, 112, 134), 1, "solid")),
       }),

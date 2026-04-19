@@ -173,7 +173,7 @@ export class NotificationBanner extends StatelessWidget {
     }
 
     return new Container({
-      padding: EdgeInsets.symmetric(0, 1),
+      padding: EdgeInsets.symmetric({ horizontal: 0, vertical: 1 }),
       decoration: new BoxDecoration({
         border: new Border(
           undefined,

@@ -26,6 +26,7 @@ import type { Element, Widget } from "../tree/element.js";
 import { FrameScheduler } from "../tree/frame-scheduler.js";
 import { PipelineOwner } from "../tree/pipeline-owner.js";
 import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
+import type { ColorDepth } from "../screen/ansi-renderer.js";
 import { TuiController } from "../tui/tui-controller.js";
 import type { KeyEvent } from "../vt/types.js";
 import { MediaQuery, MediaQueryData } from "../widgets/media-query.js";
@@ -475,6 +476,7 @@ export class WidgetsBinding {
       kittyKeyboard: false,
       colorPaletteNotifications: false,
       xtversion: null,
+      colorDepth: "truecolor" as ColorDepth,
     };
     this.currentMediaQueryData = new MediaQueryData(size, capabilities);
     return new MediaQuery({ data: this.currentMediaQueryData, child: widget });
@@ -507,6 +509,7 @@ export class WidgetsBinding {
       kittyKeyboard: false,
       colorPaletteNotifications: false,
       xtversion: null,
+      colorDepth: "truecolor" as ColorDepth,
     };
     const newMediaQueryData = new MediaQueryData({ width, height }, capabilities);
     this.currentMediaQueryData = newMediaQueryData;

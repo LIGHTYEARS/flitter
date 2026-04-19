@@ -741,7 +741,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       (threadId) => container.createThreadWorker(threadId),
     );
     container.threadWorkerService = threadWorkerService;
-    disposables.push(threadWorkerService);
+    disposables.push({ dispose: () => threadWorkerService.disposeAll() });
     log.info("ThreadWorkerService created");
 
     return container;

@@ -95,7 +95,7 @@ export async function handleReview(
         content: [{ type: "text" as const, text: userMessage }],
       },
     ],
-    buildSystemPrompt: async () => CODE_REVIEW_SYSTEM_PROMPT,
+    buildSystemPrompt: async () => [{ type: "text" as const, text: CODE_REVIEW_SYSTEM_PROMPT }],
   });
 
   try {

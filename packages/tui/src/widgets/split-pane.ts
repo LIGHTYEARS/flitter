@@ -13,6 +13,8 @@
 import type { Screen } from "../screen/screen.js";
 import type { Color } from "../screen/color.js";
 import { Color as ColorClass } from "../screen/color.js";
+import { Cell } from "../screen/cell.js";
+import { TextStyle } from "../screen/text-style.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import type { Element, Widget as WidgetInterface } from "../tree/element.js";
 import { RenderBox } from "../tree/render-box.js";
@@ -194,22 +196,14 @@ export class SplitPaneRenderObject extends RenderBox {
       const available = Math.max(0, w - 1);
       const dividerX = x + Math.floor(available * this._ratio);
       for (let row = 0; row < h; row++) {
-        screen.setCell(dividerX, y + row, {
-          char: "│",
-          width: 1,
-          style: { fg: this._dividerColor },
-        });
+        screen.setCell(dividerX, y + row, new Cell("│", new TextStyle({ foreground: this._dividerColor })));
       }
     } else {
       // Draw horizontal divider
       const available = Math.max(0, h - 1);
       const dividerY = y + Math.floor(available * this._ratio);
       for (let col = 0; col < w; col++) {
-        screen.setCell(x + col, dividerY, {
-          char: "─",
-          width: 1,
-          style: { fg: this._dividerColor },
-        });
+        screen.setCell(x + col, dividerY, new Cell("─", new TextStyle({ foreground: this._dividerColor })));
       }
     }
   }

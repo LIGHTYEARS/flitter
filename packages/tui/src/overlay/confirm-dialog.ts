@@ -34,6 +34,7 @@ import { TextStyle } from "../screen/text-style.js";
 import { TextSpan } from "../widgets/text-span.js";
 import { RichText } from "../widgets/rich-text.js";
 import { Color } from "../screen/color.js";
+import { Spacer } from "../widgets/spacer.js";
 
 // ════════════════════════════════════════════════════
 //  ConfirmDialog Widget

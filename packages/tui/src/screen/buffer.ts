@@ -124,7 +124,7 @@ export class ScreenBuffer {
   private _mergeBackground(x: number, y: number, style: TextStyle): TextStyle {
     if (!style?.background || style.background.kind !== "default") return style;
     const existing = this.getCell(x, y);
-    if (!existing.style?.background || existing.style.background.kind === "default") return style;
+    if (!existing?.style?.background || existing.style.background.kind === "default") return style;
     return style.copyWith({ background: existing.style.background });
   }
 

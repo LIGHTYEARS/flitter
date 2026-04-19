@@ -219,6 +219,34 @@ export class TextStyle {
   }
 
   /**
+   * 生成受 color depth 限制的完整 SGR 参数字符串。
+   *
+   * 逆向: Rendering adapts color output based on terminal color depth
+   * detected via QXR (modules/0080_unknown_QXR.js).
+   *
+   * @param colorDepth - target color depth
+   * @returns SGR parameter string with colors downgraded as needed
+   */
+  toSgrAt(colorDepth: "16" | "256" | "truecolor"): string {
+    const parts: string[] = [];
+
+    if (this.bold) parts.push("1");
+    if (this.dim) parts.push("2");
+    if (this.italic) parts.push("3");
+    if (this.underline) parts.push("4");
+    if (this.strikethrough) parts.push("9");
+
+    if (this.foreground.kind !== "default") {
+      parts.push(this.foreground.toAnsiAt(true, colorDepth));
+    }
+    if (this.background.kind !== "default") {
+      parts.push(this.background.toAnsiAt(false, colorDepth));
+    }
+
+    return parts.join(";");
+  }
+
+  /**
    * 生成与前一样式之间的最小差异 SGR 参数字符串。
    *
    * 优化策略：
@@ -287,6 +315,54 @@ export class TextStyle {
     }
     if (!this.background.equals(previous.background)) {
       parts.push(this.background.toAnsi(false));
+    }
+
+    return parts.join(";");
+  }
+
+  /**
+   * 生成受 color depth 限制的差异 SGR 参数字符串。
+   *
+   * 逆向: Rendering adapts color output based on terminal color depth
+   * detected via QXR (modules/0080_unknown_QXR.js).
+   *
+   * @param previous - previous style state
+   * @param colorDepth - target color depth
+   * @returns differential SGR parameter string with colors downgraded as needed
+   */
+  diffSgrAt(previous: TextStyle, colorDepth: "16" | "256" | "truecolor"): string {
+    if (this.equals(previous)) return "";
+
+    const parts: string[] = [];
+    let resetCount = 0;
+
+    if (previous.bold && !this.bold) resetCount++;
+    if (previous.dim && !this.dim) resetCount++;
+    if (previous.italic && !this.italic) resetCount++;
+    if (previous.underline && !this.underline) resetCount++;
+    if (previous.strikethrough && !this.strikethrough) resetCount++;
+
+    if (resetCount >= 3) {
+      const sgr = this.toSgrAt(colorDepth);
+      return sgr ? `0;${sgr}` : "0";
+    }
+
+    if (previous.bold && !this.bold) parts.push("22");
+    if (!previous.bold && this.bold) parts.push("1");
+    if (previous.dim && !this.dim) parts.push("22");
+    if (!previous.dim && this.dim) parts.push("2");
+    if (previous.italic && !this.italic) parts.push("23");
+    if (!previous.italic && this.italic) parts.push("3");
+    if (previous.underline && !this.underline) parts.push("24");
+    if (!previous.underline && this.underline) parts.push("4");
+    if (previous.strikethrough && !this.strikethrough) parts.push("29");
+    if (!previous.strikethrough && this.strikethrough) parts.push("9");
+
+    if (!this.foreground.equals(previous.foreground)) {
+      parts.push(this.foreground.toAnsiAt(true, colorDepth));
+    }
+    if (!this.background.equals(previous.background)) {
+      parts.push(this.background.toAnsiAt(false, colorDepth));
     }
 
     return parts.join(";");

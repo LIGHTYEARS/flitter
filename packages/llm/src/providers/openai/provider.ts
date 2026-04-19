@@ -80,15 +80,14 @@ export class OpenAIProvider implements LLMProvider {
       // Convert SDK errors to ProviderError
       if (err instanceof OpenAI.APIError) {
         const status = err.status ?? 500;
+        // 逆向: _9.js:275-283 (shouldRetry) — 408, 409, 429, >=500
         throw new ProviderError(
           status,
           "openai",
           status === 408 ||
+            status === 409 ||
             status === 429 ||
-            status === 500 ||
-            status === 502 ||
-            status === 503 ||
-            status === 504,
+            status >= 500,
           err.message,
         );
       }

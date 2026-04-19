@@ -263,4 +263,197 @@ export class Color {
           : `48;2;${this.r};${this.g};${this.b}`;
     }
   }
+
+  /**
+   * 生成受 color depth 限制的 SGR 参数字符串。
+   *
+   * 逆向: amp's color downgrade occurs at the rendering layer, converting
+   * RGB colors to 256-index or 16-color depending on terminal capability.
+   * See modules/0080_unknown_QXR.js for detection, rendering adapts output.
+   *
+   * @param isForeground - true for fg, false for bg
+   * @param colorDepth - target color depth: "truecolor", "256", or "16"
+   * @returns SGR parameter string, downgraded if necessary
+   */
+  toAnsiAt(isForeground: boolean, colorDepth: "16" | "256" | "truecolor"): string {
+    switch (this.kind) {
+      case "default":
+        return isForeground ? "39" : "49";
+
+      case "named":
+        // Named 16-colors always work at any depth
+        if (this.index < 8) {
+          return String(isForeground ? 30 + this.index : 40 + this.index);
+        }
+        return String(isForeground ? 90 + (this.index - 8) : 100 + (this.index - 8));
+
+      case "index":
+        if (colorDepth === "16") {
+          // Downgrade 256-index to nearest 16-color
+          const ansi16 = xterm256ToAnsi16(this.index);
+          if (ansi16 < 8) {
+            return String(isForeground ? 30 + ansi16 : 40 + ansi16);
+          }
+          return String(isForeground ? 90 + (ansi16 - 8) : 100 + (ansi16 - 8));
+        }
+        // 256 and truecolor both support 256-index natively
+        return isForeground ? `38;5;${this.index}` : `48;5;${this.index}`;
+
+      case "rgb":
+        if (colorDepth === "truecolor") {
+          return isForeground
+            ? `38;2;${this.r};${this.g};${this.b}`
+            : `48;2;${this.r};${this.g};${this.b}`;
+        }
+        if (colorDepth === "256") {
+          const idx = rgbToXterm256(this.r, this.g, this.b);
+          return isForeground ? `38;5;${idx}` : `48;5;${idx}`;
+        }
+        // 16-color: convert RGB → 256 → 16
+        {
+          const idx = rgbToXterm256(this.r, this.g, this.b);
+          const ansi16 = xterm256ToAnsi16(idx);
+          if (ansi16 < 8) {
+            return String(isForeground ? 30 + ansi16 : 40 + ansi16);
+          }
+          return String(isForeground ? 90 + (ansi16 - 8) : 100 + (ansi16 - 8));
+        }
+    }
+  }
+}
+
+// ── Color Conversion Helpers ───────────────────────────
+
+/**
+ * The 6x6x6 color cube values used in xterm-256 (indices 16-231).
+ * Each axis step: 0, 95, 135, 175, 215, 255.
+ */
+const CUBE_STEPS = [0, 0x5f, 0x87, 0xaf, 0xd7, 0xff] as const;
+
+/**
+ * The 24 grayscale ramp values (indices 232-255).
+ * 8, 18, 28, ..., 238.
+ */
+const GRAY_RAMP = Array.from({ length: 24 }, (_, i) => 8 + 10 * i);
+
+/**
+ * Convert an RGB color to the nearest xterm-256 palette index.
+ *
+ * Algorithm:
+ * 1. Find nearest in the 6x6x6 color cube (indices 16-231)
+ * 2. Find nearest in the grayscale ramp (indices 232-255)
+ * 3. Return whichever has lower Euclidean distance
+ *
+ * @param r - Red (0-255)
+ * @param g - Green (0-255)
+ * @param b - Blue (0-255)
+ * @returns xterm-256 palette index (0-255)
+ */
+export function rgbToXterm256(r: number, g: number, b: number): number {
+  // Find nearest cube index per channel
+  const cr = nearestCubeIndex(r);
+  const cg = nearestCubeIndex(g);
+  const cb = nearestCubeIndex(b);
+  const cubeIdx = 16 + 36 * cr + 6 * cg + cb;
+  const cubeR = CUBE_STEPS[cr];
+  const cubeG = CUBE_STEPS[cg];
+  const cubeB = CUBE_STEPS[cb];
+  const cubeDist = colorDistSq(r, g, b, cubeR, cubeG, cubeB);
+
+  // Find nearest grayscale
+  const avg = Math.round((r + g + b) / 3);
+  let grayIdx = 0;
+  let grayDist = Infinity;
+  for (let i = 0; i < 24; i++) {
+    const gv = GRAY_RAMP[i];
+    const d = colorDistSq(r, g, b, gv, gv, gv);
+    if (d < grayDist) {
+      grayDist = d;
+      grayIdx = 232 + i;
+    }
+  }
+
+  return cubeDist <= grayDist ? cubeIdx : grayIdx;
+}
+
+function nearestCubeIndex(value: number): number {
+  let best = 0;
+  let bestDist = Math.abs(value - CUBE_STEPS[0]);
+  for (let i = 1; i < 6; i++) {
+    const d = Math.abs(value - CUBE_STEPS[i]);
+    if (d < bestDist) {
+      bestDist = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+function colorDistSq(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+  return (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2;
+}
+
+/**
+ * Standard 16-color ANSI palette RGB values.
+ * Index 0-7: normal colors, 8-15: bright colors.
+ */
+const ANSI_16_PALETTE: readonly [number, number, number][] = [
+  [0, 0, 0],       // 0: black
+  [170, 0, 0],     // 1: red
+  [0, 170, 0],     // 2: green
+  [170, 85, 0],    // 3: yellow/brown
+  [0, 0, 170],     // 4: blue
+  [170, 0, 170],   // 5: magenta
+  [0, 170, 170],   // 6: cyan
+  [170, 170, 170], // 7: white
+  [85, 85, 85],    // 8: bright black (gray)
+  [255, 85, 85],   // 9: bright red
+  [85, 255, 85],   // 10: bright green
+  [255, 255, 85],  // 11: bright yellow
+  [85, 85, 255],   // 12: bright blue
+  [255, 85, 255],  // 13: bright magenta
+  [85, 255, 255],  // 14: bright cyan
+  [255, 255, 255], // 15: bright white
+];
+
+/**
+ * Convert a xterm-256 palette index to the nearest ANSI 16-color index.
+ *
+ * For indices 0-15, returns the index directly.
+ * For indices 16-255, finds the nearest ANSI 16-color by Euclidean distance.
+ *
+ * @param idx - xterm-256 palette index (0-255)
+ * @returns ANSI 16-color index (0-15)
+ */
+export function xterm256ToAnsi16(idx: number): number {
+  if (idx < 16) return idx;
+
+  // Resolve index to RGB
+  let r: number, g: number, b: number;
+  if (idx < 232) {
+    // Color cube
+    const ci = idx - 16;
+    r = CUBE_STEPS[Math.floor(ci / 36)];
+    g = CUBE_STEPS[Math.floor((ci % 36) / 6)];
+    b = CUBE_STEPS[ci % 6];
+  } else {
+    // Grayscale ramp
+    const gv = 8 + 10 * (idx - 232);
+    r = gv;
+    g = gv;
+    b = gv;
+  }
+
+  // Find nearest ANSI 16-color
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < 16; i++) {
+    const [pr, pg, pb] = ANSI_16_PALETTE[i];
+    const d = colorDistSq(r, g, b, pr, pg, pb);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
 }

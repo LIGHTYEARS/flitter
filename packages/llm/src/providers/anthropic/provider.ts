@@ -101,27 +101,42 @@ export class AnthropicProvider implements LLMProvider {
     } catch (err: unknown) {
       // Convert SDK errors to ProviderError
       if (err instanceof Anthropic.APIError) {
-        // Extract retry-after from headers (seconds → ms)
-        const retryAfterHeader = (err.headers as Record<string, string> | undefined)?.[
-          "retry-after"
-        ];
-        const retryAfterMs = retryAfterHeader
-          ? Number.parseFloat(retryAfterHeader) * 1000
-          : undefined;
+        // Extract retry-after from headers
+        // 逆向: _9.js:285-301 (retryRequest) — check retry-after-ms first, then retry-after
+        const headers = err.headers as Record<string, string> | undefined;
+        let retryAfterMs: number | undefined;
 
+        // Priority 1: retry-after-ms header (milliseconds)
+        const retryAfterMsHeader = headers?.["retry-after-ms"];
+        if (retryAfterMsHeader) {
+          const parsed = parseFloat(retryAfterMsHeader);
+          if (!Number.isNaN(parsed)) retryAfterMs = parsed;
+        }
+
+        // Priority 2: retry-after header (seconds or HTTP date)
+        if (retryAfterMs === undefined) {
+          const retryAfterHeader = headers?.["retry-after"];
+          if (retryAfterHeader) {
+            const parsed = parseFloat(retryAfterHeader);
+            if (!Number.isNaN(parsed)) {
+              retryAfterMs = parsed * 1000;
+            } else {
+              // HTTP date format fallback
+              retryAfterMs = Date.parse(retryAfterHeader) - Date.now();
+            }
+          }
+        }
+
+        // 逆向: _9.js:275-283 (shouldRetry) — 408, 409, 429, >=500
         throw new ProviderError(
           err.status,
           "anthropic",
           err.status === 408 ||
             err.status === 409 ||
             err.status === 429 ||
-            err.status === 500 ||
-            err.status === 502 ||
-            err.status === 503 ||
-            err.status === 504 ||
-            err.status === 529,
+            err.status >= 500,
           err.message,
-          Number.isNaN(retryAfterMs) ? undefined : retryAfterMs,
+          retryAfterMs !== undefined && !Number.isNaN(retryAfterMs) ? retryAfterMs : undefined,
         );
       }
       throw err;

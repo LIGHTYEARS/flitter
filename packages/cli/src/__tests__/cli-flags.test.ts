@@ -192,3 +192,182 @@ describe("CliContext flag integration", () => {
     expect(ctx.executeMode).toBe(true);
   });
 });
+
+// ── Part A: New CLI Flags ────────────────────────────────
+
+describe("New CLI flag parsing (Part A)", () => {
+  // 逆向: i$T dangerouslyAllowAll (chunk-006.js:38207-38211)
+  test("--dangerously-allow-all is a boolean flag", () => {
+    const opts = parseOpts(["--dangerously-allow-all"]);
+    expect(opts.dangerouslyAllowAll).toBe(true);
+  });
+
+  test("--dangerously-allow-all defaults to undefined", () => {
+    const opts = parseOpts([]);
+    expect(opts.dangerouslyAllowAll).toBeUndefined();
+  });
+
+  test("--allowedTools accepts comma-separated list", () => {
+    const opts = parseOpts(["--allowedTools", "Read,Write,Grep"]);
+    expect(opts.allowedTools).toBe("Read,Write,Grep");
+  });
+
+  test("--disallowedTools accepts comma-separated list", () => {
+    const opts = parseOpts(["--disallowedTools", "Bash,mcp__*"]);
+    expect(opts.disallowedTools).toBe("Bash,mcp__*");
+  });
+
+  test("--no-shell-cmd is recognized", () => {
+    const opts = parseOpts(["--no-shell-cmd"]);
+    expect(opts.shellCmd).toBe(false);
+  });
+
+  test("--toolbox is a boolean flag", () => {
+    const opts = parseOpts(["--toolbox"]);
+    expect(opts.toolbox).toBe(true);
+  });
+
+  test("--include-co-authors is a boolean flag", () => {
+    const opts = parseOpts(["--include-co-authors"]);
+    expect(opts.includeCoAuthors).toBe(true);
+  });
+
+  test("--output-format accepts format string", () => {
+    const opts = parseOpts(["--output-format", "json"]);
+    expect(opts.outputFormat).toBe("json");
+  });
+});
+
+describe("New CLI flags in CliContext (Part A)", () => {
+  // 逆向: ua() in chunk-005.js:4080 — dangerouslyAllowAll wiring
+  test("--dangerously-allow-all maps to ctx.dangerouslyAllowAll", () => {
+    const ctx = parseContext(["--dangerously-allow-all"]);
+    expect(ctx.dangerouslyAllowAll).toBe(true);
+  });
+
+  test("--allowedTools is split into array in context", () => {
+    const ctx = parseContext(["--allowedTools", "Read,Write,Grep"]);
+    expect(ctx.allowedTools).toEqual(["Read", "Write", "Grep"]);
+  });
+
+  test("--allowedTools handles whitespace in list", () => {
+    const ctx = parseContext(["--allowedTools", "Read, Write , Grep"]);
+    expect(ctx.allowedTools).toEqual(["Read", "Write", "Grep"]);
+  });
+
+  test("--disallowedTools is split into array in context", () => {
+    const ctx = parseContext(["--disallowedTools", "Bash,mcp__dangerous"]);
+    expect(ctx.disallowedTools).toEqual(["Bash", "mcp__dangerous"]);
+  });
+
+  test("--no-shell-cmd maps to ctx.noShellCmd=true", () => {
+    const ctx = parseContext(["--no-shell-cmd"]);
+    expect(ctx.noShellCmd).toBe(true);
+  });
+
+  test("without --no-shell-cmd, noShellCmd is undefined", () => {
+    const ctx = parseContext([]);
+    expect(ctx.noShellCmd).toBeUndefined();
+  });
+
+  test("--toolbox maps to ctx.toolbox=true", () => {
+    const ctx = parseContext(["--toolbox"]);
+    expect(ctx.toolbox).toBe(true);
+  });
+
+  test("--include-co-authors maps to ctx.includeCoAuthors=true", () => {
+    const ctx = parseContext(["--include-co-authors"]);
+    expect(ctx.includeCoAuthors).toBe(true);
+  });
+
+  test("--output-format json maps to ctx.outputFormat='json'", () => {
+    const ctx = parseContext(["--output-format", "json"]);
+    expect(ctx.outputFormat).toBe("json");
+  });
+
+  test("--output-format markdown maps correctly", () => {
+    const ctx = parseContext(["--output-format", "markdown"]);
+    expect(ctx.outputFormat).toBe("markdown");
+  });
+
+  test("--output-format with invalid value maps to undefined", () => {
+    const ctx = parseContext(["--output-format", "xml"]);
+    expect(ctx.outputFormat).toBeUndefined();
+  });
+
+  test("new flags default to undefined when not provided", () => {
+    const ctx = parseContext([]);
+    expect(ctx.dangerouslyAllowAll).toBeUndefined();
+    expect(ctx.allowedTools).toBeUndefined();
+    expect(ctx.disallowedTools).toBeUndefined();
+    expect(ctx.noShellCmd).toBeUndefined();
+    expect(ctx.toolbox).toBeUndefined();
+    expect(ctx.includeCoAuthors).toBeUndefined();
+    expect(ctx.outputFormat).toBeUndefined();
+  });
+});
+
+// ── Part B: New CLI Commands ─────────────────────────────
+
+describe("New CLI commands (Part B)", () => {
+  test("review command is registered", () => {
+    const program = createProgram("0.0.0-test");
+    const reviewCmd = program.commands.find(
+      (c: { name: () => string }) => c.name() === "review",
+    );
+    expect(reviewCmd).toBeDefined();
+  });
+
+  test("mcp doctor subcommand is registered", () => {
+    const program = createProgram("0.0.0-test");
+    const mcpCmd = program.commands.find(
+      (c: { name: () => string }) => c.name() === "mcp",
+    );
+    expect(mcpCmd).toBeDefined();
+    const doctorCmd = mcpCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "doctor",
+    );
+    expect(doctorCmd).toBeDefined();
+  });
+
+  test("mcp approve subcommand is registered", () => {
+    const program = createProgram("0.0.0-test");
+    const mcpCmd = program.commands.find(
+      (c: { name: () => string }) => c.name() === "mcp",
+    );
+    const approveCmd = mcpCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "approve",
+    );
+    expect(approveCmd).toBeDefined();
+  });
+
+  test("mcp oauth subcommand is registered with login/logout", () => {
+    const program = createProgram("0.0.0-test");
+    const mcpCmd = program.commands.find(
+      (c: { name: () => string }) => c.name() === "mcp",
+    );
+    const oauthCmd = mcpCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "oauth",
+    );
+    expect(oauthCmd).toBeDefined();
+    const loginCmd = oauthCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "login",
+    );
+    expect(loginCmd).toBeDefined();
+    const logoutCmd = oauthCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "logout",
+    );
+    expect(logoutCmd).toBeDefined();
+  });
+
+  test("threads dashboard subcommand is registered", () => {
+    const program = createProgram("0.0.0-test");
+    const threadsCmd = program.commands.find(
+      (c: { name: () => string }) => c.name() === "threads",
+    );
+    const dashCmd = threadsCmd?.commands?.find(
+      (c: { name: () => string }) => c.name() === "dashboard",
+    );
+    expect(dashCmd).toBeDefined();
+  });
+});

@@ -58,10 +58,8 @@ export function createReadMcpResourceTool(mcpManager: MCPManagerLike): ToolSpec 
       required: ["server", "uri"],
     },
 
-    executionProfile: {
-      // Read-only, no file conflicts
-      resourceKeys: () => [],
-    },
+    executionProfile: undefined,
+    // Read-only, no file conflicts
 
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
       const server = args.server as string;

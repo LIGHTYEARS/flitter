@@ -35,9 +35,14 @@ import {
   applyHookAction,
   buildSystemPrompt as assembleSystemPrompt,
   collectContextBlocks,
+  createDeleteFileTool,
+  createReadMcpResourceTool,
+  createSkillTool,
   createTaskTool,
+  createUndoEditTool,
   executePostHook,
   executePreHook,
+  FileChangeTracker,
   matchHookToTool,
   matchPostExecuteHook,
   matchPreExecuteHook,
@@ -202,6 +207,13 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     registerBuiltinTools(toolRegistry);
     log.info("ToolRegistry created, builtin tools registered");
 
+    // 2b. FileChangeTracker + undo_edit / delete_file tools
+    // 逆向: amp injects fileChangeTracker into tool context for edit/write/undo
+    const fileChangeTracker = new FileChangeTracker();
+    toolRegistry.register(createUndoEditTool(fileChangeTracker));
+    toolRegistry.register(createDeleteFileTool(fileChangeTracker));
+    log.info("FileChangeTracker created, undo_edit and delete_file tools registered");
+
     // 3. PermissionEngine — 四级决策
     const permissionEngine = createPermissionEngine(configService, opts.workspaceRoot);
     log.info("PermissionEngine created");
@@ -230,6 +242,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     disposables.push(mcpServerManager);
     log.info("MCPServerManager created");
 
+    // 5b. Register read_mcp_resource tool (depends on MCPServerManager)
+    toolRegistry.register(createReadMcpResourceTool(mcpServerManager));
+    log.info("read_mcp_resource tool registered");
+
     // Bridge MCP tools into ToolRegistry (reactive sync)
     const mcpBridge = syncMCPToolsToRegistry(mcpServerManager, toolRegistry);
     disposables.push({ dispose: () => mcpBridge.dispose() });
@@ -238,6 +254,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // 6. SkillService
     const skillService = createSkillService(configService);
     log.info("SkillService created");
+
+    // 6b. Register Skill tool (depends on SkillService)
+    toolRegistry.register(createSkillTool(skillService));
+    log.info("Skill tool registered");
 
     // 7. GuidanceLoader
     const guidanceLoader = createGuidanceLoader(opts);

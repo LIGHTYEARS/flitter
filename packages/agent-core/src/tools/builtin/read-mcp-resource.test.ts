@@ -202,9 +202,8 @@ describe("ReadMcpResourceTool", () => {
 
   // ─── executionProfile ────────────────────────────────────
 
-  it("executionProfile returns empty resource keys", () => {
+  it("executionProfile is undefined (read-only, no conflicts)", () => {
     const tool = createReadMcpResourceTool(createMockManager({}));
-    const keys = tool.executionProfile!.resourceKeys({});
-    assert.deepEqual(keys, []);
+    assert.equal(tool.executionProfile, undefined);
   });
 });

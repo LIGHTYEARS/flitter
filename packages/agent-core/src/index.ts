@@ -102,14 +102,20 @@ export {
   TITLE_TOOL_DEFINITION,
 } from "./title/generate-title";
 export { BashTool } from "./tools/builtin/bash";
+export { createDeleteFileTool } from "./tools/builtin/delete-file";
 export { EditTool } from "./tools/builtin/edit";
 export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
+export { createReadMcpResourceTool } from "./tools/builtin/read-mcp-resource";
 // ─── Built-in Tools ────────────────────────────────────
 export { ReadTool } from "./tools/builtin/read";
+export { createSkillTool } from "./tools/builtin/skill-tool";
 export { createTaskTool } from "./tools/builtin/task";
+export { createUndoEditTool } from "./tools/builtin/undo-edit";
 export { WriteTool } from "./tools/builtin/write";
+export { FileChangeTracker } from "./tools/file-change-tracker";
+export type { FileChange } from "./tools/file-change-tracker";
 export type { OrchestratorCallbacks, ToolThreadEvent, ToolUseItem } from "./tools/orchestrator";
 export { ToolOrchestrator } from "./tools/orchestrator";
 export { ToolRegistry } from "./tools/registry";

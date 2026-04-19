@@ -16,7 +16,12 @@
 import type { PermissionEngineOpts } from "@flitter/agent-core";
 import {
   BashTool,
+  createDeleteFileTool,
+  createReadMcpResourceTool,
+  createSkillTool,
+  createUndoEditTool,
   EditTool,
+  FileChangeTracker,
   FuzzyFindTool,
   GlobTool,
   GrepTool,

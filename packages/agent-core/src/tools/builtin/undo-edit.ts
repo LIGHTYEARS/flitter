@@ -157,16 +157,10 @@ export function createUndoEditTool(fileChangeTracker: FileChangeTracker): ToolSp
       required: ["path"],
     },
 
-    executionProfile: {
-      // 逆向: undo_edit uses per-file mutex (gA(t).acquire())
-      // Resource key is dynamic per file path
-      resourceKeys: (args: Record<string, unknown>) => {
-        if (args && typeof args.path === "string") {
-          return [{ key: args.path, mode: "write" as const }];
-        }
-        return [];
-      },
-    },
+    executionProfile: undefined,
+    // 逆向: undo_edit uses per-file mutex (gA(t).acquire())
+    // Resource key is dynamic per file path; orchestrator conflict
+    // detection is static so we use undefined like Edit/Write tools.
 
     async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
       const filePath = args.path as string;

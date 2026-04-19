@@ -195,9 +195,8 @@ describe("SkillTool", () => {
 
   // ─── executionProfile ────────────────────────────────────
 
-  it("executionProfile returns empty resource keys", () => {
+  it("executionProfile is undefined (read-only, no conflicts)", () => {
     const tool = createSkillTool(createMockSkillService([]));
-    const keys = tool.executionProfile!.resourceKeys({});
-    assert.deepEqual(keys, []);
+    assert.equal(tool.executionProfile, undefined);
   });
 });

@@ -158,17 +158,9 @@ describe("UndoEditTool", () => {
 
   // ─── executionProfile ────────────────────────────────────
 
-  it("executionProfile returns write resource key for the file", () => {
+  it("executionProfile is undefined (dynamic file path)", () => {
     const tracker = new FileChangeTracker();
     const tool = createUndoEditTool(tracker);
-    const keys = tool.executionProfile!.resourceKeys({ path: "/foo/bar.txt" });
-    assert.deepEqual(keys, [{ key: "/foo/bar.txt", mode: "write" }]);
-  });
-
-  it("executionProfile returns empty for missing path", () => {
-    const tracker = new FileChangeTracker();
-    const tool = createUndoEditTool(tracker);
-    const keys = tool.executionProfile!.resourceKeys({});
-    assert.deepEqual(keys, []);
+    assert.equal(tool.executionProfile, undefined);
   });
 });

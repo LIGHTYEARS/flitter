@@ -137,10 +137,9 @@ describe("DeleteFileTool", () => {
 
   // ─── executionProfile ────────────────────────────────────
 
-  it("executionProfile returns write resource key for the file", () => {
+  it("executionProfile is undefined (dynamic file path)", () => {
     const tracker = new FileChangeTracker();
     const tool = createDeleteFileTool(tracker);
-    const keys = tool.executionProfile!.resourceKeys({ path: "/foo/bar.txt" });
-    assert.deepEqual(keys, [{ key: "/foo/bar.txt", mode: "write" }]);
+    assert.equal(tool.executionProfile, undefined);
   });
 });

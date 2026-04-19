@@ -90,10 +90,9 @@ Example: To use the web-browser skill for interacting with web pages, call this 
       required: ["name"],
     },
 
-    executionProfile: {
-      // 逆向: chunk-005.js:105727-105729 — resourceKeys: () => []
-      resourceKeys: () => [],
-    },
+    executionProfile: undefined,
+    // 逆向: chunk-005.js:105727-105729 — resourceKeys: () => []
+    // Read-only skill loading, no resource conflicts
 
     async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
       const name = args.name as string;

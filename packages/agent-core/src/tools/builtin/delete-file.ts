@@ -41,14 +41,9 @@ export function createDeleteFileTool(fileChangeTracker: FileChangeTracker): Tool
       required: ["path"],
     },
 
-    executionProfile: {
-      resourceKeys: (args: Record<string, unknown>) => {
-        if (args && typeof args.path === "string") {
-          return [{ key: args.path, mode: "write" as const }];
-        }
-        return [];
-      },
-    },
+    executionProfile: undefined,
+    // Resource key is dynamic per file path; orchestrator conflict
+    // detection is static so we use undefined like Edit/Write tools.
 
     async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
       const filePath = args.path as string;

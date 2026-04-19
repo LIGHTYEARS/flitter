@@ -1,9 +1,9 @@
 # Full Parity Sweep: amp-cli → flitter-cli Gap Closure
 
 **Date:** 2026-04-19
-**Status:** Revised — reflects parallel session progress
+**Status:** Verified — codebase walked and ground-truthed at `ce5db4d`
 **Approach:** Domain-Sliced Parallel Agents (4 agents, worktree-isolated)
-**Baseline:** master @ `e18a658` (940+ commits)
+**Baseline:** master @ `ce5db4d` (4,152 tests passing, 0 failures, 218 test files)
 
 ---
 
@@ -24,21 +24,26 @@ Flitter is a reverse-engineering of amp-cli. After 940+ commits across 8 package
 | **Plugin System** | `PluginService` + `PluginHost` + `PluginRuntime` with JSON-RPC subprocess protocol |
 | **Lifecycle Hooks** | `InternalHooks` interface, `filterValidHooks` with `compatibilityDate` validation |
 
-### 1.2 Current Tool Count
+### 1.2 Current Tool Count (verified)
 
-- **Static builtin tools:** 7 (Bash, Read, Write, Edit, Grep, Glob, FuzzyFind)
-- **Factory/injected tools:** 5 (undo_edit, delete_file, read_mcp_resource, Skill, Task)
-- **GitHub tools:** 7 (read_github, search_github, commit_search, list_directory_github, glob_github, github_diff, list_repositories)
-- **Total: 19 tools** (up from 8 at spec creation)
+- **Static builtin tools (7):** Bash, Read, Write, Edit, Grep, Glob, FuzzyFind
+- **Factory/injected tools (5):** undo_edit, delete_file, read_mcp_resource, Skill, Task
+- **GitHub tools (7):** read_github, search_github, commit_search, list_directory_github, glob_github, github_diff, list_repositories
+- **Container-registered total: 12** (7 static + 5 factory, GitHub tools require external wiring)
+- **Dynamic at runtime:** MCP tools (via `syncMCPToolsToRegistry`), Toolbox scripts (via `ToolboxService`)
 
-### 1.3 Active Worktrees (may need merge)
+### 1.3 Stale Worktrees (work already merged to master)
 
-| Worktree | Branch | Work | Commits Ahead |
-|----------|--------|------|---------------|
-| `agent-a1cffde4` | GitHub tools (Gap 10) | 7 GitHub integration tools | 1 |
-| `agent-a6de2755` | ToolboxService | ToolboxService + `tools make` CLI | 3 |
-| `agent-a6e6a889` | Execute mode flags (Gap 9) | `--stats`, `--archive`, `--label`, `--stream-json-*` | 3 |
-| 4 others | Idle | At master HEAD | 0 |
+9 worktrees exist from the parallel session. 5 contain commits that are already on master; 4 are idle at master HEAD. All can be cleaned up before dispatching new agents.
+
+| Worktree | Work | Status |
+|----------|------|--------|
+| `agent-a1cffde4` | GitHub tools (Gap 10) | Merged — stale |
+| `agent-a5b34e62` | Lifecycle hooks (Gap 7) | Merged — stale |
+| `agent-a6de2755` | ToolboxService | Merged — stale |
+| `agent-a6e6a889` | Execute mode flags (Gap 9) | Merged — stale |
+| `agent-aa5c9c70` | Plugin system (Gap 5) | Merged — stale |
+| 4 others | Idle at master HEAD | Stale |
 
 ---
 
@@ -249,10 +254,11 @@ Current: 4 modes (smart/fast/deep/auto). Amp has 6 (smart/rush/deep/large/free/a
 
 ### 5.2 Theme Switching Wiring (P0)
 
-The theme data and registry exist, but switching is not wired:
+The theme data and registry exist (`packages/tui/src/theme/`), but switching is not wired:
 - Wire `terminal.theme` config key → `ThemeController` hot-reload via ConfigService subscription
 - Add `/theme` slash command for in-session switching (FuzzyPicker-based theme picker)
 - Ensure `ThemeController.of(context)` propagates the selected theme through the widget tree
+- Note: `packages/tui/src/widgets/theme.ts` has a deprecated single `defaultTheme` — ensure new code uses `ThemeRegistry` path
 
 ### 5.3 Generic Popup/Dialog (P0)
 
@@ -294,6 +300,8 @@ The theme data and registry exist, but switching is not wired:
 
 ### 5.9 Physics-Based Scroll (P2)
 
+- Current state (verified): `ScrollController` has `ClampingScrollPhysics` (boundary clamping only) + `animateTo()` with `easeOutCubic` at 16ms intervals. No velocity tracking, no fling, no momentum.
+- **Amp reference:** Scrollable physics with velocity tracking and deceleration.
 - Extend `ScrollPhysics` with `FlingPhysics`:
   - Velocity tracking over last N events
   - Deceleration curve on release
@@ -321,7 +329,7 @@ The theme data and registry exist, but switching is not wired:
 
 ### 6.2 Terminal Capability Detection Enhancement (P0)
 
-Current state: `TerminalCapabilities` with 5 fields + `waitForCapabilities()` with timeout fallback. Missing: color depth detection.
+Current state (verified): `TerminalCapabilities` has 5 fields (`emojiWidth`, `syncOutput`, `kittyKeyboard`, `colorPaletteNotifications`, `xtversion`) + `waitForCapabilities()` with timeout fallback. `AnsiRenderer` has **zero color-depth branching** — emits raw SGR sequences without truecolor/256/16-color detection or downsampling.
 
 - **Amp reference:** Multi-layer terminal detection in chunk-006.js.
 - Add COLORTERM env var check (`truecolor`/`24bit` → true color)
@@ -358,9 +366,10 @@ Current state: `TerminalCapabilities` with 5 fields + `waitForCapabilities()` wi
 
 ### 6.6 `plugins` CLI Commands (P1)
 
-Plugin system exists but CLI commands are missing:
+Plugin system exists in `packages/agent-core/src/plugins/` (PluginService, PluginHost, PluginRuntime) but CLI commands are missing:
 - `flitter plugins list` — lists installed plugins with status
 - `flitter plugins exec <plugin> <event>` — execute a plugin with event data
+- Note: no `packages/data/src/plugin/` directory exists — all plugin logic is in agent-core
 
 ---
 
@@ -372,10 +381,12 @@ All 4 agents launch simultaneously in separate worktrees:
 
 ```
 master ─┬─ feat/parity-tools    (Agent 1: 7 remaining tools)
-        ├─ feat/parity-cli      (Agent 2: 6 flags + 5 cmds + palette)
+        ├─ feat/parity-cli      (Agent 2: 7 flags + 5 cmds + palette + mode expansion)
         ├─ feat/parity-tui      (Agent 3: 9 TUI widgets/features)
-        └─ feat/parity-engine   (Agent 4: 4 engine features)
+        └─ feat/parity-engine   (Agent 4: 5 engine features)
 ```
+
+**Pre-dispatch cleanup:** Remove the 9 stale worktrees from the parallel session before creating new ones.
 
 ### 7.2 Cross-Agent Dependencies
 
@@ -427,3 +438,57 @@ master ─┬─ feat/parity-tools    (Agent 1: 7 remaining tools)
 - `code_tour` — guided code tour (IDE-specific)
 - JetBrains / Neovim / Zed IDE integrations — separate project
 - DTW server-side implementation — requires cloud infrastructure
+
+---
+
+## Appendix A: Verified Codebase State (ce5db4d)
+
+This appendix records the exact state verified by walking the codebase. Agents should use this as their starting reference.
+
+### A.1 Test Suite
+
+```
+4,152 tests pass | 0 failures | 218 test files | 41s runtime
+```
+
+Per-package breakdown:
+- `packages/agent-core/`: 773 pass, 46 files
+- `packages/cli/`: 469 pass, 46 files
+- `packages/tui/`: 1,500 pass, 68 files
+- `packages/data/`: 200 pass, 11 files
+- Remaining: `packages/schemas/`, `packages/util/`, `packages/llm/`, `packages/flitter/`
+
+### A.2 CLI Surface (verified)
+
+**Flags defined in `program.ts`:** `--execute`, `--headless`, `--stream-json`, `--no-color`, `--verbose`, `--model`, `--mode`, `--api-key`, `--system-prompt`, `--max-turns`, `--print`, `--pipe`, `--stream-json-thinking`, `--stream-json-input`, `--stats`, `--archive`, `--label`
+
+**Flags NOT defined:** `--dangerously-allow-all`, `--allowedTools`, `--disallowedTools`, `--no-shell-cmd`, `--toolbox`, `--include-co-authors`, `--output-format`
+
+**Subcommand groups:** `login`, `logout`, `threads` (11 subcommands), `config` (3), `update`, `mcp` (3: add/list/remove), `permissions` (3: list/test/add), `tools` (2: list/show)
+
+**Slash commands (6):** `/help`, `/clear`, `/compact`, `/cost`, `/model`, `/status`
+
+**Missing commands:** `review`, `plugins list|exec`, `mcp doctor|approve|oauth`, `thread dashboard`, `usage`
+
+### A.3 CliContext Fields (verified)
+
+`executeMode`, `isTTY`, `headless`, `streamJson`, `verbose`, `userMessage`, `print`, `pipe`, `maxTurns`, `model`, `systemPrompt`, `apiKey`, `agentMode`, `streamJsonThinking`, `streamJsonInput`, `stats`, `archive`, `labels`
+
+### A.4 TUI Widget Inventory (verified)
+
+**Framework widgets (packages/tui/src/widgets/):** Align, Border, BoxDecoration, BrailleSpinner, Center, ClipBox, ColorScheme, Column, Container, EdgeInsets, Flex, Flexible, Focus, GestureDetector, MediaQuery, MouseRegion, MultiChildRenderObjectElement, Padding, RichText, Row, Scrollbar, SizedBox, Spacer, Stack, Text, TextSpan, Theme, Viewport
+
+**Overlay system (packages/tui/src/overlay/):** AutocompleteController, CommandPalette, FuzzyMatch, FuzzyPicker, LayerLink, Overlay, OverlayEntry
+
+**App widgets (packages/cli/src/widgets/):** AppWidget, ApprovalWidget, CommandDetection, CommandPaletteProvider, ConfigProvider, ConversationView, DiffWidget, DisplayItems, ErrorDialog, FileAutocomplete, InputField, PromptHistory, ShortcutsPopup, SlashCommandAutocomplete, StatusBar, ThemeController, ThreadStateWidget, ToastManager, ToastOverlay, WelcomeScreen
+
+**NOT implemented:** ProgressBar, Toggle/Checkbox, Badge, SplitPane, PopupDialog, ConfirmDialog, NotificationBanner, Orb/ModeIndicator
+
+### A.5 Agent Engine Inventory (verified)
+
+**Exists:** modes/ (4 modes), hooks/ (lifecycle + admin matcher), toolbox/ (ToolboxService), plugins/ (PluginService + PluginHost + PluginRuntime), subagent/ (SubAgentManager), cost/ (SessionCostTracker), worker/ (ThreadWorker + RetryScheduler)
+
+**NOT exists:** dtw/ (no directory), thread navigation history (no forward/back stack)
+
+**AnsiRenderer:** No color-depth branching — raw SGR only
+**ScrollController:** No velocity/fling physics — ClampingScrollPhysics + easeOutCubic only

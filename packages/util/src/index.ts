@@ -1,6 +1,7 @@
 // @flitter/util - Infrastructure utilities
 
 export * from "./assert";
+export * from "./cache";
 export * from "./error";
 export * from "./git";
 export * from "./keyring";

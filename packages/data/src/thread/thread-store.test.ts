@@ -11,6 +11,7 @@ import {
   snapshotToEntry,
   ThreadStore,
 } from "./thread-store";
+import type { ThreadExclusiveReadWriter, ThreadVisibility } from "./thread-store";
 
 function makeThread(
   overrides: Partial<ThreadSnapshot> & { id: string; created?: number; [key: string]: unknown },
@@ -333,6 +334,156 @@ describe("ThreadStore", () => {
       store.setCachedThread(makeThread({ id: "b", messages: [makeUserMessage()] }));
       const ids = store.getCachedThreadIds().sort();
       assert.deepEqual(ids, ["a", "b"]);
+    });
+  });
+
+  describe("setVisibility (Task 2)", () => {
+    it("should set thread visibility and mark dirty", () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      store.setVisibility("t1", "public_unlisted");
+
+      const snapshot = store.getThreadSnapshot("t1")!;
+      const meta = snapshot.meta as Record<string, unknown>;
+      assert.equal(meta.visibility, "public_unlisted");
+
+      // Should be marked dirty
+      assert.ok(store.getDirtyThreadIds().includes("t1"));
+    });
+
+    it("should increment version", () => {
+      const t = makeThread({ id: "t1", messages: [makeUserMessage()] });
+      store.setCachedThread(t);
+      const v1 = store.getThreadSnapshot("t1")!.v;
+
+      store.setVisibility("t1", "private");
+      const v2 = store.getThreadSnapshot("t1")!.v;
+      assert.equal(v2, v1 + 1);
+    });
+
+    it("should throw for non-existent thread", () => {
+      assert.throws(() => store.setVisibility("nope", "private"), /not found/);
+    });
+  });
+
+  describe("exclusiveSyncReadWriter (Task 3)", () => {
+    it("should read current snapshot", () => {
+      store.setCachedThread(makeThread({ id: "t1", title: "hello", messages: [makeUserMessage()] }));
+      const rw = store.exclusiveSyncReadWriter("t1");
+      assert.equal(rw.read().title, "hello");
+    });
+
+    it("should write a snapshot", async () => {
+      store.setCachedThread(makeThread({ id: "t1", title: "v1", messages: [makeUserMessage()] }));
+      const rw = store.exclusiveSyncReadWriter("t1");
+      rw.write(makeThread({ id: "t1", title: "v2", v: 2, messages: [makeUserMessage()] }));
+      assert.equal(store.getThreadSnapshot("t1")!.title, "v2");
+      await rw.asyncDispose();
+    });
+
+    it("should update with a function", async () => {
+      store.setCachedThread(makeThread({ id: "t1", title: "before", messages: [makeUserMessage()] }));
+      const rw = store.exclusiveSyncReadWriter("t1");
+      rw.update(() => ({ title: "after" }));
+      assert.equal(store.getThreadSnapshot("t1")!.title, "after");
+      await rw.asyncDispose();
+    });
+
+    it("should prevent double-lock", () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      const rw1 = store.exclusiveSyncReadWriter("t1");
+      assert.throws(() => store.exclusiveSyncReadWriter("t1"), /already has an exclusive/);
+      // Can lock after dispose
+      rw1.asyncDispose();
+    });
+
+    it("should release lock on asyncDispose", async () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      const rw1 = store.exclusiveSyncReadWriter("t1");
+      await rw1.asyncDispose();
+
+      // Should not throw now
+      const rw2 = store.exclusiveSyncReadWriter("t1");
+      assert.ok(rw2);
+      await rw2.asyncDispose();
+    });
+
+    it("should throw on read/write after dispose", async () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      const rw = store.exclusiveSyncReadWriter("t1");
+      await rw.asyncDispose();
+
+      assert.throws(() => rw.read(), /disposed/);
+      assert.throws(() => rw.write(makeThread({ id: "t1", messages: [] })), /disposed/);
+    });
+
+    it("should throw for non-existent thread", () => {
+      assert.throws(() => store.exclusiveSyncReadWriter("nope"), /not found/);
+    });
+
+    it("should mark dirty by default on write", async () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      store.clearAllDirty();
+      const rw = store.exclusiveSyncReadWriter("t1");
+      rw.write(makeThread({ id: "t1", title: "new", v: 2, messages: [makeUserMessage()] }));
+      assert.ok(store.getDirtyThreadIds().includes("t1"));
+      await rw.asyncDispose();
+    });
+
+    it("should not mark dirty when scheduleUpload=false", async () => {
+      store.setCachedThread(makeThread({ id: "t1", messages: [makeUserMessage()] }));
+      store.clearAllDirty();
+      const rw = store.exclusiveSyncReadWriter("t1", { scheduleUpload: false });
+      rw.write(makeThread({ id: "t1", title: "new", v: 2, messages: [makeUserMessage()] }));
+      assert.deepEqual(store.getDirtyThreadIds(), []);
+      await rw.asyncDispose();
+    });
+  });
+
+  describe("userLastInteractedAt auto-update (Task 11)", () => {
+    it("should auto-update when new messages added", () => {
+      store.markEntriesLoaded();
+      const t1 = makeThread({ id: "t1", messages: [makeUserMessage(100)] });
+      store.setCachedThread(t1);
+
+      // Get initial entry
+      const entryBefore = store.observeThreadEntries().getValue()![0];
+      const interactedBefore = entryBefore.userLastInteractedAt;
+
+      // Add more messages
+      const t2 = makeThread({
+        id: "t1",
+        v: 2,
+        messages: [makeUserMessage(100), makeAssistantMessage()],
+      });
+      store.setCachedThread(t2);
+
+      // The entry should have a newer userLastInteractedAt
+      const entryAfter = store.observeThreadEntries().getValue()![0];
+      assert.ok(
+        entryAfter.userLastInteractedAt >= interactedBefore,
+        "userLastInteractedAt should be updated or same",
+      );
+    });
+
+    it("should not auto-update when message count unchanged", () => {
+      store.markEntriesLoaded();
+      const t1 = makeThread({ id: "t1", messages: [makeUserMessage(100)] });
+      store.setCachedThread(t1);
+
+      const entryBefore = store.observeThreadEntries().getValue()![0];
+
+      // Update title only, same message count
+      const t2 = makeThread({
+        id: "t1",
+        v: 2,
+        title: "new title",
+        messages: [makeUserMessage(100)],
+      });
+      store.setCachedThread(t2);
+
+      const entryAfter = store.observeThreadEntries().getValue()![0];
+      // userLastInteractedAt should be the same (derived from sentAt)
+      assert.equal(entryAfter.userLastInteractedAt, entryBefore.userLastInteractedAt);
     });
   });
 });

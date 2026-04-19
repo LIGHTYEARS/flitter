@@ -87,7 +87,6 @@ export interface CliContext {
   stats?: boolean;
   /**
    * Archive thread after execute finishes (--archive)
-<<<<<<< HEAD
    * 逆向: Yl0 `labels` → NKT after execute; SB archive = threadService.archive()
    */
   archive?: boolean;

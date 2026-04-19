@@ -35,13 +35,21 @@ export type {
   ThreadsCommandDeps,
   ThreadsListOptions,
   ThreadsNewOptions,
+  ThreadsSearchOptions,
 } from "./commands/threads";
 export {
   handleThreadsArchive,
   handleThreadsContinue,
   handleThreadsDelete,
+  handleThreadsExport,
+  handleThreadsLabel,
   handleThreadsList,
+  handleThreadsMarkdown,
   handleThreadsNew,
+  handleThreadsRename,
+  handleThreadsSearch,
+  handleThreadsUsage,
+  renderThreadAsMarkdown,
 } from "./commands/threads";
 export type { UpdateCommandDeps, UpdateOptions } from "./commands/update";
 export { handleUpdate } from "./commands/update";

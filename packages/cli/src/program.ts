@@ -120,6 +120,50 @@ export function createProgram(version: string): Command {
 
   threads.command("delete").description("Delete a thread").argument("<id>", "Thread ID to delete");
 
+  // 逆向: sF0 in 2012_unknown_sF0.js
+  threads
+    .command("export")
+    .description("Export a thread as JSON")
+    .argument("<id>", "Thread ID or URL to export");
+
+  // 逆向: cF0 in 2011_unknown_cF0.js → KN() in 1866_unknown_KN.js
+  threads
+    .command("markdown")
+    .alias("md")
+    .description("Render thread as markdown")
+    .argument("<id>", "Thread ID or URL to render");
+
+  // 逆向: uF0 in 2023_unknown_uF0.js
+  threads
+    .command("search")
+    .alias("find")
+    .description("Search threads")
+    .argument("<query>", "Search query")
+    .option("-n, --limit <number>", "Maximum number of threads to return", "20")
+    .option("--offset <number>", "Number of results to skip (for pagination)", "0")
+    .option("--json", "Output as JSON", false);
+
+  // 逆向: rF0 in 2008_unknown_rF0.js
+  threads
+    .command("rename")
+    .alias("r")
+    .description("Rename a thread")
+    .argument("<id>", "Thread ID or URL to rename")
+    .argument("<newName>", "New thread name");
+
+  // 逆向: nF0 in 2014_unknown_nF0.js → BKT in 0289_unknown_BKT.js
+  threads
+    .command("label")
+    .description("Add labels to a thread")
+    .argument("<id>", "Thread ID or URL to label")
+    .argument("<labels...>", "Labels to add");
+
+  // 逆向: OL0 in 2576_unknown_OL0.js → dL0 in 2577_unknown_dL0.js
+  threads
+    .command("usage")
+    .description("Show usage information for a thread")
+    .argument("<id>", "Thread ID or URL");
+
   // ─── Config 管理 ────────────────────────────────────────
 
   const config = program.command("config").description("Manage configuration");

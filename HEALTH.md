@@ -10,12 +10,13 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟢 | 4157 pass / 0 fail，239 测试文件，全包有测试 |
-| 技术债务 | 🟢 | 1 个真实 TODO，0 FIXME/HACK，极度干净 |
+| 测试覆盖 | 🟡 | 4497 pass / 7 fail，241 测试文件，全包有测试 |
+| 技术债务 | 🟢 | 1 个真实 TODO，0 FIXME/HACK，极度干净（grep.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
 ### ⚠️ Watch Items
 
+- 7 个测试失败：`RenderScrollable`（4 fail）、`RenderClipBox`（1 fail）在 `@flitter/tui`，`launchInteractiveMode E2E typecheck`（1 fail）在 `@flitter/cli`，toolbox describe（1 fail）— 需调查修复
 - ApprovalWidget `_feedbackActive` 提交后未重置 — `packages/cli/src/widgets/approval-widget.ts:372`，已记录在回归计划 Task 4，未修复
 - 无 CI/CD pipeline — 仅有 pre-commit biome lint hook，测试靠手动运行
 
@@ -25,16 +26,16 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 包 | 测试文件 | E2E | 通过 | 失败 | 跳过 |
 |----|---------|-----|------|------|------|
-| @flitter/tui | 79 | 1 | ✓ | 0 | 0 |
+| @flitter/tui | 80 | 1 | ✓ | 5 | 0 |
 | @flitter/agent-core | 55 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 46 | 2 | ✓ | 0 | 0 |
+| @flitter/cli | 48 | 2 | ✓ | 1 | 0 |
 | @flitter/llm | 25 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 12 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 10 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **239** | **3** | **4157** | **0** | **0** |
+| **总计** | **241** | **3** | **4497** | **7** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 

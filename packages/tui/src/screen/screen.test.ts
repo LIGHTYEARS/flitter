@@ -318,6 +318,27 @@ describe("ScreenBuffer", () => {
     assert.equal(result.char, "X");
     assert.ok(result.style.background.equals(Color.default()), "无已有 bg 时保持 default");
   });
+
+  it("writeChar: _mergeBackground handles undefined cell gracefully", () => {
+    // Simulate the scenario where getCell could return undefined
+    // (e.g., during concurrent resize + paint). The null guard in
+    // _mergeBackground should fall through to return the original style.
+    const buf = new ScreenBuffer(10, 5);
+
+    // Monkey-patch getCell to return undefined for a specific position,
+    // simulating a stale cells array reference during resize.
+    const originalGetCell = buf.getCell.bind(buf);
+    (buf as any).getCell = (x: number, y: number) => {
+      if (x === 3 && y === 2) return undefined;
+      return originalGetCell(x, y);
+    };
+
+    // writeChar with default bg should NOT throw even if getCell returns undefined
+    const style = new TextStyle({ foreground: Color.green() });
+    assert.doesNotThrow(() => {
+      buf.writeChar(3, 2, "Z", style);
+    }, "writeChar should not throw when getCell returns undefined");
+  });
 });
 
 // ════════════════════════════════════════════════════

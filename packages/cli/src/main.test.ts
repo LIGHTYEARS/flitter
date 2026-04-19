@@ -88,6 +88,7 @@ function createMockContainer(overrides: Partial<Record<string, unknown>> = {}): 
         secrets: {},
       }),
       unsubscribe: () => {},
+      updateSettings: mock(() => {}),
     },
     toolRegistry: {} as unknown as ServiceContainer["toolRegistry"],
     toolOrchestrator: { dispose: () => {} } as unknown as ServiceContainer["toolOrchestrator"],
@@ -484,6 +485,127 @@ describe("命令路由", () => {
 
     await main({
       argv: ["node", "flitter", "threads", "delete", "test-thread-id"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  // ── New thread commands (Task 1) ─────────────────────
+
+  it("threads export 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "export", "test-thread-id"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads markdown 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "markdown", "test-thread-id"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads search 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "search", "test-query"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads rename 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "rename", "test-thread-id", "New Name"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads label 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "label", "test-thread-id", "bug"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads usage 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "usage", "test-thread-id"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("threads dashboard 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "threads", "dashboard"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  // ── New MCP commands (Task 3) ────────────────────────
+
+  it("mcp doctor 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "mcp", "doctor"],
+      _testContainer: mockContainer,
+    });
+
+    expect(true).toBe(true);
+  });
+
+  it("mcp approve 子命令执行 (不抛异常)", async () => {
+    suppressOutput();
+    const { main } = await import("./main");
+    const mockContainer = createMockContainer();
+
+    await main({
+      argv: ["node", "flitter", "mcp", "approve", "test-server"],
       _testContainer: mockContainer,
     });
 

@@ -95,6 +95,41 @@ export interface CliContext {
    * 逆向: Kl0 `labels` → NKT post-execute label call (0297_unknown_Kl0.js:128)
    */
   labels?: string[];
+  /**
+   * Dangerously bypass all permission checks (--dangerously-allow-all)
+   * 逆向: i$T dangerouslyAllowAll → Ms("dangerouslyAllowAll", true) in e0R:1173-1183
+   */
+  dangerouslyAllowAll?: boolean;
+  /**
+   * Allowed tool names (--allowed-tools, comma-separated)
+   * 逆向: amp allows filtering tools via config; Flitter adds CLI flag
+   */
+  allowedTools?: string[];
+  /**
+   * Disallowed tool names (--disallowed-tools, comma-separated)
+   * 逆向: amp allows filtering tools via config; Flitter adds CLI flag
+   */
+  disallowedTools?: string[];
+  /**
+   * Disable shell command execution (--no-shell-cmd)
+   * 逆向: amp has permission rules for BashTool; this is a shorthand
+   */
+  noShellCmd?: boolean;
+  /**
+   * Toolbox scripts directory (--toolbox)
+   * 逆向: amp ToolboxService scans for shell-script tools
+   */
+  toolbox?: string;
+  /**
+   * Include co-author attribution (--include-co-authors)
+   * 逆向: no direct amp equivalent; Flitter extension
+   */
+  includeCoAuthors?: boolean;
+  /**
+   * Output format for execute mode (--output-format text|json|markdown)
+   * 逆向: no direct amp equivalent; Flitter extension
+   */
+  outputFormat?: "text" | "json" | "markdown";
 }
 
 /**
@@ -160,5 +195,17 @@ export function resolveCliContext(program: Command): CliContext {
     archive: Boolean(opts.archive) || undefined,
     // 逆向: Yz0 `-l, --label` repeatable flag (line 619-622)
     labels: (opts.label as string[] | undefined)?.length ? (opts.label as string[]) : undefined,
+    // Gap #7-12: CLI flag forwarding
+    dangerouslyAllowAll: Boolean(opts.dangerouslyAllowAll) || undefined,
+    allowedTools: opts.allowedTools
+      ? (opts.allowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      : undefined,
+    disallowedTools: opts.disallowedTools
+      ? (opts.disallowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      : undefined,
+    noShellCmd: Boolean(opts.disableShell) || undefined,
+    toolbox: opts.toolbox as string | undefined,
+    includeCoAuthors: Boolean(opts.includeCoAuthors) || undefined,
+    outputFormat: (opts.outputFormat as "text" | "json" | "markdown") ?? undefined,
   };
 }

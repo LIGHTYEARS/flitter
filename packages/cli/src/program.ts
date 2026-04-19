@@ -75,6 +75,16 @@ export function createProgram(version: string): Command {
     .option("--archive", "Archive the thread after execute finishes")
     // ── 逆向: Yz0 -l/--label repeatable (line 619-622) ──
     .option("-l, --label <label>", "Add label(s) to thread (repeatable)", collect, [])
+    // ── CLI flag forwarding (Gap #7-12) ──
+    // 逆向: i$T dangerouslyAllowAll (chunk-006.js) → bypasses permission checks
+    .option("--dangerously-allow-all", "Bypass permission checks (dangerous)")
+    // 逆向: i$T allowedTools/disallowedTools → tool filter lists
+    .option("--allowed-tools <tools>", "Comma-separated list of allowed tools")
+    .option("--disallowed-tools <tools>", "Comma-separated list of disallowed tools")
+    .option("--disable-shell", "Disable shell command execution")
+    .option("--toolbox <path>", "Path to toolbox scripts directory")
+    .option("--include-co-authors", "Include co-author attribution in output")
+    .option("--output-format <format>", "Output format: text, json, markdown (default: text)")
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {
@@ -164,6 +174,20 @@ export function createProgram(version: string): Command {
     .description("Show usage information for a thread")
     .argument("<id>", "Thread ID or URL");
 
+  // 逆向: e0R:202-244 (dashboard/thread list in command palette)
+  threads
+    .command("dashboard")
+    .description("Show threads dashboard (table view)")
+    .option("--limit <n>", "Max threads to show", "50")
+    .option("--format <fmt>", "Output format (table|json)", "table");
+
+  // ─── Review ────────────────────────────────────────────
+
+  program
+    .command("review [diff]")
+    .description("Run AI code review on staged changes or provided diff")
+    .option("--format <fmt>", "Output format (text|json|markdown)", "text");
+
   // ─── Config 管理 ────────────────────────────────────────
 
   const config = program.command("config").description("Manage configuration");
@@ -212,6 +236,24 @@ export function createProgram(version: string): Command {
     .alias("rm")
     .description("Remove an MCP server")
     .option("-w, --workspace", "Remove from workspace settings", false);
+
+  // 逆向: jPR doctor pattern — iterate servers, test connectivity
+  mcp.command("doctor").description("Check health of all configured MCP servers");
+
+  // 逆向: e0R permissions-enable/disable pattern applied to MCP trust
+  mcp
+    .command("approve <name>")
+    .description("Add an MCP server to the trusted list");
+
+  const mcpOauth = mcp.command("oauth").description("Manage MCP OAuth authentication");
+
+  mcpOauth
+    .command("login <server>")
+    .description("Authenticate with an MCP server via OAuth");
+
+  mcpOauth
+    .command("logout <server>")
+    .description("Remove OAuth tokens for an MCP server");
 
   // ─── Permissions 管理 ───────────────────────────────────
 

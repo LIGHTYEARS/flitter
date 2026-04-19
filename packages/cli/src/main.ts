@@ -43,12 +43,26 @@ import {
 import {
   handleThreadsArchive,
   handleThreadsContinue,
+  handleThreadsDashboard,
   handleThreadsDelete,
+  handleThreadsExport,
+  handleThreadsLabel,
   handleThreadsList,
+  handleThreadsMarkdown,
   handleThreadsNew,
+  handleThreadsRename,
+  handleThreadsSearch,
+  handleThreadsUsage,
 } from "./commands/threads";
 import { handleToolsList, handleToolsShow } from "./commands/tools";
 import { handleUpdate } from "./commands/update";
+import { handleReview } from "./commands/review";
+import {
+  handleMcpDoctor,
+  handleMcpApprove,
+  handleMcpOAuthLogin,
+  handleMcpOAuthLogout,
+} from "./commands/mcp-extended";
 import { resolveCliContext } from "./context";
 import { runExecuteMode } from "./modes/execute";
 import { runHeadlessMode } from "./modes/headless";
@@ -302,6 +316,94 @@ export async function main(opts?: MainOptions): Promise<void> {
           );
         });
       }
+
+      // ── Task 1: Wire 6 existing thread handlers ──────────
+      const exportCmd = threadsCmd.commands.find((c) => c.name() === "export");
+      if (exportCmd) {
+        exportCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsExport(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+          );
+        });
+      }
+      const markdownCmd = threadsCmd.commands.find((c) => c.name() === "markdown");
+      if (markdownCmd) {
+        markdownCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsMarkdown(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+          );
+        });
+      }
+      const searchCmd = threadsCmd.commands.find((c) => c.name() === "search");
+      if (searchCmd) {
+        searchCmd.action(async (query: string, cmdOpts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsSearch({ threadStore: c.threadStore }, ctx, query, {
+            limit: (cmdOpts?.limit as string) ?? "20",
+            offset: (cmdOpts?.offset as string) ?? "0",
+            json: cmdOpts?.json as boolean,
+          });
+        });
+      }
+      const renameCmd = threadsCmd.commands.find((c) => c.name() === "rename");
+      if (renameCmd) {
+        renameCmd.action(async (threadId: string, newName: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsRename(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+            newName,
+          );
+        });
+      }
+      const labelCmd = threadsCmd.commands.find((c) => c.name() === "label");
+      if (labelCmd) {
+        labelCmd.action(async (threadId: string, labels: string[]) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsLabel(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+            labels,
+          );
+        });
+      }
+      const usageCmd = threadsCmd.commands.find((c) => c.name() === "usage");
+      if (usageCmd) {
+        usageCmd.action(async (threadId: string) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsUsage(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+          );
+        });
+      }
+      // ── Task 4: Dashboard handler ──────────────────────
+      const dashboardCmd = threadsCmd.commands.find((c) => c.name() === "dashboard");
+      if (dashboardCmd) {
+        dashboardCmd.action(async (cmdOpts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsDashboard({ threadStore: c.threadStore }, ctx, {
+            limit: (cmdOpts?.limit as string) ?? "50",
+            format: (cmdOpts?.format as "table" | "json") ?? "table",
+          });
+        });
+      }
     }
 
     // config 子命令
@@ -362,6 +464,38 @@ export async function main(opts?: MainOptions): Promise<void> {
             workspace: opts.workspace as boolean | undefined,
           });
         });
+      }
+      // ── Task 3: MCP extended commands ──────────────────
+      const mcpDoctorCmd = mcpCmd.commands.find((c) => c.name() === "doctor");
+      if (mcpDoctorCmd) {
+        mcpDoctorCmd.action(async () => {
+          const c = await ensureContainer();
+          await handleMcpDoctor({ configService: c.configService, mcpServerManager: c.mcpServerManager });
+        });
+      }
+      const mcpApproveCmd = mcpCmd.commands.find((c) => c.name() === "approve");
+      if (mcpApproveCmd) {
+        mcpApproveCmd.action(async (name: string) => {
+          const c = await ensureContainer();
+          await handleMcpApprove({ configService: c.configService }, name);
+        });
+      }
+      const mcpOauthCmd = mcpCmd.commands.find((c) => c.name() === "oauth");
+      if (mcpOauthCmd) {
+        const oauthLoginCmd = mcpOauthCmd.commands.find((c: { name: () => string }) => c.name() === "login");
+        if (oauthLoginCmd) {
+          oauthLoginCmd.action(async (server: string) => {
+            const c = await ensureContainer();
+            await handleMcpOAuthLogin({ configService: c.configService, mcpServerManager: c.mcpServerManager }, server);
+          });
+        }
+        const oauthLogoutCmd = mcpOauthCmd.commands.find((c: { name: () => string }) => c.name() === "logout");
+        if (oauthLogoutCmd) {
+          oauthLogoutCmd.action(async (server: string) => {
+            const c = await ensureContainer();
+            await handleMcpOAuthLogout({ configService: c.configService, mcpServerManager: c.mcpServerManager }, server);
+          });
+        }
       }
     }
 
@@ -431,6 +565,19 @@ export async function main(opts?: MainOptions): Promise<void> {
           await handleToolsShow({ toolRegistry: c.toolRegistry }, name);
         });
       }
+    }
+
+    // ── Task 2: Review command ────────────────────────────
+    const reviewCmd = program.commands.find((c) => c.name() === "review");
+    if (reviewCmd) {
+      reviewCmd.action(async (diff: string | undefined, cmdOpts: Record<string, unknown>) => {
+        const c = await ensureContainer();
+        const ctx = resolveCliContext(program);
+        await handleReview(c, ctx, {
+          diff: diff as string | undefined,
+          format: (cmdOpts?.format as string) ?? "text",
+        });
+      });
     }
 
     // ── 默认 action: 模式路由 ─────────────────────────────

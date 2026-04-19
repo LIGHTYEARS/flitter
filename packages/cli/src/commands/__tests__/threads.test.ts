@@ -15,6 +15,7 @@ import type { CliContext } from "../../context";
 import {
   handleThreadsArchive,
   handleThreadsContinue,
+  handleThreadsDashboard,
   handleThreadsDelete,
   handleThreadsExport,
   handleThreadsLabel,
@@ -951,6 +952,89 @@ describe("handleThreadsUsage", () => {
 
   it("should error when threadStore is not available", async () => {
     await handleThreadsUsage({}, ctx, "any-id");
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("ThreadStore not available"));
+  });
+});
+
+// ─── handleThreadsDashboard 测试 ───────────────────────
+
+describe("handleThreadsDashboard", () => {
+  let output: ReturnType<typeof captureOutput>;
+
+  beforeEach(() => {
+    output = captureOutput();
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    output.restore();
+    process.exitCode = undefined;
+  });
+
+  it("should print 'No threads found.' when entries are empty", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsDashboard({ threadStore: store }, ctx, {
+      limit: "50",
+      format: "table",
+    });
+    assert.equal(output.stdout.join(""), "No threads found.\n");
+  });
+
+  it("should print table format with header and entries", async () => {
+    const { store, entriesSubject, threads } = createMockThreadStore();
+    const snapshot = {
+      id: "abc123def456",
+      v: 1,
+      title: "Dashboard Test",
+      messages: [
+        { role: "user", content: [{ type: "text", text: "hi" }] },
+      ],
+      relationships: [],
+    };
+    threads.set("abc123def456", new BehaviorSubject(snapshot));
+    entriesSubject.next([
+      {
+        id: "abc123def456",
+        title: "Dashboard Test",
+        userLastInteractedAt: 1700000000000,
+      },
+    ]);
+    await handleThreadsDashboard({ threadStore: store }, ctx, {
+      limit: "50",
+      format: "table",
+    });
+    const out = output.stdout.join("");
+    assert.ok(out.includes("ID"), "should have ID header");
+    assert.ok(out.includes("Title"), "should have Title header");
+    assert.ok(out.includes("Status"), "should have Status header");
+    assert.ok(out.includes("abc123def456"), "should contain thread ID");
+    assert.ok(out.includes("Dashboard Test"), "should contain thread title");
+    assert.ok(out.includes("active"), "should show active status");
+  });
+
+  it("should output JSON format", async () => {
+    const { store, entriesSubject } = createMockThreadStore();
+    entriesSubject.next([
+      {
+        id: "abc123",
+        title: "Thread 1",
+        userLastInteractedAt: 1700000000000,
+      },
+    ]);
+    await handleThreadsDashboard({ threadStore: store }, ctx, {
+      limit: "50",
+      format: "json",
+    });
+    const out = output.stdout.join("");
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].id, "abc123");
+    assert.equal(parsed[0].archived, false);
+  });
+
+  it("should error when threadStore is not available", async () => {
+    await handleThreadsDashboard({}, ctx, { limit: "50", format: "table" });
     assert.equal(process.exitCode, 1);
     assert.ok(output.stderr.join("").includes("ThreadStore not available"));
   });

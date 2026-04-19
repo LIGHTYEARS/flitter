@@ -192,3 +192,63 @@ describe("CliContext flag integration", () => {
     expect(ctx.executeMode).toBe(true);
   });
 });
+
+// ── Task 5: New CLI flags (Gap #7-12) ───────────────────
+
+describe("New CLI flag parsing", () => {
+  test("--dangerously-allow-all is parsed", () => {
+    const opts = parseOpts(["--dangerously-allow-all"]);
+    expect(opts.dangerouslyAllowAll).toBe(true);
+  });
+
+  test("--allowed-tools is parsed as comma-separated list", () => {
+    const ctx = parseContext(["--allowed-tools", "Read,Write,Bash"]);
+    expect(ctx.allowedTools).toEqual(["Read", "Write", "Bash"]);
+  });
+
+  test("--disallowed-tools is parsed as comma-separated list", () => {
+    const ctx = parseContext(["--disallowed-tools", "Bash,Edit"]);
+    expect(ctx.disallowedTools).toEqual(["Bash", "Edit"]);
+  });
+
+  test("--disable-shell is parsed as noShellCmd", () => {
+    const ctx = parseContext(["--disable-shell"]);
+    expect(ctx.noShellCmd).toBe(true);
+  });
+
+  test("--toolbox is parsed", () => {
+    const opts = parseOpts(["--toolbox", "/path/to/scripts"]);
+    expect(opts.toolbox).toBe("/path/to/scripts");
+  });
+
+  test("--include-co-authors is parsed", () => {
+    const ctx = parseContext(["--include-co-authors"]);
+    expect(ctx.includeCoAuthors).toBe(true);
+  });
+
+  test("--output-format is parsed", () => {
+    const ctx = parseContext(["--output-format", "json"]);
+    expect(ctx.outputFormat).toBe("json");
+  });
+
+  test("--output-format markdown", () => {
+    const ctx = parseContext(["--output-format", "markdown"]);
+    expect(ctx.outputFormat).toBe("markdown");
+  });
+
+  test("new flags default to undefined when not provided", () => {
+    const ctx = parseContext([]);
+    expect(ctx.dangerouslyAllowAll).toBeUndefined();
+    expect(ctx.allowedTools).toBeUndefined();
+    expect(ctx.disallowedTools).toBeUndefined();
+    expect(ctx.noShellCmd).toBeUndefined();
+    expect(ctx.toolbox).toBeUndefined();
+    expect(ctx.includeCoAuthors).toBeUndefined();
+    expect(ctx.outputFormat).toBeUndefined();
+  });
+
+  test("--mode is parsed to agentMode", () => {
+    const ctx = parseContext(["--mode", "smart"]);
+    expect(ctx.agentMode).toBe("smart");
+  });
+});

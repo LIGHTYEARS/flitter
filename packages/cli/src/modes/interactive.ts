@@ -167,6 +167,41 @@ export async function launchInteractiveMode(
     workerOpts.buildSystemPrompt = async () => systemPromptOverride;
   }
 
+  // ── Task 5: Forward context flags to worker/container ──
+  // 逆向: i$T flag forwarding in S8() context builder (2002_unknown_S8.js)
+
+  // agentMode → worker option (逆向: i$T mode flag selects agent mode)
+  if (context.agentMode) {
+    workerOpts.agentMode = context.agentMode;
+  }
+
+  // includeCoAuthors → worker metadata
+  if (context.includeCoAuthors) {
+    workerOpts.includeCoAuthors = true;
+  }
+
+  // dangerouslyAllowAll → container runtime override
+  // 逆向: e0R:1173-1183 — Ms("dangerouslyAllowAll", true)
+  if (context.dangerouslyAllowAll) {
+    container.configService.updateSettings("global", "dangerouslyAllowAll", true);
+  }
+
+  // allowedTools / disallowedTools / noShellCmd → container runtime override
+  if (context.allowedTools) {
+    container.configService.updateSettings("global", "tools.allowed", context.allowedTools);
+  }
+  if (context.disallowedTools) {
+    container.configService.updateSettings("global", "tools.disallowed", context.disallowedTools);
+  }
+  if (context.noShellCmd) {
+    container.configService.updateSettings("global", "tools.noShellCmd", true);
+  }
+
+  // toolbox → container runtime override to gate ToolboxService
+  if (context.toolbox) {
+    container.configService.updateSettings("global", "toolbox.path", context.toolbox);
+  }
+
   const worker = container.createThreadWorker(
     threadId,
     Object.keys(workerOpts).length > 0

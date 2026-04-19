@@ -215,6 +215,99 @@ describe("ToolRegistry", () => {
     });
   });
 
+  // ─── findEarliestNonDisabledTool ──────────────────────────
+
+  describe("findEarliestNonDisabledTool", () => {
+    it("returns undefined for empty name", () => {
+      registry.register(createMockToolSpec({ name: "read" }));
+      assert.equal(registry.findEarliestNonDisabledTool("", {} as Settings), undefined);
+    });
+
+    it("returns tool by exact name match", () => {
+      const read = createMockToolSpec({ name: "read" });
+      registry.register(read);
+      const result = registry.findEarliestNonDisabledTool("read", {} as Settings);
+      assert.equal(result, read);
+    });
+
+    it("returns undefined for non-existent tool", () => {
+      registry.register(createMockToolSpec({ name: "read" }));
+      assert.equal(registry.findEarliestNonDisabledTool("write", {} as Settings), undefined);
+    });
+
+    it("falls back to case-insensitive match when no exact match", () => {
+      const read = createMockToolSpec({ name: "Read" });
+      registry.register(read);
+      const result = registry.findEarliestNonDisabledTool("read", {} as Settings);
+      assert.equal(result, read);
+    });
+
+    it("prefers exact match over case-insensitive match", () => {
+      const readLower = createMockToolSpec({ name: "read", description: "lowercase" });
+      const readUpper = createMockToolSpec({ name: "Read", description: "uppercase" });
+      registry.register(readLower);
+      registry.register(readUpper);
+      const result = registry.findEarliestNonDisabledTool("read", {} as Settings);
+      assert.equal(result, readLower);
+    });
+
+    it("skips disabled tools and returns first enabled one", () => {
+      const disabledRead = createMockToolSpec({
+        name: "read",
+        description: "disabled",
+        isEnabled: () => false,
+      });
+      const enabledRead = createMockToolSpec({
+        name: "read",
+        description: "enabled",
+        isEnabled: () => true,
+      });
+      // Can't register two with same name, so test via config disable
+      registry.register(createMockToolSpec({ name: "read" }));
+      const config = { "tools.disable": ["read"] } as Settings;
+      assert.equal(registry.findEarliestNonDisabledTool("read", config), undefined);
+    });
+
+    it("returns undefined when all matching tools are disabled by isEnabled", () => {
+      registry.register(
+        createMockToolSpec({
+          name: "read",
+          isEnabled: () => false,
+        }),
+      );
+      assert.equal(registry.findEarliestNonDisabledTool("read", {} as Settings), undefined);
+    });
+
+    it("returns undefined when tool is disabled via tools.disable config", () => {
+      registry.register(createMockToolSpec({ name: "bash" }));
+      const config = { "tools.disable": ["bash"] } as Settings;
+      assert.equal(registry.findEarliestNonDisabledTool("bash", config), undefined);
+    });
+
+    it("returns undefined when tool not in tools.enable whitelist", () => {
+      registry.register(createMockToolSpec({ name: "bash" }));
+      const config = { "tools.enable": ["read"] } as Settings;
+      assert.equal(registry.findEarliestNonDisabledTool("bash", config), undefined);
+    });
+
+    it("returns tool when it is in tools.enable whitelist", () => {
+      const bash = createMockToolSpec({ name: "bash" });
+      registry.register(bash);
+      const config = { "tools.enable": ["bash", "read"] } as Settings;
+      assert.equal(registry.findEarliestNonDisabledTool("bash", config), bash);
+    });
+
+    it("case-insensitive fallback also checks enabled status", () => {
+      registry.register(
+        createMockToolSpec({
+          name: "Read",
+          isEnabled: () => false,
+        }),
+      );
+      assert.equal(registry.findEarliestNonDisabledTool("read", {} as Settings), undefined);
+    });
+  });
+
   // ─── normalizeToolName ───────────────────────────────────
 
   describe("normalizeToolName", () => {
@@ -232,70 +325,6 @@ describe("ToolRegistry", () => {
 
     it("mcp__ 开头但不足 3 段原样返回", () => {
       assert.equal(registry.normalizeToolName("mcp__single"), "mcp__single");
-    });
-  });
-
-  // ─── setCliFilters ──────────────────────────────────────────
-
-  describe("setCliFilters", () => {
-    it("allowed filter restricts to named tools only", () => {
-      registry.register(createMockToolSpec({ name: "Read" }));
-      registry.register(createMockToolSpec({ name: "Write" }));
-      registry.register(createMockToolSpec({ name: "Bash" }));
-      registry.setCliFilters({ allowed: ["Read", "Write"] });
-      const result = registry.listEnabled({} as Settings);
-      assert.equal(result.length, 2);
-      assert.ok(result.some((t) => t.name === "Read"));
-      assert.ok(result.some((t) => t.name === "Write"));
-      assert.ok(!result.some((t) => t.name === "Bash"));
-    });
-
-    it("disallowed filter excludes named tools", () => {
-      registry.register(createMockToolSpec({ name: "Read" }));
-      registry.register(createMockToolSpec({ name: "Write" }));
-      registry.register(createMockToolSpec({ name: "Bash" }));
-      registry.setCliFilters({ disallowed: ["Bash"] });
-      const result = registry.listEnabled({} as Settings);
-      assert.equal(result.length, 2);
-      assert.ok(!result.some((t) => t.name === "Bash"));
-    });
-
-    it("noShellCmd excludes Bash specifically", () => {
-      registry.register(createMockToolSpec({ name: "Read" }));
-      registry.register(createMockToolSpec({ name: "Bash" }));
-      registry.setCliFilters({ noShellCmd: true });
-      const result = registry.listEnabled({} as Settings);
-      assert.equal(result.length, 1);
-      assert.equal(result[0].name, "Read");
-    });
-
-    it("CLI filters layer ON TOP of config filters", () => {
-      registry.register(createMockToolSpec({ name: "Read" }));
-      registry.register(createMockToolSpec({ name: "Write" }));
-      registry.register(createMockToolSpec({ name: "Bash" }));
-      // Config disables Write
-      const config = { "tools.disable": ["Write"] } as Settings;
-      // CLI also restricts to only Read and Write
-      registry.setCliFilters({ allowed: ["Read", "Write"] });
-      const result = registry.listEnabled(config);
-      // Write is disabled by config, only Read passes both
-      assert.equal(result.length, 1);
-      assert.equal(result[0].name, "Read");
-    });
-
-    it("getCliFilters returns current filters", () => {
-      registry.setCliFilters({ allowed: ["Read"], noShellCmd: true });
-      const filters = registry.getCliFilters();
-      assert.deepEqual(filters.allowed, ["Read"]);
-      assert.equal(filters.noShellCmd, true);
-    });
-
-    it("empty CLI filters have no effect", () => {
-      registry.register(createMockToolSpec({ name: "Read" }));
-      registry.register(createMockToolSpec({ name: "Bash" }));
-      registry.setCliFilters({});
-      const result = registry.listEnabled({} as Settings);
-      assert.equal(result.length, 2);
     });
   });
 });

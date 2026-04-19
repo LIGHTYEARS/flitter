@@ -16,7 +16,11 @@ import type { LLMProvider } from "../../provider";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { AnthropicSSEEvent } from "./transformer";
-import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
+import {
+  addCacheControlToMessages,
+  AnthropicToolTransformer,
+  AnthropicTransformer,
+} from "./transformer";
 
 // ─── Types for createMessage ────────────────────────────
 
@@ -75,10 +79,19 @@ export class AnthropicProvider implements LLMProvider {
     const anthropicTools =
       tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
 
+    // 逆向: amp-cli-reversed/chunk-002.js:2149-2158 (f8T)
+    //   Apply cache_control to the last content block of the last message.
+    //   This enables Anthropic's prompt caching for repeated system prompts
+    //   and conversation history.
+    const supportsCacheControl = modelInfo?.supportsCacheControl ?? false;
+    const cachedMessages = supportsCacheControl
+      ? addCacheControlToMessages(anthropicMessages)
+      : anthropicMessages;
+
     const body = this._buildRequestBody(
       model,
       maxOutputTokens,
-      anthropicMessages,
+      cachedMessages,
       system,
       anthropicTools,
       config.settings,

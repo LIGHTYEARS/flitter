@@ -12,7 +12,12 @@ import type { StreamDelta, SystemPromptBlock } from "../../types";
 import { TransformState } from "../../types";
 import { AnthropicProvider } from "./provider";
 import type { AnthropicSSEEvent } from "./transformer";
-import { AnthropicToolTransformer, AnthropicTransformer } from "./transformer";
+import {
+  addCacheControlToMessages,
+  AnthropicToolTransformer,
+  AnthropicTransformer,
+} from "./transformer";
+import type { AnthropicMessage } from "./transformer";
 
 // ─── 辅助函数 ──────────────────────────────────────────
 
@@ -667,5 +672,125 @@ describe("AnthropicProvider — _createClient baseURL", () => {
     // When no anthropic.baseURL is set, the client uses its SDK default (not our custom URL)
     assert.notEqual(client.baseURL, "https://ark.cn-beijing.volces.com/api/compatible");
     assert.ok(typeof client.baseURL === "string" && client.baseURL.length > 0);
+  });
+});
+
+// ─── addCacheControlToMessages 测试 ────────────────────
+
+describe("addCacheControlToMessages", () => {
+  it("returns empty array unchanged", () => {
+    const result = addCacheControlToMessages([]);
+    assert.deepEqual(result, []);
+  });
+
+  it("adds cache_control to last text block of last message", () => {
+    const messages: AnthropicMessage[] = [
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+      { role: "assistant", content: [{ type: "text", text: "Hi there" }] },
+      { role: "user", content: [{ type: "text", text: "How are you?" }] },
+    ];
+    const result = addCacheControlToMessages(messages);
+
+    // Only last message should be modified
+    assert.deepEqual(result[0], messages[0]);
+    assert.deepEqual(result[1], messages[1]);
+
+    // Last message's text block should have cache_control
+    const lastContent = result[2].content[0] as { type: string; text: string; cache_control?: unknown };
+    assert.deepEqual(lastContent.cache_control, { type: "ephemeral", ttl: "5m" });
+  });
+
+  it("does not modify earlier messages", () => {
+    const messages: AnthropicMessage[] = [
+      { role: "user", content: [{ type: "text", text: "First" }] },
+      { role: "user", content: [{ type: "text", text: "Second" }] },
+    ];
+    const result = addCacheControlToMessages(messages);
+
+    // First message should not have cache_control
+    const firstContent = result[0].content[0] as { type: string; text: string; cache_control?: unknown };
+    assert.equal(firstContent.cache_control, undefined);
+  });
+
+  it("uses custom ttl when provided", () => {
+    const messages: AnthropicMessage[] = [
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+    ];
+    const result = addCacheControlToMessages(messages, "1h");
+    const block = result[0].content[0] as { type: string; cache_control?: unknown };
+    assert.deepEqual(block.cache_control, { type: "ephemeral", ttl: "1h" });
+  });
+
+  it("stamps cache_control on last eligible block (skips thinking/tool_use)", () => {
+    const messages: AnthropicMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "Some text" },
+          { type: "tool_use", id: "t1", name: "bash", input: {} },
+        ],
+      },
+    ];
+    const result = addCacheControlToMessages(messages);
+
+    // text block (last eligible) should get cache_control
+    const textBlock = result[0].content[0] as { type: string; text: string; cache_control?: unknown };
+    assert.deepEqual(textBlock.cache_control, { type: "ephemeral", ttl: "5m" });
+
+    // tool_use block should NOT get cache_control (not eligible type)
+    const toolBlock = result[0].content[1] as { type: string; cache_control?: unknown };
+    assert.equal(toolBlock.cache_control, undefined);
+  });
+
+  it("stamps cache_control on tool_result block", () => {
+    const messages: AnthropicMessage[] = [
+      {
+        role: "user",
+        content: [
+          { type: "tool_result", tool_use_id: "t1", content: "result text" },
+        ],
+      },
+    ];
+    const result = addCacheControlToMessages(messages);
+    const block = result[0].content[0] as { type: string; cache_control?: unknown };
+    assert.deepEqual(block.cache_control, { type: "ephemeral", ttl: "5m" });
+  });
+
+  it("skips empty text blocks when walking backwards", () => {
+    const messages: AnthropicMessage[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "First" },
+          { type: "text", text: "  " }, // whitespace only — not eligible
+        ],
+      },
+    ];
+    const result = addCacheControlToMessages(messages);
+
+    // First text block should get cache_control (last eligible walking backwards)
+    const first = result[0].content[0] as { type: string; text: string; cache_control?: unknown };
+    assert.deepEqual(first.cache_control, { type: "ephemeral", ttl: "5m" });
+
+    // Whitespace text block should NOT get cache_control
+    const second = result[0].content[1] as { type: string; text: string; cache_control?: unknown };
+    assert.equal(second.cache_control, undefined);
+  });
+
+  it("does not mutate original messages", () => {
+    const messages: AnthropicMessage[] = [
+      { role: "user", content: [{ type: "text", text: "Hello" }] },
+    ];
+    const original = JSON.parse(JSON.stringify(messages));
+    addCacheControlToMessages(messages);
+    assert.deepEqual(messages, original);
+  });
+
+  it("handles single message with empty content gracefully", () => {
+    const messages: AnthropicMessage[] = [
+      { role: "user", content: [] },
+    ];
+    const result = addCacheControlToMessages(messages);
+    assert.equal(result[0].content.length, 0);
   });
 });

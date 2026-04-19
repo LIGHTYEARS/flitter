@@ -19,33 +19,12 @@ import type { Settings } from "@flitter/schemas";
 import type { ToolSpec } from "./types";
 
 /**
- * CLI-level filter options. Applied ON TOP of config-level filters.
- *
- * 逆向: amp-cli-reversed/modules/1737_EarliestNonDisabledTool_$mR.js
- *   - yy() checks spec.source + config tools.disable/tools.enable
- *   - CLI flags further restrict via allowed/disallowed/noShellCmd
- * 逆向: amp checks `--allowedTools`, `--disallowedTools`, `--disableShellCommand`
- *   in the CLI entry and passes them to the tool service.
- */
-export interface CliToolFilters {
-  /** If set, only include tools whose names are in this list */
-  allowed?: string[];
-  /** If set, exclude tools whose names are in this list */
-  disallowed?: string[];
-  /** If true, exclude the "Bash" tool (shell command) */
-  noShellCmd?: boolean;
-}
-
-/**
  * ToolRegistry: 管理所有已注册工具
  * 逆向: FWT 中的工具查找部分 + yy 的 enable/disable 逻辑
  */
 export class ToolRegistry {
   /** 内部工具存储 */
   private readonly tools: Map<string, ToolSpec> = new Map();
-
-  /** CLI-level filters — layered on top of config-level filters */
-  private cliFilters: CliToolFilters = {};
 
   /**
    * 注册工具
@@ -82,67 +61,80 @@ export class ToolRegistry {
   }
 
   /**
-   * Set CLI-level filters.
-   *
-   * These are applied ON TOP of config-level tools.disable/tools.enable.
-   * 逆向: amp CLI passes --allowedTools, --disallowedTools, --disableShellCommand
-   *   to the tool service which stores them as filter predicates.
-   */
-  setCliFilters(opts: CliToolFilters): void {
-    this.cliFilters = { ...opts };
-  }
-
-  /** Get current CLI filters (for testing / inspection) */
-  getCliFilters(): CliToolFilters {
-    return { ...this.cliFilters };
-  }
-
-  /**
    * 返回当前启用的工具列表
    * 过滤逻辑 (逆向 yy):
    * 1. 如果 spec.isEnabled 存在且返回 false → 排除
    * 2. 如果 config.tools?.disable 包含匹配名称 → 排除
    * 3. 如果 config.tools?.enable 存在且不包含匹配名称 → 排除
-   * 4. CLI allowed filter: if set, only include those in the list
-   * 5. CLI disallowed filter: if set, exclude those in the list
-   * 6. CLI noShellCmd: if true, exclude "Bash"
    */
   listEnabled(config: Settings): ToolSpec[] {
-    return this.list().filter((spec) => {
-      // 动态启用检查
-      if (spec.isEnabled && !spec.isEnabled(config)) {
-        return false;
-      }
+    return this.list().filter((spec) => this._isToolEnabled(spec, config));
+  }
 
-      // config 禁用列表
-      const disabled = config["tools.disable"];
-      if (disabled?.includes(spec.name)) {
-        return false;
-      }
+  /**
+   * 查找与给定名称匹配的、已启用的工具（优先精确匹配，其次大小写不敏感）
+   *
+   * 逆向: amp-cli-reversed/modules/1737_EarliestNonDisabledTool_$mR.js:66-77
+   *   function A(o, n) {
+   *     if (!o) { J.warn("findEarliestNonDisabledTool called with empty tool name"); return; }
+   *     let p = R.filter(_ => _.spec.name === o);
+   *     if (p.length === 0) { let _ = o.toLowerCase(); p = R.filter(m => m.spec.name.toLowerCase() === _); }
+   *     for (let _ of p) if (yy(_.spec, n).enabled) return _;
+   *     return;
+   *   }
+   *
+   * @param name Tool name to look up
+   * @param config Current settings (for enabled/disabled filtering via yy logic)
+   * @returns The first enabled tool matching the name, or undefined
+   */
+  findEarliestNonDisabledTool(name: string, config: Settings): ToolSpec | undefined {
+    // 逆向: empty name guard
+    if (!name) return undefined;
 
-      // config 启用白名单 (如果存在, 只允许白名单中的工具)
-      const enabled = config["tools.enable"];
-      if (enabled && !enabled.includes(spec.name)) {
-        return false;
-      }
+    // 逆向: exact name match first
+    let candidates = this.list().filter((t) => t.name === name);
 
-      // CLI allowed filter — layered on top of config
-      if (this.cliFilters.allowed && !this.cliFilters.allowed.includes(spec.name)) {
-        return false;
-      }
+    // 逆向: case-insensitive fallback if no exact match
+    if (candidates.length === 0) {
+      const lower = name.toLowerCase();
+      candidates = this.list().filter((t) => t.name.toLowerCase() === lower);
+    }
 
-      // CLI disallowed filter
-      if (this.cliFilters.disallowed?.includes(spec.name)) {
-        return false;
+    // 逆向: iterate candidates, return first that passes yy (enabled check)
+    for (const spec of candidates) {
+      if (this._isToolEnabled(spec, config)) {
+        return spec;
       }
+    }
 
-      // CLI noShellCmd filter
-      if (this.cliFilters.noShellCmd && spec.name === "Bash") {
-        return false;
-      }
+    return undefined;
+  }
 
-      return true;
-    });
+  /**
+   * Check if a single tool is enabled (matches amp's yy logic).
+   * Extracted from listEnabled for reuse by findEarliestNonDisabledTool.
+   *
+   * 逆向: amp-cli-reversed/modules/1741_unknown_yy.js
+   */
+  private _isToolEnabled(spec: ToolSpec, config: Settings): boolean {
+    // Dynamic enable check
+    if (spec.isEnabled && !spec.isEnabled(config)) {
+      return false;
+    }
+
+    // Config disable list
+    const disabled = config["tools.disable"];
+    if (disabled?.includes(spec.name)) {
+      return false;
+    }
+
+    // Config enable whitelist (if present, only allow whitelisted tools)
+    const enabled = config["tools.enable"];
+    if (enabled && !enabled.includes(spec.name)) {
+      return false;
+    }
+
+    return true;
   }
 
   /**

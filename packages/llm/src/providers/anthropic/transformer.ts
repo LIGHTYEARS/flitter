@@ -82,6 +82,73 @@ export type AnthropicDelta =
   | { type: "thinking_delta"; thinking: string }
   | { type: "signature_delta"; signature: string };
 
+// ─── Cache Control Injection ───────────────────────────
+
+/**
+ * Add cache_control to the last eligible content block of the last message.
+ *
+ * 逆向: amp-cli-reversed/modules/0608_unknown_s7.js (s7 function)
+ *   Walks backwards through content array to find the last text (non-empty),
+ *   image, or tool_result block and stamps cache_control on it.
+ *
+ * 逆向: amp-cli-reversed/chunk-002.js:2149-2158 (f8T function)
+ *   Applied to the last message in the messages array before API call.
+ *   `return T.map((a, e) => { if (e === R) return { ...a, content: s7(a.content, "5m") }; return a; });`
+ *
+ * @param messages Array of Anthropic messages
+ * @param ttl Cache TTL string (default "5m")
+ * @returns Messages with cache_control added to last eligible block of last message
+ */
+export function addCacheControlToMessages(
+  messages: AnthropicMessage[],
+  ttl: string = "5m",
+): AnthropicMessage[] {
+  if (messages.length === 0) return messages;
+
+  const lastIdx = messages.length - 1;
+  return messages.map((msg, idx) => {
+    if (idx !== lastIdx) return msg;
+    return {
+      ...msg,
+      content: addCacheControlToContent(msg.content, ttl),
+    };
+  });
+}
+
+/**
+ * Walk backwards through content blocks and stamp cache_control on the last
+ * eligible block (text with non-empty text, image, or tool_result).
+ *
+ * 逆向: amp-cli-reversed/modules/0608_unknown_s7.js (s7)
+ */
+function addCacheControlToContent(
+  content: AnthropicContentBlock[],
+  ttl: string,
+): AnthropicContentBlock[] {
+  if (!Array.isArray(content) || content.length === 0) return content;
+
+  // Clone to avoid mutation
+  const result = content.map((b) => ({ ...b }));
+
+  // Walk backwards to find last eligible block
+  for (let i = result.length - 1; i >= 0; i--) {
+    const block = result[i];
+    if (
+      (block.type === "text" && "text" in block && block.text.trim() !== "") ||
+      block.type === "image" ||
+      block.type === "tool_result"
+    ) {
+      (block as { cache_control?: { type: string; ttl: string } }).cache_control = {
+        type: "ephemeral",
+        ttl,
+      };
+      break;
+    }
+  }
+
+  return result;
+}
+
 // ─── AnthropicToolTransformer ───────────────────────────
 
 export class AnthropicToolTransformer extends BaseToolTransformer<AnthropicTool> {

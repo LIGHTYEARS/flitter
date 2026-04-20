@@ -71,6 +71,40 @@ describe("MODEL_REGISTRY", () => {
     assert.equal(model.baseUrl, "https://api.x.ai/v1");
   });
 
+  it("claude-sonnet-4-20250514 should have contextWindow 200_000", () => {
+    const model = MODEL_REGISTRY["claude-sonnet-4-20250514"];
+    assert.ok(model);
+    assert.equal(model.contextWindow, 200_000);
+  });
+
+  it("claude-opus-4-20250515 should have contextWindow 200_000", () => {
+    const model = MODEL_REGISTRY["claude-opus-4-20250515"];
+    assert.ok(model);
+    assert.equal(model.contextWindow, 200_000);
+  });
+
+  it("claude-haiku-4-5-20251001 should exist with provider anthropic, contextWindow 200_000, supportsThinking true", () => {
+    const model = MODEL_REGISTRY["claude-haiku-4-5-20251001"];
+    assert.ok(model, "claude-haiku-4-5-20251001 should exist in MODEL_REGISTRY");
+    assert.equal(model.provider, "anthropic");
+    assert.equal(model.contextWindow, 200_000);
+    assert.equal(model.supportsThinking, true);
+  });
+
+  it("gemini-3-flash-preview should exist with provider gemini", () => {
+    const model = MODEL_REGISTRY["gemini-3-flash-preview"];
+    assert.ok(model, "gemini-3-flash-preview should exist in MODEL_REGISTRY");
+    assert.equal(model.provider, "gemini");
+  });
+
+  it("all models should have valid contextWindow > 0, maxOutputTokens > 0, and id matching key", () => {
+    for (const [key, model] of Object.entries(MODEL_REGISTRY)) {
+      assert.equal(model.id, key, `model.id "${model.id}" should match key "${key}"`);
+      assert.ok(model.contextWindow > 0, `${key} contextWindow should be > 0`);
+      assert.ok(model.maxOutputTokens > 0, `${key} maxOutputTokens should be > 0`);
+    }
+  });
+
   it("should return undefined for unknown models", () => {
     assert.equal(MODEL_REGISTRY["nonexistent-model"], undefined);
   });

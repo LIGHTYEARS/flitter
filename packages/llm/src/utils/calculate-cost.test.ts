@@ -52,4 +52,40 @@ describe("calculateCost", () => {
     const expected = (100_000 / 1_000_000) * 15 + (32_000 / 1_000_000) * 75;
     assert.equal(cost, expected);
   });
+
+  it("should accept cache token counts", () => {
+    // claude-sonnet-4: input: $3/M, output: $15/M
+    // base input: 500K * $3/M = $1.50
+    // cache write: 300K * $3/M * 1.25 = $1.125
+    // cache read: 200K * $3/M * 0.1 = $0.06
+    // output: 100K * $15/M = $1.50
+    // total: $1.50 + $1.125 + $0.06 + $1.50 = $4.185
+    const cost = calculateCost("claude-sonnet-4-20250514", 500_000, 100_000, {
+      cacheCreationInputTokens: 300_000,
+      cacheReadInputTokens: 200_000,
+    });
+    assert.ok(Math.abs(cost - 4.185) < 0.001);
+  });
+
+  it("should work without cache tokens (backward compatible)", () => {
+    const costWithout = calculateCost("claude-sonnet-4-20250514", 1000, 1000);
+    const costWith = calculateCost("claude-sonnet-4-20250514", 1000, 1000, {});
+    assert.equal(costWithout, costWith);
+  });
+
+  it("should handle cache write only", () => {
+    const cost = calculateCost("claude-sonnet-4-20250514", 0, 0, {
+      cacheCreationInputTokens: 1_000_000,
+    });
+    // 1M * $3/M * 1.25 = $3.75
+    assert.equal(cost, 3.75);
+  });
+
+  it("should handle cache read only", () => {
+    const cost = calculateCost("claude-sonnet-4-20250514", 0, 0, {
+      cacheReadInputTokens: 1_000_000,
+    });
+    // 1M * $3/M * 0.1 = $0.30
+    assert.ok(Math.abs(cost - 0.3) < 0.001);
+  });
 });

@@ -58,7 +58,7 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort, requestId, sessionId } = params;
 
     // Get API key / auth token
     const apiKey = await config.secrets.getToken("apiKey");
@@ -98,6 +98,13 @@ export class AnthropicProvider implements LLMProvider {
       reasoningEffort,
     );
 
+    // Build per-request telemetry headers
+    // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
+    // Flitter extension: also send x-request-id / x-session-id as outgoing headers
+    const requestHeaders: Record<string, string> = {};
+    if (requestId) requestHeaders["x-request-id"] = requestId;
+    if (sessionId) requestHeaders["x-session-id"] = sessionId;
+
     // Create state for tracking blocks
     const state = new TransformState();
 
@@ -105,6 +112,7 @@ export class AnthropicProvider implements LLMProvider {
     try {
       const stream = client.messages.stream(body as Parameters<typeof client.messages.stream>[0], {
         signal,
+        ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {}),
       });
 
       for await (const event of stream) {

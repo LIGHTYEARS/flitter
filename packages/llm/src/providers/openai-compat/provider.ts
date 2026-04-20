@@ -49,7 +49,7 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, reasoningEffort, requestId, sessionId } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -84,6 +84,13 @@ export class OpenAICompatProvider implements LLMProvider {
       reasoningEffort,
     );
 
+    // Build per-request telemetry headers
+    // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
+    // Flitter extension: also send x-request-id / x-session-id as outgoing headers
+    const requestHeaders: Record<string, string> = {};
+    if (requestId) requestHeaders["x-request-id"] = requestId;
+    if (sessionId) requestHeaders["x-session-id"] = sessionId;
+
     // Create state
     const state = new TransformState();
 
@@ -91,6 +98,7 @@ export class OpenAICompatProvider implements LLMProvider {
     try {
       const stream = await client.chat.completions.create(
         body as unknown as Parameters<typeof client.chat.completions.create>[0],
+        Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : undefined,
       );
 
       for await (const chunk of stream as AsyncIterable<unknown>) {

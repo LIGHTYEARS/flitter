@@ -75,6 +75,14 @@ export class ContextManager {
       // We extract them and re-inject after the summary.
       const pinnedInfoMessages = extractInfoMessages(toSummarize);
 
+      // ── Extract messages with cache_control blocks from the summarized portion ──
+      // 逆向: amp's s7() (modules/0608_unknown_s7.js:3-13) sets cache_control
+      // on the last meaningful content block. In amp, cache_control is
+      // server-side. For Flitter's CLIENT-SIDE compaction, we preserve any
+      // message whose content blocks carry cache_control, since these represent
+      // explicitly cached content that should survive compaction.
+      const pinnedCacheMessages = extractCacheControlMessages(toSummarize);
+
       // ── Check for existing summary block to avoid double-summarizing ──
       // 逆向: pm() (modules/1602_unknown_pm.js:20-31) scans backward for
       // role="info" messages with {type: "summary"} content.
@@ -145,11 +153,47 @@ export class ContextManager {
       // Trim incomplete tool_use sequences from toKeep
       const trimmedKeep = trimIncompleteToolUse(toKeep);
 
-      // ── Construct new thread with pinned info messages ──
-      // Order: summary → pinned info messages → kept messages
+      // ── Promote last user message if it falls in the summarized portion ──
+      // If the most recent user message in the entire thread was summarized
+      // away, promote it to the kept portion so the model retains the user's
+      // latest intent.
+      const lastUserInAll = findLastUserMessage(thread.messages);
+      let promotedUserMsg: ThreadMessage | null = null;
+      if (lastUserInAll && lastUserInAll.index < splitIdx) {
+        const alreadyInKeep = trimmedKeep.some(
+          (m) => m.messageId === lastUserInAll.message.messageId,
+        );
+        if (!alreadyInKeep) {
+          promotedUserMsg = lastUserInAll.message;
+        }
+      }
+
+      // ── Deduplicate pinned messages against the kept portion ──
+      // If a pinned info/cache_control message is already in trimmedKeep
+      // (by messageId), do not include it again.
+      const keepIds = new Set(trimmedKeep.map((m) => m.messageId));
+      if (promotedUserMsg) {
+        keepIds.add(promotedUserMsg.messageId);
+      }
+      const dedupedInfoMsgs = pinnedInfoMessages.filter(
+        (m) => !keepIds.has(m.messageId),
+      );
+      const dedupedCacheMsgs = pinnedCacheMessages.filter(
+        (m) => !keepIds.has(m.messageId),
+      );
+
+      // ── Construct new thread with pinned messages ──
+      // Order: summary → pinned info messages → pinned cache_control messages
+      //        → promoted last user message → kept messages
       // 逆向: k8T starts from summary, then processes remaining messages
       // in order. Info messages are processed as user-role content parts.
-      const newMessages = [summaryMessage, ...pinnedInfoMessages, ...trimmedKeep];
+      const newMessages = [
+        summaryMessage,
+        ...dedupedInfoMsgs,
+        ...dedupedCacheMsgs,
+        ...(promotedUserMsg ? [promotedUserMsg] : []),
+        ...trimmedKeep,
+      ];
       const newThread: ThreadSnapshot = {
         ...thread,
         messages: newMessages,
@@ -250,6 +294,60 @@ function findSummaryBlock(
           summaryText: block.summary.summary,
         };
       }
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract messages with cache_control blocks from a message list.
+ *
+ * These messages carry explicitly cached content (e.g., system prompts,
+ * important context) that the user or system has marked for caching via
+ * the Anthropic API's cache_control mechanism.
+ *
+ * 逆向: amp's s7() (modules/0608_unknown_s7.js:3-13) sets cache_control
+ * with { type: "ephemeral" } on the last meaningful content block of
+ * messages. In amp this is server-side; for Flitter's client-side
+ * compaction we preserve these messages so cached context survives.
+ */
+function extractCacheControlMessages(
+  messages: ThreadMessage[],
+): ThreadMessage[] {
+  const result: ThreadMessage[] = [];
+
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue;
+
+    const hasCacheControl = msg.content.some(
+      (block: ThreadContentBlock) =>
+        // cache_control is not in the Zod schema but is set at runtime
+        // by the API layer (Anthropic cache_control protocol)
+        "cache_control" in block &&
+        (block as Record<string, unknown>).cache_control != null,
+    );
+
+    if (hasCacheControl) {
+      result.push(msg);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Find the last user message in a message list.
+ *
+ * Returns the message and its index, or null if no user message exists.
+ * Used to ensure the most recent user intent survives compaction even
+ * when it falls in the summarized portion.
+ */
+function findLastUserMessage(
+  messages: ThreadMessage[],
+): { message: ThreadMessage; index: number } | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      return { message: messages[i], index: i };
     }
   }
   return null;

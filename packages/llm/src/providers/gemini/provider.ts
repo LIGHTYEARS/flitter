@@ -63,7 +63,7 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort, requestId, sessionId } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -125,6 +125,13 @@ export class GeminiProvider implements LLMProvider {
     // Build tools
     const geminiTools = tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
 
+    // Build per-request telemetry headers
+    // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
+    // Flitter extension: also send x-request-id / x-session-id as outgoing headers via httpOptions
+    const requestHeaders: Record<string, string> = {};
+    if (requestId) requestHeaders["x-request-id"] = requestId;
+    if (sessionId) requestHeaders["x-session-id"] = sessionId;
+
     // Build config
     const generateConfig = this._buildConfig(
       systemInstruction,
@@ -135,6 +142,17 @@ export class GeminiProvider implements LLMProvider {
       supportsThinking,
       signal,
     );
+
+    // Inject telemetry headers into httpOptions
+    if (Object.keys(requestHeaders).length > 0) {
+      generateConfig.httpOptions = {
+        ...(generateConfig.httpOptions as Record<string, unknown> | undefined),
+        headers: {
+          ...((generateConfig.httpOptions as Record<string, unknown> | undefined)?.headers as Record<string, string> | undefined),
+          ...requestHeaders,
+        },
+      };
+    }
 
     // Create state for tracking blocks
     const state = new TransformState();

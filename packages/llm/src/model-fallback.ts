@@ -23,6 +23,7 @@
 import type { LLMProvider } from "./provider";
 import type { StreamDelta, StreamParams } from "./types";
 import { ProviderError } from "./types";
+import { isContextOverflow } from "./utils/overflow";
 
 // ─── Error Classification ────────────────────────────────
 
@@ -84,6 +85,28 @@ export function isResponseIncomplete(err: ProviderError): boolean {
 }
 
 /**
+ * 逆向: amp-cli-reversed/chunk-002.js:14564 — K4R()
+ * Detects invalid model output (malformed JSON, unexpected tokens).
+ * amp checks: T.message.startsWith("InvalidModelOutputError")
+ */
+export function isInvalidModelOutput(err: ProviderError): boolean {
+  return err.message?.startsWith("InvalidModelOutputError") ?? false;
+}
+
+/**
+ * Detect context-overflow errors — skip retries, go to fallback.
+ * 逆向: amp-cli-reversed/modules/1063_unknown_f4R.js:33-39
+ * When totalInputTokens >= maxInputTokens, amp falls back to
+ * eP = ya("GEMINI3_FLASH_PREVIEW") (chunk-005.js:106075).
+ */
+export function isContextOverflowError(err: unknown): boolean {
+  if (err instanceof ProviderError) {
+    return isContextOverflow(err.message ?? "");
+  }
+  return false;
+}
+
+/**
  * 逆向: amp-cli-reversed/chunk-002.js:14572 — vUT()
  * Master retryability check combining all error classifiers.
  */
@@ -94,6 +117,7 @@ export function isRetryableError(err: unknown): boolean {
       isOverloaded(err) ||
       isStreamStalled(err) ||
       isResponseIncomplete(err) ||
+      isInvalidModelOutput(err) ||
       err.status === 429 ||
       err.status === 503 ||
       err.status === 529 ||
@@ -201,6 +225,12 @@ export class ModelFallbackChain {
           return;
         } catch (err: unknown) {
           lastError = err;
+
+          // Context overflow — skip retries, try next model immediately
+          // 逆向: amp-cli-reversed/modules/1063_unknown_f4R.js:33-39
+          if (isContextOverflowError(err)) {
+            break; // exits retry while-loop, continues to next model in for-loop
+          }
 
           if (!isRetryableError(err)) {
             // Non-retryable error — throw immediately, don't try fallbacks

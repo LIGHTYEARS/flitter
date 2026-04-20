@@ -10,6 +10,8 @@ import type { StreamDelta, StreamParams } from "./types";
 import { ProviderError } from "./types";
 import {
   calculateBackoffMs,
+  isContextOverflowError,
+  isInvalidModelOutput,
   isNetworkError,
   isOverloaded,
   isResponseIncomplete,
@@ -109,7 +111,39 @@ describe("isResponseIncomplete", () => {
   });
 });
 
+describe("isInvalidModelOutput", () => {
+  it("should detect InvalidModelOutputError by message prefix", () => {
+    const err = new ProviderError(400, "anthropic", false, "InvalidModelOutputError: unexpected token");
+    assert.equal(isInvalidModelOutput(err), true);
+  });
+
+  it("should detect bare InvalidModelOutputError message", () => {
+    const err = new ProviderError(400, "anthropic", false, "InvalidModelOutputError");
+    assert.equal(isInvalidModelOutput(err), true);
+  });
+
+  it("should not match message that merely contains InvalidModelOutputError", () => {
+    const err = new ProviderError(400, "anthropic", false, "Caused by InvalidModelOutputError");
+    assert.equal(isInvalidModelOutput(err), false);
+  });
+
+  it("should not match unrelated error messages", () => {
+    const err = new ProviderError(400, "anthropic", false, "Bad request");
+    assert.equal(isInvalidModelOutput(err), false);
+  });
+});
+
 describe("isRetryableError", () => {
+  it("should retry InvalidModelOutputError", () => {
+    const err = new ProviderError(400, "anthropic", false, "InvalidModelOutputError: unexpected token");
+    assert.equal(isRetryableError(err), true);
+  });
+
+  it("should NOT retry successful ProviderError with status 200", () => {
+    const err = new ProviderError(200, "anthropic", false, "Success");
+    assert.equal(isRetryableError(err), false);
+  });
+
   it("should retry 429 rate limit", () => {
     const err = new ProviderError(429, "anthropic", true, "Rate limited");
     assert.equal(isRetryableError(err), true);
@@ -164,6 +198,29 @@ describe("isRetryableError", () => {
     // A 422 that the provider marks as retryable
     const err = new ProviderError(422, "anthropic", true, "Temporary issue");
     assert.equal(isRetryableError(err), true);
+  });
+});
+
+// ─── isContextOverflowError ─────────────────────────────
+
+describe("isContextOverflowError", () => {
+  it("should detect prompt too long error", () => {
+    const err = new ProviderError(400, "anthropic", false, "prompt is too long: 250000 tokens > 200000 maximum");
+    assert.equal(isContextOverflowError(err), true);
+  });
+
+  it("should detect context length exceeded", () => {
+    const err = new ProviderError(400, "openai", false, "maximum context length exceeded");
+    assert.equal(isContextOverflowError(err), true);
+  });
+
+  it("should NOT match unrelated 400 errors", () => {
+    const err = new ProviderError(400, "anthropic", false, "Invalid request");
+    assert.equal(isContextOverflowError(err), false);
+  });
+
+  it("should NOT match non-ProviderError", () => {
+    assert.equal(isContextOverflowError(new Error("prompt is too long")), false);
   });
 });
 
@@ -503,5 +560,83 @@ describe("ModelFallbackChain", () => {
 
     assert.equal(delays.length, 2);
     assert.ok(delays.every((d) => d > 0));
+  });
+});
+
+// ─── ModelFallbackChain — context overflow fallback ─────
+
+describe("ModelFallbackChain — context overflow fallback", () => {
+  function makeDelta(text: string): StreamDelta {
+    return {
+      content: [{ type: "text", text, startTime: Date.now() }],
+      state: "complete",
+    };
+  }
+
+  function makeParams(): StreamParams {
+    return {
+      model: "will-be-overridden",
+      messages: [],
+      systemPrompt: [],
+      tools: [],
+      config: {
+        settings: {},
+        secrets: { getToken: async () => "test-key" },
+      } as unknown as StreamParams["config"],
+      signal: new AbortController().signal,
+    };
+  }
+
+  it("should skip to fallback model on context overflow without retrying", async () => {
+    let callCount = 0;
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream(params) {
+        callCount++;
+        if (params.model === "claude-sonnet-4-20250514") {
+          throw new ProviderError(400, "anthropic", false, "prompt is too long: 250000 tokens > 200000 maximum");
+        }
+        yield makeDelta(`from:${params.model}`);
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["claude-sonnet-4-20250514", "gemini-3-flash-preview"],
+      provider,
+      maxRetriesPerModel: 2,
+      delay: async () => {},
+    });
+
+    const results: StreamDelta[] = [];
+    for await (const d of chain.stream(makeParams())) {
+      results.push(d);
+    }
+
+    assert.equal(results.length, 1);
+    assert.equal((results[0].content[0] as { type: "text"; text: string }).text, "from:gemini-3-flash-preview");
+    // 1 primary fail + 1 fallback success (no retries on overflow)
+    assert.equal(callCount, 2);
+  });
+
+  it("should throw if context overflow hits all models", async () => {
+    const provider: LLMProvider = {
+      name: "test",
+      async *stream() {
+        throw new ProviderError(400, "anthropic", false, "prompt is too long");
+      },
+    };
+
+    const chain = new ModelFallbackChain({
+      models: ["model-a", "model-b"],
+      provider,
+      maxRetriesPerModel: 2,
+      delay: async () => {},
+    });
+
+    await assert.rejects(async () => {
+      for await (const _ of chain.stream(makeParams())) {
+        /* consume */
+      }
+    });
   });
 });

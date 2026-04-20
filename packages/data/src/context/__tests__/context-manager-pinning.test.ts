@@ -310,3 +310,205 @@ describe("ContextManager: system context in summary", () => {
     }
   });
 });
+
+// ─── Task 4: Cache Control Pinning ──────────────────────
+
+describe("ContextManager: cache_control pinning", () => {
+  test("preserves messages with cache_control blocks after compaction", async () => {
+    const mockCompactFn: CompactFunction = async () => "Summary";
+    const cm = new ContextManager({
+      compactFn: mockCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 10,
+      keepRecentMessages: 2,
+    });
+    const messages: ThreadMessage[] = [
+      makeMessage("user", "Setup instruction 1", 0),
+      {
+        role: "user",
+        content: [{ type: "text", text: "Important cached context", cache_control: { type: "ephemeral" } }],
+        messageId: 1,
+      } as ThreadMessage,
+      makeMessage("assistant", "Understood", 2),
+      makeMessage("user", "Do task A", 3),
+      makeMessage("assistant", "Done A", 4),
+      makeMessage("user", "Do task B", 5),
+      makeMessage("assistant", "Done B", 6),
+    ];
+    const thread = makeThread(messages);
+    const result = await cm.checkAndCompact(thread);
+
+    expect(result.compacted).toBe(true);
+    // The cache_control message should survive compaction
+    const allTexts = result.thread.messages.flatMap((m) =>
+      Array.isArray(m.content)
+        ? m.content
+            // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+            .filter((c): c is any => c.type === "text")
+            // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+            .map((c: any) => c.text)
+        : [],
+    );
+    expect(allTexts.some((t: string) => t.includes("Important cached context"))).toBe(true);
+  });
+
+  test("does not duplicate cache_control messages already in kept portion", async () => {
+    const mockCompactFn: CompactFunction = async () => "Summary";
+    const cm = new ContextManager({
+      compactFn: mockCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 10,
+      keepRecentMessages: 3,
+    });
+    // The cache_control message is at index 4, and keepRecent=3 means indices 4,5,6 are kept
+    const messages: ThreadMessage[] = [
+      makeMessage("user", "Hello", 0),
+      makeMessage("assistant", "Hi there!", 1),
+      makeMessage("user", "Do something", 2),
+      makeMessage("assistant", "Done!", 3),
+      {
+        role: "user",
+        content: [{ type: "text", text: "Cached instruction in kept portion", cache_control: { type: "ephemeral" } }],
+        messageId: 4,
+      } as ThreadMessage,
+      makeMessage("assistant", "Understood the cached thing", 5),
+      makeMessage("user", "Final question", 6),
+    ];
+    const thread = makeThread(messages);
+    const result = await cm.checkAndCompact(thread);
+
+    if (result.compacted) {
+      // Count how many times the cached message text appears
+      let count = 0;
+      for (const m of result.thread.messages) {
+        if (!Array.isArray(m.content)) continue;
+        for (const c of m.content) {
+          // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+          if ((c as any).type === "text" && (c as any).text?.includes("Cached instruction in kept portion")) {
+            count++;
+          }
+        }
+      }
+      expect(count).toBe(1); // Should appear exactly once (in kept portion), not duplicated
+    }
+  });
+});
+
+// ─── Task 5: Last User Message Pinning ──────────────────
+
+describe("ContextManager: last user message pinning", () => {
+  test("always preserves the most recent user message even when in summarized portion", async () => {
+    const mockCompactFn: CompactFunction = async () => "Summary";
+    const cm = new ContextManager({
+      compactFn: mockCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 10,
+      keepRecentMessages: 2,
+    });
+    // Thread where last user msg is at index 3 but keepRecent=2 only keeps indices 5,6
+    // The last user message is "Run all tests" at index 3, but the kept portion is
+    // indices 5-6 (both assistant messages)
+    const messages: ThreadMessage[] = [
+      makeMessage("user", "Hello", 0),
+      makeMessage("assistant", "Hi!", 1),
+      makeMessage("user", "Setup project", 2),
+      makeMessage("user", "Run all tests", 3), // Last user message, in summarized portion
+      makeMessage("assistant", "Running tests...", 4),
+      makeMessage("assistant", "All 10 tests pass.", 5),
+      makeMessage("assistant", "Done with everything.", 6),
+    ];
+    const thread = makeThread(messages);
+    const result = await cm.checkAndCompact(thread);
+
+    expect(result.compacted).toBe(true);
+    // The last user message "Run all tests" should be promoted into the kept portion
+    const allTexts = result.thread.messages.flatMap((m) =>
+      Array.isArray(m.content)
+        ? m.content
+            // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+            .filter((c): c is any => c.type === "text")
+            // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+            .map((c: any) => c.text)
+        : [],
+    );
+    expect(allTexts.some((t: string) => t.includes("Run all tests"))).toBe(true);
+  });
+
+  test("does not duplicate the last user message when already in kept portion", async () => {
+    const mockCompactFn: CompactFunction = async () => "Summary";
+    const cm = new ContextManager({
+      compactFn: mockCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 10,
+      keepRecentMessages: 2,
+    });
+    // Last user message is at index 4, which IS in the kept portion (indices 4,5)
+    const messages: ThreadMessage[] = [
+      makeMessage("user", "Hello", 0),
+      makeMessage("assistant", "Hi!", 1),
+      makeMessage("user", "Do task A", 2),
+      makeMessage("assistant", "Done A", 3),
+      makeMessage("user", "Do task B", 4), // Last user message, in kept portion
+      makeMessage("assistant", "Done B", 5),
+    ];
+    const thread = makeThread(messages);
+    const result = await cm.checkAndCompact(thread);
+
+    if (result.compacted) {
+      // Count how many times "Do task B" appears
+      let count = 0;
+      for (const m of result.thread.messages) {
+        if (!Array.isArray(m.content)) continue;
+        for (const c of m.content) {
+          // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+          if ((c as any).type === "text" && (c as any).text === "Do task B") {
+            count++;
+          }
+        }
+      }
+      expect(count).toBe(1); // Should appear exactly once, not duplicated
+    }
+  });
+});
+
+// ─── Task 6: Deduplication of Pinned Messages ───────────
+
+describe("ContextManager: pinned message deduplication", () => {
+  test("deduplicates info messages that overlap between pinned and kept portions", async () => {
+    const mockCompactFn: CompactFunction = async () => "Summary";
+    const cm = new ContextManager({
+      compactFn: mockCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 10,
+      keepRecentMessages: 4,
+    });
+    // Info message at index 1 is in summarized portion (toSummarize)
+    // Same info message (by messageId) at index 4 is in kept portion
+    const infoMsg1 = makeInfoMessage("Loaded skill: testing-workflow\n\nAlways run tests before committing.", 10);
+    const messages: ThreadMessage[] = [
+      makeMessage("user", "Hello", 0),
+      infoMsg1,
+      makeMessage("assistant", "Got it!", 2),
+      makeMessage("user", "Do stuff", 3),
+      makeMessage("assistant", "Done stuff", 4),
+      makeMessage("user", "More stuff", 5),
+      makeMessage("assistant", "More done", 6),
+    ];
+    const thread = makeThread(messages);
+    const result = await cm.checkAndCompact(thread);
+
+    if (result.compacted) {
+      // Count info messages with the skill text
+      // biome-ignore lint/suspicious/noExplicitAny: test assertion over union type with info role
+      const infoMessages = result.thread.messages.filter((m: any) => m.role === "info");
+      const skillInfos = infoMessages.filter((m) =>
+        m.content.some(
+          // biome-ignore lint/suspicious/noExplicitAny: test assertion over content block union
+          (c: any) => typeof c.text === "string" && c.text.includes("testing-workflow"),
+        ),
+      );
+      // Should not be duplicated
+      expect(skillInfos.length).toBeLessThanOrEqual(1);
+    }
+  });
+});

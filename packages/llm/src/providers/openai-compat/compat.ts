@@ -39,6 +39,27 @@ export const KNOWN_COMPAT_CONFIGS: Record<string, Partial<OpenAICompatConfig>> =
     supportsStore: false,
     supportsDeveloperRole: false,
   },
+  // 逆向: amp-cli-reversed/modules/1085_unknown_Z4R.js
+  fireworks: {
+    baseURL: "https://api.fireworks.ai/inference/v1",
+    supportsStore: false,
+    supportsDeveloperRole: false,
+    supportsReasoningEffort: false,
+  },
+  // 逆向: amp-cli-reversed/modules/1092_unknown_hLR.js, 1082_unknown_jUT.js
+  baseten: {
+    baseURL: "https://bridge.baseten.co/v1",
+    supportsStore: false,
+    supportsDeveloperRole: false,
+    supportsReasoningEffort: false,
+  },
+  // 逆向: amp-cli-reversed/modules/1173_unknown_xWT.js
+  moonshotai: {
+    baseURL: "https://api.moonshot.cn/v1",
+    supportsStore: false,
+    supportsDeveloperRole: false,
+    supportsReasoningEffort: false,
+  },
 };
 
 // ─── Default Config ─────────────────────────────────────
@@ -72,6 +93,9 @@ const URL_PATTERNS: Array<{ pattern: RegExp; name: string }> = [
   { pattern: /api\.deepseek\.com/i, name: "deepseek" },
   { pattern: /openrouter\.ai/i, name: "openrouter" },
   { pattern: /api\.cerebras\.ai/i, name: "cerebras" },
+  { pattern: /api\.fireworks\.ai/i, name: "fireworks" },
+  { pattern: /baseten\.co/i, name: "baseten" },
+  { pattern: /api\.moonshot\.cn/i, name: "moonshotai" },
 ];
 
 /**

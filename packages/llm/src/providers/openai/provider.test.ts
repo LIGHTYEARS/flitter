@@ -900,3 +900,57 @@ describe("OpenAITransformer — response.completed stop reason", () => {
     assert.deepEqual(delta.state, { type: "complete", stopReason: "end_turn" });
   });
 });
+
+// ─── StreamParams extensions 测试 ────────────────────────
+
+describe("StreamParams — threadId / agentMode fields", () => {
+  it("should accept threadId field for prompt_cache_key", () => {
+    const params: import("../../types").StreamParams = {
+      model: "gpt-4o",
+      messages: [],
+      systemPrompt: [],
+      tools: [],
+      config: {
+        settings: {},
+        secrets: { getToken: async () => "key" },
+      } as unknown as import("../../types").StreamParams["config"],
+      signal: new AbortController().signal,
+      threadId: "thread-123",
+    };
+    assert.equal(params.threadId, "thread-123");
+  });
+
+  it("should accept agentMode field for service_tier", () => {
+    const params: import("../../types").StreamParams = {
+      model: "gpt-4o",
+      messages: [],
+      systemPrompt: [],
+      tools: [],
+      config: {
+        settings: {},
+        secrets: { getToken: async () => "key" },
+      } as unknown as import("../../types").StreamParams["config"],
+      signal: new AbortController().signal,
+      agentMode: "agent",
+    };
+    assert.equal(params.agentMode, "agent");
+  });
+
+  it("should accept requestId and sessionId for telemetry", () => {
+    const params: import("../../types").StreamParams = {
+      model: "gpt-4o",
+      messages: [],
+      systemPrompt: [],
+      tools: [],
+      config: {
+        settings: {},
+        secrets: { getToken: async () => "key" },
+      } as unknown as import("../../types").StreamParams["config"],
+      signal: new AbortController().signal,
+      requestId: "req-abc",
+      sessionId: "sess-xyz",
+    };
+    assert.equal(params.requestId, "req-abc");
+    assert.equal(params.sessionId, "sess-xyz");
+  });
+});

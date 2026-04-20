@@ -31,7 +31,7 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, reasoningEffort } = params;
+    const { model, messages, systemPrompt, tools, config, reasoningEffort, threadId, agentMode, requestId, sessionId } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -58,7 +58,16 @@ export class OpenAIProvider implements LLMProvider {
       config.settings,
       reasoningEffort,
       modelInfo?.supportsThinking ?? false,
+      threadId,
+      agentMode,
     );
+
+    // Build per-request telemetry headers
+    // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
+    // Flitter extension: also send x-request-id / x-session-id as outgoing headers
+    const requestHeaders: Record<string, string> = {};
+    if (requestId) requestHeaders["x-request-id"] = requestId;
+    if (sessionId) requestHeaders["x-session-id"] = sessionId;
 
     // Create state for tracking blocks
     const state = new TransformState();
@@ -67,6 +76,7 @@ export class OpenAIProvider implements LLMProvider {
     try {
       const stream = (await client.responses.create(
         body as Parameters<typeof client.responses.create>[0],
+        Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : undefined,
       )) as AsyncIterable<unknown>;
 
       for await (const event of stream) {
@@ -105,6 +115,8 @@ export class OpenAIProvider implements LLMProvider {
     settings: Record<string, unknown>,
     reasoningEffort?: string,
     supportsReasoning = false,
+    threadId?: string,
+    agentMode?: string,
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model,
@@ -138,14 +150,14 @@ export class OpenAIProvider implements LLMProvider {
       }
     }
 
-    // Service tier
-    const serviceTier = settings["openai.speed"];
+    // Service tier — explicit setting takes priority, then auto-compute from agent mode
+    const serviceTier = settings["openai.speed"] ?? (agentMode === "agent" ? "flex" : undefined);
     if (serviceTier) {
       body.service_tier = serviceTier;
     }
 
-    // Prompt cache key
-    const cacheKey = settings["openai.promptCacheKey"];
+    // Prompt cache key — explicit setting takes priority, then threadId fallback
+    const cacheKey = settings["openai.promptCacheKey"] ?? threadId;
     if (cacheKey) {
       body.prompt_cache_key = cacheKey;
     }

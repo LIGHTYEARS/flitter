@@ -68,6 +68,14 @@ export interface StreamParams {
   signal: AbortSignal;
   /** 推理深度控制 */
   reasoningEffort?: ReasoningEffort;
+  /** Thread ID — used as prompt_cache_key for OpenAI and for telemetry */
+  threadId?: string;
+  /** Agent mode — "agent" enables flex service_tier for OpenAI background processing */
+  agentMode?: string;
+  /** Request correlation ID for telemetry / debug logging */
+  requestId?: string;
+  /** Session ID for request grouping */
+  sessionId?: string;
 }
 
 // ─── StreamDelta (统一输出) ──────────────────────────────
@@ -388,6 +396,18 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: true,
     cost: { input: 0.8, output: 4 },
   },
+  // 逆向: amp-cli-reversed/chunk-005.js:66720 CLAUDE_HAIKU_4_5
+  "claude-haiku-4-5-20251001": {
+    id: "claude-haiku-4-5-20251001",
+    provider: "anthropic",
+    contextWindow: 200_000,
+    maxOutputTokens: 64_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 1, output: 5 },
+  },
 
   // ── OpenAI ─────────────────────────────────────────
   "gpt-4o": {
@@ -490,6 +510,19 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsImages: true,
     supportsCacheControl: false,
     cost: { input: 0.1, output: 0.4 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66983 GEMINI3_FLASH_PREVIEW
+  "gemini-3-flash-preview": {
+    id: "gemini-3-flash-preview",
+    provider: "gemini",
+    contextWindow: 1_048_576,
+    maxOutputTokens: 65_535,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    // Cost from Google Cloud pricing (not in amp source — amp only references the model name)
+    cost: { input: 0.15, output: 0.6 },
   },
 
   // ── xAI (via openai-compat) ────────────────────────

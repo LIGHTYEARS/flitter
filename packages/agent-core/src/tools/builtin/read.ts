@@ -98,6 +98,23 @@ export const ReadTool: ToolSpec = {
 
   executionProfile: undefined,
 
+  // 逆向: amp uses `path` (not `file_path`) and `read_range: [start, end]` (not offset/limit)
+  // chunk-005.js:89579-89591
+  preprocessArgs(args) {
+    const out = { ...args };
+    if ("path" in out && !("file_path" in out)) {
+      out.file_path = out.path;
+      delete out.path;
+    }
+    if ("read_range" in out && Array.isArray(out.read_range) && !("offset" in out)) {
+      const [start, end] = out.read_range as [number, number];
+      out.offset = start;
+      if (end > start) out.limit = end - start;
+      delete out.read_range;
+    }
+    return out;
+  },
+
   async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const offset = (args.offset as number | undefined) ?? 1;

@@ -156,6 +156,14 @@ export interface ToolSpec {
   isReadOnly?: boolean;
   /** 动态启用检查 (返回 false 时工具不出现在 LLM prompt) */
   isEnabled?: (config: Settings) => boolean;
+  /**
+   * Optional argument preprocessor — normalizes/aliases parameter names before execute().
+   *
+   * 逆向: amp has `preprocessArgs` on every tool spec (chunk-005.js:146320).
+   * Used to support legacy parameter names (e.g. `cmd` → `command`, `path` → `file_path`)
+   * so LLMs trained on either naming convention work correctly.
+   */
+  preprocessArgs?: (args: Record<string, unknown>) => Record<string, unknown>;
   /** 工具来源: "builtin" | { mcp: string } | { toolbox: string } */
   source: ToolSource;
 }

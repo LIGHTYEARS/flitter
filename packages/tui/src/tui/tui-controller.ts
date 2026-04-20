@@ -30,19 +30,24 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import {
   ALT_SCREEN_OFF,
   ALT_SCREEN_ON,
   AnsiRenderer,
+  type ColorDepth,
+  KITTY_KEYBOARD_OFF,
+  KITTY_KEYBOARD_ON,
   MOUSE_OFF,
   MOUSE_ON,
   PASTE_OFF,
   PASTE_ON,
+  SET_CURSOR_SHAPE,
   SHOW_CURSOR,
+  SYNC_END,
+  SYNC_START,
 } from "../screen/ansi-renderer.js";
-import type { ColorDepth } from "../screen/ansi-renderer.js";
 import { Screen } from "../screen/screen.js";
-import { logger } from "../debug/logger.js";
 import { InputParser } from "../vt/input-parser.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
@@ -65,7 +70,9 @@ export function isTtyStream(stream: unknown): boolean {
     typeof stream === "object" &&
     stream !== null &&
     "isTTY" in stream &&
+    // biome-ignore lint/suspicious/noExplicitAny: runtime duck-typing check on unknown stream
     (stream as any).isTTY === true &&
+    // biome-ignore lint/suspicious/noExplicitAny: runtime duck-typing check on unknown stream
     typeof (stream as any).setRawMode === "function"
   );
 }
@@ -86,6 +93,15 @@ export interface TerminalCapabilities {
   colorPaletteNotifications: boolean;
   /** xtversion 响应字符串，null 表示未检测到 */
   xtversion: string | null;
+  /**
+   * 是否支持光标形状控制 (DECSCUSR).
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:263-265
+   *   detectCursorShapeSupport() { return !this.detectEmacs() && !this.detectJetBrains(); }
+   *
+   * Disabled for Emacs (INSIDE_EMACS) and JetBrains (TERMINAL_EMULATOR=JetBrains*)
+   */
+  supportsCursorShape: boolean;
   /**
    * Detected color depth.
    * 逆向: QXR in modules/0080_unknown_QXR.js
@@ -129,7 +145,9 @@ export interface CapabilityEvent {
  * 6. COLORTERM present → 16
  * 7. Fallback: 16
  */
-export function detectColorDepth(env: Record<string, string | undefined> = process.env): ColorDepth {
+export function detectColorDepth(
+  env: Record<string, string | undefined> = process.env,
+): ColorDepth {
   // 逆向: QXR line 37 — COLORTERM === "truecolor" → level 3
   if (env.COLORTERM === "truecolor" || env.COLORTERM === "24bit") {
     return "truecolor";
@@ -203,6 +221,7 @@ export class TuiController {
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
   /** 能力检测 resolve 回调 */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: assigned in waitForCapabilities, will be used when query-response probing is implemented
   private capabilityResolve: (() => void) | null = null;
 
   /** 缓存的终端尺寸（amp: this.terminalSize） */
@@ -313,6 +332,7 @@ export class TuiController {
       // 启用鼠标追踪和 bracketed paste
       this.enableMouse();
       this.enableBracketedPaste();
+      this.enableKittyKeyboard();
     } catch (error) {
       this.deinit();
       throw error;
@@ -433,6 +453,7 @@ export class TuiController {
    * @param stream - 要检查的流对象
    * @returns 终端尺寸或 null
    */
+  // biome-ignore lint/suspicious/noExplicitAny: stream may be stdout, /dev/tty fd, or TtyOutputTarget — need duck-typing
   private getStreamSize(stream: NodeJS.WriteStream | any): TerminalSize | null {
     try {
       // Layer 1: 强制刷新终端尺寸（Node.js 内部 ioctl TIOCGWINSZ）
@@ -581,7 +602,13 @@ export class TuiController {
   render(): void {
     const output = this.renderer.render(this.screen);
     if (output) {
-      this.ttyOutput?.stream.write(output);
+      // 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:188-201
+      // Amp wraps render output with startSync()/endSync() to prevent visual tearing.
+      if (this.capabilities?.syncOutput) {
+        this.ttyOutput?.stream.write(SYNC_START + output + SYNC_END);
+      } else {
+        this.ttyOutput?.stream.write(output);
+      }
     }
     this.screen.present();
   }
@@ -679,6 +706,21 @@ export class TuiController {
   }
 
   /**
+   * 启用 Kitty Keyboard Protocol (mode 1: disambiguate keys).
+   *
+   * 逆向: amp enables kitty keyboard at init when the terminal supports it.
+   * Mode 1 is safe — it's a progressive enhancement that only changes
+   * encoding for ambiguous keys (e.g., Enter vs Ctrl+M).
+   *
+   * @private
+   */
+  private enableKittyKeyboard(): void {
+    if (this.capabilities?.kittyKeyboard) {
+      this.ttyOutput?.stream.write(KITTY_KEYBOARD_ON);
+    }
+  }
+
+  /**
    * 同步恢复终端状态（ANSI 序列写入）。
    *
    * 逆向: XXT.deinit (sync part) in clipboard-and-input.js:600-607
@@ -692,6 +734,15 @@ export class TuiController {
     let seq = "";
     seq += MOUSE_OFF;
     seq += PASTE_OFF;
+    // Disable kitty keyboard if it was enabled
+    if (this.capabilities?.kittyKeyboard) {
+      seq += KITTY_KEYBOARD_OFF;
+    }
+    // Reset cursor shape to default before showing cursor
+    // 逆向: amp XXT deinit/suspend: this.renderer.setCursorShape(0) + showCursor()
+    if (this.capabilities?.supportsCursorShape) {
+      seq += SET_CURSOR_SHAPE(0);
+    }
     seq += SHOW_CURSOR;
     if (this.inAltScreen) {
       seq += ALT_SCREEN_OFF;
@@ -773,6 +824,7 @@ export class TuiController {
     this.enterAltScreen();
     this.enableMouse();
     this.enableBracketedPaste();
+    this.enableKittyKeyboard();
     this.screen.needsFullRefresh = true;
     this.suspended = false;
   }
@@ -786,11 +838,83 @@ export class TuiController {
   private defaultCapabilities(): TerminalCapabilities {
     return {
       emojiWidth: false,
-      syncOutput: false,
-      kittyKeyboard: false,
+      syncOutput: detectSyncOutputSupport(),
+      kittyKeyboard: detectKittyKeyboardSupport(),
       colorPaletteNotifications: false,
       xtversion: null,
+      supportsCursorShape: detectCursorShapeSupport(),
       colorDepth: detectColorDepth(),
     };
   }
+}
+
+/**
+ * Heuristic detection for synchronized output support.
+ *
+ * 逆向: amp-cli-reversed/modules/2109_unknown_dY.js:36
+ * Amp uses DECRQSS response to detect ?2026 support. For terminals that
+ * don't respond to DECRQSS, we use TERM/TERM_PROGRAM heuristics for
+ * terminals known to support DEC mode 2026.
+ *
+ * Known supporting terminals: kitty, iTerm2 3.5+, WezTerm, foot, Ghostty, Contour.
+ */
+function detectSyncOutputSupport(env: Record<string, string | undefined> = process.env): boolean {
+  // TERM=xterm-kitty — kitty always supports ?2026
+  if (env.TERM === "xterm-kitty") return true;
+
+  // TERM_PROGRAM heuristic for common terminals
+  switch (env.TERM_PROGRAM) {
+    case "WezTerm":
+    case "ghostty":
+    case "contour":
+      return true;
+    case "iTerm.app": {
+      // iTerm2 3.5+ supports synchronized output
+      const ver = Number.parseFloat(env.TERM_PROGRAM_VERSION ?? "0");
+      return ver >= 3.5;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Heuristic detection for Kitty keyboard protocol support.
+ *
+ * 逆向: amp uses CSI ? u query response to detect support.
+ * For terminals that don't respond, we use heuristics for known supporters.
+ *
+ * Known supporting terminals: kitty, WezTerm, foot, Ghostty, Contour.
+ * iTerm2 does NOT support kitty keyboard protocol.
+ */
+function detectKittyKeyboardSupport(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  // TERM=xterm-kitty — kitty always supports its own protocol
+  if (env.TERM === "xterm-kitty") return true;
+
+  switch (env.TERM_PROGRAM) {
+    case "WezTerm":
+    case "ghostty":
+    case "contour":
+      return true;
+  }
+
+  return false;
+}
+
+/**
+ * Heuristic detection for cursor shape (DECSCUSR) support.
+ *
+ * 逆向: amp modules/2109_unknown_dY.js:263-265
+ *   detectCursorShapeSupport() { return !this.detectEmacs() && !this.detectJetBrains(); }
+ *
+ * Most terminals support DECSCUSR. The exceptions are:
+ * - Emacs (INSIDE_EMACS env var set) — terminal-in-terminal confusion
+ * - JetBrains built-in terminal (TERMINAL_EMULATOR starts with "JetBrains")
+ */
+function detectCursorShapeSupport(env: Record<string, string | undefined> = process.env): boolean {
+  if (env.INSIDE_EMACS) return false;
+  if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return false;
+  return true;
 }

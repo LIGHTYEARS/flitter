@@ -39,6 +39,7 @@ export {
   MOUSE_ON,
   PASTE_OFF,
   PASTE_ON,
+  SET_CURSOR_SHAPE,
   SGR,
   SGR_RESET,
   SHOW_CURSOR,

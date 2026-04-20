@@ -17,7 +17,7 @@ import { describe, it } from "node:test";
 import { Screen } from "../screen/screen.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import type { TerminalSize } from "./tui-controller.js";
-import { TuiController, isTtyStream } from "./tui-controller.js";
+import { isTtyStream, TuiController } from "./tui-controller.js";
 
 /**
  * 辅助函数：创建 TuiController 并确保测试后清理。
@@ -210,8 +210,10 @@ describe("TuiController — waitForCapabilities", () => {
       const caps = ctrl.getCapabilities();
       assert.ok(caps !== null, "应设置 capabilities");
       assert.equal(caps!.emojiWidth, false);
-      assert.equal(caps!.syncOutput, false);
-      assert.equal(caps!.kittyKeyboard, false);
+      // syncOutput depends on detected terminal (e.g., true on kitty/WezTerm/Ghostty)
+      assert.equal(typeof caps!.syncOutput, "boolean");
+      // kittyKeyboard depends on detected terminal (e.g., true on kitty/WezTerm/Ghostty)
+      assert.equal(typeof caps!.kittyKeyboard, "boolean");
       assert.equal(caps!.colorPaletteNotifications, false);
       assert.equal(caps!.xtversion, null);
     } finally {

@@ -36,6 +36,8 @@ export class Cell {
   readonly style: TextStyle;
   /** 显示宽度：1=普通, 2=宽字符, 0=续位占位符 */
   readonly width: number;
+  /** OSC 8 超链接 URL (逆向: amp G.hyperlink) */
+  readonly url?: string;
 
   /**
    * 共享的空白单元格实例。
@@ -57,22 +59,25 @@ export class Cell {
    * @param char - 显示字符
    * @param style - 文本样式
    * @param width - 显示宽度，默认为 1
+   * @param url - OSC 8 超链接 URL（可选）
    *
    * @example
    * ```ts
    * const cell = new Cell("A", new TextStyle({ bold: true }));
+   * const link = new Cell("X", style, 1, "https://example.com");
    * ```
    */
-  constructor(char: string, style: TextStyle, width: number = 1) {
+  constructor(char: string, style: TextStyle, width: number = 1, url?: string) {
     this.char = char;
     this.style = style;
     this.width = width;
+    this.url = url;
   }
 
   /**
    * 值相等比较。
    *
-   * 比较 char、style 和 width 三个字段。
+   * 比较 char、style、width 和 url 四个字段。
    *
    * @example
    * ```ts
@@ -82,6 +87,11 @@ export class Cell {
    * ```
    */
   equals(other: Cell): boolean {
-    return this.char === other.char && this.width === other.width && this.style.equals(other.style);
+    return (
+      this.char === other.char &&
+      this.width === other.width &&
+      this.style.equals(other.style) &&
+      this.url === other.url
+    );
   }
 }

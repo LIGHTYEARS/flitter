@@ -67,6 +67,26 @@ export const HIDE_CURSOR = `${CSI}?25l`;
 /** 显示光标 */
 export const SHOW_CURSOR = `${CSI}?25h`;
 
+/**
+ * DECSCUSR — Set Cursor Shape.
+ *
+ * 逆向: amp modules/2026_tail_anonymous.js:20263
+ *   fu0 = T => t9 + `${T} q`
+ *
+ * | N | Shape             |
+ * |---|-------------------|
+ * | 0 | Default (reset)   |
+ * | 1 | Blinking block    |
+ * | 2 | Steady block      |
+ * | 3 | Blinking underline|
+ * | 4 | Steady underline  |
+ * | 5 | Blinking bar      |
+ * | 6 | Steady bar        |
+ *
+ * @param n - Cursor shape (0-6)
+ */
+export const SET_CURSOR_SHAPE = (n: number): string => `${CSI}${n} q`;
+
 /** 清屏 (清除整个屏幕) */
 export const CLEAR_SCREEN = `${CSI}2J`;
 /** 清行 (清除整行) */
@@ -97,6 +117,46 @@ export const MOUSE_OFF = `${CSI}?1000l${CSI}?1003l${CSI}?1006l`;
 export const PASTE_ON = `${CSI}?2004h`;
 /** 禁用 Bracketed Paste 模式 */
 export const PASTE_OFF = `${CSI}?2004l`;
+
+/**
+ * 同步输出 (Synchronized Output, DEC Private Mode 2026)
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157616
+ *   Jm0 = t9 + "?2026h"  (begin sync)
+ *   Tu0 = t9 + "?2026l"  (end sync)
+ *
+ * Wrapping render output with these sequences prevents visual tearing
+ * on terminals that support it (kitty, iTerm2, WezTerm, foot, etc.).
+ */
+export const SYNC_START = `${CSI}?2026h`;
+export const SYNC_END = `${CSI}?2026l`;
+
+/**
+ * Kitty Keyboard Protocol (Progressive Enhancement)
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js
+ * Amp enables kitty keyboard mode 1 (disambiguate escape codes) at init
+ * and pops it at deinit. Mode 1 is safe: unaware applications still work
+ * because the terminal only uses enhanced encodings for keys that need it.
+ *
+ * CSI > flags u — push keyboard mode
+ * CSI < u     — pop keyboard mode
+ */
+export const KITTY_KEYBOARD_ON = `${CSI}>1u`;
+export const KITTY_KEYBOARD_OFF = `${CSI}<u`;
+
+/**
+ * OSC 8 超链接序列
+ *
+ * 逆向: amp G.hyperlink — wraps text with OSC 8 start/end sequences.
+ * Format: ESC ] 8 ; params ; URI ST ... ESC ] 8 ; ; ST
+ * ST (String Terminator) = ESC \
+ *
+ * @param url - The hyperlink URL
+ * @returns OSC 8 start sequence
+ */
+export const OSC8_START = (url: string): string => `${ESC}]8;;${url}${ESC}\\`;
+export const OSC8_END = `${ESC}]8;;${ESC}\\`;
 
 // ── AnsiRenderer ──────────────────────────────────────
 
@@ -225,14 +285,22 @@ export class AnsiRenderer {
   }
 
   /**
-   * 生成光标位置/可见性控制序列。
+   * 生成光标位置/可见性/形状控制序列。
+   *
+   * 逆向: amp XXT modules/2112_unknown_XXT.js:193
+   *   h.append(this.renderer.setCursorShape(this.screen.getCursorShape())),
+   *   h.append(this.renderer.showCursor());
    *
    * @param screen - 屏幕实例
    * @returns ANSI 光标控制序列
    */
   renderCursor(screen: Screen): string {
     if (screen.cursorVisible && screen.cursorPosition) {
-      return SHOW_CURSOR + CUP(screen.cursorPosition.y, screen.cursorPosition.x);
+      return (
+        SET_CURSOR_SHAPE(screen.cursorShape) +
+        SHOW_CURSOR +
+        CUP(screen.cursorPosition.y, screen.cursorPosition.x)
+      );
     }
     return HIDE_CURSOR;
   }
@@ -256,6 +324,7 @@ export class AnsiRenderer {
     let cursorRow = -1;
     let cursorCol = -1;
     let needsReset = false;
+    let currentUrl: string | undefined;
 
     for (const region of dirtyRegions) {
       const { y, cells } = region;
@@ -273,6 +342,18 @@ export class AnsiRenderer {
           cursorCol = x;
         }
 
+        // OSC 8 hyperlink tracking
+        // 逆向: amp G.hyperlink — emit OSC 8 start/end when URL changes
+        if (cell.url !== currentUrl) {
+          if (currentUrl) {
+            parts.push(OSC8_END);
+          }
+          if (cell.url) {
+            parts.push(OSC8_START(cell.url));
+          }
+          currentUrl = cell.url;
+        }
+
         // 样式处理 — color-depth-aware SGR
         const sgrDiff = cell.style.diffSgrAt(currentStyle, this.colorDepth);
         if (sgrDiff) {
@@ -285,6 +366,11 @@ export class AnsiRenderer {
         parts.push(cell.char);
         cursorCol += cell.width === 2 ? 2 : 1;
       }
+    }
+
+    // Close any open hyperlink
+    if (currentUrl) {
+      parts.push(OSC8_END);
     }
 
     // 重置样式

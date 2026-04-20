@@ -13,6 +13,8 @@
  *           /toggle-thinking-blocks
  */
 
+import { MODEL_REGISTRY } from "@flitter/llm";
+import type { ThreadSnapshot } from "@flitter/schemas";
 import type { SlashCommandRegistry } from "./slash-registry.js";
 
 /**
@@ -60,33 +62,65 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     name: "compact",
     description: "Manually trigger context compaction",
     execute: async (_args, ctx) => {
-      ctx.showMessage("Compaction requested. The next inference turn will check context limits.");
-      // Compaction runs as part of the inference loop (checkAndCompact).
-      // We signal by showing a message. Full manual compaction would require
-      // exposing contextManager.checkAndCompact on the context -- deferred.
+      if (!ctx.compactThread) {
+        ctx.showMessage(
+          "Manual compaction is not available in this session.\n" +
+            "Compaction runs automatically when context nears the model's limit.",
+        );
+        return;
+      }
+      ctx.showMessage("Compacting...");
+      const result = await ctx.compactThread();
+      if (result.compacted) {
+        ctx.showMessage(
+          `Compaction complete.\n` +
+            `  Tokens before: ${result.tokensBefore.toLocaleString()}\n` +
+            `  Tokens after:  ${result.tokensAfter.toLocaleString()}\n` +
+            `  Reduced by:    ${(result.tokensBefore - result.tokensAfter).toLocaleString()} tokens`,
+        );
+      } else {
+        ctx.showMessage(
+          `No compaction needed.\n` +
+            `  Current tokens: ${result.tokensBefore.toLocaleString()}\n` +
+            `  (Below compaction threshold or too few messages)`,
+        );
+      }
     },
   });
 
   // /cost -- show session cost
   // 逆向: e0R:1508-1517 (show-costs toggles debug cost display)
-  // Flitter: display accumulated session cost to user.
+  // 逆向: chunk-005.js:66584 xrT() formats costBreakdown with AP()
+  // Flitter: display accumulated session cost from SessionCostTracker.
   registry.register({
     name: "cost",
     description: "Show session cost summary",
     execute: async (_args, ctx) => {
-      // Cost data is displayed from status bar state or a SessionCostTracker.
-      // For now, show a placeholder that will be wired to SessionCostTracker
-      // once Plan 10 (cost-tracking) is implemented.
+      if (!ctx.costTracker) {
+        ctx.showMessage("Session cost tracking is not available in this session.");
+        return;
+      }
+      const totals = ctx.costTracker.getTotals();
+      const turns = ctx.costTracker.getTurnHistory();
+      const costStr =
+        totals.estimatedUSD !== null
+          ? `$${totals.estimatedUSD.toFixed(4)}`
+          : "unknown (model pricing unavailable)";
       ctx.showMessage(
-        "Session cost tracking: use the status bar for live cost info.\n" +
-          "(Detailed cost breakdown will be available after cost tracking is wired.)",
+        `Session Cost Summary (${turns.length} turns)\n` +
+          `──────────────────────────────\n` +
+          `  Input tokens:       ${totals.inputTokens.toLocaleString()}\n` +
+          `  Output tokens:      ${totals.outputTokens.toLocaleString()}\n` +
+          `  Cache write tokens: ${totals.cacheCreationInputTokens.toLocaleString()}\n` +
+          `  Cache read tokens:  ${totals.cacheReadInputTokens.toLocaleString()}\n` +
+          `  Estimated cost:     ${costStr}`,
       );
     },
   });
 
   // /model -- show/switch model
   // 逆向: e0R:1483-1506 (model-selector shows explanation modal)
-  // Flitter: show current model, allow switching via /model <name>
+  // Flitter: show current model, switch via /model <name>
   registry.register({
     name: "model",
     description: "Show current model or switch model",
@@ -95,12 +129,56 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       const currentModel =
         (config.settings["internal.model"] as string) ?? "claude-sonnet-4-20250514";
       if (!args.trim()) {
-        ctx.showMessage(`Current model: ${currentModel}`);
+        const modelInfo = MODEL_REGISTRY[currentModel];
+        const contextStr = modelInfo
+          ? ` (${modelInfo.provider}, ${(modelInfo.contextWindow / 1000).toFixed(0)}K context)`
+          : "";
+        ctx.showMessage(`Current model: ${currentModel}${contextStr}`);
+        return;
+      }
+
+      const requested = args.trim();
+      // Validate against MODEL_REGISTRY
+      if (!MODEL_REGISTRY[requested]) {
+        // Try partial match (e.g., "sonnet" → "claude-sonnet-4-20250514")
+        const matches = Object.keys(MODEL_REGISTRY).filter((id) =>
+          id.toLowerCase().includes(requested.toLowerCase()),
+        );
+        if (matches.length === 1) {
+          // Unique partial match — use it
+          const resolved = matches[0]!;
+          if (ctx.configService.updateSettings) {
+            ctx.configService.updateSettings("global", "internal.model", resolved);
+            ctx.showMessage(`Model switched to: ${resolved}`);
+          } else {
+            ctx.showMessage(
+              `Model resolved to: ${resolved}\n` +
+                "(Config updates not available in this session.)",
+            );
+          }
+          return;
+        }
+        if (matches.length > 1) {
+          ctx.showMessage(
+            `Ambiguous model name "${requested}". Matches:\n` +
+              matches.map((m) => `  ${m}`).join("\n"),
+          );
+          return;
+        }
+        ctx.showMessage(
+          `Unknown model: "${requested}"\n` +
+            `Use a model ID from the registry (e.g., claude-sonnet-4-20250514, gpt-4o).`,
+        );
+        return;
+      }
+
+      // Exact match
+      if (ctx.configService.updateSettings) {
+        ctx.configService.updateSettings("global", "internal.model", requested);
+        ctx.showMessage(`Model switched to: ${requested}`);
       } else {
         ctx.showMessage(
-          `Model switching via /model <name> is not yet implemented.\n` +
-            `Current model: ${currentModel}\n` +
-            `Use 'flitter config set llm.model <model>' to change.`,
+          `Model validated: ${requested}\n` + "(Config updates not available in this session.)",
         );
       }
     },
@@ -193,10 +271,15 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     name: "archive",
     description: "Archive the current thread",
     execute: async (_args, ctx) => {
-      ctx.showMessage(
-        `Archive thread ${ctx.threadId}?\n` +
-          "(Thread archiving is handled by the session manager. Use 'flitter threads archive <id>'.)",
-      );
+      // 逆向: handleThreadsArchive in threads.ts — setCachedThread with archived: true
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+      const updated = { ...snapshot, archived: true } as ThreadSnapshot;
+      ctx.threadStore.setCachedThread(updated, { scheduleUpload: true });
+      ctx.showMessage(`Thread ${ctx.threadId} archived.`);
     },
   });
 
@@ -227,9 +310,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       const validModes = ["smart", "fast", "deep", "auto"];
       const requested = args.trim().toLowerCase();
       if (!validModes.includes(requested)) {
-        ctx.showMessage(
-          `Unknown mode: "${requested}"\nValid modes: ${validModes.join(", ")}`,
-        );
+        ctx.showMessage(`Unknown mode: "${requested}"\nValid modes: ${validModes.join(", ")}`);
         return;
       }
 
@@ -291,7 +372,9 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     execute: async (args, ctx) => {
       const subcmd = args.trim().toLowerCase();
       if (subcmd === "reload") {
-        ctx.showMessage("MCP server reload requested.\n(Use 'flitter mcp doctor' for diagnostics.)");
+        ctx.showMessage(
+          "MCP server reload requested.\n(Use 'flitter mcp doctor' for diagnostics.)",
+        );
         return;
       }
       ctx.showMessage(
@@ -361,10 +444,15 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         ctx.showMessage("Error: Thread title cannot exceed 256 characters.");
         return;
       }
-      ctx.showMessage(
-        `Rename thread "${ctx.threadId}" to "${newTitle}" requested.\n` +
-          "(Use 'flitter threads rename <id> <title>' from CLI.)",
-      );
+      // 逆向: handleThreadsRename in threads.ts — setCachedThread with new title
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+      const updated = { ...snapshot, title: newTitle } as ThreadSnapshot;
+      ctx.threadStore.setCachedThread(updated, { scheduleUpload: true });
+      ctx.showMessage(`Thread renamed to "${newTitle}".`);
     },
   });
 
@@ -390,10 +478,19 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         ctx.showMessage("Error: Label name cannot exceed 32 characters.");
         return;
       }
-      ctx.showMessage(
-        `Add label "${labelName}" to thread ${ctx.threadId} requested.\n` +
-          "(Use 'flitter threads label <id> <labels...>' from CLI.)",
-      );
+      // 逆向: handleThreadsLabel in threads.ts — merge labels + setCachedThread
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+      const existingLabels = Array.isArray((snapshot as Record<string, unknown>).labels)
+        ? ((snapshot as Record<string, unknown>).labels as string[])
+        : [];
+      const mergedLabels = [...new Set([...existingLabels, labelName])];
+      const updated = { ...snapshot, labels: mergedLabels } as ThreadSnapshot;
+      ctx.threadStore.setCachedThread(updated, { scheduleUpload: true });
+      ctx.showMessage(`Label "${labelName}" added to thread. Labels: ${mergedLabels.join(", ")}`);
     },
   });
 
@@ -467,7 +564,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     description: "Draft a new thread based on current thread",
     execute: async (args, ctx) => {
       const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
-      if (!snapshot || !snapshot.messages || snapshot.messages.length === 0) {
+      if (!snapshot?.messages || snapshot.messages.length === 0) {
         ctx.showMessage("Cannot handoff from an empty thread.");
         return;
       }
@@ -536,9 +633,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         return;
       }
       ctx.threadWorker.dequeueMessage();
-      ctx.showMessage(
-        `Dequeued 1 message (${queueLength - 1} remaining in queue).`,
-      );
+      ctx.showMessage(`Dequeued 1 message (${queueLength - 1} remaining in queue).`);
     },
   });
 
@@ -553,7 +648,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     description: "Toggle thinking block visibility",
     execute: async (_args, ctx) => {
       const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
-      if (!snapshot || !snapshot.messages || snapshot.messages.length === 0) {
+      if (!snapshot?.messages || snapshot.messages.length === 0) {
         // 逆向: e0R:833 — isShown returns error string for empty threads
         ctx.showMessage("Cannot toggle thinking blocks on an empty thread.");
         return;
@@ -581,22 +676,16 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       const level = args.trim().toLowerCase();
       const validLevels = ["private", "workspace", "public", "unlisted"];
       if (!level) {
-        ctx.showMessage(
-          "Usage: /visibility <level>\n" +
-            `Valid levels: ${validLevels.join(", ")}`,
-        );
+        ctx.showMessage("Usage: /visibility <level>\n" + `Valid levels: ${validLevels.join(", ")}`);
         return;
       }
       if (!validLevels.includes(level)) {
         ctx.showMessage(
-          `Unknown visibility level: "${level}"\n` +
-            `Valid levels: ${validLevels.join(", ")}`,
+          `Unknown visibility level: "${level}"\n` + `Valid levels: ${validLevels.join(", ")}`,
         );
         return;
       }
-      ctx.showMessage(
-        `Set thread ${ctx.threadId} visibility to "${level}" requested.`,
-      );
+      ctx.showMessage(`Set thread ${ctx.threadId} visibility to "${level}" requested.`);
     },
   });
 }

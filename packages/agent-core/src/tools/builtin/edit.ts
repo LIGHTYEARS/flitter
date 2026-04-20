@@ -77,6 +77,24 @@ export const EditTool: ToolSpec = {
 
   executionProfile: undefined,
 
+  // 逆向: amp uses `path`, `old_str`, `new_str` (chunk-005.js:111805-111808)
+  preprocessArgs(args) {
+    const out = { ...args };
+    if ("path" in out && !("file_path" in out)) {
+      out.file_path = out.path;
+      delete out.path;
+    }
+    if ("old_str" in out && !("old_string" in out)) {
+      out.old_string = out.old_str;
+      delete out.old_str;
+    }
+    if ("new_str" in out && !("new_string" in out)) {
+      out.new_string = out.new_str;
+      delete out.new_str;
+    }
+    return out;
+  },
+
   async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const oldString = args.old_string as string;

@@ -48,6 +48,16 @@ export const WriteTool: ToolSpec = {
 
   executionProfile: undefined,
 
+  // 逆向: amp uses `path` (not `file_path`) for create_file (chunk-005.js:146890)
+  preprocessArgs(args) {
+    if ("path" in args && !("file_path" in args)) {
+      const out: Record<string, unknown> = { ...args, file_path: args.path };
+      delete out.path;
+      return out;
+    }
+    return args;
+  },
+
   async execute(args: Record<string, unknown>, _context: ToolContext): Promise<ToolResult> {
     const filePath = args.file_path as string;
     const content = args.content as string;

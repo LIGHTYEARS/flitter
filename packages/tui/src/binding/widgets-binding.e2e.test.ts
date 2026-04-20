@@ -63,6 +63,8 @@ function mockTuiController(tui: TuiController): void {
     kittyKeyboard: false,
     colorPaletteNotifications: false,
     xtversion: null,
+    supportsCursorShape: false,
+    colorDepth: "truecolor" as const,
   });
   tui.render = () => {};
   tui.onKey = () => {};
@@ -143,13 +145,16 @@ function createMockElement(widget: Widget): Element {
       this._dirty = false;
     },
     addChild(child: Element) {
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._parent = this as any;
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._depth = this._depth + 1;
       this._children.push(child);
     },
     removeChild(child: Element) {
       const idx = this._children.indexOf(child);
       if (idx !== -1) this._children.splice(idx, 1);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._parent = undefined;
     },
     removeAllChildren() {
@@ -211,6 +216,7 @@ describe("WidgetsBinding E2E", () => {
 
     // rootElement 应已挂载
     assert.ok(mountedElement !== null, "rootElement 应已挂载");
+    // biome-ignore lint/suspicious/noExplicitAny: checking private Element.mounted in test
     assert.ok((mountedElement as any).mounted === true, "rootElement.mounted 应为 true");
 
     binding.stop();
@@ -240,6 +246,7 @@ describe("WidgetsBinding E2E", () => {
     assert.ok(callbackCalled, "onRootElementMounted 回调应被调用");
     assert.ok(callbackArg !== null, "回调参数应为 Element 实例");
     assert.ok(
+      // biome-ignore lint/suspicious/noExplicitAny: checking private Element.mounted in test
       typeof (callbackArg as any).mounted !== "undefined",
       "回调参数应具有 mounted 属性 (Element 接口)",
     );

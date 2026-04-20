@@ -197,6 +197,11 @@ export const BashTool: ToolSpec = {
         type: "string",
         description: "The bash command to execute",
       },
+      cwd: {
+        type: "string",
+        description:
+          "Optional working directory for this command. If not specified, uses the session working directory.",
+      },
       timeout: {
         type: "number",
         description:
@@ -209,6 +214,14 @@ export const BashTool: ToolSpec = {
     },
     required: ["command"],
     additionalProperties: false,
+  },
+
+  // 逆向: amp's Bash tool accepts `cmd` (chunk-005.js:2282 fallback logic)
+  preprocessArgs(args) {
+    if ("cmd" in args && !("command" in args)) {
+      return { ...args, command: args.cmd };
+    }
+    return args;
   },
 
   async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
@@ -225,10 +238,18 @@ export const BashTool: ToolSpec = {
     const rawTimeout = typeof args.timeout === "number" ? args.timeout : DEFAULT_TIMEOUT;
     const timeout = Math.min(Math.max(rawTimeout, 0), MAX_TIMEOUT);
 
+    // ── Resolve cwd ───────────────────────────────────
+    // 逆向: amp's Bash tool accepts `cwd` (or `workdir` via shell_command alias)
+    // to override the working directory per-command.
+    const cwd =
+      typeof args.cwd === "string" && args.cwd.trim().length > 0
+        ? args.cwd.trim()
+        : context.workingDirectory;
+
     // ── Execute ────────────────────────────────────────
     try {
       const result = await executeShell(command, {
-        cwd: context.workingDirectory,
+        cwd,
         timeout,
         signal: context.signal,
       });

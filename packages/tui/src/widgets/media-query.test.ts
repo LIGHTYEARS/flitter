@@ -30,6 +30,8 @@ function defaultCaps(overrides: Partial<TerminalCapabilities> = {}): TerminalCap
     kittyKeyboard: false,
     colorPaletteNotifications: false,
     xtversion: null,
+    supportsCursorShape: false,
+    colorDepth: "truecolor" as const,
     ...overrides,
   };
 }

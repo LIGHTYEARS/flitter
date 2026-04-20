@@ -535,7 +535,10 @@ export class ToolOrchestrator {
         };
         signal.addEventListener("abort", handler, { once: true });
       });
-      const execResult = spec.execute(toolUse.input, context);
+      const execResult = spec.execute(
+        spec.preprocessArgs ? spec.preprocessArgs(toolUse.input) : toolUse.input,
+        context,
+      );
 
       if (isObservable(execResult)) {
         // Observable → race against abort

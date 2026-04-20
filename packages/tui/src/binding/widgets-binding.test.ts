@@ -60,6 +60,8 @@ function mockTuiController(tui: TuiController): void {
     kittyKeyboard: false,
     colorPaletteNotifications: false,
     xtversion: null,
+    supportsCursorShape: false,
+    colorDepth: "truecolor" as const,
   });
   tui.render = () => {};
   tui.onKey = () => {};
@@ -140,13 +142,16 @@ function createMockElement(widget: Widget): Element {
       this._dirty = false;
     },
     addChild(child: Element) {
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._parent = this as any;
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._depth = this._depth + 1;
       this._children.push(child);
     },
     removeChild(child: Element) {
       const idx = this._children.indexOf(child);
       if (idx !== -1) this._children.splice(idx, 1);
+      // biome-ignore lint/suspicious/noExplicitAny: accessing private Element internals in test mock
       (child as any)._parent = undefined;
     },
     removeAllChildren() {
@@ -448,6 +453,7 @@ describe("WidgetsBinding", () => {
     await new Promise((r) => setTimeout(r, 50));
 
     assert.ok(mountedElement !== null, "rootElement should be mounted");
+    // biome-ignore lint/suspicious/noExplicitAny: checking private Element.mounted in test
     assert.ok((mountedElement as any).mounted === true, "rootElement should have mounted=true");
 
     binding.stop();

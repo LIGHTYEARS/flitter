@@ -152,6 +152,16 @@ export const GlobTool: ToolSpec = {
     },
   },
 
+  // 逆向: amp uses `filePattern` (not `pattern`) (chunk-005.js:2277)
+  preprocessArgs(args) {
+    if ("filePattern" in args && !("pattern" in args)) {
+      const out: Record<string, unknown> = { ...args, pattern: args.filePattern };
+      delete out.filePattern;
+      return out;
+    }
+    return args;
+  },
+
   async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {
     const pattern = args.pattern as string | undefined;
     if (!pattern) {

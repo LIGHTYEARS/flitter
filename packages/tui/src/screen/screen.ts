@@ -63,6 +63,19 @@ export class Screen {
   cursorPosition: { x: number; y: number } | null;
   /** 光标是否可见 */
   cursorVisible: boolean;
+  /**
+   * 光标形状 (DECSCUSR).
+   *
+   * 逆向: amp modules/0490_unknown_Zx.js:9,133-137
+   *   cursorShape = 0;
+   *   setCursorShape(T) { this.cursorShape = T; }
+   *   getCursorShape() { return this.cursorShape; }
+   *
+   * 0=default, 1=blinking block, 2=steady block,
+   * 3=blinking underline, 4=steady underline,
+   * 5=blinking bar, 6=steady bar
+   */
+  cursorShape: number;
 
   /** @internal 包含脏单元格的行索引集合 */
   private dirtyRows: Set<number>;
@@ -85,6 +98,7 @@ export class Screen {
     this.needsFullRefresh = true;
     this.cursorPosition = null;
     this.cursorVisible = true;
+    this.cursorShape = 0;
     this.dirtyRows = new Set();
     this.dirtyCells = new Map();
   }

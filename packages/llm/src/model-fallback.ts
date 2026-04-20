@@ -21,6 +21,7 @@
  */
 
 import type { LLMProvider } from "./provider";
+import { StreamIdleTimeoutError } from "./stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "./types";
 import { ProviderError } from "./types";
 import { isContextOverflow } from "./utils/overflow";
@@ -111,6 +112,8 @@ export function isContextOverflowError(err: unknown): boolean {
  * Master retryability check combining all error classifiers.
  */
 export function isRetryableError(err: unknown): boolean {
+  // StreamIdleTimeoutError is always retryable — a stalled stream should be retried
+  if (err instanceof StreamIdleTimeoutError) return true;
   if (err instanceof ProviderError) {
     return (
       err.retryable ||
@@ -158,7 +161,7 @@ export function calculateBackoffMs(
   }
 
   const attempt = maxRetries - retriesRemaining;
-  const baseDelay = Math.min(0.5 * Math.pow(2, attempt), 8);
+  const baseDelay = Math.min(0.5 * 2 ** attempt, 8);
   const jitter = 1 - Math.random() * 0.25;
   return baseDelay * jitter * 1000;
 }

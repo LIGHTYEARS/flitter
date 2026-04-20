@@ -13,6 +13,7 @@
  */
 import OpenAI from "openai";
 import type { LLMProvider } from "../../provider";
+import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { OpenAISSEEvent } from "./transformer";
@@ -31,7 +32,18 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, reasoningEffort, threadId, agentMode, requestId, sessionId } = params;
+    const {
+      model,
+      messages,
+      systemPrompt,
+      tools,
+      config,
+      reasoningEffort,
+      threadId,
+      agentMode,
+      requestId,
+      sessionId,
+    } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -40,7 +52,13 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     // Build SDK client (injected for tests, or create on-demand)
-    const client = this._injectedClient ?? new OpenAI({ apiKey });
+    const client =
+      this._injectedClient ??
+      new OpenAI({
+        apiKey,
+        // 逆向: amp disables SDK-level retries — RetryScheduler + ModelFallbackChain handle retries
+        maxRetries: 0,
+      });
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -79,7 +97,7 @@ export class OpenAIProvider implements LLMProvider {
         Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : undefined,
       )) as AsyncIterable<unknown>;
 
-      for await (const event of stream) {
+      for await (const event of withStreamIdleTimeout(stream)) {
         const delta = this._transformer.fromProviderDelta(
           event as unknown as OpenAISSEEvent,
           state,
@@ -94,10 +112,7 @@ export class OpenAIProvider implements LLMProvider {
         throw new ProviderError(
           status,
           "openai",
-          status === 408 ||
-            status === 409 ||
-            status === 429 ||
-            status >= 500,
+          status === 408 || status === 409 || status === 429 || status >= 500,
           err.message,
         );
       }

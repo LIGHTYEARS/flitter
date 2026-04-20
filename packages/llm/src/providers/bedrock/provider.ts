@@ -19,6 +19,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { LLMProvider } from "../../provider";
+import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { AnthropicSSEEvent } from "../anthropic/transformer";
@@ -115,7 +116,7 @@ export class BedrockProvider implements LLMProvider {
         signal,
       });
 
-      for await (const event of stream) {
+      for await (const event of withStreamIdleTimeout(stream)) {
         const delta = this._transformer.fromProviderDelta(event as AnthropicSSEEvent, state);
         yield delta;
       }
@@ -168,6 +169,7 @@ export class BedrockProvider implements LLMProvider {
     return new Anthropic({
       apiKey,
       baseURL,
+      maxRetries: 0,
       defaultHeaders: {
         // Signal to the Bedrock endpoint that this is an Anthropic-formatted request
         "anthropic-version": "bedrock-2023-05-31",

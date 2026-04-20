@@ -6,8 +6,6 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { StreamDelta, StreamParams } from "./types";
-import { ProviderError } from "./types";
 import {
   calculateBackoffMs,
   isContextOverflowError,
@@ -21,6 +19,9 @@ import {
   shouldRetryStatus,
 } from "./model-fallback";
 import type { LLMProvider } from "./provider";
+import { StreamIdleTimeoutError } from "./stream-idle-timeout";
+import type { StreamDelta, StreamParams } from "./types";
+import { ProviderError } from "./types";
 
 // ─── Error Classification ────────────────────────────────
 
@@ -113,7 +114,12 @@ describe("isResponseIncomplete", () => {
 
 describe("isInvalidModelOutput", () => {
   it("should detect InvalidModelOutputError by message prefix", () => {
-    const err = new ProviderError(400, "anthropic", false, "InvalidModelOutputError: unexpected token");
+    const err = new ProviderError(
+      400,
+      "anthropic",
+      false,
+      "InvalidModelOutputError: unexpected token",
+    );
     assert.equal(isInvalidModelOutput(err), true);
   });
 
@@ -135,7 +141,12 @@ describe("isInvalidModelOutput", () => {
 
 describe("isRetryableError", () => {
   it("should retry InvalidModelOutputError", () => {
-    const err = new ProviderError(400, "anthropic", false, "InvalidModelOutputError: unexpected token");
+    const err = new ProviderError(
+      400,
+      "anthropic",
+      false,
+      "InvalidModelOutputError: unexpected token",
+    );
     assert.equal(isRetryableError(err), true);
   });
 
@@ -199,13 +210,23 @@ describe("isRetryableError", () => {
     const err = new ProviderError(422, "anthropic", true, "Temporary issue");
     assert.equal(isRetryableError(err), true);
   });
+
+  it("should retry StreamIdleTimeoutError", () => {
+    const err = new StreamIdleTimeoutError(120_000);
+    assert.equal(isRetryableError(err), true);
+  });
 });
 
 // ─── isContextOverflowError ─────────────────────────────
 
 describe("isContextOverflowError", () => {
   it("should detect prompt too long error", () => {
-    const err = new ProviderError(400, "anthropic", false, "prompt is too long: 250000 tokens > 200000 maximum");
+    const err = new ProviderError(
+      400,
+      "anthropic",
+      false,
+      "prompt is too long: 250000 tokens > 200000 maximum",
+    );
     assert.equal(isContextOverflowError(err), true);
   });
 
@@ -594,7 +615,12 @@ describe("ModelFallbackChain — context overflow fallback", () => {
       async *stream(params) {
         callCount++;
         if (params.model === "claude-sonnet-4-20250514") {
-          throw new ProviderError(400, "anthropic", false, "prompt is too long: 250000 tokens > 200000 maximum");
+          throw new ProviderError(
+            400,
+            "anthropic",
+            false,
+            "prompt is too long: 250000 tokens > 200000 maximum",
+          );
         }
         yield makeDelta(`from:${params.model}`);
       },
@@ -613,7 +639,10 @@ describe("ModelFallbackChain — context overflow fallback", () => {
     }
 
     assert.equal(results.length, 1);
-    assert.equal((results[0].content[0] as { type: "text"; text: string }).text, "from:gemini-3-flash-preview");
+    assert.equal(
+      (results[0].content[0] as { type: "text"; text: string }).text,
+      "from:gemini-3-flash-preview",
+    );
     // 1 primary fail + 1 fallback success (no retries on overflow)
     assert.equal(callCount, 2);
   });

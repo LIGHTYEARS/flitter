@@ -13,13 +13,14 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import type { LLMProvider } from "../../provider";
+import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { AnthropicSSEEvent } from "./transformer";
 import {
-  addCacheControlToMessages,
   AnthropicToolTransformer,
   AnthropicTransformer,
+  addCacheControlToMessages,
 } from "./transformer";
 
 // ─── Types for createMessage ────────────────────────────
@@ -58,7 +59,17 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort, requestId, sessionId } = params;
+    const {
+      model,
+      messages,
+      systemPrompt,
+      tools,
+      config,
+      signal,
+      reasoningEffort,
+      requestId,
+      sessionId,
+    } = params;
 
     // Get API key / auth token
     const apiKey = await config.secrets.getToken("apiKey");
@@ -109,13 +120,17 @@ export class AnthropicProvider implements LLMProvider {
     const state = new TransformState();
 
     // Stream via SDK
+    // 逆向: amp-cli-reversed/chunk-LXZZ5T6B.js:1-40 (C4R)
+    //   Amp wraps every stream with a 120s idle timeout. If no chunk
+    //   arrives within the window, StreamIdleTimeoutError is thrown
+    //   and the retry scheduler will attempt the request again.
     try {
       const stream = client.messages.stream(body as Parameters<typeof client.messages.stream>[0], {
         signal,
         ...(Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : {}),
       });
 
-      for await (const event of stream) {
+      for await (const event of withStreamIdleTimeout(stream)) {
         const delta = this._transformer.fromProviderDelta(event as AnthropicSSEEvent, state);
         yield delta;
       }
@@ -152,10 +167,7 @@ export class AnthropicProvider implements LLMProvider {
         throw new ProviderError(
           err.status,
           "anthropic",
-          err.status === 408 ||
-            err.status === 409 ||
-            err.status === 429 ||
-            err.status >= 500,
+          err.status === 408 || err.status === 409 || err.status === 429 || err.status >= 500,
           err.message,
           retryAfterMs !== undefined && !Number.isNaN(retryAfterMs) ? retryAfterMs : undefined,
         );
@@ -270,6 +282,11 @@ export class AnthropicProvider implements LLMProvider {
     return new Anthropic({
       ...(isOAuthToken ? { authToken: apiKey } : { apiKey }),
       ...(baseURL ? { baseURL } : {}),
+      // 逆向: amp-cli-reversed/chunk-002.js:11420 — maxRetries: 0
+      //   Amp disables SDK-level retries because RetryScheduler + ModelFallbackChain
+      //   handle retries at a higher level. Without this, the SDK retries 2x internally
+      //   PLUS the fallback chain retries — causing double-retry on transient errors.
+      maxRetries: 0,
       defaultHeaders,
     });
   }

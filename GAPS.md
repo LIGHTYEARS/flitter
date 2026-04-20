@@ -25,8 +25,6 @@
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
 | GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
-| GAP-LLM-01 | LLM | **Stream idle timeout wrapper** | Amp wraps streams with a 120-second idle timeout (`C4R(stream, 120000)`) that throws `StreamIdleTimeout` if no data arrives. Also logs gaps >30s. Flitter has NO stream idle timeout — a stalled stream will hang indefinitely. |
-| GAP-LLM-02 | LLM | **SDK `maxRetries: 0` on stream calls** | Amp passes `maxRetries: 0` to the Anthropic SDK, disabling SDK-level retries (handled at ThreadWorker level). Flitter doesn't set this, causing potential double-retry (SDK default 2 + RetryScheduler). |
 | GAP-CORE-01 | Agent-Core | **Plugin system not wired to container** | PluginService exists with full implementation (subprocess JSON-RPC, discovery, lifecycle, interception), but is NOT instantiated or wired in `container.ts`. Plugins cannot actually load. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
 | GAP-TUI-02 | TUI | **Approval widget (5 options)** | Amp has 5-option approval flow (approve, allow-session, allow-persistent, deny-with-feedback, guarded-file). Flitter has 4 options (approve, allow-session, allow-persistent, deny-with-feedback) — missing the guarded-file deny option. Plan: `2026-04-19-approval-widget.md`. |
@@ -209,6 +207,8 @@ These were previously identified as gaps but are now implemented in flitter.
 - SessionCostTracker with per-turn accumulation and pricing table
 - RetryScheduler with 7 error classifiers matching amp's exact patterns
 - ModelFallbackChain, PromptCacheTracker
+- **GAP-LLM-01**: Stream idle timeout wrapper (`withStreamIdleTimeout`, 120s default) on all 5 providers
+- **GAP-LLM-02**: `maxRetries: 0` on Anthropic, OpenAI, OpenAI-compat, and Bedrock SDK clients
 
 ### Data (from thread-persistence/secret-storage/thread-resume plans)
 - File-based SecretStorage + native keyring
@@ -228,11 +228,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 1 |
-| High | 7 |
+| High | 5 |
 | Medium | 27 |
 | Low | 32 |
-| **Total open gaps** | **67** |
-| Closed gaps | 43+ |
+| **Total open gaps** | **65** |
+| Closed gaps | 45+ |
 
 ### Cross-Cutting Themes
 
@@ -242,6 +242,6 @@ These were previously identified as gaps but are now implemented in flitter.
 
 3. **Model/provider freshness**: The model registry and provider presets need updating to match amp's latest models (Claude 4.x, GPT-5.x, Gemini 3.x).
 
-4. **Stream reliability**: The two High LLM gaps (idle timeout + double-retry) are reliability issues that affect production use. They should be addressed before heavy usage.
+4. **Stream reliability**: ~~The two High LLM gaps (idle timeout + double-retry) are reliability issues that affect production use. They should be addressed before heavy usage.~~ **Resolved** — `withStreamIdleTimeout` (120s) wraps all 5 providers; `maxRetries: 0` prevents double-retry on Anthropic, OpenAI, OpenAI-compat, and Bedrock SDK clients.
 
 5. **Slash command completeness**: Many interactive slash commands (`/model`, `/cost`, `/compact`, `/new`, `/switch`, etc.) are stubs that print help text rather than performing actions inline. This degrades the interactive experience compared to amp.

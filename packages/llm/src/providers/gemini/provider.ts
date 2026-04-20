@@ -14,6 +14,7 @@
  */
 import { ApiError, GoogleGenAI } from "@google/genai";
 import type { LLMProvider } from "../../provider";
+import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import type { GeminiStreamChunk } from "./transformer";
@@ -32,18 +33,14 @@ export interface VertexAIConfig {
  * Returns null if required fields (project + location) are missing.
  * 逆向: GoogleGenAI constructor reads project/location with env fallbacks
  */
-export function resolveVertexAIConfig(
-  settings: Record<string, unknown>,
-): VertexAIConfig | null {
+export function resolveVertexAIConfig(settings: Record<string, unknown>): VertexAIConfig | null {
   const project =
     (settings["vertexai.project"] as string | undefined) ??
     (settings["google.project"] as string | undefined);
   const location =
     (settings["vertexai.location"] as string | undefined) ??
     (settings["google.location"] as string | undefined);
-  const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as
-    | string
-    | undefined;
+  const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as string | undefined;
 
   if (!project || !location) return null;
 
@@ -63,7 +60,17 @@ export class GeminiProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, signal, reasoningEffort, requestId, sessionId } = params;
+    const {
+      model,
+      messages,
+      systemPrompt,
+      tools,
+      config,
+      signal,
+      reasoningEffort,
+      requestId,
+      sessionId,
+    } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -83,9 +90,7 @@ export class GeminiProvider implements LLMProvider {
     const vertexLocation =
       (settings["vertexai.location"] as string | undefined) ??
       (settings["google.location"] as string | undefined);
-    const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as
-      | string
-      | undefined;
+    const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as string | undefined;
 
     let client: GoogleGenAI;
     if (this._injectedClient) {
@@ -148,7 +153,9 @@ export class GeminiProvider implements LLMProvider {
       generateConfig.httpOptions = {
         ...(generateConfig.httpOptions as Record<string, unknown> | undefined),
         headers: {
-          ...((generateConfig.httpOptions as Record<string, unknown> | undefined)?.headers as Record<string, string> | undefined),
+          ...((generateConfig.httpOptions as Record<string, unknown> | undefined)?.headers as
+            | Record<string, string>
+            | undefined),
           ...requestHeaders,
         },
       };
@@ -165,7 +172,7 @@ export class GeminiProvider implements LLMProvider {
         config: generateConfig,
       });
 
-      for await (const chunk of stream) {
+      for await (const chunk of withStreamIdleTimeout(stream)) {
         const delta = this._transformer.fromProviderDelta(
           chunk as unknown as GeminiStreamChunk,
           state,

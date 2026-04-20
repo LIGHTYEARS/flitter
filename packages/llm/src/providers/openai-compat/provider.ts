@@ -14,6 +14,7 @@
  */
 import OpenAI from "openai";
 import type { LLMProvider } from "../../provider";
+import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { OpenAICompatConfig, ProviderName, StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
 import { KNOWN_COMPAT_CONFIGS, mergeWithDefaults } from "./compat";
@@ -49,7 +50,8 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, reasoningEffort, requestId, sessionId } = params;
+    const { model, messages, systemPrompt, tools, config, reasoningEffort, requestId, sessionId } =
+      params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -64,6 +66,8 @@ export class OpenAICompatProvider implements LLMProvider {
         apiKey,
         baseURL: this._config.baseURL,
         defaultHeaders: this._config.headers,
+        // 逆向: amp disables SDK-level retries — RetryScheduler + ModelFallbackChain handle retries
+        maxRetries: 0,
       });
 
     // Get model info
@@ -101,7 +105,7 @@ export class OpenAICompatProvider implements LLMProvider {
         Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : undefined,
       );
 
-      for await (const chunk of stream as AsyncIterable<unknown>) {
+      for await (const chunk of withStreamIdleTimeout(stream as AsyncIterable<unknown>)) {
         const delta = this._transformer.fromProviderDelta(chunk as CompatStreamChunk, state);
         yield delta;
       }

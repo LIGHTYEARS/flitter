@@ -1,3 +1,5 @@
+> **STATUS: COMPLETED** — This plan has been fully implemented and is kept for historical reference only.
+
 # Gap 1: Missing CLI Commands
 
 > Implementation plan for 17 missing CLI subcommands identified in the flitter vs amp gap analysis.

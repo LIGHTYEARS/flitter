@@ -1,3 +1,5 @@
+> **STATUS: COMPLETED** — This plan has been fully implemented and is kept for historical reference only.
+
 # Tier 2 Wave 1: Tree Primitives + Layout/Text
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -1,3 +1,5 @@
+> **STATUS: SUPERSEDED** — Project health tracking is now handled by GAPS.md. This plan is kept for reference only.
+
 # HEALTH.md Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

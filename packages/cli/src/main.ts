@@ -36,10 +36,23 @@ import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
 import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
 import {
+  handleMcpApprove,
+  handleMcpDoctor,
+  handleMcpOAuthLogin,
+  handleMcpOAuthLogout,
+} from "./commands/mcp-extended";
+import {
   handlePermissionsAdd,
   handlePermissionsList,
   handlePermissionsTest,
 } from "./commands/permissions";
+import { handleReview } from "./commands/review";
+import {
+  handleSecretDelete,
+  handleSecretGet,
+  handleSecretList,
+  handleSecretSet,
+} from "./commands/secret";
 import {
   handleThreadsArchive,
   handleThreadsContinue,
@@ -56,13 +69,6 @@ import {
 } from "./commands/threads";
 import { handleToolsList, handleToolsShow } from "./commands/tools";
 import { handleUpdate } from "./commands/update";
-import { handleReview } from "./commands/review";
-import {
-  handleMcpDoctor,
-  handleMcpApprove,
-  handleMcpOAuthLogin,
-  handleMcpOAuthLogout,
-} from "./commands/mcp-extended";
 import { resolveCliContext } from "./context";
 import { runExecuteMode } from "./modes/execute";
 import { runHeadlessMode } from "./modes/headless";
@@ -452,6 +458,35 @@ export async function main(opts?: MainOptions): Promise<void> {
       }
     }
 
+    // secret 子命令 — uses baseSecrets directly, no container needed
+    const secretCmd = program.commands.find((c) => c.name() === "secret");
+    if (secretCmd) {
+      const secretSetCmd = secretCmd.commands.find((c) => c.name() === "set");
+      if (secretSetCmd) {
+        secretSetCmd.action(async (key: string, value: string) => {
+          await handleSecretSet(secrets, key, value);
+        });
+      }
+      const secretGetCmd = secretCmd.commands.find((c) => c.name() === "get");
+      if (secretGetCmd) {
+        secretGetCmd.action(async (key: string) => {
+          await handleSecretGet(secrets, key);
+        });
+      }
+      const secretDeleteCmd = secretCmd.commands.find((c) => c.name() === "delete");
+      if (secretDeleteCmd) {
+        secretDeleteCmd.action(async (key: string) => {
+          await handleSecretDelete(secrets, key);
+        });
+      }
+      const secretListCmd = secretCmd.commands.find((c) => c.name() === "list");
+      if (secretListCmd) {
+        secretListCmd.action(async () => {
+          await handleSecretList(secrets);
+        });
+      }
+    }
+
     // mcp 子命令
     const mcpCmd = program.commands.find((c) => c.name() === "mcp");
     if (mcpCmd) {
@@ -487,7 +522,10 @@ export async function main(opts?: MainOptions): Promise<void> {
       if (mcpDoctorCmd) {
         mcpDoctorCmd.action(async () => {
           const c = await ensureContainer();
-          await handleMcpDoctor({ configService: c.configService, mcpServerManager: c.mcpServerManager });
+          await handleMcpDoctor({
+            configService: c.configService,
+            mcpServerManager: c.mcpServerManager,
+          });
         });
       }
       const mcpApproveCmd = mcpCmd.commands.find((c) => c.name() === "approve");
@@ -499,18 +537,28 @@ export async function main(opts?: MainOptions): Promise<void> {
       }
       const mcpOauthCmd = mcpCmd.commands.find((c) => c.name() === "oauth");
       if (mcpOauthCmd) {
-        const oauthLoginCmd = mcpOauthCmd.commands.find((c: { name: () => string }) => c.name() === "login");
+        const oauthLoginCmd = mcpOauthCmd.commands.find(
+          (c: { name: () => string }) => c.name() === "login",
+        );
         if (oauthLoginCmd) {
           oauthLoginCmd.action(async (server: string) => {
             const c = await ensureContainer();
-            await handleMcpOAuthLogin({ configService: c.configService, mcpServerManager: c.mcpServerManager }, server);
+            await handleMcpOAuthLogin(
+              { configService: c.configService, mcpServerManager: c.mcpServerManager },
+              server,
+            );
           });
         }
-        const oauthLogoutCmd = mcpOauthCmd.commands.find((c: { name: () => string }) => c.name() === "logout");
+        const oauthLogoutCmd = mcpOauthCmd.commands.find(
+          (c: { name: () => string }) => c.name() === "logout",
+        );
         if (oauthLogoutCmd) {
           oauthLogoutCmd.action(async (server: string) => {
             const c = await ensureContainer();
-            await handleMcpOAuthLogout({ configService: c.configService, mcpServerManager: c.mcpServerManager }, server);
+            await handleMcpOAuthLogout(
+              { configService: c.configService, mcpServerManager: c.mcpServerManager },
+              server,
+            );
           });
         }
       }

@@ -202,6 +202,28 @@ export function createProgram(version: string): Command {
 
   config.command("list").description("List all config values");
 
+  // ─── Secret 管理 ────────────────────────────────────────
+
+  const secret = program.command("secret").description("Manage stored secrets");
+
+  secret
+    .command("set")
+    .description("Store a secret value")
+    .argument("<key>", "Secret key (e.g., sync-auth-token)")
+    .argument("<value>", "Secret value to store");
+
+  secret
+    .command("get")
+    .description("Show a stored secret (masked)")
+    .argument("<key>", "Secret key to show");
+
+  secret
+    .command("delete")
+    .description("Delete a stored secret")
+    .argument("<key>", "Secret key to delete");
+
+  secret.command("list").description("List all stored secrets (masked)");
+
   // ─── Update ─────────────────────────────────────────────
 
   program
@@ -241,19 +263,13 @@ export function createProgram(version: string): Command {
   mcp.command("doctor").description("Check health of all configured MCP servers");
 
   // 逆向: e0R permissions-enable/disable pattern applied to MCP trust
-  mcp
-    .command("approve <name>")
-    .description("Add an MCP server to the trusted list");
+  mcp.command("approve <name>").description("Add an MCP server to the trusted list");
 
   const mcpOauth = mcp.command("oauth").description("Manage MCP OAuth authentication");
 
-  mcpOauth
-    .command("login <server>")
-    .description("Authenticate with an MCP server via OAuth");
+  mcpOauth.command("login <server>").description("Authenticate with an MCP server via OAuth");
 
-  mcpOauth
-    .command("logout <server>")
-    .description("Remove OAuth tokens for an MCP server");
+  mcpOauth.command("logout <server>").description("Remove OAuth tokens for an MCP server");
 
   // ─── Permissions 管理 ───────────────────────────────────
 

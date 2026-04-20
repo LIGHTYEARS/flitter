@@ -115,6 +115,15 @@
         "typescript": "^5.4.0",
       },
     },
+    "packages/server": {
+      "name": "@flitter/server",
+      "version": "0.1.0",
+      "dependencies": {
+        "@flitter/schemas": "workspace:*",
+        "@flitter/util": "workspace:*",
+        "hono": "^4.0.0",
+      },
+    },
     "packages/tui": {
       "name": "@flitter/tui",
       "version": "0.1.0",
@@ -177,6 +186,8 @@
     "@flitter/llm": ["@flitter/llm@workspace:packages/llm"],
 
     "@flitter/schemas": ["@flitter/schemas@workspace:packages/schemas"],
+
+    "@flitter/server": ["@flitter/server@workspace:packages/server"],
 
     "@flitter/tui": ["@flitter/tui@workspace:packages/tui"],
 
@@ -255,6 +266,8 @@
     "google-auth-library": ["google-auth-library@10.6.2", "https://bnpm.byted.org/google-auth-library/-/google-auth-library-10.6.2.tgz", { "dependencies": { "base64-js": "^1.3.0", "ecdsa-sig-formatter": "^1.0.11", "gaxios": "^7.1.4", "gcp-metadata": "8.1.2", "google-logging-utils": "1.1.3", "jws": "^4.0.0" } }, "sha512-e27Z6EThmVNNvtYASwQxose/G57rkRuaRbQyxM2bvYLLX/GqWZ5chWq2EBoUchJbCc57eC9ArzO5wMsEmWftCw=="],
 
     "google-logging-utils": ["google-logging-utils@1.1.3", "https://bnpm.byted.org/google-logging-utils/-/google-logging-utils-1.1.3.tgz", {}, "sha512-eAmLkjDjAFCVXg7A1unxHsLf961m6y17QFqXqAXGj/gVkKFrEICfStRfwUlGNfeCEjNRa32JEWOUTlYXPyyKvA=="],
+
+    "hono": ["hono@4.12.14", "https://bnpm.byted.org/hono/-/hono-4.12.14.tgz", {}, "sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w=="],
 
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "https://bnpm.byted.org/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 

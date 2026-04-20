@@ -38,8 +38,8 @@ import {
   collectContextBlocks,
   createCodeReviewTool,
   createDeleteFileTool,
-  createFindThreadTool,
   createFinderTool,
+  createFindThreadTool,
   createReadMcpResourceTool,
   createReadThreadTool,
   createSkillTool,
@@ -62,9 +62,6 @@ import {
   ToolOrchestrator,
   WebSearchTool,
 } from "@flitter/agent-core";
-// Direct imports to avoid worktree symlink resolution issues with new files
-import type { CliToolFilters } from "../../agent-core/src/tools/registry";
-import { ThreadWorkerService } from "../../agent-core/src/worker/thread-worker-service";
 import type {
   ConfigService,
   ContextManager,
@@ -75,11 +72,13 @@ import type {
   ThreadPersistence,
   ThreadStore,
 } from "@flitter/data";
-import type { MCPServerManager } from "@flitter/llm";
+import type { MCPServerManager, ModelInfo, ProviderName } from "@flitter/llm";
 import { getProviderForModel, registerModel } from "@flitter/llm";
-import type { ModelInfo, ProviderName } from "@flitter/llm";
 import { resolveModelName, type ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
+// Direct imports to avoid worktree symlink resolution issues with new files
+import type { CliToolFilters } from "../../agent-core/src/tools/registry";
+import { ThreadWorkerService } from "../../agent-core/src/worker/thread-worker-service";
 import {
   createConfigService,
   createContextManager,
@@ -279,10 +278,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // 逆向: S5R (modules/1371_Toolbox_S5R.js) — toolbox service registration
     const homeDir = opts.homeDir ?? homedir();
     const config = configService.get();
-    const toolboxPaths = resolveToolboxPaths(
-      config.settings["toolbox.path"],
-      homeDir,
-    );
+    const toolboxPaths = resolveToolboxPaths(config.settings["toolbox.path"], homeDir);
     const toolboxService = new ToolboxService(toolRegistry, toolboxPaths);
     try {
       await toolboxService.scan();
@@ -369,6 +365,53 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
         log.info("Loaded persisted threads", { count: persisted.length });
       } catch (err) {
         log.warn("Failed to load persisted threads", { error: err });
+      }
+    }
+
+    // 8b. Thread remote sync — optional self-hosted sync via HttpRemoteTransport
+    // 逆向: amp uses N3 RPC proxy (modules/1343_unknown_ezT.js) for remote thread ops.
+    // Flitter uses a direct REST transport when sync.url + sync-auth-token are configured.
+    {
+      const syncUrl = configService.get().settings["sync.url"] as string | undefined;
+      const syncToken = syncUrl ? await opts.secrets.get("sync-auth-token") : undefined;
+      if (syncUrl && syncToken) {
+        const { HttpRemoteTransport } = await import("@flitter/data");
+        const { ThreadUploadManager } = await import("@flitter/data");
+
+        const remote = new HttpRemoteTransport({ baseUrl: syncUrl, authToken: syncToken });
+        const uploadManager = new ThreadUploadManager({
+          getThreadSnapshot: (id) => threadStore.getThreadSnapshot(id),
+          remote,
+        });
+        threadStore.setUploadManager(uploadManager);
+        disposables.push({ dispose: () => uploadManager.dispose() });
+        log.info("Thread sync enabled", { url: syncUrl });
+
+        // Hydration: merge remote threads into local store (version-aware)
+        // Remote-newer → overwrite local; local-newer → will upload on next dirty cycle
+        try {
+          const remoteEntries = await remote.listThreads({ limit: null });
+          let merged = 0;
+          for (const entry of remoteEntries) {
+            const local = threadStore.getThreadSnapshot(entry.id);
+            if (!local || local.v < entry.v) {
+              const snapshot = await remote.getThread(entry.id);
+              if (snapshot) {
+                threadStore.setCachedThread(snapshot);
+                uploadManager.setUploadedVersion(entry.id, snapshot.v);
+                merged++;
+              }
+            } else {
+              uploadManager.setUploadedVersion(entry.id, entry.v);
+            }
+          }
+          log.info("Remote thread hydration complete", {
+            remoteCount: remoteEntries.length,
+            merged,
+          });
+        } catch (err) {
+          log.warn("Remote thread hydration failed, continuing local-only", { error: err });
+        }
       }
     }
 
@@ -707,9 +750,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             }),
           provider:
             workerOpts?.provider ??
-            getProviderForModel(
-              resolveModelName(configService.get().settings),
-            ),
+            getProviderForModel(resolveModelName(configService.get().settings)),
           toolOrchestrator: threadOrchestrator,
           buildSystemPrompt:
             workerOpts?.buildSystemPrompt ??
@@ -771,8 +812,8 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
 
     // Wire ThreadWorkerService — uses container.createThreadWorker as its factory
     // 逆向: QWT uses container's deps to create workers
-    threadWorkerService = new ThreadWorkerService(
-      (threadId) => container.createThreadWorker(threadId),
+    threadWorkerService = new ThreadWorkerService((threadId) =>
+      container.createThreadWorker(threadId),
     );
     container.threadWorkerService = threadWorkerService;
     disposables.push({ dispose: () => threadWorkerService.disposeAll() });
@@ -792,4 +833,3 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     throw err;
   }
 }
-

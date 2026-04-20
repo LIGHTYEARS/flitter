@@ -7,17 +7,6 @@ export { stripJsonComments } from "./config/jsonc";
 export type { FileSettingsStorageOptions } from "./config/settings-storage";
 // Config
 export { FileSettingsStorage } from "./config/settings-storage";
-// Git
-export { createFileWatcher, GitFileWatcher, NoOpFileWatcher } from "./git";
-export type {
-  FileSystemEvent,
-  FileWatcher,
-  FileWatcherCallback,
-  FileWatcherFactoryOptions,
-} from "./git";
-// MCP Registry
-export { checkMcpRegistry, fetchRegistry } from "./mcp";
-export type { McpServerSpec, RegistryCheckResult } from "./mcp";
 export type {
   CompactFunction,
   CompactionResult,
@@ -27,6 +16,14 @@ export type {
 // Context
 export { ContextManager } from "./context/context-manager";
 export { countMessageTokens, countThreadTokens, countTokensApprox } from "./context/token-counter";
+export type {
+  FileSystemEvent,
+  FileWatcher,
+  FileWatcherCallback,
+  FileWatcherFactoryOptions,
+} from "./git";
+// Git
+export { createFileWatcher, GitFileWatcher, NoOpFileWatcher } from "./git";
 // Guidance
 export {
   discoverGuidanceFiles,
@@ -41,6 +38,9 @@ export type {
   GuidanceLoadOptions,
   GuidanceType,
 } from "./guidance/guidance-types";
+export type { McpServerSpec, RegistryCheckResult } from "./mcp";
+// MCP Registry
+export { checkMcpRegistry, fetchRegistry } from "./mcp";
 // Memory
 export { MemoryStore } from "./memory/memory-store";
 export type { MemoryEntry, MemoryStoreData } from "./memory/memory-types";
@@ -61,6 +61,9 @@ export type {
   SkillInstallResult,
   SkillScanResult,
 } from "./skill/skill-types";
+export type { HttpRemoteTransportOptions } from "./thread/http-remote-transport";
+// Thread Remote Sync
+export { HttpRemoteTransport } from "./thread/http-remote-transport";
 export { ThreadPersistence } from "./thread/thread-persistence";
 // Thread
 export {
@@ -69,4 +72,9 @@ export {
   snapshotToEntry,
   ThreadStore,
 } from "./thread/thread-store";
+export type {
+  ThreadRemoteTransport,
+  ThreadUploadManagerOptions,
+} from "./thread/thread-upload";
+export { ThreadUploadManager } from "./thread/thread-upload";
 export type { ThreadEntry, ThreadPersistenceOptions, ThreadStoreOptions } from "./thread/types";

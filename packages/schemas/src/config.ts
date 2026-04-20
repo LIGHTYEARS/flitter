@@ -23,6 +23,7 @@ export const SecretKeySchema = z.enum([
   "gitlab-instance-url",
   "mcp-oauth-client-secret",
   "mcp-oauth-token",
+  "sync-auth-token",
 ]);
 export type SecretKey = z.infer<typeof SecretKeySchema>;
 
@@ -65,7 +66,7 @@ export const MERGED_ARRAY_KEYS = [
 ] as const;
 
 /** 仅全局键 */
-export const GLOBAL_ONLY_KEYS = ["mcpServers", "mcpPermissions", "url"] as const;
+export const GLOBAL_ONLY_KEYS = ["mcpServers", "mcpPermissions", "url", "sync.url"] as const;
 
 // ─── MCP Permission Entry (简化版，在 permissions.ts 中精确定义) ─
 
@@ -105,6 +106,9 @@ export const SettingsSchema = z.object({
   "update.url": z.string().optional(),
   "update.mode": z.enum(["auto", "warn", "disabled"]).optional(),
 
+  // Sync (self-hosted thread sync server)
+  "sync.url": z.string().optional(),
+
   // Internal
   "internal.model": z.string().optional(),
   "internal.compactionThresholdPercent": z.number().optional(),
@@ -117,15 +121,20 @@ export const SettingsSchema = z.object({
   // Allows mapping custom endpoint IDs (e.g., "ep-XXXXX") to model metadata.
   // 逆向: amp supports custom models via provider-specific config; Flitter extends
   // with a generic models.custom map for compatible endpoints like ARK.
-  "models.custom": z.record(z.string(), z.object({
-    provider: z.enum(["anthropic", "openai", "gemini", "openai-compat", "bedrock"]).optional(),
-    contextWindow: z.number().optional(),
-    maxOutputTokens: z.number().optional(),
-    supportsThinking: z.boolean().optional(),
-    supportsTools: z.boolean().optional(),
-    supportsImages: z.boolean().optional(),
-    supportsCacheControl: z.boolean().optional(),
-  })).optional(),
+  "models.custom": z
+    .record(
+      z.string(),
+      z.object({
+        provider: z.enum(["anthropic", "openai", "gemini", "openai-compat", "bedrock"]).optional(),
+        contextWindow: z.number().optional(),
+        maxOutputTokens: z.number().optional(),
+        supportsThinking: z.boolean().optional(),
+        supportsTools: z.boolean().optional(),
+        supportsImages: z.boolean().optional(),
+        supportsCacheControl: z.boolean().optional(),
+      }),
+    )
+    .optional(),
   // Model alias mapping: e.g., {"claude-sonnet-4": "ep-20260331120931-5lxqv"}
   "models.alias": z.record(z.string(), z.string()).optional(),
 

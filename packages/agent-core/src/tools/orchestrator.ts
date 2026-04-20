@@ -13,6 +13,12 @@
 
 import type { Config } from "@flitter/schemas";
 import type { Observable } from "@flitter/util";
+import type {
+  PluginAction,
+  PluginToolCallEvent,
+  PluginToolResultEvent,
+  PluginToolResultOverride,
+} from "../plugins/types";
 import type { AgentEvent } from "../worker/events";
 import type { ToolRegistry } from "./registry";
 import type { ToolContext, ToolResult } from "./types";
@@ -127,6 +133,22 @@ export interface OrchestratorCallbacks {
     args: Record<string, unknown>;
     reason: string;
   }) => Promise<{ accepted: boolean; scope?: string; feedback?: string }>;
+
+  /**
+   * Plugin pre-execution interception (tool.call).
+   * 逆向: amp's ThreadWorker wires requestPluginToolCall to pluginService.event.toolCall()
+   * Returns a PluginAction that can allow, block, synthesize, or modify the call.
+   */
+  requestPluginToolCall?: (event: PluginToolCallEvent) => Promise<PluginAction>;
+
+  /**
+   * Plugin post-execution interception (tool.result).
+   * 逆向: amp's ThreadWorker wires requestPluginToolResult to pluginService.event.toolResult()
+   * Returns an optional override for the tool result.
+   */
+  requestPluginToolResult?: (
+    event: PluginToolResultEvent,
+  ) => Promise<PluginToolResultOverride | undefined>;
 }
 
 // ─── 资源冲突检测 ──────────────────────────────────────────
@@ -298,7 +320,8 @@ export class ToolOrchestrator {
    * 10. callbacks.updateFileChanges()
    * 11. 从 runningTools 移除
    */
-  private async invokeTool(toolUse: ToolUseItem): Promise<void> {
+  private async invokeTool(toolUseArg: ToolUseItem): Promise<void> {
+    let toolUse = toolUseArg;
     // 1. 检查是否已取消
     if (this.cancelledToolUses.has(toolUse.id)) {
       await this.callbacks.updateThread({
@@ -396,6 +419,58 @@ export class ToolOrchestrator {
       }
     }
 
+    // 3b. Plugin pre-execution interception (tool.call)
+    // 逆向: amp's ThreadWorker calls pluginService.event.toolCall() before execution
+    // Returns PluginAction: allow | error | reject-and-continue | synthesize | modify
+    if (this.callbacks.requestPluginToolCall) {
+      const pluginAction = await this.callbacks.requestPluginToolCall({
+        tool: toolUse.name,
+        input: toolUse.input,
+      });
+      if (pluginAction.action === "error") {
+        await this.callbacks.updateThread({
+          type: "tool:data",
+          toolUseId: toolUse.id,
+          toolName: toolUse.name,
+          status: "error",
+          error: pluginAction.message,
+          result: { status: "error", error: pluginAction.message },
+        });
+        this.runningTools.delete(toolUse.id);
+        this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
+        return;
+      }
+      if (pluginAction.action === "reject-and-continue") {
+        await this.callbacks.updateThread({
+          type: "tool:data",
+          toolUseId: toolUse.id,
+          toolName: toolUse.name,
+          status: "error",
+          error: pluginAction.message,
+          result: { status: "error", error: pluginAction.message },
+        });
+        this.runningTools.delete(toolUse.id);
+        this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
+        return;
+      }
+      if (pluginAction.action === "synthesize") {
+        await this.callbacks.updateThread({
+          type: "tool:data",
+          toolUseId: toolUse.id,
+          toolName: toolUse.name,
+          status: "done",
+          result: { status: "done", output: pluginAction.result.output },
+        });
+        this.runningTools.delete(toolUse.id);
+        this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
+        return;
+      }
+      if (pluginAction.action === "modify") {
+        toolUse = { ...toolUse, input: pluginAction.input };
+      }
+      // action === "allow" → continue
+    }
+
     try {
       // 4. 通知 in-progress
       await this.callbacks.updateThread({
@@ -491,6 +566,25 @@ export class ToolOrchestrator {
         toolUseId: toolUse.id,
         result,
       });
+
+      // 8b. Plugin post-execution interception (tool.result)
+      // 逆向: amp's ThreadWorker calls pluginService.event.toolResult() after execution
+      if (this.callbacks.requestPluginToolResult) {
+        const override = await this.callbacks.requestPluginToolResult({
+          tool: toolUse.name,
+          input: toolUse.input,
+          output: result.output ?? result.error ?? "",
+          status:
+            result.status === "done" ? "done" : result.status === "error" ? "error" : "cancelled",
+        });
+        if (override) {
+          result = {
+            status: override.status === "error" ? "error" : "done",
+            ...(override.result ? { output: override.result } : {}),
+            ...(override.error ? { error: override.error } : {}),
+          };
+        }
+      }
 
       // 9. 通知 completed
       await this.callbacks.updateThread({

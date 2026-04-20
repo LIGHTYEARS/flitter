@@ -46,6 +46,7 @@ import {
   handlePermissionsList,
   handlePermissionsTest,
 } from "./commands/permissions";
+import { registerPluginsCommand } from "./commands/plugins";
 import { handleReview } from "./commands/review";
 import {
   handleSecretDelete,
@@ -486,6 +487,9 @@ export async function main(opts?: MainOptions): Promise<void> {
         });
       }
     }
+
+    // plugins 子命令 — uses deferred container reference for pluginService
+    registerPluginsCommand(program, () => container?.pluginService ?? null);
 
     // mcp 子命令
     const mcpCmd = program.commands.find((c) => c.name() === "mcp");

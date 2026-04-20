@@ -25,7 +25,6 @@
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
 | GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
-| GAP-CORE-01 | Agent-Core | **Plugin system not wired to container** | PluginService exists with full implementation (subprocess JSON-RPC, discovery, lifecycle, interception), but is NOT instantiated or wired in `container.ts`. Plugins cannot actually load. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
 | GAP-TUI-02 | TUI | **Approval widget (5 options)** | Amp has 5-option approval flow (approve, allow-session, allow-persistent, deny-with-feedback, guarded-file). Flitter has 4 options (approve, allow-session, allow-persistent, deny-with-feedback) — missing the guarded-file deny option. Plan: `2026-04-19-approval-widget.md`. |
 | GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
@@ -210,6 +209,9 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-LLM-01**: Stream idle timeout wrapper (`withStreamIdleTimeout`, 120s default) on all 5 providers
 - **GAP-LLM-02**: `maxRetries: 0` on Anthropic, OpenAI, OpenAI-compat, and Bedrock SDK clients
 
+### Agent-Core
+- **GAP-CORE-01**: PluginService wired into `container.ts` — instantiated, tool call/result interception hooked into `OrchestratorCallbacks`, CLI `plugins` command registered
+
 ### Data (from thread-persistence/secret-storage/thread-resume plans)
 - File-based SecretStorage + native keyring
 - Thread persistence wiring (auto-save, hydration, `--continue`)
@@ -228,11 +230,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 1 |
-| High | 5 |
+| High | 4 |
 | Medium | 27 |
 | Low | 32 |
-| **Total open gaps** | **65** |
-| Closed gaps | 45+ |
+| **Total open gaps** | **64** |
+| Closed gaps | 46+ |
 
 ### Cross-Cutting Themes
 

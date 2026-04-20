@@ -25,6 +25,7 @@
  */
 
 import { homedir } from "node:os";
+import { join } from "node:path";
 import type {
   PermissionEngine,
   ThreadWorker,
@@ -53,6 +54,7 @@ import {
   matchPostExecuteHook,
   matchPreExecuteHook,
   type OrchestratorCallbacks,
+  PluginService,
   parseHooksConfig,
   ReadWebPageTool,
   resolveToolboxPaths,
@@ -173,6 +175,9 @@ export interface ServiceContainer {
   settings: FileSettingsStorage;
   /** 子代理管理器 (Task tool) */
   subAgentManager: SubAgentManager;
+
+  /** 插件服务 (子进程 JSON-RPC, 工具拦截) */
+  pluginService: PluginService;
 
   /**
    * ThreadWorkerService: manages ThreadWorker instances by thread ID.
@@ -337,6 +342,17 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // 6b. Register Skill tool (depends on SkillService)
     toolRegistry.register(createSkillTool(skillService));
     log.info("Skill tool registered");
+
+    // 6c. Plugin service — discover and load plugins
+    // 逆向: X3() in modules/1990_unknown_X3.js — pluginService = X5T({...})
+    const pluginService = new PluginService({
+      workspaceDir: opts.workspaceRoot,
+      userConfigDir: opts.configDir ?? join(homedir(), ".config", "flitter"),
+      pluginFilter: process.env.FLITTER_PLUGINS,
+    });
+    await pluginService.loadPlugins();
+    disposables.push(pluginService);
+    log.info("PluginService created", { pluginCount: pluginService.pluginCount });
 
     // 7. GuidanceLoader
     const guidanceLoader = createGuidanceLoader(opts);
@@ -529,6 +545,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       secrets: opts.secrets,
       settings: opts.settings,
       subAgentManager,
+      pluginService,
       threadWorkerService: null as unknown as ThreadWorkerService, // set below
 
       createThreadWorker(
@@ -716,6 +733,11 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
               }
             });
           },
+          // Plugin interception hooks
+          // 逆向: amp's ThreadWorker wires requestPluginToolCall/requestPluginToolResult
+          // to pluginService.event.toolCall/toolResult
+          requestPluginToolCall: (event) => pluginService.onToolCall(event),
+          requestPluginToolResult: (event) => pluginService.onToolResult(event),
         };
         const threadOrchestrator = new ToolOrchestrator(threadId, toolRegistry, threadCallbacks);
 

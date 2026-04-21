@@ -27,6 +27,7 @@
  * ```
  */
 
+import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { FileSettingsStorage } from "@flitter/data";
@@ -43,6 +44,7 @@ import {
 } from "./commands/mcp-extended";
 import {
   handlePermissionsAdd,
+  handlePermissionsEdit,
   handlePermissionsList,
   handlePermissionsTest,
 } from "./commands/permissions";
@@ -54,6 +56,12 @@ import {
   handleSecretList,
   handleSecretSet,
 } from "./commands/secret";
+import {
+  handleSkillAdd,
+  handleSkillInfo,
+  handleSkillList,
+  handleSkillRemove,
+} from "./commands/skills";
 import {
   handleThreadsArchive,
   handleThreadsContinue,
@@ -237,6 +245,10 @@ export async function main(opts?: MainOptions): Promise<void> {
     // Flitter: peek at --model from argv before Commander parse, wire into container post-creation
     const cliModel = extractCliModel(argv);
 
+    // 逆向: amp-cli-reversed/modules/2509_unknown_EC0.js — --mcp-config inline JSON or file path
+    const cliMcpConfigRaw = extractCliMcpConfig(argv);
+    const cliMcpConfig = cliMcpConfigRaw ? parseMcpConfigValue(cliMcpConfigRaw) : undefined;
+
     async function ensureContainer(): Promise<ServiceContainer> {
       if (!container) {
         container = await createContainer({
@@ -251,6 +263,15 @@ export async function main(opts?: MainOptions): Promise<void> {
         // Wire --model override into config service settings
         if (cliModel) {
           container.configService.updateSettings("global", "internal.model", cliModel);
+        }
+
+        // Wire --mcp-config: merge CLI-provided servers into runtime config
+        // 逆向: amp-cli-reversed/modules/2510_unknown_CC0.js — CC0 merges with _target: "flag"
+        if (cliMcpConfig) {
+          const existing = container.configService.get().settings.mcpServers ?? {};
+          const merged = { ...existing, ...cliMcpConfig };
+          container.configService.setRuntimeOverride("mcpServers", merged);
+          container.mcpServerManager.refresh();
         }
       }
       return container;
@@ -643,6 +664,19 @@ export async function main(opts?: MainOptions): Promise<void> {
           },
         );
       }
+      // 逆向: amp-cli-reversed/modules/2435_unknown_MQT.js — permissions edit
+      const permsEditCmd = permsCmd.commands.find((c) => c.name() === "edit");
+      if (permsEditCmd) {
+        permsEditCmd.action(async (opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handlePermissionsEdit(
+            { configService: c.configService },
+            {
+              workspace: opts.workspace as boolean | undefined,
+            },
+          );
+        });
+      }
     }
 
     // tools 子命令
@@ -692,6 +726,45 @@ export async function main(opts?: MainOptions): Promise<void> {
             bun: opts.bun as boolean | undefined,
             bash: opts.bash as boolean | undefined,
             zsh: opts.zsh as boolean | undefined,
+          });
+        });
+      }
+    }
+
+    // ── skill 子命令 ──────────────────────────────────────
+    // 逆向: amp-cli-reversed/chunk-004.js:23716 (g40 — skill command group)
+    const skillCmd = program.commands.find((c) => c.name() === "skill");
+    if (skillCmd) {
+      const skillListCmd = skillCmd.commands.find((c) => c.name() === "list");
+      if (skillListCmd) {
+        skillListCmd.action(async (opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleSkillList({ skillService: c.skillService }, { json: opts.json as boolean });
+        });
+      }
+      const skillInfoCmd = skillCmd.commands.find((c) => c.name() === "info");
+      if (skillInfoCmd) {
+        skillInfoCmd.action(async (name: string, opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleSkillInfo({ skillService: c.skillService }, name, {
+            json: opts.json as boolean,
+          });
+        });
+      }
+      const skillRemoveCmd = skillCmd.commands.find((c) => c.name() === "remove");
+      if (skillRemoveCmd) {
+        skillRemoveCmd.action(async (name: string) => {
+          const c = await ensureContainer();
+          await handleSkillRemove({ skillService: c.skillService }, name);
+        });
+      }
+      const skillAddCmd = skillCmd.commands.find((c) => c.name() === "add");
+      if (skillAddCmd) {
+        skillAddCmd.action(async (source: string, opts: Record<string, unknown>) => {
+          const c = await ensureContainer();
+          await handleSkillAdd({ skillService: c.skillService }, source, {
+            name: opts.name as string | undefined,
+            overwrite: opts.overwrite as boolean | undefined,
           });
         });
       }
@@ -810,4 +883,65 @@ function wrapSecretsWithApiKey(base: SecretStorage, apiKey: string): SecretStora
       return base.delete(key, scope);
     },
   };
+}
+
+/**
+ * Extract --mcp-config value from argv before Commander parses.
+ *
+ * 逆向: amp-cli-reversed/modules/1472_tail_anonymous.js:6750 — mcpConfig flag
+ */
+function extractCliMcpConfig(argv: string[]): string | undefined {
+  const idx = argv.indexOf("--mcp-config");
+  if (idx !== -1 && idx + 1 < argv.length) {
+    return argv[idx + 1];
+  }
+  return undefined;
+}
+
+/**
+ * Parse --mcp-config value: inline JSON or file path → Record<string, MCPServerSpec>.
+ *
+ * 逆向: amp-cli-reversed/modules/2509_unknown_EC0.js
+ *   - If value starts with `{`, treat as inline JSON
+ *   - Otherwise treat as file path, read contents
+ *   - JSON.parse the result, validate shape
+ *
+ * @param value - Raw CLI flag value (JSON string or file path)
+ * @returns Parsed MCP server map, or undefined if parsing fails (error printed to stderr)
+ */
+function parseMcpConfigValue(value: string): Record<string, Record<string, unknown>> | undefined {
+  let raw: string;
+  if (value.trim().startsWith("{")) {
+    raw = value;
+  } else {
+    try {
+      raw = readFileSync(value, "utf-8");
+    } catch (err) {
+      process.stderr.write(
+        `Failed to read --mcp-config file: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      return undefined;
+    }
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    process.stderr.write(
+      `Failed to parse --mcp-config as JSON: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return undefined;
+  }
+
+  // Basic shape validation: must be Record<string, object>
+  // 逆向: dC0 = z.record(z.string(), OC0) where OC0 = union of command/url server specs
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    process.stderr.write(
+      "Invalid --mcp-config: expected a JSON object mapping server names to specs.\n",
+    );
+    return undefined;
+  }
+
+  return parsed as Record<string, Record<string, unknown>>;
 }

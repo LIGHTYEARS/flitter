@@ -611,3 +611,40 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - SlashCommandContext extended with submitMessage for editor integration
 - GAP-CLI-08 verified as already complete — no implementation waste
 - 28 new tests (22 look_at + 6 slash commands), 0 TypeScript errors
+
+---
+
+## ADR-024: Iteration 19 — skill CLI, --mcp-config, permissions edit, mermaid tool
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 19 targets 4 gaps across CLI commands (CLI-01, CLI-07, CLI-09) and tools (TOOL-11).
+
+### Targets
+
+| Gap | Domain | Size | Amp Reference |
+|-----|--------|------|---------------|
+| GAP-CLI-01 (skill commands) | CLI | Medium | **Yes** — g40 at chunk-004.js:23716; 4 subcommands |
+| GAP-CLI-09 (--mcp-config) | CLI | Small-medium | **Yes** — EC0/CC0 at modules/2509-2510; arg peek + merge |
+| GAP-CLI-07 (permissions edit) | CLI | Medium | **Yes** — MQT at modules/2435; serialize + $EDITOR + parse-with-retry |
+| GAP-TOOL-11 (mermaid) | Tools | Small | **Yes** — gVR at chunk-005.js:148656; no-op execute + IVR description |
+
+### Decisions
+
+1. **Skill CLI via scan() not getSkills() (CLI-01)**: Amp's skillService exposes `getSkills()`, `getSkillErrors()`, and `getSkill(name)` as separate async methods. Flitter's SkillService has a single `scan()` returning `{skills, errors, warnings}`. This is actually cleaner — one call instead of two for `skill list`. For `skill info`, we scan then filter by name. The `--global` flag is accepted in CLI but not yet wired to override install path (SkillService computes path internally from workspaceRoot/userConfigDir). No `--target` flag (amp-specific).
+
+2. **--mcp-config via runtime override (CLI-09)**: Amp's CC0 function creates a proxy wrapper around the settings object that intercepts `get("mcpServers")` and merges CLI-provided servers. Flitter uses a simpler approach: `configService.setRuntimeOverride("mcpServers", merged)` which directly updates the in-memory settings. Then `mcpServerManager.refresh()` diffs and connects. The CLI servers are in-memory only (never persisted to disk), matching amp's behavior. Parsing follows amp's EC0 exactly: if value starts with `{`, treat as inline JSON; otherwise read as file path. Basic shape validation (must be `Record<string, object>`), no Zod schema (not in CLI deps).
+
+3. **Permissions edit with text-based serialization (CLI-07)**: Amp serializes rules via Z2 (one line per rule: `<action> [--to x] [--message x] [--context x] <tool> [matchers]`). Flitter simplifies to `<action> <tool> [key=value ...]` — no `--to`/`--message`/`--context` flags since we don't support `delegate` action or `reject --message`. The retry loop is capped at 3 attempts (matching amp's MQT). Parse errors are inserted as `# Error:` comment lines above offending rules (matching amp's DQT).
+
+4. **Mermaid as declarative no-op tool (TOOL-11)**: Amp's mermaid tool has a no-op execute (`() => ({status: "done", result: {success: true}})`) — all rendering happens in the TUI's `buildMermaidTool`. We replicate this pattern but add a mermaid.live base64 link in the tool output, so even in non-TUI contexts (headless, execute mode) the user gets a clickable link. The link uses amp's dark theme config (xVR). TUI-side rendering (ASCII mermaid via x50()) is deferred.
+
+### Consequences
+
+- Skill system vertical now fully implemented: SkillTool (agent-callable) + SkillService (backend) + CLI commands (user-facing)
+- --mcp-config enables scripted/automated MCP server injection without modifying config files
+- permissions edit provides interactive CRUD for permission rules (previously only add/list/test)
+- mermaid tool enables diagram generation in conversations with clickable mermaid.live links
+- 24 new tests (11 skill handlers + 13 mermaid), 0 TypeScript errors
+- 4 gaps closed: CLI-01, CLI-07, CLI-09, TOOL-11
+- Total open gaps reduced from 54 to 50

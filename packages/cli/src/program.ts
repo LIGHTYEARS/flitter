@@ -55,6 +55,10 @@ export function createProgram(version: string): Command {
     .option("--model <model>", "LLM model to use (e.g., claude-sonnet-4-20250514)")
     .option("--mode <mode>", "Agent mode: smart, fast, deep, auto")
     .option("--api-key <key>", "API key (overrides stored credentials for this session)")
+    .option(
+      "--mcp-config <json-or-path>",
+      "Extra MCP servers (inline JSON object or path to JSON file)",
+    )
     .option("--system-prompt <text>", "Custom system prompt text or file path")
     .option("--max-turns <n>", "Maximum number of inference turns (default: unlimited)")
     .option("-p, --print", "Output only the final assistant text (implies --execute)")
@@ -320,6 +324,12 @@ export function createProgram(version: string): Command {
     .option("-w, --workspace", "Save to workspace settings", false)
     .allowUnknownOption(true);
 
+  // 逆向: amp-cli-reversed/modules/2435_unknown_MQT.js — permissions edit in $EDITOR
+  perms
+    .command("edit")
+    .description("Edit permission rules in your editor")
+    .option("-w, --workspace", "Edit workspace-scoped rules", false);
+
   // ─── Tools 检查 ──────────────────────────────────────────
 
   const tools = program.command("tools").description("Inspect available tools");
@@ -349,6 +359,43 @@ export function createProgram(version: string): Command {
     .option("--bun", "Create a Bun/TypeScript tool (default)", false)
     .option("--bash", "Create a Bash shell script tool", false)
     .option("--zsh", "Create a Zsh shell script tool", false);
+
+  // ─── Skills 管理 ─────────────────────────────────────────
+  // 逆向: amp-cli-reversed/chunk-004.js:23716 (g40 — `skill` command group)
+
+  const skill = program
+    .command("skill")
+    .alias("skills")
+    .description("Manage skills from GitHub or local sources")
+    .action(() => {
+      skill.help();
+    });
+
+  skill
+    .command("list")
+    .alias("ls")
+    .option("--json", "Output as JSON", false)
+    .description("List all available skills");
+
+  skill
+    .command("info")
+    .argument("<name>", "Name of the skill")
+    .option("--json", "Output as JSON", false)
+    .description("Show information about a skill");
+
+  skill
+    .command("remove")
+    .alias("rm")
+    .argument("<name>", "Name of the skill to remove")
+    .description("Remove an installed skill");
+
+  skill
+    .command("add")
+    .argument("<source>", "Skill source (local path, @user/skill, owner/repo)")
+    .option("--name <name>", "Install with a custom local name")
+    .option("--overwrite", "Overwrite existing skill with the same name", false)
+    .option("--global", "Install to global skills directory (~/.config/flitter/skills/)", false)
+    .description("Install skills from a source");
 
   return program;
 }

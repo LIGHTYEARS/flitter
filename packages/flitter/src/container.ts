@@ -43,6 +43,7 @@ import {
   createFindThreadTool,
   createLibrarianTool,
   createLookAtTool,
+  createMermaidTool,
   createOracleTool,
   createReadMcpResourceTool,
   createReadThreadTool,
@@ -602,7 +603,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createLibrarianTool(subAgentManager));
     // 逆向: chunk-005.js:148520-148598 (kVR — look_at tool spec)
     toolRegistry.register(createLookAtTool());
-    log.info("finder, code_review, oracle, librarian, and look_at tools registered");
+    // 逆向: chunk-005.js:148612-148686 (gVR — mermaid tool spec)
+    toolRegistry.register(createMermaidTool());
+    log.info("finder, code_review, oracle, librarian, look_at, and mermaid tools registered");
 
     log.info("Service container initialized successfully.");
 

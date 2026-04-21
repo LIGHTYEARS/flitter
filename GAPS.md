@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 17)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 17 targets: `librarian` subagent tool, `github_repo_ci_status` tool, `threads archive --unarchive`, `/delete` slash command.
+> **Last updated:** 2026-04-21 (iteration 19)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 19 targets: `skill` CLI commands, `--mcp-config` flag, `permissions edit`, `mermaid` tool.
 
 ## How to Read This Document
 
@@ -22,7 +22,7 @@
 
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
-| GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
+| GAP-CLI-01 | CLI | ~~**`skill` / `skills` command group**~~ | **Closed (iteration 19)** — `handleSkillList`, `handleSkillInfo`, `handleSkillRemove`, `handleSkillAdd` in `skills.ts`. `skill` command tree in `program.ts` with `list` (--json), `info` (--json), `remove`, `add` (--name, --overwrite, --global). Wired in `main.ts`. 11 new tests. |
 | GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
 | GAP-CLI-28 | CLI | ~~`threads handoff` subcommand~~ | **Closed (iteration 14)** — `handleThreadsHandoff` with `--goal/-g` and `--print/-p` flags, parent context extraction, child thread seeding, bidirectional relationship wiring. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
@@ -45,9 +45,9 @@
 | GAP-CLI-04 | `threads handoff [id]` | **Closed (iteration 14)** — Duplicate of GAP-CLI-28. |
 | GAP-CLI-05 | ~~`tools make <name>`~~ | **Closed (iteration 14)** — `handleToolsMake` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX`/`AMP_TOOLBOX`), name validation, template generation, chmod 755. |
 | GAP-CLI-06 | ~~`tools use <name>`~~ | **Closed (iteration 13)** — Duplicate of GAP-CLI-27. |
-| GAP-CLI-07 | `permissions edit` | Open permissions in `$EDITOR` with retry loop. |
+| GAP-CLI-07 | ~~`permissions edit`~~ | **Closed (iteration 19)** — `handlePermissionsEdit` opens rules in `$EDITOR` with retry loop (up to 3 attempts on parse error). Serialize/parse text format: `<action> <tool> [key=value ...]`. Comment header, error annotation. |
 | GAP-CLI-08 | ~~`usage` (top-level)~~ | **Closed (iteration 18)** — Already implemented: `handleThreadsUsage` aggregates token counts from assistant messages in thread snapshots. Wired at `main.ts:415-426`. |
-| GAP-CLI-09 | `--mcp-config <json>` | Inline MCP server config JSON via CLI flag. |
+| GAP-CLI-09 | ~~`--mcp-config <json>`~~ | **Closed (iteration 19)** — `extractCliMcpConfig` + `parseMcpConfigValue` in `main.ts`. Accepts inline JSON or file path. Merges into runtime config via `configService.setRuntimeOverride("mcpServers", ...)` + `mcpServerManager.refresh()`. |
 | GAP-CLI-25 | 2 slash commands are informational-only | `/switch`, `/dashboard` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete`, `/new`, `/editor`, `/history` now functional — 7 of 9 stubs done.) |
 
 ### Tools
@@ -114,7 +114,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-TOOL-11 | `mermaid` | Mermaid diagram generation. |
+| GAP-TOOL-11 | ~~`mermaid`~~ | **Closed (iteration 19)** — Mermaid diagram tool registered as builtin. No-op execute returns success + mermaid.live base64 link. Schema: `{code, citations}` matching amp's gVR. TUI rendering deferred. 13 new tests. |
 | GAP-TOOL-12 | `chart` | Chart generation from JSON data. |
 | GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
 | GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
@@ -297,6 +297,13 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-CLI-25 partial** (iteration 18): `/history` — Shows compact thread message history summary with role, index, and first-line preview. `/editor` — Opens `$FLITTER_EDITOR`/`$EDITOR`/`$VISUAL`/`vi` on temp file, reads result back, injects via `submitMessage` callback. `/new` — Creates new thread via `threadStore.setCachedThread` with fresh UUID. `SlashCommandContext` extended with `submitMessage` callback. 7 of 9 stubs now functional (2 remaining: /switch, /dashboard need TUI pickers). 6 new tests.
 - **GAP-CLI-08** (verified): `threads usage` handler already existed and wired at `main.ts:415-426`. No implementation needed — marking as closed.
 
+### Iteration 19 — skill CLI, --mcp-config, permissions edit, mermaid tool
+- **GAP-CLI-01** (completed): `skill` CLI command group — `skill list` (--json), `skill info <name>` (--json), `skill remove <name>`, `skill add <source>` (--name, --overwrite, --global). Handlers in `skills.ts`, command tree in `program.ts`, wired in `main.ts`. Backend uses `SkillService.scan()`/`.install()`/`.remove()` (API difference from amp: single `scan()` vs amp's `getSkills()`+`getSkillErrors()`+`getSkill(name)`). 11 new tests.
+- **GAP-CLI-09** (completed): `--mcp-config <json-or-path>` flag — `extractCliMcpConfig()` peeks argv before Commander parse, `parseMcpConfigValue()` accepts inline JSON (starts with `{`) or file path. Parsed servers merged into runtime config via `configService.setRuntimeOverride("mcpServers", merged)` + `mcpServerManager.refresh()`. Matches amp's EC0 parser + CC0 merge pattern. In-memory only (never persisted).
+- **GAP-CLI-07** (completed): `permissions edit` — `handlePermissionsEdit()` opens rules in `$EDITOR` (FLITTER_EDITOR > EDITOR > VISUAL > vi). Serializes `PermissionEntry[]` to text (`<action> <tool> [key=value ...]`, one per line), writes to temp file with comment header, reads back, parses with error annotation + retry loop (up to 3 attempts). Matches amp's MQT/DQT/J2/Z2 flow.
+- **GAP-TOOL-11** (completed): `mermaid` diagram tool — Declarative no-op tool with `{code, citations}` schema matching amp's gVR. Execute generates mermaid.live base64 link for interactive viewing. `isReadOnly: true`, source `"builtin"`. Registered in container.ts. Description matches amp's IVR (supported headers, citation format, styling rules). 13 new tests.
+- **24 new tests total** (11 skill handlers + 13 mermaid), 0 TypeScript errors.
+
 ---
 
 ## Summary Statistics
@@ -304,11 +311,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 3 |
-| Medium | 15 |
+| High | 2 |
+| Medium | 12 |
 | Low | 36 |
-| **Total open gaps** | **54** |
-| Closed gaps | 115+ |
+| **Total open gaps** | **50** |
+| Closed gaps | 119+ |
 
 ### Cross-Cutting Themes
 
@@ -324,7 +331,7 @@ These were previously identified as gaps but are now implemented in flitter.
 
 6. **Orchestrator safety gaps**: ~~Iteration 7 uncovered multiple safety-critical gaps in the tool orchestrator: no tool resume on reconnect (CORE-05), no dangerous-tool safety gate (CORE-06), no persisted approval state (CORE-07), no per-tool cancel (CORE-11). These affect production reliability and should be addressed as a group.~~ **Resolved** — CORE-05, CORE-06 (iter 9), CORE-10, CORE-13, CORE-14 (iter 10), CORE-11, CORE-12 (iter 11), CORE-07 (iter 13) all closed.
 
-7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. Flitter has the `SkillTool` for agent-callable skill loading but is missing: CLI command group (CLI-01), slash commands (skill-add/remove/list/invoke). **Activation tracking (CORE-17) and enforcement (CORE-08) now closed.** Remaining: CLI command group.
+7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. **Now complete:** CLI command group (CLI-01 closed iter 19), activation tracking (CORE-17), enforcement (CORE-08), SkillTool. All 4 layers implemented.
 
 8. **Provider API key wiring**: ~~Gemini and OpenAI providers don't read per-provider API keys from settings (DATA-14) or environment variables (DATA-15). This blocks users who don't use the default Anthropic provider.~~ **Resolved** — DATA-14 and DATA-15 closed in iteration 9. Provider-aware key resolution now covers Anthropic, Gemini, and OpenAI.
 

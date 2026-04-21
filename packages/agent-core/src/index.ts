@@ -185,6 +185,7 @@ export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 export { buildLibrarianPrompt, createLibrarianTool } from "./tools/builtin/librarian";
 export { createLookAtTool, LookAtTool } from "./tools/builtin/look-at";
+export { createMermaidTool, MermaidTool } from "./tools/builtin/mermaid";
 // ─── Built-in Tools ────────────────────────────────────
 export { buildOraclePrompt, createOracleTool } from "./tools/builtin/oracle";
 export { ReadTool } from "./tools/builtin/read";

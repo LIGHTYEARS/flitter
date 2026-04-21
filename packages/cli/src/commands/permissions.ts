@@ -2,8 +2,13 @@
  * Permission rule management CLI commands
  *
  * 逆向: amp-cli-reversed/modules/2520-2524 (permissions list/test/add)
+ *        amp-cli-reversed/modules/2435_unknown_MQT.js (permissions edit)
  */
 
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { PermissionEngine } from "@flitter/agent-core";
 import type { ConfigService } from "@flitter/data";
 
@@ -201,4 +206,188 @@ export async function handlePermissionsAdd(
         .join(", ")}`
     : "";
   process.stdout.write(`Added permission: ${entry.action} ${entry.tool}${matchStr} (${scope})\n`);
+}
+
+// ─── Edit helpers ─────────────────────────────────────────
+
+const EDIT_HEADER = `# Permission Rules
+# Format: <action> <tool> [key=value ...]
+# Actions: allow, ask, reject
+# Lines starting with # are comments.
+# Example:
+#   allow bash path=/tmp/*
+#   reject bash
+#   allow read
+#
+`;
+
+/**
+ * Serialize a PermissionEntry to a single text line.
+ *
+ * 逆向: amp-cli-reversed/modules/1711_unknown_Z2.js — Z2(entry) builds one line
+ * Format: `<action> <tool> [key=value ...]`
+ */
+function serializeEntry(entry: PermissionEntry): string {
+  const parts = [entry.action, entry.tool];
+  if (entry.matches) {
+    for (const [k, v] of Object.entries(entry.matches)) {
+      parts.push(`${k}=${v}`);
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Parse a single non-comment, non-empty line back to a PermissionEntry.
+ *
+ * 逆向: amp-cli-reversed/modules/1708_unknown_mLT.js — parses each line via ubR
+ */
+function parseLine(line: string, lineNum: number): { entry?: PermissionEntry; error?: string } {
+  const tokens = line.trim().split(/\s+/);
+  if (tokens.length < 2) {
+    return { error: `Line ${lineNum}: expected at least "<action> <tool>", got "${line.trim()}"` };
+  }
+
+  const [action, tool, ...rest] = tokens;
+  if (!VALID_ACTIONS.has(action!)) {
+    return { error: `Line ${lineNum}: invalid action "${action}". Must be: allow, ask, reject` };
+  }
+
+  const matches: Record<string, string> = {};
+  for (const token of rest) {
+    const eqIdx = token.indexOf("=");
+    if (eqIdx === -1) {
+      return { error: `Line ${lineNum}: invalid matcher "${token}". Use KEY=VALUE format` };
+    }
+    matches[token.slice(0, eqIdx)] = token.slice(eqIdx + 1);
+  }
+
+  return {
+    entry: {
+      action: action as "allow" | "ask" | "reject",
+      tool: tool!,
+      ...(Object.keys(matches).length > 0 ? { matches } : {}),
+    },
+  };
+}
+
+/**
+ * Parse full text content → entries or error-annotated content.
+ *
+ * 逆向: amp-cli-reversed/modules/2437_unknown_DQT.js — DQT(text) → {success, entries|contentWithErrors}
+ */
+function parsePermissionsText(
+  text: string,
+): { success: true; entries: PermissionEntry[] } | { success: false; contentWithErrors: string } {
+  const lines = text.split("\n");
+  const entries: PermissionEntry[] = [];
+  const errors: Array<{ lineIdx: number; message: string }> = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const result = parseLine(line, i + 1);
+    if (result.error) {
+      errors.push({ lineIdx: i, message: result.error });
+    } else if (result.entry) {
+      entries.push(result.entry);
+    }
+  }
+
+  if (errors.length === 0) {
+    return { success: true, entries };
+  }
+
+  // Insert error comments above offending lines
+  const annotated = [...lines];
+  let offset = 0;
+  for (const err of errors) {
+    annotated.splice(err.lineIdx + offset, 0, `# Error: ${err.message}`);
+    offset++;
+  }
+  return { success: false, contentWithErrors: annotated.join("\n") };
+}
+
+/**
+ * `flitter permissions edit`
+ *
+ * Opens permission rules in $EDITOR for interactive editing.
+ * Retry loop if parsing fails (up to 3 attempts).
+ *
+ * 逆向: amp-cli-reversed/modules/2435_unknown_MQT.js (MQT function)
+ */
+export async function handlePermissionsEdit(
+  deps: PermissionsCommandDeps,
+  options: { workspace?: boolean },
+): Promise<void> {
+  const { configService } = deps;
+  if (!configService) {
+    process.stderr.write("Error: ConfigService not available\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  // Resolve editor (逆向: amp T.resolveEditor())
+  const editor = process.env.FLITTER_EDITOR || process.env.EDITOR || process.env.VISUAL || "vi";
+
+  // Get current rules
+  const config = configService.get();
+  const rules = (config.settings as Record<string, unknown>).permissions as
+    | PermissionEntry[]
+    | undefined;
+
+  // Serialize to text
+  const rulesText = rules && rules.length > 0 ? rules.map(serializeEntry).join("\n") : "";
+
+  // Create temp file
+  const tmpDir = mkdtempSync(path.join(os.tmpdir(), "flitter-permissions-"));
+  const tmpFile = path.join(tmpDir, "permissions.txt");
+
+  try {
+    let content = EDIT_HEADER + rulesText;
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    // 逆向: retry loop — amp retries up to 3 times on parse error
+    let done = false;
+    while (!done) {
+      writeFileSync(tmpFile, content, "utf-8");
+
+      // Open editor
+      const result = spawnSync(editor, [tmpFile], { stdio: "inherit" });
+      if (result.status !== 0) {
+        process.stderr.write("Editor exited with error.\n");
+        process.exitCode = 1;
+        return;
+      }
+
+      // Read back edited content
+      const edited = readFileSync(tmpFile, "utf-8");
+      const parsed = parsePermissionsText(edited);
+
+      if (parsed.success) {
+        // Save
+        const scope = options.workspace ? "workspace" : "global";
+        configService.updateSettings(scope, "permissions", parsed.entries);
+        process.stdout.write(`Updated ${parsed.entries.length} permission rule(s) (${scope}).\n`);
+        done = true;
+      } else {
+        attempts++;
+        if (attempts >= maxAttempts) {
+          process.stderr.write("Aborting: errors unresolved after multiple edit attempts.\n");
+          process.exitCode = 1;
+          return;
+        }
+        content = parsed.contentWithErrors;
+        process.stderr.write("Parse errors found — reopening editor...\n");
+      }
+    }
+  } finally {
+    try {
+      rmSync(tmpDir, { recursive: true, force: true });
+    } catch {
+      /* cleanup best-effort */
+    }
+  }
 }

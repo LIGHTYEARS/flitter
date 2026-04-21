@@ -424,3 +424,36 @@ The `SessionCostTracker` is instantiated in `interactive.ts` immediately after t
 - Enterprise admins can now enforce settings via managed-settings.json (previously parsed but never applied)
 - Thread list/dashboard/search now properly hide subagent and archived threads, matching amp's UX
 - 26 new tests (9 CORE-11/12 + 7 CORE-15 + 10 TOOL-31), total 5116 passing, 0 TypeScript errors
+
+---
+
+## ADR-018: Iteration 13 — Skill Enforcement, CLI Tool Invocation, Guarded-File Approval, Blocked-on-User
+
+**Date:** 2026-04-21
+**Status:** Accepted
+
+### Context
+
+Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
+- **CORE-08**: Model compliance with required skills (enforcement)
+- **CLI-27**: Developer workflow for testing tools directly from CLI
+- **TUI-02**: Fine-grained file access control in approval prompts
+- **CORE-07**: Crash recovery for pending approval state
+
+### Decisions
+
+1. **Skill Enforcement via Synthetic tool_use (CORE-08)**: Implement amp's 3-phase skill enforcement — inject info message, check after inference, inject synthetic tool_use if model didn't comply. `InfoContentBlockSchema` extended with `TextBlockSchema` to support text in info messages.
+
+2. **`tools use` Dual-Path Argument Parsing (CLI-27)**: Support stdin JSON and CLI `--flag value` parsing with type coercion. `--only` extracts fields, `--stream` outputs JSON lines. Matches amp's `sM0`/`tM0`/`cM0` pattern.
+
+3. **Conditional Guarded-File Option (TUI-02)**: Dynamic option list via `buildApprovalOptions()`. "Allow File for Every Session" appears only when tool is file-tool AND path matches guarded pattern. 16 patterns defined in `GUARDED_FILE_PATTERNS`.
+
+4. **blocked-on-user Before Approval Prompt (CORE-07)**: Persist `status: "blocked-on-user"` BEFORE `requestApproval()` call. Added `getThreadSessionState()` (amp's `IUT`) for UI state detection on resume.
+
+### Consequences
+
+- Skill enforcement is complete — models cannot silently ignore required skills
+- `tools use` enables rapid tool testing from CLI without starting an interactive session
+- Guarded file approval adds a security layer for sensitive file access
+- Combined with existing `onResume()`, crash recovery now has full fidelity for blocked approvals
+- 39 new tests (7 CORE-08 + 12 CLI-27 + 14 TUI-02 + 6 CORE-07), total 5177 passing, 0 TypeScript errors

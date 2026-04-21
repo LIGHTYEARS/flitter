@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 12)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 12 targets: activatedSkills tracking, API-based token counting, admin settings merge, thread list filtering.
+> **Last updated:** 2026-04-21 (iteration 13)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 13 targets: skill invocation enforcement, `tools use` command, approval widget guarded-file option, blocked-on-user persistence.
 
 ## How to Read This Document
 
@@ -23,14 +23,14 @@
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
 | GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
-| GAP-CLI-27 | CLI | **`tools use <name>` direct invocation** | Amp's `tools use` (chunk-004.js:25484) allows invoking any registered tool directly from CLI with `--only` and `--stream` flags. Essential for testing and scripting. |
+| GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
 | GAP-CLI-28 | CLI | **`threads handoff` subcommand** | Amp has `threads handoff [id]` (chunk-005.js:4962) with `--goal/-g` and `--print/-p` flags. Creates handoff threads with summarized context. Flitter only has a `/handoff` slash stub. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
-| GAP-TUI-02 | TUI | **Approval widget (5 options)** | Amp has 5-option approval flow (approve, allow-session, allow-persistent, deny-with-feedback, guarded-file). Flitter has 4 options (approve, allow-session, allow-persistent, deny-with-feedback) — missing the guarded-file deny option. Plan: `2026-04-19-approval-widget.md`. |
+| GAP-TUI-02 | TUI | ~~Approval widget (5 options)~~ | **Closed (iteration 13)** — Conditional "Allow File for Every Session" option for guarded-file access. 16 guarded patterns (SSH, .env, shell configs, etc.). `matchGuardedFilePattern()` + `buildApprovalOptions()`. |
 | GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
 | GAP-DATA-13 | Data | **`ensureThreadEntriesLoaded` (remote list + local merge)** | Amp's `azT.ensureThreadEntriesLoaded()` lazily fetches `remote.listThreads()` and merges with local cache on first subscription. Flitter loads local files only — threads created on other devices are invisible. |
-| GAP-CORE-07 | Core | **`blocked-on-user` persisted to thread state** | Amp writes `{status: "blocked-on-user", reason, toAllow}` to thread state for pending approvals, surviving restarts. Flitter's approval state is only in-memory — lost on restart. |
-| GAP-CORE-08 | Core | **Skill invocation enforcement** | Amp's ThreadWorker tracks `_awaitingSkillInvocation` and injects synthetic `tool_use` blocks if required skills are not invoked. Flitter has no enforcement — model can ignore required skills. |
+| GAP-CORE-07 | Core | ~~`blocked-on-user` persisted to thread state~~ | **Closed (iteration 13)** — `blocked-on-user` status persisted via `tool:data` delta BEFORE approval prompt shown. `getThreadSessionState()` utility for crash recovery. |
+| GAP-CORE-08 | Core | ~~Skill invocation enforcement~~ | **Closed (iteration 13)** — `setPendingSkills()`, `injectPendingSkills()` (info message injection), `checkAndAppendAwaitedSkills()` (synthetic tool_use + stopReason flip). Full amp `YwR` behavior. |
 
 ---
 
@@ -311,8 +311,15 @@ These were previously identified as gaps but are now implemented in flitter.
 
 5. **Slash command completeness**: ~~Many interactive slash commands (`/model`, `/cost`, `/compact`, `/new`, `/switch`, etc.) are stubs that print help text rather than performing actions inline.~~ `/cost`, `/compact`, `/model`, `/rename`, `/label`, `/archive` now fully functional (GAP-CLI-22/23/24/25 partial). Remaining 6 stubs need context interface changes (`switchThread` callback) or TUI lifecycle work.
 
-6. **Orchestrator safety gaps**: ~~Iteration 7 uncovered multiple safety-critical gaps in the tool orchestrator: no tool resume on reconnect (CORE-05), no dangerous-tool safety gate (CORE-06), no persisted approval state (CORE-07), no per-tool cancel (CORE-11). These affect production reliability and should be addressed as a group.~~ **Mostly resolved** — CORE-05, CORE-06 (iter 9), CORE-10, CORE-13, CORE-14 (iter 10), CORE-11, CORE-12 (iter 11) all closed. Remaining: CORE-07 (blocked-on-user persistence).
+6. **Orchestrator safety gaps**: ~~Iteration 7 uncovered multiple safety-critical gaps in the tool orchestrator: no tool resume on reconnect (CORE-05), no dangerous-tool safety gate (CORE-06), no persisted approval state (CORE-07), no per-tool cancel (CORE-11). These affect production reliability and should be addressed as a group.~~ **Resolved** — CORE-05, CORE-06 (iter 9), CORE-10, CORE-13, CORE-14 (iter 10), CORE-11, CORE-12 (iter 11), CORE-07 (iter 13) all closed.
 
-7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. Flitter has the `SkillTool` for agent-callable skill loading but is missing: CLI command group (CLI-01), slash commands (skill-add/remove/list/invoke), enforcement (CORE-08). **Activation tracking (CORE-17) now closed** — skills are recorded to `thread.activatedSkills` on successful load. This is the largest remaining feature vertical.
+7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. Flitter has the `SkillTool` for agent-callable skill loading but is missing: CLI command group (CLI-01), slash commands (skill-add/remove/list/invoke). **Activation tracking (CORE-17) and enforcement (CORE-08) now closed.** Remaining: CLI command group.
 
 8. **Provider API key wiring**: ~~Gemini and OpenAI providers don't read per-provider API keys from settings (DATA-14) or environment variables (DATA-15). This blocks users who don't use the default Anthropic provider.~~ **Resolved** — DATA-14 and DATA-15 closed in iteration 9. Provider-aware key resolution now covers Anthropic, Gemini, and OpenAI.
+
+### Iteration 13 — Skill enforcement, tools use, guarded-file approval, blocked-on-user
+- **GAP-CORE-08** (completed): Skill invocation enforcement — `_pendingSkills`/`_awaitingSkillInvocation` BehaviorSubjects on ThreadWorker, `setPendingSkills()` public API, `injectPendingSkills()` drains pending skills on user message and injects info message, `checkAndAppendAwaitedSkills()` after inference completes checks if model called required skills and injects synthetic `tool_use` blocks + flips `stopReason` to `"tool_use"` if not. Full `YwR` equivalent. 7 new tests.
+- **GAP-CLI-27** (completed): `tools use <name>` CLI command — `handleToolsUse()` with dual arg paths (stdin JSON / CLI `--flag value` parsing), `--only <field>` for field extraction, `--stream` for JSON line output, type coercion from tool schema, `preprocessArgs` support. Registered in program.ts + main.ts. 12 new tests.
+- **GAP-TUI-02** (completed): Approval widget guarded-file option — `GUARDED_FILE_PATTERNS` array (16 patterns: SSH, .env, shell configs, git internals, IDE configs, etc.), `matchGuardedFilePattern()` utility, `isGuardedFileRequest()` check, `buildApprovalOptions()` conditionally inserts "Allow File for Every Session" (`always-guarded`) at position 2 for file tools on guarded paths. `ApprovalRequest.toAllow` field added. 14 new tests (total 29 in approval widget tests).
+- **GAP-CORE-07** (completed): `blocked-on-user` persistence — orchestrator now emits `tool:data` with `status: "blocked-on-user"` + reason + toAllow BEFORE calling `requestApproval`. `getThreadSessionState()` utility reads thread state to return `"user-tool-approval"` | `"tool-running"` | `"user-message-reply"` (amp's `IUT` equivalent). `ToolThreadEvent.status` union extended. 6 new tests.
+- **Schema**: `InfoContentBlockSchema` extended with `TextBlockSchema` to support text content in info messages (used by skill enforcement's injected info message).

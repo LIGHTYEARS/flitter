@@ -37,18 +37,72 @@ export interface ToolUseItem {
   input: Record<string, unknown>;
 }
 
+/**
+ * Thread session state — determines what UI action to show on load/resume.
+ *
+ * 逆向: amp-cli-reversed/chunk-002.js:14409 — IUT function
+ *   Returns: "user-tool-approval" | "tool-running" | "user-message-reply"
+ */
+export type ThreadSessionState = "user-tool-approval" | "tool-running" | "user-message-reply";
+
+/**
+ * Determine the session state from a thread snapshot.
+ * Used on resume to know whether to show an approval prompt, wait for tools, or prompt for input.
+ *
+ * 逆向: amp-cli-reversed/chunk-002.js:14409 — IUT(thread, inferenceState)
+ *   If last user message has any tool_result with status "blocked-on-user" → "user-tool-approval"
+ *   If inference state is "running" → "tool-running"
+ *   Otherwise → "user-message-reply"
+ */
+export function getThreadSessionState(
+  thread: ThreadSnapshot,
+  inferenceState: string = "idle",
+): ThreadSessionState {
+  // Check if any tool results are blocked-on-user
+  const messages = thread.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]!;
+    if (msg.role !== "user") continue;
+
+    const content = msg.content as Array<Record<string, unknown>>;
+    if (!Array.isArray(content)) continue;
+
+    for (const block of content) {
+      if (block.type === "tool_result") {
+        const run = block.run as Record<string, unknown> | undefined;
+        if (run?.status === "blocked-on-user") {
+          return "user-tool-approval";
+        }
+      }
+    }
+    break; // Only check the last user message
+  }
+
+  if (inferenceState === "running") {
+    return "tool-running";
+  }
+
+  return "user-message-reply";
+}
+
 // ─── 事件类型 ──────────────────────────────────────────────
 
 export interface ToolThreadEvent {
   type: "tool:data";
   toolUseId: string;
   toolName: string;
-  status: "in-progress" | "completed" | "error" | "cancelled" | "rejected-by-user";
+  status:
+    | "in-progress"
+    | "completed"
+    | "error"
+    | "cancelled"
+    | "rejected-by-user"
+    | "blocked-on-user";
   result?: ToolResult;
   error?: string;
-  /** Reason for rejection (only set when status is "rejected-by-user") */
+  /** Reason for rejection or blocking (set when status is "rejected-by-user" or "blocked-on-user") */
   reason?: string;
-  /** Commands/paths that would need to be allowed (only set when status is "rejected-by-user") */
+  /** Commands/paths that would need to be allowed (set when status is "rejected-by-user" or "blocked-on-user") */
   toAllow?: string[];
 }
 
@@ -438,6 +492,21 @@ export class ToolOrchestrator {
       const permResult = this.callbacks.checkPermission(toolUse.name, toolUse.input);
       if (!permResult.permitted) {
         if (permResult.action === "ask" && this.callbacks.requestApproval) {
+          // ─── CORE-07: Persist blocked-on-user before showing approval ───
+          // 逆向: amp-cli-reversed/chunk-002.js:20743-20758
+          //   syncPendingApprovalsToThreadState dispatches "tool:data" with
+          //   status: "blocked-on-user" + reason + toAllow BEFORE the approval
+          //   prompt is shown. This ensures crash recovery can find the flag.
+          const toAllowForBlocked = this._computeToAllow(toolUse);
+          await this.callbacks.updateThread({
+            type: "tool:data",
+            toolUseId: toolUse.id,
+            toolName: toolUse.name,
+            status: "blocked-on-user",
+            reason: permResult.reason ?? "Requires user approval",
+            toAllow: toAllowForBlocked,
+          });
+
           const response = await this.callbacks.requestApproval({
             toolUseId: toolUse.id,
             toolName: toolUse.name,

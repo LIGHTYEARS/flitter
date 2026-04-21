@@ -311,5 +311,14 @@ export function createProgram(version: string): Command {
 
   tools.command("show <name>").description("Show details of a specific tool");
 
+  // 逆向: amp-cli-reversed/chunk-004.js:25484 — _M0 registers `use` command
+  tools
+    .command("use <tool-name>")
+    .description("Invoke a tool directly from CLI")
+    .option("--only <field>", "Extract a single field from the result")
+    .option("--stream", "Output events as JSON lines", false)
+    .allowUnknownOption(true)
+    .allowExcessArguments(true);
+
   return program;
 }

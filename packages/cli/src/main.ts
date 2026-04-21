@@ -68,7 +68,7 @@ import {
   handleThreadsSearch,
   handleThreadsUsage,
 } from "./commands/threads";
-import { handleToolsList, handleToolsShow } from "./commands/tools";
+import { handleToolsList, handleToolsShow, handleToolsUse } from "./commands/tools";
 import { handleUpdate } from "./commands/update";
 import { resolveCliContext } from "./context";
 import { runExecuteMode } from "./modes/execute";
@@ -633,6 +633,27 @@ export async function main(opts?: MainOptions): Promise<void> {
           const c = await ensureContainer();
           await handleToolsShow({ toolRegistry: c.toolRegistry }, name);
         });
+      }
+      // 逆向: amp-cli-reversed/chunk-004.js:25484 — `tools use <name>`
+      const toolsUseCmd = toolsCmd.commands.find((c) => c.name() === "use");
+      if (toolsUseCmd) {
+        toolsUseCmd.action(
+          async (toolName: string, opts: Record<string, unknown>, cmd: { args: string[] }) => {
+            const c = await ensureContainer();
+            // Raw args are everything after the tool name
+            const rawArgs = cmd.args.slice(1);
+            await handleToolsUse(
+              {
+                toolRegistry: c.toolRegistry,
+                config: c.configService.get(),
+                workingDirectory: process.cwd(),
+              },
+              toolName,
+              rawArgs,
+              { only: opts.only as string | undefined, stream: opts.stream as boolean | undefined },
+            );
+          },
+        );
       }
     }
 

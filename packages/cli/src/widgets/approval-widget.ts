@@ -68,6 +68,11 @@ export interface ApprovalRequest {
   commandPreview?: string;
   /** Permission rule that matched (e.g. "built-in permissions rule 25: ask Bash") */
   permissionRule?: string;
+  /**
+   * File paths that the tool will access (for guarded-file decisions).
+   * 逆向: chunk-006.js:36469-36484 — toAllow paths from confirmation request
+   */
+  toAllow?: string[];
 }
 
 /**
@@ -173,8 +178,104 @@ export class ApprovalWidget extends StatefulWidget {
 //  Option definitions
 // ════════════════════════════════════════════════════
 
+/**
+ * Guarded file patterns — files that require special approval.
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:64577 — a9T array
+ * 逆向: amp-cli-reversed/modules/1675_unknown_MpR.js — MpR() pattern matcher
+ * 逆向: amp-cli-reversed/modules/1676_unknown_rcT.js — rcT() consent check
+ *
+ * Patterns cover: SSH keys, .env files, shell configs, editor configs,
+ * git internals, GPG keys, and various tool configs.
+ */
+export const GUARDED_FILE_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
+  { pattern: /\.ssh\//, description: "SSH keys and config" },
+  { pattern: /\.gnupg\//, description: "GnuPG keys" },
+  { pattern: /\.env(\..+)?$/, description: "Environment variables" },
+  { pattern: /\.bashrc$/, description: "Shell configuration" },
+  { pattern: /\.zshrc$/, description: "Shell configuration" },
+  { pattern: /\.bash_profile$/, description: "Shell configuration" },
+  { pattern: /\.zprofile$/, description: "Shell configuration" },
+  { pattern: /\.profile$/, description: "Shell configuration" },
+  { pattern: /\.gitconfig$/, description: "Git configuration" },
+  { pattern: /\.git\//, description: "Git internals" },
+  { pattern: /\.idea\//, description: "JetBrains IDE config" },
+  { pattern: /\.vscode\/settings\.json$/, description: "VS Code settings" },
+  { pattern: /\.cursor\//, description: "Cursor editor config" },
+  { pattern: /\.amp\//, description: "Amp CLI config" },
+  { pattern: /amp\.json$/, description: "Amp config" },
+  { pattern: /\.claude\//, description: "Claude config" },
+];
+
+/**
+ * Check if a file path matches a guarded pattern.
+ *
+ * 逆向: amp-cli-reversed/modules/1675_unknown_MpR.js — MpR(filePath)
+ *        Returns matching pattern or undefined.
+ */
+export function matchGuardedFilePattern(
+  filePath: string,
+): { pattern: RegExp; description: string } | undefined {
+  return GUARDED_FILE_PATTERNS.find((p) => p.pattern.test(filePath));
+}
+
+/**
+ * Check if a tool request involves a guarded file.
+ *
+ * 逆向: actions_intents.js:3711-3722 — two conditions:
+ *   1. Tool is a file read/write tool (Edit, Write, Read)
+ *   2. Reason matches a guarded pattern description
+ */
+function isGuardedFileRequest(request: ApprovalRequest): boolean {
+  const fileToolNames = ["Edit", "Write", "Read", "read", "edit", "write"];
+  if (!fileToolNames.includes(request.toolName)) return false;
+
+  // Check if any of the to-allow paths match a guarded pattern
+  if (request.toAllow && request.toAllow.length > 0) {
+    return request.toAllow.some((p) => matchGuardedFilePattern(p) !== undefined);
+  }
+
+  // Fallback: check file_path in args
+  const filePath = (request.args.file_path ?? request.args.path) as string | undefined;
+  if (filePath) {
+    return matchGuardedFilePattern(filePath) !== undefined;
+  }
+
+  return false;
+}
+
+/**
+ * Build the approval options list, conditionally including the guarded-file option.
+ *
+ * 逆向: actions_intents.js:3694-3732 — createConfirmationOptions()
+ *   When both R (file tool) and a (guarded reason) are true,
+ *   inserts "always-guarded" at position 2.
+ */
+function buildApprovalOptions(request: ApprovalRequest): ApprovalOption[] {
+  const options: ApprovalOption[] = [{ value: "yes", label: "Approve", color: SUCCESS_COLOR }];
+
+  // Conditionally insert "Allow File for Every Session" for guarded files
+  // 逆向: chunk-006.js:22716-22736 — "always-guarded" option at index 1
+  if (isGuardedFileRequest(request)) {
+    options.push({
+      value: "always-guarded",
+      label: "Allow File for Every Session",
+      color: SUCCESS_COLOR,
+    });
+  }
+
+  options.push(
+    { value: "allow-all-session", label: "Allow All for This Session", color: SUCCESS_COLOR },
+    { value: "allow-all-persistent", label: "Allow All for Every Session", color: SUCCESS_COLOR },
+    { value: "no-with-feedback", label: "Deny with feedback", color: DENY_COLOR },
+  );
+
+  return options;
+}
+
 type ApprovalOptionValue =
   | "yes"
+  | "always-guarded"
   | "allow-all-session"
   | "allow-all-persistent"
   | "no-with-feedback";
@@ -185,24 +286,10 @@ interface ApprovalOption {
   color: Color;
 }
 
-/**
- * 逆向: chunk-006.js:22722-22738 createConfirmationOptions tool-use branch
- * Golden: tmux-capture/screens/amp/hitl-confirmation/plain-63x244.golden
- * - "Approve [Alt+1]"
- * - "Allow All for This Session [Alt+2]"
- * - "Allow All for Every Session [Alt+3]"
- * - "Deny with feedback [Alt+4]"
- */
-const APPROVAL_OPTIONS: ApprovalOption[] = [
-  { value: "yes", label: "Approve", color: SUCCESS_COLOR },
-  { value: "allow-all-session", label: "Allow All for This Session", color: SUCCESS_COLOR },
-  { value: "allow-all-persistent", label: "Allow All for Every Session", color: SUCCESS_COLOR },
-  { value: "no-with-feedback", label: "Deny with feedback", color: DENY_COLOR },
-];
-
 /** Map from option value to ApprovalScope */
 const SCOPE_MAP: Record<string, ApprovalScope> = {
   yes: "once",
+  "always-guarded": "always-guarded",
   "allow-all-session": "session",
   "allow-all-persistent": "always",
 };
@@ -245,6 +332,20 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   private _feedbackText = "";
 
   /**
+   * Computed approval options (may include guarded-file option).
+   * 逆向: createConfirmationOptions() — computed once per request.
+   */
+  private _options: ApprovalOption[] | null = null;
+
+  /** Get or compute the options list based on current request. */
+  private _getOptions(): ApprovalOption[] {
+    if (!this._options) {
+      this._options = buildApprovalOptions(this.widget.config.request);
+    }
+    return this._options;
+  }
+
+  /**
    * Key handler matching amp's b0R.handleKeyEvent + p0R.handleKeyEvent patterns.
    *
    * 逆向: b0R.handleKeyEvent (actions_intents.js:3854-3890)
@@ -274,12 +375,12 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
       case "ArrowDown":
       case "j":
         this.setState(() => {
-          this._selectedIndex = Math.min(APPROVAL_OPTIONS.length - 1, this._selectedIndex + 1);
+          this._selectedIndex = Math.min(this._getOptions().length - 1, this._selectedIndex + 1);
         });
         return "handled";
 
       case "Enter": {
-        const opt = APPROVAL_OPTIONS[this._selectedIndex];
+        const opt = this._getOptions()[this._selectedIndex];
         if (opt) this._selectOption(opt.value);
         return "handled";
       }
@@ -300,8 +401,8 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
           event.key <= "9"
         ) {
           const idx = Number.parseInt(event.key, 10) - 1;
-          if (idx < APPROVAL_OPTIONS.length) {
-            const opt = APPROVAL_OPTIONS[idx];
+          if (idx < this._getOptions().length) {
+            const opt = this._getOptions()[idx];
             if (opt) this._selectOption(opt.value);
           }
           return "handled";
@@ -423,7 +524,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
 
     // ── Options list ──
     // 逆向: b0R.build (chunk-006.js:22979-23009) — options with ▸●/○ radio style
-    const optionRows = APPROVAL_OPTIONS.map((opt, i) => {
+    const optionRows = this._getOptions().map((opt, i) => {
       const isSelected = i === this._selectedIndex;
       return this._buildOptionRow(opt, i, isSelected);
     });

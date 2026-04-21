@@ -243,6 +243,7 @@ export const SummaryBlockSchema = z.object({
 export const InfoContentBlockSchema = z.discriminatedUnion("type", [
   ManualBashInvocationBlockSchema,
   SummaryBlockSchema,
+  TextBlockSchema,
 ]);
 export type InfoContentBlock = z.infer<typeof InfoContentBlockSchema>;
 

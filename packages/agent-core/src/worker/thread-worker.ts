@@ -17,6 +17,7 @@ import { BehaviorSubject, Subject } from "@flitter/util";
 import type { PluginService } from "../plugins/plugin-service";
 import type { TitleGenerationProvider } from "../title/generate-title";
 import { extractTextFromContent, generateThreadTitle } from "../title/generate-title";
+import type { SkillLike } from "../tools/builtin/skill-tool";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
 import type { ToolRegistry } from "../tools/registry";
 import type { AgentEvent, InferenceState } from "./events";
@@ -226,6 +227,26 @@ export class ThreadWorker {
   snapshotOIDs: string[] = [];
 
   /**
+   * Pending skills to be injected on next user message.
+   * Set externally (e.g., by system prompt / skill detection).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:118
+   *   `_pendingSkills = new f0([])`
+   * 逆向: ov.js:120-122
+   *   `pendingSkills = this._pendingSkills.pipe(E9(), f3({ shouldCountRefs: !0 }))`
+   */
+  private readonly _pendingSkills = new BehaviorSubject<SkillLike[]>([]);
+
+  /**
+   * Skills awaiting invocation: set after injectPendingSkills,
+   * checked after assistant inference turn completes.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:123
+   *   `_awaitingSkillInvocation = new f0([])`
+   */
+  private readonly _awaitingSkillInvocation = new BehaviorSubject<SkillLike[]>([]);
+
+  /**
    * Turn timing: when the current turn started.
    * 逆向: ov.js:102 `_turnStartTime = new f0(void 0)`
    */
@@ -398,6 +419,15 @@ export class ThreadWorker {
     const state = this.inferenceState$.getValue();
     const toolsRunning = state === "running" && this.opts.toolOrchestrator.hasRunningTools();
 
+    // Drain pending skills on user message
+    // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:348-351
+    //   `e = this._pendingSkills.getValue(), e.length > 0 → _pendingSkills.next([])`
+    //   Then at line 366: `if (e.length > 0) await this.injectPendingSkills(e, R)`
+    const pendingSkills = this._pendingSkills.getValue();
+    if (pendingSkills.length > 0) {
+      this._pendingSkills.next([]);
+    }
+
     if (toolsRunning) {
       // Buffer the message — will be dequeued on turn:complete
       this.messageQueue.push(message);
@@ -409,6 +439,12 @@ export class ThreadWorker {
       void this.opts.toolOrchestrator.onNewUserMessage();
       // Process immediately: append to snapshot
       this.appendMessageToSnapshot(message);
+
+      // Inject pending skills after the user message is appended
+      // 逆向: ov.js:366 `if (e.length > 0) await this.injectPendingSkills(e, R)`
+      if (pendingSkills.length > 0) {
+        this.injectPendingSkills(pendingSkills);
+      }
     }
   }
 
@@ -567,6 +603,13 @@ export class ThreadWorker {
       // ─── Step 6b: Post-process assistant message ───
       // 逆向: IbT (modules/1087) — trim + filter empty text/thinking blocks
       this.postProcessAssistantContent();
+
+      // ─── Step 6c: Check awaited skill invocation (CORE-08) ───
+      // 逆向: ov.js:630 `this.checkAndAppendAwaitedSkills()`
+      // Called after inference completes, before checking tool_use.
+      // If the model didn't call required skills, this injects synthetic
+      // tool_use blocks and flips stopReason to force execution.
+      this.checkAndAppendAwaitedSkills();
 
       // ─── Step 7: 检查 tool_use ─────────────────
       const toolUses = this.extractToolUses();
@@ -980,6 +1023,27 @@ export class ThreadWorker {
     return this._turnElapsedMs;
   }
 
+  // ─── Skill Enforcement (CORE-08) ──────────────────────
+
+  /**
+   * Set pending skills to be injected on next user message.
+   * Called externally when system prompt detects required skills.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:118
+   *   `_pendingSkills = new f0([])`
+   *   External code calls `_pendingSkills.next([...skills])` to queue.
+   */
+  setPendingSkills(skills: SkillLike[]): void {
+    this._pendingSkills.next(skills);
+  }
+
+  /**
+   * Get current pending skills (for observable/testing).
+   */
+  get pendingSkills(): readonly SkillLike[] {
+    return this._pendingSkills.getValue();
+  }
+
   // ─── Plugin Lifecycle Helpers ──────────────────────────
 
   /**
@@ -1308,5 +1372,154 @@ export class ThreadWorker {
       (last as Message & { role: "assistant" }).content = processed;
       this.opts.updateThreadSnapshot({ ...snapshot, messages });
     }
+  }
+
+  // ─── Skill Enforcement Internals (CORE-08) ────────────
+
+  /**
+   * Drain pending skills and inject an info message telling the model
+   * to call the skill tool. Sets `_awaitingSkillInvocation` so that
+   * `checkAndAppendAwaitedSkills` can verify after inference.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1249-1264
+   *   ```
+   *   async injectPendingSkills(T, R) {
+   *     let a = T.map(e => e.name);
+   *     this._awaitingSkillInvocation.next(T), this.thread = Lt(this.thread, e => {
+   *       let t = e.nextMessageId ?? 0;
+   *       e.nextMessageId = t + 1, e.messages.push({
+   *         role: "info", messageId: t,
+   *         content: [{ type: "text",
+   *           text: `You MUST call the ${oc} tool to load: ${a.join(", ")}. Do this immediately before responding.`
+   *         }]
+   *       }), e.v++;
+   *     });
+   *   }
+   *   ```
+   */
+  private injectPendingSkills(skills: SkillLike[]): void {
+    if (skills.length === 0) return;
+
+    const names = skills.map((s) => s.name);
+    this._awaitingSkillInvocation.next(skills);
+
+    const snapshot = this.opts.getThreadSnapshot();
+    const nextId =
+      ((snapshot as Record<string, unknown>).nextMessageId as number) ?? snapshot.messages.length;
+    const infoMessage: Message = {
+      role: "info",
+      messageId: nextId,
+      content: [
+        {
+          type: "text",
+          text: `You MUST call the skill tool to load: ${names.join(", ")}. Do this immediately before responding.`,
+        },
+      ],
+    } as Message;
+
+    this.opts.updateThreadSnapshot({
+      ...snapshot,
+      messages: [...snapshot.messages, infoMessage] as ThreadSnapshot["messages"],
+      nextMessageId: nextId + 1,
+    } as ThreadSnapshot);
+  }
+
+  /**
+   * After assistant inference completes, check whether the model actually
+   * called the required skill tools. If not, inject synthetic `tool_use`
+   * blocks and flip `stopReason` to `"tool_use"` to force execution.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1266-1285
+   *   ```
+   *   checkAndAppendAwaitedSkills() {
+   *     let T = this._awaitingSkillInvocation.getValue();
+   *     if (T.length === 0) return;
+   *     this._awaitingSkillInvocation.next([]);
+   *     let { updatedThread, uninvoked } = YwR(this.thread, {
+   *       toolName: oc,
+   *       items: T,
+   *       wasInvoked: (e, t) => e.some(r => r.name === oc && r.input.name === t.name),
+   *       toToolInput: e => ({ name: e.name, arguments: e.arguments })
+   *     });
+   *     if (uninvoked.length > 0) this.thread = updatedThread;
+   *   }
+   *   ```
+   *
+   * 逆向: amp-cli-reversed/modules/1243_unknown_YwR.js — the synthetic injection function
+   *   Finds the last assistant message, checks which items weren't invoked by the model,
+   *   and for each: pushes a synthetic tool_use block + flips stopReason to "tool_use".
+   */
+  private checkAndAppendAwaitedSkills(): void {
+    const awaited = this._awaitingSkillInvocation.getValue();
+    if (awaited.length === 0) return;
+
+    // Clear the awaited list
+    this._awaitingSkillInvocation.next([]);
+
+    const snapshot = this.opts.getThreadSnapshot();
+    const messages = [...snapshot.messages];
+
+    // Find last assistant message
+    let lastAssistantIdx = -1;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "assistant") {
+        lastAssistantIdx = i;
+        break;
+      }
+    }
+    if (lastAssistantIdx === -1) return;
+
+    const assistantMsg = messages[lastAssistantIdx]! as Record<string, unknown>;
+    const content = (assistantMsg.content as Array<Record<string, unknown>>) ?? [];
+
+    // Check which skills were invoked: filter tool_use blocks where name === "skill"
+    const toolUseBlocks = content.filter((b) => b.type === "tool_use");
+    const uninvoked = awaited.filter(
+      (skill) =>
+        !toolUseBlocks.some(
+          (tu) =>
+            (tu.name as string)?.toLowerCase() === "skill" &&
+            (tu.input as Record<string, unknown>)?.name === skill.name,
+        ),
+    );
+
+    if (uninvoked.length === 0) return;
+
+    // Inject synthetic tool_use blocks for uninvoked skills
+    // 逆向: YwR — push synthetic tool_use blocks, flip stopReason
+    const updatedContent = [...content];
+    for (const skill of uninvoked) {
+      const syntheticId = `toolu_${crypto.randomUUID()}`;
+      updatedContent.push({
+        type: "tool_use",
+        complete: true,
+        id: syntheticId,
+        name: "skill",
+        input: {
+          name: skill.name,
+          ...(skill.body ? {} : {}),
+        },
+      });
+    }
+
+    // Flip stopReason from "end_turn" to "tool_use" to force the inference loop
+    // to continue executing the synthetic tool_use blocks
+    const state = assistantMsg.state as Record<string, unknown> | undefined;
+    let updatedState = state;
+    if (state?.type === "complete" && state.stopReason === "end_turn") {
+      updatedState = { ...state, stopReason: "tool_use" };
+    }
+
+    // Update the assistant message in-place
+    messages[lastAssistantIdx] = {
+      ...assistantMsg,
+      content: updatedContent,
+      ...(updatedState !== state ? { state: updatedState } : {}),
+    } as (typeof messages)[number];
+
+    this.opts.updateThreadSnapshot({
+      ...snapshot,
+      messages: messages as ThreadSnapshot["messages"],
+    });
   }
 }

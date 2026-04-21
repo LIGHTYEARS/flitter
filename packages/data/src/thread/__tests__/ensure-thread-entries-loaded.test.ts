@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, mock } from "bun:test";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { entryEquals, snapshotToEntry, ThreadStore } from "../thread-store";
+import { ThreadStore } from "../thread-store";
 import type { ThreadRemoteTransport } from "../thread-upload";
 import type { ThreadEntry } from "../types";
 

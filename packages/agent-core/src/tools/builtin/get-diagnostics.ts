@@ -157,7 +157,7 @@ async function getPythonDiagnostics(targetPath: string, cwd: string): Promise<Di
 
 // ─── Go diagnostics ─────────────────────────────────────
 
-async function getGoDiagnostics(targetPath: string, cwd: string): Promise<DiagnosticEntry[]> {
+async function getGoDiagnostics(targetPath: string, _cwd: string): Promise<DiagnosticEntry[]> {
   const diagnostics: DiagnosticEntry[] = [];
   const goDir = fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath);
 
@@ -202,7 +202,7 @@ interface CargoMessage {
   };
 }
 
-async function getRustDiagnostics(targetPath: string, cwd: string): Promise<DiagnosticEntry[]> {
+async function getRustDiagnostics(targetPath: string, _cwd: string): Promise<DiagnosticEntry[]> {
   const diagnostics: DiagnosticEntry[] = [];
   const cargoDir = fs.statSync(targetPath).isDirectory() ? targetPath : path.dirname(targetPath);
 

@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 13)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 13 targets: skill invocation enforcement, `tools use` command, approval widget guarded-file option, blocked-on-user persistence.
+> **Last updated:** 2026-04-21 (iteration 14)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 14 targets: `tools make` scaffolding, lazy remote thread list loading, `get_diagnostics` tool, `threads handoff` command.
 
 ## How to Read This Document
 
@@ -24,11 +24,11 @@
 |----|--------|---------|-------------|
 | GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
 | GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
-| GAP-CLI-28 | CLI | **`threads handoff` subcommand** | Amp has `threads handoff [id]` (chunk-005.js:4962) with `--goal/-g` and `--print/-p` flags. Creates handoff threads with summarized context. Flitter only has a `/handoff` slash stub. |
+| GAP-CLI-28 | CLI | ~~`threads handoff` subcommand~~ | **Closed (iteration 14)** — `handleThreadsHandoff` with `--goal/-g` and `--print/-p` flags, parent context extraction, child thread seeding, bidirectional relationship wiring. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
 | GAP-TUI-02 | TUI | ~~Approval widget (5 options)~~ | **Closed (iteration 13)** — Conditional "Allow File for Every Session" option for guarded-file access. 16 guarded patterns (SSH, .env, shell configs, etc.). `matchGuardedFilePattern()` + `buildApprovalOptions()`. |
 | GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
-| GAP-DATA-13 | Data | **`ensureThreadEntriesLoaded` (remote list + local merge)** | Amp's `azT.ensureThreadEntriesLoaded()` lazily fetches `remote.listThreads()` and merges with local cache on first subscription. Flitter loads local files only — threads created on other devices are invisible. |
+| GAP-DATA-13 | Data | ~~`ensureThreadEntriesLoaded` (remote list + local merge)~~ | **Closed (iteration 14)** — Lazy-load remote thread entries on first subscribe, three-phase merge (remote → local overlay → identity-preserving dedup), coalescing promise to prevent concurrent fetches. |
 | GAP-CORE-07 | Core | ~~`blocked-on-user` persisted to thread state~~ | **Closed (iteration 13)** — `blocked-on-user` status persisted via `tool:data` delta BEFORE approval prompt shown. `getThreadSessionState()` utility for crash recovery. |
 | GAP-CORE-08 | Core | ~~Skill invocation enforcement~~ | **Closed (iteration 13)** — `setPendingSkills()`, `injectPendingSkills()` (info message injection), `checkAndAppendAwaitedSkills()` (synthetic tool_use + stopReason flip). Full amp `YwR` behavior. |
 
@@ -43,8 +43,8 @@
 | GAP-CLI-02 | `threads share <id>` | Amp has `threads share` with `--visibility` and `--support [message]` for sharing with support. |
 | GAP-CLI-03 | `threads visibility [level]` | Show/set default thread visibility for a repo. |
 | GAP-CLI-04 | `threads handoff [id]` | Create handoff threads from existing threads (alias `h`) with `--goal` and `--print`. |
-| GAP-CLI-05 | `tools make <name>` | Scaffold toolbox scripts (`--bun`, `--zsh`, `--bash`, `--force`). Templates exist in `toolbox-templates.ts` but no CLI command. |
-| GAP-CLI-06 | `tools use <name>` | Invoke tools directly from CLI with `--only <field>` and `--stream`. |
+| GAP-CLI-05 | ~~`tools make <name>`~~ | **Closed (iteration 14)** — `handleToolsMake` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX`/`AMP_TOOLBOX`), name validation, template generation, chmod 755. |
+| GAP-CLI-06 | ~~`tools use <name>`~~ | **Closed (iteration 13)** — Duplicate of GAP-CLI-27. |
 | GAP-CLI-07 | `permissions edit` | Open permissions in `$EDITOR` with retry loop. |
 | GAP-CLI-08 | `usage` (top-level) | Top-level command showing credit balance/account usage. |
 | GAP-CLI-09 | `--mcp-config <json>` | Inline MCP server config JSON via CLI flag. |
@@ -54,7 +54,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-TOOL-02 | `get_diagnostics` | LSP diagnostics (errors/warnings) for a file or directory. |
+| GAP-TOOL-02 | ~~`get_diagnostics`~~ | **Closed (iteration 14)** — Shell-out based diagnostics tool: TypeScript (`tsc --noEmit`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`). 10s timeout, normalized diagnostic format. Registered as builtin. |
 | GAP-TOOL-03 | `oracle` | Internal reasoning/planning tool. |
 | GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
 | GAP-TOOL-06 | `shell_command` (subagent) | Alternate Bash tool for subagents with `workdir`/`login`/`timeout_ms` params. |
@@ -293,11 +293,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 6 |
-| Medium | 17 |
+| High | 4 |
+| Medium | 15 |
 | Low | 43 |
-| **Total open gaps** | **66** |
-| Closed gaps | 96+ |
+| **Total open gaps** | **62** |
+| Closed gaps | 100+ |
 
 ### Cross-Cutting Themes
 
@@ -323,3 +323,9 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-TUI-02** (completed): Approval widget guarded-file option — `GUARDED_FILE_PATTERNS` array (16 patterns: SSH, .env, shell configs, git internals, IDE configs, etc.), `matchGuardedFilePattern()` utility, `isGuardedFileRequest()` check, `buildApprovalOptions()` conditionally inserts "Allow File for Every Session" (`always-guarded`) at position 2 for file tools on guarded paths. `ApprovalRequest.toAllow` field added. 14 new tests (total 29 in approval widget tests).
 - **GAP-CORE-07** (completed): `blocked-on-user` persistence — orchestrator now emits `tool:data` with `status: "blocked-on-user"` + reason + toAllow BEFORE calling `requestApproval`. `getThreadSessionState()` utility reads thread state to return `"user-tool-approval"` | `"tool-running"` | `"user-message-reply"` (amp's `IUT` equivalent). `ToolThreadEvent.status` union extended. 6 new tests.
 - **Schema**: `InfoContentBlockSchema` extended with `TextBlockSchema` to support text content in info messages (used by skill enforcement's injected info message).
+
+### Iteration 14 — tools make, ensureThreadEntriesLoaded, get_diagnostics, threads handoff
+- **GAP-CLI-05** (completed): `tools make <name>` CLI command — `handleToolsMake()` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX` > `AMP_TOOLBOX` > `~/.config/flitter/tools`), name validation (regex `^[-a-zA-Z0-9_]{1,64}$`), template generation via existing `toolbox-templates.ts`, chmod 755. Registered in program.ts + main.ts. 14 new tests.
+- **GAP-DATA-13** (completed): `ensureThreadEntriesLoaded()` on ThreadStore — lazy-load remote thread entries with three-phase merge (fetch remote → build merged map with identity-preserving dedup → overlay with `threadEntriesFromCachedThreads()` for local wins). Coalescing promise prevents concurrent fetches. `setRemote(transport)` wiring method. Graceful fallback to local-only on network error. 9 new tests.
+- **GAP-TOOL-02** (completed): `get_diagnostics` builtin tool — shells out to language-specific checkers: TypeScript (`npx tsc --noEmit --pretty false`), Python (`ruff check --output-format json`), Go (`go vet ./...`), Rust (`cargo check --message-format json`). Auto-detects language from file extension and directory markers. 10s timeout per checker, normalized `DiagnosticEntry` output format. Registered in factory.ts. 10 new tests.
+- **GAP-CLI-28** (completed): `threads handoff [id]` CLI command — `handleThreadsHandoff()` with `-g/--goal` and `-p/--print` flags. Resolves parent thread (fallback to most recent), builds condensed context summary from last 20 messages, creates child thread with goal-seeded messages, wires bidirectional parent-child relationship via `applyParentRelationship()`. `/handoff` slash stub unchanged (needs `SlashCommandContext` extension for full wiring). 8 new tests.

@@ -6,8 +6,16 @@
  * 逆向: amp-cli-reversed/chunk-003.js:18645 (Gk — minimal execution context)
  */
 
+import { chmodSync, existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import type { ToolContext, ToolRegistry, ToolResult, ToolSpec } from "@flitter/agent-core";
 import type { Config } from "@flitter/schemas";
+import {
+  generateToolboxTemplate,
+  getTemplateExtension,
+  type ToolboxLanguage,
+} from "./toolbox-templates";
 
 // ─── Deps ──────────────────────────────────────────────────
 
@@ -368,4 +376,123 @@ function outputResult(result: ToolResult, options: ToolsUseOptions): void {
   } else if (result.data) {
     process.stdout.write(`${JSON.stringify(result.data, null, 2)}\n`);
   }
+}
+
+// ─── `tools make` ─────────────────────────────────────────
+
+/**
+ * Tool name validation regex.
+ *
+ * 逆向: amp-cli-reversed/chunk-005.js:72202 — `IN = /^[-a-zA-Z0-9_]{1,64}$/`
+ */
+const TOOLBOX_NAME_RE = /^[-a-zA-Z0-9_]{1,64}$/;
+
+export interface ToolsMakeOptions {
+  force?: boolean;
+  bun?: boolean;
+  bash?: boolean;
+  zsh?: boolean;
+}
+
+/**
+ * Resolve the toolbox directory.
+ *
+ * 逆向: amp-cli-reversed/modules/2594_unknown_oM0.js
+ *   Reads `AMP_TOOLBOX` env (colon-separated absolute paths), falls back to `kj`.
+ *   We adapt: `FLITTER_TOOLBOX` > `AMP_TOOLBOX` > `~/.config/flitter/tools`
+ */
+export function resolveToolboxDir(): string {
+  const envVal = process.env.FLITTER_TOOLBOX || process.env.AMP_TOOLBOX;
+  if (!envVal) {
+    return join(homedir(), ".config", "flitter", "tools");
+  }
+  const paths = envVal
+    .split(":")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const relative = paths.filter((p) => !p.startsWith("/"));
+  if (relative.length > 0) {
+    throw new Error(
+      `FLITTER_TOOLBOX must contain absolute paths only. Found relative paths: ${relative.join(", ")}`,
+    );
+  }
+  return paths[0] || join(homedir(), ".config", "flitter", "tools");
+}
+
+/**
+ * `flitter tools make <name>`
+ *
+ * Scaffold a toolbox tool script.
+ *
+ * 逆向: amp-cli-reversed/modules/2582_unknown_GL0.js
+ *   - Validates name against IN regex
+ *   - Resolves toolboxDir via oM0()
+ *   - mkdirp, stat check (with --force bypass), write template, chmod 755
+ *   - Prints path + hint commands
+ */
+export function handleToolsMake(toolName: string, options: ToolsMakeOptions): void {
+  // Step 1: Validate name
+  if (!TOOLBOX_NAME_RE.test(toolName)) {
+    process.stderr.write(
+      `Error: "${toolName}" is not a valid tool name.\n` +
+        "Tool names must be 1-64 characters, using only letters, digits, hyphens, and underscores.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 2: Resolve language (precedence: zsh > bash > bun)
+  let language: ToolboxLanguage = "bun";
+  if (options.zsh) language = "zsh";
+  else if (options.bash) language = "bash";
+
+  // Step 3: Resolve toolbox directory
+  let toolboxDir: string;
+  try {
+    toolboxDir = resolveToolboxDir();
+  } catch (err) {
+    process.stderr.write(`Error: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 4: Ensure directory exists
+  if (!existsSync(toolboxDir)) {
+    mkdirSync(toolboxDir, { recursive: true });
+  }
+
+  // Step 5: Check for existing file
+  const ext = getTemplateExtension(language);
+  const filePath = join(toolboxDir, `${toolName}${ext}`);
+
+  if (!options.force && existsSync(filePath)) {
+    let realPath = filePath;
+    try {
+      realPath = realpathSync(filePath);
+    } catch {
+      // use filePath as-is
+    }
+    process.stderr.write(
+      `Error: a tool named ${toolName} already exists at ${realPath}.\n` +
+        "Use --force to overwrite.\n",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 6: Generate and write template
+  const content = generateToolboxTemplate({ name: toolName, language });
+  writeFileSync(filePath, content, { mode: 0o755 });
+
+  // Step 7: Output success
+  process.stdout.write(
+    [
+      `Tool created at: ${filePath}`,
+      "",
+      `Inspect with: flitter tools show tb__${toolName}`,
+      "",
+      `Execute with: flitter tools use tb__${toolName}`,
+      "",
+    ].join("\n"),
+  );
 }

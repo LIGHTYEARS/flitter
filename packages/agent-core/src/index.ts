@@ -179,6 +179,7 @@ export { EditTool } from "./tools/builtin/edit";
 export { createFindThreadTool } from "./tools/builtin/find-thread";
 export { createFinderTool } from "./tools/builtin/finder";
 export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
+export { GetDiagnosticsTool } from "./tools/builtin/get-diagnostics";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 // ─── Built-in Tools ────────────────────────────────────

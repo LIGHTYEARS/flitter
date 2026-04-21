@@ -68,7 +68,13 @@ import {
   handleThreadsSearch,
   handleThreadsUsage,
 } from "./commands/threads";
-import { handleToolsList, handleToolsShow, handleToolsUse } from "./commands/tools";
+import { handleThreadsHandoff } from "./commands/threads-handoff";
+import {
+  handleToolsList,
+  handleToolsMake,
+  handleToolsShow,
+  handleToolsUse,
+} from "./commands/tools";
 import { handleUpdate } from "./commands/update";
 import { resolveCliContext } from "./context";
 import { runExecuteMode } from "./modes/execute";
@@ -428,6 +434,26 @@ export async function main(opts?: MainOptions): Promise<void> {
           });
         });
       }
+      // 逆向: amp-cli-reversed/chunk-005.js:4962 — `threads handoff [id]`
+      const handoffCmd = threadsCmd.commands.find((c) => c.name() === "handoff");
+      if (handoffCmd) {
+        handoffCmd.action(
+          async (threadId: string | undefined, cmdOpts: Record<string, unknown>) => {
+            const c = await ensureContainer();
+            await handleThreadsHandoff(
+              {
+                threadStore: c.threadStore,
+                threadWorkerService: c.threadWorkerService,
+              },
+              threadId,
+              {
+                goal: cmdOpts.goal as string | undefined,
+                print: cmdOpts.print as boolean | undefined,
+              },
+            );
+          },
+        );
+      }
     }
 
     // config 子命令
@@ -654,6 +680,18 @@ export async function main(opts?: MainOptions): Promise<void> {
             );
           },
         );
+      }
+      // 逆向: amp-cli-reversed/modules/2597_unknown_pM0.js — `tools make`
+      const toolsMakeCmd = toolsCmd.commands.find((c) => c.name() === "make");
+      if (toolsMakeCmd) {
+        toolsMakeCmd.action((toolName: string, opts: Record<string, unknown>) => {
+          handleToolsMake(toolName, {
+            force: opts.force as boolean | undefined,
+            bun: opts.bun as boolean | undefined,
+            bash: opts.bash as boolean | undefined,
+            zsh: opts.zsh as boolean | undefined,
+          });
+        });
       }
     }
 

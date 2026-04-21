@@ -181,6 +181,14 @@ export function createProgram(version: string): Command {
     .option("--limit <n>", "Max threads to show", "50")
     .option("--format <fmt>", "Output format (table|json)", "table");
 
+  // 逆向: amp-cli-reversed/chunk-005.js:4962 — `threads handoff [id]`
+  threads
+    .command("handoff [threadIDOrURL]")
+    .alias("h")
+    .description("Create a handoff thread from an existing thread with a goal/prompt")
+    .option("-g, --goal <goal>", "Goal/prompt for the handoff (alternative to stdin)")
+    .option("-p, --print", "Print the thread ID instead of opening the TUI", false);
+
   // ─── Review ────────────────────────────────────────────
 
   program
@@ -319,6 +327,15 @@ export function createProgram(version: string): Command {
     .option("--stream", "Output events as JSON lines", false)
     .allowUnknownOption(true)
     .allowExcessArguments(true);
+
+  // 逆向: amp-cli-reversed/modules/2597_unknown_pM0.js — `tools make` command
+  tools
+    .command("make <tool-name>")
+    .description("Scaffold a new toolbox tool script")
+    .option("--force", "Overwrite an existing tool if it already exists", false)
+    .option("--bun", "Create a Bun/TypeScript tool (default)", false)
+    .option("--bash", "Create a Bash shell script tool", false)
+    .option("--zsh", "Create a Zsh shell script tool", false);
 
   return program;
 }

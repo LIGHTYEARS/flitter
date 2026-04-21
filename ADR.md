@@ -457,3 +457,33 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - Guarded file approval adds a security layer for sensitive file access
 - Combined with existing `onResume()`, crash recovery now has full fidelity for blocked approvals
 - 39 new tests (7 CORE-08 + 12 CLI-27 + 14 TUI-02 + 6 CORE-07), total 5177 passing, 0 TypeScript errors
+
+---
+
+## ADR-019: Iteration 14 — tools make, ensureThreadEntriesLoaded, get_diagnostics, threads handoff
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Four targets selected for iteration 14 spanning CLI, Data, and Tools domains:
+- **CLI-05**: `tools make` — templates already existed, just needed the CLI handler and toolbox dir resolution
+- **DATA-13**: `ensureThreadEntriesLoaded` — High priority, all infrastructure (remote transport, thread store, entry comparison) was in place
+- **TOOL-02**: `get_diagnostics` — amp uses IDE WebSocket bridge; flitter takes pragmatic shell-out approach
+- **CLI-28**: `threads handoff` — partial infrastructure existed (seedThreadMessages, applyParentRelationship)
+
+### Decisions
+
+1. **Toolbox Dir Resolution (CLI-05)**: Env var chain `FLITTER_TOOLBOX` > `AMP_TOOLBOX` > `~/.config/flitter/tools`. Divergence from amp: flitter adds file extensions (`.ts`/`.sh`/`.zsh`) to tool files while amp writes bare filenames. This is more explicit and matches `toolbox-templates.ts`'s existing `getTemplateExtension()`.
+
+2. **Three-Phase Merge for Thread Entries (DATA-13)**: Exact replica of amp's `azT.ensureThreadEntriesLoaded()` pattern — remote fetch → identity-preserving merge → local overlay (local wins on conflict). Coalescing promise prevents concurrent fetches. Remote is optional (`setRemote()`), graceful fallback to local-only on network error.
+
+3. **Shell-Out Diagnostics Instead of IDE Bridge (TOOL-02)**: Amp's `get_diagnostics` connects to a VS Code/JetBrains IDE plugin via WebSocket. Flitter has no IDE infrastructure. Decision: shell out to common type-checkers/linters with 10s timeout. This works for batch diagnostics but loses live IDE state. Supported: TypeScript (`tsc`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`).
+
+4. **Simplified Handoff Without LLM Summarization (CLI-28)**: Amp's handoff calls `b4R` to LLM-summarize the parent thread context. Flitter's simplified approach extracts the last 20 messages as raw text context and seeds the child thread with a goal message. This is functional for CLI use but doesn't produce the same concise summaries amp generates. `/handoff` slash stub left as informational (needs `SlashCommandContext` extension for full wiring).
+
+### Consequences
+
+- `tools` command group is now complete: `list`, `show`, `use`, `make`
+- Remote thread sync has lazy loading — threads from other devices become visible on first subscription
+- Agents can check code quality via `get_diagnostics` without IDE plugins
+- Thread handoff enables context transfer between conversations
+- 41 new tests (14 CLI-05 + 9 DATA-13 + 10 TOOL-02 + 8 CLI-28), 0 TypeScript errors

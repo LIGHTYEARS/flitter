@@ -13,7 +13,7 @@
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
-import type { ThreadUploadManager } from "./thread-upload";
+import type { ThreadRemoteTransport, ThreadUploadManager } from "./thread-upload";
 import type { ThreadEntry, ThreadStoreOptions } from "./types";
 
 const log = createLogger("thread-store");
@@ -177,6 +177,20 @@ export class ThreadStore {
    */
   private uploadManager: ThreadUploadManager | null = null;
 
+  /**
+   * Optional remote transport — wired in via setRemote().
+   * Used by ensureThreadEntriesLoaded() to lazy-fetch remote thread entries.
+   * 逆向: azT.remote (modules/1342_ThreadService_azT.js)
+   */
+  private remote: ThreadRemoteTransport | null = null;
+
+  /**
+   * Coalescing promise for ensureThreadEntriesLoaded().
+   * Prevents multiple concurrent fetches from race conditions.
+   * 逆向: azT.threadEntriesLoadPromise — line 60
+   */
+  private threadEntriesLoadPromise: Promise<void> | null = null;
+
   constructor(options: ThreadStoreOptions = {}) {
     this.maxThreads =
       options.maxThreads === undefined || options.maxThreads === null
@@ -192,6 +206,14 @@ export class ThreadStore {
    */
   setUploadManager(manager: ThreadUploadManager): void {
     this.uploadManager = manager;
+  }
+
+  /**
+   * Wire a remote transport for lazy thread entry loading.
+   * 逆向: azT.remote assignment
+   */
+  setRemote(transport: ThreadRemoteTransport): void {
+    this.remote = transport;
   }
 
   /**
@@ -324,6 +346,94 @@ export class ThreadStore {
   markEntriesLoaded(): void {
     this.threadEntriesLoaded = true;
     this.emitCurrentThreadEntries();
+  }
+
+  /**
+   * Lazy-load remote thread entries and merge with local cache.
+   * Coalesces concurrent calls — second caller awaits the same in-flight promise.
+   *
+   * 逆向: azT.ensureThreadEntriesLoaded() — modules/1342_ThreadService_azT.js:60-83
+   *   Three-phase merge:
+   *   1. Fetch remote entries via remote.listThreads()
+   *   2. Build map from remote, preferring existing local entry if T4(existing, remote)
+   *   3. Overlay with threadEntriesFromCachedThreads(), again prefer existing if equal
+   *   4. Replace threadEntriesByID, set loaded flag, emit
+   */
+  async ensureThreadEntriesLoaded(): Promise<void> {
+    if (this.threadEntriesLoaded) return;
+    if (this.threadEntriesLoadPromise) return this.threadEntriesLoadPromise;
+
+    this.threadEntriesLoadPromise = this._loadRemoteEntries();
+    try {
+      await this.threadEntriesLoadPromise;
+    } finally {
+      this.threadEntriesLoadPromise = null;
+    }
+  }
+
+  private async _loadRemoteEntries(): Promise<void> {
+    // Phase 1: Fetch remote entries
+    let remoteEntries: ThreadEntry[] = [];
+    if (this.remote) {
+      try {
+        remoteEntries = await this.remote.listThreads({
+          limit: this.maxThreads,
+        });
+        log.debug("Fetched remote thread entries", { count: remoteEntries.length });
+      } catch (err) {
+        log.debug("Failed to fetch remote thread entries, using local only", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Fall through — use local only
+      }
+    }
+
+    // Phase 2: Build merged map from remote entries
+    const merged = new Map<string, ThreadEntry>();
+    for (const remote of remoteEntries) {
+      const existing = this.threadEntriesByID.get(remote.id);
+      // Prefer existing local entry if equal (identity-preserving)
+      if (existing && entryEquals(existing, remote)) {
+        merged.set(remote.id, existing);
+      } else {
+        merged.set(remote.id, remote);
+      }
+    }
+
+    // Phase 3: Overlay with entries derived from cached thread snapshots
+    // Local wins when it differs from remote (local is fresher)
+    const cachedEntries = this.threadEntriesFromCachedThreads();
+    for (const local of cachedEntries) {
+      const existing = merged.get(local.id);
+      if (existing && entryEquals(existing, local)) {
+        // Keep existing — identity preservation
+      } else {
+        merged.set(local.id, local);
+      }
+    }
+
+    // Phase 4: Replace map, set flag, emit
+    this.threadEntriesByID = merged;
+    this.threadEntriesLoaded = true;
+    this.emitCurrentThreadEntries();
+  }
+
+  /**
+   * Build thread entries from all cached thread snapshots.
+   * Skips empty-message non-draft threads (they'd be garbage-collected).
+   *
+   * 逆向: azT.threadEntriesFromCachedThreads — called during merge
+   */
+  private threadEntriesFromCachedThreads(): ThreadEntry[] {
+    const entries: ThreadEntry[] = [];
+    for (const [, subject] of this.threadSubjects) {
+      const snapshot = subject.getValue();
+      const ext = snapshot as ThreadSnapshot & ThreadSnapshotExtended;
+      // Skip empty non-draft threads
+      if (snapshot.messages.length === 0 && !ext.draft) continue;
+      entries.push(snapshotToEntry(snapshot));
+    }
+    return entries;
   }
 
   /** 插入/更新 ThreadEntry (由 persistence 层调用) */

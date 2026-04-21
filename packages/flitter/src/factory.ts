@@ -19,6 +19,7 @@ import {
   BashTool,
   EditTool,
   FuzzyFindTool,
+  GetDiagnosticsTool,
   GlobTool,
   GrepTool,
   PermissionEngine,
@@ -188,6 +189,7 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   registry.register(GlobTool);
   registry.register(FuzzyFindTool);
   registry.register(RestoreSnapshotTool);
+  registry.register(GetDiagnosticsTool);
 }
 
 /**

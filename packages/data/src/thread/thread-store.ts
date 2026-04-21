@@ -191,6 +191,13 @@ export class ThreadStore {
    */
   private threadEntriesLoadPromise: Promise<void> | null = null;
 
+  /**
+   * Coalescing promises for per-thread remote fetches.
+   * Prevents duplicate concurrent getThread() calls for the same ID.
+   * 逆向: azT.pendingThreadLoads — Map<string, Promise> — line 4
+   */
+  private pendingThreadLoads = new Map<string, Promise<BehaviorSubject<ThreadSnapshot> | null>>();
+
   constructor(options: ThreadStoreOptions = {}) {
     this.maxThreads =
       options.maxThreads === undefined || options.maxThreads === null
@@ -262,6 +269,78 @@ export class ThreadStore {
   /** 获取缓存线程快照值 */
   getThreadSnapshot(id: string): ThreadSnapshot | undefined {
     return this.threadSubjects.get(id)?.getValue();
+  }
+
+  /**
+   * Ensure a thread Subject exists — check local cache first, then fetch
+   * from remote on cache miss. Returns the BehaviorSubject if found, null
+   * if the thread doesn't exist locally or remotely.
+   *
+   * Coalesces concurrent calls for the same thread ID — second caller
+   * awaits the same in-flight promise (no duplicate network requests).
+   *
+   * 逆向: azT.ensureThreadSubject(T, R) — modules/1342_ThreadService_azT.js:128-155
+   */
+  async ensureThreadSubject(
+    id: string,
+    opts?: { createIfMissing?: boolean; signal?: AbortSignal },
+  ): Promise<BehaviorSubject<ThreadSnapshot> | null> {
+    // 1. Check local cache
+    const cached = this.threadSubjects.get(id);
+    if (cached) return cached;
+
+    // 2. Check in-flight fetch
+    const pending = this.pendingThreadLoads.get(id);
+    if (pending) {
+      const result = await pending;
+      if (result) return result;
+      if (!opts?.createIfMissing) return null;
+    }
+
+    // 3. No remote transport → can't fetch
+    if (!this.remote) {
+      return null;
+    }
+
+    // 4. Fetch from remote with coalescing
+    const fetchPromise = (async (): Promise<BehaviorSubject<ThreadSnapshot> | null> => {
+      try {
+        const snapshot = await this.remote!.getThread(id);
+        if (snapshot) {
+          log.debug("Fetched thread from remote on cache miss", { id, v: snapshot.v });
+          return this.setCachedThread(snapshot, { scheduleUpload: false });
+        }
+        return null;
+      } catch (err) {
+        log.debug("Failed to fetch thread from remote", {
+          id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return null;
+      }
+    })();
+
+    this.pendingThreadLoads.set(id, fetchPromise);
+    try {
+      return await fetchPromise;
+    } finally {
+      this.pendingThreadLoads.delete(id);
+    }
+  }
+
+  /**
+   * Async thread fetch — returns the snapshot or null.
+   * Thin wrapper around ensureThreadSubject for callers that just need the data.
+   *
+   * 逆向: azT.getCachedThread(T, R) — modules/1342_ThreadService_azT.js:156-162
+   * 逆向: azT.get(T, R) — modules/1342_ThreadService_azT.js:163-165
+   */
+  async fetchThread(id: string, signal?: AbortSignal): Promise<ThreadSnapshot | null> {
+    const subject = await this.ensureThreadSubject(id, {
+      createIfMissing: false,
+      signal,
+    });
+    return subject?.getValue() ?? null;
   }
 
   /** 删除线程 */

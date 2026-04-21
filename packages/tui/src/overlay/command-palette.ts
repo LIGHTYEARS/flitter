@@ -23,9 +23,22 @@
  */
 
 import { TextEditingController } from "../editing/text-editing-controller.js";
+import { TextField } from "../editing/text-field.js";
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
+import type { Widget as WidgetInterface } from "../tree/element.js";
 import { State, StatefulWidget } from "../tree/stateful-widget.js";
 import type { BuildContext } from "../tree/stateless-widget.js";
 import type { Widget } from "../tree/widget.js";
+import { Border } from "../widgets/border.js";
+import { BorderSide } from "../widgets/border-side.js";
+import { BoxDecoration } from "../widgets/box-decoration.js";
+import { Column } from "../widgets/column.js";
+import { Container } from "../widgets/container.js";
+import { EdgeInsets } from "../widgets/edge-insets.js";
+import { Expanded } from "../widgets/flexible.js";
+import { Row } from "../widgets/row.js";
+import { SizedBox } from "../widgets/sized-box.js";
 import { Text } from "../widgets/text.js";
 import { AutocompleteController, type AutocompleteOption } from "./autocomplete-controller.js";
 
@@ -154,13 +167,79 @@ class CommandPaletteState extends State<CommandPalette> {
    * @returns 子 Widget
    */
   build(_context: BuildContext): Widget {
-    // 简化实现: 返回一个描述命令面板的最小 Widget
-    // 完整实现需要 Column([ TextField(searchInput), ListView(matchedCommands) ])
-    // 这些组件在后续 plan 中实现
     const matchCount = this._matchedCommands.length;
-    return new Text({
-      data: `Command Palette (${matchCount} commands)`,
+
+    // 逆向: amp command palette always wraps content in
+    // SR({ decoration: { color: a.background } }) where a = $R.of(T).colors
+    // Using Color.default() = terminal default background (amp's LT.none())
+    const border = Border.all(new BorderSide(Color.white()));
+
+    // Prompt row: "> " + search text
+    const promptRow = new Row({
+      children: [
+        new Container({
+          child: new Text({
+            data: "> ",
+            style: new TextStyle({}),
+          }) as unknown as WidgetInterface,
+        }) as unknown as Widget,
+        new Expanded({
+          child: new TextField({
+            controller: this._searchController,
+            autofocus: true,
+            maxLines: 1,
+          }) as unknown as Widget,
+        }) as unknown as Widget,
+      ],
     });
+
+    // Item list — each item gets explicit background for flat buffer model
+    const itemWidgets: Widget[] = this._matchedCommands.map((cmd, index) => {
+      const isSelected = index === this._autocompleteController.currentState.selectedIndex;
+      const bgColor = isSelected ? Color.rgb(50, 50, 80) : Color.default();
+
+      return new Container({
+        decoration: new BoxDecoration({ color: bgColor }),
+        padding: EdgeInsets.symmetric({ horizontal: 1 }),
+        child: new Text({
+          data: cmd.shortcut ? `${cmd.label}  ${cmd.shortcut}` : cmd.label,
+          style: new TextStyle({
+            dim: cmd.enabled === false,
+          }),
+        }) as unknown as WidgetInterface,
+      }) as unknown as Widget;
+    });
+
+    const columnChildren: Widget[] = [];
+    columnChildren.push(promptRow as unknown as Widget);
+    columnChildren.push(new SizedBox({ height: 1 }) as unknown as Widget);
+    columnChildren.push(
+      new Column({
+        crossAxisAlignment: "stretch",
+        children: itemWidgets,
+      }) as unknown as Widget,
+    );
+
+    // Status bar showing match count
+    if (matchCount !== this.widget.commands.length) {
+      columnChildren.push(new SizedBox({ height: 1 }) as unknown as Widget);
+      columnChildren.push(
+        new Text({
+          data: `${matchCount}/${this.widget.commands.length} commands`,
+          style: new TextStyle({ dim: true }),
+        }) as unknown as Widget,
+      );
+    }
+
+    // 逆向: NZT line 2934-2941 — outer container with border + background
+    return new Container({
+      decoration: new BoxDecoration({
+        border,
+        color: Color.default(),
+      }),
+      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+      child: new Column({ children: columnChildren }) as unknown as WidgetInterface,
+    }) as unknown as Widget;
   }
 
   /**

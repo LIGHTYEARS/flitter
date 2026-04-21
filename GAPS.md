@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 20)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 20 targets: `OverlapColumn` widget, `createThread()` method, thread search wiring.
+> **Last updated:** 2026-04-21 (iteration 21)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 21 targets: overlay background fix, `IntrinsicHeight` widget, thread fetch-from-server on cache miss.
 
 ## How to Read This Document
 
@@ -65,8 +65,8 @@
 |----|---------|-------------|
 | GAP-TUI-05 | **Terminal RGB color query** | Amp's QueryParser probes terminal for actual RGB palette and dynamically updates theme colors. Flitter has no query parser. |
 | GAP-TUI-07 | ~~**OverlapColumn widget**~~ | **Closed (iteration 20)** — `OverlapColumn` widget + `RenderOverlapColumn` render object. Vertical column with `overlap` rows subtracted between adjacent children (merged borders). Cross-axis alignment (start/end/center/stretch), reverse paint order for visual stacking. 23 new tests. |
-| GAP-TUI-08 | **IntrinsicHeight widget** | Wraps child and forces height to equal its intrinsic height. |
-| GAP-TUI-10 | **Overlay background fix** | Overlays bleed through underlying content. Plan: `2026-04-19-overlay-background-fix.md`. |
+| GAP-TUI-08 | ~~**IntrinsicHeight widget**~~ | **Closed (iteration 21)** — `IntrinsicHeight` widget + `RenderIntrinsicHeight` render object. Forces child height to its max intrinsic height. Short-circuits when constraints already tight. Intrinsic measurement delegation matches amp's `n1T` (chunk-006.js:3030-3065). Exported from `@flitter/tui`. 19 new tests. |
+| GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** — Three surgical fixes: (1) `CommandPaletteState.build()` rebuilt from stub to full visual tree with opaque `Container` + `BoxDecoration({ color: Color.default() })`, TextField prompt, item list. (2) `FuzzyPicker` outer Container changed from `Color.rgb(0,0,0)` to `Color.default()`. (3) FuzzyPicker items Column changed to `crossAxisAlignment: "stretch"` for full-width selection. (4) Non-selected items given explicit `Color.default()` background. 10 new tests. |
 
 ### LLM
 
@@ -78,7 +78,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-DATA-04 | Fetch-from-server on cache miss | Amp fetches threads from server when not in local cache, with dedup. Flitter returns null. |
+| GAP-DATA-04 | ~~Fetch-from-server on cache miss~~ | **Closed (iteration 21)** — `ensureThreadSubject(id, opts)` added to `ThreadStore`: checks local cache first, then fetches from remote via `ThreadRemoteTransport.getThread()`. Coalescing promise (`pendingThreadLoads` Map) deduplicates concurrent fetches. `fetchThread(id)` async wrapper for callers that just need the snapshot. Graceful error handling (returns null on network failure). Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). 9 new tests. |
 | GAP-DATA-05 | Thread archive via remote API | Amp uploads archive state to server. Flitter archives locally only. |
 | GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** — `searchThreads()` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `ThreadStoreLike.searchRemote` optional callback. `find_thread` tool tries remote FTS5 first, falls back to local keyword matching. 7 new tests (4 find_thread + 3 transport). |
 
@@ -303,6 +303,12 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-CORE-04** (completed): `createThread()` + `createThreadWorker()` on `ThreadWorkerService` — matching amp's QWT.createThread (1246:111-143). `createThread(opts?)` orchestrates: thread ID generation (`crypto.randomUUID()`), message seeding (via `seedThreadMessages`), worker creation + resume (via `createThreadWorker`), idempotency guard (existing thread early return), parent relationship wiring, initial user message dispatch (via `enqueueMessage`). `CreateThreadOptions` type exported. `handoff()` deferred (requires LLM summarizer call). 9 new tests (2 createThreadWorker + 7 createThread).
 - **GAP-DATA-06** (completed): Thread search client-side wiring — `searchThreads(opts)` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport` implementation (calls `/api/threads/search?q=&limit=`). `ThreadStoreLike.searchRemote` optional callback added. `find_thread` tool updated: tries remote FTS5 search first, falls back gracefully to local keyword matching on `null` return or error. `SearchThreadResult` and `SearchThreadsResponse` types exported from `@flitter/data`. 7 new tests (4 find_thread remote + 3 transport).
 - **39 new tests total** (23 OverlapColumn + 9 createThread + 7 search wiring), 0 TypeScript errors.
+
+### Iteration 21 — Overlay background fix, IntrinsicHeight, fetch-from-server
+- **GAP-TUI-10** (completed): Overlay background fix — four surgical fixes: (1) `CommandPaletteState.build()` rebuilt from placeholder stub to full visual tree with opaque Container, TextField prompt, item list with selection highlight. (2) FuzzyPicker outer Container changed from `Color.rgb(0,0,0)` to `Color.default()` (terminal default). (3) FuzzyPicker items Column crossAxisAlignment changed to `"stretch"` for full-width selection highlight. (4) Non-selected FuzzyPicker items given explicit `Color.default()` background to prevent bleed-through in flat buffer model. 10 new tests.
+- **GAP-TUI-08** (completed): `IntrinsicHeight` widget + `RenderIntrinsicHeight` render object — forces child height to its max intrinsic height. Short-circuits when constraints already tight. Intrinsic measurement delegation: `getMinIntrinsicHeight` delegates to `getMaxIntrinsicHeight`; width queries resolve infinite height via child's intrinsic height first. Matches amp's `BtT`/`n1T` (chunk-006.js:3019-3065). Exported from `@flitter/tui`. 19 new tests.
+- **GAP-DATA-04** (completed): Fetch-from-server on cache miss — `ensureThreadSubject(id, opts)` on ThreadStore: checks local cache first, fetches from remote via `ThreadRemoteTransport.getThread()` on miss. Coalescing promise (`pendingThreadLoads` Map) deduplicates concurrent fetches for same thread. `fetchThread(id)` async wrapper. Graceful error handling. Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). 9 new tests.
+- **38 new tests total** (10 overlay + 19 IntrinsicHeight + 9 fetch-from-server), 0 TypeScript errors.
 - **GAP-CLI-01** (completed): `skill` CLI command group — `skill list` (--json), `skill info <name>` (--json), `skill remove <name>`, `skill add <source>` (--name, --overwrite, --global). Handlers in `skills.ts`, command tree in `program.ts`, wired in `main.ts`. Backend uses `SkillService.scan()`/`.install()`/`.remove()` (API difference from amp: single `scan()` vs amp's `getSkills()`+`getSkillErrors()`+`getSkill(name)`). 11 new tests.
 - **GAP-CLI-09** (completed): `--mcp-config <json-or-path>` flag — `extractCliMcpConfig()` peeks argv before Commander parse, `parseMcpConfigValue()` accepts inline JSON (starts with `{`) or file path. Parsed servers merged into runtime config via `configService.setRuntimeOverride("mcpServers", merged)` + `mcpServerManager.refresh()`. Matches amp's EC0 parser + CC0 merge pattern. In-memory only (never persisted).
 - **GAP-CLI-07** (completed): `permissions edit` — `handlePermissionsEdit()` opens rules in `$EDITOR` (FLITTER_EDITOR > EDITOR > VISUAL > vi). Serializes `PermissionEntry[]` to text (`<action> <tool> [key=value ...]`, one per line), writes to temp file with comment header, reads back, parses with error annotation + retry loop (up to 3 attempts). Matches amp's MQT/DQT/J2/Z2 flow.
@@ -317,9 +323,9 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 2 |
-| Medium | 9 |
+| Medium | 6 |
 | Low | 36 |
-| **Total open gaps** | **47** |
+| **Total open gaps** | **44** |
 | Closed gaps | 122+ |
 
 ### Cross-Cutting Themes

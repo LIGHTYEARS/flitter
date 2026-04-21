@@ -11,6 +11,8 @@ import {
   snapshotToEntry,
   ThreadStore,
 } from "./thread-store";
+import type { SearchThreadsResponse, ThreadRemoteTransport } from "./thread-upload";
+import type { ThreadEntry } from "./types";
 
 function makeThread(
   overrides: Partial<ThreadSnapshot> & { id: string; created?: number; [key: string]: unknown },
@@ -488,5 +490,167 @@ describe("ThreadStore", () => {
       // userLastInteractedAt should be the same (derived from sentAt)
       assert.equal(entryAfter.userLastInteractedAt, entryBefore.userLastInteractedAt);
     });
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  ensureThreadSubject / fetchThread (GAP-DATA-04)
+// ──────────────────────────────────────────────────────
+
+function createMockRemote(threads: Map<string, ThreadSnapshot>): ThreadRemoteTransport {
+  return {
+    async getThread(id: string): Promise<ThreadSnapshot | null> {
+      return threads.get(id) ?? null;
+    },
+    async uploadThread(_thread: ThreadSnapshot): Promise<void> {},
+    async listThreads(): Promise<ThreadEntry[]> {
+      return [];
+    },
+    async deleteThread(_id: string): Promise<void> {},
+    async searchThreads(_opts: { q: string; limit?: number }): Promise<SearchThreadsResponse> {
+      return { threads: [], hasMore: false };
+    },
+  };
+}
+
+describe("ensureThreadSubject (GAP-DATA-04)", () => {
+  it("returns local cache hit without fetching remote", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-local", v: 1 });
+    store.setCachedThread(thread);
+
+    let remoteCalled = false;
+    const remoteThreads = new Map<string, ThreadSnapshot>();
+    const remote = {
+      ...createMockRemote(remoteThreads),
+      async getThread(id: string) {
+        remoteCalled = true;
+        return remoteThreads.get(id) ?? null;
+      },
+    };
+    store.setRemote(remote);
+
+    const subject = await store.ensureThreadSubject("t-local");
+    assert.ok(subject);
+    assert.equal(subject.getValue().id, "t-local");
+    assert.equal(remoteCalled, false, "Should not hit remote when in local cache");
+  });
+
+  it("fetches from remote on cache miss", async () => {
+    const store = new ThreadStore();
+    const remoteThread = makeThread({ id: "t-remote", v: 3, title: "From Server" });
+    const remote = createMockRemote(new Map([["t-remote", remoteThread]]));
+    store.setRemote(remote);
+
+    const subject = await store.ensureThreadSubject("t-remote");
+    assert.ok(subject);
+    assert.equal(subject.getValue().id, "t-remote");
+    assert.equal(subject.getValue().v, 3);
+
+    // Should also be in local cache now
+    const cached = store.getThreadSnapshot("t-remote");
+    assert.ok(cached);
+    assert.equal(cached!.id, "t-remote");
+  });
+
+  it("returns null when thread not found locally or remotely", async () => {
+    const store = new ThreadStore();
+    const remote = createMockRemote(new Map());
+    store.setRemote(remote);
+
+    const result = await store.ensureThreadSubject("nonexistent");
+    assert.equal(result, null);
+  });
+
+  it("returns null when no remote is wired", async () => {
+    const store = new ThreadStore();
+    const result = await store.ensureThreadSubject("t-1");
+    assert.equal(result, null);
+  });
+
+  it("coalesces concurrent fetches for same thread ID", async () => {
+    const store = new ThreadStore();
+    let fetchCount = 0;
+    const remoteThread = makeThread({ id: "t-coalesce", v: 1 });
+
+    const remote: ThreadRemoteTransport = {
+      async getThread(id: string) {
+        fetchCount++;
+        // Simulate network delay
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return id === "t-coalesce" ? remoteThread : null;
+      },
+      async uploadThread() {},
+      async listThreads() {
+        return [];
+      },
+      async deleteThread() {},
+      async searchThreads() {
+        return { threads: [], hasMore: false };
+      },
+    };
+    store.setRemote(remote);
+
+    // Fire two concurrent requests for same ID
+    const [r1, r2] = await Promise.all([
+      store.ensureThreadSubject("t-coalesce"),
+      store.ensureThreadSubject("t-coalesce"),
+    ]);
+
+    assert.ok(r1);
+    assert.ok(r2);
+    assert.equal(fetchCount, 1, "Should only make one remote request");
+  });
+
+  it("handles remote error gracefully", async () => {
+    const store = new ThreadStore();
+    const remote: ThreadRemoteTransport = {
+      async getThread() {
+        throw new Error("Network error");
+      },
+      async uploadThread() {},
+      async listThreads() {
+        return [];
+      },
+      async deleteThread() {},
+      async searchThreads() {
+        return { threads: [], hasMore: false };
+      },
+    };
+    store.setRemote(remote);
+
+    const result = await store.ensureThreadSubject("t-fail");
+    assert.equal(result, null, "Should return null on remote error");
+  });
+});
+
+describe("fetchThread (GAP-DATA-04)", () => {
+  it("returns snapshot from local cache", async () => {
+    const store = new ThreadStore();
+    store.setCachedThread(makeThread({ id: "t-1", v: 2 }));
+
+    const result = await store.fetchThread("t-1");
+    assert.ok(result);
+    assert.equal(result!.id, "t-1");
+    assert.equal(result!.v, 2);
+  });
+
+  it("returns snapshot from remote on cache miss", async () => {
+    const store = new ThreadStore();
+    const remoteThread = makeThread({ id: "t-remote", v: 5 });
+    store.setRemote(createMockRemote(new Map([["t-remote", remoteThread]])));
+
+    const result = await store.fetchThread("t-remote");
+    assert.ok(result);
+    assert.equal(result!.id, "t-remote");
+    assert.equal(result!.v, 5);
+  });
+
+  it("returns null when thread not found anywhere", async () => {
+    const store = new ThreadStore();
+    store.setRemote(createMockRemote(new Map()));
+
+    const result = await store.fetchThread("nonexistent");
+    assert.equal(result, null);
   });
 });

@@ -677,3 +677,28 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - 39 new tests (23 + 9 + 7), 0 TypeScript errors
 - 4 gaps closed: CLI-01, CLI-07, CLI-09, TOOL-11
 - Total open gaps reduced from 54 to 50
+
+---
+
+## ADR-021: Iteration 21 — Overlay background fix, IntrinsicHeight, fetch-from-server
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 21 targets three independent medium-complexity gaps: a rendering bug (TUI-10), a missing layout widget (TUI-08), and a data layer behavioral gap (DATA-04). All three are self-contained and can be fully implemented in one iteration.
+
+### Decisions
+
+1. **Overlay background fix (TUI-10)**: Terminal UIs use a flat screen buffer — each cell has exactly one fg/bg color. Overlays without explicit backgrounds overwrite underlying content with `bg: undefined`, causing visual bleed-through. Three root causes in FuzzyPicker (hardcoded black instead of terminal default, `crossAxisAlignment: "start"` instead of `"stretch"`, non-selected items missing background) and one in CommandPalette (placeholder `Text` stub with no background). Fixed by: (a) rebuilding CommandPalette's `build()` from stub to full visual tree with opaque Container, (b) changing FuzzyPicker bg to `Color.default()`, (c) stretch alignment for full-width selection, (d) explicit bg on all items.
+
+2. **IntrinsicHeight widget (TUI-08)**: Follows amp's `BtT`/`n1T` (chunk-006.js:3019-3065). Layout algorithm: if constraints are tight, pass through; otherwise measure child's `getMaxIntrinsicHeight(maxWidth)` and create tight height constraints. Intrinsic measurement delegation matches amp exactly: `getMinIntrinsicHeight` → `getMaxIntrinsicHeight`, width queries resolve infinite height via child's intrinsic height.
+
+3. **Fetch-from-server on cache miss (DATA-04)**: Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). Added `pendingThreadLoads: Map<string, Promise>` for coalescing concurrent fetches (same pattern as existing `ensureThreadEntriesLoaded`). `ensureThreadSubject(id, opts)` checks local cache first, then fetches from remote. `fetchThread(id)` is the async convenience wrapper. Graceful error handling — returns null on network failure, doesn't propagate exceptions.
+
+### Consequences
+
+- Overlay bleed-through rendering bug fixed for CommandPalette and FuzzyPicker
+- IntrinsicHeight enables dynamic content-height layouts (conversation view, scrollable content)
+- ThreadStore can now transparently fetch threads from the sync server when not in local cache
+- 38 new tests (10 overlay + 19 IntrinsicHeight + 9 fetch-from-server), 0 TypeScript errors
+- 3 gaps closed: TUI-10, TUI-08, DATA-04
+- Total open gaps reduced from 47 to 44

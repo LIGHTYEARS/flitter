@@ -31,6 +31,7 @@ export { EdgeInsets } from "./widgets/edge-insets.js";
 export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";
 export { GestureDetector } from "./widgets/gesture-detector.js";
+export { IntrinsicHeight, RenderIntrinsicHeight } from "./widgets/intrinsic-height.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
 export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
 export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";

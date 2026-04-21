@@ -669,9 +669,10 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         ) as unknown as Widget;
       });
 
-      // 逆向: NZT line 2880-2883 — Column of items with crossAxisAlignment start
+      // 逆向: NZT line 2880-2883 — Column of items with crossAxisAlignment stretch
+      // for full-width selection highlight (amp uses Flexible inside Row for same effect)
       const itemColumn = new Column({
-        crossAxisAlignment: "start",
+        crossAxisAlignment: "stretch",
         children: itemWidgets,
       });
 
@@ -717,7 +718,8 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
     return new Container({
       decoration: new BoxDecoration({
         border,
-        color: Color.rgb(0, 0, 0),
+        // 逆向: amp uses a.background = LT.none() (terminal default), not hardcoded black
+        color: Color.default(),
       }),
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new Column({ children: columnChildren }) as unknown as WidgetInterface,
@@ -730,10 +732,14 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
    * 逆向: NZT line 2857-2871 — default render with selection highlight
    */
   private defaultRenderItem(item: T, isSelected: boolean, isDisabled: boolean): WidgetInterface {
-    const bgColor = isSelected ? Color.rgb(50, 50, 80) : undefined;
+    // 逆向: actions_intents.js:2853-2858
+    // amp: P = b ? R.app.selectionBackground : void 0
+    // In flitter's flat buffer model, non-selected items also need explicit bg
+    // to prevent parent content from bleeding through after child paint.
+    const bgColor = isSelected ? Color.rgb(50, 50, 80) : Color.default();
 
     return new Container({
-      decoration: bgColor ? new BoxDecoration({ color: bgColor }) : undefined,
+      decoration: new BoxDecoration({ color: bgColor }),
       padding: EdgeInsets.symmetric({ horizontal: 1 }),
       child: new Text({
         data: this.widget.getLabel(item),

@@ -46,9 +46,9 @@
 | GAP-CLI-05 | ~~`tools make <name>`~~ | **Closed (iteration 14)** — `handleToolsMake` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX`/`AMP_TOOLBOX`), name validation, template generation, chmod 755. |
 | GAP-CLI-06 | ~~`tools use <name>`~~ | **Closed (iteration 13)** — Duplicate of GAP-CLI-27. |
 | GAP-CLI-07 | `permissions edit` | Open permissions in `$EDITOR` with retry loop. |
-| GAP-CLI-08 | `usage` (top-level) | Top-level command showing credit balance/account usage. |
+| GAP-CLI-08 | ~~`usage` (top-level)~~ | **Closed (iteration 18)** — Already implemented: `handleThreadsUsage` aggregates token counts from assistant messages in thread snapshots. Wired at `main.ts:415-426`. |
 | GAP-CLI-09 | `--mcp-config <json>` | Inline MCP server config JSON via CLI flag. |
-| GAP-CLI-25 | 6 slash commands are informational-only | `/new`, `/switch`, `/dashboard`, `/editor`, `/history` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete` now functional — 4 of 9 stubs done.) |
+| GAP-CLI-25 | 2 slash commands are informational-only | `/switch`, `/dashboard` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete`, `/new`, `/editor`, `/history` now functional — 7 of 9 stubs done.) |
 
 ### Tools
 
@@ -58,7 +58,7 @@
 | GAP-TOOL-03 | ~~`oracle`~~ | **Closed (iteration 16)** — Senior engineering advisor subagent tool. Params: task (required), context, files. Spawns oracle subagent via SubAgentManager with filtered toolset (Read, Grep, Glob, web_search, read_web_page, read_thread, find_thread). Prompt builder matches amp's EVR. disableTimeout, no resource conflicts. Registered in container.ts. |
 | GAP-TOOL-04 | ~~`librarian`~~ | **Closed (iteration 17)** — Codebase understanding subagent for remote repositories. Params: query (required), context (optional). Spawns librarian subagent via SubAgentManager with GitHub-specific toolset (read_github, search_github, commit_search, diff, list_directory_github, list_repositories, glob_github). Prompt builder matches amp's mKR. disableTimeout, no resource conflicts. Registered in container.ts. |
 | GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents with `command`, `workdir`, `login`, `timeout_ms` params. Maps to Bash execution via `preprocessArgs`. Registered as builtin. |
-| GAP-TOOL-27 | `look_at` tool missing | AI-powered file analysis for PDFs/images/media. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Multimodal analysis capability. |
+| GAP-TOOL-27 | ~~`look_at` tool~~ | **Closed (iteration 18)** — Multimodal file analysis via Google Gemini. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Detects MIME type from extension, sends binary as base64 inlineData or text as fenced code block (truncated at 100K chars). System prompt matches amp's pVR. preprocessArgs expands ~ and resolves relative paths. Registered in container.ts. 22 new tests. |
 
 ### TUI
 
@@ -292,6 +292,11 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-CLI-12** (completed): `threads archive --unarchive` — `--unarchive` option toggles `archived: false` on the thread snapshot. Handler signature extended with optional `options` param. Wired through program.ts + main.ts. 2 new tests.
 - **GAP-CLI-25 partial** (iteration 17): `/delete` slash command now calls `threadStore.deleteThread(ctx.threadId)` instead of printing info message. `SlashCommandContext.threadStore` interface extended with `deleteThread(id)`. 2 new tests. 4 of 9 stubs now functional.
 
+### Iteration 18 — look_at, /history, /editor, /new, CLI-08 verified
+- **GAP-TOOL-27** (completed): `look_at` — Multimodal file analysis tool via Google Gemini (gemini-2.0-flash). Sends local files (images, PDFs, audio, video, text) to Gemini's `generateContent` API with system prompt matching amp's pVR. Extension-based MIME detection, binary files as base64 inlineData, text files truncated at 100K chars in fenced code blocks. preprocessArgs expands `~` and resolves relative paths (matching amp's kVR). Reference file failures are non-fatal. disableTimeout, no resource conflicts. 22 new tests.
+- **GAP-CLI-25 partial** (iteration 18): `/history` — Shows compact thread message history summary with role, index, and first-line preview. `/editor` — Opens `$FLITTER_EDITOR`/`$EDITOR`/`$VISUAL`/`vi` on temp file, reads result back, injects via `submitMessage` callback. `/new` — Creates new thread via `threadStore.setCachedThread` with fresh UUID. `SlashCommandContext` extended with `submitMessage` callback. 7 of 9 stubs now functional (2 remaining: /switch, /dashboard need TUI pickers). 6 new tests.
+- **GAP-CLI-08** (verified): `threads usage` handler already existed and wired at `main.ts:415-426`. No implementation needed — marking as closed.
+
 ---
 
 ## Summary Statistics
@@ -300,10 +305,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 3 |
-| Medium | 17 |
+| Medium | 15 |
 | Low | 36 |
-| **Total open gaps** | **56** |
-| Closed gaps | 113+ |
+| **Total open gaps** | **54** |
+| Closed gaps | 115+ |
 
 ### Cross-Cutting Themes
 

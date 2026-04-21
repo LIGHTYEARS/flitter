@@ -579,3 +579,35 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - Archived threads can now be restored via `flitter threads archive <id> --unarchive`
 - `/delete` slash command is now functional (4 of 9 slash command stubs done)
 - 40 new tests (22 librarian + 14 ci_status + 2 unarchive + 2 /delete), 0 TypeScript errors
+
+## ADR-023: Iteration 18 — look_at, /history, /editor, /new, CLI-08 verified
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 18 targeted: 1 tool gap (look_at multimodal analysis), 3 slash command stub conversions (/history, /editor, /new), and verified CLI-08 (usage command). Research revealed CLI-08 was already fully implemented and wired — no work needed. The look_at tool required direct Gemini API integration. The slash command improvements brought the functional count from 4/9 to 7/9.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-TOOL-27 (look_at) | Tools | Medium | **Yes** — multimodal analysis via Gemini, clear amp reference (mVR/kVR/pVR) |
+| GAP-CLI-25 partial (/history) | CLI | Small | **Yes** — iterate thread messages, display compact summary |
+| GAP-CLI-25 partial (/editor) | CLI | Small-medium | **Yes** — spawn $EDITOR on temp file, read result back |
+| GAP-CLI-25 partial (/new) | CLI | Small | **Yes** — create thread via setCachedThread with fresh UUID |
+| GAP-CLI-08 (usage) | CLI | None | **Already done** — verified wiring exists at main.ts:415-426 |
+
+### Decisions
+
+1. **look_at via Direct Gemini API (TOOL-27)**: Amp's `mVR` (chunk-005.js:21875-21987) calls `gemini-3-flash-preview` via a server-proxied Google API. Flitter calls `@google/genai` SDK directly with `generateContent`. Model: `gemini-2.0-flash` (closest publicly available equivalent). MIME detection uses extension-based lookup (amp uses magic-byte `file-type` library — we avoid that dependency). Binary files (images, PDFs, audio, video) sent as `inlineData` with base64 encoding; text files sent as fenced code blocks truncated at 100K chars (matching amp's `ZuT`). System prompt matches amp's `pVR`. preprocessArgs expands `~` and resolves relative paths (matching amp's `kVR`). Reference file failures are non-fatal (matching amp pattern). API key from `GOOGLE_API_KEY` or `GEMINI_API_KEY` env vars, or injected via options.
+
+2. **SlashCommandContext.submitMessage (CLI-25)**: The `/editor` command needs to inject text back into the conversation after the user edits in `$EDITOR`. Added `submitMessage?: (text: string) => void` to `SlashCommandContext`. This is optional — when not provided, `/editor` displays the edited text as a message instead. Editor resolution follows amp's `eB` priority: `$FLITTER_EDITOR` > `$EDITOR` > `$VISUAL` > `vi`. Temp file uses `.md` extension under `os.tmpdir()/flitter-edit-<random>/message.md`.
+
+3. **Thread-Local /new (CLI-25)**: The `/new` command creates a thread via `threadStore.setCachedThread()` with a `crypto.randomUUID()` ID. It cannot switch the active session to the new thread (the interactive loop holds `threadId` in closure), so it shows the new ID and suggests `/switch` or `--thread-id`. Full thread switching requires TUI refactoring (deferred to /switch and /dashboard work).
+
+4. **Skip /switch and /dashboard (CLI-25)**: Both require interactive thread pickers (amp uses `wQ` FuzzyPicker widget). These are TUI-level features that need component work beyond simple wiring. Deferred — 2 remaining stubs out of 9.
+
+### Consequences
+
+- look_at enables multimodal file analysis (images, PDFs, audio, video, text) via Gemini
+- 7 of 9 slash command stubs now functional (only /switch and /dashboard remain)
+- SlashCommandContext extended with submitMessage for editor integration
+- GAP-CLI-08 verified as already complete — no implementation waste
+- 28 new tests (22 look_at + 6 slash commands), 0 TypeScript errors

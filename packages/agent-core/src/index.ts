@@ -184,6 +184,7 @@ export { GetDiagnosticsTool } from "./tools/builtin/get-diagnostics";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 export { buildLibrarianPrompt, createLibrarianTool } from "./tools/builtin/librarian";
+export { createLookAtTool, LookAtTool } from "./tools/builtin/look-at";
 // ─── Built-in Tools ────────────────────────────────────
 export { buildOraclePrompt, createOracleTool } from "./tools/builtin/oracle";
 export { ReadTool } from "./tools/builtin/read";

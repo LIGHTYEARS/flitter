@@ -80,6 +80,12 @@ export interface SlashCommandContext {
    * 逆向: amp does compaction automatically; Flitter adds manual /compact.
    */
   compactThread?: () => Promise<CompactionResult>;
+
+  /**
+   * Submit text as a new user message (used by /editor to inject edited text).
+   * 逆向: amp's openInEditor sets textController.text; Flitter injects as message.
+   */
+  submitMessage?: (text: string) => void;
 }
 
 /**

@@ -526,4 +526,110 @@ describe("createBuiltinCommands", () => {
     const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
     expect(message).toContain("Error");
   });
+
+  // ── Iteration 18: /history, /editor, /new ──────────────
+
+  it("/history shows thread message summary", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    await registry.dispatch("history", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Thread history (2 messages)");
+    expect(message).toContain("USER");
+    expect(message).toContain("ASSISTANT");
+    expect(message).toContain("hello");
+  });
+
+  it("/history on empty thread shows no messages", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("history", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("No messages");
+  });
+
+  it("/history shows tool_use blocks with tool name", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [
+            {
+              role: "assistant",
+              content: [{ type: "tool_use", name: "bash", input: { command: "ls" } }],
+            },
+          ],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("history", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("[tool: bash]");
+  });
+
+  it("/new creates a new thread", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const setCachedMock = mock(() => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: setCachedMock,
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("new", "", ctx);
+    expect(setCachedMock).toHaveBeenCalledTimes(1);
+    const snapshot = setCachedMock.mock.calls[0][0] as { id: string; messages: unknown[] };
+    expect(snapshot.id).toBeTruthy();
+    expect(snapshot.messages).toEqual([]);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("New thread created:");
+    expect(message).toContain(snapshot.id);
+  });
+
+  it("/editor dispatches and shows message when editor exits immediately", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    // Set FLITTER_EDITOR to 'true' which exits immediately with empty file
+    const origEditor = process.env.FLITTER_EDITOR;
+    process.env.FLITTER_EDITOR = "true";
+    try {
+      const dispatched = await registry.dispatch("editor", "", ctx);
+      expect(dispatched).toBe(true);
+      // showMessage should have been called (empty content message)
+      expect(ctx.showMessage).toHaveBeenCalled();
+      const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+      expect(message).toContain("empty content");
+    } finally {
+      if (origEditor) {
+        process.env.FLITTER_EDITOR = origEditor;
+      } else {
+        delete process.env.FLITTER_EDITOR;
+      }
+    }
+  });
 });

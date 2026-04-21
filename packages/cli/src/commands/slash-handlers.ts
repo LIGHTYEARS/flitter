@@ -13,6 +13,10 @@
  *           /toggle-thinking-blocks
  */
 
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { MODEL_REGISTRY } from "@flitter/llm";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import type { SlashCommandRegistry } from "./slash-registry.js";
@@ -208,14 +212,26 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
   // /new -- start new thread
   // 逆向: e0R:193-201 (id: "new", noun: "thread", verb: "new")
+  // amp calls R.createThread() which creates a new empty thread.
+  // Flitter: create via threadStore.setCachedThread with fresh UUID.
   registry.register({
     name: "new",
     aliases: ["start"],
     description: "Start a new thread",
     execute: async (_args, ctx) => {
+      const newId = crypto.randomUUID();
+      ctx.threadStore.setCachedThread(
+        {
+          id: newId,
+          v: 0,
+          messages: [],
+          relationships: [],
+          created: Date.now(),
+        } as unknown as ThreadSnapshot,
+        { scheduleUpload: true },
+      );
       ctx.showMessage(
-        "Starting a new thread...\n" +
-          "(Thread creation is handled by the session manager. Use 'flitter threads new' from CLI.)",
+        `New thread created: ${newId}\nUse /switch ${newId} or run: flitter --thread-id ${newId}`,
       );
     },
   });
@@ -500,27 +516,113 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
   // /editor -- open prompt in $EDITOR
   // 逆向: e0R:835-849 (id: "editor", noun: "prompt", verb: "open in editor")
+  // 逆向: chunk-006.js:35969-35988 (openInEditor creates temp file, spawns editor, reads back)
+  // 逆向: 2433_unknown_eB.js:8 (editor resolution: $AMP_EDITOR > $EDITOR > $VISUAL > vi > nano)
   registry.register({
     name: "editor",
     description: "Edit prompt in $EDITOR",
     execute: async (_args, ctx) => {
-      ctx.showMessage(
-        "Open in $EDITOR requested.\n" +
-          "(Editor integration requires TUI mode. Press Ctrl+G in interactive mode.)",
-      );
+      // Resolve editor binary (逆向: eB priority chain)
+      const editor = process.env.FLITTER_EDITOR || process.env.EDITOR || process.env.VISUAL || "vi";
+
+      // Create temp file (逆向: amp uses amp-edit-<random>/message.amp.md)
+      let tmpDir: string;
+      try {
+        tmpDir = mkdtempSync(path.join(os.tmpdir(), "flitter-edit-"));
+      } catch (err) {
+        ctx.showMessage(
+          `Error: Could not create temp directory: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        return;
+      }
+      const tmpFile = path.join(tmpDir, "message.md");
+
+      try {
+        // Write empty file for editing
+        writeFileSync(tmpFile, "", "utf-8");
+
+        // Spawn editor synchronously (逆向: Zb(a) suspends TUI, stdio: "inherit")
+        const result = spawnSync(editor, [tmpFile], {
+          stdio: "inherit",
+          env: process.env,
+        });
+
+        if (result.error) {
+          ctx.showMessage(
+            `Error: Could not launch editor "${editor}": ${result.error.message}\n` +
+              "Set $FLITTER_EDITOR or $EDITOR to your preferred editor.",
+          );
+          return;
+        }
+
+        // Read back the edited text (逆向: P70(a, "utf-8"))
+        let editedText: string;
+        try {
+          editedText = readFileSync(tmpFile, "utf-8").trim();
+        } catch {
+          // User may have deleted the file — silently ignore (逆向: ENOENT swallowed)
+          ctx.showMessage("Editor closed without saving.");
+          return;
+        }
+
+        if (!editedText) {
+          ctx.showMessage("Editor closed with empty content. No message sent.");
+          return;
+        }
+
+        // Inject the edited text as a message
+        if (ctx.submitMessage) {
+          ctx.submitMessage(editedText);
+          ctx.showMessage(`Message from editor (${editedText.length} chars) submitted.`);
+        } else {
+          ctx.showMessage(
+            `Edited text (${editedText.length} chars):\n${editedText.slice(0, 200)}${editedText.length > 200 ? "..." : ""}`,
+          );
+        }
+      } finally {
+        // Cleanup temp dir (逆向: x70, k70 — cleanup failures only warned)
+        try {
+          rmSync(tmpDir, { recursive: true, force: true });
+        } catch {
+          // Cleanup failures are non-fatal
+        }
+      }
     },
   });
 
-  // /history -- show prompt history
+  // /history -- show thread message history summary
   // 逆向: e0R:968-976 (id: "history", noun: "prompt", verb: "history")
+  // amp opens a prompt-history picker overlay (isShowingPromptHistoryPicker).
+  // Flitter CLI: display a compact summary of thread messages.
   registry.register({
     name: "history",
-    description: "Show prompt history",
+    description: "Show thread message history",
     execute: async (_args, ctx) => {
-      ctx.showMessage(
-        "Prompt history requested.\n" +
-          "(Press Ctrl+R in interactive mode for prompt history picker.)",
-      );
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot?.messages || snapshot.messages.length === 0) {
+        ctx.showMessage("No messages in this thread yet.");
+        return;
+      }
+      const lines: string[] = [`Thread history (${snapshot.messages.length} messages):`];
+      for (let i = 0; i < snapshot.messages.length; i++) {
+        const msg = snapshot.messages[i]!;
+        const role = msg.role.toUpperCase().padEnd(9);
+        // Extract first text block's first line as preview
+        let preview = "";
+        for (const block of msg.content) {
+          if (block.type === "text" && block.text) {
+            preview = block.text.split("\n")[0]!.slice(0, 80);
+            break;
+          }
+          if (block.type === "tool_use") {
+            preview = `[tool: ${block.name}]`;
+            break;
+          }
+        }
+        if (!preview) preview = `[${msg.content[0]?.type ?? "empty"}]`;
+        lines.push(`  ${String(i + 1).padStart(3)}. ${role} ${preview}`);
+      }
+      ctx.showMessage(lines.join("\n"));
     },
   });
 

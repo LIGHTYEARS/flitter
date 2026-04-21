@@ -326,3 +326,67 @@ describe("isTtyStream — regression: wrapper vs inner stream", () => {
     assert.equal(isTtyStream(mockStream), false);
   });
 });
+
+// ─── detectAnimationSupport ──────────────────────────────
+// 逆向: amp modules/2109_unknown_dY.js:266-272
+
+import { detectAnimationSupport } from "./tui-controller.js";
+
+describe("detectAnimationSupport", () => {
+  it('returns "fast" for normal terminal', () => {
+    assert.equal(detectAnimationSupport({}), "fast");
+  });
+
+  it('returns "disabled" when NO_ANIMATION=1', () => {
+    assert.equal(detectAnimationSupport({ NO_ANIMATION: "1" }), "disabled");
+  });
+
+  it('returns "disabled" when NO_ANIMATIONS=1', () => {
+    assert.equal(detectAnimationSupport({ NO_ANIMATIONS: "1" }), "disabled");
+  });
+
+  it('returns "disabled" when INSIDE_EMACS is set', () => {
+    assert.equal(detectAnimationSupport({ INSIDE_EMACS: "29.1" }), "disabled");
+  });
+
+  it('returns "disabled" when SSH_CLIENT is set', () => {
+    assert.equal(detectAnimationSupport({ SSH_CLIENT: "192.168.1.1 12345 22" }), "disabled");
+  });
+
+  it('returns "disabled" when SSH_TTY is set', () => {
+    assert.equal(detectAnimationSupport({ SSH_TTY: "/dev/pts/0" }), "disabled");
+  });
+
+  it('returns "disabled" when SSH_CONNECTION is set', () => {
+    assert.equal(
+      detectAnimationSupport({ SSH_CONNECTION: "192.168.1.1 12345 192.168.1.2 22" }),
+      "disabled",
+    );
+  });
+
+  it('returns "slow" for JetBrains terminal', () => {
+    assert.equal(detectAnimationSupport({ TERMINAL_EMULATOR: "JetBrains-JediTerm" }), "slow");
+  });
+
+  it("NO_ANIMATION takes priority over JetBrains", () => {
+    assert.equal(
+      detectAnimationSupport({ NO_ANIMATION: "1", TERMINAL_EMULATOR: "JetBrains-JediTerm" }),
+      "disabled",
+    );
+  });
+
+  it("SSH takes priority over JetBrains", () => {
+    assert.equal(
+      detectAnimationSupport({ SSH_CLIENT: "x", TERMINAL_EMULATOR: "JetBrains-JediTerm" }),
+      "disabled",
+    );
+  });
+
+  it('returns "fast" for kitty terminal', () => {
+    assert.equal(detectAnimationSupport({ TERM: "xterm-kitty" }), "fast");
+  });
+
+  it('returns "fast" for WezTerm', () => {
+    assert.equal(detectAnimationSupport({ TERM_PROGRAM: "WezTerm" }), "fast");
+  });
+});

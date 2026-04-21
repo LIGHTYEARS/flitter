@@ -43,6 +43,16 @@ export class ContextManager {
   private keepRecent: number;
   private getSystemContext?: () => Promise<string | null>;
 
+  /**
+   * Most recent API-reported input token count.
+   *
+   * 逆向: amp feeds actual `usage.input_tokens` from API responses back to
+   * context tracking (chunk-004.js:32300 uses totalInputTokens / maxInputTokens).
+   * Flitter was using char-based approximation only — this field allows
+   * substituting the actual count for more accurate compaction thresholds.
+   */
+  private _lastApiInputTokens: number | null = null;
+
   constructor(options: ContextManagerOptions) {
     this.compactFn = options.compactFn;
     this.modelContextWindow = options.modelContextWindow ?? DEFAULT_CONTEXT_WINDOW;
@@ -51,9 +61,32 @@ export class ContextManager {
     this.getSystemContext = options.getSystemContext;
   }
 
+  /**
+   * Update the last known API-reported input token count.
+   * Call this after each inference:complete event with the actual usage.inputTokens.
+   *
+   * 逆向: amp's context tracking uses real API token counts, not approximations.
+   * The API count is more accurate for compaction threshold decisions because
+   * char-based estimation underestimates for code-heavy conversations and
+   * overestimates for short messages.
+   */
+  updateLastApiTokens(inputTokens: number): void {
+    this._lastApiInputTokens = inputTokens;
+  }
+
+  /** Get the last known API token count, or null if never set. */
+  getLastApiTokens(): number | null {
+    return this._lastApiInputTokens;
+  }
+
   /** Main entry: check threshold and compact if needed */
   async checkAndCompact(thread: ThreadSnapshot): Promise<CompactionResult> {
-    const tokensBefore = countThreadTokens(thread);
+    // Prefer actual API token count over character-based approximation
+    // 逆向: amp uses totalInputTokens from API responses (chunk-004.js:32300)
+    const tokensBefore =
+      this._lastApiInputTokens !== null && this._lastApiInputTokens > 0
+        ? this._lastApiInputTokens
+        : countThreadTokens(thread);
     const threshold = Math.floor(this.modelContextWindow * (this.thresholdPercent / 100));
 
     if (tokensBefore <= threshold || thread.messages.length <= this.keepRecent) {

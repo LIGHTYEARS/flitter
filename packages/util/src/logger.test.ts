@@ -134,3 +134,52 @@ describe("timestamp", () => {
     assert.match(ts, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   });
 });
+
+describe("setLogOutput", () => {
+  // Import setLogOutput and setLogLevel for integration tests
+  // 逆向: RF0 (modules/2004_unknown_RF0.js) — global log output redirection
+
+  it("should redirect global log output", async () => {
+    const { setLogOutput, setLogLevel } = await import("./logger.ts");
+    const captured: string[] = [];
+    const origLevel = (await import("./logger.ts")).getLogLevel();
+
+    setLogLevel("debug");
+    setLogOutput((line) => captured.push(line));
+
+    // Create a logger WITHOUT custom output — should use global
+    const { createLogger: createLog } = await import("./logger.ts");
+    const logger = createLog("global-test");
+    logger.info("global output test");
+
+    assert.ok(captured.length > 0, "Expected global output to capture a log line");
+    const entry = JSON.parse(captured[0]);
+    assert.equal(entry.message, "global output test");
+
+    // Restore
+    setLogOutput((line) => process.stderr.write(`${line}\n`));
+    setLogLevel(origLevel);
+  });
+
+  it("per-logger output overrides global", async () => {
+    const { setLogOutput, setLogLevel, getLogLevel } = await import("./logger.ts");
+    const globalCaptured: string[] = [];
+    const localCaptured: string[] = [];
+    const origLevel = getLogLevel();
+
+    setLogLevel("debug");
+    setLogOutput((line) => globalCaptured.push(line));
+
+    // Logger with custom output
+    const { createLogger: createLog } = await import("./logger.ts");
+    const logger = createLog("local-test", (line) => localCaptured.push(line));
+    logger.info("should go to local");
+
+    assert.equal(globalCaptured.length, 0, "Global should not capture");
+    assert.equal(localCaptured.length, 1, "Local should capture");
+
+    // Restore
+    setLogOutput((line) => process.stderr.write(`${line}\n`));
+    setLogLevel(origLevel);
+  });
+});

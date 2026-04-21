@@ -358,6 +358,7 @@ export async function launchInteractiveMode(
                   // InputField clears on submit automatically
                 },
                 costTracker,
+                toolboxService: container.toolboxService,
                 compactThread: async () => {
                   const snapshot = container.threadStore.getThreadSnapshot(threadId);
                   if (!snapshot) {

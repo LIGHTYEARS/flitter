@@ -478,6 +478,7 @@ export class WidgetsBinding {
       xtversion: null,
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
+      animationSupport: "fast" as const,
     };
     this.currentMediaQueryData = new MediaQueryData(size, capabilities);
     return new MediaQuery({ data: this.currentMediaQueryData, child: widget });
@@ -512,6 +513,7 @@ export class WidgetsBinding {
       xtversion: null,
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
+      animationSupport: "fast" as const,
     };
     const newMediaQueryData = new MediaQueryData({ width, height }, capabilities);
     this.currentMediaQueryData = newMediaQueryData;

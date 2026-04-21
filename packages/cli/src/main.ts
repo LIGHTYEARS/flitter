@@ -32,7 +32,7 @@ import os from "node:os";
 import path from "node:path";
 import { FileSettingsStorage } from "@flitter/data";
 import { createContainer, type SecretStorage, type ServiceContainer } from "@flitter/flitter";
-import { createLogger, setLogLevel } from "@flitter/util";
+import { createLogger, setLogLevel, setLogOutput } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
 import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
@@ -193,7 +193,9 @@ export async function main(opts?: MainOptions): Promise<void> {
     // 2. 版本和日志
     const version = getVersion();
 
-    // 3. 日志级别 (从 argv 提前检测 --verbose 和 execute mode flags)
+    // 3. 日志级别 (从 argv 提前检测 --verbose, --log-level, --log-file, execute mode flags)
+    // 逆向: RF0 (modules/2004_unknown_RF0.js) — logLevel from flag → env → "info",
+    //        logFile from flag → env → default
     const argv = opts?.argv ?? process.argv;
     const isVerbose = argv.includes("--verbose") || argv.includes("-v");
     const isExecuteMode =
@@ -205,12 +207,48 @@ export async function main(opts?: MainOptions): Promise<void> {
       argv.includes("--stats") ||
       argv.includes("--headless");
 
-    // In execute/pipe/headless mode, suppress info/debug logs to keep stderr clean.
-    // Only show warnings and errors unless --verbose is explicitly set.
-    if (isExecuteMode && !isVerbose) {
-      setLogLevel("warn");
+    // --log-level <level> (supports both --log-level=val and --log-level val)
+    let explicitLogLevel: string | undefined;
+    for (let i = 0; i < argv.length; i++) {
+      if (argv[i].startsWith("--log-level=")) {
+        explicitLogLevel = argv[i].slice("--log-level=".length);
+      } else if (argv[i] === "--log-level" && i + 1 < argv.length) {
+        explicitLogLevel = argv[i + 1];
+      }
+    }
+    // Validate level (fall back to FLITTER_LOG_LEVEL env if flag not given)
+    const validLevels = new Set(["debug", "info", "warn", "error"]);
+    const resolvedLevel = explicitLogLevel ?? process.env.FLITTER_LOG_LEVEL;
+
+    // --log-file <path> (supports both --log-file=val and --log-file val)
+    let logFilePath: string | undefined;
+    for (let i = 0; i < argv.length; i++) {
+      if (argv[i].startsWith("--log-file=")) {
+        logFilePath = argv[i].slice("--log-file=".length);
+      } else if (argv[i] === "--log-file" && i + 1 < argv.length) {
+        logFilePath = argv[i + 1];
+      }
+    }
+    logFilePath = logFilePath ?? process.env.FLITTER_LOG_FILE;
+
+    // Redirect log output to file if specified
+    if (logFilePath) {
+      const resolvedPath = path.resolve(logFilePath);
+      const { createWriteStream } = await import("node:fs");
+      const stream = createWriteStream(resolvedPath, { flags: "a" });
+      setLogOutput((line: string) => {
+        stream.write(`${line}\n`);
+      });
+    }
+
+    // Resolve log level: explicit flag > env > mode-based defaults
+    if (resolvedLevel && validLevels.has(resolvedLevel)) {
+      setLogLevel(resolvedLevel as "debug" | "info" | "warn" | "error");
     } else if (isVerbose) {
       setLogLevel("debug");
+    } else if (isExecuteMode) {
+      // In execute/pipe/headless mode, suppress info/debug logs to keep stderr clean.
+      setLogLevel("warn");
     } else {
       setLogLevel("info");
     }

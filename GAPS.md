@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 25)
+> **Last updated:** 2026-04-22 (iteration 26)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -72,6 +72,13 @@
 | GAP-DATA-19 | Data | workspaceRoot Observable | Closed (iteration 25) |
 | GAP-LLM-16 | LLM | Gemini countTokens | Closed (iteration 25) |
 | GAP-DATA-23 | Data | Thread visibility inheritance on fork | Closed (iteration 25) |
+| GAP-DATA-22 | Data | API token counts → ContextManager | Closed (iteration 26) |
+| GAP-CORE-31 | Core | Subagent depth enforcement | Closed (iteration 26, pre-existing) |
+| GAP-LLM-20 | LLM | Anthropic output_config for non-eap | Closed (iteration 26, false gap) |
+| GAP-CLI-33 | CLI | --log-level / --log-file flags | Closed (iteration 26) |
+| GAP-CLI-40 | CLI | /remove-label slash command | Closed (iteration 26) |
+| GAP-CLI-43 | CLI | /toolbox list slash command | Closed (iteration 26) |
+| GAP-TUI-35 | TUI | Animation support detection | Closed (iteration 26) |
 
 ---
 
@@ -93,17 +100,17 @@
 | GAP-CLI-30 | `--settings-file <path>` flag | **Closed (iteration 24, found pre-existing)** — Already implemented via `--api-key`, `--model`, and `--system-prompt` flags. The `--settings-file` flag was not in amp's public CLI — it was an internal debug option. |
 | GAP-CLI-31 | `--notifications` flag | Sound notification toggle. Amp has `--notifications`/`--no-notifications`. |
 | GAP-CLI-32 | `--ide` / `--no-ide` flag | IDE connection toggle. Amp supports JetBrains/Zed/Neovim IDE integration. No IDE integration in flitter at all. |
-| GAP-CLI-33 | `--log-level` / `--log-file` flags | Runtime log control. Flitter only has `--verbose`. Amp has explicit level and file path flags. |
+| GAP-CLI-33 | `--log-level` / `--log-file` flags | **Closed (iteration 26)** — `--log-level <level>` and `--log-file <path>` flags in program.ts. Early argv scan in main.ts (supports `=` syntax). `setLogOutput()` in logger.ts redirects global log output. Matches amp's RF0 (modules/2004_unknown_RF0.js). Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. 2 new tests. |
 | GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
 | GAP-CLI-35 | `context: analyze` slash command | Token usage analysis overlay (amp requires Claude Opus 4.6 / GPT-5.4). No flitter equivalent. |
 | GAP-CLI-36 | `agents-md: generate/list` commands | Generate AGENTS.md from codebase analysis; list active AGENTS.md files. Missing from command palette/slash. |
 | GAP-CLI-37 | `skill: invoke` from TUI | Invoke a skill directly from TUI command palette. Flitter has no interactive skill invocation. |
 | GAP-CLI-38 | Thread navigation (prev/next/parent) | Amp: `thread: switch to previous/next/parent` in command palette. No flitter equivalent. |
 | GAP-CLI-39 | Clipboard commands | Amp: `copy URL`, `copy ID`, `copy markdown`, `copy selection`, `paste image`. Flitter has none of these. |
-| GAP-CLI-40 | `/remove-label` | Flitter only has `/label` (add). No remove. Amp has `label: remove`. |
+| GAP-CLI-40 | `/remove-label` | **Closed (iteration 26)** — `/remove-label` slash command filters target label from `snapshot.labels` array and updates thread via `setCachedThread`. Alias `/unlabel`. Matches amp's e0R:725-822 (simplified: local labels vs amp's server API). 6 new tests. |
 | GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |
 | GAP-CLI-42 | `mcp: status` / `mcp: reload` | MCP status modal and reload from TUI. Flitter's `/mcp` only shows help text. |
-| GAP-CLI-43 | `toolbox: list` | List discovered toolbox scripts from TUI. No `/toolbox` slash command. |
+| GAP-CLI-43 | `toolbox: list` | **Closed (iteration 26)** — `/toolbox` slash command lists discovered toolbox scripts with status icons (+/!/~). `ToolboxService` exposed on `ServiceContainer`. `SlashCommandContext.toolboxService` interface added. Alias `/toolbox-list`. Matches amp's e0R:1353-1362. 4 new tests. |
 | GAP-CLI-44 | `review` check runner | Amp's review has `--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`. An integrated check runner subsystem. Flitter review has no check support. |
 
 ### Tools
@@ -158,7 +165,7 @@
 | GAP-DATA-19 | **`workspaceRoot` not Observable** | **Closed (iteration 25)** — `ConfigService.observeWorkspaceRoot()` returns `Observable<string | undefined>` projected from `workspaceRootSubject` with `distinctUntilChanged()`. Matches amp's `LX` factory pattern (modules/1276:98). 3 new tests. |
 | GAP-DATA-20 | **Skill discovery paths narrower** | **Closed (iteration 24)** — `SkillService.getDiscoveryPaths()` expanded from 2 to 8 paths matching amp's P7T: `.flitter/skills`, `~/.config/agents/skills`, ancestor `.agents/skills`, ancestor `.claude/skills`, `~/.claude/skills`, `~/.claude/plugins/cache`, `userConfigDir/skills`, `skills.path` config. Supports `skills.disableClaudeCodeSkills`. 9 new tests. |
 | GAP-DATA-21 | **`invalidateThreadListCache()`** | **Closed (iteration 24)** — `ThreadStore.invalidateThreadListCache()` resets `threadEntriesByID` to cached-only entries, sets `threadEntriesLoaded=false`, clears `threadEntriesLoadPromise`, emits null. Matches amp's `azT.invalidateThreadListCache` (1342:297-299). 4 new tests. |
-| GAP-DATA-22 | **Actual API token counts → ContextManager** | Flitter's `ContextManager` uses char-based approximation only. Amp feeds actual `usage.input_tokens` from API responses back to context tracking. Compaction threshold is imprecise. |
+| GAP-DATA-22 | **Actual API token counts → ContextManager** | **Closed (iteration 26)** — `ContextManager.updateLastApiTokens(n)` stores last API-reported input token count. `checkAndCompact()` prefers API count over char-based approximation. Container subscribes to `inference:complete` events and feeds `usage.inputTokens` to context manager. Matches amp's usage tracking (chunk-004.js:32300). 5 new tests. |
 | GAP-DATA-23 | **Thread visibility inheritance on fork** | **Closed (iteration 25)** — `inheritThreadVisibility()` copies visibility/sharedGroupIDs from origin thread. `ThreadWorkerService.inheritVisibilityIfNeeded()` wired into `createThread()` for handoff type. Matches amp's `O4R` (chunk-002.js:14326-14368). 20 new tests. |
 
 ### Agent-Core
@@ -261,7 +268,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-TUI-32 | OSC 52 per-terminal opt-in | Amp tracks `osc52` capability per terminal (ghostty/kitty/wezterm/foot/alacritty/iterm2/tmux). Flitter always uses OSC 52 as fallback without terminal-specific check. |
 | GAP-TUI-33 | `WidgetsBinding.on()` raw event API | Amp's `d9.on('key'|'mouse'|'paste', cb)` + `dispatchSyntheticPaste`. Flitter has `addKeyInterceptor` but no multi-event subscription. |
 | GAP-TUI-34 | Kitty explicit width detection | Amp probes terminal for explicit width override via cursor position report. Not in flitter. |
-| GAP-TUI-35 | Animation support detection | Amp detects `animationSupport: "fast"/"slow"/"disabled"` based on environment (Emacs/JetBrains/SSH). Consumers use this for spinner decisions. |
+| GAP-TUI-35 | Animation support detection | **Closed (iteration 26)** — `animationSupport: "fast" | "slow" | "disabled"` added to `TerminalCapabilities`. `detectAnimationSupport()` matches amp's dY.js:266-272: NO_ANIMATION/NO_ANIMATIONS env → disabled, Emacs/SSH → disabled, JetBrains → slow, else fast. Exported for direct testing. 12 new tests. |
 | GAP-TUI-36 | Underline support detection | Amp detects `underlineSupport: "none"/"standard"` (disabled in tmux without passthrough). |
 | GAP-TUI-37 | Mouse hover throttling | Amp's `SelectionArea._handleMouseHover` throttles to 16ms and skips same-position events. Flitter dispatches every mouse event. |
 | GAP-TUI-38 | `toggleFrameStatsOverlay()` on binding | Amp's `d9` has public method to toggle perf overlay. Flitter has the overlay but no binding-level entry point. |
@@ -274,7 +281,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-LLM-09 | `cacheTTL` in pricing model | Amp tracks 5-minute TTL for cache invalidation awareness. |
 | GAP-LLM-10 | Context-limit → Gemini fallback | Amp auto-falls back to Gemini on context overflow. Flitter detects but doesn't auto-fallback. |
 | GAP-LLM-19 | MCP OAuth headless auth handler | Amp's `M5T` supports `headlessAuthHandler` for CI environments. Flitter has `onManualCodeInput` only. |
-| GAP-LLM-20 | Anthropic `output_config.effort` for non-eap | Amp sets `output_config` for non-eap models when `anthropic.effort` setting is specified. Flitter only uses `output_config` for eap models. |
+| GAP-LLM-20 | Anthropic `output_config.effort` for non-eap | **Closed (iteration 26, false gap)** — Verified amp's OwT.js:67-71: `output_config.effort` is ONLY set for EAP models (`b.includes("eap")`). Non-eap models use `thinking: { type: "enabled", budget_tokens }` without output_config. Flitter already matches this exactly (anthropic/provider.ts:406-416). |
 
 ### Data
 
@@ -298,7 +305,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 |----|---------|-------------|
 | GAP-CORE-29 | Plugin tracing/spans | Amp's plugin system has `span.event` RPC with OpenTelemetry tracer. Not implemented. |
 | GAP-CORE-30 | Plugin `ai.*`/`system.*`/`helpers.*` context | Amp's `cI` class gives plugins AI primitives, system access, Bun shell. Not implemented. |
-| GAP-CORE-31 | Subagent depth enforcement | Amp's `createWorker` callback omits SubAgentManager for nested spawns. Flitter documents depth=1 but doesn't enforce. |
+| GAP-CORE-31 | Subagent depth enforcement | **Closed (iteration 26, found pre-existing)** — Already implemented: `SubAgentManager.spawn()` creates worker options without SubAgentManager reference, so nested spawns are impossible. Test at `subagent.test.ts:412-424` verifies this. Container wiring at `container.ts:539-545` confirms. |
 
 ---
 

@@ -514,6 +514,47 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     },
   });
 
+  // /remove-label -- remove label from thread
+  // 逆向: e0R:725-822 (id: "remove-label", noun: "label", verb: "remove")
+  // Amp loads labels via internalAPIClient, shows picker, then calls setThreadLabels.
+  // Flitter stores labels locally on the thread snapshot — we just filter.
+  registry.register({
+    name: "remove-label",
+    aliases: ["unlabel"],
+    description: "Remove a label from the current thread",
+    execute: async (args, ctx) => {
+      const labelName = args.trim().toLowerCase();
+      if (!labelName) {
+        ctx.showMessage("Usage: /remove-label <name>");
+        return;
+      }
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+      const existingLabels = snapshot.labels ?? [];
+      if (existingLabels.length === 0) {
+        ctx.showMessage("This thread has no labels to remove.");
+        return;
+      }
+      if (!existingLabels.includes(labelName)) {
+        ctx.showMessage(
+          `Label "${labelName}" not found. Current labels: ${existingLabels.join(", ")}`,
+        );
+        return;
+      }
+      const updatedLabels = existingLabels.filter((l) => l !== labelName);
+      const updated: ThreadSnapshot = { ...snapshot, labels: updatedLabels };
+      ctx.threadStore.setCachedThread(updated, { scheduleUpload: true });
+      ctx.showMessage(
+        updatedLabels.length > 0
+          ? `Removed label "${labelName}". Remaining labels: ${updatedLabels.join(", ")}`
+          : `Removed label "${labelName}". Thread has no labels.`,
+      );
+    },
+  });
+
   // /editor -- open prompt in $EDITOR
   // 逆向: e0R:835-849 (id: "editor", noun: "prompt", verb: "open in editor")
   // 逆向: chunk-006.js:35969-35988 (openInEditor creates temp file, spawns editor, reads back)
@@ -658,6 +699,37 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
           "  /plugins           — list installed plugins\n" +
           "  /plugins reload    — reload all plugins",
       );
+    },
+  });
+
+  // /toolbox -- list discovered toolbox scripts
+  // 逆向: e0R:1353-1362 (id: "toolbox-list", noun: "toolbox", verb: "list")
+  // Amp shows a widget with toolbox tools. Flitter CLI formats as text.
+  registry.register({
+    name: "toolbox",
+    aliases: ["toolbox-list"],
+    description: "List discovered toolbox scripts",
+    execute: async (_args, ctx) => {
+      if (!ctx.toolboxService) {
+        ctx.showMessage("Toolbox service not available.");
+        return;
+      }
+      const tools = ctx.toolboxService.getTools();
+      const status = ctx.toolboxService.getStatus();
+      if (tools.length === 0) {
+        ctx.showMessage(
+          status.type === "initializing"
+            ? "Toolbox is still initializing..."
+            : "No toolbox scripts found. Create one with: flitter tools make <name>",
+        );
+        return;
+      }
+      const lines = tools.map((t) => {
+        const statusIcon = t.status === "ready" ? "+" : t.status === "error" ? "!" : "~";
+        const errorSuffix = t.error ? ` (${t.error})` : "";
+        return `  [${statusIcon}] ${t.name} — ${t.description}${errorSuffix}`;
+      });
+      ctx.showMessage(`Toolbox scripts (${tools.length}):\n${lines.join("\n")}`);
     },
   });
 

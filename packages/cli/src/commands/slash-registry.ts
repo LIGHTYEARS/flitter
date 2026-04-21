@@ -90,6 +90,15 @@ export interface SlashCommandContext {
    * 逆向: amp's openInEditor sets textController.text; Flitter injects as message.
    */
   submitMessage?: (text: string) => void;
+
+  /**
+   * Toolbox service — lists discovered toolbox scripts.
+   * 逆向: e0R:1353-1362 (toolbox-list command)
+   */
+  toolboxService?: {
+    getTools(): Array<{ name: string; description: string; status: string; error?: string }>;
+    getStatus(): { type: string; toolCount?: number };
+  };
 }
 
 /**

@@ -472,3 +472,79 @@ describe("ContextManager", () => {
     assert.equal(called, false);
   });
 });
+
+// ─── 7. API token count feeding (GAP-DATA-22) ──────────
+
+describe("ContextManager API token counts", () => {
+  const noopCompactFn: CompactFunction = async () => "summary";
+
+  it("getLastApiTokens returns null before any update", () => {
+    const mgr = new ContextManager({ compactFn: noopCompactFn });
+    assert.equal(mgr.getLastApiTokens(), null);
+  });
+
+  it("updateLastApiTokens stores the value", () => {
+    const mgr = new ContextManager({ compactFn: noopCompactFn });
+    mgr.updateLastApiTokens(50000);
+    assert.equal(mgr.getLastApiTokens(), 50000);
+  });
+
+  it("updateLastApiTokens replaces previous value", () => {
+    const mgr = new ContextManager({ compactFn: noopCompactFn });
+    mgr.updateLastApiTokens(30000);
+    mgr.updateLastApiTokens(60000);
+    assert.equal(mgr.getLastApiTokens(), 60000);
+  });
+
+  it("checkAndCompact uses API token count when available", async () => {
+    // Window = 100 tokens, threshold 50%. Character-based count of our tiny
+    // thread is ~10 tokens (well under 50). But API says 80 tokens (over 50).
+    const compactFn: CompactFunction = async () => "compacted";
+    const mgr = new ContextManager({
+      compactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 50,
+      keepRecentMessages: 1,
+    });
+
+    const messages: ThreadMessage[] = [
+      makeTextMessage("user", "a"),
+      makeTextMessage("assistant", "b"),
+      makeTextMessage("user", "c"),
+      makeTextMessage("assistant", "d"),
+      makeTextMessage("user", "e"),
+    ];
+    const thread = makeThread(messages);
+
+    // Without API tokens: small char count, no compaction
+    const result1 = await mgr.checkAndCompact(thread);
+    assert.equal(result1.compacted, false);
+
+    // Feed high API token count → should trigger compaction
+    mgr.updateLastApiTokens(80);
+    const result2 = await mgr.checkAndCompact(thread);
+    assert.equal(result2.compacted, true);
+    assert.equal(result2.tokensBefore, 80); // API count used
+  });
+
+  it("checkAndCompact falls back to char count when API tokens are 0", async () => {
+    const mgr = new ContextManager({
+      compactFn: noopCompactFn,
+      modelContextWindow: 100,
+      compactionThresholdPercent: 50,
+    });
+
+    const messages: ThreadMessage[] = [
+      makeTextMessage("user", "short"),
+      makeTextMessage("assistant", "reply"),
+    ];
+    const thread = makeThread(messages);
+
+    // API tokens = 0 → should fall back to char-based count
+    mgr.updateLastApiTokens(0);
+    const result = await mgr.checkAndCompact(thread);
+    assert.equal(result.compacted, false);
+    // tokensBefore should be the char-based count, not 0
+    assert.ok(result.tokensBefore > 0);
+  });
+});

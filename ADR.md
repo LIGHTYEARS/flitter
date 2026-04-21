@@ -825,3 +825,37 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - ~65 new tests (18 mode + 16 ForceDim + 3 workspaceRoot + 7 Gemini + 20 visibility + 1 fix), 5639 total passing, 0 type errors
 - 6 gaps closed: CORE-25, CORE-26, TUI-27, DATA-19, LLM-16, DATA-23
 - Total open gaps: ~90 (down from 96)
+
+## ADR-026: Iteration 26 — CLI polish, API token accuracy, animation detection
+
+**Date:** 2026-04-22
+**Status:** Accepted
+
+### Context
+
+Iteration 26 focuses on breadth over depth: closing 7 gaps across CLI, Data, TUI, Core, and LLM domains. Targets were selected for high return with minimal risk — mostly EASY to MEDIUM difficulty (30-80 lines each). Two "gaps" turned out to already be implemented (CORE-31 subagent depth) or false (LLM-20 output_config for non-eap).
+
+### Decisions
+
+1. **`/remove-label` slash command (CLI-40)**: Mirror of `/label` (add). Filters target label from `snapshot.labels` array. Uses local thread store instead of amp's server API — simpler implementation but same user-facing behavior. Alias `/unlabel` added.
+
+2. **`--log-level` / `--log-file` CLI flags (CLI-33)**: Added `setLogOutput()` to logger.ts to allow global log redirection. Main.ts early argv scan supports both `--log-level=val` and `--log-level val` syntax matching amp's RF0 pattern. Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. Priority: explicit flag > env var > mode-based default.
+
+3. **API token counts to ContextManager (DATA-22)**: Key accuracy fix. `ContextManager.updateLastApiTokens(n)` stores most recent API-reported input token count. `checkAndCompact()` now prefers API count over character-based approximation (which systematically underestimates for code-heavy conversations). Container subscribes to ThreadWorker `inference:complete` events to feed actual `usage.inputTokens`.
+
+4. **`/toolbox` list slash command (CLI-43)**: Lists discovered toolbox scripts with status icons (+/!/~). `ToolboxService` added to `ServiceContainer` interface and wired into `SlashCommandContext`. Matches amp's e0R:1353-1362 toolbox-list command.
+
+5. **Animation support detection (TUI-35)**: `animationSupport: "fast" | "slow" | "disabled"` added to `TerminalCapabilities`. `detectAnimationSupport()` function matches amp's dY.js:266-272: checks NO_ANIMATION env, Emacs (INSIDE_EMACS), SSH (SSH_CLIENT/SSH_TTY/SSH_CONNECTION) → disabled; JetBrains → slow; else fast. Exported for testability.
+
+6. **Subagent depth enforcement (CORE-31)**: Already implemented — `SubAgentManager.spawn()` creates worker without SubAgentManager reference. Existing test at `subagent.test.ts:412-424` verifies. Marked as closed.
+
+7. **Anthropic output_config for non-eap (LLM-20)**: False gap. Verified amp's OwT.js:67-71 — `output_config.effort` is EAP-only. Flitter already matches this exactly. Marked as closed.
+
+### Consequences
+
+- Compaction thresholds are now more accurate — API token counts replace character-based estimates after first inference
+- CLI has 31+ slash commands (up from 29), matching more of amp's command palette
+- Logger supports file output redirection — enables structured log analysis workflows
+- Animation capability detection unblocks downstream spinner behavior decisions
+- ~30 new tests (6 remove-label + 2 logger + 5 context-manager + 12 animation + 5 toolbox), 5669 total passing, 0 type errors
+- 7 gaps closed: CLI-40, CLI-33, CLI-43, DATA-22, TUI-35, CORE-31 (pre-existing), LLM-20 (false gap)

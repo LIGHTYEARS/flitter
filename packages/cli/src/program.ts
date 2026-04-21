@@ -49,6 +49,10 @@ export function createProgram(version: string): Command {
     .option("--stream-json", "Output JSON event stream to stdout")
     .option("--no-color", "Disable color output")
     .option("-v, --verbose", "Enable verbose logging")
+    // 逆向: RF0 (modules/2004_unknown_RF0.js) — --log-level flag → AMP_LOG_LEVEL env → "info"
+    .option("--log-level <level>", "Log level: debug, info, warn, error")
+    // 逆向: RF0 — --log-file flag → AMP_LOG_FILE env → default stderr
+    .option("--log-file <path>", "Write logs to file instead of stderr")
     // ── 逆向: i$T flag definitions (chunk-006.js:38263-38279) ──
     // amp defines apiKey, sp, systemPrompt, mode as hidden options.
     // Flitter exposes a subset as user-facing CLI flags.

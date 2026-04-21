@@ -58,8 +58,8 @@ describe("createBuiltinCommands", () => {
     const registry = new SlashCommandRegistry();
     createBuiltinCommands(registry);
     const commands = registry.listCommands();
-    // Original 6 + 23 new = 29
-    expect(commands.length).toBeGreaterThanOrEqual(29);
+    // Original 6 + 25 new = 31
+    expect(commands.length).toBeGreaterThanOrEqual(31);
   });
 
   it("registers thread commands: /new, /switch, /dashboard, /delete, /archive", () => {
@@ -631,5 +631,188 @@ describe("createBuiltinCommands", () => {
         delete process.env.FLITTER_EDITOR;
       }
     }
+  });
+
+  // ── Iteration 26: /remove-label ──────────────────────────
+
+  it("registers /remove-label command", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("remove-label")).toBe(true);
+    expect(registry.has("unlabel")).toBe(true); // alias
+  });
+
+  it("registers /toolbox command", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("toolbox")).toBe(true);
+    expect(registry.has("toolbox-list")).toBe(true); // alias
+  });
+
+  it("/remove-label without args shows usage", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext();
+    await registry.dispatch("remove-label", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Usage:");
+  });
+
+  it("/remove-label on thread with no labels shows empty message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          relationships: [],
+          labels: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("remove-label", "foo", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("no labels to remove");
+  });
+
+  it("/remove-label with non-existent label shows not found", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          relationships: [],
+          labels: ["bug", "feature"],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("remove-label", "nonexistent", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("not found");
+    expect(message).toContain("bug, feature");
+  });
+
+  it("/remove-label removes existing label and updates thread", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const setCachedMock = mock(() => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          relationships: [],
+          labels: ["bug", "feature", "urgent"],
+        }),
+        setCachedThread: setCachedMock,
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("remove-label", "feature", ctx);
+    expect(setCachedMock).toHaveBeenCalledTimes(1);
+    const snapshot = setCachedMock.mock.calls[0][0] as { labels: string[] };
+    expect(snapshot.labels).toEqual(["bug", "urgent"]);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain('Removed label "feature"');
+    expect(message).toContain("bug, urgent");
+  });
+
+  it("/remove-label removing last label shows no-labels message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const setCachedMock = mock(() => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          relationships: [],
+          labels: ["only-one"],
+        }),
+        setCachedThread: setCachedMock,
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("remove-label", "only-one", ctx);
+    expect(setCachedMock).toHaveBeenCalledTimes(1);
+    const snapshot = setCachedMock.mock.calls[0][0] as { labels: string[] };
+    expect(snapshot.labels).toEqual([]);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Thread has no labels");
+  });
+
+  // ── Iteration 26: /toolbox ──────────────────────────
+
+  it("/toolbox without toolboxService shows not available", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext(); // no toolboxService
+    await registry.dispatch("toolbox", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("not available");
+  });
+
+  it("/toolbox with no tools shows help message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      toolboxService: {
+        getTools: () => [],
+        getStatus: () => ({ type: "ready" }),
+      },
+    });
+    await registry.dispatch("toolbox", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("No toolbox scripts found");
+    expect(message).toContain("tools make");
+  });
+
+  it("/toolbox shows initializing when status is initializing", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      toolboxService: {
+        getTools: () => [],
+        getStatus: () => ({ type: "initializing" }),
+      },
+    });
+    await registry.dispatch("toolbox", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("initializing");
+  });
+
+  it("/toolbox lists discovered tools with status icons", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      toolboxService: {
+        getTools: () => [
+          { name: "my-tool", description: "Does stuff", status: "ready" },
+          { name: "broken-tool", description: "Fails", status: "error", error: "parse error" },
+        ],
+        getStatus: () => ({ type: "ready", toolCount: 2 }),
+      },
+    });
+    await registry.dispatch("toolbox", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Toolbox scripts (2)");
+    expect(message).toContain("[+] my-tool");
+    expect(message).toContain("[!] broken-tool");
+    expect(message).toContain("(parse error)");
   });
 });

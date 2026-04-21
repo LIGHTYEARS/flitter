@@ -61,10 +61,29 @@ export function getLogLevel(): LogLevel {
   return globalLogLevel;
 }
 
+/**
+ * Global output function. Logs are written to stderr by default.
+ * Use setLogOutput() to redirect (e.g., to a file).
+ *
+ * 逆向: amp's RF0 (modules/2004_unknown_RF0.js) resolves logFile from
+ * --log-file flag → AMP_LOG_FILE env → default path. The output
+ * destination is a file path. We abstract this as a write function.
+ */
+let globalLogOutput: (line: string) => void = (line: string) => process.stderr.write(`${line}\n`);
+
+/**
+ * Redirect all log output to a custom writer.
+ *
+ * @param output - Function that receives formatted log lines
+ */
+export function setLogOutput(output: (line: string) => void): void {
+  globalLogOutput = output;
+}
+
 class LoggerImpl implements Logger {
   private _name: string;
   private _context: Record<string, unknown>;
-  private _output: (line: string) => void;
+  private _output: ((line: string) => void) | null;
 
   constructor(
     name: string,
@@ -73,7 +92,7 @@ class LoggerImpl implements Logger {
   ) {
     this._name = name;
     this._context = context;
-    this._output = output ?? ((line: string) => process.stderr.write(line + "\n"));
+    this._output = output ?? null; // null = use global
   }
 
   private _log(level: LogLevel, message: string, extra: Record<string, unknown> = {}): void {
@@ -86,7 +105,8 @@ class LoggerImpl implements Logger {
       ...this._context,
       ...extra,
     };
-    this._output(JSON.stringify(entry));
+    const writer = this._output ?? globalLogOutput;
+    writer(JSON.stringify(entry));
   }
 
   debug(message: string, ...args: unknown[]): void {
@@ -107,7 +127,7 @@ class LoggerImpl implements Logger {
   }
 
   child(context: Record<string, unknown>): Logger {
-    return new LoggerImpl(this._name, { ...this._context, ...context }, this._output);
+    return new LoggerImpl(this._name, { ...this._context, ...context }, this._output ?? undefined);
   }
 }
 

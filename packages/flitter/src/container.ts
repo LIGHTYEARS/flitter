@@ -184,6 +184,12 @@ export interface ServiceContainer {
   pluginService: PluginService;
 
   /**
+   * Toolbox service — discovers and registers user-provided shell-script tools.
+   * 逆向: S5R in modules/1371_Toolbox_S5R.js
+   */
+  toolboxService: ToolboxService;
+
+  /**
    * ThreadWorkerService: manages ThreadWorker instances by thread ID.
    * 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
    */
@@ -629,6 +635,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       settings: opts.settings,
       subAgentManager,
       pluginService,
+      toolboxService,
       threadWorkerService: null as unknown as ThreadWorkerService, // set below
 
       createThreadWorker(
@@ -903,6 +910,19 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
 
         const worker = new ThreadWorkerImpl(fullOpts);
         workerRef = worker;
+
+        // Feed actual API token counts from inference:complete events to ContextManager
+        // 逆向: amp feeds usage.input_tokens to context tracking (chunk-004.js:32300)
+        worker.events$.subscribe((event) => {
+          if (
+            event.type === "inference:complete" &&
+            event.usage &&
+            typeof event.usage.inputTokens === "number" &&
+            event.usage.inputTokens > 0
+          ) {
+            contextManager.updateLastApiTokens(event.usage.inputTokens);
+          }
+        });
 
         // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:259-270
         // resume() truncates incomplete streaming messages and resumes

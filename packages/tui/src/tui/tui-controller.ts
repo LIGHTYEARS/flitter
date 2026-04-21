@@ -107,6 +107,18 @@ export interface TerminalCapabilities {
    * 逆向: QXR in modules/0080_unknown_QXR.js
    */
   colorDepth: ColorDepth;
+  /**
+   * Animation support level.
+   *
+   * 逆向: dY.js:266-272 — detectAnimationSupport()
+   *   "disabled": NO_ANIMATION=1 env, Emacs (INSIDE_EMACS), SSH (SSH_CLIENT/SSH_TTY/SSH_CONNECTION)
+   *   "slow": JetBrains (TERMINAL_EMULATOR=JetBrains*)
+   *   "fast": all other terminals
+   *
+   * Used by spinners to decide between animated (BrailleSpinner) and
+   * static (text dots) rendering.
+   */
+  animationSupport: "fast" | "slow" | "disabled";
 }
 
 /**
@@ -844,6 +856,7 @@ export class TuiController {
       xtversion: null,
       supportsCursorShape: detectCursorShapeSupport(),
       colorDepth: detectColorDepth(),
+      animationSupport: detectAnimationSupport(),
     };
   }
 }
@@ -917,4 +930,34 @@ function detectCursorShapeSupport(env: Record<string, string | undefined> = proc
   if (env.INSIDE_EMACS) return false;
   if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return false;
   return true;
+}
+
+/**
+ * Detect animation support level based on terminal environment.
+ *
+ * 逆向: amp modules/2109_unknown_dY.js:266-272
+ *   detectAnimationSupport() {
+ *     if (this.options.animationDisabled) return "disabled";
+ *     if (NO_ANIMATION === "1" || NO_ANIMATIONS === "1") return "disabled";
+ *     if (this.detectEmacs() || this.detectSSH()) return "disabled";
+ *     if (this.detectJetBrains()) return "slow";
+ *     return "fast";
+ *   }
+ *
+ * "disabled" = no animations at all (static spinners, no transitions)
+ * "slow" = reduced animations (slower spinners, fewer frames)
+ * "fast" = full animations (braille spinners, smooth transitions)
+ */
+export function detectAnimationSupport(
+  env: Record<string, string | undefined> = process.env,
+): "fast" | "slow" | "disabled" {
+  // NO_ANIMATION=1 or NO_ANIMATIONS=1 — user explicitly disabled
+  if (env.NO_ANIMATION === "1" || env.NO_ANIMATIONS === "1") return "disabled";
+  // Emacs terminal — animation doesn't render well
+  if (env.INSIDE_EMACS) return "disabled";
+  // SSH session — latency makes animations distracting
+  if (env.SSH_CLIENT || env.SSH_TTY || env.SSH_CONNECTION) return "disabled";
+  // JetBrains built-in terminal — slower rendering, use reduced animations
+  if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return "slow";
+  return "fast";
 }

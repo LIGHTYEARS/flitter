@@ -146,14 +146,21 @@ export async function handleThreadsNew(
 /**
  * 处理 threads continue 命令
  *
+ * 逆向: amp-cli-reversed/chunk-005.js:4888-4903
+ *   - `threads continue [threadIDOrURL]` — ID is optional
+ *   - `--last` flag: continue the most recent thread directly
+ *   - When `--last || threadID || executeMode` → resolve without picker
+ *
  * @param deps - Thread 管理所需的依赖服务
  * @param context - CLI 运行上下文
- * @param threadId - 要继续的 Thread ID
+ * @param threadId - 要继续的 Thread ID (optional)
+ * @param options - Command options including --last flag
  */
 export async function handleThreadsContinue(
   deps: ThreadsCommandDeps,
   context: CliContext,
-  threadId: string,
+  threadId?: string,
+  options?: { last?: boolean },
 ): Promise<void> {
   void context;
   const threadStore = deps.threadStore;
@@ -162,13 +169,38 @@ export async function handleThreadsContinue(
     process.exitCode = 1;
     return;
   }
-  const thread = threadStore.getThread(threadId);
-  if (!thread) {
-    process.stderr.write(`Error: Thread "${threadId}" not found\n`);
+
+  // Resolve thread ID: explicit > --last (most recent) > error
+  let resolvedId = threadId;
+  if (!resolvedId && options?.last) {
+    // 逆向: n$T(null, "interactive") — resolve most recent thread
+    const recentIds = threadStore.listRecentThreadIds?.(1);
+    if (recentIds && recentIds.length > 0) {
+      resolvedId = recentIds[0];
+    } else {
+      process.stderr.write("Error: No threads available. Create one with `flitter threads new`.\n");
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  if (!resolvedId) {
+    process.stderr.write(
+      "Error: Thread ID is required. Provide a thread ID or use --last to continue the most recent thread.\n",
+    );
     process.exitCode = 1;
     return;
   }
-  process.stdout.write(`Continuing thread: ${threadId}\nRun: flitter --thread-id ${threadId}\n`);
+
+  const thread = threadStore.getThread(resolvedId);
+  if (!thread) {
+    process.stderr.write(`Error: Thread "${resolvedId}" not found\n`);
+    process.exitCode = 1;
+    return;
+  }
+  process.stdout.write(
+    `Continuing thread: ${resolvedId}\nRun: flitter --thread-id ${resolvedId}\n`,
+  );
 }
 
 /**

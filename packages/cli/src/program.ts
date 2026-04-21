@@ -120,8 +120,10 @@ export function createProgram(version: string): Command {
 
   threads
     .command("continue")
+    .alias("c")
     .description("Continue an existing thread")
-    .argument("<id>", "Thread ID to continue");
+    .argument("[id]", "Thread ID or URL to continue")
+    .option("--last", "Continue the most recent thread directly");
 
   threads
     .command("archive")

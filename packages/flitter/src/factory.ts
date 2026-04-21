@@ -18,6 +18,7 @@ import {
   ApplyPatchTool,
   BashTool,
   EditTool,
+  FormatFileTool,
   FuzzyFindTool,
   GetDiagnosticsTool,
   GlobTool,
@@ -25,6 +26,7 @@ import {
   PermissionEngine,
   ReadTool,
   RestoreSnapshotTool,
+  ShellCommandTool,
   ToolRegistry,
   WriteTool,
 } from "@flitter/agent-core";
@@ -188,8 +190,10 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   registry.register(GrepTool);
   registry.register(GlobTool);
   registry.register(FuzzyFindTool);
+  registry.register(FormatFileTool);
   registry.register(RestoreSnapshotTool);
   registry.register(GetDiagnosticsTool);
+  registry.register(ShellCommandTool);
 }
 
 /**

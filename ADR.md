@@ -487,3 +487,33 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - Agents can check code quality via `get_diagnostics` without IDE plugins
 - Thread handoff enables context transfer between conversations
 - 41 new tests (14 CLI-05 + 9 DATA-13 + 10 TOOL-02 + 8 CLI-28), 0 TypeScript errors
+
+---
+
+## ADR-020: Iteration 15 — shell_command, format_file, threads continue --last
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 15 selected 3 gaps plus 1 duplicate closure. Research agents investigated 4 additional candidates (CLI-01 skill CLI commands, TOOL-27 look_at, CLI-07 permissions edit, TOOL-06 shell_command) and findings informed target selection. CLI-07 (permissions edit) was deferred due to medium-high complexity (custom DSL parser needed). CLI-01 deferred for similar reasons (git clone path for `skill add`). TOOL-27 deferred (requires Gemini LLM sub-call with multimodal parts).
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-TOOL-06 (shell_command) | Tools | Small | **Yes** — thin wrapper with clear amp reference |
+| GAP-TOOL-16 (format_file) | Tools | Small | **Yes** — shell-out formatters, similar to get_diagnostics |
+| GAP-CLI-10 (threads continue --last) | CLI | Small | **Yes** — flag addition to existing command |
+| GAP-CLI-04 (threads handoff) | CLI | None | **Closed** — duplicate of CLI-28 |
+
+### Decisions
+
+1. **shell_command as preprocessArgs Wrapper (TOOL-06)**: Rather than duplicating Bash execution logic, `ShellCommandTool` reuses `BashTool.execute` directly and only transforms parameters via `preprocessArgs`. The `workdir→cwd` and `timeout_ms→timeout` mappings match amp's `q5T` function (modules/1299_unknown_q5T.js). The `login` parameter is accepted but not forwarded — Bash tool always uses `shell: true` which provides login-like behavior. This keeps maintenance cost minimal.
+
+2. **Formatter Auto-Detection with Project-Level Config (TOOL-16)**: The tool checks `biome.json`/`biome.jsonc` presence to decide between biome and prettier for JS/TS files. Language-specific formatters (gofmt, rustfmt, ruff) take precedence. Python has a ruff→black fallback chain. The `detectFormatter()` function is exported for unit testability, avoiding slow subprocess-based tests.
+
+3. **Optional Thread ID with --last Fallback (CLI-10)**: Changed `<id>` (required) to `[id]` (optional) in Commander.js. When neither ID nor `--last` is provided, gives a clear error message directing the user to either option. This matches amp's behavior (chunk-005.js:4888-4903) where `--last || threadID || executeMode` skips the picker.
+
+### Consequences
+
+- Subagents can now use `shell_command` tool with their expected parameter names
+- `format_file` enables agents to auto-format code after edits (prettier, biome, gofmt, rustfmt, ruff)
+- `threads continue --last` provides a quick path to resume work without a thread picker
+- 39 new tests (15 shell_command + 20 format_file + 4 threads continue --last), 0 TypeScript errors

@@ -74,6 +74,9 @@ function createMockThreadStore() {
       getCachedThreadIds() {
         return Array.from(threads.keys());
       },
+      listRecentThreadIds(maxCount: number) {
+        return Array.from(threads.keys()).slice(0, maxCount);
+      },
     } as unknown as ThreadStore,
     threads,
     entriesSubject,
@@ -305,6 +308,43 @@ describe("handleThreadsContinue", () => {
     await handleThreadsContinue({}, ctx, "any-id");
     assert.equal(process.exitCode, 1);
     assert.ok(output.stderr.join("").includes("ThreadStore not available"));
+  });
+
+  it("should continue the most recent thread with --last", async () => {
+    const { store, threads } = createMockThreadStore();
+    const snapshot = { id: "recent-thread", v: 0, messages: [], relationships: [] };
+    threads.set("recent-thread", new BehaviorSubject(snapshot));
+
+    await handleThreadsContinue({ threadStore: store }, ctx, undefined, { last: true });
+    const out = output.stdout.join("");
+    assert.ok(out.includes("Continuing thread: recent-thread"));
+  });
+
+  it("should error with --last when no threads exist", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsContinue({ threadStore: store }, ctx, undefined, { last: true });
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("No threads available"));
+  });
+
+  it("should error when no ID and no --last flag", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsContinue({ threadStore: store }, ctx, undefined, {});
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("Thread ID is required"));
+  });
+
+  it("should prefer explicit ID over --last", async () => {
+    const { store, threads } = createMockThreadStore();
+    const snapshot1 = { id: "recent-1", v: 0, messages: [], relationships: [] };
+    const snapshot2 = { id: "specific-id", v: 0, messages: [], relationships: [] };
+    threads.set("recent-1", new BehaviorSubject(snapshot1));
+    threads.set("specific-id", new BehaviorSubject(snapshot2));
+
+    await handleThreadsContinue({ threadStore: store }, ctx, "specific-id", { last: true });
+    const out = output.stdout.join("");
+    assert.ok(out.includes("Continuing thread: specific-id"));
+    assert.ok(!out.includes("recent-1"));
   });
 });
 

@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 14)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 14 targets: `tools make` scaffolding, lazy remote thread list loading, `get_diagnostics` tool, `threads handoff` command.
+> **Last updated:** 2026-04-21 (iteration 15)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 15 targets: `shell_command` subagent tool, `format_file` tool, `threads continue --last` flag.
 
 ## How to Read This Document
 
@@ -42,7 +42,7 @@
 |----|---------|-------------|
 | GAP-CLI-02 | `threads share <id>` | Amp has `threads share` with `--visibility` and `--support [message]` for sharing with support. |
 | GAP-CLI-03 | `threads visibility [level]` | Show/set default thread visibility for a repo. |
-| GAP-CLI-04 | `threads handoff [id]` | Create handoff threads from existing threads (alias `h`) with `--goal` and `--print`. |
+| GAP-CLI-04 | `threads handoff [id]` | **Closed (iteration 14)** — Duplicate of GAP-CLI-28. |
 | GAP-CLI-05 | ~~`tools make <name>`~~ | **Closed (iteration 14)** — `handleToolsMake` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX`/`AMP_TOOLBOX`), name validation, template generation, chmod 755. |
 | GAP-CLI-06 | ~~`tools use <name>`~~ | **Closed (iteration 13)** — Duplicate of GAP-CLI-27. |
 | GAP-CLI-07 | `permissions edit` | Open permissions in `$EDITOR` with retry loop. |
@@ -57,7 +57,7 @@
 | GAP-TOOL-02 | ~~`get_diagnostics`~~ | **Closed (iteration 14)** — Shell-out based diagnostics tool: TypeScript (`tsc --noEmit`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`). 10s timeout, normalized diagnostic format. Registered as builtin. |
 | GAP-TOOL-03 | `oracle` | Internal reasoning/planning tool. |
 | GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
-| GAP-TOOL-06 | `shell_command` (subagent) | Alternate Bash tool for subagents with `workdir`/`login`/`timeout_ms` params. |
+| GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents with `command`, `workdir`, `login`, `timeout_ms` params. Maps to Bash execution via `preprocessArgs`. Registered as builtin. |
 | GAP-TOOL-27 | `look_at` tool missing | AI-powered file analysis for PDFs/images/media. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Multimodal analysis capability. |
 
 ### TUI
@@ -97,7 +97,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CLI-10 | `threads continue --last` | Continue most recent thread without a picker. |
+| GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** — `--last` flag on `threads continue` resolves most recent thread via `listRecentThreadIds(1)` without picker. Thread ID argument now optional. Alias `c` added. |
 | GAP-CLI-11 | `threads --include-archived` | Filter flag for `threads list`. |
 | GAP-CLI-12 | `threads archive --unarchive` | Restore archived threads. |
 | GAP-CLI-13 | `--visibility` (top-level) | Thread creation visibility flag. |
@@ -119,7 +119,7 @@
 | GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
 | GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
 | GAP-TOOL-15 | `todo_write` | Write TODO annotations. |
-| GAP-TOOL-16 | `format_file` | Format file using configured formatter. |
+| GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** — Auto-detects formatter by file extension + project config (biome.json). Supported: TypeScript/JS (prettier/biome), Python (ruff/black), Go (gofmt), Rust (rustfmt). 15s timeout. Registered as builtin. |
 | GAP-TOOL-17 | `look_at` | IDE-specific code navigation. |
 | GAP-TOOL-18 | `painter` | Image/diagram generation. |
 | GAP-TOOL-19 | `repl` | Interactive REPL tool. |
@@ -294,10 +294,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 4 |
-| Medium | 15 |
-| Low | 43 |
-| **Total open gaps** | **62** |
-| Closed gaps | 100+ |
+| Medium | 12 |
+| Low | 40 |
+| **Total open gaps** | **56** |
+| Closed gaps | 106+ |
 
 ### Cross-Cutting Themes
 
@@ -329,3 +329,8 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-DATA-13** (completed): `ensureThreadEntriesLoaded()` on ThreadStore — lazy-load remote thread entries with three-phase merge (fetch remote → build merged map with identity-preserving dedup → overlay with `threadEntriesFromCachedThreads()` for local wins). Coalescing promise prevents concurrent fetches. `setRemote(transport)` wiring method. Graceful fallback to local-only on network error. 9 new tests.
 - **GAP-TOOL-02** (completed): `get_diagnostics` builtin tool — shells out to language-specific checkers: TypeScript (`npx tsc --noEmit --pretty false`), Python (`ruff check --output-format json`), Go (`go vet ./...`), Rust (`cargo check --message-format json`). Auto-detects language from file extension and directory markers. 10s timeout per checker, normalized `DiagnosticEntry` output format. Registered in factory.ts. 10 new tests.
 - **GAP-CLI-28** (completed): `threads handoff [id]` CLI command — `handleThreadsHandoff()` with `-g/--goal` and `-p/--print` flags. Resolves parent thread (fallback to most recent), builds condensed context summary from last 20 messages, creates child thread with goal-seeded messages, wires bidirectional parent-child relationship via `applyParentRelationship()`. `/handoff` slash stub unchanged (needs `SlashCommandContext` extension for full wiring). 8 new tests.
+
+### Iteration 15 — shell_command, format_file, threads continue --last
+- **GAP-TOOL-06** (completed): `shell_command` subagent tool — thin wrapper around Bash execution with `command`, `workdir`, `login`, `timeout_ms` params. `preprocessArgs` maps `workdir→cwd`, `timeout_ms→timeout`, strips `login`, then delegates to `BashTool.preprocessArgs` for cd interception. Reuses `BashTool.execute`. 15 new tests.
+- **GAP-TOOL-16** (completed): `format_file` builtin tool — auto-detects formatter by file extension + project config (biome.json/biome.jsonc). Dispatches to: gofmt (Go), rustfmt (Rust), ruff/black (Python), biome (JS/TS with config), prettier (JS/TS default + generic fallback). 15s timeout. Ruff→black fallback on error. `detectFormatter()` exported for unit testing. 20 new tests.
+- **GAP-CLI-10** (completed): `threads continue --last` — thread ID argument changed from required `<id>` to optional `[id]`. `--last` flag resolves most recent thread via `listRecentThreadIds(1)`. Alias `c` added matching amp. 4 new tests (total 7 for continue).

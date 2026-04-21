@@ -316,10 +316,10 @@ export async function main(opts?: MainOptions): Promise<void> {
       }
       const continueCmd = threadsCmd.commands.find((c) => c.name() === "continue");
       if (continueCmd) {
-        continueCmd.action(async (threadId: string) => {
+        continueCmd.action(async (threadId: string | undefined, opts: { last?: boolean }) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
-          await handleThreadsContinue({ threadStore: c.threadStore }, ctx, threadId);
+          await handleThreadsContinue({ threadStore: c.threadStore }, ctx, threadId, opts);
         });
       }
       const archiveCmd = threadsCmd.commands.find((c) => c.name() === "archive");

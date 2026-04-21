@@ -1,5 +1,7 @@
+import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
+import * as os from "node:os";
 import * as path from "node:path";
 import { BehaviorSubject, createLogger } from "@flitter/util";
 import { loadSkill, validateSkillName } from "./skill-parser.js";
@@ -174,41 +176,67 @@ export class SkillService {
     return { skills, errors, warnings };
   }
 
-  /** Install skill from local path */
+  /** Install skill from local path or GitHub URL */
   async install(
     source: string,
     options?: { name?: string; overwrite?: boolean },
   ): Promise<SkillInstallResult> {
-    // Load source to get name
-    const skill = loadSkill(source);
-    const name = options?.name ?? skill.name;
-    validateSkillName(name);
+    let localSource = source;
+    let tempDir: string | undefined;
 
-    const installBase = this.workspaceRoot
-      ? path.join(this.workspaceRoot, ".flitter", "skills")
-      : path.join(this.userConfigDir, "skills");
-    const installPath = path.join(installBase, name);
-
-    // Check existing
-    try {
-      await fsp.stat(installPath);
-      if (!options?.overwrite) {
+    // Clone from GitHub if source is a URL
+    // 逆向: pqR(url, signal) in modules/1322_unknown_pqR.js
+    if (isGitUrl(source)) {
+      try {
+        tempDir = await cloneFromGit(source);
+        localSource = tempDir;
+      } catch (err) {
         return {
           success: false,
-          skillName: name,
-          installedPath: installPath,
-          error: `Skill "${name}" already exists`,
+          skillName: options?.name ?? "unknown",
+          installedPath: "",
+          error: err instanceof Error ? err.message : String(err),
         };
       }
-      await fsp.rm(installPath, { recursive: true, force: true });
-    } catch {
-      /* doesn't exist, ok */
     }
 
-    // Copy directory
-    await fsp.mkdir(installPath, { recursive: true });
-    await copyDir(source, installPath);
-    return { success: true, skillName: name, installedPath: installPath };
+    try {
+      // Load source to get name
+      const skill = loadSkill(localSource);
+      const name = options?.name ?? skill.name;
+      validateSkillName(name);
+
+      const installBase = this.workspaceRoot
+        ? path.join(this.workspaceRoot, ".flitter", "skills")
+        : path.join(this.userConfigDir, "skills");
+      const installPath = path.join(installBase, name);
+
+      // Check existing
+      try {
+        await fsp.stat(installPath);
+        if (!options?.overwrite) {
+          return {
+            success: false,
+            skillName: name,
+            installedPath: installPath,
+            error: `Skill "${name}" already exists`,
+          };
+        }
+        await fsp.rm(installPath, { recursive: true, force: true });
+      } catch {
+        /* doesn't exist, ok */
+      }
+
+      // Copy directory
+      await fsp.mkdir(installPath, { recursive: true });
+      await copyDir(localSource, installPath);
+      return { success: true, skillName: name, installedPath: installPath };
+    } finally {
+      // Clean up temp dir from git clone
+      if (tempDir) {
+        await fsp.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      }
+    }
   }
 
   /** Remove installed skill */
@@ -380,4 +408,100 @@ async function copyDir(src: string, dest: string): Promise<void> {
       await fsp.copyFile(srcPath, destPath);
     }
   }
+}
+
+// ─── GitHub URL support ─────────────────────────────────
+
+/**
+ * Whether a source string looks like a Git URL.
+ *
+ * Matches:
+ * - https://github.com/...
+ * - git@github.com:...
+ * - github:owner/repo
+ * - Any https:// URL ending in .git
+ *
+ * 逆向: pqR in modules/1322_unknown_pqR.js accepts arbitrary git URLs
+ */
+export function isGitUrl(source: string): boolean {
+  if (source.startsWith("https://github.com/")) return true;
+  if (source.startsWith("git@github.com:")) return true;
+  if (source.startsWith("github:")) return true;
+  if (/^https?:\/\/.+\.git$/i.test(source)) return true;
+  return false;
+}
+
+/**
+ * Normalize a GitHub shorthand to a full clone URL.
+ * - `github:owner/repo` → `https://github.com/owner/repo.git`
+ * - Already full URL → return as-is
+ */
+function normalizeGitUrl(source: string): string {
+  if (source.startsWith("github:")) {
+    const ownerRepo = source.slice("github:".length);
+    return `https://github.com/${ownerRepo}.git`;
+  }
+  return source;
+}
+
+/** Clone timeout in ms (逆向: buT = 15000) */
+const GIT_CLONE_TIMEOUT_MS = 15_000;
+
+/**
+ * Clone a git repository to a temporary directory.
+ *
+ * 逆向: pqR(T, R) in modules/1322_unknown_pqR.js
+ *
+ * - Creates a temp dir
+ * - Runs `git clone --depth 1 <url> <tmpDir>`
+ * - Returns the temp dir path on success
+ * - Cleans up temp dir on failure
+ * - 15 second timeout matching amp's buT
+ */
+export async function cloneFromGit(url: string): Promise<string> {
+  const normalizedUrl = normalizeGitUrl(url);
+  const tmpDir = path.join(os.tmpdir(), `flitter-skill-${Date.now().toString(36)}`);
+  await fsp.mkdir(tmpDir, { recursive: true });
+
+  return new Promise<string>((resolve, reject) => {
+    let done = false;
+
+    const proc = spawn("git", ["clone", "--depth", "1", normalizedUrl, tmpDir], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const timer = setTimeout(() => {
+      if (!done) {
+        done = true;
+        proc.kill();
+        fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+        reject(new Error(`Git clone timed out after ${GIT_CLONE_TIMEOUT_MS / 1000} seconds`));
+      }
+    }, GIT_CLONE_TIMEOUT_MS);
+
+    let stderr = "";
+    proc.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    proc.on("close", (code) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (code === 0) {
+        resolve(tmpDir);
+      } else {
+        fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+        reject(new Error(`Git clone failed: ${stderr.trim() || "Unknown error"}`));
+      }
+    });
+
+    proc.on("error", (err) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      reject(new Error(`Failed to run git: ${err.message}`));
+    });
+  });
 }

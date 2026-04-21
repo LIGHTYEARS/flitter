@@ -77,7 +77,7 @@ export interface AgentModeSpec {
  *
  * Mapping amp tool names → flitter:
  *   create_file → Write, edit_file → Edit, glob → Glob
- *   task_list → todo_read/todo_write, undo_edit → (not yet), chart/handoff/painter → (not yet)
+ *   task_list → todo_read/todo_write, undo_edit → (not yet), painter → (not yet)
  *   MCP tools (read_mcp_resource) pass through unconditionally regardless of includeTools.
  */
 const SMART_TOOLS = [
@@ -99,8 +99,10 @@ const SMART_TOOLS = [
   "Grep",
   "Glob",
   "mermaid",
+  "chart",
   "look_at",
   "get_diagnostics",
+  "handoff",
   "restore_snapshot",
   "delete_file",
   "FuzzyFind",
@@ -120,10 +122,12 @@ const FAST_TOOLS = [
   "web_search",
   "read_web_page",
   "mermaid",
+  "chart",
   "read_thread",
   "find_thread",
   "skill",
   "oracle",
+  "handoff",
   "librarian",
   "Task",
   "todo_read",
@@ -141,12 +145,14 @@ const DEEP_TOOLS = [
   "web_search",
   "read_web_page",
   "mermaid",
+  "chart",
   "skill",
   "read_thread",
   "find_thread",
   "librarian",
   "oracle",
   "finder",
+  "handoff",
   "todo_read",
   "todo_write",
 ];
@@ -162,7 +168,7 @@ const DEEP_DEFERRED = ["code_review"];
  *   Task (subagent), code_tour, painter, look_at, restore_snapshot.
  *
  * Mapping amp → flitter: create_file→Write, edit_file→Edit, glob→Glob,
- *   task_list→todo_read/todo_write, chart→(not yet)
+ *   task_list→todo_read/todo_write
  */
 const FREE_TOOLS = [
   "Read",
@@ -180,6 +186,7 @@ const FREE_TOOLS = [
   "read_thread",
   "find_thread",
   "mermaid",
+  "chart",
   "skill",
 ];
 

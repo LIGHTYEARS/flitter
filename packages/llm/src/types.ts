@@ -135,7 +135,21 @@ export interface ModelInfo {
   /** 是否支持缓存控制 */
   supportsCacheControl: boolean;
   /** 费用 (每百万 tokens，美元) */
-  cost?: { input: number; output: number };
+  cost?: {
+    input: number;
+    output: number;
+    /** Cost for reading cached tokens (per million tokens) */
+    cached?: number;
+    /** Cost for writing to cache (per million tokens) */
+    cacheWrite?: number;
+  };
+  /**
+   * Prompt cache time-to-live in seconds.
+   * Anthropic models use 300 (5 minutes).
+   *
+   * 逆向: amp modules/2026_tail_anonymous.js:60429 — cacheTTL: 300
+   */
+  cacheTTL?: number;
   /** 自定义端点 URL (用于 openai-compat 等) */
   baseUrl?: string;
   /** 自定义请求头 */
@@ -373,7 +387,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 3, output: 15 },
+    cost: { input: 3, output: 15, cached: 0.3, cacheWrite: 3.75 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66604 CLAUDE_SONNET_4_5
   "claude-sonnet-4-5-20250929": {
@@ -385,7 +400,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 3, output: 15 },
+    cost: { input: 3, output: 15, cached: 0.3, cacheWrite: 3.75 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66623 CLAUDE_SONNET_4_6
   "claude-sonnet-4-6": {
@@ -397,7 +413,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 3, output: 15 },
+    cost: { input: 3, output: 15, cached: 0.3, cacheWrite: 3.75 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66642 CLAUDE_OPUS_4
   "claude-opus-4-20250514": {
@@ -409,7 +426,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 15, output: 75 },
+    cost: { input: 15, output: 75, cached: 1.5, cacheWrite: 18.75 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66661 CLAUDE_OPUS_4_1
   "claude-opus-4-1-20250805": {
@@ -421,7 +439,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 15, output: 75 },
+    cost: { input: 15, output: 75, cached: 1.5, cacheWrite: 18.75 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66680 CLAUDE_OPUS_4_5
   "claude-opus-4-5-20251101": {
@@ -433,7 +452,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 15, output: 75 },
+    cost: { input: 5, output: 25, cached: 0.5, cacheWrite: 6.25 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66699 CLAUDE_OPUS_4_6
   "claude-opus-4-6": {
@@ -445,7 +465,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 15, output: 75 },
+    cost: { input: 5, output: 25, cached: 0.5, cacheWrite: 6.25 },
+    cacheTTL: 300,
   },
   "claude-3-5-haiku-20241022": {
     id: "claude-3-5-haiku-20241022",
@@ -456,7 +477,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 0.8, output: 4 },
+    cost: { input: 0.8, output: 4, cached: 0.08, cacheWrite: 1 },
+    cacheTTL: 300,
   },
   // 逆向: amp-cli-reversed/chunk-005.js:66720 CLAUDE_HAIKU_4_5
   "claude-haiku-4-5-20251001": {
@@ -468,7 +490,8 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
-    cost: { input: 1, output: 5 },
+    cost: { input: 1, output: 5, cached: 0.1, cacheWrite: 1.25 },
+    cacheTTL: 300,
   },
 
   // ── OpenAI ─────────────────────────────────────────

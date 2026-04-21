@@ -46,6 +46,31 @@ describe("MODEL_REGISTRY", () => {
     assert.equal(model.contextWindow, 1_000_000);
   });
 
+  it("should have cacheTTL for Anthropic models", () => {
+    const anthropicModels = Object.values(MODEL_REGISTRY).filter((m) => m.provider === "anthropic");
+    assert.ok(anthropicModels.length > 0);
+    for (const model of anthropicModels) {
+      assert.equal(model.cacheTTL, 300, `${model.id} should have cacheTTL=300`);
+    }
+  });
+
+  it("should have cache cost fields for Anthropic models", () => {
+    const sonnet = MODEL_REGISTRY["claude-sonnet-4-20250514"];
+    assert.ok(sonnet.cost);
+    assert.equal(sonnet.cost.cached, 0.3);
+    assert.equal(sonnet.cost.cacheWrite, 3.75);
+
+    const opus = MODEL_REGISTRY["claude-opus-4-6"];
+    assert.ok(opus.cost);
+    assert.equal(opus.cost.cached, 0.5);
+    assert.equal(opus.cost.cacheWrite, 6.25);
+  });
+
+  it("should not have cacheTTL for non-Anthropic models", () => {
+    const gpt = MODEL_REGISTRY["gpt-4o"];
+    assert.equal(gpt.cacheTTL, undefined);
+  });
+
   it("should contain OpenAI models", () => {
     const model = MODEL_REGISTRY["gpt-4o"];
     assert.ok(model);

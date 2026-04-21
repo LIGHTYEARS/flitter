@@ -956,3 +956,41 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Scrollable widgets can anchor content to bottom, enabling chat-style auto-scroll
 - 39 new tests, 5752 total passing, 0 type errors
 - 5 gaps closed: DATA-26, DATA-24, TUI-38, TUI-37, CORE-28; 1 partially closed: TUI-29 (scroll step only)
+
+---
+
+## ADR-030: Iteration 30 — Chart tool, handoff tool, GitHub skill install, cacheTTL, mode tool lists
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 30 targets 5 gaps: 2 tool implementations (chart, handoff), 1 data feature (GitHub skill install), 1 LLM pricing enhancement (cacheTTL), and mode tool list updates. All have clear amp references and are self-contained.
+
+**Decisions:**
+
+1. **GAP-TOOL-33 (Chart tool):** Implemented as `createChartTool()` in `chart.ts` matching amp's `$D`/`tFR`/`rFR` (modules/2026_tail:140192-140296). Key design choices:
+   - Runs shell commands via `child_process.exec` (not Bun shell) for cross-runtime compatibility
+   - JSON validation requires array or non-null object, matching amp's `Array.isArray(t)` check
+   - 100-row MAX_ROWS truncation prevents oversized chart data, matching amp's tFR line 14007
+   - Serial execution with bash resource key prevents concurrent shell usage
+   - `disableTimeout: true` in executionProfile (not top-level), matching ToolSpec interface
+
+2. **GAP-TOOL-32 (Handoff tool):** Implemented as `createHandoffTool(callbacks)` factory pattern. Callbacks-based design decouples the tool spec from ThreadWorker implementation — the tool only knows about `executeHandoff(goal, options)` interface. `follow` defaults to `false` at the tool schema level, not in JS code, matching amp's `sqT` schema.
+
+3. **GAP-DATA-28 (GitHub skill install):** Three exported functions: `isGitUrl()` (4-pattern detection), `normalizeGitUrl()` (github: shorthand expansion), `cloneFromGit()` (git clone --depth 1, 15s timeout, temp dir with cleanup). `SkillService.install()` early-returns through git clone path before local path resolution. Matches amp's pqR flow where URL detection happens before path operations.
+
+4. **GAP-LLM-09 (cacheTTL):** Extended `ModelInfo` type interface — `cost` gains `cached` and `cacheWrite` optional fields, `cacheTTL` added at top level. Only Anthropic models get cacheTTL (300s = 5 minutes). Non-Anthropic models remain undefined, matching amp where cache TTL is Anthropic-specific. Cost values sourced from Anthropic's published pricing.
+
+5. **Mode tool lists:** `chart` added to ALL 4 modes (smart, fast, deep, free) matching amp where chart appears in UW, $iT, SiT, and giT. `handoff` added to smart/fast/deep but NOT free, matching amp where handoff is in UW/$iT/SiT but NOT giT. This preserves the free-is-subset-of-fast invariant.
+
+**New gaps discovered by exploration agents:**
+- CLI-52: Enterprise visibility default (amp defaults to "enterprise" for enterprise accounts)
+- CLI-53: `threads share --support` flag (server-dependent)
+- TOOL-40: `create_project` tool (template scaffolding)
+- CLI-54: Thread search structured DSL (is:archived, label:foo, before:, after:)
+
+**Consequences:**
+- Chart data visualization now available to LLM agents in all modes
+- Handoff delegation ready for wiring when ThreadWorker.executeHandoff() is connected
+- Skills can be installed directly from GitHub URLs
+- Cache-aware cost tracking enables accurate billing for Anthropic prompt caching
+- 33 new tests, 0 type errors

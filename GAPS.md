@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 29)
+> **Last updated:** 2026-04-22 (iteration 30)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -88,6 +88,8 @@
 | GAP-DATA-25 | Data | `GlobalCachedValue` TTL cache | Closed (iteration 27, pre-existing) |
 | GAP-CORE-28 | Core | `delegate` permission action | Closed (iteration 28) |
 | GAP-CORE-27 | Core | `free` tier mode | Closed (iteration 29) |
+| GAP-TOOL-32 | Tool | `handoff` as LLM-callable tool | Closed (iteration 30) |
+| GAP-TOOL-33 | Tool | `chart` data visualization tool | Closed (iteration 30) |
 
 ---
 
@@ -131,8 +133,8 @@
 | GAP-TOOL-04 | ~~`librarian`~~ | **Closed (iteration 17)** — Codebase understanding subagent for remote repositories. |
 | GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents. |
 | GAP-TOOL-27 | ~~`look_at` tool~~ | **Closed (iteration 18)** — Multimodal file analysis via Google Gemini. |
-| GAP-TOOL-32 | `handoff` as LLM-callable tool | Amp registers `handoff` as a named `ToolSpec` in the model's toolbox. Flitter has handoff state/hooks but no standalone tool registration. |
-| GAP-TOOL-33 | `chart` tool | Data visualization from shell output JSON. Bar/line/sparkline/area chart types. Used in amp's smart/rush tool sets. |
+| GAP-TOOL-32 | `handoff` as LLM-callable tool | **Closed (iteration 30)** — `createHandoffTool(callbacks)` in `handoff.ts`. LLM-callable tool with `goal` (required), `follow` (boolean, default false), `mode` (optional). Delegates to `HandoffToolCallbacks.executeHandoff()`. Matches amp's sqT/j0T/qBR. 10 new tests. |
+| GAP-TOOL-33 | `chart` tool | **Closed (iteration 30)** — `createChartTool()` in `chart.ts`. Runs shell command, parses JSON, validates array/object, returns structured chart data. Schema: cmd, chartType (bar/line/area), xColumn, yColumns + optional title/subtitle/stacked/horizontal/hoverColumns/groupColumn. 100-row max, 30s timeout, serial execution. Matches amp's $D/tFR/rFR. 14 new tests. |
 | GAP-TOOL-34 | `repl` tool | Interactive REPL subprocess (node/python/psql) with autonomous agent loop. |
 | GAP-TOOL-35 | `code_tour` / `walkthrough` tools | Guided code explanation and architecture exploration sub-tools. |
 | GAP-TOOL-36 | `thread_status` / `send_message_to_thread` | Cross-thread coordination tools. Check status and send messages between threads. |
@@ -241,6 +243,9 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-CLI-49 | `thread: open in browser` | Open thread URL in default browser from TUI. |
 | GAP-CLI-50 | `share with support` | Share thread with Amp/support team for debugging. Server-dependent. |
 | GAP-CLI-51 | `thread: mention` | Insert thread mention into prompt from TUI. |
+| GAP-CLI-52 | `threads visibility` enterprise default | Amp defaults thread visibility to `"enterprise"` for enterprise accounts (`O4R` chunk-002.js:14326). Flitter has no enterprise visibility level. |
+| GAP-CLI-53 | `threads share --support` | Amp has `--support` flag on `threads share` to share with Amp support team. Server-dependent. |
+| GAP-CLI-54 | `threads search` DSL | Amp's thread search supports structured DSL: `is:archived`, `label:foo`, `before:`, `after:` filters. Flitter only has plain text search. |
 
 ### Tools
 
@@ -263,6 +268,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-TOOL-25 | ~~`github_repo_ci_status`~~ | **Closed (iteration 17)** |
 | GAP-TOOL-26 | Bitbucket Enterprise tools | 7 enterprise Bitbucket integration tools. |
 | GAP-TOOL-38 | `search_documents` / `get_document` | Amp platform doc search tools. Server-dependent. |
+| GAP-TOOL-40 | `create_project` tool | Amp has `create_project` tool (modules/2026_tail:108214) that scaffolds project directories from templates. Not in flitter. |
 
 ### TUI
 
@@ -287,7 +293,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-LLM-08 | `service_tier` for OpenAI speed | **Closed (iteration 27)** — Fixed `service_tier` logic in OpenAI provider to match amp's `AUT()` (chunk-002.js:12397). `deep` mode + `openai.speed=fast` → `"priority"`, else passthrough explicit setting. Removed incorrect `"flex"` fallback for `"agent"` mode. 4 new tests. |
-| GAP-LLM-09 | `cacheTTL` in pricing model | Amp tracks 5-minute TTL for cache invalidation awareness. |
+| GAP-LLM-09 | `cacheTTL` in pricing model | **Closed (iteration 30)** — Added `cacheTTL?: number` and `cost.cached`/`cost.cacheWrite` fields to `ModelInfo`. All 9 Anthropic models updated with `cacheTTL: 300` and per-model cache costs. Matches amp's pricing model. 3 new tests. |
 | GAP-LLM-10 | Context-limit → Gemini fallback | Amp auto-falls back to Gemini on context overflow. Flitter detects but doesn't auto-fallback. |
 | GAP-LLM-19 | MCP OAuth headless auth handler | Amp's `M5T` supports `headlessAuthHandler` for CI environments. Flitter has `onManualCodeInput` only. |
 | GAP-LLM-20 | Anthropic `output_config.effort` for non-eap | **Closed (iteration 26, false gap)** — Verified amp's OwT.js:67-71: `output_config.effort` is ONLY set for EAP models (`b.includes("eap")`). Non-eap models use `thinking: { type: "enabled", budget_tokens }` without output_config. Flitter already matches this exactly (anthropic/provider.ts:406-416). |
@@ -306,7 +312,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-DATA-25 | `GlobalCachedValue` TTL cache | **Closed (iteration 27, pre-existing)** — Fully implemented in `packages/util/src/cache/global-cached-value.ts` with `softTTL`, `hardTTL`, `compute`, `changes` matching amp's `d5T` (modules/1271). Exported via `@flitter/util`. |
 | GAP-DATA-26 | `PollingFileWatcher` fallback | **Closed (iteration 28)** — Ported amp's GKT class (0304_unknown_GKT.js): recursive `fs.stat`-based mtime polling with configurable interval. Wired into `createFileWatcher()` factory when `usePolling=true`. Matches amp's KKT factory (line 3). 9 new tests. |
 | GAP-DATA-27 | MCP `includeTools` merge across skills | **Closed (iteration 29)** — `SkillService.updateMcpServers()` now detects server name collisions across skills: strips metadata, JSON-compares base specs (command/args/env). Match → merge `includeTools` arrays (Set dedup) with per-skill tracking (`_skillIncludeTools`). Differ → warn and skip. `MCPServerSpec` extended with `includeTools`, `_skillName`, `_skillNames`, `_skillIncludeTools`. Matches amp's UqR (1338:73-137). 4 new tests. |
-| GAP-DATA-28 | GitHub skill install support | Flitter's `SkillService.install()` only accepts local paths. Amp supports GitHub URLs. |
+| GAP-DATA-28 | GitHub skill install support | **Closed (iteration 30)** — `isGitUrl()` detects github.com, git@, github: shorthand, .git URLs. `cloneFromGit()` runs `git clone --depth 1` with 15s timeout. `SkillService.install()` now detects git URLs and clones to temp dir before proceeding. Matches amp's pqR. 6 new tests. |
 
 ### Agent-Core
 
@@ -479,6 +485,15 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-TOOL-11** (completed): `mermaid` diagram tool — Declarative no-op tool with `{code, citations}` schema matching amp's gVR. Execute generates mermaid.live base64 link for interactive viewing. `isReadOnly: true`, source `"builtin"`. Registered in container.ts. Description matches amp's IVR (supported headers, citation format, styling rules). 13 new tests.
 - **24 new tests total** (11 skill handlers + 13 mermaid), 0 TypeScript errors.
 
+### Iteration 30 — Chart tool, handoff tool, GitHub skill install, cacheTTL, mode tool lists
+- **GAP-TOOL-33** (completed): `chart` data visualization tool — `createChartTool()` runs shell commands, parses JSON output, validates array/object, returns structured chart data. Schema: cmd, chartType (bar/line/area), xColumn, yColumns + optional title/subtitle/stacked/horizontal/hoverColumns/groupColumn/xAxisLabel/yAxisLabel. 100-row MAX_ROWS truncation, 30s timeout, serial execution with bash resource key. Matches amp's $D/tFR/rFR (modules/2026_tail_anonymous.js:140192-140296). 14 new tests.
+- **GAP-TOOL-32** (completed): `handoff` as LLM-callable tool — `createHandoffTool(callbacks)` factory pattern. Params: `goal` (required), `follow` (boolean, default false), `mode` (optional). Delegates to `HandoffToolCallbacks.executeHandoff()` which returns threadId. Matches amp's sqT/j0T/qBR. 10 new tests.
+- **GAP-DATA-28** (completed): GitHub skill install — `isGitUrl()` detects 4 URL patterns (github.com, git@, github: shorthand, .git). `normalizeGitUrl()` converts github: shorthand to full HTTPS URL. `cloneFromGit()` runs `git clone --depth 1` to temp dir with 15s timeout and cleanup on failure. `SkillService.install()` detects git URLs and clones before proceeding. Matches amp's pqR. 6 new tests.
+- **GAP-LLM-09** (completed): cacheTTL in pricing model — Extended `ModelInfo.cost` with `cached` and `cacheWrite` fields, added `cacheTTL` field to `ModelInfo`. All 9 Anthropic models updated: Sonnet 4/4.5/4.6 (cached=0.3, cacheWrite=3.75), Opus 4/4.1 (cached=1.5, cacheWrite=18.75), Opus 4.5/4.6 (cached=0.5, cacheWrite=6.25), Haiku 4.5 (cached=0.1, cacheWrite=1.25), 3.5 Haiku (cached=0.08, cacheWrite=1). All with cacheTTL=300. 3 new tests.
+- **Mode tool lists** (completed): Added `chart` to SMART_TOOLS, FAST_TOOLS, DEEP_TOOLS, FREE_TOOLS. Added `handoff` to SMART_TOOLS, FAST_TOOLS, DEEP_TOOLS (NOT free, matching amp's giT). Maintained free-is-subset-of-fast invariant.
+- **New gaps discovered:** CLI-52 (enterprise visibility default), CLI-53 (threads share --support), TOOL-40 (create_project), CLI-54 (threads search DSL).
+- 33 new tests, 0 type errors.
+
 ---
 
 ## Summary Statistics
@@ -490,7 +505,7 @@ These were previously identified as gaps but are now implemented in flitter.
 | Medium | 31 |
 | Low | 52 |
 | **Total open gaps** | **101** |
-| Closed gaps | 134+ |
+| Closed gaps | 138+ |
 
 ### Cross-Cutting Themes
 

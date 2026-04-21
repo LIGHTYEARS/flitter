@@ -24,6 +24,19 @@ const log = createLogger("tool:read_thread");
 export interface ThreadStoreLike {
   getThreadSnapshot(id: string): ThreadSnapshot | undefined;
   getCachedThreadIds(): string[];
+  /**
+   * Optional remote search callback — when provided, find_thread will try
+   * server-side FTS5 search before falling back to local keyword matching.
+   */
+  searchRemote?: (
+    q: string,
+    limit: number,
+  ) => Promise<Array<{
+    id: string;
+    title: string | null;
+    updatedAt: number;
+    messageCount: number;
+  }> | null>;
 }
 
 /**

@@ -36,6 +36,8 @@ export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
 export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";
 export type { NotificationType } from "./widgets/notification-banner.js";
 export { NotificationBanner } from "./widgets/notification-banner.js";
+export type { OverlapCrossAxisAlignment } from "./widgets/overlap-column.js";
+export { OverlapColumn, RenderOverlapColumn } from "./widgets/overlap-column.js";
 export { Padding } from "./widgets/padding.js";
 export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
 export { RichText } from "./widgets/rich-text.js";

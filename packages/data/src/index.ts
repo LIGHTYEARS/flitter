@@ -73,6 +73,8 @@ export {
   ThreadStore,
 } from "./thread/thread-store";
 export type {
+  SearchThreadResult,
+  SearchThreadsResponse,
   ThreadRemoteTransport,
   ThreadUploadManagerOptions,
 } from "./thread/thread-upload";

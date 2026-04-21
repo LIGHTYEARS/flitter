@@ -218,6 +218,57 @@ describe("HttpRemoteTransport", () => {
     expect(capturedHeaders.Authorization).toBe(`Bearer ${TOKEN}`);
   });
 
+  // ── searchThreads ───────────────────────────────────────
+
+  test("searchThreads sends GET with query params", async () => {
+    let capturedUrl = "";
+    const response = {
+      threads: [{ id: "t-1", title: "Match", updatedAt: 123, messageCount: 5 }],
+      hasMore: false,
+    };
+
+    const transport = new HttpRemoteTransport({
+      baseUrl: BASE_URL,
+      authToken: TOKEN,
+      fetch: mockFetch((url) => {
+        capturedUrl = url;
+        return new Response(JSON.stringify(response), { status: 200 });
+      }),
+    });
+
+    const result = await transport.searchThreads({ q: "test query", limit: 10 });
+    expect(capturedUrl).toBe(`${BASE_URL}/api/threads/search?q=test+query&limit=10`);
+    expect(result.threads).toHaveLength(1);
+    expect(result.threads[0].id).toBe("t-1");
+    expect(result.hasMore).toBe(false);
+  });
+
+  test("searchThreads omits limit when not provided", async () => {
+    let capturedUrl = "";
+
+    const transport = new HttpRemoteTransport({
+      baseUrl: BASE_URL,
+      authToken: TOKEN,
+      fetch: mockFetch((url) => {
+        capturedUrl = url;
+        return new Response(JSON.stringify({ threads: [], hasMore: false }), { status: 200 });
+      }),
+    });
+
+    await transport.searchThreads({ q: "hello" });
+    expect(capturedUrl).toBe(`${BASE_URL}/api/threads/search?q=hello`);
+  });
+
+  test("searchThreads throws on non-2xx", async () => {
+    const transport = new HttpRemoteTransport({
+      baseUrl: BASE_URL,
+      authToken: TOKEN,
+      fetch: mockFetch(() => new Response("Server Error", { status: 500 })),
+    });
+
+    await expect(transport.searchThreads({ q: "test" })).rejects.toThrow("500");
+  });
+
   // ── Base URL trailing slash ─────────────────────────────
 
   test("strips trailing slash from base URL", async () => {

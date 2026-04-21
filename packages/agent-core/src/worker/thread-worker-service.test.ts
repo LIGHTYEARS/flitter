@@ -14,30 +14,58 @@ import {
   ThreadWorkerService,
 } from "./thread-worker-service";
 
-/** Minimal mock worker that only has dispose() */
-function createMockWorker(id: string): ThreadWorker {
+/** Minimal mock worker that tracks resume/enqueueMessage calls */
+function createMockWorker(id: string): ThreadWorker & {
+  isDisposed: boolean;
+  resumed: boolean;
+  enqueuedMessages: unknown[];
+} {
   let disposed = false;
+  let resumed = false;
+  const enqueuedMessages: unknown[] = [];
   return {
     id,
     dispose() {
       disposed = true;
     },
+    async resume() {
+      resumed = true;
+    },
+    enqueueMessage(msg: unknown) {
+      enqueuedMessages.push(msg);
+    },
     get isDisposed() {
       return disposed;
     },
-  } as unknown as ThreadWorker;
+    get resumed() {
+      return resumed;
+    },
+    enqueuedMessages,
+  } as unknown as ThreadWorker & {
+    isDisposed: boolean;
+    resumed: boolean;
+    enqueuedMessages: unknown[];
+  };
 }
 
 function createService(): {
   service: ThreadWorkerService;
   createdIds: string[];
+  getWorker: (id: string) => ReturnType<typeof createMockWorker> | undefined;
 } {
   const createdIds: string[] = [];
+  const workerMap = new Map<string, ReturnType<typeof createMockWorker>>();
   const factory: ThreadWorkerFactory = (threadId) => {
     createdIds.push(threadId);
-    return createMockWorker(threadId);
+    const w = createMockWorker(threadId);
+    workerMap.set(threadId, w);
+    return w;
   };
-  return { service: new ThreadWorkerService(factory), createdIds };
+  return {
+    service: new ThreadWorkerService(factory),
+    createdIds,
+    getWorker: (id: string) => workerMap.get(id),
+  };
 }
 
 describe("ThreadWorkerService", () => {
@@ -285,11 +313,157 @@ describe("ThreadWorkerService", () => {
 });
 
 // ──────────────────────────────────────────────────────
+//  createThreadWorker tests
+// ──────────────────────────────────────────────────────
+
+describe("createThreadWorker", () => {
+  it("creates worker and calls resume()", async () => {
+    const { service, getWorker } = createService();
+    const worker = await service.createThreadWorker("t-1");
+    assert.ok(worker);
+    const mockWorker = getWorker("t-1")!;
+    assert.equal(mockWorker.resumed, true);
+  });
+
+  it("returns existing worker if already created", async () => {
+    const { service, createdIds } = createService();
+    const w1 = await service.createThreadWorker("t-1");
+    const w2 = await service.createThreadWorker("t-1");
+    assert.strictEqual(w1, w2);
+    assert.deepEqual(createdIds, ["t-1"]);
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  createThread tests
+// ──────────────────────────────────────────────────────
+
+describe("createThread", () => {
+  it("generates a thread ID when none provided", async () => {
+    const { service, getWorker } = createService();
+    const store = createMockThreadStore();
+    service.setThreadStore(store);
+
+    const { threadID, worker } = await service.createThread();
+    assert.ok(threadID.length > 0);
+    assert.ok(worker);
+    // Worker should be resumed
+    const mockWorker = getWorker(threadID)!;
+    assert.equal(mockWorker.resumed, true);
+  });
+
+  it("uses explicit thread ID when provided", async () => {
+    const { service, createdIds } = createService();
+    const store = createMockThreadStore({ id: "explicit-id", v: 0, messages: [] });
+    service.setThreadStore(store);
+
+    const { threadID } = await service.createThread({ newThreadID: "explicit-id" });
+    assert.equal(threadID, "explicit-id");
+    assert.deepEqual(createdIds, ["explicit-id"]);
+  });
+
+  it("seeds messages when seededMessages provided", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore({ id: "t-seed", v: 1, messages: [] });
+    service.setThreadStore(store);
+
+    const messages = [
+      { role: "user" as const, content: [{ type: "text" as const, text: "hello" }], messageId: 1 },
+    ];
+    await service.createThread({ newThreadID: "t-seed", seededMessages: messages });
+
+    const snap = store.getThreadSnapshot("t-seed")!;
+    assert.equal(snap.messages.length, 1);
+  });
+
+  it("applies parent relationship when parent provided", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "child-t", v: 1, messages: [] },
+      { id: "parent-t", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.createThread({
+      newThreadID: "child-t",
+      parent: { threadID: "parent-t", type: "handoff" },
+    });
+
+    const childSnap = store.getThreadSnapshot("child-t")!;
+    assert.equal(childSnap.relationships!.length, 1);
+    assert.equal(childSnap.relationships![0].role, "child");
+    assert.equal(childSnap.relationships![0].threadID, "parent-t");
+  });
+
+  it("sends initial user message via enqueueMessage", async () => {
+    const { service, getWorker } = createService();
+    const store = createMockThreadStore({ id: "t-msg", v: 1, messages: [], nextMessageId: 5 });
+    service.setThreadStore(store);
+
+    await service.createThread({
+      newThreadID: "t-msg",
+      initialUserMessage: "Hello there!",
+    });
+
+    const mockWorker = getWorker("t-msg")!;
+    assert.equal(mockWorker.enqueuedMessages.length, 1);
+    const msg = mockWorker.enqueuedMessages[0] as Record<string, unknown>;
+    assert.equal(msg.role, "user");
+    assert.equal(msg.messageId, 5);
+    const content = msg.content as Array<{ type: string; text: string }>;
+    assert.equal(content[0].text, "Hello there!");
+  });
+
+  it("throws when initialUserMessage and seededMessages are both provided", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore({ id: "t-both", v: 1, messages: [] });
+    service.setThreadStore(store);
+
+    await assert.rejects(
+      () =>
+        service.createThread({
+          newThreadID: "t-both",
+          seededMessages: [
+            {
+              role: "user" as const,
+              content: [{ type: "text" as const, text: "seeded" }],
+              messageId: 1,
+            },
+          ],
+          initialUserMessage: "also initial",
+        }),
+      { message: /initialUserMessage cannot be set when seededMessages is provided/ },
+    );
+  });
+
+  it("returns existing worker for thread with messages (idempotency)", async () => {
+    const { service, createdIds } = createService();
+    const store = createMockThreadStore({
+      id: "t-existing",
+      v: 1,
+      messages: [{ role: "user", content: [{ type: "text", text: "existing" }], messageId: 1 }],
+    });
+    service.setThreadStore(store);
+
+    const result = await service.createThread({ newThreadID: "t-existing" });
+    assert.equal(result.threadID, "t-existing");
+    assert.ok(result.worker);
+    // Factory was called once (for the create), but messages weren't re-seeded
+    assert.deepEqual(createdIds, ["t-existing"]);
+  });
+});
+
+// ──────────────────────────────────────────────────────
 //  Mock ThreadStore for seedThreadMessages tests
 // ──────────────────────────────────────────────────────
 
 function createMockThreadStore(
-  ...initialThreads: Array<{ id: string; v: number; messages: unknown[] }>
+  ...initialThreads: Array<{
+    id: string;
+    v: number;
+    messages: unknown[];
+    nextMessageId?: number;
+  }>
 ): ThreadStoreForService {
   const threads = new Map<string, ThreadSnapshot>();
   for (const t of initialThreads) {
@@ -305,8 +479,15 @@ function createMockThreadStore(
       return { getValue: () => thread };
     },
     exclusiveSyncReadWriter(threadId: string) {
-      const snapshot = threads.get(threadId);
-      if (!snapshot) throw new Error(`Thread ${threadId} not found`);
+      // For createThread, the thread might not exist yet — create an empty snapshot
+      if (!threads.has(threadId)) {
+        threads.set(threadId, {
+          id: threadId,
+          v: 0,
+          messages: [],
+          nextMessageId: 1,
+        } as unknown as ThreadSnapshot);
+      }
       let disposed = false;
       return {
         read: () => {

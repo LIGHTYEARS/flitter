@@ -148,7 +148,32 @@ This tool searches **threads** (conversations), NOT git commits. Use this when t
 
       log.debug("find_thread called", { query, limit });
 
-      const results = searchThreads(threadStore, query, limit);
+      // Try remote FTS5 search first if available
+      // 逆向: amp rGR calls fi(`/api/threads/find?q=...&limit=...`)
+      let results: Array<{ id: string; title: string | null; snippet: string }>;
+
+      if (threadStore.searchRemote) {
+        try {
+          const remoteResults = await threadStore.searchRemote(query, limit);
+          if (remoteResults !== null) {
+            log.debug("Remote search returned results", { count: remoteResults.length });
+            results = remoteResults.map((r) => ({
+              id: r.id,
+              title: r.title,
+              snippet: `${r.messageCount} messages, updated ${new Date(r.updatedAt).toISOString()}`,
+            }));
+          } else {
+            // Remote returned null → fall back to local
+            results = searchThreads(threadStore, query, limit);
+          }
+        } catch (err) {
+          // Remote search failed → fall back to local
+          log.debug("Remote search failed, falling back to local", { error: String(err) });
+          results = searchThreads(threadStore, query, limit);
+        }
+      } else {
+        results = searchThreads(threadStore, query, limit);
+      }
 
       if (results.length === 0) {
         return {

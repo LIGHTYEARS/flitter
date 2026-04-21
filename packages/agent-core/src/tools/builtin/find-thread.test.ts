@@ -147,4 +147,64 @@ describe("createFindThreadTool", () => {
       assert.ok(result.content?.includes("No threads found"));
     });
   });
+
+  describe("remote search", () => {
+    it("uses remote search when searchRemote is available", async () => {
+      let remoteQuery: string | null = null;
+      let remoteLimit: number | null = null;
+      const storeWithRemote: ThreadStoreLike = {
+        ...makeThreadStore([]),
+        searchRemote: async (q, limit) => {
+          remoteQuery = q;
+          remoteLimit = limit;
+          return [{ id: "r1", title: "Remote Result", updatedAt: Date.now(), messageCount: 5 }];
+        },
+      };
+      const remoteTool = createFindThreadTool(storeWithRemote);
+      const result = await remoteTool.execute({ query: "test query" }, makeContext());
+      assert.equal(result.status, "done");
+      assert.ok(result.content?.includes("Remote Result"));
+      assert.equal(remoteQuery, "test query");
+      assert.equal(remoteLimit, 20);
+    });
+
+    it("falls back to local when remote returns null", async () => {
+      const storeWithRemote: ThreadStoreLike = {
+        ...makeThreadStore(threads),
+        searchRemote: async () => null,
+      };
+      const remoteTool = createFindThreadTool(storeWithRemote);
+      const result = await remoteTool.execute({ query: "auth" }, makeContext());
+      assert.equal(result.status, "done");
+      // Should fall back to local and find auth threads
+      assert.ok(result.content?.includes("Auth Migration"));
+    });
+
+    it("falls back to local when remote throws", async () => {
+      const storeWithRemote: ThreadStoreLike = {
+        ...makeThreadStore(threads),
+        searchRemote: async () => {
+          throw new Error("Network error");
+        },
+      };
+      const remoteTool = createFindThreadTool(storeWithRemote);
+      const result = await remoteTool.execute({ query: "auth" }, makeContext());
+      assert.equal(result.status, "done");
+      // Should fall back to local and find auth threads
+      assert.ok(result.content?.includes("Auth Migration"));
+    });
+
+    it("formats remote results with message count and timestamp", async () => {
+      const storeWithRemote: ThreadStoreLike = {
+        ...makeThreadStore([]),
+        searchRemote: async () => [
+          { id: "r1", title: "Test Thread", updatedAt: 1713700000000, messageCount: 10 },
+        ],
+      };
+      const remoteTool = createFindThreadTool(storeWithRemote);
+      const result = await remoteTool.execute({ query: "test" }, makeContext());
+      assert.equal(result.status, "done");
+      assert.ok(result.content?.includes("10 messages"));
+    });
+  });
 });

@@ -276,5 +276,5 @@ export type {
 } from "./worker/thread-worker";
 export { hasIncompleteToolUse, ThreadWorker } from "./worker/thread-worker";
 // ─── Worker — ThreadWorkerService ────────────────────────
-export type { ThreadWorkerFactory } from "./worker/thread-worker-service";
+export type { CreateThreadOptions, ThreadWorkerFactory } from "./worker/thread-worker-service";
 export { ThreadWorkerService } from "./worker/thread-worker-service";

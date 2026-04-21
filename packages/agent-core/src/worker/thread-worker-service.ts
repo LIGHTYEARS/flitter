@@ -26,7 +26,12 @@
  *   ```
  */
 
-import type { ThreadMessage, ThreadRelationship, ThreadSnapshot } from "@flitter/schemas";
+import type {
+  ThreadMessage,
+  ThreadRelationship,
+  ThreadSnapshot,
+  UserContentBlock,
+} from "@flitter/schemas";
 import { createLogger } from "@flitter/util";
 import type { ThreadWorker } from "./thread-worker";
 
@@ -184,10 +189,29 @@ export class ThreadWorkerService {
     return Array.from(this.workers.keys());
   }
 
-  // ─── Thread seeding & relationships ──────────────────────
+  // ─── Thread creation & seeding ───────────────────────────
   // 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
   //   seedThreadMessages (QWT.js:42-85)
   //   applyParentRelationship (QWT.js:87-145)
+  //   createThreadWorker (QWT.js:18-21)
+  //   createThread (QWT.js:111-143)
+
+  /**
+   * Create (or retrieve) a ThreadWorker and call resume() on it.
+   *
+   * 逆向: QWT.createThreadWorker(T, R) (QWT.js:18-21)
+   *   ```
+   *   async createThreadWorker(T, R) {
+   *     let a = await this.getOrCreateForThread(T, R);
+   *     return await a.resume(), a;
+   *   }
+   *   ```
+   */
+  async createThreadWorker(threadId: string): Promise<ThreadWorker> {
+    const worker = this.getOrCreate(threadId);
+    await worker.resume();
+    return worker;
+  }
 
   /**
    * Seed a thread with a pre-built message array before launching it.
@@ -331,4 +355,132 @@ export class ThreadWorkerService {
       await rw.asyncDispose();
     }
   }
+
+  // ─── createThread ───────────────────────────────────────
+
+  /**
+   * Create a new thread with an optional pre-built message set, parent relationship,
+   * and initial user message.
+   *
+   * 逆向: amp QWT.createThread(T, R) (QWT.js:111-143)
+   *
+   * Steps (matching amp):
+   *   1. Generate or use explicit thread ID
+   *   2. Seed messages if provided (via seedThreadMessages)
+   *   3. Create worker (getOrCreate + resume)
+   *   4. Early-return if thread already has messages and was NOT seeded (idempotency)
+   *   5. Apply parent-child relationship (if parent provided)
+   *   6. Send initial user message (via enqueueMessage) — mutually exclusive with seededMessages
+   *
+   * NOT YET IMPLEMENTED (requires worker.handle() delta dispatcher):
+   *   - agentMode stamping on live worker (agentMode IS stamped on seeded messages)
+   *   - draftContent
+   *   - setPendingNavigation
+   *   - transferQueuedMessages
+   *   - inheritVisibilityIfNeeded
+   *
+   * @param opts - Creation options
+   * @returns Thread ID and worker instance
+   */
+  async createThread(
+    opts?: CreateThreadOptions,
+  ): Promise<{ threadID: string; worker: ThreadWorker }> {
+    // Step 1: Generate or use explicit thread ID
+    // 逆向: amp `let a = R?.newThreadID ?? Eh()` where Eh() = "T-" + uuidv7()
+    const threadID = opts?.newThreadID ?? crypto.randomUUID();
+
+    let wasSeeded = false;
+
+    // Step 2: Seed messages if provided
+    // 逆向: `if (R?.seededMessages) await this.seedThreadMessages(T, a, R.seededMessages, e), t = !0`
+    if (opts?.seededMessages) {
+      await this.seedThreadMessages(threadID, opts.seededMessages, opts?.agentMode);
+      wasSeeded = true;
+    }
+
+    // Step 3: Create/resume worker
+    // 逆向: `let r = await this.createThreadWorker(T, a)`
+    const worker = await this.createThreadWorker(threadID);
+
+    // Step 4: Early return for existing thread (idempotency guard)
+    // 逆向: `if (r.thread.messages.length > 0 && !t) return ...`
+    const snapshot = this.threadStore?.getThreadSnapshot(threadID);
+    if (snapshot && snapshot.messages.length > 0 && !wasSeeded) {
+      log.info("createThread called for existing thread, returning existing worker", {
+        threadID,
+        messageCount: snapshot.messages.length,
+      });
+      return { threadID, worker };
+    }
+
+    // Step 5: Apply parent relationship
+    // 逆向: `if (R?.parent) await this.applyParentRelationship(T, r, a, R.parent)`
+    if (opts?.parent) {
+      await this.applyParentRelationship(threadID, opts.parent.threadID, opts.parent.type);
+    }
+
+    // Step 6: Send initial user message (mutually exclusive with seeded messages)
+    // 逆向: `if (R?.initialUserMessage) { if (t) throw ...; await this.sendInitialUserMessage(r, R.initialUserMessage) }`
+    if (opts?.initialUserMessage) {
+      if (wasSeeded) {
+        throw new Error("initialUserMessage cannot be set when seededMessages is provided");
+      }
+      // Normalize to Message format and enqueue
+      const content: UserContentBlock[] =
+        typeof opts.initialUserMessage === "string"
+          ? [{ type: "text" as const, text: opts.initialUserMessage }]
+          : opts.initialUserMessage;
+
+      // Allocate messageId from thread snapshot
+      const snap = this.threadStore?.getThreadSnapshot(threadID);
+      const messageId = snap?.nextMessageId ?? 1;
+
+      worker.enqueueMessage({
+        role: "user",
+        messageId,
+        content,
+      });
+    }
+
+    return { threadID, worker };
+  }
+}
+
+// ─── Types ────────────────────────────────────────────────
+
+/**
+ * Options for createThread().
+ *
+ * 逆向: amp QWT.createThread second argument R
+ *   (modules/1246_ThreadWorkerService_QWT.js:111-143)
+ */
+export interface CreateThreadOptions {
+  /** Explicit thread ID — if omitted, a new UUID is generated. */
+  newThreadID?: string;
+
+  /**
+   * Agent mode (e.g. "smart"). If seededMessages is provided,
+   * agentMode is stamped on user messages. Otherwise it would be
+   * dispatched via worker.handle() (not yet implemented).
+   */
+  agentMode?: string;
+
+  /** Pre-built messages to seed the thread with. Mutually exclusive with initialUserMessage. */
+  seededMessages?: ThreadMessage[];
+
+  /** Parent relationship spec. */
+  parent?: {
+    /** Parent thread ID */
+    threadID: string;
+    /** Relationship type (default: "handoff") */
+    type: "handoff";
+  };
+
+  /**
+   * Initial user message to send — either a text string or typed content blocks.
+   * Mutually exclusive with seededMessages.
+   *
+   * 逆向: amp normalizes string → [{type: "text", text: string}]
+   */
+  initialUserMessage?: string | UserContentBlock[];
 }

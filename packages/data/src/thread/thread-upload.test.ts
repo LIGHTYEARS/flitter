@@ -47,6 +47,13 @@ class MockRemote implements ThreadRemoteTransport {
   }
 
   async deleteThread(_id: string): Promise<void> {}
+
+  async searchThreads(_opts: {
+    q: string;
+    limit?: number;
+  }): Promise<{ threads: never[]; hasMore: boolean }> {
+    return { threads: [], hasMore: false };
+  }
 }
 
 describe("ThreadUploadManager", () => {

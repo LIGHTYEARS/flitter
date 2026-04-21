@@ -646,5 +646,34 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - permissions edit provides interactive CRUD for permission rules (previously only add/list/test)
 - mermaid tool enables diagram generation in conversations with clickable mermaid.live links
 - 24 new tests (11 skill handlers + 13 mermaid), 0 TypeScript errors
+
+## ADR-025: Iteration 20 — OverlapColumn widget, createThread, thread search wiring
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 20 targets 3 gaps across TUI (TUI-07), Agent-Core (CORE-04), and Data (DATA-06). Targets selected for: clear amp reference, medium complexity, self-contained implementation, strong testability.
+
+### Targets
+
+| Gap | Domain | Size | Amp Reference |
+|-----|--------|------|---------------|
+| GAP-TUI-07 (OverlapColumn) | TUI | Medium | **Yes** — l1T/LY at chunk-006.js:3066-3176; widget + render object |
+| GAP-CORE-04 (createThread) | Core | Medium | **Yes** — QWT.createThread at 1246:111-143; orchestrator method |
+| GAP-DATA-06 (thread search) | Data | Small-medium | **Yes** — rGR at chunk-005.js:20511; client→server FTS5 wiring |
+
+### Decisions
+
+1. **OverlapColumn as direct RenderBox subclass (TUI-07)**: Unlike regular `Column` which uses `RenderFlex`, OverlapColumn extends `RenderBox` directly — matching amp's `LY extends O9`. This is correct because OverlapColumn doesn't support flex children (Flexible/Expanded), mainAxisAlignment, or mainAxisSize. It's a simpler single-pass sequential layout with a negative gap. Key detail: amp defaults `overlap` to 1 (not 0) and `crossAxisAlignment` to "stretch" (not "start"). Paint order is reversed (index 0 paints last = on top) which matches the visual stacking expectation for overlap regions.
+
+2. **createThread without worker.handle() (CORE-04)**: Amp's createThread uses `worker.handle({type: "agent-mode"})`, `worker.handle({type: "draft"})`, etc. for several steps. Flitter's ThreadWorker doesn't have a general `handle()` dispatcher — only `enqueueMessage()`, `resume()`, `cancelInference()`. We implement the core orchestration (ID gen, seeding, worker creation+resume, idempotency guard, parent relationship, initial user message via `enqueueMessage`) and defer steps requiring `handle()` (agentMode on live worker, draftContent, setPendingNavigation, transferQueuedMessages). The `handoff()` method is also deferred since it requires an LLM summarizer call.
+
+3. **Thread search via optional callback pattern (DATA-06)**: Rather than making `find_thread` depend directly on `HttpRemoteTransport`, we add `searchRemote` as an optional callback on `ThreadStoreLike`. This keeps the tool's dependency surface minimal — it doesn't need to know about transport details. The container wires the callback by wrapping `transport.searchThreads()`. Falls back gracefully to local keyword search on `null` return or exception. Server uses `/api/threads/search` (flitter naming) vs amp's `/api/threads/find` — functionally identical FTS5 endpoint.
+
+### Consequences
+
+- OverlapColumn widget enables merged-border layouts in the TUI (e.g., chat bubbles with shared borders)
+- createThread provides programmatic thread creation for handoff, subagent spawning, and CLI `threads new`
+- Thread search quality improves dramatically when a sync server is available (FTS5 vs local substring matching)
+- 39 new tests (23 + 9 + 7), 0 TypeScript errors
 - 4 gaps closed: CLI-01, CLI-07, CLI-09, TOOL-11
 - Total open gaps reduced from 54 to 50

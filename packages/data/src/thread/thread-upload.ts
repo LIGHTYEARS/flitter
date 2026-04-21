@@ -17,6 +17,26 @@ import type { ThreadEntry } from "./types";
 const log = createLogger("thread-upload");
 
 /**
+ * Search result entry from the server's FTS5 search endpoint.
+ * 逆向: amp /api/threads/find response shape
+ */
+export interface SearchThreadResult {
+  id: string;
+  title: string | null;
+  updatedAt: number;
+  messageCount: number;
+}
+
+/**
+ * Response from the search endpoint.
+ * 逆向: amp /api/threads/find → { threads, hasMore }
+ */
+export interface SearchThreadsResponse {
+  threads: SearchThreadResult[];
+  hasMore: boolean;
+}
+
+/**
  * Remote transport interface for thread operations.
  * 逆向: azT.remote — used in uploadThread, getThread, listThreads, deleteThread
  */
@@ -25,6 +45,11 @@ export interface ThreadRemoteTransport {
   getThread(id: string): Promise<ThreadSnapshot | null>;
   listThreads(opts?: { limit?: number | null }): Promise<ThreadEntry[]>;
   deleteThread(id: string): Promise<void>;
+  /**
+   * Full-text search for threads via the server's FTS5 endpoint.
+   * 逆向: amp fi(`/api/threads/find?q=...&limit=...`)
+   */
+  searchThreads(opts: { q: string; limit?: number }): Promise<SearchThreadsResponse>;
 }
 
 export interface ThreadUploadManagerOptions {

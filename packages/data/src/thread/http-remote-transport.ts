@@ -11,7 +11,7 @@
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { createLogger } from "@flitter/util";
-import type { ThreadRemoteTransport } from "./thread-upload";
+import type { SearchThreadsResponse, ThreadRemoteTransport } from "./thread-upload";
 import type { ThreadEntry } from "./types";
 
 const log = createLogger("http-remote-transport");
@@ -126,6 +126,33 @@ export class HttpRemoteTransport implements ThreadRemoteTransport {
       const text = await resp.text().catch(() => "");
       throw new Error(`deleteThread failed: ${resp.status} ${text}`);
     }
+  }
+
+  /**
+   * Full-text search for threads via the server's FTS5 endpoint.
+   *
+   * 逆向: amp fi(`/api/threads/find?q=...&limit=...`)
+   * Flitter uses /api/threads/search (same functionality, different URL).
+   */
+  async searchThreads(opts: { q: string; limit?: number }): Promise<SearchThreadsResponse> {
+    log.debug("Searching threads", { query: opts.q, limit: opts.limit });
+
+    const params = new URLSearchParams();
+    params.set("q", opts.q);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+
+    const url = `${this._baseUrl}/api/threads/search?${params.toString()}`;
+    const resp = await this._fetch(url, {
+      method: "GET",
+      headers: this._headers(),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`searchThreads failed: ${resp.status} ${text}`);
+    }
+
+    return (await resp.json()) as SearchThreadsResponse;
   }
 
   private _headers(): Record<string, string> {

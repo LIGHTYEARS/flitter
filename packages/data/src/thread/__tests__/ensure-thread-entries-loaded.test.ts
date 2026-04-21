@@ -53,6 +53,7 @@ function createMockRemote(entries: ThreadEntry[]): ThreadRemoteTransport {
     uploadThread: mock(async () => {}),
     getThread: mock(async () => null),
     deleteThread: mock(async () => {}),
+    searchThreads: mock(async () => ({ threads: [], hasMore: false })),
   };
 }
 
@@ -171,6 +172,7 @@ describe("ensureThreadEntriesLoaded", () => {
       uploadThread: mock(async () => {}),
       getThread: mock(async () => null),
       deleteThread: mock(async () => {}),
+      searchThreads: mock(async () => ({ threads: [], hasMore: false })),
     };
     store.setRemote(remote);
 

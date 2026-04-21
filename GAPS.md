@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 19)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 19 targets: `skill` CLI commands, `--mcp-config` flag, `permissions edit`, `mermaid` tool.
+> **Last updated:** 2026-04-21 (iteration 20)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 20 targets: `OverlapColumn` widget, `createThread()` method, thread search wiring.
 
 ## How to Read This Document
 
@@ -26,7 +26,6 @@
 | GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
 | GAP-CLI-28 | CLI | ~~`threads handoff` subcommand~~ | **Closed (iteration 14)** — `handleThreadsHandoff` with `--goal/-g` and `--print/-p` flags, parent context extraction, child thread seeding, bidirectional relationship wiring. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
-| GAP-TUI-02 | TUI | ~~Approval widget (5 options)~~ | **Closed (iteration 13)** — Conditional "Allow File for Every Session" option for guarded-file access. 16 guarded patterns (SSH, .env, shell configs, etc.). `matchGuardedFilePattern()` + `buildApprovalOptions()`. |
 | GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
 | GAP-DATA-13 | Data | ~~`ensureThreadEntriesLoaded` (remote list + local merge)~~ | **Closed (iteration 14)** — Lazy-load remote thread entries on first subscribe, three-phase merge (remote → local overlay → identity-preserving dedup), coalescing promise to prevent concurrent fetches. |
 | GAP-CORE-07 | Core | ~~`blocked-on-user` persisted to thread state~~ | **Closed (iteration 13)** — `blocked-on-user` status persisted via `tool:data` delta BEFORE approval prompt shown. `getThreadSessionState()` utility for crash recovery. |
@@ -65,7 +64,7 @@
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-TUI-05 | **Terminal RGB color query** | Amp's QueryParser probes terminal for actual RGB palette and dynamically updates theme colors. Flitter has no query parser. |
-| GAP-TUI-07 | **OverlapColumn widget** | Column that overlaps children by N rows for merged borders between adjacent containers. |
+| GAP-TUI-07 | ~~**OverlapColumn widget**~~ | **Closed (iteration 20)** — `OverlapColumn` widget + `RenderOverlapColumn` render object. Vertical column with `overlap` rows subtracted between adjacent children (merged borders). Cross-axis alignment (start/end/center/stretch), reverse paint order for visual stacking. 23 new tests. |
 | GAP-TUI-08 | **IntrinsicHeight widget** | Wraps child and forces height to equal its intrinsic height. |
 | GAP-TUI-10 | **Overlay background fix** | Overlays bleed through underlying content. Plan: `2026-04-19-overlay-background-fix.md`. |
 
@@ -81,13 +80,13 @@
 |----|---------|-------------|
 | GAP-DATA-04 | Fetch-from-server on cache miss | Amp fetches threads from server when not in local cache, with dedup. Flitter returns null. |
 | GAP-DATA-05 | Thread archive via remote API | Amp uploads archive state to server. Flitter archives locally only. |
-| GAP-DATA-06 | Thread search (client-side wiring) | Server-side FTS5 endpoint exists at `/api/threads/search`. `HttpRemoteTransport` lacks `searchThreads()` — CLI and `find_thread` tool use local substring matching only. |
+| GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** — `searchThreads()` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `ThreadStoreLike.searchRemote` optional callback. `find_thread` tool tries remote FTS5 first, falls back to local keyword matching. 7 new tests (4 find_thread + 3 transport). |
 
 ### Agent-Core
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CORE-04 | ThreadWorkerService missing `handoff`/`createThread` | Amp's `QWT.handoff()` and `createThread()` not implemented. (`seedThreadMessages` and `applyParentRelationship` now implemented; `handoff` requires `b4R` summarizer LLM call.) |
+| GAP-CORE-04 | ~~ThreadWorkerService missing `handoff`/`createThread`~~ | **Closed (iteration 20)** — `createThread()` and `createThreadWorker()` methods added to `ThreadWorkerService`. `createThread` orchestrates: thread ID generation, message seeding, worker creation+resume, idempotency guard, parent relationship, initial user message. `handoff()` deferred (requires LLM summarizer). 9 new tests. |
 
 ---
 
@@ -298,6 +297,12 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-CLI-08** (verified): `threads usage` handler already existed and wired at `main.ts:415-426`. No implementation needed — marking as closed.
 
 ### Iteration 19 — skill CLI, --mcp-config, permissions edit, mermaid tool
+
+### Iteration 20 — OverlapColumn, createThread, thread search wiring
+- **GAP-TUI-07** (completed): `OverlapColumn` widget — `OverlapColumn` widget class + `RenderOverlapColumn` render object. Vertical column layout with `overlap` parameter (default 1) — subtracts N rows between adjacent children for merged border effects. Matching amp's l1T/LY (chunk-006.js:3066-3176). Cross-axis alignment (start/end/center/stretch, default stretch). Reverse paint order (earlier children paint on top in overlap region). `_computeTotalHeight` for intrinsic measurements. Custom `performLayout` with two-pass algorithm. Exported from `@flitter/tui`. 23 new tests.
+- **GAP-CORE-04** (completed): `createThread()` + `createThreadWorker()` on `ThreadWorkerService` — matching amp's QWT.createThread (1246:111-143). `createThread(opts?)` orchestrates: thread ID generation (`crypto.randomUUID()`), message seeding (via `seedThreadMessages`), worker creation + resume (via `createThreadWorker`), idempotency guard (existing thread early return), parent relationship wiring, initial user message dispatch (via `enqueueMessage`). `CreateThreadOptions` type exported. `handoff()` deferred (requires LLM summarizer call). 9 new tests (2 createThreadWorker + 7 createThread).
+- **GAP-DATA-06** (completed): Thread search client-side wiring — `searchThreads(opts)` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport` implementation (calls `/api/threads/search?q=&limit=`). `ThreadStoreLike.searchRemote` optional callback added. `find_thread` tool updated: tries remote FTS5 search first, falls back gracefully to local keyword matching on `null` return or error. `SearchThreadResult` and `SearchThreadsResponse` types exported from `@flitter/data`. 7 new tests (4 find_thread remote + 3 transport).
+- **39 new tests total** (23 OverlapColumn + 9 createThread + 7 search wiring), 0 TypeScript errors.
 - **GAP-CLI-01** (completed): `skill` CLI command group — `skill list` (--json), `skill info <name>` (--json), `skill remove <name>`, `skill add <source>` (--name, --overwrite, --global). Handlers in `skills.ts`, command tree in `program.ts`, wired in `main.ts`. Backend uses `SkillService.scan()`/`.install()`/`.remove()` (API difference from amp: single `scan()` vs amp's `getSkills()`+`getSkillErrors()`+`getSkill(name)`). 11 new tests.
 - **GAP-CLI-09** (completed): `--mcp-config <json-or-path>` flag — `extractCliMcpConfig()` peeks argv before Commander parse, `parseMcpConfigValue()` accepts inline JSON (starts with `{`) or file path. Parsed servers merged into runtime config via `configService.setRuntimeOverride("mcpServers", merged)` + `mcpServerManager.refresh()`. Matches amp's EC0 parser + CC0 merge pattern. In-memory only (never persisted).
 - **GAP-CLI-07** (completed): `permissions edit` — `handlePermissionsEdit()` opens rules in `$EDITOR` (FLITTER_EDITOR > EDITOR > VISUAL > vi). Serializes `PermissionEntry[]` to text (`<action> <tool> [key=value ...]`, one per line), writes to temp file with comment header, reads back, parses with error annotation + retry loop (up to 3 attempts). Matches amp's MQT/DQT/J2/Z2 flow.
@@ -312,10 +317,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 2 |
-| Medium | 12 |
+| Medium | 9 |
 | Low | 36 |
-| **Total open gaps** | **50** |
-| Closed gaps | 119+ |
+| **Total open gaps** | **47** |
+| Closed gaps | 122+ |
 
 ### Cross-Cutting Themes
 

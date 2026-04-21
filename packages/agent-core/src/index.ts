@@ -183,6 +183,7 @@ export { FuzzyFindTool } from "./tools/builtin/fuzzy-find";
 export { GetDiagnosticsTool } from "./tools/builtin/get-diagnostics";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
+export { buildLibrarianPrompt, createLibrarianTool } from "./tools/builtin/librarian";
 // ─── Built-in Tools ────────────────────────────────────
 export { buildOraclePrompt, createOracleTool } from "./tools/builtin/oracle";
 export { ReadTool } from "./tools/builtin/read";
@@ -207,6 +208,7 @@ export { FileChangeTracker } from "./tools/file-change-tracker";
 export type { GitHubApiResult, GitHubFetchOptions } from "./tools/github";
 // ─── GitHub Tools ─────────────────────────────────────
 export {
+  createCiStatusTool,
   createCommitSearchTool,
   createGitHubClient,
   createGitHubDiffTool,

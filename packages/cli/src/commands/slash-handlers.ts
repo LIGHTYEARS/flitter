@@ -254,14 +254,18 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
   // /delete -- delete current thread
   // 逆向: no direct e0R command; amp has archive (e0R:437-445)
+  // Flitter: actually perform deletion via threadStore.deleteThread
   registry.register({
     name: "delete",
     description: "Delete the current thread",
     execute: async (_args, ctx) => {
-      ctx.showMessage(
-        `Delete thread ${ctx.threadId}?\n` +
-          "(Thread deletion is handled by the session manager. Use 'flitter threads delete <id>'.)",
-      );
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+      ctx.threadStore.deleteThread(ctx.threadId);
+      ctx.showMessage(`Thread ${ctx.threadId} deleted.`);
     },
   });
 

@@ -18,6 +18,7 @@ function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandCont
         relationships: [],
       }),
       setCachedThread: mock(() => {}),
+      deleteThread: mock(() => {}),
       // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     threadWorker: {
@@ -483,5 +484,46 @@ describe("createBuiltinCommands", () => {
     const dispatched = await registry.dispatch("thinking", "", ctx);
     expect(dispatched).toBe(true);
     expect(toggleMock).toHaveBeenCalledTimes(1);
+  });
+
+  // ── Gap CLI-25: /delete actually deletes ──────────────
+
+  it("/delete calls deleteThread on threadStore", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const deleteMock = mock(() => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: deleteMock,
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("delete", "", ctx);
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+    expect(deleteMock).toHaveBeenCalledWith("test-thread");
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("deleted");
+  });
+
+  it("/delete shows error when snapshot not found", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
+    });
+    await registry.dispatch("delete", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Error");
   });
 });

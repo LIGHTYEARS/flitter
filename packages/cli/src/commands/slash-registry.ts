@@ -22,6 +22,7 @@ export interface SlashCommandContext {
   threadStore: {
     getThreadSnapshot(id: string): ThreadSnapshot | null | undefined;
     setCachedThread(snapshot: ThreadSnapshot, opts?: { scheduleUpload?: boolean }): void;
+    deleteThread(id: string): void;
   };
   threadWorker: {
     runInference(): Promise<void>;

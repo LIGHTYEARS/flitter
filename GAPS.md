@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 16)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 16 targets: `todo_write`/`todo_read` tools, `oracle` subagent tool, `threads` command aliases, `--include-archived` flag.
+> **Last updated:** 2026-04-21 (iteration 17)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 17 targets: `librarian` subagent tool, `github_repo_ci_status` tool, `threads archive --unarchive`, `/delete` slash command.
 
 ## How to Read This Document
 
@@ -48,7 +48,7 @@
 | GAP-CLI-07 | `permissions edit` | Open permissions in `$EDITOR` with retry loop. |
 | GAP-CLI-08 | `usage` (top-level) | Top-level command showing credit balance/account usage. |
 | GAP-CLI-09 | `--mcp-config <json>` | Inline MCP server config JSON via CLI flag. |
-| GAP-CLI-25 | 6 slash commands are informational-only | `/new`, `/switch`, `/dashboard`, `/delete`, `/editor`, `/history` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive` now functional.) |
+| GAP-CLI-25 | 6 slash commands are informational-only | `/new`, `/switch`, `/dashboard`, `/editor`, `/history` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete` now functional — 4 of 9 stubs done.) |
 
 ### Tools
 
@@ -56,7 +56,7 @@
 |----|---------|-------------|
 | GAP-TOOL-02 | ~~`get_diagnostics`~~ | **Closed (iteration 14)** — Shell-out based diagnostics tool: TypeScript (`tsc --noEmit`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`). 10s timeout, normalized diagnostic format. Registered as builtin. |
 | GAP-TOOL-03 | ~~`oracle`~~ | **Closed (iteration 16)** — Senior engineering advisor subagent tool. Params: task (required), context, files. Spawns oracle subagent via SubAgentManager with filtered toolset (Read, Grep, Glob, web_search, read_web_page, read_thread, find_thread). Prompt builder matches amp's EVR. disableTimeout, no resource conflicts. Registered in container.ts. |
-| GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
+| GAP-TOOL-04 | ~~`librarian`~~ | **Closed (iteration 17)** — Codebase understanding subagent for remote repositories. Params: query (required), context (optional). Spawns librarian subagent via SubAgentManager with GitHub-specific toolset (read_github, search_github, commit_search, diff, list_directory_github, list_repositories, glob_github). Prompt builder matches amp's mKR. disableTimeout, no resource conflicts. Registered in container.ts. |
 | GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents with `command`, `workdir`, `login`, `timeout_ms` params. Maps to Bash execution via `preprocessArgs`. Registered as builtin. |
 | GAP-TOOL-27 | `look_at` tool missing | AI-powered file analysis for PDFs/images/media. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Multimodal analysis capability. |
 
@@ -99,7 +99,7 @@
 |----|---------|-------------|
 | GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** — `--last` flag on `threads continue` resolves most recent thread via `listRecentThreadIds(1)` without picker. Thread ID argument now optional. Alias `c` added. |
 | GAP-CLI-11 | ~~`threads --include-archived`~~ | **Closed (iteration 16)** — `--include-archived` flag on `threads list`. Typed in `ThreadsListOptions`, passed through `main.ts` to `observeThreadList()` (backend from DATA-17). Removed unsafe cast. |
-| GAP-CLI-12 | `threads archive --unarchive` | Restore archived threads. |
+| GAP-CLI-12 | ~~`threads archive --unarchive`~~ | **Closed (iteration 17)** — `--unarchive` option on `archive` command. `handleThreadsArchive` now accepts options with `unarchive?: boolean`, toggles `archived: false` to restore archived threads. Wired through `main.ts` and `program.ts`. |
 | GAP-CLI-13 | `--visibility` (top-level) | Thread creation visibility flag. |
 | GAP-CLI-14 | `--remote` flag | Server-side async agent execution. Requires server infrastructure. |
 | GAP-CLI-15 | `--notifications` | Sound notification toggle. |
@@ -128,7 +128,7 @@
 | GAP-TOOL-22 | Thread lifecycle tools | `create_thread`, `archive_thread`, `unarchive_thread`. Server-dependent. |
 | GAP-TOOL-23 | Inter-thread messaging | `send_message_to_thread`, `send_message_to_aggman`. Server-dependent. |
 | GAP-TOOL-24 | Slack tools | `slack_write`, `slack_read`. Server-dependent. |
-| GAP-TOOL-25 | `github_repo_ci_status` | GitHub CI status check. |
+| GAP-TOOL-25 | ~~`github_repo_ci_status`~~ | **Closed (iteration 17)** — Client-side CI status tool. Queries GitHub REST API for check-runs and workflow-runs on a given ref. Shows summary with pass/fail/pending counts. Follows `createXxxTool(client: GitHubClient)` factory pattern. Added to `createGitHubTools()` array (now 8 tools). |
 | GAP-TOOL-26 | Bitbucket Enterprise tools | 7 enterprise Bitbucket integration tools. |
 
 ### TUI
@@ -244,7 +244,7 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-TUI-14**: Cursor shape control (DECSCUSR) — `SET_CURSOR_SHAPE(n)` constant, `cursorShape` field on Screen, shape emission in `renderCursor()`, reset to 0 on deinit/suspend, `supportsCursorShape` capability with Emacs/JetBrains exclusion heuristic
 
 ### CLI (from iteration 5)
-- **GAP-CLI-25 partial**: `/rename`, `/label`, `/archive` slash commands wired to mutate thread state via `threadStore.setCachedThread()` instead of printing info messages. 3 of 9 stubs now functional.
+- **GAP-CLI-25 partial**: `/rename`, `/label`, `/archive`, `/delete` slash commands wired to mutate thread state via `threadStore.setCachedThread()` / `threadStore.deleteThread()` instead of printing info messages. 4 of 9 stubs now functional.
 
 ### Tools (from iteration 6)
 - **GAP-TOOL-05**: `restore_snapshot` tool spec — wraps existing `auto-snapshot.ts` `restoreSnapshot()` function. Input: `{ path, treeOID }`. Added `restorePath` parameter to support file/directory-level restore (not just full workspace). Registered as static builtin.
@@ -286,6 +286,12 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-DATA-16** (completed): Admin settings merge — `readAdminSettings()` now called in `ConfigService.reload()`. Admin settings are spread over the global+workspace merge result, giving admin keys unconditional priority (matching amp's `iHR` wrapper pattern from modules/1273_unknown_iHR.js). Debug-logged when admin keys are applied. 4 new tests.
 - **GAP-DATA-17** (completed): `observeThreadList` with filtering — `ThreadStore.observeThreadList(opts)` method added. Filters: `!entry.mainThreadID` (excludes subagent threads) AND `opts.includeArchived || !entry.archived`. Wired into `handleThreadsList` (default `includeArchived: false`), `handleThreadsSearch` (includes archived for search), and `handleThreadsDashboard` (excludes archived). Matches amp's azT.observeThreadList (modules/1342:286-295). 8 new tests.
 
+### Iteration 17 — librarian, github_repo_ci_status, unarchive, /delete
+- **GAP-TOOL-04** (completed): `librarian` — Codebase understanding subagent for remote repositories. Near-clone of oracle but with GitHub-specific toolset (Y2: read_github, search_github, commit_search, diff, list_directory_github, list_repositories, glob_github). Params: `query` (required), `context` (optional). Model: CLAUDE_SONNET_4_6. Prompt builder matches amp's mKR. Subagent type already registered. 22 new tests.
+- **GAP-TOOL-25** (completed): `github_repo_ci_status` — Client-side CI status tool (amp's ElR is server-side constant only). Queries GitHub REST API for check-runs + workflow-runs on a ref. Follows `createXxxTool(client)` factory pattern. Added to `createGitHubTools()` array (now 8 tools). 14 new tests.
+- **GAP-CLI-12** (completed): `threads archive --unarchive` — `--unarchive` option toggles `archived: false` on the thread snapshot. Handler signature extended with optional `options` param. Wired through program.ts + main.ts. 2 new tests.
+- **GAP-CLI-25 partial** (iteration 17): `/delete` slash command now calls `threadStore.deleteThread(ctx.threadId)` instead of printing info message. `SlashCommandContext.threadStore` interface extended with `deleteThread(id)`. 2 new tests. 4 of 9 stubs now functional.
+
 ---
 
 ## Summary Statistics
@@ -293,11 +299,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 4 |
-| Medium | 8 |
-| Low | 40 |
-| **Total open gaps** | **52** |
-| Closed gaps | 110+ |
+| High | 3 |
+| Medium | 17 |
+| Low | 36 |
+| **Total open gaps** | **56** |
+| Closed gaps | 113+ |
 
 ### Cross-Cutting Themes
 

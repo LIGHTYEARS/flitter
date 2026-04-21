@@ -416,6 +416,28 @@ describe("handleThreadsArchive", () => {
     assert.equal(updated.archived, true);
   });
 
+  it("should unarchive a thread with --unarchive flag", async () => {
+    const { store, threads } = createMockThreadStore();
+    const snapshot = { id: "test-id-123", v: 0, messages: [], relationships: [], archived: true };
+    threads.set("test-id-123", new BehaviorSubject(snapshot));
+
+    await handleThreadsArchive({ threadStore: store }, ctx, "test-id-123", { unarchive: true });
+    const out = output.stdout.join("");
+    assert.ok(out.includes("Unarchived thread: test-id-123"));
+    const updated = threads.get("test-id-123")?.getValue();
+    assert.equal(updated.archived, false);
+  });
+
+  it("should archive by default when no options passed", async () => {
+    const { store, threads } = createMockThreadStore();
+    const snapshot = { id: "test-id-123", v: 0, messages: [], relationships: [] };
+    threads.set("test-id-123", new BehaviorSubject(snapshot));
+
+    await handleThreadsArchive({ threadStore: store }, ctx, "test-id-123", {});
+    const updated = threads.get("test-id-123")?.getValue();
+    assert.equal(updated.archived, true);
+  });
+
   it("should error for non-existent thread", async () => {
     const { store } = createMockThreadStore();
     await handleThreadsArchive({ threadStore: store }, ctx, "nonexistent");

@@ -41,6 +41,7 @@ import {
   createDeleteFileTool,
   createFinderTool,
   createFindThreadTool,
+  createLibrarianTool,
   createOracleTool,
   createReadMcpResourceTool,
   createReadThreadTool,
@@ -596,7 +597,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createCodeReviewTool(subAgentManager));
     // 逆向: 2026_tail_anonymous.js:142702 (DVR — oracle tool spec)
     toolRegistry.register(createOracleTool(subAgentManager));
-    log.info("finder, code_review, and oracle tools registered");
+    // 逆向: 2026_tail_anonymous.js:141818 (IKR — librarian tool spec)
+    toolRegistry.register(createLibrarianTool(subAgentManager));
+    log.info("finder, code_review, oracle, and librarian tools registered");
 
     log.info("Service container initialized successfully.");
 

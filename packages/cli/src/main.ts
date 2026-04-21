@@ -325,13 +325,14 @@ export async function main(opts?: MainOptions): Promise<void> {
       }
       const archiveCmd = threadsCmd.commands.find((c) => c.name() === "archive");
       if (archiveCmd) {
-        archiveCmd.action(async (threadId: string) => {
+        archiveCmd.action(async (threadId: string, cmdOpts?: { unarchive?: boolean }) => {
           const c = await ensureContainer();
           const ctx = resolveCliContext(program);
           await handleThreadsArchive(
             { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
             ctx,
             threadId,
+            { unarchive: cmdOpts?.unarchive === true },
           );
         });
       }

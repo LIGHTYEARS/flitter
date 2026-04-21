@@ -137,7 +137,9 @@ export function createProgram(version: string): Command {
   threads
     .command("archive")
     .description("Archive a thread")
-    .argument("<id>", "Thread ID to archive");
+    .argument("<id>", "Thread ID to archive")
+    // 逆向: amp has separate archive/unarchive commands; flitter uses a flag
+    .option("--unarchive", "Unarchive the thread instead of archiving");
 
   threads.command("delete").description("Delete a thread").argument("<id>", "Thread ID to delete");
 

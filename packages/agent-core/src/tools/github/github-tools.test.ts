@@ -1202,15 +1202,16 @@ describe("list_repositories", () => {
 // ---------------------------------------------------------------------------
 
 describe("createGitHubTools", () => {
-  it("returns all 7 tools", () => {
+  it("returns all 8 tools", () => {
     const client = new GitHubClient("test");
     const tools = createGitHubTools(client);
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
 
     const names = tools.map((t) => t.name).sort();
     assert.deepEqual(names, [
       "commit_search",
       "github_diff",
+      "github_repo_ci_status",
       "glob_github",
       "list_directory_github",
       "list_repositories",

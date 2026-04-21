@@ -208,14 +208,19 @@ export async function handleThreadsContinue(
 /**
  * 处理 threads archive 命令
  *
+ * 逆向: amp has separate archive/unarchive (OlR/dlR constants)
+ * Flitter: single command with --unarchive flag to toggle direction
+ *
  * @param deps - Thread 管理所需的依赖服务
  * @param context - CLI 运行上下文
  * @param threadId - 要归档的 Thread ID
+ * @param options - Command options including --unarchive flag
  */
 export async function handleThreadsArchive(
   deps: ThreadsCommandDeps,
   context: CliContext,
   threadId: string,
+  options?: { unarchive?: boolean },
 ): Promise<void> {
   void context;
   const threadStore = deps.threadStore;
@@ -230,10 +235,11 @@ export async function handleThreadsArchive(
     process.exitCode = 1;
     return;
   }
-  threadStore.setCachedThread({ ...snapshot, archived: true } as unknown as ThreadSnapshot, {
+  const archived = !(options?.unarchive === true);
+  threadStore.setCachedThread({ ...snapshot, archived } as unknown as ThreadSnapshot, {
     scheduleUpload: true,
   });
-  process.stdout.write(`Archived thread: ${threadId}\n`);
+  process.stdout.write(`${archived ? "Archived" : "Unarchived"} thread: ${threadId}\n`);
 }
 
 /**

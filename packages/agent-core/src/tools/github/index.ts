@@ -13,6 +13,7 @@
  * ```
  */
 
+export { createCiStatusTool } from "./ci-status";
 export { createCommitSearchTool } from "./commit-search";
 export type { GitHubApiResult, GitHubFetchOptions } from "./github-client";
 export { createGitHubClient, GitHubClient, resolveGitHubToken } from "./github-client";
@@ -34,6 +35,7 @@ export { createReadGitHubTool } from "./read-github";
 export { createSearchGitHubTool } from "./search-github";
 
 import type { ToolSpec } from "../types";
+import { createCiStatusTool } from "./ci-status";
 import { createCommitSearchTool } from "./commit-search";
 import type { GitHubClient } from "./github-client";
 import { createGitHubDiffTool } from "./github-diff";
@@ -44,7 +46,7 @@ import { createReadGitHubTool } from "./read-github";
 import { createSearchGitHubTool } from "./search-github";
 
 /**
- * Create all 7 GitHub tools, closing over a shared GitHubClient instance.
+ * Create all 8 GitHub tools, closing over a shared GitHubClient instance.
  *
  * @param client - A GitHubClient instance (use createGitHubClient())
  * @returns Array of ToolSpec for all GitHub integration tools
@@ -58,5 +60,6 @@ export function createGitHubTools(client: GitHubClient): ToolSpec[] {
     createGlobGitHubTool(client),
     createGitHubDiffTool(client),
     createListRepositoriesTool(client),
+    createCiStatusTool(client),
   ];
 }

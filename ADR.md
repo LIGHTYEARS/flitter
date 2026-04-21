@@ -548,3 +548,34 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - `flitter t l --include-archived` is now a properly typed path from CLI to data layer
 - 47 new tests (23 todo_write + 22 oracle + 2 include-archived), 0 TypeScript errors
 - Total: 5307 tests passing across 295 files
+
+## ADR-022: Iteration 17 — librarian, github_repo_ci_status, --unarchive, /delete
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 17 targeted 4 gaps: 2 tools (librarian, ci_status) and 2 CLI improvements (unarchive flag, /delete wiring). The librarian is a near-clone of oracle (just completed in iteration 16), making it low-risk. The CI status tool fills a GitHub tool gap using direct REST API calls since amp's implementation is server-side only.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-TOOL-04 (librarian) | Tools | Medium | **Yes** — near-clone of oracle, clear amp reference (IKR/mKR) |
+| GAP-TOOL-25 (ci_status) | Tools | Small-medium | **Yes** — server-side in amp, client-side via GitHub REST API |
+| GAP-CLI-12 (--unarchive) | CLI | Small | **Yes** — single flag addition, toggle archived field |
+| GAP-CLI-25 partial (/delete) | CLI | Small | **Yes** — wire existing stub to threadStore.deleteThread |
+
+### Decisions
+
+1. **Librarian as Oracle Twin (TOOL-04)**: The librarian shares the same `createXxxTool(subAgentManager)` factory pattern as oracle. Key differences from oracle: `query` parameter instead of `task`, no `files` parameter, GitHub-specific tool access (Y2: read_github, search_github, commit_search, diff, list_directory_github, list_repositories, glob_github), model CLAUDE_SONNET_4_6 instead of GPT_5_4. Subagent type was already registered in `subagent-types.ts` from iteration 8. The prompt builder `buildLibrarianPrompt` matches amp's `mKR` pattern: `"Context: ${context}\n\nQuery: ${query}"` when context is provided, otherwise just the raw query. No file-reading instructions (unlike oracle) since librarian operates on remote repos via GitHub tools.
+
+2. **Client-Side CI Status (TOOL-25)**: Amp defines `ElR = "github_repo_ci_status"` as a constant but implements it server-side (through the internal proxy). Flitter implements it client-side using two GitHub REST API endpoints: `GET /repos/{owner}/{repo}/commits/{ref}/check-runs` for check-run status, and `GET /repos/{owner}/{repo}/actions/runs?branch={branch}` for workflow runs. The tool skips workflow-run queries for SHA-like refs (they don't map to branches). Output is a structured markdown summary: totals, failed checks first, then pending, then up to 10 passing. Follows the `createXxxTool(client: GitHubClient)` factory pattern used by all 7 existing GitHub tools.
+
+3. **Unarchive as Flag Toggle (CLI-12)**: Rather than creating a separate `unarchive` command (which amp has as a distinct constant `dlR`), flitter uses `--unarchive` on the existing `archive` command. This maps to `handleThreadsArchive(deps, ctx, threadId, { unarchive: true })` which sets `archived: false` on the snapshot. This is simpler than a separate command and follows the existing precedent of flags modifying command behavior (like `--include-archived` on `list`).
+
+4. **SlashCommandContext Extension (CLI-25)**: To wire `/delete` to actually delete threads, the `SlashCommandContext.threadStore` interface needed `deleteThread(id)` added. This is a breaking change to the interface, but all consumers (tests and main.ts) already had the method available on the underlying ThreadStore — the interface was just too narrow. The `/delete` command now calls `threadStore.deleteThread(ctx.threadId)` directly instead of printing an info message.
+
+### Consequences
+
+- Librarian enables multi-repository codebase understanding via GitHub tools (7 GitHub-specific tools)
+- CI status provides build verification without server infrastructure
+- Archived threads can now be restored via `flitter threads archive <id> --unarchive`
+- `/delete` slash command is now functional (4 of 9 slash command stubs done)
+- 40 new tests (22 librarian + 14 ci_status + 2 unarchive + 2 /delete), 0 TypeScript errors

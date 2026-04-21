@@ -609,6 +609,10 @@ export class MouseManager {
 
     // Step 6: 分发 hover 事件 (仅对已经 hover 的区域)
     // 逆向: amp 检查 this._hoveredRegions.has(i) — 即上次就在 hover 状态的区域
+    // Note: amp's 16ms hover throttle (actions_intents.js:400-405) lives in
+    // SelectionAreaState._handleMouseHover(), a per-component optimization.
+    // The MouseManager dispatches all hover events unthrottled; consumers
+    // should throttle locally if needed (see GAP-TUI-37).
     for (const { target, localPosition } of targets) {
       if (target.onHover && this._hoveredRegions.has(target)) {
         const event = { type: "hover" as const, ...createBaseEvent(raw, position, localPosition) };

@@ -21,6 +21,8 @@
 import { logger } from "../debug/logger.js";
 import { FocusManager } from "../focus/focus-manager.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
+import { FrameStatsOverlay } from "../perf/frame-stats-overlay.js";
+import { PerformanceTracker } from "../perf/performance-tracker.js";
 import type { ColorDepth } from "../screen/ansi-renderer.js";
 import { BuildOwner } from "../tree/build-owner.js";
 import type { Element, Widget } from "../tree/element.js";
@@ -106,6 +108,20 @@ export class WidgetsBinding {
     mouse: ((event: TermMouseEvent) => void)[];
     paste: ((event: PasteEvent) => void)[];
   } = { key: [], mouse: [], paste: [] };
+
+  /**
+   * Frame stats overlay — debug performance panel.
+   *
+   * 逆向: d9 in chunk-004.js:5198 — `frameStatsOverlay = new ZXT()`
+   */
+  readonly frameStatsOverlay = new FrameStatsOverlay();
+
+  /**
+   * Performance tracker — samples frame/phase/key/mouse/bytes.
+   *
+   * 逆向: d9 — overlay.tracker (QXT instance)
+   */
+  readonly performanceTracker = new PerformanceTracker();
 
   /** 退出等待 Promise */
   private exitPromise: Promise<void> | null = null;
@@ -356,6 +372,20 @@ export class WidgetsBinding {
     this.frameScheduler.requestFrame();
   }
 
+  /**
+   * Toggle the frame stats debug overlay.
+   *
+   * 逆向: d9.toggleFrameStatsOverlay (chunk-004.js:5420-5423)
+   *
+   * When visible, the overlay draws a "Gotta Go Fast" panel showing
+   * per-frame timing (build/layout/paint/render), key/mouse latency,
+   * and bytes-written stats with P95/P99 percentiles.
+   */
+  toggleFrameStatsOverlay(): void {
+    this.frameStatsOverlay.toggle();
+    this.requestForcedPaintFrame();
+  }
+
   // ════════════════════════════════════════════════════
   //  测试辅助方法
   // ════════════════════════════════════════════════════
@@ -454,9 +484,12 @@ export class WidgetsBinding {
     });
 
     // mouse → eventCallbacks → mouseManager
+    // 逆向: d9 — recordMouseEvent for FrameStatsOverlay (chunk-004.js:5394)
     this.tui.onMouse((event) => {
+      const mouseStart = performance.now();
       for (const cb of this.eventCallbacks.mouse) cb(event);
       this.mouseManager.handleMouseEvent(event);
+      this.performanceTracker.recordMouseEvent(performance.now() - mouseStart);
     });
 
     // paste → eventCallbacks → focusManager
@@ -474,19 +507,29 @@ export class WidgetsBinding {
    * @param event - 键盘事件
    */
   private handleKeyEvent(event: KeyEvent): void {
+    // 逆向: d9 — recordKeyEvent for FrameStatsOverlay (chunk-004.js:5378)
+    const keyStart = performance.now();
+
     // 0. 原始事件回调 (on('key') subscribers)
     for (const cb of this.eventCallbacks.key) cb(event);
 
     // 1. 拦截器 (command palette 等)
     for (const interceptor of this.keyInterceptors) {
-      if (interceptor(event)) return;
+      if (interceptor(event)) {
+        this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
+        return;
+      }
     }
 
     // 2. 焦点管理器 (冒泡路由)
-    if (this.focusManager.handleKeyEvent(event)) return;
+    if (this.focusManager.handleKeyEvent(event)) {
+      this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
+      return;
+    }
 
     // 3. 全局键盘事件
     this.handleGlobalKeyEvent(event);
+    this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
   }
 
   /**
@@ -532,6 +575,7 @@ export class WidgetsBinding {
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,
       underlineSupport: "standard" as const,
+      scrollStep: () => 3,
     };
     this.currentMediaQueryData = new MediaQueryData(size, capabilities);
     return new MediaQuery({ data: this.currentMediaQueryData, child: widget });
@@ -568,6 +612,7 @@ export class WidgetsBinding {
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,
       underlineSupport: "standard" as const,
+      scrollStep: () => 3,
     };
     const newMediaQueryData = new MediaQueryData({ width, height }, capabilities);
     this.currentMediaQueryData = newMediaQueryData;
@@ -639,6 +684,12 @@ export class WidgetsBinding {
 
     // 将根渲染对象绘制到 screen
     this.renderRenderObject();
+
+    // 逆向: d9.paint — draw overlay last (chunk-004.js:5345)
+    // FrameStatsOverlay draws directly on screen, bypassing the widget tree
+    if (this.frameStatsOverlay.visible) {
+      this.frameStatsOverlay.draw(this.tui.getScreen(), this.performanceTracker);
+    }
 
     this.didPaintCurrentFrame = true;
   }

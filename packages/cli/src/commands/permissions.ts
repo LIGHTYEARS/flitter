@@ -23,18 +23,20 @@ export interface PermissionsCommandDeps {
 
 interface PermissionEntry {
   tool: string;
-  action: "allow" | "ask" | "reject";
+  action: "allow" | "ask" | "reject" | "delegate";
+  to?: string;
   matches?: Record<string, string>;
 }
 
 // ─── Arg Parsing ───────────────────────────────────────────
 
-const VALID_ACTIONS = new Set(["allow", "ask", "reject"]);
+const VALID_ACTIONS = new Set(["allow", "ask", "reject", "delegate"]);
 
 /**
  * Parse `permissions add` arguments into a PermissionEntry.
  *
  * 逆向: amp BC0 permission entry builder (2524_unknown_XC0.js)
+ *        amp Z2() (chunk-001.js:8783) — serializes delegate with `--to`
  */
 export function parsePermissionAddArgs(
   action: string,
@@ -42,17 +44,32 @@ export function parsePermissionAddArgs(
   matchers: string[],
 ): PermissionEntry {
   if (!VALID_ACTIONS.has(action)) {
-    throw new Error(`Invalid action "${action}". Must be: allow, ask, reject`);
+    throw new Error(`Invalid action "${action}". Must be: allow, ask, reject, delegate`);
   }
 
   const entry: PermissionEntry = {
     tool,
-    action: action as "allow" | "ask" | "reject",
+    action: action as PermissionEntry["action"],
   };
 
-  if (matchers.length > 0) {
+  // Parse --to for delegate action
+  const remaining: string[] = [];
+  for (let i = 0; i < matchers.length; i++) {
+    if (matchers[i] === "--to" && i + 1 < matchers.length) {
+      entry.to = matchers[i + 1];
+      i++; // skip the value
+    } else {
+      remaining.push(matchers[i]!);
+    }
+  }
+
+  if (action === "delegate" && !entry.to) {
+    throw new Error("delegate action requires --to <program>");
+  }
+
+  if (remaining.length > 0) {
     const matches: Record<string, string> = {};
-    for (const m of matchers) {
+    for (const m of remaining) {
       const eqIdx = m.indexOf("=");
       if (eqIdx === -1) {
         throw new Error(`Invalid matcher format "${m}". Use KEY=VALUE.`);

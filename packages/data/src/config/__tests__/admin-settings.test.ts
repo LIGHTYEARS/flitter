@@ -151,4 +151,36 @@ describe("readAdminSettings", () => {
       allowedModels: ["claude-3-5-sonnet", "claude-3-5-haiku"],
     });
   });
+
+  it("parses JSONC with line comments", async () => {
+    const settingsPath = path.join(tmpDir, "managed-settings.jsonc");
+    await fsp.writeFile(
+      settingsPath,
+      `{
+  // Admin override for telemetry
+  "flitter.telemetry": false,
+  "flitter.model": "claude-3-5-sonnet" // locked model
+}`,
+    );
+
+    const result = await readAdminSettings(settingsPath);
+    assert.deepEqual(result, {
+      telemetry: false,
+      model: "claude-3-5-sonnet",
+    });
+  });
+
+  it("parses JSONC with block comments", async () => {
+    const settingsPath = path.join(tmpDir, "managed-settings.jsonc");
+    await fsp.writeFile(
+      settingsPath,
+      `{
+  /* Block comment about settings */
+  "flitter.enabled": true
+}`,
+    );
+
+    const result = await readAdminSettings(settingsPath);
+    assert.deepEqual(result, { enabled: true });
+  });
 });

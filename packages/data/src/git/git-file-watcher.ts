@@ -306,6 +306,175 @@ export class GitFileWatcher implements FileWatcher {
 }
 
 /**
+ * 逆向: GKT class from 0304_unknown_GKT.js
+ * Polling-based file watcher using fs.stat mtime comparison.
+ * Falls back to this when native fs.watch or git polling is not available.
+ */
+export class PollingFileWatcher implements FileWatcher {
+  private watchedPaths = new Map<
+    string,
+    { interval: ReturnType<typeof setInterval>; lastModified: Map<string, number> }
+  >();
+  private callbacks: FileWatcherCallback[] = [];
+  private pollInterval: number;
+
+  constructor(pollInterval = 1000) {
+    this.pollInterval = pollInterval;
+  }
+
+  async watch(dirPath: string): Promise<void> {
+    if (this.watchedPaths.has(dirPath)) return;
+
+    const fs = await import("node:fs/promises");
+    const lastModified = new Map<string, number>();
+
+    try {
+      await this.scanPath(fs, dirPath, lastModified);
+    } catch (err) {
+      throw new Error(`Failed to watch path ${dirPath}: ${err}`);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        await this.checkForChanges(fs, dirPath, lastModified);
+      } catch (err) {
+        log.warn("Error polling path", {
+          path: dirPath,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }, this.pollInterval);
+
+    this.watchedPaths.set(dirPath, { interval, lastModified });
+  }
+
+  unwatch(dirPath: string): void {
+    const entry = this.watchedPaths.get(dirPath);
+    if (entry) {
+      clearInterval(entry.interval);
+      this.watchedPaths.delete(dirPath);
+    }
+  }
+
+  dispose(): void {
+    for (const key of Array.from(this.watchedPaths.keys())) this.unwatch(key);
+    this.callbacks.length = 0;
+  }
+
+  onFileSystemEvent(callback: FileWatcherCallback): void {
+    this.callbacks.push(callback);
+  }
+
+  offFileSystemEvent(callback: FileWatcherCallback): void {
+    const idx = this.callbacks.indexOf(callback);
+    if (idx >= 0) this.callbacks.splice(idx, 1);
+  }
+
+  getWatchedPaths(): string[] {
+    return Array.from(this.watchedPaths.keys());
+  }
+
+  isSupported(): boolean {
+    return true;
+  }
+
+  /**
+   * 逆向: GKT.scanPath — recursively stat a directory tree, populating mtime map.
+   */
+  private async scanPath(
+    fs: typeof import("node:fs/promises"),
+    dirPath: string,
+    mtimeMap: Map<string, number>,
+  ): Promise<void> {
+    try {
+      const stat = await fs.stat(dirPath);
+      mtimeMap.set(dirPath, stat.mtime.getTime());
+      if (stat.isDirectory()) {
+        const entries = await fs.readdir(dirPath);
+        for (const entry of entries) {
+          await this.scanPath(fs, path.join(dirPath, entry), mtimeMap);
+        }
+      }
+    } catch {
+      // Ignore stat errors (permission denied, broken symlinks, etc.)
+    }
+  }
+
+  /**
+   * 逆向: GKT.checkForChanges — compare current mtime map with previous, emit events.
+   */
+  private async checkForChanges(
+    fs: typeof import("node:fs/promises"),
+    dirPath: string,
+    lastModified: Map<string, number>,
+  ): Promise<void> {
+    const events: FileSystemEvent[] = [];
+    const currentMtimes = new Map<string, number>();
+    await this.scanPath(fs, dirPath, currentMtimes);
+
+    // Detect created and modified
+    for (const [filePath, mtime] of currentMtimes) {
+      const prevMtime = lastModified.get(filePath);
+      if (prevMtime === undefined) {
+        events.push({
+          type: "created",
+          path: filePath,
+          timestamp: Date.now(),
+          isDirectory: await this.isDirectory(fs, filePath),
+        });
+      } else if (mtime > prevMtime) {
+        events.push({
+          type: "modified",
+          path: filePath,
+          timestamp: Date.now(),
+          isDirectory: await this.isDirectory(fs, filePath),
+        });
+      }
+    }
+
+    // Detect deleted
+    for (const filePath of lastModified.keys()) {
+      if (!currentMtimes.has(filePath)) {
+        events.push({ type: "deleted", path: filePath, timestamp: Date.now(), isDirectory: false });
+      }
+    }
+
+    // Update state
+    lastModified.clear();
+    for (const [filePath, mtime] of currentMtimes) {
+      lastModified.set(filePath, mtime);
+    }
+
+    // Notify callbacks
+    if (events.length > 0) {
+      for (const cb of this.callbacks) {
+        try {
+          cb(events);
+        } catch (err) {
+          log.warn("Error in file watcher callback", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * 逆向: GKT.isDirectory — safe stat check.
+   */
+  private async isDirectory(
+    fs: typeof import("node:fs/promises"),
+    filePath: string,
+  ): Promise<boolean> {
+    try {
+      return (await fs.stat(filePath)).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+}
+
+/**
  * 逆向: FKT class from 0303_unknown_FKT.js
  * No-op file watcher for non-git directories.
  */
@@ -341,6 +510,12 @@ export function createFileWatcher(options?: FileWatcherFactoryOptions): FileWatc
   }
 
   const rootPath = options?.rootPath ?? process.cwd();
+
+  // 逆向: KKT line 3 — if (T?.usePolling) return new GKT(T.pollInterval)
+  if (options?.usePolling) {
+    log.info("Using PollingFileWatcher (usePolling=true)", { rootPath });
+    return new PollingFileWatcher(options.pollInterval);
+  }
 
   // 逆向: if (vv.isRepo(R)) { ... }
   if (GitFileWatcher.isRepo(rootPath)) {

@@ -421,3 +421,39 @@ describe("detectUnderlineSupport", () => {
     assert.equal(detectUnderlineSupport({ INSIDE_EMACS: "29.1" }), "standard");
   });
 });
+
+// ─── detectScrollStep ────────────────────────────────────
+
+import { detectScrollStep } from "./tui-controller.js";
+
+describe("detectScrollStep", () => {
+  it("returns () => 3 for normal terminal (default)", () => {
+    const fn = detectScrollStep({});
+    assert.equal(fn(), 3);
+  });
+
+  it("returns () => 1 for ghostty", () => {
+    const fn = detectScrollStep({ TERM_PROGRAM: "ghostty" });
+    assert.equal(fn(), 1);
+  });
+
+  it("returns () => 1 for JetBrains terminal", () => {
+    const fn = detectScrollStep({ TERMINAL_EMULATOR: "JetBrains-JediTerm" });
+    assert.equal(fn(), 1);
+  });
+
+  it("returns () => 3 for kitty", () => {
+    const fn = detectScrollStep({ TERM: "xterm-kitty" });
+    assert.equal(fn(), 3);
+  });
+
+  it("returns () => 3 for WezTerm", () => {
+    const fn = detectScrollStep({ TERM_PROGRAM: "WezTerm" });
+    assert.equal(fn(), 3);
+  });
+
+  it("returns () => 3 for SSH", () => {
+    const fn = detectScrollStep({ SSH_CLIENT: "192.168.1.1 12345 22" });
+    assert.equal(fn(), 3);
+  });
+});

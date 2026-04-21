@@ -10,6 +10,7 @@
  * with the "flitter." prefix stripped (amp uses "amp." prefix).
  */
 import * as fs from "node:fs/promises";
+import { stripJsonComments } from "./jsonc.js";
 
 /**
  * Returns the platform-specific path for the admin managed-settings file,
@@ -56,7 +57,8 @@ export async function readAdminSettings(
 
   let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(raw);
+    // 逆向: JmT compute (chunk-005.js:145039) — amp uses JSONC parser for admin settings
+    parsed = JSON.parse(stripJsonComments(raw));
   } catch {
     // Invalid JSON → silently return empty (amp logs warn and returns {})
     return {};

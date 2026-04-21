@@ -16,7 +16,12 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { FileSystemEvent } from "./git-file-watcher";
-import { createFileWatcher, GitFileWatcher, NoOpFileWatcher } from "./git-file-watcher";
+import {
+  createFileWatcher,
+  GitFileWatcher,
+  NoOpFileWatcher,
+  PollingFileWatcher,
+} from "./git-file-watcher";
 
 describe("NoOpFileWatcher", () => {
   it("should return empty watched paths", () => {
@@ -228,5 +233,102 @@ describe("createFileWatcher factory", () => {
     const watcher = createFileWatcher({ useGit: true });
     assert.ok(watcher instanceof GitFileWatcher);
     watcher.dispose();
+  });
+
+  it("should create PollingFileWatcher when usePolling is true", () => {
+    const watcher = createFileWatcher({ usePolling: true });
+    assert.ok(watcher instanceof PollingFileWatcher);
+    watcher.dispose();
+  });
+
+  it("should pass pollInterval to PollingFileWatcher", () => {
+    const watcher = createFileWatcher({ usePolling: true, pollInterval: 2000 });
+    assert.ok(watcher instanceof PollingFileWatcher);
+    watcher.dispose();
+  });
+});
+
+describe("PollingFileWatcher", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "polling-watcher-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("isSupported returns true", () => {
+    const watcher = new PollingFileWatcher();
+    assert.equal(watcher.isSupported(), true);
+    watcher.dispose();
+  });
+
+  it("getWatchedPaths returns empty initially", () => {
+    const watcher = new PollingFileWatcher();
+    assert.deepEqual(watcher.getWatchedPaths(), []);
+    watcher.dispose();
+  });
+
+  it("watch adds path to watched paths", async () => {
+    const watcher = new PollingFileWatcher(60000); // long interval to avoid firing
+    await watcher.watch(tmpDir);
+    assert.deepEqual(watcher.getWatchedPaths(), [tmpDir]);
+    watcher.dispose();
+  });
+
+  it("unwatch removes path", async () => {
+    const watcher = new PollingFileWatcher(60000);
+    await watcher.watch(tmpDir);
+    watcher.unwatch(tmpDir);
+    assert.deepEqual(watcher.getWatchedPaths(), []);
+    watcher.dispose();
+  });
+
+  it("dispose clears all watchers", async () => {
+    const watcher = new PollingFileWatcher(60000);
+    await watcher.watch(tmpDir);
+    watcher.dispose();
+    assert.deepEqual(watcher.getWatchedPaths(), []);
+  });
+
+  it("does not double-watch the same path", async () => {
+    const watcher = new PollingFileWatcher(60000);
+    await watcher.watch(tmpDir);
+    await watcher.watch(tmpDir); // should not throw or add duplicate
+    assert.deepEqual(watcher.getWatchedPaths(), [tmpDir]);
+    watcher.dispose();
+  });
+
+  it("registers and unregisters callbacks", () => {
+    const watcher = new PollingFileWatcher();
+    const cb = (_events: FileSystemEvent[]) => {};
+    watcher.onFileSystemEvent(cb);
+    watcher.offFileSystemEvent(cb);
+    watcher.dispose();
+  });
+
+  it("detects created files on poll", async () => {
+    const watcher = new PollingFileWatcher(50);
+    const events: FileSystemEvent[] = [];
+    watcher.onFileSystemEvent((e) => events.push(...e));
+
+    await watcher.watch(tmpDir);
+
+    // Create a file after initial scan
+    fs.writeFileSync(path.join(tmpDir, "new-file.txt"), "hello");
+
+    // Wait for at least one poll cycle
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    watcher.dispose();
+
+    const created = events.filter((e) => e.type === "created");
+    assert.ok(created.length > 0, "Should detect at least one created event");
+    assert.ok(
+      created.some((e) => e.path.includes("new-file.txt")),
+      "Should detect new-file.txt creation",
+    );
   });
 });

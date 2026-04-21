@@ -25,4 +25,33 @@ describe("parsePermissionAddArgs", () => {
   it("rejects invalid action", () => {
     expect(() => parsePermissionAddArgs("invalid" as "allow", "Bash", [])).toThrow();
   });
+
+  it("parses delegate action with --to program", () => {
+    const result = parsePermissionAddArgs("delegate", "*", ["--to", "my-permission-helper"]);
+    expect(result).toEqual({
+      tool: "*",
+      action: "delegate",
+      to: "my-permission-helper",
+    });
+  });
+
+  it("parses delegate with --to and matchers", () => {
+    const result = parsePermissionAddArgs("delegate", "Bash", [
+      "--to",
+      "/usr/local/bin/checker",
+      "command=rm*",
+    ]);
+    expect(result).toEqual({
+      tool: "Bash",
+      action: "delegate",
+      to: "/usr/local/bin/checker",
+      matches: { command: "rm*" },
+    });
+  });
+
+  it("rejects delegate without --to", () => {
+    expect(() => parsePermissionAddArgs("delegate", "Bash", [])).toThrow(
+      /delegate.*requires.*--to/,
+    );
+  });
 });

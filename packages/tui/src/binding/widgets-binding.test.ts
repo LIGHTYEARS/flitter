@@ -64,6 +64,7 @@ function mockTuiController(tui: TuiController): void {
     colorDepth: "truecolor" as const,
     animationSupport: "fast" as const,
     underlineSupport: "standard" as const,
+    scrollStep: () => 3,
   });
   tui.render = () => {};
   tui.onKey = () => {};
@@ -536,5 +537,34 @@ describe("WidgetsBinding — on() raw event API", () => {
     unsub();
     binding._handleKeyEventForTesting(testEvent);
     assert.equal(events.length, 1, "should not receive events after unsub");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  toggleFrameStatsOverlay — GAP-TUI-38 wiring
+// ═══════════════════════════════════════════════════════════
+
+describe("toggleFrameStatsOverlay", () => {
+  it("exposes frameStatsOverlay field", () => {
+    WidgetsBinding.resetForTesting();
+    const binding = WidgetsBinding.instance;
+    assert.ok(binding.frameStatsOverlay);
+    assert.equal(binding.frameStatsOverlay.visible, false);
+  });
+
+  it("toggleFrameStatsOverlay toggles visibility", () => {
+    WidgetsBinding.resetForTesting();
+    const binding = WidgetsBinding.instance;
+    assert.equal(binding.frameStatsOverlay.visible, false);
+    binding.toggleFrameStatsOverlay();
+    assert.equal(binding.frameStatsOverlay.visible, true);
+    binding.toggleFrameStatsOverlay();
+    assert.equal(binding.frameStatsOverlay.visible, false);
+  });
+
+  it("exposes performanceTracker field", () => {
+    WidgetsBinding.resetForTesting();
+    const binding = WidgetsBinding.instance;
+    assert.ok(binding.performanceTracker);
   });
 });

@@ -25,6 +25,76 @@ import { Mutex } from "./mutex";
 import type { ToolRegistry } from "./registry";
 import type { ToolContext, ToolMessage, ToolResult } from "./types";
 
+// ─── Delegate Permission Spawn ────────────────────────────
+
+/**
+ * Spawn an external delegate permission helper and interpret its exit code.
+ *
+ * 逆向: HpR() (chunk-001.js:8094-8128) — spawns the delegate program with env vars,
+ *        writes JSON tool args to stdin, waits for exit.
+ *        WpR() (chunk-001.js:8129-8151) — interprets exit code:
+ *          0 → allow, 1 → ask, anything else → reject (stderr as error).
+ *
+ * Timeout: 10 seconds (amp: line 8110).
+ */
+async function spawnDelegate(
+  program: string,
+  toolArgs: Record<string, unknown>,
+  opts: { threadId?: string; toolName?: string; toolUseId?: string },
+): Promise<{ action: "allow" | "ask" | "reject"; error?: string }> {
+  const { spawn: cpSpawn } = await import("node:child_process");
+
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+    AGENT: "flitter",
+  };
+  if (opts.threadId) env.FLITTER_THREAD_ID = opts.threadId;
+  if (opts.toolName) env.AGENT_TOOL_NAME = opts.toolName;
+  if (opts.toolUseId) env.AGENT_TOOL_USE_ID = opts.toolUseId;
+
+  return new Promise((resolve) => {
+    const child = cpSpawn(program, [], { env, stdio: ["pipe", "pipe", "pipe"] });
+
+    let stderr = "";
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        child.kill("SIGTERM");
+        resolve({ action: "reject", error: "Delegate command timed out after 10 seconds" });
+      }
+    }, 10_000);
+
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (err) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        resolve({ action: "reject", error: err.message });
+      }
+    });
+
+    child.on("close", (code) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        // 逆向: WpR() — exit 0 → allow, 1 → ask, else → reject
+        if (code === 0) resolve({ action: "allow" });
+        else if (code === 1) resolve({ action: "ask" });
+        else resolve({ action: "reject", error: stderr || `Delegate exited with code ${code}` });
+      }
+    });
+
+    // Write tool args as JSON to the delegate's stdin
+    child.stdin?.write(JSON.stringify(toolArgs));
+    child.stdin?.end();
+  });
+}
+
 // ─── ToolUse 类型 ──────────────────────────────────────────
 
 /** 从 ToolUseBlock 中提取 orchestrator 需要的字段 */
@@ -163,7 +233,7 @@ export interface OrchestratorCallbacks {
    * Check if a tool invocation is permitted by the permission engine.
    * 逆向: amp's toolService.invokeTool calls PLT() (permission check) before
    * executing. Returns { permitted, action, reason } where action is "ask"
-   * (prompt user), "reject" (silently deny), or "delegate" (allow).
+   * (prompt user), "reject" (silently deny), or "delegate" (spawn external helper).
    */
   checkPermission?: (
     toolName: string,
@@ -172,6 +242,8 @@ export interface OrchestratorCallbacks {
     permitted: boolean;
     action?: "reject" | "ask" | "delegate";
     reason?: string;
+    /** For delegate action: the external program to spawn */
+    delegateTo?: string;
   };
 
   /**
@@ -571,7 +643,54 @@ export class ToolOrchestrator {
           });
           return;
         }
-        // action === "delegate" or undefined — treat as permitted, fall through
+        // action === "delegate" — spawn external helper program
+        // 逆向: UpR() (chunk-001.js:8066-8093) — if action is delegate and T.to exists,
+        // spawn the delegate and interpret the result
+        if (permResult.action === "delegate" && permResult.delegateTo) {
+          const delegateResult = await spawnDelegate(permResult.delegateTo, toolUse.input, {
+            threadId: this._threadId,
+            toolName: toolUse.name,
+            toolUseId: toolUse.id,
+          });
+
+          if (delegateResult.action === "reject") {
+            await this.callbacks.updateThread({
+              type: "tool:data",
+              toolUseId: toolUse.id,
+              toolName: toolUse.name,
+              status: "rejected-by-user",
+              reason: delegateResult.error ?? "Denied by delegate",
+            });
+            this.runningTools.delete(toolUse.id);
+            this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
+            return;
+          }
+
+          if (delegateResult.action === "ask" && this.callbacks.requestApproval) {
+            const response = await this.callbacks.requestApproval({
+              toolUseId: toolUse.id,
+              toolName: toolUse.name,
+              args: toolUse.input,
+              reason: "Delegate deferred to user approval",
+            });
+            if (!response.accepted) {
+              const toAllow = this._computeToAllow(toolUse);
+              await this.callbacks.updateThread({
+                type: "tool:data",
+                toolUseId: toolUse.id,
+                toolName: toolUse.name,
+                status: "rejected-by-user",
+                reason: "Tool execution rejected by user (delegate deferred)",
+                toAllow,
+              });
+              this.runningTools.delete(toolUse.id);
+              this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
+              return;
+            }
+          }
+          // action === "allow" — fall through to execute the tool
+        }
+        // delegate without a program, or undefined action — treat as permitted, fall through
       }
     }
 

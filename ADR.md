@@ -890,3 +890,38 @@ Iteration 26 focuses on breadth over depth: closing 7 gaps across CLI, Data, TUI
 - OpenAI service_tier correctly maps to "priority" for deep reasoning mode
 - 20 new tests, 5689 total passing, 0 type errors
 - 7 gaps closed: CLI-45, CLI-46, CLI-47, TUI-36, TUI-33, LLM-08, DATA-25 (pre-existing)
+
+---
+
+## ADR-028: Iteration 28 — PollingFileWatcher, admin JSONC, FrameStatsOverlay wiring, delegate permission spawn, scroll step detection
+
+**Date:** 2026-04-22
+**Status:** Accepted
+
+### Context
+
+Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-contained features with clear amp references and no external blockers.
+
+### Decisions
+
+1. **PollingFileWatcher (DATA-26)**: Ported amp's `GKT` class (modules/0304_unknown_GKT.js) — a `setInterval`-based recursive `fs.stat` mtime watcher. Uses `Map<string, number>` for mtime tracking, compares on each tick to detect created/modified/deleted events. Wired into `createFileWatcher()` factory when `usePolling=true`, matching amp's `KKT` factory (line 3). Default poll interval: 1000ms. Error handling in callbacks mirrors amp: catches per-callback to prevent one broken subscriber from stopping others.
+
+2. **Admin settings JSONC parsing (DATA-24)**: Swapped `JSON.parse(raw)` for `JSON.parse(stripJsonComments(raw))` in `readAdminSettings()`. The `stripJsonComments` function already existed in `packages/data/src/config/jsonc.ts` — just needed to be imported. Matches amp's JmT compute (chunk-005.js:145039) which uses a JSONC parser for admin managed-settings files (allowing line/block comments in system-level config files).
+
+3. **FrameStatsOverlay wiring (TUI-38)**: The `FrameStatsOverlay` and `PerformanceTracker` classes were already fully implemented but disconnected from the runtime. Wired them into `WidgetsBinding`: added as readonly fields, `recordKeyEvent()`/`recordMouseEvent()` called with timing from `performance.now()`, overlay drawn in `paint()` after `renderRenderObject()`, `toggleFrameStatsOverlay()` public method exposed. Matches amp's d9 (chunk-004.js:5198, 5345, 5378, 5394, 5420-5423).
+
+4. **Mouse hover throttle documentation (TUI-37)**: Initially placed a global 16ms throttle + position dedup in `MouseManager._handleMove()`, but this broke 5 existing tests (events dispatched within <1ms in test code). Investigation revealed amp's throttle is in `SelectionAreaState._handleMouseHover()` — a per-component optimization, NOT a global MouseManager throttle. Reverted to unthrottled dispatch with documentation noting the correct location for future SelectionArea implementation.
+
+5. **Delegate permission spawn (CORE-28)**: Added `spawnDelegate()` async function in orchestrator.ts, directly porting amp's `HpR()` (chunk-001.js:8094-8128) and `WpR()` (8129-8151). Spawns the external program with env vars (AGENT=flitter, FLITTER_THREAD_ID, AGENT_TOOL_NAME, AGENT_TOOL_USE_ID), writes JSON tool args to stdin, interprets exit code: 0→allow, 1→ask, else→reject (stderr as error). 10-second timeout matching amp's line 8110. Updated `ToolOrchestratorCallbacks.checkPermission` return type with `delegateTo` field. CLI `permissions add` now accepts `delegate` action with `--to <program>` flag.
+
+6. **Capability-based scroll step (TUI-29 partial)**: Added `scrollStep: () => number` to `TerminalCapabilities` interface, matching amp's dY.js:21. `detectScrollStep()` checks `TERM_PROGRAM=ghostty` → 1, `TERMINAL_EMULATOR=JetBrains*` → 1, else → 3. Returns a function (not a value) to match amp's lazy evaluation pattern. Note: amp also checks `xtversion?.startsWith("ghostty")` — our detection relies on env vars which covers the common case. Bottom-stick viewport remains unimplemented (that's a widget-level change).
+
+### Consequences
+
+- PollingFileWatcher available as fallback for environments where git is unavailable
+- Admin settings files can now contain comments (JSONC format)
+- Performance debug overlay can be toggled at runtime via `WidgetsBinding.toggleFrameStatsOverlay()`
+- Delegate permission action fully operational: external programs can make tool-level allow/ask/reject decisions
+- Terminal-aware scroll step: ghostty and JetBrains get 1-line steps, others get 3-line
+- 24 new tests, 5713 total passing, 0 type errors
+- 5 gaps closed: DATA-26, DATA-24, TUI-38, TUI-37, CORE-28; 1 partially closed: TUI-29 (scroll step only)

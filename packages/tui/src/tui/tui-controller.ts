@@ -129,6 +129,15 @@ export interface TerminalCapabilities {
    * "standard" = normal underline support
    */
   underlineSupport: "none" | "standard";
+  /**
+   * Scroll step function — returns lines per scroll tick.
+   *
+   * 逆向: dY.js:21 — `scrollStep: () => this.getScrollStep()`
+   *   getScrollStep(): ghostty → 1, JetBrains → 1, else → 3
+   *
+   * A function (not a value) to match amp's lazy evaluation pattern.
+   */
+  scrollStep: () => number;
 }
 
 /**
@@ -868,6 +877,7 @@ export class TuiController {
       colorDepth: detectColorDepth(),
       animationSupport: detectAnimationSupport(),
       underlineSupport: detectUnderlineSupport(),
+      scrollStep: detectScrollStep(),
     };
   }
 }
@@ -988,4 +998,24 @@ export function detectUnderlineSupport(
 ): "none" | "standard" {
   if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return "none";
   return "standard";
+}
+
+/**
+ * Detect scroll step based on terminal type.
+ *
+ * 逆向: dY.js:289-293 — getScrollStep()
+ *   ghostty → 1, JetBrains (ji()) → 1, else → 3
+ *
+ * Returns a function (matching amp's lazy `scrollStep: () => this.getScrollStep()` pattern)
+ * that can be re-evaluated if xtversion becomes available later.
+ */
+export function detectScrollStep(
+  env: Record<string, string | undefined> = process.env,
+): () => number {
+  // Ghostty uses pixel-level scrolling; 1 line per tick is the right step
+  if (env.TERM_PROGRAM === "ghostty") return () => 1;
+  // JetBrains terminal (JediTerm) has small viewports
+  if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return () => 1;
+  // Default: 3 lines per tick (amp default)
+  return () => 3;
 }

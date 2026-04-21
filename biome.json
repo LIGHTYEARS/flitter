@@ -24,6 +24,7 @@
       "correctness": {
         "noUnusedVariables": "warn",
         "noUnusedImports": "warn",
+        "noUnusedPrivateClassMembers": "warn",
         "useExhaustiveDependencies": "off",
         "useYield": "off"
       },

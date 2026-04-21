@@ -317,6 +317,32 @@ describe("handleThreadsNew", () => {
     assert.equal(process.exitCode, 1);
     assert.ok(output.stderr.join("").includes("ThreadStore not available"));
   });
+
+  it("should create thread with visibility when --visibility provided", async () => {
+    const { store, threads } = createMockThreadStore();
+    await handleThreadsNew({ threadStore: store }, ctx, { visibility: "public" });
+    const out = output.stdout.join("");
+    assert.ok(out.startsWith("Created thread: "));
+    const id = out.replace("Created thread: ", "").trim();
+    assert.ok(threads.has(id));
+    // Since mock updateThreadMeta throws, it falls back to setVisibility
+  });
+
+  it("should warn on invalid visibility level", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsNew({ threadStore: store }, ctx, { visibility: "invalid" });
+    const err = output.stderr.join("");
+    assert.ok(err.includes("Invalid visibility"), `Should warn about invalid visibility: ${err}`);
+  });
+
+  it("should still create thread even with invalid visibility", async () => {
+    const { store, threads } = createMockThreadStore();
+    await handleThreadsNew({ threadStore: store }, ctx, { visibility: "bad" });
+    const out = output.stdout.join("");
+    assert.ok(out.startsWith("Created thread: "));
+    const id = out.replace("Created thread: ", "").trim();
+    assert.ok(threads.has(id));
+  });
 });
 
 // ─── handleThreadsContinue 测试 ──────────────────────────

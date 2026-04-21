@@ -31,9 +31,9 @@ describe("createProgram", () => {
   // ─── 全局选项 ─────────────────────────────────────────────
 
   describe("全局选项解析", () => {
-    it("--execute/-e 解析为布尔", () => {
+    it("--execute/-x 解析为布尔", () => {
       const program = createProgram("1.0.0");
-      program.parse(["-e"], { from: "user" });
+      program.parse(["-x"], { from: "user" });
       assert.equal(program.opts().execute, true);
     });
 
@@ -59,6 +59,18 @@ describe("createProgram", () => {
       const program = createProgram("1.0.0");
       program.parse(["-v"], { from: "user" });
       assert.equal(program.opts().verbose, true);
+    });
+
+    it("--mode/-m 解析模式名称", () => {
+      const program = createProgram("1.0.0");
+      program.parse(["-m", "deep"], { from: "user" });
+      assert.equal(program.opts().mode, "deep");
+    });
+
+    it("--mode long form still works", () => {
+      const program = createProgram("1.0.0");
+      program.parse(["--mode", "fast"], { from: "user" });
+      assert.equal(program.opts().mode, "fast");
     });
   });
 

@@ -58,6 +58,8 @@ export interface ThreadsListOptions {
 export interface ThreadsNewOptions {
   /** LLM 模型名称 */
   model?: string;
+  /** 线程可见性 (private, public, unlisted, workspace, group) */
+  visibility?: string;
 }
 
 /**
@@ -127,7 +129,6 @@ export async function handleThreadsNew(
   options: ThreadsNewOptions,
 ): Promise<void> {
   void context;
-  void options;
   const threadStore = deps.threadStore;
   if (!threadStore) {
     process.stderr.write("Error: ThreadStore not available\n");
@@ -142,6 +143,25 @@ export async function handleThreadsNew(
     relationships: [],
     created: Date.now(),
   } as unknown as ThreadSnapshot);
+
+  // 逆向: Yz0 line 350 — amp's threads new applies --visibility after creation
+  if (options.visibility) {
+    const level = options.visibility.toLowerCase();
+    if (!VALID_VISIBILITY_LEVELS.includes(level as UserVisibilityLevel)) {
+      process.stderr.write(
+        `Warning: Invalid visibility "${options.visibility}". Must be one of: ${VALID_VISIBILITY_LEVELS.join(", ")}\n`,
+      );
+    } else {
+      const meta = visibilityToMeta(level as UserVisibilityLevel);
+      try {
+        await threadStore.updateThreadMeta(id, meta);
+      } catch {
+        // If remote is unavailable, fall back to local setVisibility
+        threadStore.setVisibility?.(id, meta.visibility as never);
+      }
+    }
+  }
+
   process.stdout.write(`Created thread: ${id}\n`);
 }
 

@@ -28,7 +28,7 @@ import { FrameScheduler } from "../tree/frame-scheduler.js";
 import { PipelineOwner } from "../tree/pipeline-owner.js";
 import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
 import { TuiController } from "../tui/tui-controller.js";
-import type { KeyEvent } from "../vt/types.js";
+import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import { MediaQuery, MediaQueryData } from "../widgets/media-query.js";
 
 const log = logger.scoped("paint");
@@ -92,6 +92,20 @@ export class WidgetsBinding {
 
   /** 键盘事件拦截器列表 (command palette 等) */
   private keyInterceptors: ((event: KeyEvent) => boolean)[] = [];
+
+  /**
+   * 原始事件回调列表。
+   *
+   * 逆向: d9 in tui-render-pipeline.js:16-17
+   *   `eventCallbacks = { key: [], mouse: [], paste: [] }`
+   *
+   * External code can subscribe via `on("key", cb)` / `on("mouse", cb)` / `on("paste", cb)`.
+   */
+  private eventCallbacks: {
+    key: ((event: KeyEvent) => void)[];
+    mouse: ((event: TermMouseEvent) => void)[];
+    paste: ((event: PasteEvent) => void)[];
+  } = { key: [], mouse: [], paste: [] };
 
   /** 退出等待 Promise */
   private exitPromise: Promise<void> | null = null;
@@ -300,6 +314,39 @@ export class WidgetsBinding {
   }
 
   /**
+   * 注册原始事件回调。
+   *
+   * 逆向: d9 in tui-render-pipeline.js:255-261
+   *   ```js
+   *   on(T, R) {
+   *     let a = this.eventCallbacks[T];
+   *     return a.push(R), () => { /* remove * / };
+   *   }
+   *   ```
+   *
+   * @param type - 事件类型: "key", "mouse", "paste"
+   * @param callback - 事件回调函数
+   * @returns unsubscribe 函数
+   */
+  on(type: "key", callback: (event: KeyEvent) => void): () => void;
+  on(type: "mouse", callback: (event: TermMouseEvent) => void): () => void;
+  on(type: "paste", callback: (event: PasteEvent) => void): () => void;
+  on(
+    type: "key" | "mouse" | "paste",
+    callback:
+      | ((event: KeyEvent) => void)
+      | ((event: TermMouseEvent) => void)
+      | ((event: PasteEvent) => void),
+  ): () => void {
+    const callbacks = this.eventCallbacks[type] as unknown[];
+    callbacks.push(callback);
+    return () => {
+      const idx = callbacks.indexOf(callback);
+      if (idx !== -1) callbacks.splice(idx, 1);
+    };
+  }
+
+  /**
    * 请求强制绘制帧。
    *
    * 即使没有脏标记也会执行绘制，用于初次渲染等场景。
@@ -406,25 +453,30 @@ export class WidgetsBinding {
       this.handleKeyEvent(event);
     });
 
-    // mouse → mouseManager
+    // mouse → eventCallbacks → mouseManager
     this.tui.onMouse((event) => {
+      for (const cb of this.eventCallbacks.mouse) cb(event);
       this.mouseManager.handleMouseEvent(event);
     });
 
-    // paste → focusManager
+    // paste → eventCallbacks → focusManager
     this.tui.onPaste((event) => {
+      for (const cb of this.eventCallbacks.paste) cb(event);
       this.focusManager.handlePasteEvent(event);
     });
   }
 
   /**
-   * 处理键盘事件 — interceptors → focusManager → globalKeyEvent。
+   * 处理键盘事件 — eventCallbacks → interceptors → focusManager → globalKeyEvent。
    *
-   * 逆向: d9.setupEventHandlers.onKey
+   * 逆向: d9.setupEventHandlers.onKey + d9.eventCallbacks dispatch (line 185)
    *
    * @param event - 键盘事件
    */
   private handleKeyEvent(event: KeyEvent): void {
+    // 0. 原始事件回调 (on('key') subscribers)
+    for (const cb of this.eventCallbacks.key) cb(event);
+
     // 1. 拦截器 (command palette 等)
     for (const interceptor of this.keyInterceptors) {
       if (interceptor(event)) return;
@@ -479,6 +531,7 @@ export class WidgetsBinding {
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,
+      underlineSupport: "standard" as const,
     };
     this.currentMediaQueryData = new MediaQueryData(size, capabilities);
     return new MediaQuery({ data: this.currentMediaQueryData, child: widget });
@@ -514,6 +567,7 @@ export class WidgetsBinding {
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,
+      underlineSupport: "standard" as const,
     };
     const newMediaQueryData = new MediaQueryData({ width, height }, capabilities);
     this.currentMediaQueryData = newMediaQueryData;

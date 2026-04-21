@@ -859,3 +859,34 @@ Iteration 26 focuses on breadth over depth: closing 7 gaps across CLI, Data, TUI
 - Animation capability detection unblocks downstream spinner behavior decisions
 - ~30 new tests (6 remove-label + 2 logger + 5 context-manager + 12 animation + 5 toolbox), 5669 total passing, 0 type errors
 - 7 gaps closed: CLI-40, CLI-33, CLI-43, DATA-22, TUI-35, CORE-31 (pre-existing), LLM-20 (false gap)
+
+## ADR-027: Iteration 27 — CLI flag parity, underline detection, WidgetsBinding events, service_tier fix
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Continuing the autonomous gap-closure loop. Focus on self-contained, medium-impact gaps across CLI, TUI, and LLM domains.
+
+### Decisions
+
+1. **`-x` short form for `--execute` (CLI-45)**: Changed the short form from `-e` to `-x` in program.ts to match amp's Yz0:605. The `-e` short form was a flitter-specific choice; amp uses `-x` consistently. No downstream code uses the short form programmatically.
+
+2. **`-m` short form for `--mode` (CLI-46)**: Added `-m` as short form for `--mode` in program.ts. No conflicts with other top-level options. Matches amp's dynamically built option set.
+
+3. **`threads new --visibility` (CLI-47)**: Added `--visibility` flag to `threads new` matching amp's Yz0:350. After thread creation, applies visibility via `visibilityToMeta()` + `updateThreadMeta()`, with `setVisibility()` fallback for no-remote case. Reuses existing visibility mapping infrastructure from `threads share`.
+
+4. **Underline support detection (TUI-36)**: Added `underlineSupport: "none" | "standard"` to `TerminalCapabilities`. `detectUnderlineSupport()` checks `TERMINAL_EMULATOR` for JetBrains, matching amp's `ji()` function (dY.js:20). Note: the gap description said "tmux" but amp's actual code checks JetBrains (JediTerm), not tmux.
+
+5. **`WidgetsBinding.on()` raw event API (TUI-33)**: Added `on("key"|"mouse"|"paste", callback): () => void` method matching amp's d9 eventCallbacks (tui-render-pipeline.js:16-17, 255-261). Callbacks dispatched before interceptors in `handleKeyEvent()` and alongside existing handlers in `setupEventHandlers()`. Returns unsubscribe function.
+
+6. **OpenAI service_tier fix (LLM-08)**: Fixed `service_tier` logic to match amp's `AUT()` (chunk-002.js:12397): `"priority"` only when `agentMode === "deep"` AND `openai.speed === "fast"`. Removed incorrect `"flex"` fallback for `"agent"` mode (which doesn't exist in amp). Flitter simplification: no server feature flag (`OPENAI_FAST`), uses `openai.speed` setting directly.
+
+7. **GlobalCachedValue already implemented (DATA-25)**: Exploration discovered that `GlobalCachedValue` is fully implemented in `packages/util/src/cache/global-cached-value.ts` matching amp's `d5T` (modules/1271). Marked as closed/pre-existing.
+
+### Consequences
+
+- CLI flag compatibility improved: `-x` for execute, `-m` for mode, `--visibility` on thread creation
+- Terminal capability detection now covers underline support — downstream ANSI renderers can gate underline codes
+- WidgetsBinding has a public event subscription API for external code
+- OpenAI service_tier correctly maps to "priority" for deep reasoning mode
+- 20 new tests, 5689 total passing, 0 type errors
+- 7 gaps closed: CLI-45, CLI-46, CLI-47, TUI-36, TUI-33, LLM-08, DATA-25 (pre-existing)

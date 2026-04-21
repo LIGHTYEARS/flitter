@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import type { AssistantContentBlock, Message } from "@flitter/schemas";
 import type { SystemPromptBlock, ToolDefinition } from "../../types";
 import { TransformState } from "../../types";
+import { OpenAIProvider } from "./provider";
 import type { OpenAIResponse, OpenAISSEEvent } from "./transformer";
 import { OpenAIToolTransformer, OpenAITransformer } from "./transformer";
 
@@ -952,5 +953,78 @@ describe("StreamParams — threadId / agentMode fields", () => {
     };
     assert.equal(params.requestId, "req-abc");
     assert.equal(params.sessionId, "sess-xyz");
+  });
+});
+
+// ─── service_tier logic tests ──────────────────────────────
+// 逆向: AUT() in chunk-002.js:12397-12399
+
+describe("OpenAIProvider — service_tier (AUT)", () => {
+  it("should not set service_tier when no openai.speed setting", () => {
+    const provider = new OpenAIProvider();
+    // biome-ignore lint/suspicious/noExplicitAny: testing private method
+    const body = (provider as any)._buildRequestBody(
+      "gpt-4o",
+      4096,
+      [],
+      undefined,
+      {},
+      undefined,
+      false,
+      undefined,
+      undefined,
+    );
+    assert.equal(body.service_tier, undefined);
+  });
+
+  it("should set service_tier to 'priority' when deep mode + openai.speed=fast", () => {
+    const provider = new OpenAIProvider();
+    // biome-ignore lint/suspicious/noExplicitAny: testing private method
+    const body = (provider as any)._buildRequestBody(
+      "gpt-4o",
+      4096,
+      [],
+      undefined,
+      { "openai.speed": "fast" },
+      undefined,
+      false,
+      undefined,
+      "deep",
+    );
+    assert.equal(body.service_tier, "priority");
+  });
+
+  it("should pass through openai.speed when not deep mode", () => {
+    const provider = new OpenAIProvider();
+    // biome-ignore lint/suspicious/noExplicitAny: testing private method
+    const body = (provider as any)._buildRequestBody(
+      "gpt-4o",
+      4096,
+      [],
+      undefined,
+      { "openai.speed": "fast" },
+      undefined,
+      false,
+      undefined,
+      "smart",
+    );
+    assert.equal(body.service_tier, "fast");
+  });
+
+  it("should pass through non-fast speed setting for deep mode", () => {
+    const provider = new OpenAIProvider();
+    // biome-ignore lint/suspicious/noExplicitAny: testing private method
+    const body = (provider as any)._buildRequestBody(
+      "gpt-4o",
+      4096,
+      [],
+      undefined,
+      { "openai.speed": "auto" },
+      undefined,
+      false,
+      undefined,
+      "deep",
+    );
+    assert.equal(body.service_tier, "auto");
   });
 });

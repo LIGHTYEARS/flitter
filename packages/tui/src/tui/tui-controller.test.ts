@@ -390,3 +390,34 @@ describe("detectAnimationSupport", () => {
     assert.equal(detectAnimationSupport({ TERM_PROGRAM: "WezTerm" }), "fast");
   });
 });
+
+// ─── detectUnderlineSupport ──────────────────────────────
+// 逆向: amp modules/2109_unknown_dY.js:20
+
+import { detectUnderlineSupport } from "./tui-controller.js";
+
+describe("detectUnderlineSupport", () => {
+  it('returns "standard" for normal terminal', () => {
+    assert.equal(detectUnderlineSupport({}), "standard");
+  });
+
+  it('returns "none" for JetBrains terminal', () => {
+    assert.equal(detectUnderlineSupport({ TERMINAL_EMULATOR: "JetBrains-JediTerm" }), "none");
+  });
+
+  it('returns "standard" for kitty', () => {
+    assert.equal(detectUnderlineSupport({ TERM: "xterm-kitty" }), "standard");
+  });
+
+  it('returns "standard" for WezTerm', () => {
+    assert.equal(detectUnderlineSupport({ TERM_PROGRAM: "WezTerm" }), "standard");
+  });
+
+  it('returns "standard" when SSH is set', () => {
+    assert.equal(detectUnderlineSupport({ SSH_CLIENT: "192.168.1.1 12345 22" }), "standard");
+  });
+
+  it('returns "standard" when INSIDE_EMACS is set', () => {
+    assert.equal(detectUnderlineSupport({ INSIDE_EMACS: "29.1" }), "standard");
+  });
+});

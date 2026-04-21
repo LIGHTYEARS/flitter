@@ -165,10 +165,21 @@ export class OpenAIProvider implements LLMProvider {
       }
     }
 
-    // Service tier — explicit setting takes priority, then auto-compute from agent mode
-    const serviceTier = settings["openai.speed"] ?? (agentMode === "agent" ? "flex" : undefined);
-    if (serviceTier) {
-      body.service_tier = serviceTier;
+    // Service tier — 逆向: AUT() in chunk-002.js:12397-12399
+    //   function AUT(T, R, a) {
+    //     let e = u3T(R, a);  // resolves speed setting (with server feature override)
+    //     return qo(T) && e === "fast" ? "priority" : void 0;
+    //   }
+    //   qo(T) = isDeepReasoningMode(T) — true for "deep" mode
+    //
+    // Flitter: no server feature flag, use openai.speed setting directly.
+    // - explicit setting always takes priority (passthrough)
+    // - auto: "priority" when deep mode + speed=fast; otherwise no service_tier
+    const speedSetting = settings["openai.speed"] as string | undefined;
+    if (speedSetting) {
+      // Auto-compute: deep + fast → "priority" (matching amp's AUT)
+      body.service_tier =
+        agentMode === "deep" && speedSetting === "fast" ? "priority" : speedSetting;
     }
 
     // Prompt cache key — explicit setting takes priority, then threadId fallback

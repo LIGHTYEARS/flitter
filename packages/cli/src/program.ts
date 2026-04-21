@@ -44,7 +44,8 @@ export function createProgram(version: string): Command {
     .version(version)
     .description("Flitter — AI Agent in your terminal")
     .argument("[message...]", "Message to send (execute mode)")
-    .option("-e, --execute", "Run in non-interactive execute mode")
+    // 逆向: Yz0 line 605 — amp uses -x as short form for --execute
+    .option("-x, --execute", "Run in non-interactive execute mode")
     .option("--headless", "Run in headless JSON stream mode")
     .option("--stream-json", "Output JSON event stream to stdout")
     .option("--no-color", "Disable color output")
@@ -57,7 +58,8 @@ export function createProgram(version: string): Command {
     // amp defines apiKey, sp, systemPrompt, mode as hidden options.
     // Flitter exposes a subset as user-facing CLI flags.
     .option("--model <model>", "LLM model to use (e.g., claude-sonnet-4-20250514)")
-    .option("--mode <mode>", "Agent mode: smart, fast, deep, auto")
+    // 逆向: i$T mode option — amp uses -m as short form
+    .option("-m, --mode <mode>", "Agent mode: smart, fast, deep, auto")
     .option("--api-key <key>", "API key (overrides stored credentials for this session)")
     .option(
       "--mcp-config <json-or-path>",
@@ -133,7 +135,12 @@ export function createProgram(version: string): Command {
     .command("new")
     .alias("n")
     .description("Create a new thread")
-    .option("--model <model>", "LLM model to use");
+    .option("--model <model>", "LLM model to use")
+    // 逆向: Yz0 line 350 — amp's threads new accepts --visibility
+    .option(
+      "--visibility <visibility>",
+      "Set thread visibility (private, public, workspace, group)",
+    );
 
   threads
     .command("continue")

@@ -34,4 +34,4 @@ export type {
   TerminalCapabilities,
   TerminalSize,
 } from "./tui-controller.js";
-export { detectAnimationSupport, TuiController } from "./tui-controller.js";
+export { detectAnimationSupport, detectUnderlineSupport, TuiController } from "./tui-controller.js";

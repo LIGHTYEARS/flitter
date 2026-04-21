@@ -62,6 +62,8 @@ function mockTuiController(tui: TuiController): void {
     xtversion: null,
     supportsCursorShape: false,
     colorDepth: "truecolor" as const,
+    animationSupport: "fast" as const,
+    underlineSupport: "standard" as const,
   });
   tui.render = () => {};
   tui.onKey = () => {};
@@ -458,5 +460,81 @@ describe("WidgetsBinding", () => {
 
     binding.stop();
     await runPromise;
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  on() raw event API 测试
+// ════════════════════════════════════════════════════
+// 逆向: d9 eventCallbacks in tui-render-pipeline.js:16-17, 255-261
+
+describe("WidgetsBinding — on() raw event API", () => {
+  beforeEach(resetAllSingletons);
+  afterEach(resetAllSingletons);
+
+  it("on('key') should register and unregister callback", () => {
+    const binding = WidgetsBinding.instance;
+    const events: KeyEvent[] = [];
+    const unsub = binding.on("key", (e) => events.push(e));
+    assert.equal(typeof unsub, "function");
+    unsub();
+    // After unsub, no events should accumulate
+    assert.deepStrictEqual(events, []);
+  });
+
+  it("on('mouse') should register and unregister callback", () => {
+    const binding = WidgetsBinding.instance;
+    const events: unknown[] = [];
+    const unsub = binding.on("mouse", (e) => events.push(e));
+    assert.equal(typeof unsub, "function");
+    unsub();
+    assert.deepStrictEqual(events, []);
+  });
+
+  it("on('paste') should register and unregister callback", () => {
+    const binding = WidgetsBinding.instance;
+    const events: unknown[] = [];
+    const unsub = binding.on("paste", (e) => events.push(e));
+    assert.equal(typeof unsub, "function");
+    unsub();
+    assert.deepStrictEqual(events, []);
+  });
+
+  it("on('key') callback receives events from _handleKeyEventForTesting", () => {
+    const binding = WidgetsBinding.instance;
+    mockTuiController(binding.tui);
+
+    const events: KeyEvent[] = [];
+    binding.on("key", (e) => events.push(e));
+
+    const testEvent: KeyEvent = {
+      key: "a",
+      char: "a",
+      modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+    };
+    binding._handleKeyEventForTesting(testEvent);
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.key, "a");
+  });
+
+  it("unsubscribe should stop receiving events", () => {
+    const binding = WidgetsBinding.instance;
+    mockTuiController(binding.tui);
+
+    const events: KeyEvent[] = [];
+    const unsub = binding.on("key", (e) => events.push(e));
+
+    const testEvent: KeyEvent = {
+      key: "b",
+      char: "b",
+      modifiers: { ctrl: false, alt: false, shift: false, meta: false },
+    };
+    binding._handleKeyEventForTesting(testEvent);
+    assert.equal(events.length, 1);
+
+    unsub();
+    binding._handleKeyEventForTesting(testEvent);
+    assert.equal(events.length, 1, "should not receive events after unsub");
   });
 });

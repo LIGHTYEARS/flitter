@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 26)
+> **Last updated:** 2026-04-22 (iteration 27)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -79,6 +79,13 @@
 | GAP-CLI-40 | CLI | /remove-label slash command | Closed (iteration 26) |
 | GAP-CLI-43 | CLI | /toolbox list slash command | Closed (iteration 26) |
 | GAP-TUI-35 | TUI | Animation support detection | Closed (iteration 26) |
+| GAP-CLI-45 | CLI | `-x` short for `--execute` | Closed (iteration 27) |
+| GAP-CLI-46 | CLI | `-m` short for `--mode` | Closed (iteration 27) |
+| GAP-CLI-47 | CLI | `threads new --visibility` | Closed (iteration 27) |
+| GAP-TUI-36 | TUI | Underline support detection | Closed (iteration 27) |
+| GAP-TUI-33 | TUI | `WidgetsBinding.on()` raw event API | Closed (iteration 27) |
+| GAP-LLM-08 | LLM | `service_tier` for OpenAI | Closed (iteration 27) |
+| GAP-DATA-25 | Data | `GlobalCachedValue` TTL cache | Closed (iteration 27, pre-existing) |
 
 ---
 
@@ -225,9 +232,9 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-CLI-19 | ~~`threads` aliases~~ | **Closed (iteration 16)** |
 | GAP-CLI-20 | `install` (hidden) | Install ripgrep to `$AMP_HOME/bin`. |
 | GAP-CLI-21 | `--jetbrains` / `--ide` flags | IDE integration toggles. |
-| GAP-CLI-45 | `-x` vs `-e` for `--execute` | Amp uses `-x` short form; flitter uses `-e`. Minor script incompatibility. |
-| GAP-CLI-46 | `-m` short for `--mode` | Amp has `-m`; flitter has `--mode` only. |
-| GAP-CLI-47 | `threads new --visibility` | Amp's `threads new` accepts `--visibility`. Flitter's only takes `--model`. |
+| GAP-CLI-45 | `-x` vs `-e` for `--execute` | **Closed (iteration 27)** — Changed short form from `-e` to `-x` matching amp's Yz0:605. Updated program.ts and test. |
+| GAP-CLI-46 | `-m` short for `--mode` | **Closed (iteration 27)** — Added `-m` short form to `--mode` in program.ts. 2 new tests. |
+| GAP-CLI-47 | `threads new --visibility` | **Closed (iteration 27)** — Added `--visibility` to `threads new` in program.ts. `handleThreadsNew` applies visibility via `visibilityToMeta()` + `updateThreadMeta()` with `setVisibility()` fallback. 3 new tests. |
 | GAP-CLI-48 | `send-queued-message` command | TUI command to immediately send already-queued message. Different from `/queue`. |
 | GAP-CLI-49 | `thread: open in browser` | Open thread URL in default browser from TUI. |
 | GAP-CLI-50 | `share with support` | Share thread with Amp/support team for debugging. Server-dependent. |
@@ -266,10 +273,10 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-TUI-16 | Custom theme TOML loading | File-based custom theme loading. Plan: `2026-04-19-gap8-theme-system.md`. |
 | GAP-TUI-17 | Diff viewer as full widget | **Closed (iteration 22)** — Verified functional parity with amp's `cE0`. |
 | GAP-TUI-32 | OSC 52 per-terminal opt-in | Amp tracks `osc52` capability per terminal (ghostty/kitty/wezterm/foot/alacritty/iterm2/tmux). Flitter always uses OSC 52 as fallback without terminal-specific check. |
-| GAP-TUI-33 | `WidgetsBinding.on()` raw event API | Amp's `d9.on('key'|'mouse'|'paste', cb)` + `dispatchSyntheticPaste`. Flitter has `addKeyInterceptor` but no multi-event subscription. |
+| GAP-TUI-33 | `WidgetsBinding.on()` raw event API | **Closed (iteration 27)** — `on(type, cb): () => void` method added to `WidgetsBinding` for "key"/"mouse"/"paste" events with auto-unsubscribe. `eventCallbacks` structure matches amp's d9 (tui-render-pipeline.js:16-17, 255-261). Callbacks dispatched before interceptors. 5 new tests. |
 | GAP-TUI-34 | Kitty explicit width detection | Amp probes terminal for explicit width override via cursor position report. Not in flitter. |
 | GAP-TUI-35 | Animation support detection | **Closed (iteration 26)** — `animationSupport: "fast" | "slow" | "disabled"` added to `TerminalCapabilities`. `detectAnimationSupport()` matches amp's dY.js:266-272: NO_ANIMATION/NO_ANIMATIONS env → disabled, Emacs/SSH → disabled, JetBrains → slow, else fast. Exported for direct testing. 12 new tests. |
-| GAP-TUI-36 | Underline support detection | Amp detects `underlineSupport: "none"/"standard"` (disabled in tmux without passthrough). |
+| GAP-TUI-36 | Underline support detection | **Closed (iteration 27)** — `underlineSupport: "none" | "standard"` added to `TerminalCapabilities`. `detectUnderlineSupport()` checks `TERMINAL_EMULATOR` for JetBrains (matching amp's dY.js:20 `ji()`). Exported for testing. 6 new tests. |
 | GAP-TUI-37 | Mouse hover throttling | Amp's `SelectionArea._handleMouseHover` throttles to 16ms and skips same-position events. Flitter dispatches every mouse event. |
 | GAP-TUI-38 | `toggleFrameStatsOverlay()` on binding | Amp's `d9` has public method to toggle perf overlay. Flitter has the overlay but no binding-level entry point. |
 
@@ -277,7 +284,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-LLM-08 | `service_tier` for OpenAI speed | Amp auto-computes from agent mode; flitter requires explicit setting. |
+| GAP-LLM-08 | `service_tier` for OpenAI speed | **Closed (iteration 27)** — Fixed `service_tier` logic in OpenAI provider to match amp's `AUT()` (chunk-002.js:12397). `deep` mode + `openai.speed=fast` → `"priority"`, else passthrough explicit setting. Removed incorrect `"flex"` fallback for `"agent"` mode. 4 new tests. |
 | GAP-LLM-09 | `cacheTTL` in pricing model | Amp tracks 5-minute TTL for cache invalidation awareness. |
 | GAP-LLM-10 | Context-limit → Gemini fallback | Amp auto-falls back to Gemini on context overflow. Flitter detects but doesn't auto-fallback. |
 | GAP-LLM-19 | MCP OAuth headless auth handler | Amp's `M5T` supports `headlessAuthHandler` for CI environments. Flitter has `onManualCodeInput` only. |
@@ -294,7 +301,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-DATA-11 | Thread labels via server API | Labels don't propagate to remote. |
 | GAP-DATA-12 | `invalidateThreadListCache` | Force re-fetch from server. N/A without remote transport. |
 | GAP-DATA-24 | Admin settings `.changes` not merged | Amp's `iHR` merges admin `.changes` into config Observable. Flitter admin overlay applies on `reload()` only — admin changes not pushed live. |
-| GAP-DATA-25 | `GlobalCachedValue` TTL cache | Amp uses this pervasively for expensive async values. Flitter has no equivalent — each consumer manages its own caching. |
+| GAP-DATA-25 | `GlobalCachedValue` TTL cache | **Closed (iteration 27, pre-existing)** — Fully implemented in `packages/util/src/cache/global-cached-value.ts` with `softTTL`, `hardTTL`, `compute`, `changes` matching amp's `d5T` (modules/1271). Exported via `@flitter/util`. |
 | GAP-DATA-26 | `PollingFileWatcher` fallback | Flitter's factory goes `GitWatcher → NoOp`, skipping the polling fallback for non-git directories. |
 | GAP-DATA-27 | MCP `includeTools` merge across skills | Amp warns on server name collision and merges `includeTools` arrays. Flitter silently overwrites (last-wins). |
 | GAP-DATA-28 | GitHub skill install support | Flitter's `SkillService.install()` only accepts local paths. Amp supports GitHub URLs. |
@@ -478,10 +485,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 2 |
 | High | 16 |
-| Medium | 38 |
+| Medium | 31 |
 | Low | 52 |
-| **Total open gaps** | **108** |
-| Closed gaps | 127+ |
+| **Total open gaps** | **101** |
+| Closed gaps | 134+ |
 
 ### Cross-Cutting Themes
 

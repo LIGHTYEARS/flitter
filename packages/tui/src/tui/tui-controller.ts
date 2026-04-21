@@ -119,6 +119,16 @@ export interface TerminalCapabilities {
    * static (text dots) rendering.
    */
   animationSupport: "fast" | "slow" | "disabled";
+  /**
+   * Underline support level.
+   *
+   * 逆向: dY.js:20 — `underlineSupport: ji() ? "none" : "standard"`
+   *   ji() checks TERMINAL_EMULATOR?.includes("JetBrains")
+   *
+   * "none" = underlines silently dropped in ANSI output (JetBrains terminal)
+   * "standard" = normal underline support
+   */
+  underlineSupport: "none" | "standard";
 }
 
 /**
@@ -857,6 +867,7 @@ export class TuiController {
       supportsCursorShape: detectCursorShapeSupport(),
       colorDepth: detectColorDepth(),
       animationSupport: detectAnimationSupport(),
+      underlineSupport: detectUnderlineSupport(),
     };
   }
 }
@@ -960,4 +971,21 @@ export function detectAnimationSupport(
   // JetBrains built-in terminal — slower rendering, use reduced animations
   if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return "slow";
   return "fast";
+}
+
+/**
+ * Detect underline support level.
+ *
+ * 逆向: amp modules/2109_unknown_dY.js:20
+ *   `underlineSupport: ji() ? "none" : "standard"`
+ *   ji() is `detectJetBrains()` — checks TERMINAL_EMULATOR?.includes("JetBrains")
+ *
+ * JetBrains built-in terminal (JediTerm) doesn't render underline ANSI codes
+ * correctly, so underlines are silently dropped.
+ */
+export function detectUnderlineSupport(
+  env: Record<string, string | undefined> = process.env,
+): "none" | "standard" {
+  if (env.TERMINAL_EMULATOR?.startsWith("JetBrains")) return "none";
+  return "standard";
 }

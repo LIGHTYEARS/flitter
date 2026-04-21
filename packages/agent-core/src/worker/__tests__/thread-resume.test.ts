@@ -39,14 +39,17 @@ function createSnapshot(messages: Message[] = []): ThreadSnapshot {
 function createMockOrchestrator(opts?: {
   hasRunningTools?: () => boolean;
   executeToolsWithPlan?: (toolUses: ToolUseItem[]) => Promise<void>;
+  onResume?: (thread: ThreadSnapshot) => Promise<void>;
 }): ToolOrchestrator & {
   cancelAllCalled: boolean;
   disposeCalled: boolean;
   lastToolUses: ToolUseItem[];
+  onResumeCalled: boolean;
 } {
   const mock = {
     cancelAllCalled: false,
     disposeCalled: false,
+    onResumeCalled: false,
     lastToolUses: [] as ToolUseItem[],
     executeToolsWithPlan: async (toolUses: ToolUseItem[]) => {
       mock.lastToolUses = toolUses;
@@ -58,9 +61,19 @@ function createMockOrchestrator(opts?: {
       mock.cancelAllCalled = true;
     },
     cancelTool: () => {},
+    onNewUserMessage: async () => {
+      // Clears approvals + calls cancelAll (mocked)
+      mock.cancelAllCalled = true;
+    },
     hasRunningTools: opts?.hasRunningTools ?? (() => false),
     runningTools: new Map(),
     cancelledToolUses: new Set<string>(),
+    onResume: async (thread: ThreadSnapshot) => {
+      mock.onResumeCalled = true;
+      if (opts?.onResume) {
+        await opts.onResume(thread);
+      }
+    },
     dispose: () => {
       mock.disposeCalled = true;
     },
@@ -69,6 +82,7 @@ function createMockOrchestrator(opts?: {
     cancelAllCalled: boolean;
     disposeCalled: boolean;
     lastToolUses: ToolUseItem[];
+    onResumeCalled: boolean;
   };
 }
 
@@ -139,7 +153,7 @@ function createWorker(overrides?: Partial<ThreadWorkerOptions>) {
 // ─── Task 1: resume() ──────────────────────────────────────
 
 describe("ThreadWorker — resume()", () => {
-  it("truncates the last message if it has state.type === 'streaming'", () => {
+  it("truncates the last message if it has state.type === 'streaming'", async () => {
     const streamingMsg = {
       role: "assistant" as const,
       messageId: 1,
@@ -155,7 +169,7 @@ describe("ThreadWorker — resume()", () => {
     const { worker, getSnapshot, setSnapshot } = createWorker();
     setSnapshot(createSnapshot([userMsg, streamingMsg] as unknown as Message[]));
 
-    worker.resume();
+    await worker.resume();
 
     // After resume, the streaming message should be truncated
     const messages = getSnapshot().messages;
@@ -163,7 +177,7 @@ describe("ThreadWorker — resume()", () => {
     assert.equal(messages[0].role, "user");
   });
 
-  it("does nothing if last message state is 'complete'", () => {
+  it("does nothing if last message state is 'complete'", async () => {
     const completeMsg = {
       role: "assistant" as const,
       messageId: 1,
@@ -179,13 +193,13 @@ describe("ThreadWorker — resume()", () => {
     const { worker, getSnapshot, setSnapshot } = createWorker();
     setSnapshot(createSnapshot([userMsg, completeMsg] as unknown as Message[]));
 
-    worker.resume();
+    await worker.resume();
 
     const messages = getSnapshot().messages;
     assert.equal(messages.length, 2, "complete assistant message should remain");
   });
 
-  it("does nothing if last message is a user message", () => {
+  it("does nothing if last message is a user message", async () => {
     const userMsg = {
       role: "user" as const,
       messageId: 0,
@@ -195,14 +209,14 @@ describe("ThreadWorker — resume()", () => {
     const { worker, getSnapshot, setSnapshot } = createWorker();
     setSnapshot(createSnapshot([userMsg] as unknown as Message[]));
 
-    worker.resume();
+    await worker.resume();
 
     const messages = getSnapshot().messages;
     assert.equal(messages.length, 1);
     assert.equal(messages[0].role, "user");
   });
 
-  it("is idempotent — second call is a no-op", () => {
+  it("is idempotent — second call is a no-op", async () => {
     const streamingMsg = {
       role: "assistant" as const,
       messageId: 1,
@@ -218,7 +232,7 @@ describe("ThreadWorker — resume()", () => {
     const { worker, getSnapshot, setSnapshot } = createWorker();
     setSnapshot(createSnapshot([userMsg, streamingMsg] as unknown as Message[]));
 
-    worker.resume();
+    await worker.resume();
     assert.equal(getSnapshot().messages.length, 1);
 
     // Add another streaming message to simulate further state changes
@@ -235,16 +249,110 @@ describe("ThreadWorker — resume()", () => {
     );
 
     // Second resume should be no-op
-    worker.resume();
+    await worker.resume();
     assert.equal(getSnapshot().messages.length, 2, "second resume should not truncate again");
   });
 
-  it("does nothing on empty thread", () => {
+  it("does nothing on empty thread", async () => {
     const { worker, getSnapshot } = createWorker();
 
-    worker.resume();
+    await worker.resume();
 
     assert.equal(getSnapshot().messages.length, 0);
+  });
+
+  it("calls toolOrchestrator.onResume() when last message is a user message with tool_results", async () => {
+    const orchestrator = createMockOrchestrator();
+    const userMsgWithToolResult = {
+      role: "user" as const,
+      messageId: 0,
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "tu-1",
+          content: "result",
+          run: { status: "in-progress" },
+        },
+      ],
+    };
+
+    const { worker, setSnapshot } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
+    setSnapshot(createSnapshot([userMsgWithToolResult] as unknown as Message[]));
+
+    await worker.resume();
+
+    assert.equal(orchestrator.onResumeCalled, true, "onResume should have been called");
+  });
+
+  it("sets state to cancelled and skips onResume when last message is cancelled", async () => {
+    const orchestrator = createMockOrchestrator();
+    const cancelledMsg = {
+      role: "assistant" as const,
+      messageId: 0,
+      content: [{ type: "text" as const, text: "partial" }],
+      state: { type: "cancelled" as const },
+    };
+
+    const { worker, setSnapshot } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
+    setSnapshot(createSnapshot([cancelledMsg] as unknown as Message[]));
+
+    await worker.resume();
+
+    assert.equal(orchestrator.onResumeCalled, false, "onResume should NOT be called for cancelled");
+    assert.equal(worker.inferenceState$.getValue(), "cancelled");
+  });
+
+  it("sets state to cancelled and skips onResume when user message has rejected-by-user tool_result", async () => {
+    const orchestrator = createMockOrchestrator();
+    const rejectedMsg = {
+      role: "user" as const,
+      messageId: 0,
+      content: [
+        {
+          type: "tool_result",
+          tool_use_id: "tu-1",
+          content: "rejected",
+          run: { status: "rejected-by-user" },
+        },
+      ],
+    };
+
+    const { worker, setSnapshot } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
+    setSnapshot(createSnapshot([rejectedMsg] as unknown as Message[]));
+
+    await worker.resume();
+
+    assert.equal(orchestrator.onResumeCalled, false, "onResume should NOT be called for rejected");
+    assert.equal(worker.inferenceState$.getValue(), "cancelled");
+  });
+
+  it("sets state to cancelled and skips onResume when last message is info role", async () => {
+    const orchestrator = createMockOrchestrator();
+    const infoMsg = {
+      role: "info" as const,
+      messageId: 0,
+      content: [{ type: "text" as const, text: "system info" }],
+    };
+
+    const { worker, setSnapshot } = createWorker({
+      toolOrchestrator: orchestrator as unknown as ToolOrchestrator,
+    });
+    setSnapshot(createSnapshot([infoMsg] as unknown as Message[]));
+
+    await worker.resume();
+
+    assert.equal(
+      orchestrator.onResumeCalled,
+      false,
+      "onResume should NOT be called for info messages",
+    );
+    assert.equal(worker.inferenceState$.getValue(), "cancelled");
   });
 });
 

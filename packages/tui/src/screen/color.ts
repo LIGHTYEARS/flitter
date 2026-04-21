@@ -384,7 +384,7 @@ export function rgbToXterm256(r: number, g: number, b: number): number {
   const cubeDist = colorDistSq(r, g, b, cubeR, cubeG, cubeB);
 
   // Find nearest grayscale
-  const avg = Math.round((r + g + b) / 3);
+  const _avg = Math.round((r + g + b) / 3);
   let grayIdx = 0;
   let grayDist = Infinity;
   for (let i = 0; i < 24; i++) {
@@ -412,7 +412,14 @@ function nearestCubeIndex(value: number): number {
   return best;
 }
 
-function colorDistSq(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
+function colorDistSq(
+  r1: number,
+  g1: number,
+  b1: number,
+  r2: number,
+  g2: number,
+  b2: number,
+): number {
   return (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2;
 }
 
@@ -421,21 +428,21 @@ function colorDistSq(r1: number, g1: number, b1: number, r2: number, g2: number,
  * Index 0-7: normal colors, 8-15: bright colors.
  */
 const ANSI_16_PALETTE: readonly [number, number, number][] = [
-  [0, 0, 0],       // 0: black
-  [170, 0, 0],     // 1: red
-  [0, 170, 0],     // 2: green
-  [170, 85, 0],    // 3: yellow/brown
-  [0, 0, 170],     // 4: blue
-  [170, 0, 170],   // 5: magenta
-  [0, 170, 170],   // 6: cyan
+  [0, 0, 0], // 0: black
+  [170, 0, 0], // 1: red
+  [0, 170, 0], // 2: green
+  [170, 85, 0], // 3: yellow/brown
+  [0, 0, 170], // 4: blue
+  [170, 0, 170], // 5: magenta
+  [0, 170, 170], // 6: cyan
   [170, 170, 170], // 7: white
-  [85, 85, 85],    // 8: bright black (gray)
-  [255, 85, 85],   // 9: bright red
-  [85, 255, 85],   // 10: bright green
-  [255, 255, 85],  // 11: bright yellow
-  [85, 85, 255],   // 12: bright blue
-  [255, 85, 255],  // 13: bright magenta
-  [85, 255, 255],  // 14: bright cyan
+  [85, 85, 85], // 8: bright black (gray)
+  [255, 85, 85], // 9: bright red
+  [85, 255, 85], // 10: bright green
+  [255, 255, 85], // 11: bright yellow
+  [85, 85, 255], // 12: bright blue
+  [255, 85, 255], // 13: bright magenta
+  [85, 255, 255], // 14: bright cyan
   [255, 255, 255], // 15: bright white
 ];
 

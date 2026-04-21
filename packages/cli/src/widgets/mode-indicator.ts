@@ -14,16 +14,17 @@
  * @module
  */
 
-import type { Widget as WidgetInterface } from "@flitter/tui";
-import { State, StatefulWidget } from "@flitter/tui";
-import type { Key } from "@flitter/tui";
-import { BrailleSpinner } from "@flitter/tui";
-import { Text } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color as ColorClass } from "@flitter/tui";
-import { Row } from "@flitter/tui";
-import { RichText } from "@flitter/tui";
-import { TextSpan } from "@flitter/tui";
+import type { Key, Widget as WidgetInterface } from "@flitter/tui";
+import {
+  BrailleSpinner,
+  Color as ColorClass,
+  RichText,
+  Row,
+  State,
+  StatefulWidget,
+  TextSpan,
+  TextStyle,
+} from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  Mode colors mapping

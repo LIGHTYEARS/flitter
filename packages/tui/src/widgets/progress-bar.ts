@@ -11,12 +11,11 @@
  * @module
  */
 
-import type { Screen } from "../screen/screen.js";
+import { Cell } from "../screen/cell.js";
 import type { Color } from "../screen/color.js";
 import { Color as ColorClass } from "../screen/color.js";
-import { Cell } from "../screen/cell.js";
+import type { Screen } from "../screen/screen.js";
 import { TextStyle } from "../screen/text-style.js";
-import { BoxConstraints } from "../tree/constraints.js";
 import type { Element, Widget as WidgetInterface } from "../tree/element.js";
 import { RenderBox } from "../tree/render-box.js";
 import type { RenderObject } from "../tree/render-object.js";
@@ -143,7 +142,11 @@ export class ProgressBarRenderObject extends RenderBox {
     // Paint label if present
     if (this._label) {
       for (let i = 0; i < this._label.length; i++) {
-        screen.setCell(col + i, y, new Cell(this._label[i]!, new TextStyle({ foreground: this._color })));
+        screen.setCell(
+          col + i,
+          y,
+          new Cell(this._label[i]!, new TextStyle({ foreground: this._color })),
+        );
       }
       col += this._label.length + 1; // +1 space
     }
@@ -161,13 +164,21 @@ export class ProgressBarRenderObject extends RenderBox {
 
     // Paint fractional block
     if (filledFull < this._barWidth && fractionalIndex > 0) {
-      screen.setCell(col + filledFull, y, new Cell(BLOCK_CHARS[fractionalIndex]!, new TextStyle({ foreground: this._color })));
+      screen.setCell(
+        col + filledFull,
+        y,
+        new Cell(BLOCK_CHARS[fractionalIndex]!, new TextStyle({ foreground: this._color })),
+      );
     }
 
     // Paint empty portion
     const emptyStart = filledFull + (fractionalIndex > 0 ? 1 : 0);
     for (let i = emptyStart; i < this._barWidth; i++) {
-      screen.setCell(col + i, y, new Cell("░", new TextStyle({ foreground: this._backgroundColor })));
+      screen.setCell(
+        col + i,
+        y,
+        new Cell("░", new TextStyle({ foreground: this._backgroundColor })),
+      );
     }
   }
 }
@@ -236,13 +247,7 @@ export class ProgressBar extends Widget implements RenderObjectWidget {
 
   updateRenderObject(renderObject: RenderObject): void {
     if (renderObject instanceof ProgressBarRenderObject) {
-      renderObject.update(
-        this.value,
-        this.barWidth,
-        this.label,
-        this.color,
-        this.backgroundColor,
-      );
+      renderObject.update(this.value, this.barWidth, this.label, this.color, this.backgroundColor);
     }
   }
 }

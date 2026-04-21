@@ -8,16 +8,11 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import {
-  createSnapshot,
-  createSnapshots,
-  isGitRepo,
-  restoreSnapshot,
-} from "./auto-snapshot";
+import { createSnapshot, createSnapshots, isGitRepo, restoreSnapshot } from "./auto-snapshot";
 
 function git(args: string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
@@ -77,10 +72,7 @@ describe("auto-snapshot", () => {
     it("creates a ref under refs/flitter/snapshots/", async () => {
       await createSnapshot(repoDir, "thread-1", 42);
       // The ref should exist
-      const refOID = git(
-        ["rev-parse", "refs/flitter/snapshots/thread-1/42"],
-        repoDir,
-      );
+      const refOID = git(["rev-parse", "refs/flitter/snapshots/thread-1/42"], repoDir);
       assert.ok(refOID.length > 0);
     });
 
@@ -141,20 +133,14 @@ describe("auto-snapshot", () => {
       writeFileSync(join(repoDir, "new-after-snapshot.txt"), "this should be removed");
 
       // Verify changes exist
-      assert.equal(
-        readFileSync(join(repoDir, "initial.txt"), "utf8"),
-        "CHANGED after snapshot",
-      );
+      assert.equal(readFileSync(join(repoDir, "initial.txt"), "utf8"), "CHANGED after snapshot");
       assert.ok(existsSync(join(repoDir, "new-after-snapshot.txt")));
 
       // Restore to snapshot
       await restoreSnapshot(snapshot);
 
       // Verify restoration: original content restored
-      assert.equal(
-        readFileSync(join(repoDir, "initial.txt"), "utf8"),
-        "initial content",
-      );
+      assert.equal(readFileSync(join(repoDir, "initial.txt"), "utf8"), "initial content");
     });
   });
 

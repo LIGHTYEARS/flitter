@@ -13,14 +13,14 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { StatefulWidget } from "@flitter/tui";
 import {
-  ApprovalWidget,
-  ApprovalWidgetState,
   type ApprovalRequest,
   type ApprovalResponse,
   type ApprovalScope,
+  ApprovalWidget,
+  ApprovalWidgetState,
 } from "./approval-widget.js";
-import { StatefulWidget } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  ApprovalWidget Tests
@@ -94,10 +94,7 @@ describe("ApprovalWidget", () => {
       request,
       onRespond: () => {},
     });
-    assert.equal(
-      widget.config.request.permissionRule,
-      "built-in permissions rule 25: ask Bash",
-    );
+    assert.equal(widget.config.request.permissionRule, "built-in permissions rule 25: ask Bash");
   });
 
   it("supports all ApprovalScope values", () => {

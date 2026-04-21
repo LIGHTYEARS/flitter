@@ -21,13 +21,13 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { type BuildContext, Column, RichText, StatefulWidget, type TextSpan } from "@flitter/tui";
 import {
   ConversationView,
-  ConversationViewState,
   type ConversationViewConfig,
+  ConversationViewState,
   type Message,
 } from "./conversation-view.js";
-import { StatefulWidget, RichText, Column, TextSpan } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  辅助函数
@@ -42,10 +42,10 @@ function mountConversationView(config: ConversationViewConfig): {
 } {
   const widget = new ConversationView(config);
   const state = widget.createState() as ConversationViewState;
-  const mockElement = { markNeedsRebuild: () => {} } as any;
-  (state as any)._widget = widget;
-  (state as any)._element = mockElement;
-  (state as any)._mounted = true;
+  const mockElement = { markNeedsRebuild: () => {} } as unknown as object;
+  (state as unknown as Record<string, unknown>)._widget = widget;
+  (state as unknown as Record<string, unknown>)._element = mockElement;
+  (state as unknown as Record<string, unknown>)._mounted = true;
   state.initState();
   return { widget, state };
 }
@@ -53,22 +53,23 @@ function mountConversationView(config: ConversationViewConfig): {
 /**
  * 递归提取 Widget 树中所有纯文本。
  */
-function extractAllText(widget: any): string {
+function extractAllText(widget: unknown): string {
   let result = "";
   if (widget instanceof RichText) {
     result += widget.text.toPlainText();
   }
-  if (widget.data !== undefined) {
+  const w = widget as Record<string, unknown>;
+  if (w.data !== undefined) {
     // Text widget
-    result += widget.data;
+    result += w.data;
   }
-  if (widget.children) {
-    for (const child of widget.children) {
+  if (w.children) {
+    for (const child of w.children as unknown[]) {
       result += extractAllText(child);
     }
   }
-  if (widget.child) {
-    result += extractAllText(widget.child);
+  if (w.child) {
+    result += extractAllText(w.child);
   }
   return result;
 }
@@ -76,18 +77,19 @@ function extractAllText(widget: any): string {
 /**
  * 递归收集所有 RichText 节点。
  */
-function collectRichTexts(widget: any): any[] {
-  const results: any[] = [];
+function collectRichTexts(widget: unknown): RichText[] {
+  const results: RichText[] = [];
   if (widget instanceof RichText) {
     results.push(widget);
   }
-  if (widget.children) {
-    for (const child of widget.children) {
+  const w = widget as Record<string, unknown>;
+  if (w.children) {
+    for (const child of w.children as unknown[]) {
       results.push(...collectRichTexts(child));
     }
   }
-  if (widget.child) {
-    results.push(...collectRichTexts(widget.child));
+  if (w.child) {
+    results.push(...collectRichTexts(w.child));
   }
   return results;
 }
@@ -95,7 +97,7 @@ function collectRichTexts(widget: any): any[] {
 /**
  * 递归检查 TextSpan 树中是否包含指定文本。
  */
-function spanContainsText(span: TextSpan, target: string): boolean {
+function _spanContainsText(span: TextSpan, target: string): boolean {
   return span.toPlainText().includes(target);
 }
 
@@ -175,52 +177,50 @@ describe("ConversationView.build", () => {
       { role: "assistant", content: "Hi there!" },
     ];
     const { state } = mountConversationView({ messages });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
     assert.ok(built instanceof Column, "Should return a Column widget");
   });
 
-  it("渲染用户消息 \"You: \" 前缀 (primary #7aa2f7 bold)", () => {
+  it('渲染用户消息 "You: " 前缀 (primary #7aa2f7 bold)', () => {
     const messages: Message[] = [{ role: "user", content: "Hello world" }];
     const { state } = mountConversationView({ messages });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
-    const hasYouPrefix = richTexts.some((rt: any) =>
+    const hasYouPrefix = richTexts.some((rt: RichText) =>
       hasStyledSpan(rt.text, "You: ", { bold: true, r: 0x7a, g: 0xa2, b: 0xf7 }),
     );
     assert.ok(hasYouPrefix, 'Should render "You: " in primary color bold');
   });
 
-  it("渲染助手消息 \"Assistant: \" 前缀 (accent #bb9af7 bold)", () => {
+  it('渲染助手消息 "Assistant: " 前缀 (accent #bb9af7 bold)', () => {
     const messages: Message[] = [{ role: "assistant", content: "Hi there!" }];
     const { state } = mountConversationView({ messages });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
-    const hasAssistantPrefix = richTexts.some((rt: any) =>
+    const hasAssistantPrefix = richTexts.some((rt: RichText) =>
       hasStyledSpan(rt.text, "Assistant: ", { bold: true, r: 0xbb, g: 0x9a, b: 0xf7 }),
     );
     assert.ok(hasAssistantPrefix, 'Should render "Assistant: " in accent color bold');
   });
 
-  it("渲染系统消息 \"System: \" 前缀 (secondary #9ece6a bold)", () => {
+  it('渲染系统消息 "System: " 前缀 (secondary #9ece6a bold)', () => {
     const messages: Message[] = [{ role: "system", content: "System prompt" }];
     const { state } = mountConversationView({ messages });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
-    const hasSystemPrefix = richTexts.some((rt: any) =>
+    const hasSystemPrefix = richTexts.some((rt: RichText) =>
       hasStyledSpan(rt.text, "System: ", { bold: true, r: 0x9e, g: 0xce, b: 0x6a }),
     );
     assert.ok(hasSystemPrefix, 'Should render "System: " in secondary color bold');
   });
 
   it("消息内容通过 MarkdownParser + MarkdownRenderer 渲染", () => {
-    const messages: Message[] = [
-      { role: "user", content: "Hello **world**" },
-    ];
+    const messages: Message[] = [{ role: "user", content: "Hello **world**" }];
     const { state } = mountConversationView({ messages });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
 
     const allText = extractAllText(built);
     // MarkdownRenderer 将 **world** 渲染为 bold TextSpan 但纯文本仍含 "world"
@@ -229,25 +229,22 @@ describe("ConversationView.build", () => {
     assert.ok(!allText.includes("**"), "Should not contain raw markdown ** syntax");
   });
 
-  it("空消息列表显示 \"No messages yet. Type below to begin.\"", () => {
+  it('空消息列表显示 "No messages yet. Type below to begin."', () => {
     const { state } = mountConversationView({ messages: [] });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
     const allText = extractAllText(built);
-    assert.ok(
-      allText.includes("No messages yet"),
-      `Expected "No messages yet" in: ${allText}`,
-    );
+    assert.ok(allText.includes("No messages yet"), `Expected "No messages yet" in: ${allText}`);
   });
 
-  it("错误消息使用 error 色 (#f7768e) bold \"Error:\" 前缀", () => {
+  it('错误消息使用 error 色 (#f7768e) bold "Error:" 前缀', () => {
     const { state } = mountConversationView({
       messages: [{ role: "user", content: "test" }],
       error: new Error("Something went wrong"),
     });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
-    const hasErrorPrefix = richTexts.some((rt: any) =>
+    const hasErrorPrefix = richTexts.some((rt: RichText) =>
       hasStyledSpan(rt.text, "Error:", { bold: true, r: 0xf7, g: 0x76, b: 0x8e }),
     );
     assert.ok(hasErrorPrefix, 'Should render "Error:" in error color bold');
@@ -258,7 +255,7 @@ describe("ConversationView.build", () => {
       messages: [{ role: "user", content: "test" }],
       error: new Error("Something went wrong"),
     });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
     const allText = extractAllText(built);
     assert.ok(
       allText.includes("Press Enter to retry") || allText.includes("retry"),
@@ -266,7 +263,7 @@ describe("ConversationView.build", () => {
     );
   });
 
-  it("inferenceState 为 \"running\" 时追加 \"...\" 流式指示器", () => {
+  it('inferenceState 为 "running" 时追加 "..." 流式指示器', () => {
     const messages: Message[] = [
       { role: "user", content: "Hello" },
       { role: "assistant", content: "Thinking" },
@@ -275,12 +272,12 @@ describe("ConversationView.build", () => {
       messages,
       inferenceState: "running",
     });
-    const built = state.build({} as any);
+    const built = state.build({} as unknown as BuildContext);
     const allText = extractAllText(built);
     assert.ok(allText.includes("..."), 'Should contain streaming indicator "..."');
   });
 
-  it("inferenceState 为 \"idle\" 时不追加流式指示器", () => {
+  it('inferenceState 为 "idle" 时不追加流式指示器', () => {
     const messages: Message[] = [
       { role: "user", content: "Hello" },
       { role: "assistant", content: "Done" },
@@ -289,7 +286,7 @@ describe("ConversationView.build", () => {
       messages,
       inferenceState: "idle",
     });
-    const built = state.build({} as any);
+    const _built = state.build({} as unknown as BuildContext);
     // 仅检查最后不会有孤立的 "..."
     // (消息本身可能包含 ..., 但不会由 streaming indicator 追加)
     assert.ok(true, "No streaming indicator appended");

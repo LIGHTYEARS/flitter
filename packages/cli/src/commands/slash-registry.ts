@@ -6,6 +6,8 @@
  * Flitter simplifies: no telemetry, no abort controller, no customFlow.
  */
 
+import type { SessionTotals } from "@flitter/agent-core";
+import type { CompactionResult } from "@flitter/data";
 import type { ThreadSnapshot } from "@flitter/schemas";
 
 /**
@@ -45,6 +47,7 @@ export interface SlashCommandContext {
   };
   configService: {
     get(): { settings: Record<string, unknown> };
+    updateSettings?(scope: string, key: string, value: unknown): void;
   };
   /** Display a message to the user (e.g., toast or inline) */
   showMessage: (text: string) => void;
@@ -60,6 +63,22 @@ export interface SlashCommandContext {
    * 逆向: Ut.instance.toggleAll() (e0R:830)
    */
   toggleThinkingBlocks?: () => void;
+
+  /**
+   * Session cost tracker — accumulated token usage and USD estimates.
+   * 逆向: chunk-005.js:66584-66736 (pricing table + cost accumulator)
+   */
+  costTracker?: {
+    getTotals(): SessionTotals;
+    getTurnHistory(): Array<{ model?: string; estimatedUSD: number | null }>;
+  };
+
+  /**
+   * Trigger manual context compaction on the current thread.
+   * Returns the CompactionResult (compacted: boolean, tokens before/after).
+   * 逆向: amp does compaction automatically; Flitter adds manual /compact.
+   */
+  compactThread?: () => Promise<CompactionResult>;
 }
 
 /**

@@ -11,8 +11,9 @@
  * - On error: value becomes undefined, lastError is set, error event emitted (line 43-55)
  * - events Subject emits change events via options.changes(oldValue, newValue) (line 37-40)
  */
-import { Subject } from "../reactive/subject";
+
 import { createLogger } from "../logger";
+import { Subject } from "../reactive/subject";
 
 const log = createLogger("global-cached-value");
 
@@ -94,12 +95,14 @@ export class GlobalCachedValue<T, E = unknown> {
     this.pendingPromise = this.performRecomputation();
     // 逆向: amp chains .finally() but does NOT replace this.pendingPromise with the finally result.
     // We must suppress the unhandled rejection on the .finally() branch.
-    this.pendingPromise.finally(() => {
-      this.pendingPromise = undefined;
-    }).catch(() => {
-      // Suppress unhandled rejection from the .finally() chain.
-      // The caller of recompute() will handle the rejection on the original promise.
-    });
+    this.pendingPromise
+      .finally(() => {
+        this.pendingPromise = undefined;
+      })
+      .catch(() => {
+        // Suppress unhandled rejection from the .finally() chain.
+        // The caller of recompute() will handle the rejection on the original promise.
+      });
     return this.pendingPromise;
   }
 

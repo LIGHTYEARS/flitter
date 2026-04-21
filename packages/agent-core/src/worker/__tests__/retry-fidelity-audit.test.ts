@@ -52,15 +52,15 @@ describe("Retry Fidelity Audit — amp cross-reference", () => {
 
   test("backoff formula: 5*2^0=5, 5*2^1=10, 5*2^2=20, 5*2^3=40, 5*2^4=80→60", () => {
     const scheduler = new RetryScheduler();
-    expect(scheduler.getRetryDelaySeconds()).toBe(5);   // attempt 0
+    expect(scheduler.getRetryDelaySeconds()).toBe(5); // attempt 0
     scheduler.incrementAttempt();
-    expect(scheduler.getRetryDelaySeconds()).toBe(10);  // attempt 1
+    expect(scheduler.getRetryDelaySeconds()).toBe(10); // attempt 1
     scheduler.incrementAttempt();
-    expect(scheduler.getRetryDelaySeconds()).toBe(20);  // attempt 2
+    expect(scheduler.getRetryDelaySeconds()).toBe(20); // attempt 2
     scheduler.incrementAttempt();
-    expect(scheduler.getRetryDelaySeconds()).toBe(40);  // attempt 3
+    expect(scheduler.getRetryDelaySeconds()).toBe(40); // attempt 3
     scheduler.incrementAttempt();
-    expect(scheduler.getRetryDelaySeconds()).toBe(60);  // attempt 4 (capped)
+    expect(scheduler.getRetryDelaySeconds()).toBe(60); // attempt 4 (capped)
     scheduler.incrementAttempt();
     expect(scheduler.getRetryDelaySeconds()).toBeUndefined(); // attempt 5 (exceeded)
   });
@@ -187,16 +187,14 @@ describe("Retry Fidelity Audit — amp cross-reference", () => {
   // 逆向: K4R checks message.startsWith("InvalidModelOutputError")
 
   test("InvalidModelOutputError is retryable", () => {
-    expect(
-      isRetryableError({ message: "InvalidModelOutputError: bad JSON in response" }),
-    ).toBe(true);
+    expect(isRetryableError({ message: "InvalidModelOutputError: bad JSON in response" })).toBe(
+      true,
+    );
   });
 
   test("message containing but not starting with InvalidModelOutputError is NOT retryable via that check", () => {
     // K4R requires startsWith, not includes
-    expect(
-      isRetryableError({ message: "Error: InvalidModelOutputError happened" }),
-    ).toBe(false);
+    expect(isRetryableError({ message: "Error: InvalidModelOutputError happened" })).toBe(false);
   });
 
   // ─── Stream incomplete (V4R) ───────────────────────────
@@ -246,9 +244,17 @@ describe("Retry Fidelity Audit — amp cross-reference", () => {
     const scheduler = new RetryScheduler();
     const attempt0 = scheduler.currentAttempt;
 
-    scheduler.startCountdown(999, () => {}, async () => {});
+    scheduler.startCountdown(
+      999,
+      () => {},
+      async () => {},
+    );
     scheduler.clearCountdown();
-    scheduler.startCountdown(999, () => {}, async () => {});
+    scheduler.startCountdown(
+      999,
+      () => {},
+      async () => {},
+    );
     scheduler.clearCountdown();
 
     // Attempt should not have changed — only countdown was reset

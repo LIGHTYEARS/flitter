@@ -10,8 +10,8 @@
 
 import { type ChildProcess, spawn as cpSpawn } from "node:child_process";
 import { createLogger } from "@flitter/util";
-import type { ToolboxExecuteResult } from "./types";
 import { DEFAULT_EXECUTE_TIMEOUT_MS, MAX_OUTPUT_LENGTH } from "./toolbox-utils";
+import type { ToolboxExecuteResult } from "./types";
 
 const log = createLogger("toolbox:execute");
 
@@ -148,7 +148,7 @@ function collectOutput(
   timeoutMs: number,
   scriptPath: string,
 ): Promise<ToolboxExecuteResult> {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, _reject) => {
     let output = "";
     let truncated = false;
     let settled = false;

@@ -17,12 +17,10 @@
 
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { InheritedElement } from "@flitter/tui";
 import type { Key, Widget } from "@flitter/tui";
-import { Element } from "@flitter/tui";
-import { setBuildOwner, type BuildOwnerLike } from "@flitter/tui";
-import { ThemeController, type ThemeData } from "./theme-controller.js";
+import { Element, InheritedElement, setBuildOwner } from "@flitter/tui";
 import { ConfigProvider } from "./config-provider.js";
+import { ThemeController, type ThemeData } from "./theme-controller.js";
 
 // ════════════════════════════════════════════════════
 //  测试辅助

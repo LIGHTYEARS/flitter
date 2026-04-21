@@ -10,6 +10,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { ThreadStore } from "@flitter/data";
+import type { ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject } from "@flitter/util";
 import type { CliContext } from "../../context";
 import {
@@ -38,6 +39,16 @@ function createMockThreadStore() {
     store: {
       observeThreadEntries() {
         return entriesSubject;
+      },
+      observeThreadList(opts?: { includeArchived?: boolean }) {
+        const entries = entriesSubject.getValue();
+        if (!entries) return [];
+        const includeArchived = opts?.includeArchived ?? false;
+        return entries.filter(
+          (e) =>
+            !(e as Record<string, unknown>).mainThreadID &&
+            (includeArchived || !(e as Record<string, unknown>).archived),
+        );
       },
       getThread(id: string) {
         return threads.get(id);
@@ -521,7 +532,7 @@ describe("renderThreadAsMarkdown", () => {
       agentMode: "smart",
       messages: [],
       relationships: [],
-    } as any);
+    } as Partial<ThreadSnapshot> as ThreadSnapshot);
     assert.ok(md.includes("---"), "should contain frontmatter delimiters");
     assert.ok(md.includes("title: My Thread"), "should contain title in frontmatter");
     assert.ok(md.includes("threadId: test-id"), "should contain threadId");
@@ -548,7 +559,7 @@ describe("renderThreadAsMarkdown", () => {
         },
       ],
       relationships: [],
-    } as any);
+    } as Partial<ThreadSnapshot> as ThreadSnapshot);
     assert.ok(md.includes("**Tool Use:** `Read`"), "should contain tool use block");
     assert.ok(md.includes("/tmp/test.ts"), "should contain tool input");
   });
@@ -572,7 +583,7 @@ describe("renderThreadAsMarkdown", () => {
         },
       ],
       relationships: [],
-    } as any);
+    } as Partial<ThreadSnapshot> as ThreadSnapshot);
     assert.ok(md.includes("**Tool Result** (done)"), "should contain tool result");
     assert.ok(md.includes("file contents here"), "should contain tool output");
   });
@@ -599,9 +610,7 @@ describe("handleThreadsRename", () => {
       id: "rename-123",
       v: 1,
       title: "Old Name",
-      messages: [
-        { role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 }],
       relationships: [],
     };
     threads.set("rename-123", new BehaviorSubject(snapshot));
@@ -679,9 +688,7 @@ describe("handleThreadsLabel", () => {
     const snapshot = {
       id: "label-123",
       v: 1,
-      messages: [
-        { role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 }],
       relationships: [],
     };
     threads.set("label-123", new BehaviorSubject(snapshot));
@@ -702,9 +709,7 @@ describe("handleThreadsLabel", () => {
       id: "label-456",
       v: 1,
       labels: ["existing", "bug"],
-      messages: [
-        { role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 }],
       relationships: [],
     };
     threads.set("label-456", new BehaviorSubject(snapshot));
@@ -788,9 +793,7 @@ describe("handleThreadsSearch", () => {
 
   it("should print 'No threads found' when no matches", async () => {
     const { store, entriesSubject } = createMockThreadStore();
-    entriesSubject.next([
-      { id: "thread-1", title: "Hello", userLastInteractedAt: 1700000000000 },
-    ]);
+    entriesSubject.next([{ id: "thread-1", title: "Hello", userLastInteractedAt: 1700000000000 }]);
 
     await handleThreadsSearch({ threadStore: store }, ctx, "zzz-no-match", {
       limit: "20",
@@ -931,9 +934,7 @@ describe("handleThreadsUsage", () => {
     const snapshot = {
       id: "no-usage",
       v: 1,
-      messages: [
-        { role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }], messageId: 1 }],
       relationships: [],
     };
     threads.set("no-usage", new BehaviorSubject(snapshot));
@@ -987,9 +988,7 @@ describe("handleThreadsDashboard", () => {
       id: "abc123def456",
       v: 1,
       title: "Dashboard Test",
-      messages: [
-        { role: "user", content: [{ type: "text", text: "hi" }] },
-      ],
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
       relationships: [],
     };
     threads.set("abc123def456", new BehaviorSubject(snapshot));

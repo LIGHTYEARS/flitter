@@ -193,7 +193,7 @@ export class AnthropicTransformer extends BaseMessageTransformer<
    *
    * 返回 system blocks 和 messages 分开的结构
    */
-  toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): AnthropicMessage[] {
+  toProviderMessages(messages: Message[], _systemPrompt: SystemPromptBlock[]): AnthropicMessage[] {
     const result: AnthropicMessage[] = [];
 
     for (const msg of messages) {

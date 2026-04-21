@@ -9,11 +9,11 @@
  * - exec: Executes a plugin with event data JSON, returns response
  */
 
-import type { Command } from "commander";
+import { existsSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import type { PluginService } from "@flitter/agent-core";
 import { PluginHost } from "@flitter/agent-core";
-import { resolve, relative } from "node:path";
-import { existsSync } from "node:fs";
+import type { Command } from "commander";
 
 /**
  * Register the `plugins` command group on the Commander program.
@@ -78,11 +78,9 @@ export function registerPluginsCommand(
 
         // 逆向: t40 lines 15-25 — format each plugin with status icon
         for (const info of infos) {
-          const path = info.uri.startsWith(cwd + "/")
-            ? relative(cwd, info.uri)
-            : info.uri;
+          const path = info.uri.startsWith(cwd + "/") ? relative(cwd, info.uri) : info.uri;
           const statusIcon = info.status === "active" ? "\u2713" : "\u2717";
-          const statusColor = info.status === "active" ? "green" : "red";
+          const _statusColor = info.status === "active" ? "green" : "red";
 
           console.log(`${statusIcon} ${path} (${info.status})`);
 
@@ -137,9 +135,7 @@ export function registerPluginsCommand(
         // 逆向: t40 line 73 — wait 2 seconds for async effects
         await new Promise((resolve) => setTimeout(resolve, 2000));
       } catch (err) {
-        console.error(
-          `Error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
         process.exitCode = 1;
       } finally {
         await host.dispose();

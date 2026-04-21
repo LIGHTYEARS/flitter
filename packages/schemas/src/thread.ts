@@ -181,6 +181,22 @@ export const ThreadSnapshotSchema = z.object({
   labels: z.array(z.string()).optional(),
   /** Whether this thread has been archived. 逆向: amp threadService.archive() */
   archived: z.boolean().optional(),
+  /**
+   * Skills that have been activated (loaded) during this thread's lifetime.
+   * Persisted so that resumed threads know which deferred tools to unlock.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:214-218
+   *   `if (!a.activatedSkills) a.activatedSkills = [];`
+   *   `if (!a.activatedSkills.some(e => e.name === R.name)) a.activatedSkills.push({ name, arguments });`
+   */
+  activatedSkills: z
+    .array(
+      z.object({
+        name: z.string(),
+        arguments: z.string().optional(),
+      }),
+    )
+    .optional(),
 });
 export type ThreadSnapshot = z.infer<typeof ThreadSnapshotSchema>;
 

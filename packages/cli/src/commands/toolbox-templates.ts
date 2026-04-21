@@ -84,11 +84,11 @@ function bashTemplate(name: string): string {
 
 set -euo pipefail
 
-if [[ "\$TOOLBOX_ACTION" == "describe" ]]; then
+if [[ "$TOOLBOX_ACTION" == "describe" ]]; then
   cat <<'JSON'
 {"name":${JSON.stringify(name)},"description":"TODO: describe what this tool does","inputSchema":{"type":"object","properties":{}}}
 JSON
-elif [[ "\$TOOLBOX_ACTION" == "execute" ]]; then
+elif [[ "$TOOLBOX_ACTION" == "execute" ]]; then
   input=$(cat)
   # TODO: parse input JSON and implement tool logic
   # Example: echo "$input" | jq -r '.param'
@@ -109,11 +109,11 @@ function zshTemplate(name: string): string {
 
 set -euo pipefail
 
-if [[ "\$TOOLBOX_ACTION" == "describe" ]]; then
+if [[ "$TOOLBOX_ACTION" == "describe" ]]; then
   cat <<'JSON'
 {"name":${JSON.stringify(name)},"description":"TODO: describe what this tool does","inputSchema":{"type":"object","properties":{}}}
 JSON
-elif [[ "\$TOOLBOX_ACTION" == "execute" ]]; then
+elif [[ "$TOOLBOX_ACTION" == "execute" ]]; then
   input=$(cat)
   # TODO: parse input JSON and implement tool logic
   echo "Tool executed successfully"

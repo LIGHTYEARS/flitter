@@ -11,23 +11,22 @@
  * @module
  */
 
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
 import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
-import { Container } from "./container.js";
-import { Row } from "./row.js";
-import { Text } from "./text.js";
-import { GestureDetector } from "./gesture-detector.js";
-import { SizedBox } from "./sized-box.js";
-import { EdgeInsets } from "./edge-insets.js";
-import { BoxDecoration } from "./box-decoration.js";
 import { Border } from "./border.js";
 import { BorderSide } from "./border-side.js";
-import { TextStyle } from "../screen/text-style.js";
-import { TextSpan } from "./text-span.js";
+import { BoxDecoration } from "./box-decoration.js";
+import { Container } from "./container.js";
+import { EdgeInsets } from "./edge-insets.js";
+import { GestureDetector } from "./gesture-detector.js";
 import { RichText } from "./rich-text.js";
+import { Row } from "./row.js";
 import { Spacer } from "./spacer.js";
-import { Color } from "../screen/color.js";
+import { Text } from "./text.js";
+import { TextSpan } from "./text-span.js";
 
 // ════════════════════════════════════════════════════
 //  Notification type configuration
@@ -131,9 +130,7 @@ export class NotificationBanner extends StatelessWidget {
     );
 
     // Message
-    children.push(
-      new Text({ data: this.message }) as unknown as WidgetInterface,
-    );
+    children.push(new Text({ data: this.message }) as unknown as WidgetInterface);
 
     // Spacer pushes action/dismiss to the right
     if (this.action || this.onDismiss) {

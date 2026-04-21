@@ -19,11 +19,17 @@
  * @module
  */
 
-import { StatelessWidget, Column, Row, RichText, TextSpan, SizedBox } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
+import {
+  Color,
+  Column,
+  RichText,
+  Row,
+  SizedBox,
+  StatelessWidget,
+  TextSpan,
+  TextStyle,
+} from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  WelcomeScreenConfig 接口
@@ -175,25 +181,34 @@ export class WelcomeScreen extends StatelessWidget {
       const text = item.text.replace("{productName}", productName);
       if (item.isTitle) {
         // 逆向: chunk-006.js:15310 — "Welcome to Amp" 使用 foreground 色
-        helpWidgetMap.set(item.line, new RichText({
-          text: new TextSpan({ text, style: titleStyle }),
-        }));
+        helpWidgetMap.set(
+          item.line,
+          new RichText({
+            text: new TextSpan({ text, style: titleStyle }),
+          }),
+        );
       } else if (text.startsWith("Ctrl+O")) {
         // 逆向: misc_utils.js:2812-2818 — "Ctrl+O" 用 keybind 色, "for" 用 dim, "help" 用 command 色
-        helpWidgetMap.set(item.line, new RichText({
-          text: new TextSpan({
-            children: [
-              new TextSpan({ text: "Ctrl+O", style: helpKeyStyle }),
-              new TextSpan({ text: " for ", style: dimStyle }),
-              new TextSpan({ text: "help", style: helpWordStyle }),
-            ],
+        helpWidgetMap.set(
+          item.line,
+          new RichText({
+            text: new TextSpan({
+              children: [
+                new TextSpan({ text: "Ctrl+O", style: helpKeyStyle }),
+                new TextSpan({ text: " for ", style: dimStyle }),
+                new TextSpan({ text: "help", style: helpWordStyle }),
+              ],
+            }),
           }),
-        }));
+        );
       } else {
         // 帮助文本使用 secondary 色
-        helpWidgetMap.set(item.line, new RichText({
-          text: new TextSpan({ text, style: dimStyle }),
-        }));
+        helpWidgetMap.set(
+          item.line,
+          new RichText({
+            text: new TextSpan({ text, style: dimStyle }),
+          }),
+        );
       }
     }
 
@@ -217,11 +232,13 @@ export class WelcomeScreen extends StatelessWidget {
         rowChildren.push(helpWidget);
       }
 
-      rows.push(new Row({
-        mainAxisSize: "min",
-        crossAxisAlignment: "center",
-        children: rowChildren,
-      }));
+      rows.push(
+        new Row({
+          mainAxisSize: "min",
+          crossAxisAlignment: "center",
+          children: rowChildren,
+        }),
+      );
     }
 
     // 逆向: misc_utils.js:2861 — 外层 Row with center alignment

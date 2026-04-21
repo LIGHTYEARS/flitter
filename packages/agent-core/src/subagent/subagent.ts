@@ -18,6 +18,7 @@
 import type { PermissionContext, ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject } from "@flitter/util";
 import type { ThreadWorker } from "../worker/thread-worker";
+import { getSubAgentToolPatterns } from "./subagent-types";
 
 // ─── 子代理选项 ─────────────────────────────────────────
 
@@ -91,6 +92,15 @@ export interface SubAgentWorkerOptions {
   parentThreadId: string;
   /** 子代理类型 */
   type: string;
+  /**
+   * Glob patterns for allowed tool names.
+   * ["*"] means all tools. The createWorker callback should use these patterns
+   * to filter the tool registry for this subagent.
+   *
+   * 逆向: _5R (modules/1362_unknown__5R.js) — creates filtered tool service
+   *   Uses izT (modules/1361_unknown_izT.js) for glob matching
+   */
+  toolPatterns: string[];
   /** 模型覆盖 */
   model?: string;
   /** 权限上下文 (子代理固定为 "subagent") */
@@ -188,10 +198,14 @@ export class SubAgentManager {
     this.updateActiveAgent(threadId, info);
 
     // ─── Step 3: 创建 ThreadWorker ────────────────
+    // 逆向: g5R (modules/1367_unknown_g5R.js) —
+    //   `_5R(env.toolService, agentConfig.toolPatterns || ["*"], excludedTool)`
+    const toolPatterns = getSubAgentToolPatterns(spawnOpts.type);
     const worker = this.opts.createWorker({
       threadId,
       parentThreadId: spawnOpts.parentThreadId,
       type: spawnOpts.type,
+      toolPatterns,
       model: spawnOpts.model,
       permissionContext: "subagent",
     });

@@ -175,7 +175,8 @@ export function resolveCliContext(program: Command): CliContext {
     executeMode,
     isTTY,
     headless: Boolean(opts.headless),
-    streamJson: Boolean(opts.streamJson) || Boolean(opts.headless) || Boolean(opts.streamJsonThinking),
+    streamJson:
+      Boolean(opts.streamJson) || Boolean(opts.headless) || Boolean(opts.streamJsonThinking),
     verbose: Boolean(opts.verbose),
     userMessage: program.args.length > 0 ? program.args.join(" ") : undefined,
     print: printFlag,
@@ -198,10 +199,16 @@ export function resolveCliContext(program: Command): CliContext {
     // Gap #7-12: CLI flag forwarding
     dangerouslyAllowAll: Boolean(opts.dangerouslyAllowAll) || undefined,
     allowedTools: opts.allowedTools
-      ? (opts.allowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      ? (opts.allowedTools as string)
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean)
       : undefined,
     disallowedTools: opts.disallowedTools
-      ? (opts.disallowedTools as string).split(",").map((s: string) => s.trim()).filter(Boolean)
+      ? (opts.disallowedTools as string)
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter(Boolean)
       : undefined,
     noShellCmd: Boolean(opts.disableShell) || undefined,
     toolbox: opts.toolbox as string | undefined,

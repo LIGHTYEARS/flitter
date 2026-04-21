@@ -120,7 +120,9 @@ describe("handleLogout", () => {
     await handleLogout({ secrets }, ttyContext);
 
     // Should have called delete for "apiKey" with scope "default"
-    const apiKeyDeletes = secrets.deleteCalls.filter((c) => c.key === "apiKey" && c.scope === "default");
+    const apiKeyDeletes = secrets.deleteCalls.filter(
+      (c) => c.key === "apiKey" && c.scope === "default",
+    );
     assert.ok(apiKeyDeletes.length >= 1, "Should delete default apiKey");
   });
 
@@ -131,7 +133,10 @@ describe("handleLogout", () => {
 
     // Should have called delete for OAuth credentials (anthropic, openai-codex, github-copilot)
     const oauthDeletes = secrets.deleteCalls.filter((c) => c.key === "oauthCredentials");
-    assert.ok(oauthDeletes.length >= 3, "Should delete OAuth credentials for all registered providers");
+    assert.ok(
+      oauthDeletes.length >= 3,
+      "Should delete OAuth credentials for all registered providers",
+    );
 
     // Should also delete per-provider apiKey entries
     const providerKeyDeletes = secrets.deleteCalls.filter(

@@ -237,13 +237,6 @@ export class InputParser {
   private escapeTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
-   * Whether we have a pending standalone ESC that hasn't resolved yet.
-   *
-   * 逆向: amp pendingEscape (chunk-005.js:163088)
-   */
-  private pendingEscape = false;
-
-  /**
    * Timeout in ms to wait before treating ESC as standalone.
    *
    * 逆向: amp ESCAPE_TIMEOUT_MS = 25 (chunk-005.js:163014)

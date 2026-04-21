@@ -20,8 +20,8 @@
  * @module
  */
 
+import type { Element, Widget } from "@flitter/tui";
 import { InheritedWidget } from "@flitter/tui";
-import type { Widget, Element } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  ConfigProvider InheritedWidget

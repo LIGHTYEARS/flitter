@@ -265,6 +265,35 @@ export class ThreadStore {
     return this.threadEntriesState;
   }
 
+  /**
+   * Observe a filtered thread list: excludes subagent threads and optionally archived.
+   *
+   * 逆向: amp-cli-reversed/modules/1342_ThreadService_azT.js:286-295
+   *   ```
+   *   observeThreadList(T) {
+   *     return this.observeThreadEntries().pipe(
+   *       JR(R => R.filter(a => !a.mainThreadID && (T.includeArchived || !a.archived))),
+   *       E9((R, a) => { ... deep equality ... })
+   *     );
+   *   }
+   *   ```
+   *
+   * Two filters:
+   * 1. `!entry.mainThreadID` — exclude subagent threads (they have a parent)
+   * 2. `opts.includeArchived || !entry.archived` — exclude archived unless opted in
+   *
+   * @param opts.includeArchived - When true, archived threads are included (default: false)
+   * @returns The current filtered entries (snapshot, not reactive). For reactive
+   *          use, subscribe to observeThreadEntries() and filter manually.
+   */
+  observeThreadList(opts: { includeArchived?: boolean } = {}): ThreadEntry[] {
+    const entries = this.threadEntriesState.getValue();
+    if (!entries) return [];
+
+    const includeArchived = opts.includeArchived ?? false;
+    return entries.filter((entry) => !entry.mainThreadID && (includeArchived || !entry.archived));
+  }
+
   /** 标记线程待持久化，同时通知 upload manager
    * 逆向: azT.markDirty(T) — line 84-85 (also calls scheduleUploadFlush)
    */
@@ -354,10 +383,7 @@ export class ThreadStore {
    *
    * Task 2: Thread visibility system (Gap #22)
    */
-  setVisibility(
-    threadId: string,
-    level: ThreadVisibility,
-  ): void {
+  setVisibility(threadId: string, level: ThreadVisibility): void {
     const subject = this.threadSubjects.get(threadId);
     if (!subject) {
       throw new Error(`Thread ${threadId} not found`);

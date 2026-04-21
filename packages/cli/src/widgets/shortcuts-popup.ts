@@ -30,11 +30,19 @@
  * ```
  */
 
-import { StatelessWidget, Row, Column, RichText, TextSpan, Padding, EdgeInsets, SizedBox } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
+import {
+  Color,
+  Column,
+  EdgeInsets,
+  Padding,
+  RichText,
+  Row,
+  SizedBox,
+  StatelessWidget,
+  TextSpan,
+  TextStyle,
+} from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  颜色常量 (Tokyo Night 调色板)

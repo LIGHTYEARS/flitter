@@ -17,6 +17,8 @@ export * from "./tree/index.js";
 export * from "./tui/index.js";
 export * from "./vt/index.js";
 export { Align, RenderPositionedBox } from "./widgets/align.js";
+// New TUI widgets
+export { Badge } from "./widgets/badge.js";
 export { Border } from "./widgets/border.js";
 export { BorderSide } from "./widgets/border-side.js";
 export { BoxDecoration } from "./widgets/box-decoration.js";
@@ -32,16 +34,23 @@ export { GestureDetector } from "./widgets/gesture-detector.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
 export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
 export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";
+export type { NotificationType } from "./widgets/notification-banner.js";
+export { NotificationBanner } from "./widgets/notification-banner.js";
 export { Padding } from "./widgets/padding.js";
+export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
 export { RichText } from "./widgets/rich-text.js";
 export { Row } from "./widgets/row.js";
 export type { RenderScrollbarProps, ScrollbarProps, ScrollInfo } from "./widgets/scrollbar.js";
 export { RenderScrollbar, Scrollbar, ScrollbarRenderWidget } from "./widgets/scrollbar.js";
 export { SizedBox } from "./widgets/sized-box.js";
 export { Spacer } from "./widgets/spacer.js";
+export type { SplitDirection } from "./widgets/split-pane.js";
+export { SplitPane, SplitPaneRenderObject } from "./widgets/split-pane.js";
 export { Positioned, Stack } from "./widgets/stack.js";
 export { Text } from "./widgets/text.js";
 export { TextSpan } from "./widgets/text-span.js";
+export type { ToggleStyle } from "./widgets/toggle.js";
+export { Toggle } from "./widgets/toggle.js";
 export {
   ClipScreen,
   RenderViewport,
@@ -49,12 +58,3 @@ export {
   Viewport,
   ViewportWithPosition,
 } from "./widgets/viewport.js";
-// New TUI widgets
-export { Badge } from "./widgets/badge.js";
-export { NotificationBanner } from "./widgets/notification-banner.js";
-export type { NotificationType } from "./widgets/notification-banner.js";
-export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
-export { SplitPane, SplitPaneRenderObject } from "./widgets/split-pane.js";
-export type { SplitDirection } from "./widgets/split-pane.js";
-export { Toggle } from "./widgets/toggle.js";
-export type { ToggleStyle } from "./widgets/toggle.js";

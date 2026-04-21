@@ -16,8 +16,7 @@
  * - Factory function (KKT) tries git first, falls back to polling, then no-op
  */
 import * as path from "node:path";
-import { spawn } from "@flitter/util";
-import { createLogger } from "@flitter/util";
+import { createLogger, spawn } from "@flitter/util";
 
 const log = createLogger("git-file-watcher");
 
@@ -183,11 +182,10 @@ export class GitFileWatcher implements FileWatcher {
   private async initialise(repoRoot: string): Promise<void> {
     const now = Date.now();
 
-    const result = await spawn(
-      "git",
-      ["ls-files", "--others", "--exclude-standard", "-z"],
-      { cwd: repoRoot, maxBuffer: 67_108_864 },
-    );
+    const result = await spawn("git", ["ls-files", "--others", "--exclude-standard", "-z"], {
+      cwd: repoRoot,
+      maxBuffer: 67_108_864,
+    });
 
     const seenUntracked = new Set<string>();
     const files = result.stdout.split("\0").filter(Boolean);

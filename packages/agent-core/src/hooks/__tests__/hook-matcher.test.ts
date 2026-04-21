@@ -10,16 +10,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  AdminHookConfig,
-  PreExecuteContext,
-  PostExecuteContext,
-} from "../hook-matcher";
-import {
-  filterValidHooks,
-  matchPreExecuteHook,
-  matchPostExecuteHook,
-} from "../hook-matcher";
+import type { AdminHookConfig, PostExecuteContext, PreExecuteContext } from "../hook-matcher";
+import { filterValidHooks, matchPostExecuteHook, matchPreExecuteHook } from "../hook-matcher";
 
 // ─── Helpers ──────────────────────────────────────────────
 

@@ -17,14 +17,8 @@ import type { ToolRegistry } from "../tools/registry";
 import type { ToolContext, ToolResult } from "../tools/types";
 import { probeToolScript, type SpawnFn } from "./describe";
 import { executeToolboxScript } from "./execute";
-import {
-  MAX_TOOLS_PER_DIRECTORY,
-  toToolboxName,
-} from "./toolbox-utils";
-import type {
-  ToolboxStatus,
-  ToolboxToolInfo,
-} from "./types";
+import { MAX_TOOLS_PER_DIRECTORY, toToolboxName } from "./toolbox-utils";
+import type { ToolboxStatus, ToolboxToolInfo } from "./types";
 
 const log = createLogger("toolbox:service");
 
@@ -136,10 +130,7 @@ export class ToolboxService {
    *   - Throws if > duT (100) tools found
    *   - Probes each file with C5R (describe)
    */
-  private async scanDirectory(
-    dir: string,
-    seenInScan: Set<string>,
-  ): Promise<void> {
+  private async scanDirectory(dir: string, seenInScan: Set<string>): Promise<void> {
     if (!fs.existsSync(dir)) {
       log.debug("Toolbox directory does not exist, skipping", { path: dir });
       return;

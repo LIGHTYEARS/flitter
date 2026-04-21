@@ -10,7 +10,7 @@ import type { AssistantContentBlock, Message, Usage } from "@flitter/schemas";
 import { BaseMessageTransformer } from "./transformers/message-transformer";
 import { BaseToolTransformer } from "./transformers/tool-transformer";
 import type { SystemPromptBlock, ToolDefinition } from "./types";
-import { MODEL_REGISTRY, ProviderError, TransformState, registerModel } from "./types";
+import { MODEL_REGISTRY, ProviderError, registerModel, TransformState } from "./types";
 
 // ─── 辅助: 测试用 concrete 子类 ─────────────────────────
 
@@ -43,7 +43,7 @@ describe("MODEL_REGISTRY", () => {
     assert.equal(model.supportsTools, true);
     assert.equal(model.supportsImages, true);
     assert.equal(model.supportsCacheControl, true);
-    assert.equal(model.contextWindow, 200_000);
+    assert.equal(model.contextWindow, 1_000_000);
   });
 
   it("should contain OpenAI models", () => {
@@ -74,11 +74,11 @@ describe("MODEL_REGISTRY", () => {
   it("claude-sonnet-4-20250514 should have contextWindow 200_000", () => {
     const model = MODEL_REGISTRY["claude-sonnet-4-20250514"];
     assert.ok(model);
-    assert.equal(model.contextWindow, 200_000);
+    assert.equal(model.contextWindow, 1_000_000);
   });
 
-  it("claude-opus-4-20250515 should have contextWindow 200_000", () => {
-    const model = MODEL_REGISTRY["claude-opus-4-20250515"];
+  it("claude-opus-4-20250514 should have contextWindow 200_000", () => {
+    const model = MODEL_REGISTRY["claude-opus-4-20250514"];
     assert.ok(model);
     assert.equal(model.contextWindow, 200_000);
   });

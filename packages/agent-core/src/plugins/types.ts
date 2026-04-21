@@ -128,6 +128,65 @@ export interface PluginToolResultOverride {
   error?: string;
 }
 
+// ─── Agent Lifecycle Events ─────────────────────────────
+
+/**
+ * Event sent to plugins when an agent turn starts (before inference).
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:808-826
+ *   `await this.deps.pluginService.event.agentStart({ message: a, id: R }, tracer, { threadID })`
+ */
+export interface PluginAgentStartEvent {
+  /** Text content of the triggering user message */
+  message: string;
+  /** Message ID of the triggering user message */
+  id: number;
+  /** Thread context */
+  thread?: { id: string };
+}
+
+/**
+ * Result from agentStart hook — plugins can inject content into the user message.
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:814-821
+ *   `if (e.message) this.updateThread({ type: "user:message:append-content", ... })`
+ */
+export interface PluginAgentStartResult {
+  /** Optional content to append to the user message */
+  message?: { content: string };
+}
+
+/**
+ * Event sent to plugins when an agent turn completes/cancels/errors.
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574-579, 682-689, 1005-1013
+ *   `this.deps.pluginService.event.agentEnd({ message, id, status, messages }, tracer)`
+ */
+export interface PluginAgentEndEvent {
+  /** Text content of the triggering user message */
+  message: string;
+  /** Message ID of the triggering user message */
+  id: number;
+  /** How the turn ended */
+  status: "done" | "interrupted" | "error";
+  /** Thread context */
+  thread?: { id: string };
+}
+
+/**
+ * Result from agentEnd hook — plugins can request continuation.
+ *
+ * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:734-748
+ *   `if (T.action !== "continue" || !T.userMessage) return;`
+ *   `this.handle({ type: "user:message", ... })`
+ */
+export interface PluginAgentEndResult {
+  /** If "continue", the agent should start another turn with the provided message */
+  action?: "continue";
+  /** User message to enqueue if action is "continue" */
+  userMessage?: string;
+}
+
 // ─── Plugin Info ─────────────────────────────────────────
 
 /**
@@ -217,8 +276,8 @@ export const PLUGIN_READY_EVENT = "runtime.ready";
  * Default constants matching amp's values.
  * 逆向: chunk-005.js:19742-19745
  */
-export const PLUGIN_READY_TIMEOUT_MS = 2000;    // KWR
-export const MAX_AUTO_RESTARTS = 3;               // VWR
-export const RESTART_DELAY_MS = 200;              // XWR
-export const SHUTDOWN_GRACE_PERIOD_MS = 3000;     // YWR
+export const PLUGIN_READY_TIMEOUT_MS = 2000; // KWR
+export const MAX_AUTO_RESTARTS = 3; // VWR
+export const RESTART_DELAY_MS = 200; // XWR
+export const SHUTDOWN_GRACE_PERIOD_MS = 3000; // YWR
 export const REQUEST_TIMEOUT_MS = 5000;

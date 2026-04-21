@@ -91,7 +91,9 @@ export function resolveReasoningEffort(
   switch (provider) {
     case "anthropic":
       // 逆向: return R["anthropic.effort"] ?? r ?? "high"
-      return (settings["anthropic.effort"] as ReasoningEffort | undefined) ?? modeEffort ?? undefined;
+      return (
+        (settings["anthropic.effort"] as ReasoningEffort | undefined) ?? modeEffort ?? undefined
+      );
 
     case "openai": {
       // 逆向: return (t?.includes("codex") && h ? O2(R) : void 0) ?? r ?? "medium"
@@ -107,7 +109,9 @@ export function resolveReasoningEffort(
     case "vertexai":
     case "gemini":
       // 逆向: return R["gemini.thinkingLevel"] ?? r ?? "medium"
-      return (settings["gemini.thinkingLevel"] as ReasoningEffort | undefined) ?? modeEffort ?? "medium";
+      return (
+        (settings["gemini.thinkingLevel"] as ReasoningEffort | undefined) ?? modeEffort ?? "medium"
+      );
 
     default:
       // 逆向: return r ?? "medium"

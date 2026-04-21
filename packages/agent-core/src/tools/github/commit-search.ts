@@ -11,9 +11,9 @@
  * - Truncates long commit messages at 1024 chars
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { parseRepository, truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the commit_search tool spec, closing over a GitHubClient instance.
@@ -127,8 +127,7 @@ export function createCommitSearchTool(client: GitHubClient): ToolSpec {
       }
 
       const result = await client.fetchJSON<
-        | { total_count: number; items: CommitItem[] }
-        | CommitItem[]
+        { total_count: number; items: CommitItem[] } | CommitItem[]
       >(apiPath);
 
       if (!result.ok || !result.data) {
@@ -186,9 +185,7 @@ export function createCommitSearchTool(client: GitHubClient): ToolSpec {
 
       return {
         status: "done",
-        content: truncateOutput(
-          `Found ${totalCount} commit(s):\n\n${output}`,
-        ),
+        content: truncateOutput(`Found ${totalCount} commit(s):\n\n${output}`),
         data: { commits: formatted, totalCount },
       };
     },

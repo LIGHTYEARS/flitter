@@ -50,8 +50,17 @@ export class OpenAICompatProvider implements LLMProvider {
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
-    const { model, messages, systemPrompt, tools, config, reasoningEffort, requestId, sessionId } =
-      params;
+    const {
+      model,
+      messages,
+      systemPrompt,
+      tools,
+      config,
+      reasoningEffort,
+      requestId,
+      sessionId,
+      threadId,
+    } = params;
 
     // Get API key
     const apiKey = await config.secrets.getToken("apiKey");
@@ -86,6 +95,7 @@ export class OpenAICompatProvider implements LLMProvider {
       chatTools,
       config.settings,
       reasoningEffort,
+      threadId,
     );
 
     // Build per-request telemetry headers
@@ -138,6 +148,7 @@ export class OpenAICompatProvider implements LLMProvider {
     tools: ReturnType<CompatToolTransformer["toProviderTools"]> | undefined,
     settings: Record<string, unknown>,
     reasoningEffort?: string,
+    threadId?: string,
   ): Record<string, unknown> {
     const body: Record<string, unknown> = {
       model,
@@ -173,6 +184,18 @@ export class OpenAICompatProvider implements LLMProvider {
       settings[`${this.name}.temperature`] ?? settings["openai-compat.temperature"];
     if (temperature !== undefined) {
       body.temperature = temperature;
+    }
+
+    // Prompt cache key — explicit setting takes priority, then threadId fallback
+    // 逆向: amp sets prompt_cache_key: thread.id unconditionally on OpenAI requests
+    // (chunk-002.js:12980). For compat providers, Flitter checks a provider-specific
+    // setting first, then the generic openai-compat key, then falls back to threadId.
+    const cacheKey =
+      settings[`${this.name}.promptCacheKey`] ??
+      settings["openai-compat.promptCacheKey"] ??
+      threadId;
+    if (cacheKey) {
+      body.prompt_cache_key = cacheKey;
     }
 
     return body;

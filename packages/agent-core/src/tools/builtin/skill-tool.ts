@@ -53,9 +53,8 @@ export interface SkillLike {
  */
 export function createSkillTool(skillService: SkillServiceLike): ToolSpec {
   return {
-    name: "Skill",
-    description:
-      `Load a specialized skill when the task matches one of the skills listed in the system prompt.
+    name: "skill",
+    description: `Load a specialized skill when the task matches one of the skills listed in the system prompt.
 
 Use this tool to inject that skill's instructions and bundled resources into the current conversation. A loaded skill may provide:
 - task-specific workflow guidance

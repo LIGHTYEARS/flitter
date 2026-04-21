@@ -5,11 +5,6 @@
  */
 
 export type {
-  InternalHooks,
-  LifecycleHookResult,
-} from "./lifecycle-hooks";
-
-export type {
   AdminHookAction,
   AdminHookConfig,
   AdminHookOn,
@@ -17,9 +12,12 @@ export type {
   PostExecuteContext,
   PreExecuteContext,
 } from "./hook-matcher";
-
 export {
   filterValidHooks,
   matchPostExecuteHook,
   matchPreExecuteHook,
 } from "./hook-matcher";
+export type {
+  InternalHooks,
+  LifecycleHookResult,
+} from "./lifecycle-hooks";

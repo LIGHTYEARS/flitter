@@ -410,8 +410,8 @@ describe("GLOBAL_ONLY_KEYS", () => {
     }
   });
 
-  it("should have exactly 3 entries", () => {
-    assert.equal(GLOBAL_ONLY_KEYS.length, 3);
+  it("should have exactly 4 entries", () => {
+    assert.equal(GLOBAL_ONLY_KEYS.length, 4);
   });
 });
 
@@ -458,7 +458,9 @@ describe("SettingsSchema — provider config keys (gap closure)", () => {
   });
 
   it("should accept openai.baseURL", () => {
-    const result = SettingsSchema.safeParse({ "openai.baseURL": "https://custom-openai.example.com/v1" });
+    const result = SettingsSchema.safeParse({
+      "openai.baseURL": "https://custom-openai.example.com/v1",
+    });
     assert.ok(result.success);
   });
 

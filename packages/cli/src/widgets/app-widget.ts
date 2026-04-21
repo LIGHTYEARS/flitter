@@ -23,11 +23,10 @@
  * @module
  */
 
-import { StatefulWidget, State } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
-import { ThemeController, type ThemeData } from "./theme-controller.js";
+import type { BuildContext, Widget } from "@flitter/tui";
+import { State, StatefulWidget } from "@flitter/tui";
 import { ConfigProvider } from "./config-provider.js";
+import { ThemeController, type ThemeData } from "./theme-controller.js";
 
 // ════════════════════════════════════════════════════
 //  AppWidgetConfig 接口

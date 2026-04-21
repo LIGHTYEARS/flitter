@@ -4,8 +4,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ContextAnalyzer, ContextAnalyzerState } from "./context-analyzer.js";
 import type { TokenBreakdown } from "./context-analyzer.js";
+import { ContextAnalyzer, ContextAnalyzerState } from "./context-analyzer.js";
 
 function makeBreakdown(overrides?: Partial<TokenBreakdown>): TokenBreakdown {
   return {
@@ -76,7 +76,9 @@ describe("ContextAnalyzer", () => {
       breakdown: makeBreakdown(),
       isLoading: false,
       modelName: "test",
-      onDismiss: () => { dismissed = true; },
+      onDismiss: () => {
+        dismissed = true;
+      },
     });
 
     widget.config.onDismiss();
@@ -87,8 +89,8 @@ describe("ContextAnalyzer", () => {
 describe("TokenBreakdown", () => {
   it("should have correct totals", () => {
     const bd = makeBreakdown();
-    const sum = bd.systemPromptTokens + bd.messageTokens +
-                bd.toolDefinitionTokens + bd.overheadTokens;
+    const sum =
+      bd.systemPromptTokens + bd.messageTokens + bd.toolDefinitionTokens + bd.overheadTokens;
     assert.equal(sum, bd.totalTokens);
   });
 
@@ -117,9 +119,8 @@ describe("TokenBreakdown", () => {
     });
     // Should not divide by zero
     const availableInput = bd.contextWindow - bd.maxOutputTokens;
-    const usagePercent = availableInput > 0
-      ? Math.round((bd.totalTokens / availableInput) * 100)
-      : 0;
+    const usagePercent =
+      availableInput > 0 ? Math.round((bd.totalTokens / availableInput) * 100) : 0;
     assert.equal(usagePercent, 0);
   });
 });

@@ -3,10 +3,10 @@
  * 逆向: chunk-005.js:149714-149741 (OXR)
  */
 
-import { describe, it, beforeEach, afterEach } from "bun:test";
+import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { WebSearchTool } from "./web-search";
 import type { ToolContext } from "../types";
+import { WebSearchTool } from "./web-search";
 
 function makeContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
@@ -52,14 +52,9 @@ describe("WebSearchTool", () => {
     });
 
     it("returns error when no endpoint configured", async () => {
-      const result = await WebSearchTool.execute(
-        { objective: "test query" },
-        makeContext(),
-      );
+      const result = await WebSearchTool.execute({ objective: "test query" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("web_search.endpoint"),
-      );
+      assert.ok((result as { error: string }).error?.includes("web_search.endpoint"));
     });
 
     it("calls configured endpoint and formats results", async () => {
@@ -105,12 +100,8 @@ describe("WebSearchTool", () => {
         assert.ok(result.content?.includes("https://example.com"));
         assert.ok(result.content?.includes("A test snippet"));
         assert.equal(capturedUrl, "https://search.example.com/api");
-        assert.ok(
-          (capturedBody as { query: string }).query.includes("find docs"),
-        );
-        assert.ok(
-          (capturedBody as { query: string }).query.includes("react"),
-        );
+        assert.ok((capturedBody as { query: string }).query.includes("find docs"));
+        assert.ok((capturedBody as { query: string }).query.includes("react"));
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -134,10 +125,7 @@ describe("WebSearchTool", () => {
           },
         });
 
-        const result = await WebSearchTool.execute(
-          { objective: "nonexistent thing" },
-          ctx,
-        );
+        const result = await WebSearchTool.execute({ objective: "nonexistent thing" }, ctx);
         assert.equal(result.status, "done");
         assert.ok(result.content?.includes("No results"));
       } finally {
@@ -147,8 +135,7 @@ describe("WebSearchTool", () => {
 
     it("handles API error response", async () => {
       const originalFetch = globalThis.fetch;
-      globalThis.fetch = async () =>
-        new Response("Internal Server Error", { status: 500 });
+      globalThis.fetch = async () => new Response("Internal Server Error", { status: 500 });
 
       try {
         const ctx = makeContext({
@@ -160,10 +147,7 @@ describe("WebSearchTool", () => {
           },
         });
 
-        const result = await WebSearchTool.execute(
-          { objective: "test" },
-          ctx,
-        );
+        const result = await WebSearchTool.execute({ objective: "test" }, ctx);
         assert.equal(result.status, "error");
         assert.ok((result as { error: string }).error?.includes("500"));
       } finally {
@@ -187,14 +171,9 @@ describe("WebSearchTool", () => {
           },
         });
 
-        const result = await WebSearchTool.execute(
-          { objective: "test" },
-          ctx,
-        );
+        const result = await WebSearchTool.execute({ objective: "test" }, ctx);
         assert.equal(result.status, "error");
-        assert.ok(
-          (result as { error: string }).error?.includes("Network failure"),
-        );
+        assert.ok((result as { error: string }).error?.includes("Network failure"));
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -222,10 +201,7 @@ describe("WebSearchTool", () => {
           },
         });
 
-        await WebSearchTool.execute(
-          { objective: "test", max_results: 5 },
-          ctx,
-        );
+        await WebSearchTool.execute({ objective: "test", max_results: 5 }, ctx);
         assert.equal((capturedBody as { max_results: number }).max_results, 5);
       } finally {
         globalThis.fetch = originalFetch;

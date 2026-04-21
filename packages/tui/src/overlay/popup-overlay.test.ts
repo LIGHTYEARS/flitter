@@ -11,8 +11,8 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { PopupOverlay } from "./popup-overlay.js";
 import { SizedBox } from "../widgets/sized-box.js";
+import { PopupOverlay } from "./popup-overlay.js";
 
 // ════════════════════════════════════════════════════
 //  Construction tests
@@ -20,15 +20,17 @@ import { SizedBox } from "../widgets/sized-box.js";
 
 describe("PopupOverlay", () => {
   it("constructs with required props", () => {
-    let dismissed = false;
+    let _dismissed = false;
     const child = new SizedBox({ width: 10, height: 5 });
     const popup = new PopupOverlay({
       child: child,
-      onDismiss: () => { dismissed = true; },
+      onDismiss: () => {
+        _dismissed = true;
+      },
     });
     assert.equal(popup.barrierDismissible, true); // default
-    assert.equal(popup.escapeDismissible, true);  // default
-    assert.equal(popup.autofocus, true);           // default
+    assert.equal(popup.escapeDismissible, true); // default
+    assert.equal(popup.autofocus, true); // default
   });
 
   it("constructs with all props", () => {
@@ -58,7 +60,9 @@ describe("PopupOverlay", () => {
     let dismissed = false;
     const popup = new PopupOverlay({
       child: new SizedBox(),
-      onDismiss: () => { dismissed = true; },
+      onDismiss: () => {
+        dismissed = true;
+      },
     });
     popup.onDismiss();
     assert.equal(dismissed, true);

@@ -63,6 +63,13 @@ export interface ExecutionProfile {
    * enforcement via AbortController + Promise.race.
    */
   timeoutMs?: number;
+  /**
+   * If true, completely disables the orchestrator timeout for this tool.
+   * 逆向: amp uses `meta: { disableTimeout: !0 }` on Bash, Task, code_review,
+   * finder, librarian, oracle, shell_command, walkthrough.
+   * These tools legitimately run for minutes-to-hours.
+   */
+  disableTimeout?: boolean;
 }
 
 // ─── 工具结果 ────────────────────────────────────────────
@@ -89,6 +96,22 @@ export interface ToolResult {
   outputFiles?: string[];
 }
 
+// ─── 工具消息 ──────────────────────────────────────────
+
+/**
+ * Message type for the tool cooperative messaging channel.
+ *
+ * 逆向: amp-cli-reversed/modules/1234_unknown_FWT.js:142-143
+ *   `t.next({ type: "stop-command" })`
+ *
+ * Currently only "stop-command" is used. The tool should subscribe
+ * to `context.toolMessages` and honor stop-command by gracefully
+ * terminating its execution (distinct from the hard AbortController abort).
+ */
+export interface ToolMessage {
+  type: "stop-command";
+}
+
 // ─── 工具上下文 ──────────────────────────────────────────
 
 /**
@@ -113,8 +136,24 @@ export interface ToolContext {
   threadId: string;
   /** 运行时配置 */
   config: Config;
-  /** 流式消息输出管道 (工具可写入中间消息) */
-  toolMessages?: Subject<string>;
+  /**
+   * Cooperative message channel for mid-execution signaling.
+   *
+   * 逆向: amp-cli-reversed/modules/1234_unknown_FWT.js:347-352
+   *   `s = new AR(u => { this.toolMessages.set(T.id, u) })`
+   *   `A = { ...c, toolMessages: s }`
+   *
+   * The orchestrator creates a Subject per tool invocation and injects it here.
+   * Currently the only message type is `{ type: "stop-command" }`, used by
+   * `cancelToolOnly()` to cooperatively request a running tool to stop.
+   *
+   * Tools subscribe to this Subject to receive mid-execution commands.
+   * Example (Bash tool): on "stop-command", gracefully terminate the shell process.
+   *
+   * 逆向: amp-cli-reversed/modules/1418_unknown_XzR.js:126-128
+   *   `b = e.subscribe(w => { if (w.type === "stop-command") C("user-stop"); });`
+   */
+  toolMessages?: Subject<ToolMessage>;
   /** 用户输入 (blocked-on-user 恢复时传入) */
   userInput?: string;
 }

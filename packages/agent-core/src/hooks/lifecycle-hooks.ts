@@ -68,9 +68,7 @@ export interface InternalHooks {
    *   P7R(this.deps.internalHooks?.onAssistantTurnEnd, { thread: this.thread })
    *   P7R wraps: T(R.thread) with try/catch returning { action: null } on error
    */
-  onAssistantTurnEnd?: (context: {
-    thread: ThreadSnapshot;
-  }) => Promise<LifecycleHookResult | null>;
+  onAssistantTurnEnd?: (context: { thread: ThreadSnapshot }) => Promise<LifecycleHookResult | null>;
 
   /**
    * Called after onAssistantTurnEnd when the worker is idle and usage info is available.

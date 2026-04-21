@@ -38,8 +38,7 @@ export function createReadMcpResourceTool(mcpManager: MCPManagerLike): ToolSpec 
   return {
     name: "read_mcp_resource",
     description:
-      "Read a resource from an MCP server. " +
-      "Use when the user references an MCP resource URI.",
+      "Read a resource from an MCP server. " + "Use when the user references an MCP resource URI.",
     source: "builtin",
     isReadOnly: true,
 

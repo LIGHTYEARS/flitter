@@ -659,10 +659,7 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
         return new ContextCapture(
           new MouseRegion({
             onClick: (event) => {
-              this.handleItemClick(
-                index,
-                event.clickCount ?? 1,
-              );
+              this.handleItemClick(index, event.clickCount ?? 1);
             },
             child: rendered as unknown as WidgetInterface,
           }) as unknown as WidgetInterface,
@@ -681,9 +678,7 @@ class FuzzyPickerState<T> extends State<FuzzyPicker<T>> {
       listContent = new Expanded({
         child: new MouseRegion({
           onScroll: (event) => {
-            this.handleScroll(
-              event as unknown as { type: string; direction?: string },
-            );
+            this.handleScroll(event as unknown as { type: string; direction?: string });
           },
           opaque: false,
           child: new ScrollViewport({

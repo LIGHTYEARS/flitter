@@ -62,6 +62,8 @@ How to use:
       // Task tools do not conflict with each other (can run in parallel)
       // and do not conflict with other tools (subagent has its own context)
       resourceKeys: [],
+      // 逆向: amp uses `meta: { disableTimeout: !0 }` on Task (chunk-005.js:146548)
+      disableTimeout: true,
     },
 
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {

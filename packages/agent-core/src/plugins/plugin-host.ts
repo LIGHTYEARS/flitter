@@ -18,7 +18,7 @@
  * ```
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { createLogger } from "@flitter/util";
 
@@ -76,10 +76,7 @@ export class PluginHost {
 
   // Options (逆向: 145518-145521)
   private readonly onStderr?: (data: string) => void;
-  private readonly onRequest?: Record<
-    string,
-    (params: unknown) => Promise<unknown>
-  >;
+  private readonly onRequest?: Record<string, (params: unknown) => Promise<unknown>>;
   private readonly onEvent?: (event: string, data: unknown) => void;
   private readonly onStateChange?: (state: PluginStateChange) => void;
   private readonly maxAutoRestarts: number;
@@ -95,8 +92,7 @@ export class PluginHost {
     this.onStateChange = options?.onStateChange;
     this.maxAutoRestarts = options?.maxAutoRestarts ?? MAX_AUTO_RESTARTS;
     this.restartDelayMs = options?.restartDelayMs ?? RESTART_DELAY_MS;
-    this.shutdownGracePeriodMs =
-      options?.shutdownGracePeriodMs ?? SHUTDOWN_GRACE_PERIOD_MS;
+    this.shutdownGracePeriodMs = options?.shutdownGracePeriodMs ?? SHUTDOWN_GRACE_PERIOD_MS;
     this.requestTimeoutMs = options?.requestTimeoutMs ?? REQUEST_TIMEOUT_MS;
   }
 
@@ -166,16 +162,12 @@ export class PluginHost {
         new Error(`Plugin process exited (code=${code}, signal=${signal})`),
       );
       this.rejectReadyPromise(
-        new Error(
-          `Plugin process exited before readiness (code=${code}, signal=${signal})`,
-        ),
+        new Error(`Plugin process exited before readiness (code=${code}, signal=${signal})`),
       );
 
       if (this.hasReachedReadyState) {
         this.scheduleAutoRestart(
-          new Error(
-            `Plugin process exited unexpectedly (code=${code}, signal=${signal})`,
-          ),
+          new Error(`Plugin process exited unexpectedly (code=${code}, signal=${signal})`),
         );
       }
     });
@@ -305,12 +297,7 @@ export class PluginHost {
           attempt,
           error: restartErr,
         });
-        if (
-          !this.process &&
-          !this.disposed &&
-          !this.terminalFailure &&
-          !this.restartTimer
-        ) {
+        if (!this.process && !this.disposed && !this.terminalFailure && !this.restartTimer) {
           this.scheduleAutoRestart(
             restartErr instanceof Error ? restartErr : new Error(String(restartErr)),
           );
@@ -343,10 +330,7 @@ export class PluginHost {
     } else if (msg.type === "request") {
       this.handleIncomingRequest(msg as JsonRpcRequest);
     } else if (msg.type === "event") {
-      this.handleIncomingEvent(
-        (msg as JsonRpcEvent).event,
-        (msg as JsonRpcEvent).data,
-      );
+      this.handleIncomingEvent((msg as JsonRpcEvent).event, (msg as JsonRpcEvent).data);
     }
   }
 
@@ -370,11 +354,7 @@ export class PluginHost {
    */
   private handleIncomingRequest(msg: JsonRpcRequest): void {
     if (!this.onRequest) {
-      this.sendResponseToPlugin(
-        msg.id,
-        undefined,
-        `No handler for method: ${msg.method}`,
-      );
+      this.sendResponseToPlugin(msg.id, undefined, `No handler for method: ${msg.method}`);
       return;
     }
 
@@ -415,11 +395,7 @@ export class PluginHost {
    * Send a JSON-RPC response back to the plugin's stdin.
    * 逆向: chunk-005.js:145659-145667
    */
-  private sendResponseToPlugin(
-    id: string,
-    result?: unknown,
-    error?: string,
-  ): void {
+  private sendResponseToPlugin(id: string, result?: unknown, error?: string): void {
     if (!this.process?.stdin) return;
 
     const msg: JsonRpcResponse = { type: "response", id };
@@ -460,9 +436,7 @@ export class PluginHost {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(
-          new Error(
-            `Plugin request timed out after ${this.requestTimeoutMs}ms (method=${method})`,
-          ),
+          new Error(`Plugin request timed out after ${this.requestTimeoutMs}ms (method=${method})`),
         );
       }, this.requestTimeoutMs);
 
@@ -560,9 +534,7 @@ export class PluginHost {
    * Try SIGINT first, then SIGKILL after grace period.
    * 逆向: chunk-005.js:145700-145725
    */
-  private async terminateProcessGracefully(
-    proc: ChildProcess,
-  ): Promise<void> {
+  private async terminateProcessGracefully(proc: ChildProcess): Promise<void> {
     if (proc.exitCode !== null || proc.signalCode !== null) return;
 
     return new Promise<void>((resolve) => {
@@ -605,10 +577,7 @@ export class PluginHost {
    * Send a signal to the process.
    * 逆向: chunk-005.js:145726-145747
    */
-  private sendTerminationSignal(
-    proc: ChildProcess,
-    signal: NodeJS.Signals,
-  ): boolean {
+  private sendTerminationSignal(proc: ChildProcess, signal: NodeJS.Signals): boolean {
     try {
       return proc.kill(signal);
     } catch {

@@ -13,9 +13,9 @@
  * - Supports pattern, organization, language filters
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the list_repositories tool spec, closing over a GitHubClient instance.
@@ -91,9 +91,7 @@ export function createListRepositoriesTool(client: GitHubClient): ToolSpec {
         // 逆向: client-side filtering by pattern, organization, language
         if (pattern) {
           const lowerPattern = pattern.toLowerCase();
-          filtered = filtered.filter((r) =>
-            r.full_name.toLowerCase().includes(lowerPattern),
-          );
+          filtered = filtered.filter((r) => r.full_name.toLowerCase().includes(lowerPattern));
         }
         if (organization) {
           const lowerOrg = organization.toLowerCase();
@@ -103,9 +101,7 @@ export function createListRepositoriesTool(client: GitHubClient): ToolSpec {
         }
         if (language) {
           const lowerLang = language.toLowerCase();
-          filtered = filtered.filter(
-            (r) => r.language?.toLowerCase() === lowerLang,
-          );
+          filtered = filtered.filter((r) => r.language?.toLowerCase() === lowerLang);
         }
 
         // 逆向: sort by stars descending
@@ -132,9 +128,7 @@ export function createListRepositoriesTool(client: GitHubClient): ToolSpec {
         if (searchResult.ok && searchResult.data) {
           // 逆向: deduplicate by full_name
           const existing = new Set(repos.map((r) => r.full_name));
-          const newRepos = searchResult.data.items.filter(
-            (r) => !existing.has(r.full_name),
-          );
+          const newRepos = searchResult.data.items.filter((r) => !existing.has(r.full_name));
           repos.push(...newRepos.slice(0, remaining));
           totalCount += newRepos.length;
         }
@@ -159,9 +153,7 @@ export function createListRepositoriesTool(client: GitHubClient): ToolSpec {
 
       return {
         status: "done",
-        content: truncateOutput(
-          `Found ${totalCount} repository(ies):\n\n${output}`,
-        ),
+        content: truncateOutput(`Found ${totalCount} repository(ies):\n\n${output}`),
         data: { repositories: formatted, totalCount },
       };
     },

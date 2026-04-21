@@ -59,8 +59,7 @@ Pass "thoroughness": "quick" for a quick review with less reasoning depth. Defau
         },
         checkScope: {
           type: "string",
-          description:
-            "A directory to search for checks. If empty, includes all checks.",
+          description: "A directory to search for checks. If empty, includes all checks.",
         },
         checkFilter: {
           type: "array",
@@ -70,8 +69,7 @@ Pass "thoroughness": "quick" for a quick review with less reasoning depth. Defau
         },
         checksOnly: {
           type: "boolean",
-          description:
-            "If true, skips the main review agent and only runs checks.",
+          description: "If true, skips the main review agent and only runs checks.",
         },
         thoroughness: {
           type: "string",
@@ -87,6 +85,8 @@ Pass "thoroughness": "quick" for a quick review with less reasoning depth. Defau
     executionProfile: {
       // Code review subagents don't conflict with each other
       resourceKeys: [],
+      // 逆向: amp uses `meta: { disableTimeout: !0 }` (chunk-005.js:148004)
+      disableTimeout: true,
     },
 
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {

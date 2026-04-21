@@ -49,7 +49,13 @@ export {
   startCallbackServer,
 } from "./oauth/index";
 // ─── 核心类型 ───────────────────────────────────────────
-export type { LLMProvider, MessageTransformer, ToolTransformer } from "./provider";
+export type {
+  CountTokensParams,
+  CountTokensResult,
+  LLMProvider,
+  MessageTransformer,
+  ToolTransformer,
+} from "./provider";
 // ─── 具体 Provider (供直接使用) ─────────────────────────
 export type { CreateMessageResponse } from "./providers/anthropic/provider";
 export { AnthropicProvider } from "./providers/anthropic/provider";

@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 6)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`.
+> **Last updated:** 2026-04-21 (iteration 12)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 12 targets: activatedSkills tracking, API-based token counting, admin settings merge, thread list filtering.
 
 ## How to Read This Document
 
@@ -23,9 +23,14 @@
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
 | GAP-CLI-01 | CLI | **`skill` / `skills` command group** | Amp has `skill add`, `skill list`, `skill remove`, `skill info` (alias `skills`). Flitter has the agent-callable Skill tool (`skill-tool.ts`) but no CLI command group (`skill add/list/remove/info`) to manage skills from the terminal. Partially addressed. |
+| GAP-CLI-27 | CLI | **`tools use <name>` direct invocation** | Amp's `tools use` (chunk-004.js:25484) allows invoking any registered tool directly from CLI with `--only` and `--stream` flags. Essential for testing and scripting. |
+| GAP-CLI-28 | CLI | **`threads handoff` subcommand** | Amp has `threads handoff [id]` (chunk-005.js:4962) with `--goal/-g` and `--print/-p` flags. Creates handoff threads with summarized context. Flitter only has a `/handoff` slash stub. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
 | GAP-TUI-02 | TUI | **Approval widget (5 options)** | Amp has 5-option approval flow (approve, allow-session, allow-persistent, deny-with-feedback, guarded-file). Flitter has 4 options (approve, allow-session, allow-persistent, deny-with-feedback) — missing the guarded-file deny option. Plan: `2026-04-19-approval-widget.md`. |
 | GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
+| GAP-DATA-13 | Data | **`ensureThreadEntriesLoaded` (remote list + local merge)** | Amp's `azT.ensureThreadEntriesLoaded()` lazily fetches `remote.listThreads()` and merges with local cache on first subscription. Flitter loads local files only — threads created on other devices are invisible. |
+| GAP-CORE-07 | Core | **`blocked-on-user` persisted to thread state** | Amp writes `{status: "blocked-on-user", reason, toAllow}` to thread state for pending approvals, surviving restarts. Flitter's approval state is only in-memory — lost on restart. |
+| GAP-CORE-08 | Core | **Skill invocation enforcement** | Amp's ThreadWorker tracks `_awaitingSkillInvocation` and injects synthetic `tool_use` blocks if required skills are not invoked. Flitter has no enforcement — model can ignore required skills. |
 
 ---
 
@@ -53,6 +58,7 @@
 | GAP-TOOL-03 | `oracle` | Internal reasoning/planning tool. |
 | GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
 | GAP-TOOL-06 | `shell_command` (subagent) | Alternate Bash tool for subagents with `workdir`/`login`/`timeout_ms` params. |
+| GAP-TOOL-27 | `look_at` tool missing | AI-powered file analysis for PDFs/images/media. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Multimodal analysis capability. |
 
 ### TUI
 
@@ -246,6 +252,40 @@ These were previously identified as gaps but are now implemented in flitter.
 ### Agent-Core (from iteration 6)
 - **GAP-CORE-04 partial**: `ThreadRelationshipSchema` extended with `role` ("child"/"parent") and `createdAt` fields. `ThreadWorkerService` gained `seedThreadMessages()` (atomic message seeding via `exclusiveSyncReadWriter`) and `applyParentRelationship()` (bidirectional child-parent relationship wiring with dedup). `handoff()` and `createThread()` deferred.
 
+### Iteration 7 — Type errors + CLI tool filter bug + tool fixes
+- **8 TypeScript type errors fixed**: `CliToolFilters` type added to `registry.ts` with `setCliFilters()`/`getCliFilters()` methods + `listEnabledWithCliFilters()`. Orchestrator `output`→`content` mapping corrected. Execute mode `"thinking"` event filter rewritten to check `inference:delta` content blocks. `ToolThreadEvent.status` `"done"`→`"completed"` mapping corrected.
+- **GAP-R5 (CLI tool filter bug) fixed**: `interactive.ts` and `execute.ts` were writing `tools.allowed`/`tools.disallowed` to config, but `ToolRegistry` reads `tools.enable`/`tools.disable`. Rewired both modes to use `toolRegistry.setCliFilters()` directly, routing through the new `CliToolFilters` layer.
+- **GAP-TOOL-28**: `disableTimeout` — Added `disableTimeout?: boolean` field to `ExecutionProfile` interface, conditional timeout skip in orchestrator, set on Bash/Task/code_review/finder tools. Long-running tools no longer time out at 120s.
+- **GAP-TOOL-29**: `skill` name case mismatch — Changed `"Skill"` → `"skill"` (lowercase) in skill-tool.ts to match amp's registration.
+
+### Iteration 8 — Glob matching, orchestrator safety, Bash cd
+- **GAP-CORE-09**: Glob pattern matching for `tools.enable`/`tools.disable` — Implemented `matchToolPattern()` with lightweight glob-to-regex converter (handles `*`, `?`, `[...]`, `{a,b}`). Updated `_isToolEnabled()` to check multiple name variants: bare name, MCP bare-tool + full-form, `builtin:`/`toolbox:` prefix. 21 new tests. Matches amp's Xf/Vf behavior.
+- **GAP-CORE-05** (partial): `onResume()` method added to `ToolOrchestrator` — scans latest user message for non-terminal tool_results, restores blocked-on-user to approval queue, cancels dangerous tools with system:safety, re-invokes safe tools.
+- **GAP-CORE-06**: `isDangerousToResume()` — exported from orchestrator. Flags Bash, run_terminal_command, shell_command, Task, handoff (exact amp match).
+- **GAP-TOOL-30**: Bash `cd` interception — `preprocessArgs` now detects `cd path` patterns, rewrites `cwd` with resolved absolute path, strips `cd` from command. Handles `~` expansion, quoted paths, `&& rest`/`; rest` chains. Skips dynamic paths ($VAR, backtick). 14 new tests.
+
+### Iteration 9 — onResume wiring, provider API keys, subagent tool filtering
+- **GAP-CORE-05** (completed): `toolOrchestrator.onResume(snapshot)` now called from `ThreadWorker.resume()` after truncation + file tracking. Added `shouldResumeFromLastMessage()` guard matching amp's NlR/HlR/NET checks (cancelled, rejected-by-user, info role → skip resume, set state to cancelled). `resume()` changed from sync to async. Container uses fire-and-forget `.catch(() => {})` to keep `createThreadWorker` synchronous. 4 new tests.
+- **GAP-DATA-14/15** (completed): `getToken("apiKey")` in `factory.ts` is now provider-aware. Reads `internal.model` from settings → looks up `MODEL_REGISTRY[model].provider` → checks provider-specific settings key + env vars. Gemini: `gemini.apiKey` → `GOOGLE_API_KEY` → `GEMINI_API_KEY`. OpenAI: `openai.apiKey` → `OPENAI_API_KEY`. Anthropic: `anthropic.apiKey` → `ANTHROPIC_API_KEY`. `isSet()` checks all env vars before provider is cached, narrows after first `getToken()`. 13 new tests.
+- **GAP-CORE-18** (completed): Subagent tool filtering implemented. `SUBAGENT_TYPE_REGISTRY` maps 8 types (finder, oracle, code-review, code-tour, codereview-check, walkthrough, task-subagent, librarian) to tool patterns matching amp's qe object. `ToolRegistry.createFilteredRegistry(patterns)` creates snapshot registries filtered by `matchToolPattern()`. `SubAgentWorkerOptions.toolPatterns` added; `spawn()` auto-populates from registry. Container wiring passes filtered registry to `createThreadWorker`. 14 new tests.
+
+### Iteration 10 — Orchestrator safety: rejected-by-user, approval clearing, processing mutex
+- **GAP-CORE-13** (completed): Tool denial now emits `"rejected-by-user"` status (not `"cancelled"`) with `reason` and `toAllow` fields, matching amp's $mR invokeTool. Feedback-denial emits `"error"` with the user's feedback text so the LLM can read it. Static `"reject"` action also emits `"rejected-by-user"` with permission rule reason. `toAllow` computed from tool args (command string for Bash, file path for Edit/Write). `ToolRunRejectedSchema` extended with `toAllow` field. 5 new tests.
+- **GAP-CORE-14** (completed): `ToolOrchestrator.onNewUserMessage()` added — calls `clearPendingApprovals` (resolves all pending approval Promises with `accepted: false`) pre-emptively outside the mutex, then `cancelAll("user:interrupted")` under the mutex. `clearPendingApprovals` callback wired in `container.ts` to iterate `ThreadWorker._pendingApprovals` Map. Called from `ThreadWorker.enqueueMessage()` on immediate (non-buffered) processing. 3 new tests.
+- **GAP-CORE-10** (completed): `Mutex` utility class — FIFO queuing async mutex matching amp's `Cm` class (modules/1184_unknown_Cm.js). `processingMutex` field added to `ToolOrchestrator`. `onResume()` now acquires mutex before scanning tools, releases before `updateFileChanges`. `cancelAll()` now async with mutex. `dispose()` bypasses mutex for synchronous cleanup. `cancelInference()` uses fire-and-forget `void cancelAll()`. 6 + 4 new tests (mutex + serialization).
+
+### Iteration 11 — toolMessages channel, cancelToolOnly, plugin lifecycle hooks, Read directory/image
+- **GAP-CORE-12** (completed): `toolMessages` Subject channel — `Map<string, Subject<ToolMessage>>` added to `ToolOrchestrator`. Each `invokeTool()` call creates a Subject, stores it in the map, and injects it into `ToolContext.toolMessages`. On normal completion, the Subject is completed and removed. `cancelAll()` and `dispose()` send `{ type: "stop-command" }` to all Subjects before completing. `sendToolMessage()` method added for arbitrary message delivery. `ToolMessage` type defined in `types.ts`. Matches amp's FWT.toolMessages pattern (modules/1234_unknown_FWT.js:8,347-369). 4 new tests.
+- **GAP-CORE-11** (completed): `cancelToolOnly(toolUseId)` — cooperative per-tool cancel that sends `{ type: "stop-command" }` via the toolMessages Subject but does NOT abort the AbortController. The tool continues running but should honor the stop-command and terminate gracefully. Matches amp's FWT.cancelToolOnly (modules/1234_unknown_FWT.js:135-158). Also updates `cancelTool()` to send stop-command alongside abort. 3 new tests.
+- **GAP-CORE-15** (completed): `onAgentStart(event)` and `onAgentEnd(event)` methods added to `PluginService`. `PluginAgentStartEvent`, `PluginAgentStartResult`, `PluginAgentEndEvent`, `PluginAgentEndResult` types added. `ThreadWorkerOptions.pluginService` optional field added. `runInference()` fires `agentStart` before inference (can inject content into user message), fires `agentEnd("done")` on turn:complete, `agentEnd("interrupted")` on abort, `agentEnd("error")` on non-retryable error. `agentEnd` supports `action: "continue"` to chain turns. 7 new tests.
+- **GAP-TOOL-31** (completed): Read tool now handles directories and images. Directories: `readdir` + sort (dirs first alphabetically with trailing `/`, then files alphabetically), capped at 1000 entries, offset/limit pagination, truncation markers. Images: extension-based detection (.jpg, .jpeg, .png, .gif, .webp), base64 encoding with ~4.9MB size gate, returns `{ isImage: true, base64Content, imageInfo: { mimeType, size } }`. Non-image binary files still rejected. 10 new tests.
+
+### Iteration 12 — activatedSkills, API token counting, admin settings, thread list filtering
+- **GAP-CORE-17** (completed): `activatedSkills` tracking — `activatedSkills` field added to `ThreadSnapshotSchema` (array of `{ name, arguments? }`). `onSkillToolComplete` callback added to `OrchestratorCallbacks`. `ToolOrchestrator.invokeTool()` detects skill tool completion (case-insensitive `"skill"` name match + `status === "done"`) and fires the callback. `ThreadWorker.onSkillToolComplete()` deduplicates by name and persists to thread state. Matches amp's FWT:384 + ov:211-219. 10 new tests.
+- **GAP-CORE-16** (completed): API-based token counting — `countTokens` optional method added to `LLMProvider` interface with `CountTokensParams`/`CountTokensResult` types. `AnthropicProvider.countTokens()` calls `/v1/messages/count_tokens` via the SDK with `thinking: { type: "enabled", budget_tokens: 10000 }` for accurate counts. Falls back to character-based `Math.ceil(length / 4)` on error (matching amp's `n1R` fallback). Exported from `@flitter/llm`. 6 new tests.
+- **GAP-DATA-16** (completed): Admin settings merge — `readAdminSettings()` now called in `ConfigService.reload()`. Admin settings are spread over the global+workspace merge result, giving admin keys unconditional priority (matching amp's `iHR` wrapper pattern from modules/1273_unknown_iHR.js). Debug-logged when admin keys are applied. 4 new tests.
+- **GAP-DATA-17** (completed): `observeThreadList` with filtering — `ThreadStore.observeThreadList(opts)` method added. Filters: `!entry.mainThreadID` (excludes subagent threads) AND `opts.includeArchived || !entry.archived`. Wired into `handleThreadsList` (default `includeArchived: false`), `handleThreadsSearch` (includes archived for search), and `handleThreadsDashboard` (excludes archived). Matches amp's azT.observeThreadList (modules/1342:286-295). 8 new tests.
+
 ---
 
 ## Summary Statistics
@@ -253,15 +293,15 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 4 |
-| Medium | 22 |
+| High | 6 |
+| Medium | 17 |
 | Low | 43 |
-| **Total open gaps** | **69** |
-| Closed gaps | 70+ |
+| **Total open gaps** | **66** |
+| Closed gaps | 96+ |
 
 ### Cross-Cutting Themes
 
-1. **Server infrastructure**: The self-hosted sync server (`packages/server/`) is now implemented. Remaining DATA gaps (DATA-04/05/06) need to wire the existing server endpoints into client-side fetches. CLI share/visibility/handoff gaps still need additional server endpoints or client support.
+1. **Server infrastructure**: The self-hosted sync server (`packages/server/`) is now implemented. Remaining DATA gaps (DATA-04/05/06/13) need to wire the existing server endpoints into client-side fetches. CLI share/visibility/handoff gaps still need additional server endpoints or client support.
 
 2. **Terminal protocol activation**: ~~Several TUI capabilities are detected but never activated (synchronized output, kitty keyboard, emoji width, in-band resize, modifyOtherKeys). These are quick wins.~~ **Partially resolved** — Synchronized output (TUI-03) and kitty keyboard (TUI-04) are now activated with heuristic detection. Remaining: emoji width mode (`?2027`), in-band resize, `modifyOtherKeys`.
 
@@ -270,3 +310,9 @@ These were previously identified as gaps but are now implemented in flitter.
 4. **Stream reliability**: ~~The two High LLM gaps (idle timeout + double-retry) are reliability issues that affect production use. They should be addressed before heavy usage.~~ **Resolved** — `withStreamIdleTimeout` (120s) wraps all 5 providers; `maxRetries: 0` prevents double-retry on Anthropic, OpenAI, OpenAI-compat, and Bedrock SDK clients.
 
 5. **Slash command completeness**: ~~Many interactive slash commands (`/model`, `/cost`, `/compact`, `/new`, `/switch`, etc.) are stubs that print help text rather than performing actions inline.~~ `/cost`, `/compact`, `/model`, `/rename`, `/label`, `/archive` now fully functional (GAP-CLI-22/23/24/25 partial). Remaining 6 stubs need context interface changes (`switchThread` callback) or TUI lifecycle work.
+
+6. **Orchestrator safety gaps**: ~~Iteration 7 uncovered multiple safety-critical gaps in the tool orchestrator: no tool resume on reconnect (CORE-05), no dangerous-tool safety gate (CORE-06), no persisted approval state (CORE-07), no per-tool cancel (CORE-11). These affect production reliability and should be addressed as a group.~~ **Mostly resolved** — CORE-05, CORE-06 (iter 9), CORE-10, CORE-13, CORE-14 (iter 10), CORE-11, CORE-12 (iter 11) all closed. Remaining: CORE-07 (blocked-on-user persistence).
+
+7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. Flitter has the `SkillTool` for agent-callable skill loading but is missing: CLI command group (CLI-01), slash commands (skill-add/remove/list/invoke), enforcement (CORE-08). **Activation tracking (CORE-17) now closed** — skills are recorded to `thread.activatedSkills` on successful load. This is the largest remaining feature vertical.
+
+8. **Provider API key wiring**: ~~Gemini and OpenAI providers don't read per-provider API keys from settings (DATA-14) or environment variables (DATA-15). This blocks users who don't use the default Anthropic provider.~~ **Resolved** — DATA-14 and DATA-15 closed in iteration 9. Provider-aware key resolution now covers Anthropic, Gemini, and OpenAI.

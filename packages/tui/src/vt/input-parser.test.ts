@@ -832,11 +832,11 @@ describe("集成测试", () => {
     const keyEvents = events.filter((e): e is KeyEvent => e.type === "key");
     assert.ok(
       keyEvents.some((e) => e.key === "ArrowUp"),
-      "ArrowUp should be emitted"
+      "ArrowUp should be emitted",
     );
     assert.ok(
       !keyEvents.some((e) => e.key === "Escape"),
-      "standalone Escape should NOT be emitted when follow-up bytes arrive"
+      "standalone Escape should NOT be emitted when follow-up bytes arrive",
     );
   });
 

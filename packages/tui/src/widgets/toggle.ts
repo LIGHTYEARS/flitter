@@ -12,17 +12,17 @@
  * @module
  */
 
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
 import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
-import { Row } from "./row.js";
-import { Text } from "./text.js";
 import { Focus } from "./focus.js";
 import { GestureDetector } from "./gesture-detector.js";
-import { TextSpan } from "./text-span.js";
 import { RichText } from "./rich-text.js";
-import { TextStyle } from "../screen/text-style.js";
-import { Color } from "../screen/color.js";
+import { Row } from "./row.js";
+import { Text } from "./text.js";
+import { TextSpan } from "./text-span.js";
 
 // ════════════════════════════════════════════════════
 //  Toggle indicator characters
@@ -118,9 +118,7 @@ export class Toggle extends StatelessWidget {
     const children: WidgetInterface[] = [indicator as unknown as WidgetInterface];
 
     if (this.label) {
-      children.push(
-        new Text({ data: ` ${this.label}` }) as unknown as WidgetInterface,
-      );
+      children.push(new Text({ data: ` ${this.label}` }) as unknown as WidgetInterface);
     }
 
     const row = new Row({ children }) as unknown as WidgetInterface;
@@ -158,9 +156,7 @@ export class Toggle extends StatelessWidget {
       text = this.value ? CHECKED_INDICATOR : UNCHECKED_INDICATOR;
     }
 
-    const color = this.value
-      ? (this.checkedColor ?? Color.green())
-      : Color.rgb(128, 128, 128);
+    const color = this.value ? (this.checkedColor ?? Color.green()) : Color.rgb(128, 128, 128);
 
     return new RichText({
       text: new TextSpan({

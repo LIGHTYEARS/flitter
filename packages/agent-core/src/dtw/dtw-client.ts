@@ -22,7 +22,6 @@ import type {
   DTWClientState,
   DTWConnectionConfig,
   DTWCreateResponse,
-  DTWResponseMessage,
   DTWSendMessage,
   DTWThreadSync,
 } from "./dtw-types";
@@ -165,10 +164,7 @@ export class DTWClient {
   async sendMessage(threadId: string, message: DTWSendMessage): Promise<void> {
     this.ensureNotDisposed();
 
-    const url = new URL(
-      DTW_ENDPOINTS.addMessage(threadId),
-      this.config.serviceUrl,
-    );
+    const url = new URL(DTW_ENDPOINTS.addMessage(threadId), this.config.serviceUrl);
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -198,10 +194,7 @@ export class DTWClient {
   async getTranscript(threadId: string): Promise<DTWThreadSync> {
     this.ensureNotDisposed();
 
-    const url = new URL(
-      DTW_ENDPOINTS.getTranscript(threadId),
-      this.config.serviceUrl,
-    );
+    const url = new URL(DTW_ENDPOINTS.getTranscript(threadId), this.config.serviceUrl);
     const response = await fetch(url, {
       method: "GET",
       headers: this.buildHeaders(),
@@ -226,10 +219,7 @@ export class DTWClient {
   async getDurableObjectId(threadId: string): Promise<string> {
     this.ensureNotDisposed();
 
-    const url = new URL(
-      DTW_ENDPOINTS.durableObjectId(threadId),
-      this.config.serviceUrl,
-    );
+    const url = new URL(DTW_ENDPOINTS.durableObjectId(threadId), this.config.serviceUrl);
     const response = await fetch(url, {
       method: "GET",
       headers: this.buildHeaders(),
@@ -280,7 +270,7 @@ export class DTWClient {
    * Calculate reconnect delay with exponential backoff + jitter.
    */
   getReconnectDelay(): number {
-    const base = DTWClient.BASE_RECONNECT_DELAY_MS * Math.pow(2, this.reconnectAttempt);
+    const base = DTWClient.BASE_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempt;
     const capped = Math.min(base, DTWClient.MAX_RECONNECT_DELAY_MS);
     // Add 0-25% jitter
     const jitter = capped * Math.random() * 0.25;
@@ -309,8 +299,13 @@ export class DTWClient {
     if (idx !== -1) list.splice(idx, 1);
   }
 
-  private emit<K extends keyof DTWClientEvents>(event: K, ...args: Parameters<DTWClientEvents[K]>): void {
-    const list = this.listeners[event] as ((...a: Parameters<DTWClientEvents[K]>) => void)[] | undefined;
+  private emit<K extends keyof DTWClientEvents>(
+    event: K,
+    ...args: Parameters<DTWClientEvents[K]>
+  ): void {
+    const list = this.listeners[event] as
+      | ((...a: Parameters<DTWClientEvents[K]>) => void)[]
+      | undefined;
     if (!list) return;
     for (const fn of list) {
       try {

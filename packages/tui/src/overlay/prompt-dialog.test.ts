@@ -25,12 +25,12 @@ describe("PromptDialog", () => {
       onCancel: () => {},
     });
     assert.equal(dialog.message, "Enter name:");
-    assert.equal(dialog.title, "Input");        // default
-    assert.equal(dialog.placeholder, "");        // default
-    assert.equal(dialog.initialValue, "");       // default
-    assert.equal(dialog.confirmLabel, "OK");     // default
-    assert.equal(dialog.cancelLabel, "Cancel");  // default
-    assert.equal(dialog.dialogWidth, 50);        // default
+    assert.equal(dialog.title, "Input"); // default
+    assert.equal(dialog.placeholder, ""); // default
+    assert.equal(dialog.initialValue, ""); // default
+    assert.equal(dialog.confirmLabel, "OK"); // default
+    assert.equal(dialog.cancelLabel, "Cancel"); // default
+    assert.equal(dialog.dialogWidth, 50); // default
   });
 
   it("constructs with all props", () => {
@@ -59,7 +59,9 @@ describe("PromptDialog", () => {
     const dialog = new PromptDialog({
       message: "Name:",
       initialValue: "test",
-      onSubmit: (v) => { received = v; },
+      onSubmit: (v) => {
+        received = v;
+      },
       onCancel: () => {},
     });
     dialog.onSubmit("hello");
@@ -71,7 +73,9 @@ describe("PromptDialog", () => {
     const dialog = new PromptDialog({
       message: "Name:",
       onSubmit: () => {},
-      onCancel: () => { cancelled = true; },
+      onCancel: () => {
+        cancelled = true;
+      },
     });
     dialog.onCancel();
     assert.equal(cancelled, true);

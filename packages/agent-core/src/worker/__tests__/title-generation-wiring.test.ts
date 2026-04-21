@@ -39,6 +39,7 @@ function createMockToolOrchestrator(): ToolOrchestrator {
   return {
     executeToolsWithPlan: mock(() => Promise.resolve()),
     cancelAll: mock(() => {}),
+    onNewUserMessage: mock(() => Promise.resolve()),
     dispose: mock(() => {}),
     hasRunningTools: mock(() => false),
   } as unknown as ToolOrchestrator;

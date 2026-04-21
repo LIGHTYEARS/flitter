@@ -16,7 +16,7 @@
  */
 
 import { Cell } from "./cell.js";
-import { TextStyle } from "./text-style.js";
+import type { TextStyle } from "./text-style.js";
 
 /**
  * 二维单元格矩阵，终端屏幕的单层缓冲区。

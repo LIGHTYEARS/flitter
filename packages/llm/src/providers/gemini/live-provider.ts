@@ -61,8 +61,6 @@ export class GoogleGenAILiveProvider extends EventEmitter {
   private _state: LiveConnectionState = "disconnected";
   private _ws: WebSocket | null = null;
   private readonly _config: LiveProviderConfig;
-  private _reconnectAttempts = 0;
-  private _maxReconnectAttempts = 3;
 
   constructor(config: LiveProviderConfig) {
     super();
@@ -89,7 +87,9 @@ export class GoogleGenAILiveProvider extends EventEmitter {
       this._config.WebSocket === null
         ? undefined
         : (this._config.WebSocket ??
-          (typeof globalThis !== "undefined" ? (globalThis as Record<string, unknown>).WebSocket : undefined));
+          (typeof globalThis !== "undefined"
+            ? (globalThis as Record<string, unknown>).WebSocket
+            : undefined));
 
     if (!WS) {
       this._transition("error");
@@ -102,7 +102,8 @@ export class GoogleGenAILiveProvider extends EventEmitter {
     this._transition("connecting");
 
     const baseUrl =
-      this._config.baseUrl ?? "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+      this._config.baseUrl ??
+      "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
     const url = `${baseUrl}?key=${this._config.apiKey}`;
 
@@ -112,9 +113,7 @@ export class GoogleGenAILiveProvider extends EventEmitter {
       } catch (err) {
         this._transition("error");
         reject(
-          err instanceof Error
-            ? err
-            : new Error(`WebSocket construction failed: ${String(err)}`),
+          err instanceof Error ? err : new Error(`WebSocket construction failed: ${String(err)}`),
         );
         return;
       }

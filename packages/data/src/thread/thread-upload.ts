@@ -210,9 +210,7 @@ export class ThreadUploadManager {
 
     // 逆向: drain all dirty + in-flight
     const allIds = new Set([...this.dirtyThreads, ...this.uploadInFlight.keys()]);
-    await Promise.all(
-      Array.from(allIds).map((id) => this.uploadThreadNow(id).catch(() => {})),
-    );
+    await Promise.all(Array.from(allIds).map((id) => this.uploadThreadNow(id).catch(() => {})));
 
     this.dirtyThreads.clear();
     this.uploadInFlight.clear();

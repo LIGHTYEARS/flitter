@@ -11,7 +11,6 @@ import {
   snapshotToEntry,
   ThreadStore,
 } from "./thread-store";
-import type { ThreadExclusiveReadWriter, ThreadVisibility } from "./thread-store";
 
 function makeThread(
   overrides: Partial<ThreadSnapshot> & { id: string; created?: number; [key: string]: unknown },
@@ -367,7 +366,9 @@ describe("ThreadStore", () => {
 
   describe("exclusiveSyncReadWriter (Task 3)", () => {
     it("should read current snapshot", () => {
-      store.setCachedThread(makeThread({ id: "t1", title: "hello", messages: [makeUserMessage()] }));
+      store.setCachedThread(
+        makeThread({ id: "t1", title: "hello", messages: [makeUserMessage()] }),
+      );
       const rw = store.exclusiveSyncReadWriter("t1");
       assert.equal(rw.read().title, "hello");
     });
@@ -381,7 +382,9 @@ describe("ThreadStore", () => {
     });
 
     it("should update with a function", async () => {
-      store.setCachedThread(makeThread({ id: "t1", title: "before", messages: [makeUserMessage()] }));
+      store.setCachedThread(
+        makeThread({ id: "t1", title: "before", messages: [makeUserMessage()] }),
+      );
       const rw = store.exclusiveSyncReadWriter("t1");
       rw.update(() => ({ title: "after" }));
       assert.equal(store.getThreadSnapshot("t1")!.title, "after");

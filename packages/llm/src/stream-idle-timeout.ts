@@ -67,9 +67,9 @@ export async function* withStreamIdleTimeout<T>(
   try {
     while (!done) {
       // Create a timeout promise that we can cancel
-      let rejectTimeout: ((err: Error) => void) | undefined;
+      let _rejectTimeout: ((err: Error) => void) | undefined;
       const timeoutPromise = new Promise<never>((_, reject) => {
-        rejectTimeout = reject;
+        _rejectTimeout = reject;
         timer = setTimeout(() => {
           reject(new StreamIdleTimeoutError(timeoutMs));
         }, timeoutMs);

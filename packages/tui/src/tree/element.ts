@@ -11,10 +11,10 @@ import type { RenderObject } from "./render-object.js";
 import { getBuildOwner } from "./types.js";
 import type { Widget } from "./widget.js";
 
+export type { BuildContext } from "./stateless-widget.js";
 // Re-export the canonical Widget and Key types from widget.ts to avoid
 // duplicate interface / class divergence (type-only import breaks no cycles).
 export type { Key, Widget } from "./widget.js";
-export type { BuildContext } from "./stateless-widget.js";
 
 // ════════════════════════════════════════════════════
 //  Element 抽象基类

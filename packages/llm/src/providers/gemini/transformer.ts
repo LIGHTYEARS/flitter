@@ -106,7 +106,7 @@ export class GeminiTransformer extends BaseMessageTransformer<GeminiContent, Gem
   /**
    * Flitter Message[] → Gemini contents + systemInstruction
    */
-  toProviderMessages(messages: Message[], systemPrompt: SystemPromptBlock[]): GeminiContent[] {
+  toProviderMessages(messages: Message[], _systemPrompt: SystemPromptBlock[]): GeminiContent[] {
     // Note: systemInstruction is returned via getSystemInstruction()
     // This method returns only the contents array
     const raw: GeminiContent[] = [];

@@ -2,10 +2,13 @@
  * @flitter/agent-core — ReadTool
  *
  * Reads a file from the filesystem, returning its contents with
- * cat -n style line numbers. Supports offset/limit for partial reads
- * and detects binary files.
+ * cat -n style line numbers. Supports offset/limit for partial reads,
+ * detects binary files, lists directory contents, and handles images.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:9470-9543 (Read tool execute)
  */
 import * as fs from "node:fs";
+import * as path from "node:path";
 import type { ExecutionProfile, ToolContext, ToolResult, ToolSpec } from "../types";
 
 /** Default number of lines to return when no limit is specified */
@@ -13,6 +16,43 @@ const DEFAULT_LIMIT = 2000;
 
 /** Maximum characters per line before truncation */
 const MAX_LINE_LENGTH = 2000;
+
+/**
+ * Maximum directory entries before truncation.
+ * 逆向: amp-cli-reversed/chunk-001.js:9481 `pq = 1000`
+ */
+const MAX_DIRECTORY_ENTRIES = 1000;
+
+/**
+ * Image extensions supported by the Read tool.
+ * 逆向: amp-cli-reversed/chunk-001.js:9514 `BLT = { ".jpg", ".jpeg", ".png", ".gif", ".webp" }`
+ */
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+
+/**
+ * Maximum base64 size for images (~4.9MB base64 ≈ ~3.7MB binary).
+ * 逆向: amp-cli-reversed/chunk-001.js:9520 `zD = 5138022.4`
+ */
+const MAX_IMAGE_BASE64_SIZE = 5_138_022;
+
+/**
+ * Map file extensions to MIME types.
+ */
+function getMimeType(ext: string): string | undefined {
+  switch (ext.toLowerCase()) {
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    default:
+      return undefined;
+  }
+}
 
 /**
  * Check if a file is binary by reading its first 8192 bytes
@@ -65,6 +105,122 @@ export function readExecutionProfile(args: Record<string, unknown>): ExecutionPr
 }
 
 /**
+ * List directory contents, sorted: directories first (alpha), then files (alpha).
+ * Directories are suffixed with '/'. Capped at MAX_DIRECTORY_ENTRIES.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:9481-9512
+ *   - readdir, sort dirs first then files alphabetically
+ *   - append '/' to dir names
+ *   - cap at pq = 1000
+ *   - apply read_range pagination
+ */
+function listDirectory(dirPath: string, offset: number, limit: number): ToolResult {
+  let entries: string[];
+  try {
+    entries = fs.readdirSync(dirPath);
+  } catch (err) {
+    return {
+      status: "error",
+      error: `Failed to read directory: ${(err as Error).message}`,
+    };
+  }
+
+  // Classify entries into dirs and files
+  const dirs: string[] = [];
+  const files: string[] = [];
+  for (const entry of entries) {
+    try {
+      const stat = fs.statSync(path.join(dirPath, entry));
+      if (stat.isDirectory()) {
+        dirs.push(entry + "/");
+      } else {
+        files.push(entry);
+      }
+    } catch {
+      // If we can't stat, include as a file
+      files.push(entry);
+    }
+  }
+
+  // Sort each group alphabetically
+  dirs.sort();
+  files.sort();
+
+  // Combine: directories first, then files
+  const allEntries = [...dirs, ...files];
+  const totalCount = allEntries.length;
+  const truncated = totalCount > MAX_DIRECTORY_ENTRIES;
+  const capped = truncated ? allEntries.slice(0, MAX_DIRECTORY_ENTRIES) : allEntries;
+
+  // Apply offset/limit pagination
+  const startIndex = Math.max(0, offset - 1);
+  const endIndex = Math.min(capped.length, startIndex + limit);
+  const lines: string[] = [];
+
+  if (startIndex > 0) {
+    lines.push(`[... omitted ${startIndex} entries ...]`);
+  }
+
+  for (let i = startIndex; i < endIndex; i++) {
+    lines.push(capped[i]!);
+  }
+
+  if (endIndex < capped.length) {
+    lines.push(`[... omitted ${capped.length - endIndex} entries ...]`);
+  }
+
+  if (truncated) {
+    lines.push(
+      `[... directory listing truncated, ${totalCount - MAX_DIRECTORY_ENTRIES} more entries not shown ...]`,
+    );
+  }
+
+  return {
+    status: "done",
+    content: lines.join("\n"),
+    data: { isDirectory: true, directoryEntries: capped.slice(startIndex, endIndex) },
+  };
+}
+
+/**
+ * Read an image file and return base64-encoded content with metadata.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:9514-9543
+ *   - Extension-based detection
+ *   - base64 encode, size gate at ~4.9MB
+ *   - Return { isImage: true, content: base64, imageInfo: { mimeType, size } }
+ */
+function readImage(filePath: string, stat: fs.Stats): ToolResult {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeType = getMimeType(ext);
+  if (!mimeType) {
+    return { status: "error", error: `Unsupported image format: ${ext}` };
+  }
+
+  // Read the binary file
+  const buffer = fs.readFileSync(filePath);
+  const base64 = buffer.toString("base64");
+
+  // Size gate
+  if (base64.length > MAX_IMAGE_BASE64_SIZE) {
+    return {
+      status: "error",
+      error: `Image too large: ${(stat.size / 1024 / 1024).toFixed(1)}MB exceeds the ~3.7MB limit`,
+    };
+  }
+
+  return {
+    status: "done",
+    content: `Image: ${filePath}`,
+    data: {
+      isImage: true,
+      base64Content: base64,
+      imageInfo: { mimeType, size: stat.size },
+    },
+  };
+}
+
+/**
  * ReadTool: reads files from the filesystem with line numbers.
  */
 export const ReadTool: ToolSpec = {
@@ -72,7 +228,9 @@ export const ReadTool: ToolSpec = {
   description:
     "Reads a file from the local filesystem. Returns the file content " +
     "with cat -n style line numbers. Supports offset and limit parameters " +
-    "for reading specific portions of large files. Detects and rejects binary files.",
+    "for reading specific portions of large files. When given a directory path, " +
+    "returns a sorted listing (directories first, then files). Detects and " +
+    "returns images as base64-encoded content. Rejects other binary files.",
   source: "builtin",
   isReadOnly: true,
 
@@ -136,13 +294,28 @@ export const ReadTool: ToolSpec = {
       };
     }
 
-    // Check it's actually a file
+    // Stat the path
     const stat = fs.statSync(filePath);
+
+    // Handle directories — return sorted listing
+    // 逆向: amp-cli-reversed/chunk-001.js:9481-9512
+    if (stat.isDirectory()) {
+      return listDirectory(filePath, offset, limit);
+    }
+
+    // Check it's a file
     if (!stat.isFile()) {
       return {
         status: "error",
-        error: `Not a file: ${filePath}`,
+        error: `Not a file or directory: ${filePath}`,
       };
+    }
+
+    // Handle images — return base64-encoded content
+    // 逆向: amp-cli-reversed/chunk-001.js:9514-9543
+    const ext = path.extname(filePath).toLowerCase();
+    if (IMAGE_EXTENSIONS.has(ext)) {
+      return readImage(filePath, stat);
     }
 
     // Detect binary files

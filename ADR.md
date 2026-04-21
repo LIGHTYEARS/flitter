@@ -224,3 +224,203 @@ The `SessionCostTracker` is instantiated in `interactive.ts` immediately after t
 - `seedThreadMessages` enables thread forking (create thread with pre-seeded conversation)
 - `applyParentRelationship` enables handoff thread creation (prerequisite for GAP-CORE-04 `handoff()`)
 - `createThread` orchestration method can be built in a future iteration atop these primitives
+
+---
+
+## ADR-012: Fix 8 TypeScript errors strategically — types as contracts
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** `tsc --noEmit` reported 8 type errors across 3 packages. These fell into 3 root causes:
+
+1. **`CliToolFilters` type missing** (3 errors in index.ts, container.ts): The type was exported from `registry.ts` but never defined. This was a gap from the `--allowed-tools` / `--disallowed-tools` CLI flags implementation.
+
+2. **`ToolThreadEvent.status` vs `ToolResult.status` mismatch** (3 errors in orchestrator.ts): The orchestrator used `"done"` for `ToolThreadEvent.status`, but the type only accepts `"completed"`. Additionally, it referenced a non-existent `output` property on `ToolResult` (which uses `content`).
+
+3. **`"thinking"` event type mismatch** (2 errors in execute.ts): Code checked `event.type === "thinking"` against `AgentEvent`, but thinking is a content block type (inside `StreamDelta`), not an event type. The fix checks `inference:delta` events where the delta contains thinking blocks.
+
+**Decision:** Fix all 8 errors with minimal, targeted changes:
+- Add `CliToolFilters` interface + `setCliFilters()`/`getCliFilters()` methods to `ToolRegistry`, plus a `listEnabledWithCliFilters()` method that layers CLI filters on top of config-based filtering
+- Change `"done"` → `"completed"` in `ToolThreadEvent.status` usage, and `output` → `content` in `ToolResult` property access
+- Rewrite the thinking filter to check `event.delta.content.every(b => b.type === "thinking" || b.type === "redacted_thinking")` within `inference:delta` events
+- Cast `inferenceError` as `Error` to satisfy TypeScript's closure-aware control flow analysis
+
+**Consequences:**
+- Zero type errors across all packages (verified with `tsc --noEmit`)
+- All 412 existing tests continue to pass
+- `CliToolFilters` can now be wired from CLI `--allowed-tools`/`--disallowed-tools` flags through container to tool registry
+
+---
+
+## ADR-013: Iteration 8 — Glob matching, orchestrator safety, Bash cd
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 8 targeted 4 gaps across the safety, tooling, and agent-core domains:
+
+1. **GAP-CORE-09** (Glob pattern matching): `tools.enable`/`tools.disable` used `Array.includes()` — exact string only. Patterns like `mcp__playwright__*` or `builtin:*` had no effect.
+
+2. **GAP-CORE-05/06** (Orchestrator safety): No tool resume on reconnect. After crash/restart, all in-progress tools are silently abandoned. Dangerous tools (Bash, Task) could be naively re-executed.
+
+3. **GAP-TOOL-30** (Bash `cd` interception): `cd path` commands only changed directory within the subprocess — the `cwd` was not rewritten for the current tool call's execution context.
+
+**Decision:**
+
+- **GAP-CORE-09**: Implemented `matchToolPattern()` — a zero-dependency glob-to-regex converter supporting `*`, `?`, `[...]`, `{a,b}`. Matches amp's Xf/Vf behavior exactly: fast exact match first, glob only when pattern contains glob characters, silently swallow invalid patterns. Updated `_isToolEnabled()` to check multi-form name variants: bare name, MCP bare-tool + canonical `mcp__server__tool`, and `builtin:`/`toolbox:` prefixed forms. 21 new tests.
+
+- **GAP-CORE-05/06**: Added `ToolOrchestrator.onResume(thread)` method that scans the latest user message's tool_result blocks and: (a) restores `blocked-on-user` entries to the approval queue, (b) cancels dangerous tools with `reason: "system:safety"`, (c) re-invokes safe non-terminal tools. Exported `isDangerousToResume()` (Bash, run_terminal_command, shell_command, Task, handoff) and `isTerminalStatus()` (done, error, rejected-by-user, cancelled). 18 new tests. **Note:** `onResume()` is not yet wired into ThreadWorker — requires integration in a follow-up iteration.
+
+- **GAP-TOOL-30**: Enhanced Bash `preprocessArgs` to detect `cd path` at the start of commands via regex. Rewrites `cwd` with the resolved absolute path, strips `cd` from command. Handles: `~` expansion, quoted paths (single/double), `&& rest`/`; rest` chain commands. Skips dynamic paths (`$VAR`, backtick substitution) matching amp's behavior. Also expands `~` in explicit `cwd` argument. 14 new tests.
+
+**Consequences:**
+- Glob patterns now work in tool enable/disable config: `mcp__playwright__*`, `builtin:*`, `{Bash,Read}` all match correctly
+- Safety infrastructure is in place for crash recovery — pending ThreadWorker wiring
+- Bash `cd` interception works for common cases, improving LLM tool use ergonomics
+- 53 new tests added (21 + 18 + 14), total 5041 passing
+
+---
+
+## ADR-014: Iteration 9 — onResume wiring, provider API keys, subagent tool filtering
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 9 targeted 3 independent gaps across agent-core, data, and container domains. Two parallel research agents were dispatched to gather amp source analysis while the first implementation (onResume wiring) proceeded immediately.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-CORE-05 completion (onResume wiring) | Core | Small | **Yes** |
+| GAP-DATA-14/15 (provider API keys) | Data | Small | **Yes** |
+| GAP-CORE-18 (subagent tool filtering) | Core | Medium | **Yes** |
+
+**Decision:**
+
+- **GAP-CORE-05 (onResume wiring)**: Changed `ThreadWorker.resume()` from sync to async. After existing truncation + `trackFilesFromHistory()`, added two new steps: (1) `shouldResumeFromLastMessage()` guard that checks for cancelled assistant state (`NlR`), rejected tool results (`HlR`), and info messages (`NET`) — matching amp's exact checks in `ov.js:272-275`; (2) `await this.opts.toolOrchestrator.onResume(snapshot)` to resume in-progress tools. The container.ts caller uses `worker.resume().catch(() => {})` fire-and-forget to keep `createThreadWorker` synchronous — `onResume` is best-effort crash recovery, and the sync parts (truncation, file tracking) still execute synchronously before the promise settles.
+
+- **GAP-DATA-14/15 (provider API key wiring)**: Extended `getToken("apiKey")` in `factory.ts` to be provider-aware. Added `detectActiveProvider()` which reads `internal.model` from settings → looks up `MODEL_REGISTRY[model].provider`. Based on provider:
+  - Anthropic: `anthropic.apiKey` setting → `ANTHROPIC_API_KEY` env
+  - Gemini: `gemini.apiKey` setting → `GOOGLE_API_KEY` env → `GEMINI_API_KEY` env (matching amp's `YdR()` priority: GOOGLE takes precedence with warning)
+  - OpenAI: `openai.apiKey` setting → `OPENAI_API_KEY` env
+  
+  `isSet()` (sync) checks all env vars before provider is cached, narrows to correct provider after first `getToken()` populates the cache.
+
+- **GAP-CORE-18 (subagent tool filtering)**: Created `subagent-types.ts` with `SUBAGENT_TYPE_REGISTRY` mapping 8 subagent types to tool patterns, mirroring amp's `qe` object. Added `toolPatterns: string[]` to `SubAgentWorkerOptions`. `SubAgentManager.spawn()` calls `getSubAgentToolPatterns(type)` (defaults to `["*"]` for unknown types). Added `ToolRegistry.createFilteredRegistry(patterns)` which creates an independent snapshot registry containing only matching tools (using existing `matchToolPattern()` from iteration 8). Container's subagent `createWorker` callback now passes `toolRegistry.createFilteredRegistry(workerOpts.toolPatterns)` to `createThreadWorker`.
+
+**Consequences:**
+- `onResume` crash recovery is fully wired end-to-end — safe tools are re-invoked, dangerous tools are cancelled, blocked tools are restored to approval queue
+- Gemini and OpenAI providers now work with their native API keys (settings or env vars) without requiring `anthropic.apiKey` workaround
+- Subagents are restricted to their type-appropriate tool set — finder can only use Grep/Glob/Read, code-review gets Bash but not Edit, etc.
+- 31 new tests added (4 + 13 + 14), total 5072 passing, 0 TypeScript errors
+
+---
+
+## ADR-015: Iteration 10 — Orchestrator safety: rejected-by-user, approval clearing, processing mutex
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 10 targeted 3 medium-priority orchestrator safety gaps that form a natural cluster around the approval/permission lifecycle. These gaps were identified in theme #6 ("Orchestrator safety gaps") and are interconnected: proper rejection status feeds into approval clearing, and the mutex prevents race conditions across all approval operations.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-CORE-13 (rejected-by-user status) | Core | Small | **Yes** |
+| GAP-CORE-14 (onNewUserMessage approval clearing) | Core | Small | **Yes** |
+| GAP-CORE-10 (processing mutex) | Core | Medium | **Yes** |
+
+**Decision:**
+
+- **GAP-CORE-13 (rejected-by-user status)**: Updated `invokeTool` denial paths to distinguish between feedback-denial and plain-denial, matching amp's `$mR` (modules/1737_EarliestNonDisabledTool_$mR.js):
+  - Plain denial (`accepted: false`, no feedback) → `status: "rejected-by-user"` with `reason` and `toAllow` fields. `toAllow` computed from tool args: `command`/`cmd` for Bash/shell, `file_path`/`path` for file tools.
+  - Feedback denial (`accepted: false`, feedback present) → `status: "error"` with message `"rejected by user with feedback: {text}"` so the LLM reads the feedback and adjusts.
+  - Static `reject` action (from permission rules) → `status: "rejected-by-user"` with permission reason.
+  - `ToolThreadEvent` interface extended with `reason?: string` and `toAllow?: string[]` fields.
+  - `ToolRunRejectedSchema` in `@flitter/schemas` extended with `toAllow: z.array(z.string()).optional()`.
+
+- **GAP-CORE-14 (onNewUserMessage approval clearing)**: Added `ToolOrchestrator.onNewUserMessage()` matching amp's FWT.onNewUserMessage (modules/1234_unknown_FWT.js:119-121). The method: (1) marks all running tools as cancelled + calls `clearPendingApprovals` pre-emptively *outside* the mutex (ensures approvals drain even if mutex is held by an executing tool), then (2) calls `cancelAll("user:interrupted")` which acquires the mutex and repeats the clearing (idempotent). Added `clearPendingApprovals` callback to `OrchestratorCallbacks`. Container wiring iterates `ThreadWorker._pendingApprovals` Map, resolving each Promise with `{ accepted: false }`, then clears the Map. Called from `enqueueMessage()` when processing a message immediately (not buffered).
+
+- **GAP-CORE-10 (processing mutex)**: Created `Mutex` class in `tools/mutex.ts` — minimal FIFO queuing async mutex matching amp's `Cm` class (modules/1184_unknown_Cm.js). Semantics: `acquire()` returns a Promise that resolves immediately if unlocked or queues in FIFO order; `release()` wakes the first waiter. No timeout, no rejection, no skip. Added `processingMutex` field to `ToolOrchestrator`. Methods wrapped:
+  - `onResume()` — mutex held for tool scan, released before `updateFileChanges()`
+  - `cancelAll()` — now `async`, mutex held for abort + clear cycle
+  - `onNewUserMessage()` — pre-emptive clear outside mutex, then delegates to `cancelAll`
+  - `dispose()` — bypasses mutex for synchronous cleanup (abort + clear directly)
+  - `cancelInference()` — uses `void cancelAll()` fire-and-forget since AbortController does immediate work
+
+**Consequences:**
+- Tools denied by user now send meaningful `"rejected-by-user"` status to thread state (not generic `"cancelled"`), enabling correct TUI display and resume behavior
+- Pending approvals are auto-rejected when user sends a new message, preventing zombie Promise leaks across turns
+- Concurrent operations on orchestrator state (resume, cancel, new message) are serialized via FIFO mutex, preventing race conditions that could corrupt `runningTools` or `cancelledToolUses`
+- 18 new tests added (6 mutex + 5 rejected-by-user + 3 approval clearing + 4 serialization), total 5089 passing, 0 TypeScript errors
+
+---
+
+## ADR-016: Iteration 11 — toolMessages channel, cancelToolOnly, plugin lifecycle hooks, Read directory/image
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 11 selected 4 gaps across 3 domains. CORE-11 and CORE-12 are tightly coupled (the message channel is the mechanism cancelToolOnly uses). CORE-15 extends the plugin system. TOOL-31 is a user-facing Read tool improvement.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-CORE-12 (toolMessages Subject) | Core | Small | **Yes** — prerequisite for CORE-11 |
+| GAP-CORE-11 (cancelToolOnly) | Core | Small | **Yes** — completes orchestrator safety |
+| GAP-CORE-15 (agentStart/agentEnd) | Core/Plugins | Medium | **Yes** — extends plugin system |
+| GAP-TOOL-31 (Read dir/image) | Tools | Medium | **Yes** — user-facing improvement |
+
+**Decision:**
+
+- **GAP-CORE-12 (toolMessages Subject channel)**: Added `toolMessages: Map<string, Subject<ToolMessage>>` to `ToolOrchestrator`. In `invokeTool()`, a new `Subject<ToolMessage>` is created and stored in the map before tool execution, then injected into `ToolContext.toolMessages`. On normal completion (finally block), the Subject is completed and removed. Changed `ToolContext.toolMessages` type from `Subject<string>` to `Subject<ToolMessage>` (where `ToolMessage = { type: "stop-command" }`). This matches amp's exact pattern (modules/1234_unknown_FWT.js:8,347-369):
+  ```
+  s = new AR(u => { this.toolMessages.set(T.id, u) })
+  A = { ...c, toolMessages: s }
+  ```
+  Also added `sendToolMessage(toolUseId, message)` for arbitrary message delivery (amp's FWT.sendToolMessage, line 174-178).
+
+- **GAP-CORE-11 (cancelToolOnly)**: Added `cancelToolOnly(toolUseId)` to `ToolOrchestrator`. Key difference from `cancelTool()`: does NOT abort the AbortController — only sends `{ type: "stop-command" }` on the toolMessages Subject, then completes and removes it. This is a cooperative cancel: the tool's execution continues but should honor the stop-command. Matches amp's FWT.cancelToolOnly (modules/1234_unknown_FWT.js:135-158). Also updated `cancelTool()` (hard cancel) to send stop-command alongside the AbortController abort. Updated `cancelAll()` and `dispose()` to send stop-command to all Subjects before clearing.
+
+- **GAP-CORE-15 (agentStart/agentEnd plugin lifecycle hooks)**: Added 4 new types (`PluginAgentStartEvent`, `PluginAgentStartResult`, `PluginAgentEndEvent`, `PluginAgentEndResult`) and 2 new methods (`onAgentStart()`, `onAgentEnd()`) to `PluginService`. Both use `record.host.sendRequest()` to communicate with plugin subprocesses. Added optional `pluginService?: PluginService` to `ThreadWorkerOptions`. Wired into `runInference()` at 4 sites matching amp:
+  - Before inference: `agentStart` — if plugin returns message content, appends to user message
+  - On turn:complete: `agentEnd("done")` — fire-and-forget
+  - On signal.aborted: `agentEnd("interrupted")` — fire-and-forget
+  - On non-retryable error: `agentEnd("error")` — fire-and-forget
+  `agentEnd` supports `action: "continue"` return value — if a plugin returns this with a `userMessage`, the message is enqueued for another turn (matching amp's handleAgentEndResult at ov.js:734-748).
+
+- **GAP-TOOL-31 (Read tool directory/image support)**: Updated `read.ts` to handle directories and images:
+  - **Directories**: `fs.readdirSync` + `statSync` per entry → classify dirs/files → sort dirs alphabetically (with trailing `/`), then files alphabetically. Capped at 1000 entries (matching amp's `pq = 1000`). Offset/limit pagination with `[... omitted N entries ...]` markers. Returns `{ isDirectory: true, directoryEntries: [...] }` in data field.
+  - **Images**: Extension-based detection (`.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` — matching amp's `BLT` set). Binary read + base64 encode. Size gate at ~4.9MB base64 (matching amp's `zD = 5138022.4`). Returns `{ isImage: true, base64Content, imageInfo: { mimeType, size } }` in data field, with content set to `"Image: <path>"`.
+  - Non-image binary files still rejected with error. Text files unchanged.
+
+**Consequences:**
+- Tools can now receive cooperative cancel signals without hard abort — essential for graceful cleanup (e.g., Bash tool can finish writing output before stopping)
+- Plugin system now supports full agent lifecycle hooks, enabling plugins to inject context before inference and chain turns on completion
+- Read tool accepts directories (returns listings) and images (returns base64) — agents no longer need workarounds for these common operations
+
+## ADR-017: Iteration 12 — activatedSkills tracking, API token counting, admin settings, thread list filtering
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 12 targets 4 gaps: 2 Agent-Core (CORE-16, CORE-17) and 2 Data (DATA-16, DATA-17). These are medium/small items that round out the skill system, improve token counting accuracy, wire a previously-dead code path, and add proper thread list filtering.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-CORE-17 (activatedSkills) | Core | Small | **Yes** — completes skill vertical |
+| GAP-CORE-16 (API token counting) | Core/LLM | Medium | **Yes** — improves accuracy |
+| GAP-DATA-16 (admin settings merge) | Data | Small | **Yes** — wires dead code path |
+| GAP-DATA-17 (thread list filtering) | Data/CLI | Small | **Yes** — user-facing fix |
+
+**Decision:**
+
+- **GAP-CORE-17 (activatedSkills tracking)**: Three-layer implementation matching amp's FWT:384 + ov:211-219:
+  1. **Schema**: Added `activatedSkills: z.array(z.object({ name, arguments? })).optional()` to `ThreadSnapshotSchema`.
+  2. **Orchestrator**: Added `SKILL_TOOL_NAME = "skill"` constant and `onSkillToolComplete?: (toolUse) => void` to `OrchestratorCallbacks`. In `invokeTool()` step 9b, after the tool completes, checks `result.status === "done" && toolUse.name.toLowerCase() === SKILL_TOOL_NAME`. Case-insensitive comparison matches amp's `T.name.toLowerCase() === oc.toLowerCase()`.
+  3. **ThreadWorker**: Added `onSkillToolComplete(toolUse)` method that reads `toolUse.input.name`, deduplicates against existing `activatedSkills` by name, and persists to thread snapshot.
+
+- **GAP-CORE-16 (API-based token counting)**: Added optional `countTokens?(params: CountTokensParams): Promise<CountTokensResult>` to `LLMProvider` interface. Implemented on `AnthropicProvider` using the SDK's `messages.countTokens()` endpoint, passing `thinking: { type: "enabled", budget_tokens: 10000 }` to ensure the count matches a thinking-enabled request (matching amp's Qu function at 0084_unknown_Qu.js). On any error (API failure, missing key), falls back to `Math.ceil(JSON.stringify(payload).length / 4)` (matching amp's `n1R` fallback at 0083_unknown_l1R.js). Both `CountTokensParams` and `CountTokensResult` exported from `@flitter/llm`.
+
+- **GAP-DATA-16 (admin settings merge)**: Wired `readAdminSettings()` into `ConfigService.reload()`. After merging global+workspace settings, admin settings are spread over the result as unconditional overrides: `settings = { ...settings, ...adminSettings }`. This matches amp's `iHR` wrapper (modules/1273_unknown_iHR.js:1-5) where admin keys take priority over any user/workspace setting. The existing `readAdminSettings()` function handles platform paths (`/Library/Application Support/flitter/managed-settings.json` on macOS), ENOENT gracefully, and `flitter.` prefix stripping.
+
+- **GAP-DATA-17 (observeThreadList with filtering)**: Added `observeThreadList(opts: { includeArchived?: boolean })` to `ThreadStore`. Applies two filters matching amp's azT.observeThreadList (modules/1342:286-295): `!entry.mainThreadID` (excludes subagent threads) AND `(opts.includeArchived || !entry.archived)` (excludes archived unless opted in). Wired into `handleThreadsList` (default excludes archived), `handleThreadsSearch` (includes archived for broader search), and `handleThreadsDashboard` (excludes archived). Updated the mock `ThreadStore` in threads tests to include the new method.
+
+**Consequences:**
+- Skills loaded via the `skill` tool are now persisted to thread state — resumed threads can know which skills were active (needed for deferred tool unlocking in future CORE-08 work)
+- Token counting accuracy improves from ±20-30% heuristic to exact API count for Anthropic, with graceful fallback
+- Enterprise admins can now enforce settings via managed-settings.json (previously parsed but never applied)
+- Thread list/dashboard/search now properly hide subagent and archived threads, matching amp's UX
+- 26 new tests (9 CORE-11/12 + 7 CORE-15 + 10 TOOL-31), total 5116 passing, 0 TypeScript errors

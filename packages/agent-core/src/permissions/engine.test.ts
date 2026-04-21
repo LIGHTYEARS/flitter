@@ -445,9 +445,7 @@ describe("PermissionEngine — reevaluateBlockedTools", () => {
       messages: [
         {
           role: "assistant",
-          content: [
-            { type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } },
-          ],
+          content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } }],
         },
         {
           role: "user",
@@ -475,9 +473,7 @@ describe("PermissionEngine — reevaluateBlockedTools", () => {
       messages: [
         {
           role: "assistant",
-          content: [
-            { type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } },
-          ],
+          content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } }],
         },
         {
           role: "user",
@@ -509,9 +505,7 @@ describe("PermissionEngine — reevaluateBlockedTools", () => {
         // Earlier blocked tool — should NOT be reached
         {
           role: "assistant",
-          content: [
-            { type: "tool_use", id: "tu-old", name: "Bash", input: {} },
-          ],
+          content: [{ type: "tool_use", id: "tu-old", name: "Bash", input: {} }],
         },
         {
           role: "user",
@@ -526,16 +520,12 @@ describe("PermissionEngine — reevaluateBlockedTools", () => {
         // User message with no blocked tools — stops here
         {
           role: "user",
-          content: [
-            { type: "text", text: "hello" },
-          ],
+          content: [{ type: "text", text: "hello" }],
         },
         // Recent blocked tool — should be found
         {
           role: "assistant",
-          content: [
-            { type: "tool_use", id: "tu-new", name: "Bash", input: {} },
-          ],
+          content: [{ type: "tool_use", id: "tu-new", name: "Bash", input: {} }],
         },
         {
           role: "user",
@@ -573,9 +563,7 @@ describe("PermissionEngine — reevaluateBlockedTools", () => {
       messages: [
         {
           role: "assistant",
-          content: [
-            { type: "tool_use", id: "tu-1", name: "Bash", input: {} },
-          ],
+          content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: {} }],
         },
       ] as Record<string, unknown>[],
     };

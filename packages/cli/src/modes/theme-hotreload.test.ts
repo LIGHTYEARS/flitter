@@ -7,7 +7,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { resolveThemeData, defaultThemeData } from "./interactive.js";
+import { defaultThemeData, resolveThemeData } from "./interactive.js";
 
 describe("resolveThemeData", () => {
   it("returns terminal theme for 'terminal' name", () => {
@@ -45,8 +45,18 @@ describe("resolveThemeData", () => {
 
   it("all themes have complete ThemeData fields", () => {
     const requiredFields = [
-      "name", "primary", "secondary", "surface", "background",
-      "error", "text", "mutedText", "border", "accent", "success", "warning",
+      "name",
+      "primary",
+      "secondary",
+      "surface",
+      "background",
+      "error",
+      "text",
+      "mutedText",
+      "border",
+      "accent",
+      "success",
+      "warning",
     ];
 
     for (const themeName of ["terminal", "dark", "light", "catppuccin"]) {

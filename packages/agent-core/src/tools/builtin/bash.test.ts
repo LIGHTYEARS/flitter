@@ -51,8 +51,8 @@ describe("BashTool ToolSpec shape", () => {
     assert.deepEqual(schema.required, ["command"]);
   });
 
-  it("executionProfile is { serial: true }", () => {
-    assert.deepEqual(BashTool.executionProfile, { serial: true });
+  it("executionProfile includes serial and disableTimeout", () => {
+    assert.deepEqual(BashTool.executionProfile, { serial: true, disableTimeout: true });
   });
 });
 
@@ -213,5 +213,82 @@ describe("BashTool input validation", () => {
     );
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("non-empty"));
+  });
+});
+
+// ─── preprocessArgs: cd interception (GAP-TOOL-30) ──────
+
+describe("BashTool preprocessArgs cd interception", () => {
+  const preprocess = BashTool.preprocessArgs!;
+
+  it("cmd alias still works", () => {
+    const result = preprocess({ cmd: "echo hello" });
+    assert.equal(result.command, "echo hello");
+  });
+
+  it("simple cd path rewrites cwd", () => {
+    const result = preprocess({ command: "cd /tmp/foo" });
+    assert.equal(result.cwd, "/tmp/foo");
+    assert.equal(result.command, "true");
+  });
+
+  it("cd with && chain rewrites cwd and keeps remainder", () => {
+    const result = preprocess({ command: "cd /tmp/foo && ls -la" });
+    assert.equal(result.cwd, "/tmp/foo");
+    assert.equal(result.command, "ls -la");
+  });
+
+  it("cd with ; chain rewrites cwd and keeps remainder", () => {
+    const result = preprocess({ command: "cd /tmp/foo; npm install" });
+    assert.equal(result.cwd, "/tmp/foo");
+    assert.equal(result.command, "npm install");
+  });
+
+  it("cd with double-quoted path", () => {
+    const result = preprocess({ command: 'cd "/tmp/path with spaces"' });
+    assert.equal(result.cwd, "/tmp/path with spaces");
+    assert.equal(result.command, "true");
+  });
+
+  it("cd with single-quoted path", () => {
+    const result = preprocess({ command: "cd '/tmp/path with spaces'" });
+    assert.equal(result.cwd, "/tmp/path with spaces");
+    assert.equal(result.command, "true");
+  });
+
+  it("cd with ~ expands to HOME", () => {
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+    const result = preprocess({ command: "cd ~/projects" });
+    assert.equal(result.cwd, home + "/projects");
+  });
+
+  it("skips cd with dynamic path ($VAR)", () => {
+    const result = preprocess({ command: "cd $WORKSPACE" });
+    assert.equal(result.command, "cd $WORKSPACE");
+    assert.equal(result.cwd, undefined);
+  });
+
+  it("skips cd with backtick substitution", () => {
+    const result = preprocess({ command: "cd `pwd`" });
+    assert.equal(result.command, "cd `pwd`");
+    assert.equal(result.cwd, undefined);
+  });
+
+  it("does not intercept non-cd commands", () => {
+    const result = preprocess({ command: "ls -la" });
+    assert.equal(result.command, "ls -la");
+    assert.equal(result.cwd, undefined);
+  });
+
+  it("explicit cwd takes precedence over cd", () => {
+    const result = preprocess({ command: "cd /other", cwd: "/explicit" });
+    assert.equal(result.cwd, "/explicit");
+    // cd detection is skipped when cwd is already set
+  });
+
+  it("expands ~ in explicit cwd", () => {
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+    const result = preprocess({ command: "ls", cwd: "~/foo" });
+    assert.equal(result.cwd, home + "/foo");
   });
 });

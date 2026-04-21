@@ -66,6 +66,8 @@ The finder will:
     executionProfile: {
       // Finder subagents don't conflict with each other (can run in parallel)
       resourceKeys: [],
+      // 逆向: amp uses `meta: { disableTimeout: !0 }` (chunk-005.js:148919)
+      disableTimeout: true,
     },
 
     async execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> {

@@ -3,10 +3,10 @@
  * 逆向: chunk-005.js:149274-149373 (_XR)
  */
 
-import { describe, it, beforeEach } from "bun:test";
+import { beforeEach, describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { createTaskListTool, TaskStore } from "./task-list";
 import type { ToolContext } from "../types";
+import { createTaskListTool, TaskStore } from "./task-list";
 
 function makeContext(): ToolContext {
   return {
@@ -69,10 +69,7 @@ describe("createTaskListTool", () => {
     });
 
     it("creates task with dependencies", async () => {
-      const r1 = await tool.execute(
-        { action: "create", title: "Task A" },
-        makeContext(),
-      );
+      const r1 = await tool.execute({ action: "create", title: "Task A" }, makeContext());
       const taskA = (r1.data as { task: { id: string } }).task;
 
       const r2 = await tool.execute(
@@ -89,10 +86,7 @@ describe("createTaskListTool", () => {
     });
 
     it("creates task with parentID", async () => {
-      const r1 = await tool.execute(
-        { action: "create", title: "Parent" },
-        makeContext(),
-      );
+      const r1 = await tool.execute({ action: "create", title: "Parent" }, makeContext());
       const parent = (r1.data as { task: { id: string } }).task;
 
       const r2 = await tool.execute(
@@ -111,10 +105,7 @@ describe("createTaskListTool", () => {
 
   describe("list action", () => {
     it("lists tasks excluding completed by default", async () => {
-      await tool.execute(
-        { action: "create", title: "Open task" },
-        makeContext(),
-      );
+      await tool.execute({ action: "create", title: "Open task" }, makeContext());
       await tool.execute(
         { action: "create", title: "Done task", status: "completed" },
         makeContext(),
@@ -127,29 +118,20 @@ describe("createTaskListTool", () => {
     });
 
     it("filters by status when specified", async () => {
-      await tool.execute(
-        { action: "create", title: "Open task" },
-        makeContext(),
-      );
+      await tool.execute({ action: "create", title: "Open task" }, makeContext());
       await tool.execute(
         { action: "create", title: "Done task", status: "completed" },
         makeContext(),
       );
 
-      const result = await tool.execute(
-        { action: "list", status: "completed" },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "list", status: "completed" }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(!result.content?.includes("Open task"));
       assert.ok(result.content?.includes("Done task"));
     });
 
     it("filters by ready (all deps completed)", async () => {
-      const r1 = await tool.execute(
-        { action: "create", title: "Blocker" },
-        makeContext(),
-      );
+      const r1 = await tool.execute({ action: "create", title: "Blocker" }, makeContext());
       const blocker = (r1.data as { task: { id: string } }).task;
 
       await tool.execute(
@@ -160,15 +142,9 @@ describe("createTaskListTool", () => {
         },
         makeContext(),
       );
-      await tool.execute(
-        { action: "create", title: "Ready task" },
-        makeContext(),
-      );
+      await tool.execute({ action: "create", title: "Ready task" }, makeContext());
 
-      const result = await tool.execute(
-        { action: "list", ready: true },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "list", ready: true }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(result.content?.includes("Ready task"));
       assert.ok(result.content?.includes("Blocker"));
@@ -177,15 +153,9 @@ describe("createTaskListTool", () => {
 
     it("respects limit", async () => {
       for (let i = 0; i < 5; i++) {
-        await tool.execute(
-          { action: "create", title: `Task ${i}` },
-          makeContext(),
-        );
+        await tool.execute({ action: "create", title: `Task ${i}` }, makeContext());
       }
-      const result = await tool.execute(
-        { action: "list", limit: 2 },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "list", limit: 2 }, makeContext());
       const tasks = (result.data as { tasks: unknown[] }).tasks;
       assert.equal(tasks.length, 2);
     });
@@ -209,10 +179,7 @@ describe("createTaskListTool", () => {
       );
       const task = (r1.data as { task: { id: string } }).task;
 
-      const result = await tool.execute(
-        { action: "get", taskID: task.id },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "get", taskID: task.id }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(result.content?.includes("My Task"));
       assert.ok(result.content?.includes("Do the thing"));
@@ -224,20 +191,14 @@ describe("createTaskListTool", () => {
     });
 
     it("returns error for unknown task", async () => {
-      const result = await tool.execute(
-        { action: "get", taskID: "nonexistent" },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "get", taskID: "nonexistent" }, makeContext());
       assert.equal(result.status, "error");
     });
   });
 
   describe("update action", () => {
     it("updates task fields", async () => {
-      const r1 = await tool.execute(
-        { action: "create", title: "Original" },
-        makeContext(),
-      );
+      const r1 = await tool.execute({ action: "create", title: "Original" }, makeContext());
       const task = (r1.data as { task: { id: string } }).task;
 
       const result = await tool.execute(
@@ -262,16 +223,10 @@ describe("createTaskListTool", () => {
 
   describe("delete action", () => {
     it("soft-deletes a task", async () => {
-      const r1 = await tool.execute(
-        { action: "create", title: "To delete" },
-        makeContext(),
-      );
+      const r1 = await tool.execute({ action: "create", title: "To delete" }, makeContext());
       const task = (r1.data as { task: { id: string } }).task;
 
-      const delResult = await tool.execute(
-        { action: "delete", taskID: task.id },
-        makeContext(),
-      );
+      const delResult = await tool.execute({ action: "delete", taskID: task.id }, makeContext());
       assert.equal(delResult.status, "done");
 
       // Verify it's gone from list
@@ -285,20 +240,14 @@ describe("createTaskListTool", () => {
     });
 
     it("returns error for unknown task", async () => {
-      const result = await tool.execute(
-        { action: "delete", taskID: "nonexistent" },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "delete", taskID: "nonexistent" }, makeContext());
       assert.equal(result.status, "error");
     });
   });
 
   describe("unknown action", () => {
     it("returns error for unknown action", async () => {
-      const result = await tool.execute(
-        { action: "purge" },
-        makeContext(),
-      );
+      const result = await tool.execute({ action: "purge" }, makeContext());
       assert.equal(result.status, "error");
       assert.ok((result as { error: string }).error?.includes("Unknown action"));
     });

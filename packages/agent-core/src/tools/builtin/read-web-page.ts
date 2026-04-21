@@ -35,7 +35,10 @@ function htmlToText(html: string): string {
   text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
 
   // Convert common block elements to newlines
-  text = text.replace(/<\/?(p|div|br|hr|h[1-6]|li|tr|section|article|header|footer|nav|main)[^>]*>/gi, "\n");
+  text = text.replace(
+    /<\/?(p|div|br|hr|h[1-6]|li|tr|section|article|header|footer|nav|main)[^>]*>/gi,
+    "\n",
+  );
 
   // Convert links: <a href="url">text</a> → [text](url)
   text = text.replace(/<a\s+[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, "[$2]($1)");
@@ -134,8 +137,7 @@ Do NOT use for access to localhost or any other local or non-Internet-accessible
       ) {
         return {
           status: "error",
-          error:
-            "Cannot fetch local URLs. Use `curl` via the Bash tool for localhost access.",
+          error: "Cannot fetch local URLs. Use `curl` via the Bash tool for localhost access.",
         };
       }
     } catch {
@@ -207,10 +209,7 @@ Do NOT use for access to localhost or any other local or non-Internet-accessible
         clearTimeout(timeout);
         context.signal.removeEventListener("abort", onAbort);
 
-        if (
-          err instanceof Error &&
-          (err.name === "AbortError" || context.signal.aborted)
-        ) {
+        if (err instanceof Error && (err.name === "AbortError" || context.signal.aborted)) {
           return { status: "cancelled", error: "Fetch request cancelled" };
         }
         throw err;

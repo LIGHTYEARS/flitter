@@ -102,7 +102,12 @@ function extractText(message: { content: Array<Record<string, unknown>> }): stri
  */
 function getLastAssistantInfo(snapshot: ThreadSnapshot | undefined): {
   text: string;
-  usage?: { inputTokens?: number; outputTokens?: number; cacheCreationInputTokens?: number; cacheReadInputTokens?: number };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
 } {
   if (!snapshot) return { text: "" };
   const lastAssistant = snapshot.messages
@@ -111,12 +116,14 @@ function getLastAssistantInfo(snapshot: ThreadSnapshot | undefined): {
   if (!lastAssistant) return { text: "" };
 
   const text = extractText(lastAssistant as { content: Array<Record<string, unknown>> });
-  const usage = (lastAssistant as Record<string, unknown>).usage as {
-    inputTokens?: number;
-    outputTokens?: number;
-    cacheCreationInputTokens?: number;
-    cacheReadInputTokens?: number;
-  } | undefined;
+  const usage = (lastAssistant as Record<string, unknown>).usage as
+    | {
+        inputTokens?: number;
+        outputTokens?: number;
+        cacheCreationInputTokens?: number;
+        cacheReadInputTokens?: number;
+      }
+    | undefined;
 
   return { text, usage };
 }
@@ -214,12 +221,13 @@ export async function runExecuteMode(
     container.configService.setRuntimeOverride("dangerouslyAllowAll", true);
   }
 
-  // allowedTools / disallowedTools / noShellCmd → runtime-only overrides
-  if (context.allowedTools) {
-    container.configService.setRuntimeOverride("tools.allowed", context.allowedTools);
-  }
-  if (context.disallowedTools) {
-    container.configService.setRuntimeOverride("tools.disallowed", context.disallowedTools);
+  // allowedTools / disallowedTools / noShellCmd → CLI tool filters on registry
+  // 逆向: amp uses tools.enable / tools.disable config keys, not tools.allowed / tools.disallowed.
+  if (context.allowedTools || context.disallowedTools) {
+    container.toolRegistry.setCliFilters({
+      allowedTools: context.allowedTools,
+      disallowedTools: context.disallowedTools,
+    });
   }
   if (context.noShellCmd) {
     container.configService.setRuntimeOverride("tools.noShellCmd", true);
@@ -245,9 +253,14 @@ export async function runExecuteMode(
     const sub = worker.events$.subscribe((event: AgentEvent) => {
       // stream-json output
       // 逆向: Kl0 includes thinking blocks when `includeThinking: i` is true
+      // In amp, thinking is a content block type; in flitter, it arrives via inference:delta
       if (context.streamJson && !context.print) {
-        if (event.type === "thinking" && !context.streamJsonThinking) {
-          // skip thinking events unless explicitly requested
+        if (
+          event.type === "inference:delta" &&
+          !context.streamJsonThinking &&
+          event.delta.content.every((b) => b.type === "thinking" || b.type === "redacted_thinking")
+        ) {
+          // skip thinking-only deltas unless explicitly requested
         } else {
           writeJsonLine(stdout, event);
         }
@@ -275,7 +288,7 @@ export async function runExecuteMode(
 
     // Surface inference errors to stderr and set exit code
     if (inferenceError) {
-      stderr.write(`Error: ${inferenceError.message}\n`);
+      stderr.write(`Error: ${(inferenceError as Error).message}\n`);
       proc.exitCode = 2;
       return;
     }

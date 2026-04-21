@@ -5,7 +5,12 @@
  */
 
 export { DTWClient } from "./dtw-client";
-export { DTW_ENDPOINTS, isValidDurableObjectId, isValidThreadId, isValidUUID } from "./dtw-protocol";
+export {
+  DTW_ENDPOINTS,
+  isValidDurableObjectId,
+  isValidThreadId,
+  isValidUUID,
+} from "./dtw-protocol";
 export type {
   DTWClientEvents,
   DTWClientState,

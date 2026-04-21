@@ -43,10 +43,7 @@ describe("detectColorDepth", () => {
   });
 
   it("returns 256 for Apple_Terminal", () => {
-    assert.equal(
-      detectColorDepth({ TERM_PROGRAM: "Apple_Terminal" }),
-      "256",
-    );
+    assert.equal(detectColorDepth({ TERM_PROGRAM: "Apple_Terminal" }), "256");
   });
 
   // 逆向: QXR line 48 — TERM containing 256color → level 2
@@ -85,9 +82,6 @@ describe("detectColorDepth", () => {
 
   // Priority: COLORTERM=truecolor overrides TERM
   it("COLORTERM=truecolor takes priority over TERM=xterm", () => {
-    assert.equal(
-      detectColorDepth({ COLORTERM: "truecolor", TERM: "xterm" }),
-      "truecolor",
-    );
+    assert.equal(detectColorDepth({ COLORTERM: "truecolor", TERM: "xterm" }), "truecolor");
   });
 });

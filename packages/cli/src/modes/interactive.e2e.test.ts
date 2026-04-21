@@ -16,10 +16,10 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { execSync } from "node:child_process";
+import { describe, it } from "node:test";
 
 // ════════════════════════════════════════════════════
 //  辅助: 读取 interactive.ts 源码
@@ -39,26 +39,17 @@ describe("launchInteractiveMode E2E", () => {
 
   it("should not contain any stub code", () => {
     // 旧 stub 函数不应存在
-    assert.ok(
-      !interactiveSource.includes("function _runApp"),
-      "不应包含旧 stub _runApp 函数",
-    );
+    assert.ok(!interactiveSource.includes("function _runApp"), "不应包含旧 stub _runApp 函数");
 
     // 旧 stub 类定义不应存在 (内联 ThemeController/AppWidget 定义)
     assert.ok(
       !interactiveSource.includes("const ThemeController ="),
       "不应包含内联 ThemeController stub",
     );
-    assert.ok(
-      !interactiveSource.includes("class AppWidget"),
-      "不应包含内联 AppWidget stub",
-    );
+    assert.ok(!interactiveSource.includes("class AppWidget"), "不应包含内联 AppWidget stub");
 
     // 旧 stub 接口不应存在
-    assert.ok(
-      !interactiveSource.includes("interface IWidget"),
-      "不应包含旧 IWidget 接口",
-    );
+    assert.ok(!interactiveSource.includes("interface IWidget"), "不应包含旧 IWidget 接口");
   });
 
   // ────────────────────────────────────────────────
@@ -66,14 +57,8 @@ describe("launchInteractiveMode E2E", () => {
   // ────────────────────────────────────────────────
 
   it("should import runApp from @flitter/tui", () => {
-    assert.ok(
-      interactiveSource.includes('from "@flitter/tui"'),
-      "应从 @flitter/tui 导入",
-    );
-    assert.ok(
-      interactiveSource.includes("runApp"),
-      "应导入 runApp 函数",
-    );
+    assert.ok(interactiveSource.includes('from "@flitter/tui"'), "应从 @flitter/tui 导入");
+    assert.ok(interactiveSource.includes("runApp"), "应导入 runApp 函数");
   });
 
   // ────────────────────────────────────────────────
@@ -81,18 +66,9 @@ describe("launchInteractiveMode E2E", () => {
   // ────────────────────────────────────────────────
 
   it("should import real Widget classes from widgets/", () => {
-    assert.ok(
-      interactiveSource.includes("AppWidget"),
-      "应使用 AppWidget 组件",
-    );
-    assert.ok(
-      interactiveSource.includes("ThreadStateWidget"),
-      "应使用 ThreadStateWidget 组件",
-    );
-    assert.ok(
-      interactiveSource.includes("InputField"),
-      "应使用 InputField 组件",
-    );
+    assert.ok(interactiveSource.includes("AppWidget"), "应使用 AppWidget 组件");
+    assert.ok(interactiveSource.includes("ThreadStateWidget"), "应使用 ThreadStateWidget 组件");
+    assert.ok(interactiveSource.includes("InputField"), "应使用 InputField 组件");
   });
 
   // ────────────────────────────────────────────────
@@ -103,21 +79,12 @@ describe("launchInteractiveMode E2E", () => {
     // 验证嵌套构建模式: new AppWidget({ ... child: new ThreadStateWidget({ ...
     // 注意: InputField 由 ThreadStateWidget.build() 内部创建 (KD-42/KD-47),
     // 不在 interactive.ts 中直接构造
-    assert.ok(
-      interactiveSource.includes("new AppWidget"),
-      "应构造 AppWidget 实例",
-    );
-    assert.ok(
-      interactiveSource.includes("new ThreadStateWidget"),
-      "应构造 ThreadStateWidget 实例",
-    );
+    assert.ok(interactiveSource.includes("new AppWidget"), "应构造 AppWidget 实例");
+    assert.ok(interactiveSource.includes("new ThreadStateWidget"), "应构造 ThreadStateWidget 实例");
 
     // 验证嵌套层次: AppWidget 包含 ThreadStateWidget
     const appWidgetIndex = interactiveSource.indexOf("new AppWidget");
-    const threadStateIndex = interactiveSource.indexOf(
-      "new ThreadStateWidget",
-      appWidgetIndex,
-    );
+    const threadStateIndex = interactiveSource.indexOf("new ThreadStateWidget", appWidgetIndex);
 
     assert.ok(
       appWidgetIndex < threadStateIndex,
@@ -166,10 +133,7 @@ describe("launchInteractiveMode E2E", () => {
       interactiveSource.includes("export const defaultThemeData"),
       "应导出 defaultThemeData",
     );
-    assert.ok(
-      interactiveSource.includes('"terminal"'),
-      "defaultThemeData 应使用 terminal 主题名",
-    );
+    assert.ok(interactiveSource.includes('"terminal"'), "defaultThemeData 应使用 terminal 主题名");
   });
 
   // ────────────────────────────────────────────────
@@ -177,10 +141,7 @@ describe("launchInteractiveMode E2E", () => {
   // ────────────────────────────────────────────────
 
   it("should have cleanup in finally block", () => {
-    assert.ok(
-      interactiveSource.includes("finally"),
-      "应有 finally 块处理清理",
-    );
+    assert.ok(interactiveSource.includes("finally"), "应有 finally 块处理清理");
     assert.ok(
       interactiveSource.includes("asyncDispose"),
       "finally 块应调用 container.asyncDispose()",
@@ -199,9 +160,9 @@ describe("launchInteractiveMode E2E", () => {
         typeof mod.launchInteractiveMode === "function",
         "launchInteractiveMode 应导出为函数",
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 如果导入失败 (缺依赖等), 降级为源码验证
-      console.warn(`[E2E] 动态导入降级: ${err.message}`);
+      console.warn(`[E2E] 动态导入降级: ${(err as Error).message}`);
       assert.ok(
         interactiveSource.includes("export async function launchInteractiveMode"),
         "源码应包含 launchInteractiveMode 导出",
@@ -260,23 +221,22 @@ describe("launchInteractiveMode E2E", () => {
         stdio: "pipe",
       });
       assert.ok(true, "tsc --noEmit 通过 (全项目零错误)");
-    } catch (err: any) {
-      const stderr = err.stderr?.toString() ?? "";
-      const stdout = err.stdout?.toString() ?? "";
+    } catch (err: unknown) {
+      const errObj = err as { stderr?: Buffer; stdout?: Buffer; message?: string };
+      const stderr = errObj.stderr?.toString() ?? "";
+      const stdout = errObj.stdout?.toString() ?? "";
       const output = stdout + stderr;
 
       // 过滤仅 Phase 12 相关文件的错误
       if (output.includes("error TS")) {
         const lines = output.split("\n");
-        const phase12Errors = lines.filter((line: string) =>
-          line.includes("error TS") &&
-          phase12Patterns.some((pat) => line.includes(pat)),
+        const phase12Errors = lines.filter(
+          (line: string) =>
+            line.includes("error TS") && phase12Patterns.some((pat) => line.includes(pat)),
         );
 
         if (phase12Errors.length > 0) {
-          assert.fail(
-            `tsc --noEmit Phase 12 文件类型错误:\n${phase12Errors.join("\n")}`,
-          );
+          assert.fail(`tsc --noEmit Phase 12 文件类型错误:\n${phase12Errors.join("\n")}`);
         }
 
         // 非 Phase 12 文件的类型错误不影响此测试
@@ -285,9 +245,7 @@ describe("launchInteractiveMode E2E", () => {
 
       // 非类型错误 (如 tsc 不可用)，标记测试通过但输出警告
       if (!output.includes("error TS")) {
-        console.warn(
-          `[E2E] typecheck 降级: tsc 执行异常，跳过 (${err.message})`,
-        );
+        console.warn(`[E2E] typecheck 降级: tsc 执行异常，跳过 (${errObj.message})`);
       }
     }
   });

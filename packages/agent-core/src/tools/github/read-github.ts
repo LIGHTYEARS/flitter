@@ -12,18 +12,18 @@
  * - Enforces 128KB size limit
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import {
-  MAX_RESPONSE_BYTES,
   applyReadRange,
   decodeBase64Content,
   describeContentType,
   formatDirectoryEntries,
   isFileContent,
+  MAX_RESPONSE_BYTES,
   parseRepository,
   truncateOutput,
 } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the read_github tool spec, closing over a GitHubClient instance.
@@ -84,14 +84,9 @@ export function createReadGitHubTool(client: GitHubClient): ToolSpec {
       // 逆向: path normalization — strip leading slash, encode segments
       const path = rawPath.replace(/^\//, "");
       const displayPath = path || "/";
-      const encodedPath = path
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/");
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
 
-      const result = await client.fetchJSON(
-        `repos/${repo}/contents/${encodedPath}`,
-      );
+      const result = await client.fetchJSON(`repos/${repo}/contents/${encodedPath}`);
 
       if (!result.ok || !result.data) {
         return {
@@ -106,9 +101,7 @@ export function createReadGitHubTool(client: GitHubClient): ToolSpec {
       if (!isFileContent(data)) {
         // Directory listing
         if (Array.isArray(data)) {
-          const entries = formatDirectoryEntries(
-            data as Array<{ name: string; type: string }>,
-          );
+          const entries = formatDirectoryEntries(data as Array<{ name: string; type: string }>);
           const formatted = applyReadRange(entries, readRange, entries.length);
           const size = new TextEncoder().encode(formatted).length;
 
@@ -174,9 +167,7 @@ export function createReadGitHubTool(client: GitHubClient): ToolSpec {
       // Format with line numbers (matching amp's HGR output)
       const lines = content.split("\n");
       const startLine = readRange?.[0] ?? 1;
-      const numbered = lines.map(
-        (line, idx) => `${startLine + idx}: ${line}`,
-      );
+      const numbered = lines.map((line, idx) => `${startLine + idx}: ${line}`);
 
       return {
         status: "done",

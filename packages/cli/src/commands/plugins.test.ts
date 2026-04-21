@@ -15,9 +15,7 @@ describe("registerPluginsCommand", () => {
     registerPluginsCommand(program);
 
     // Find the plugins command
-    const pluginsCmd = program.commands.find(
-      (c) => c.name() === "plugins",
-    );
+    const pluginsCmd = program.commands.find((c) => c.name() === "plugins");
     assert.ok(pluginsCmd, "Should register 'plugins' command");
 
     // Check subcommands
@@ -30,14 +28,9 @@ describe("registerPluginsCommand", () => {
     const program = new Command();
     registerPluginsCommand(program);
 
-    const pluginsCmd = program.commands.find(
-      (c) => c.name() === "plugins",
-    );
+    const pluginsCmd = program.commands.find((c) => c.name() === "plugins");
     assert.ok(pluginsCmd, "Should register 'plugins' command");
-    assert.ok(
-      pluginsCmd!.aliases().includes("plugin"),
-      "Should have 'plugin' alias",
-    );
+    assert.ok(pluginsCmd!.aliases().includes("plugin"), "Should have 'plugin' alias");
   });
 
   it("list subcommand has --json option", () => {
@@ -58,10 +51,7 @@ describe("registerPluginsCommand", () => {
 
     const pluginsCmd = program.commands.find((c) => c.name() === "plugins")!;
     const listCmd = pluginsCmd.commands.find((c) => c.name() === "list")!;
-    assert.ok(
-      listCmd.aliases().includes("ls"),
-      "list should have 'ls' alias",
-    );
+    assert.ok(listCmd.aliases().includes("ls"), "list should have 'ls' alias");
   });
 
   it("exec subcommand requires plugin and event arguments", () => {

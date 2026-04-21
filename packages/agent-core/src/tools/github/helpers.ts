@@ -85,9 +85,7 @@ export function describeContentType(data: unknown): string {
  *
  * 逆向: amp-cli-reversed/modules/0013_unknown_VzT.js
  */
-export function formatDirectoryEntries(
-  items: Array<{ name: string; type: string }>,
-): string[] {
+export function formatDirectoryEntries(items: Array<{ name: string; type: string }>): string[] {
   const entries = items.map((item) => (item.type === "dir" ? `${item.name}/` : item.name));
   entries.sort((a, b) => {
     const aIsDir = a.endsWith("/");

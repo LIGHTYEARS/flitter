@@ -99,16 +99,10 @@ const REQUIRED_COMPATIBILITY_DATE = "2025-05-13";
  *   - send-user-message requires tool:pre-execute
  */
 function validateHook(hook: AdminHookConfig): string | null {
-  if (
-    hook.action.type === "redact-tool-input" &&
-    hook.on.event !== "tool:post-execute"
-  ) {
+  if (hook.action.type === "redact-tool-input" && hook.on.event !== "tool:post-execute") {
     return "redact-tool-input action can only be used with tool:post-execute event";
   }
-  if (
-    hook.action.type === "send-user-message" &&
-    hook.on.event !== "tool:pre-execute"
-  ) {
+  if (hook.action.type === "send-user-message" && hook.on.event !== "tool:pre-execute") {
     return "send-user-message action can only be used with tool:pre-execute event";
   }
   return null;
@@ -132,9 +126,7 @@ function validateHook(hook: AdminHookConfig): string | null {
  *     return true;
  *   });
  */
-export function filterValidHooks(
-  hooks: AdminHookConfig[] | null | undefined,
-): AdminHookConfig[] {
+export function filterValidHooks(hooks: AdminHookConfig[] | null | undefined): AdminHookConfig[] {
   if (!hooks || !Array.isArray(hooks)) return [];
 
   return hooks.filter((hook) => {
@@ -181,9 +173,7 @@ export function matchPreExecuteHook(
 
     if (hook.on.event === "tool:pre-execute") {
       // 逆向: (Array.isArray(a.on.tool) ? a.on.tool : [a.on.tool]).includes(R.toolUse.name)
-      const tools = Array.isArray(hook.on.tool)
-        ? hook.on.tool
-        : [hook.on.tool];
+      const tools = Array.isArray(hook.on.tool) ? hook.on.tool : [hook.on.tool];
       if (!tools.includes(context.toolUse.name)) continue;
 
       // 逆向: JSON.stringify(R.toolUse.input) then check input.contains
@@ -233,9 +223,7 @@ export function matchPostExecuteHook(
 
     if (hook.on.event === "tool:post-execute") {
       // 逆向: (Array.isArray(a.on.tool) ? a.on.tool : [a.on.tool]).includes(R.toolUse.name)
-      const tools = Array.isArray(hook.on.tool)
-        ? hook.on.tool
-        : [hook.on.tool];
+      const tools = Array.isArray(hook.on.tool) ? hook.on.tool : [hook.on.tool];
       if (!tools.includes(context.toolUse.name)) continue;
 
       // 逆向: only redact-tool-input triggers a match for post-execute

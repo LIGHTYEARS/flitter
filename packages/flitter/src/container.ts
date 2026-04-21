@@ -534,7 +534,11 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     const subAgentManager = new SubAgentManager({
       createWorker: (workerOpts) => {
         if (!containerRef) throw new Error("Container not ready");
-        return containerRef.createThreadWorker(workerOpts.threadId);
+        // 逆向: _5R (modules/1362_unknown__5R.js) — filtered tool service per subagent
+        // Pass toolPatterns so createThreadWorker can filter the tool registry.
+        return containerRef.createThreadWorker(workerOpts.threadId, {
+          toolRegistry: toolRegistry.createFilteredRegistry(workerOpts.toolPatterns),
+        });
       },
       createChildThread: (parentThreadId) => {
         const childId = crypto.randomUUID();
@@ -800,6 +804,23 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
               }
             });
           },
+          /**
+           * Clear all pending approvals for this thread, resolving each with accepted: false.
+           *
+           * 逆向: amp's $mR.clearApprovalsForThread(threadId) — iterates pending
+           * approvals BehaviorSubject, resolves all matching Promises with
+           * { accepted: false }, then pushes filtered list.
+           *
+           * Called from ToolOrchestrator.onNewUserMessage() and cancelAll().
+           */
+          clearPendingApprovals: () => {
+            if (workerRef) {
+              for (const [, resolve] of workerRef._pendingApprovals) {
+                resolve({ accepted: false });
+              }
+              workerRef._pendingApprovals.clear();
+            }
+          },
           // Plugin interception hooks
           // 逆向: amp's ThreadWorker wires requestPluginToolCall/requestPluginToolResult
           // to pluginService.event.toolCall/toolResult
@@ -865,16 +886,18 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
               return result.compacted ? result.thread : null;
             }),
           getConfig: workerOpts?.getConfig ?? (() => configService.get()),
-          toolRegistry,
+          toolRegistry: workerOpts?.toolRegistry ?? toolRegistry,
         };
 
         const worker = new ThreadWorkerImpl(fullOpts);
         workerRef = worker;
 
         // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:259-270
-        // resume() truncates incomplete streaming messages left over from a
-        // previous session.  Idempotent — safe even for brand-new threads.
-        worker.resume();
+        // resume() truncates incomplete streaming messages and resumes
+        // in-progress tools. It's async (for onResume), but we fire-and-forget
+        // here to keep createThreadWorker synchronous. Errors are swallowed
+        // since onResume is best-effort crash recovery.
+        worker.resume().catch(() => {});
 
         return worker;
       },

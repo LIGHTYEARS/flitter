@@ -306,7 +306,7 @@ describe("createBuiltinCommands", () => {
           relationships: [],
         }),
         setCachedThread: mock(() => {}),
-      } as any,
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
     });
     await registry.dispatch("handoff", "", ctx);
     expect(ctx.showMessage).toHaveBeenCalledTimes(1);
@@ -355,11 +355,14 @@ describe("createBuiltinCommands", () => {
         runInference: mock(async () => {}),
         cancelInference: mock(() => {}),
         enqueueMessage: enqueueMock,
-      } as any,
+      } as Partial<SlashCommandContext["threadWorker"]> as SlashCommandContext["threadWorker"],
     });
     await registry.dispatch("queue", "do this next", ctx);
     expect(enqueueMock).toHaveBeenCalledTimes(1);
-    const arg = enqueueMock.mock.calls[0][0] as { role: string; content: Array<{ type: string; text: string }> };
+    const arg = enqueueMock.mock.calls[0][0] as {
+      role: string;
+      content: Array<{ type: string; text: string }>;
+    };
     expect(arg.role).toBe("user");
     expect(arg.content[0].text).toBe("do this next");
     const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
@@ -386,7 +389,7 @@ describe("createBuiltinCommands", () => {
         cancelInference: mock(() => {}),
         dequeueMessage: dequeueMock,
         messageQueueLength: 2,
-      } as any,
+      } as Partial<SlashCommandContext["threadWorker"]> as SlashCommandContext["threadWorker"],
     });
     await registry.dispatch("dequeue", "", ctx);
     expect(dequeueMock).toHaveBeenCalledTimes(1);
@@ -404,7 +407,7 @@ describe("createBuiltinCommands", () => {
         cancelInference: mock(() => {}),
         dequeueMessage: mock(() => {}),
         messageQueueLength: 0,
-      } as any,
+      } as Partial<SlashCommandContext["threadWorker"]> as SlashCommandContext["threadWorker"],
     });
     await registry.dispatch("dequeue", "", ctx);
     expect(ctx.showMessage).toHaveBeenCalledTimes(1);
@@ -437,7 +440,7 @@ describe("createBuiltinCommands", () => {
           relationships: [],
         }),
         setCachedThread: mock(() => {}),
-      } as any,
+      } as Partial<SlashCommandContext["threadStore"]> as SlashCommandContext["threadStore"],
     });
     await registry.dispatch("toggle-thinking-blocks", "", ctx);
     expect(ctx.showMessage).toHaveBeenCalledTimes(1);

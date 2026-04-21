@@ -11,9 +11,9 @@
  * - Supports limit/offset pagination
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { parseRepository, truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the search_github tool spec, closing over a GitHubClient instance.
@@ -162,9 +162,7 @@ export function createSearchGitHubTool(client: GitHubClient): ToolSpec {
 
       return {
         status: "done",
-        content: truncateOutput(
-          `Found ${data.total_count} result(s):\n\n${output}`,
-        ),
+        content: truncateOutput(`Found ${data.total_count} result(s):\n\n${output}`),
         data: { results, totalCount: data.total_count },
       };
     },

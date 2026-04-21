@@ -11,8 +11,9 @@
  * ```
  */
 
-import type { Config } from "@flitter/schemas";
+import type { Config, ThreadSnapshot, ToolRunInternalStatus } from "@flitter/schemas";
 import type { Observable } from "@flitter/util";
+import { Subject } from "@flitter/util";
 import type {
   PluginAction,
   PluginToolCallEvent,
@@ -20,8 +21,9 @@ import type {
   PluginToolResultOverride,
 } from "../plugins/types";
 import type { AgentEvent } from "../worker/events";
+import { Mutex } from "./mutex";
 import type { ToolRegistry } from "./registry";
-import type { ToolContext, ToolResult } from "./types";
+import type { ToolContext, ToolMessage, ToolResult } from "./types";
 
 // ─── ToolUse 类型 ──────────────────────────────────────────
 
@@ -41,9 +43,13 @@ export interface ToolThreadEvent {
   type: "tool:data";
   toolUseId: string;
   toolName: string;
-  status: "in-progress" | "completed" | "error" | "cancelled";
+  status: "in-progress" | "completed" | "error" | "cancelled" | "rejected-by-user";
   result?: ToolResult;
   error?: string;
+  /** Reason for rejection (only set when status is "rejected-by-user") */
+  reason?: string;
+  /** Commands/paths that would need to be allowed (only set when status is "rejected-by-user") */
+  toAllow?: string[];
 }
 
 export interface ToolDataEvent {
@@ -132,7 +138,20 @@ export interface OrchestratorCallbacks {
     toolName: string;
     args: Record<string, unknown>;
     reason: string;
+    toAllow?: string[];
   }) => Promise<{ accepted: boolean; scope?: string; feedback?: string }>;
+
+  /**
+   * Clear all pending approvals for this thread, resolving each with accepted: false.
+   *
+   * 逆向: amp's $mR.clearApprovalsForThread(threadId) — iterates the
+   * pendingApprovals BehaviorSubject, resolves all matching Promises with
+   * { accepted: false }, then pushes the filtered list. This ensures that
+   * tools waiting for approval get auto-rejected when a new user message arrives.
+   *
+   * Called from onNewUserMessage() before cancelling in-progress tools.
+   */
+  clearPendingApprovals?: () => void;
 
   /**
    * Plugin pre-execution interception (tool.call).
@@ -149,6 +168,19 @@ export interface OrchestratorCallbacks {
   requestPluginToolResult?: (
     event: PluginToolResultEvent,
   ) => Promise<PluginToolResultOverride | undefined>;
+
+  /**
+   * Notify that a skill tool completed successfully.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:180
+   *   `onSkillToolComplete: T => this.onSkillToolComplete(T)`
+   * 逆向: amp-cli-reversed/modules/1234_unknown_FWT.js:384
+   *   `if (u.status === "done" && T.name.toLowerCase() === oc.toLowerCase()) this.callbacks.onSkillToolComplete(T)`
+   *
+   * Called after a tool named "skill" completes with status "done".
+   * The callback receives the ToolUseItem so it can extract name/arguments.
+   */
+  onSkillToolComplete?: (toolUse: ToolUseItem) => void;
 }
 
 // ─── 资源冲突检测 ──────────────────────────────────────────
@@ -250,6 +282,12 @@ export function batchToolsByDependency(
  */
 const DEFAULT_TOOL_TIMEOUT_MS = 120_000;
 
+/**
+ * The canonical skill tool name, used to detect skill tool completion.
+ * 逆向: oc = "skill" (modules/2026_tail_anonymous.js:7062)
+ */
+const SKILL_TOOL_NAME = "skill";
+
 // ─── ToolOrchestrator ──────────────────────────────────────
 
 /**
@@ -270,6 +308,28 @@ export class ToolOrchestrator {
 
   /** 已取消的工具 ID 集合 */
   readonly cancelledToolUses: Set<string> = new Set();
+
+  /**
+   * Tool message channels: toolUseId → Subject<ToolMessage>
+   *
+   * 逆向: amp-cli-reversed/modules/1234_unknown_FWT.js:8
+   *   `toolMessages = new Map()`
+   *
+   * Each tool invocation gets a Subject created in invokeTool().
+   * The Subject is stored here so that cancelToolOnly(), cancelAll(),
+   * and dispose() can send "stop-command" messages to running tools.
+   * The Subject is completed and removed on normal tool completion.
+   */
+  private readonly toolMessages: Map<string, Subject<ToolMessage>> = new Map();
+
+  /**
+   * Processing mutex: serializes onResume, onAssistantMessageComplete,
+   * cancelAll, and userProvideInput to prevent race conditions.
+   *
+   * 逆向: amp's FWT.processingMutex = new Cm() (modules/1234_unknown_FWT.js:5)
+   * Uses FIFO queuing — every caller eventually acquires the lock.
+   */
+  private readonly processingMutex = new Mutex();
 
   private disposed = false;
 
@@ -385,14 +445,39 @@ export class ToolOrchestrator {
             reason: permResult.reason ?? "Requires user approval",
           });
           if (!response.accepted) {
-            // 逆向: amp emits "rejected-by-user" or "error" (if feedback) then resolves
-            // the tool completion. Flitter signals rejection via updateThread + tool:complete.
-            await this.callbacks.updateThread({
-              type: "tool:data",
-              toolUseId: toolUse.id,
-              toolName: toolUse.name,
-              status: "cancelled",
-            });
+            // 逆向: amp emits different statuses based on whether feedback was provided:
+            // - With feedback → status "error" with message "rejected by user with feedback: ..."
+            //   (so the LLM sees the feedback and can adjust behavior)
+            // - Without feedback → status "rejected-by-user" with reason and toAllow
+            //   (generic rejection, LLM should not retry the same tool)
+            // See $mR.invokeTool lines 225-234 and 230-234
+            if (response.feedback) {
+              // Feedback-denial: send feedback as error so LLM reads it
+              // 逆向: $mR line 225-230
+              await this.callbacks.updateThread({
+                type: "tool:data",
+                toolUseId: toolUse.id,
+                toolName: toolUse.name,
+                status: "error",
+                error: `This tool call was rejected by the user with feedback: ${response.feedback}`,
+                result: {
+                  status: "error",
+                  error: `This tool call was rejected by the user with feedback: ${response.feedback}`,
+                },
+              });
+            } else {
+              // Plain denial: emit rejected-by-user with reason/toAllow
+              // 逆向: $mR line 230-234
+              const toAllow = this._computeToAllow(toolUse);
+              await this.callbacks.updateThread({
+                type: "tool:data",
+                toolUseId: toolUse.id,
+                toolName: toolUse.name,
+                status: "rejected-by-user",
+                reason: permResult.reason ?? "Tool execution rejected by user",
+                toAllow,
+              });
+            }
             this.runningTools.delete(toolUse.id);
             this.callbacks.onToolEvent?.({
               type: "tool:complete",
@@ -402,11 +487,13 @@ export class ToolOrchestrator {
           }
           // User approved — fall through to execute the tool
         } else if (permResult.action === "reject") {
+          // 逆向: $mR line 251-254 — auto-reject from static permissions rule
           await this.callbacks.updateThread({
             type: "tool:data",
             toolUseId: toolUse.id,
             toolName: toolUse.name,
-            status: "cancelled",
+            status: "rejected-by-user",
+            reason: permResult.reason ?? "Tool execution denied by permissions",
           });
           this.runningTools.delete(toolUse.id);
           this.callbacks.onToolEvent?.({
@@ -458,8 +545,8 @@ export class ToolOrchestrator {
           type: "tool:data",
           toolUseId: toolUse.id,
           toolName: toolUse.name,
-          status: "done",
-          result: { status: "done", output: pluginAction.result.output },
+          status: "completed",
+          result: { status: "done", content: pluginAction.result.output },
         });
         this.runningTools.delete(toolUse.id);
         this.callbacks.onToolEvent?.({ type: "tool:complete", toolUseId: toolUse.id });
@@ -501,20 +588,35 @@ export class ToolOrchestrator {
       // Set up per-tool timeout.
       // 逆向: amp uses AbortController pattern (chunk-001.js:4370) and
       // MCP protocol _setupTimeout/_clearTimeout (chunk-001.js:10478-10499).
+      // amp also uses `meta: { disableTimeout: !0 }` on long-running tools
+      // (Bash, Task, code_review, finder, etc.) to skip the timeout entirely.
       // Flitter adds orchestrator-level enforcement: if the tool doesn't finish
       // within timeoutMs, we abort the AbortController and let the catch block
       // emit an error result.
-      const timeoutMs = spec.executionProfile?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
-      timeoutError = new Error(`Tool "${toolUse.name}" execution timeout after ${timeoutMs}ms`);
-      timeoutId = setTimeout(() => {
-        abortController.abort(timeoutError);
-      }, timeoutMs);
+      if (!spec.executionProfile?.disableTimeout) {
+        const timeoutMs = spec.executionProfile?.timeoutMs ?? DEFAULT_TOOL_TIMEOUT_MS;
+        timeoutError = new Error(`Tool "${toolUse.name}" execution timeout after ${timeoutMs}ms`);
+        timeoutId = setTimeout(() => {
+          abortController.abort(timeoutError);
+        }, timeoutMs);
+      }
 
       // 6. 获取 ToolContext
       const context = await this.callbacks.getToolRunEnvironment(
         toolUse.id,
         abortController.signal,
       );
+
+      // 6b. Create a toolMessages Subject and inject into context
+      // 逆向: FWT invokeTool (modules/1234_unknown_FWT.js:347-352)
+      //   `s = new AR(u => { this.toolMessages.set(T.id, u) })`
+      //   `A = { ...c, toolMessages: s }`
+      const toolMessageSubject = new Subject<ToolMessage>();
+      this.toolMessages.set(toolUse.id, toolMessageSubject);
+      const contextWithMessages: ToolContext = {
+        ...context,
+        toolMessages: toolMessageSubject,
+      };
 
       // 7. 执行工具 — race tool execution against the per-tool AbortController.
       // When the timeout fires (or cancelTool/cancelAll is called), the
@@ -537,7 +639,7 @@ export class ToolOrchestrator {
       });
       const execResult = spec.execute(
         spec.preprocessArgs ? spec.preprocessArgs(toolUse.input) : toolUse.input,
-        context,
+        contextWithMessages,
       );
 
       if (isObservable(execResult)) {
@@ -576,7 +678,7 @@ export class ToolOrchestrator {
         const override = await this.callbacks.requestPluginToolResult({
           tool: toolUse.name,
           input: toolUse.input,
-          output: result.output ?? result.error ?? "",
+          output: result.content ?? result.error ?? "",
           status:
             result.status === "done" ? "done" : result.status === "error" ? "error" : "cancelled",
         });
@@ -597,6 +699,18 @@ export class ToolOrchestrator {
         status: "completed",
         result,
       });
+
+      // 9b. Skill tool completion detection
+      // 逆向: FWT invokeTool (modules/1234_unknown_FWT.js:384)
+      //   `if (u.status === "done" && T.name.toLowerCase() === oc.toLowerCase()) this.callbacks.onSkillToolComplete(T);`
+      // oc = "skill" (modules/2026_tail_anonymous.js:7062)
+      if (
+        result.status === "done" &&
+        toolUse.name.toLowerCase() === SKILL_TOOL_NAME &&
+        this.callbacks.onSkillToolComplete
+      ) {
+        this.callbacks.onSkillToolComplete(toolUse);
+      }
 
       // 10. 更新文件变更
       await this.callbacks.updateFileChanges();
@@ -637,6 +751,15 @@ export class ToolOrchestrator {
       // 11. 清理 runningTools
       this.runningTools.delete(toolUse.id);
 
+      // Clean up tool message Subject on completion (normal or error)
+      // 逆向: FWT invokeTool finalize (modules/1234_unknown_FWT.js:369)
+      //   `this.runningTools.delete(T.id), this.toolMessages.get(T.id)?.complete(), this.toolMessages.delete(T.id)`
+      const msgSubject = this.toolMessages.get(toolUse.id);
+      if (msgSubject) {
+        msgSubject.complete();
+        this.toolMessages.delete(toolUse.id);
+      }
+
       // Emit tool:complete regardless of success or error (try/finally guarantees this).
       // 逆向: FWT resolves the toolCompletionResolvers in the terminal-status handler.
       // Flitter emits a separate tool:complete AgentEvent for the TUI layer.
@@ -647,21 +770,330 @@ export class ToolOrchestrator {
     }
   }
 
-  /** 取消所有运行中的工具 */
-  cancelAll(): void {
-    for (const [id, { abort }] of this.runningTools) {
-      abort.abort();
-      this.cancelledToolUses.add(id);
+  /**
+   * Compute the toAllow array for a tool rejection.
+   * 逆向: amp's $mR passes [cmd, command].filter(Boolean) for Bash/shell tools,
+   * and file paths for guarded-file rejections. Flitter extracts from known
+   * parameter names.
+   */
+  private _computeToAllow(toolUse: ToolUseItem): string[] | undefined {
+    const args = toolUse.input;
+    // For Bash/shell tools: extract the command string
+    const cmd = args.command ?? args.cmd;
+    if (typeof cmd === "string" && cmd.length > 0) {
+      return [cmd];
+    }
+    // For file tools: extract the path
+    const path = args.file_path ?? args.path;
+    if (typeof path === "string" && path.length > 0) {
+      return [path];
+    }
+    return undefined;
+  }
+
+  /**
+   * Cancel all running tools with a reason string.
+   *
+   * 逆向: FWT.cancelAll(T) (modules/1234_unknown_FWT.js:122-129)
+   *   - Acquires processingMutex
+   *   - markAllActiveToolsCancelled()
+   *   - clearApprovalsForThread(threadId)
+   *   - cancelUnstartedTools(T)
+   *   - cancelInProgressTools(T)
+   *   - Releases processingMutex
+   */
+  async cancelAll(reason?: string): Promise<void> {
+    await this.processingMutex.acquire();
+    try {
+      // Mark all active tool uses as cancelled
+      for (const [id, { abort }] of this.runningTools) {
+        abort.abort(reason);
+        this.cancelledToolUses.add(id);
+      }
+      // Send stop-command to all tool message channels
+      // 逆向: FWT.abortAllTools (modules/1234_unknown_FWT.js:194-204)
+      //   `for (let [T, R] of this.toolMessages) try { R.next({ type: "stop-command" }), R.complete(); }`
+      for (const [id, subject] of this.toolMessages) {
+        try {
+          subject.next({ type: "stop-command" });
+          subject.complete();
+        } catch {
+          // Ignore errors during cleanup
+        }
+        this.toolMessages.delete(id);
+      }
+      // Clear pending approvals
+      this.callbacks.clearPendingApprovals?.();
+    } finally {
+      this.processingMutex.release();
     }
   }
 
-  /** 取消特定工具 */
+  /**
+   * Called when a new user message arrives, before starting new inference.
+   *
+   * 逆向: FWT.onNewUserMessage() (modules/1234_unknown_FWT.js:119-121)
+   *   - markAllActiveToolsCancelled() [outside mutex — pre-emptive]
+   *   - clearApprovalsForThread(threadId) [outside mutex — pre-emptive]
+   *   - await cancelAll("user:interrupted")
+   *
+   * Clearing approvals outside the mutex first ensures they're drained even
+   * if the mutex is currently held by an executing tool. The idempotent
+   * clearPendingApprovals call inside cancelAll is harmless.
+   */
+  async onNewUserMessage(): Promise<void> {
+    // Pre-emptive mark + clear outside the mutex (matches amp's FWT.onNewUserMessage)
+    for (const [id] of this.runningTools) {
+      this.cancelledToolUses.add(id);
+    }
+    this.callbacks.clearPendingApprovals?.();
+    // Then full cancelAll with mutex
+    await this.cancelAll("user:interrupted");
+  }
+
+  /** 取消特定工具 (hard cancel — aborts the AbortController) */
   cancelTool(toolUseId: string): void {
     const entry = this.runningTools.get(toolUseId);
     if (entry) {
       entry.abort.abort();
       this.cancelledToolUses.add(toolUseId);
     }
+    // Also send stop-command and clean up the tool message channel
+    const subject = this.toolMessages.get(toolUseId);
+    if (subject) {
+      try {
+        subject.next({ type: "stop-command" });
+        subject.complete();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.toolMessages.delete(toolUseId);
+    }
+  }
+
+  /**
+   * Cancel a single tool cooperatively — sends a stop-command but does NOT
+   * abort the AbortController. The tool's execution continues but should
+   * honor the stop-command and terminate gracefully.
+   *
+   * 逆向: FWT.cancelToolOnly (modules/1234_unknown_FWT.js:135-158)
+   *   ```
+   *   async cancelToolOnly(T, R) {
+   *     let a = this.callbacks.getThread();
+   *     if (!Tn(a, T)) return;
+   *     let e = this.getCancelDataForToolRun(T, "user:cancelled"),
+   *       t = this.toolMessages.get(T);
+   *     if (t) {
+   *       t.next({ type: "stop-command" }), t.complete(), this.toolMessages.delete(T);
+   *     }
+   *     await this.callbacks.handle({ type: "tool:data", toolUse: T, data: e });
+   *   }
+   *   ```
+   *
+   * Key difference from cancelTool: no AbortController abort, no sibling impact.
+   * This is a cooperative signal — the tool decides when to actually stop.
+   */
+  async cancelToolOnly(toolUseId: string): Promise<void> {
+    // Send stop-command via toolMessages channel
+    const subject = this.toolMessages.get(toolUseId);
+    if (subject) {
+      try {
+        subject.next({ type: "stop-command" });
+        subject.complete();
+      } catch {
+        // Ignore errors during cleanup
+      }
+      this.toolMessages.delete(toolUseId);
+    }
+
+    // Mark as cancelled and emit cancelled status
+    this.cancelledToolUses.add(toolUseId);
+    await this.callbacks.updateThread({
+      type: "tool:data",
+      toolUseId,
+      toolName: this._getToolName(toolUseId) ?? "unknown",
+      status: "cancelled",
+    });
+  }
+
+  /**
+   * Send an arbitrary message to a running tool's message channel.
+   *
+   * 逆向: FWT.sendToolMessage (modules/1234_unknown_FWT.js:174-178)
+   *   `let a = this.toolMessages.get(T); if (a) return a.next(R), !0; return !1;`
+   */
+  sendToolMessage(toolUseId: string, message: ToolMessage): boolean {
+    const subject = this.toolMessages.get(toolUseId);
+    if (subject) {
+      subject.next(message);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get the tool name for a running tool by its ID.
+   * Used internally by cancelToolOnly to emit proper tool:data events.
+   */
+  private _getToolName(_toolUseId: string): string | undefined {
+    // Look through runningTools — we don't store names there, so scan the
+    // last known tool_use from the thread snapshot if available
+    // For simplicity, return undefined if not found; the caller uses "unknown"
+    return undefined;
+  }
+
+  /**
+   * Resume in-progress tools after crash/restart/reconnect.
+   *
+   * 逆向: FWT.onResume() (modules/1234_unknown_FWT.js:37-93)
+   *
+   * Scans the latest user message for non-terminal tool_results and:
+   * 1. blocked-on-user → restore to approval queue (emit approval event)
+   * 2. isDangerousToResume → cancel with reason "system:safety"
+   * 3. otherwise → re-invoke the tool
+   *
+   * @param thread Current thread snapshot
+   */
+  async onResume(thread: ThreadSnapshot): Promise<void> {
+    // 逆向: FWT.onResume acquires processingMutex (modules/1234_unknown_FWT.js:37-93)
+    await this.processingMutex.acquire();
+    try {
+      await this._onResumeInner(thread);
+    } finally {
+      this.processingMutex.release();
+    }
+    // File change tracking runs outside the mutex (matches amp)
+    await this.callbacks.updateFileChanges();
+  }
+
+  /**
+   * Inner resume logic, called under the processing mutex.
+   */
+  private async _onResumeInner(thread: ThreadSnapshot): Promise<void> {
+    // Find the latest user message (scan from end)
+    // 逆向: dt(T, "user") — find last message with role "user"
+    const messages = thread.messages ?? [];
+    let latestUserMsg: (typeof messages)[number] | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "user") {
+        latestUserMsg = messages[i];
+        break;
+      }
+    }
+    if (!latestUserMsg) return;
+
+    // Iterate tool_result blocks in the latest user message
+    for (const block of latestUserMsg.content) {
+      if (typeof block !== "object" || block === null) continue;
+      if (!("type" in block) || block.type !== "tool_result") continue;
+
+      const toolResult = block as {
+        type: "tool_result";
+        toolUseID?: string;
+        tool_use_id?: string;
+        run?: { status?: string; reason?: string; toAllow?: string[]; progress?: unknown };
+        content?: unknown;
+      };
+
+      const toolUseId = toolResult.toolUseID ?? toolResult.tool_use_id;
+      if (!toolUseId) continue;
+
+      const runStatus = (toolResult.run?.status ?? "") as ToolRunInternalStatus | "";
+
+      // CASE 1: blocked-on-user → restore to approval queue
+      // 逆向: FWT.onResume lines 42-54
+      if (runStatus === "blocked-on-user") {
+        // Find the corresponding tool_use block to get tool name and args
+        const toolUseBlock = this._findToolUseById(thread, toolUseId);
+        if (!toolUseBlock) continue;
+
+        if (this.callbacks.requestApproval) {
+          // Re-emit approval request — this will block the tool's execution until
+          // the user responds, which is the desired behavior for resume.
+          this.callbacks
+            .requestApproval({
+              toolUseId,
+              toolName: toolUseBlock.name,
+              args: (toolUseBlock.input ?? {}) as Record<string, unknown>,
+              reason: toolResult.run?.reason ?? "Requires user approval",
+            })
+            .then((response) => {
+              if (response.accepted) {
+                // Re-invoke the tool after approval
+                this.invokeTool({
+                  id: toolUseId,
+                  name: toolUseBlock.name,
+                  input: (toolUseBlock.input ?? {}) as Record<string, unknown>,
+                });
+              }
+            })
+            .catch(() => {
+              // Approval rejected or errored — already handled by requestApproval
+            });
+        }
+        continue;
+      }
+
+      // Skip terminal statuses
+      // 逆向: wt() (chunk-001.js:5722) — done | error | rejected-by-user | cancelled
+      if (isTerminalStatus(runStatus)) continue;
+
+      // Skip already running tools
+      if (this.runningTools.has(toolUseId)) continue;
+
+      // Find the tool_use block
+      const toolUseBlock = this._findToolUseById(thread, toolUseId);
+      if (!toolUseBlock) continue;
+
+      // CASE 2: dangerous tool → cancel with system:safety
+      // 逆向: FWT.onResume lines 65-77
+      if (isDangerousToResume(toolUseBlock.name)) {
+        await this.callbacks.updateThread({
+          type: "tool:data",
+          toolUseId,
+          toolName: toolUseBlock.name,
+          status: "cancelled",
+          error: "Cancelled on resume: tool is dangerous to re-execute (system:safety)",
+        });
+        continue;
+      }
+
+      // CASE 3: safe tool → re-invoke
+      // 逆向: FWT.onResume lines 79-82
+      void this.invokeTool({
+        id: toolUseId,
+        name: toolUseBlock.name,
+        input: (toolUseBlock.input ?? {}) as Record<string, unknown>,
+      });
+    }
+  }
+
+  /**
+   * Find a tool_use block by ID across all assistant messages in the thread.
+   * 逆向: FWT.findToolUseById
+   */
+  private _findToolUseById(
+    thread: ThreadSnapshot,
+    toolUseId: string,
+  ): { name: string; input: unknown } | undefined {
+    const messages = thread.messages ?? [];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]!;
+      if (msg.role !== "assistant") continue;
+      for (const block of msg.content) {
+        if (
+          typeof block === "object" &&
+          block !== null &&
+          "type" in block &&
+          block.type === "tool_use" &&
+          "id" in block &&
+          block.id === toolUseId
+        ) {
+          return block as { name: string; input: unknown };
+        }
+      }
+    }
+    return undefined;
   }
 
   /** 是否有工具正在运行 */
@@ -673,10 +1105,69 @@ export class ToolOrchestrator {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.cancelAll();
+    // Synchronous cancel — bypass the mutex for disposal (matches amp:
+    // FWT.dispose uses cancelAll("system:disposed") but also does direct abort)
+    for (const [id, { abort }] of this.runningTools) {
+      abort.abort("system:disposed");
+      this.cancelledToolUses.add(id);
+    }
+    // Send stop-command to all tool message channels before clearing
+    // 逆向: FWT.dispose (modules/1234_unknown_FWT.js:194-204)
+    //   `for (let [T, R] of this.toolMessages) try { R.next({ type: "stop-command" }), R.complete(); }`
+    for (const [_id, subject] of this.toolMessages) {
+      try {
+        subject.next({ type: "stop-command" });
+        subject.complete();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    }
+    this.toolMessages.clear();
+    this.callbacks.clearPendingApprovals?.();
     this.runningTools.clear();
     this.cancelledToolUses.clear();
   }
+}
+
+// ─── Resume safety utilities ─────────────────────────────
+
+/**
+ * Tools that are dangerous to re-execute on resume (crash/restart).
+ *
+ * 逆向: FWT.isDangerousToResume (modules/1234_unknown_FWT.js:545-547)
+ * Constants: U8="Bash", S2="run_terminal_command", Eb="shell_command",
+ *            Dt="Task", j0T="handoff"
+ *
+ * Notable: file mutation tools (write_file, edit_file, apply_patch) are NOT
+ * in this list — they are considered idempotent enough to replay.
+ */
+const DANGEROUS_TO_RESUME: ReadonlySet<string> = new Set([
+  "Bash",
+  "run_terminal_command",
+  "shell_command",
+  "Task",
+  "handoff",
+]);
+
+/**
+ * Check if a tool is dangerous to re-invoke on resume.
+ * 逆向: FWT.isDangerousToResume (modules/1234_unknown_FWT.js:545-547)
+ */
+export function isDangerousToResume(toolName: string): boolean {
+  return DANGEROUS_TO_RESUME.has(toolName);
+}
+
+/**
+ * Check if a tool run status is terminal (no further action needed).
+ * 逆向: wt (chunk-001.js:5722)
+ */
+export function isTerminalStatus(status: string): boolean {
+  return (
+    status === "done" ||
+    status === "error" ||
+    status === "rejected-by-user" ||
+    status === "cancelled"
+  );
 }
 
 // ─── 辅助函数 ──────────────────────────────────────────────

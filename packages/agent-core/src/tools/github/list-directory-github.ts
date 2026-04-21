@@ -10,9 +10,9 @@
  * - Applies limit parameter
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { formatDirectoryEntries, parseRepository, truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the list_directory_github tool spec, closing over a GitHubClient instance.
@@ -66,15 +66,10 @@ export function createListDirectoryGitHubTool(client: GitHubClient): ToolSpec {
       let path = ((args.path as string) ?? "").replace(/^\//, "");
       if (path === "." || path === "") path = "";
 
-      const encodedPath = path
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/");
+      const encodedPath = path.split("/").map(encodeURIComponent).join("/");
 
       const apiPath = `repos/${repo}/contents/${encodedPath}`;
-      const result = await client.fetchJSON<
-        Array<{ name: string; type: string }>
-      >(apiPath);
+      const result = await client.fetchJSON<Array<{ name: string; type: string }>>(apiPath);
 
       if (!result.ok || !result.data) {
         return {

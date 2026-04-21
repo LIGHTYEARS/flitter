@@ -15,9 +15,7 @@ import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Color,
   Column,
-  EdgeInsets,
   Expanded,
-  Padding,
   RichText,
   Row,
   SizedBox,
@@ -235,8 +233,16 @@ export class StatusBar extends StatelessWidget {
   }
 
   build(_context: BuildContext): Widget {
-    const { state, estimatedUSD, contextWindowPercent, contextWindowMax, modeName, skillCount, cwdDisplay, gitBranch } =
-      this.config;
+    const {
+      state,
+      estimatedUSD,
+      contextWindowPercent,
+      contextWindowMax,
+      modeName,
+      skillCount,
+      cwdDisplay,
+      gitBranch,
+    } = this.config;
 
     const mutedStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR });
     const borderStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR });
@@ -295,7 +301,9 @@ export class StatusBar extends StatelessWidget {
             style: leftSegment ? contextStyle : borderStyle,
           }),
         }),
-        new Expanded({ child: new RichText({ text: new TextSpan({ text: "\u2500", style: borderStyle }) }) }),
+        new Expanded({
+          child: new RichText({ text: new TextSpan({ text: "\u2500", style: borderStyle }) }),
+        }),
         new RichText({
           text: new TextSpan({ text: `${rightSegment}\u2500\u256E`, style: borderStyle }),
         }),
@@ -309,18 +317,26 @@ export class StatusBar extends StatelessWidget {
       new Expanded({ child: new SizedBox({ width: 0, height: 1 }) }),
     ];
     if (statusMessage !== null) {
-      middleChildren.push(new RichText({ text: new TextSpan({ text: statusMessage, style: statusStyle }) }));
+      middleChildren.push(
+        new RichText({ text: new TextSpan({ text: statusMessage, style: statusStyle }) }),
+      );
       middleChildren.push(new Expanded({ child: new SizedBox({ width: 0, height: 1 }) }));
     }
-    middleChildren.push(new RichText({ text: new TextSpan({ text: `${totalTokens} tokens`, style: mutedStyle }) }));
-    middleChildren.push(new RichText({ text: new TextSpan({ text: " \u2502", style: borderStyle }) }));
+    middleChildren.push(
+      new RichText({ text: new TextSpan({ text: `${totalTokens} tokens`, style: mutedStyle }) }),
+    );
+    middleChildren.push(
+      new RichText({ text: new TextSpan({ text: " \u2502", style: borderStyle }) }),
+    );
     const middleRow = new Row({ children: middleChildren });
 
     // ── Bottom border row ──
     const bottomRow = new Row({
       children: [
         new RichText({ text: new TextSpan({ text: "\u2570\u2500", style: borderStyle }) }),
-        new Expanded({ child: new RichText({ text: new TextSpan({ text: "\u2500", style: borderStyle }) }) }),
+        new Expanded({
+          child: new RichText({ text: new TextSpan({ text: "\u2500", style: borderStyle }) }),
+        }),
         new RichText({
           text: new TextSpan({
             text: bottomRight ? `${bottomRight}\u2500\u256F` : "\u256F",
@@ -330,7 +346,10 @@ export class StatusBar extends StatelessWidget {
       ],
     });
 
-    return new Column({ mainAxisSize: "min", children: [topRow, middleRow, bottomRow] as Widget[] });
+    return new Column({
+      mainAxisSize: "min",
+      children: [topRow, middleRow, bottomRow] as Widget[],
+    });
   }
 
   /**

@@ -5,7 +5,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
-import { handleMcpApprove, handleMcpDoctor, handleMcpOAuthLogin, handleMcpOAuthLogout } from "../mcp-extended";
+import type { McpApproveDeps, McpExtendedDeps } from "../mcp-extended";
+import {
+  handleMcpApprove,
+  handleMcpDoctor,
+  handleMcpOAuthLogin,
+  handleMcpOAuthLogout,
+} from "../mcp-extended";
 
 // ─── Output capture ─────────────────────────────────────
 
@@ -54,7 +60,7 @@ describe("handleMcpDoctor", () => {
     await handleMcpDoctor({
       configService: {
         get: () => ({ settings: {} }),
-      } as any,
+      } as unknown as McpExtendedDeps["configService"],
     });
     expect(output.stdout.join("")).toContain("No MCP servers configured");
   });
@@ -70,7 +76,7 @@ describe("handleMcpDoctor", () => {
             },
           },
         }),
-      } as any,
+      } as unknown as McpExtendedDeps["configService"],
     });
     const out = output.stdout.join("");
     expect(out).toContain("test-server");
@@ -106,7 +112,7 @@ describe("handleMcpApprove", () => {
             },
           }),
           updateSettings: updateFn,
-        } as any,
+        } as unknown as McpApproveDeps["configService"],
       },
       "my-server",
     );
@@ -119,7 +125,7 @@ describe("handleMcpApprove", () => {
       {
         configService: {
           get: () => ({ settings: { "mcp.servers": {} } }),
-        } as any,
+        } as unknown as McpApproveDeps["configService"],
       },
       "nonexistent",
     );
@@ -137,7 +143,7 @@ describe("handleMcpApprove", () => {
               "mcp.trustedServers": ["my-server"],
             },
           }),
-        } as any,
+        } as unknown as McpApproveDeps["configService"],
       },
       "my-server",
     );
@@ -165,7 +171,7 @@ describe("handleMcpOAuthLogin", () => {
       {
         configService: {
           get: () => ({ settings: { "mcp.servers": {} } }),
-        } as any,
+        } as unknown as McpExtendedDeps["configService"],
       },
       "nonexistent",
     );
@@ -182,7 +188,7 @@ describe("handleMcpOAuthLogin", () => {
               "mcp.servers": { "my-server": { command: "node" } },
             },
           }),
-        } as any,
+        } as unknown as McpExtendedDeps["configService"],
       },
       "my-server",
     );
@@ -199,7 +205,7 @@ describe("handleMcpOAuthLogin", () => {
               "mcp.servers": { "my-server": { url: "https://example.com" } },
             },
           }),
-        } as any,
+        } as unknown as McpExtendedDeps["configService"],
       },
       "my-server",
     );
@@ -233,7 +239,7 @@ describe("handleMcpOAuthLogout", () => {
             },
           }),
           updateSettings: updateFn,
-        } as any,
+        } as unknown as McpExtendedDeps["configService"],
       },
       "my-server",
     );
@@ -246,7 +252,7 @@ describe("handleMcpOAuthLogout", () => {
       {
         configService: {
           get: () => ({ settings: { "mcp.servers": {} } }),
-        } as any,
+        } as unknown as McpExtendedDeps["configService"],
       },
       "nonexistent",
     );

@@ -12,8 +12,8 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { NotificationBanner } from "./notification-banner.js";
 import type { NotificationType } from "./notification-banner.js";
+import { NotificationBanner } from "./notification-banner.js";
 
 // ════════════════════════════════════════════════════
 //  Construction tests
@@ -37,15 +37,22 @@ describe("NotificationBanner", () => {
     const banner = new NotificationBanner({
       type: "warning",
       message: "Rate limit approaching",
-      onDismiss: () => { dismissed = true; },
-      action: { label: "View", onPressed: () => { actionFired = true; } },
+      onDismiss: () => {
+        dismissed = true;
+      },
+      action: {
+        label: "View",
+        onPressed: () => {
+          actionFired = true;
+        },
+      },
     });
     assert.equal(banner.type, "warning");
     assert.equal(banner.message, "Rate limit approaching");
     assert.ok(banner.onDismiss !== undefined);
     assert.ok(banner.action !== undefined);
     assert.equal(banner.action!.label, "View");
-    
+
     // Verify callbacks
     banner.onDismiss!();
     assert.equal(dismissed, true);
@@ -97,7 +104,12 @@ describe("NotificationBanner callbacks", () => {
     const banner = new NotificationBanner({
       type: "info",
       message: "Info",
-      action: { label: "Retry", onPressed: () => { count++; } },
+      action: {
+        label: "Retry",
+        onPressed: () => {
+          count++;
+        },
+      },
     });
     banner.action!.onPressed();
     banner.action!.onPressed();

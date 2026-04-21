@@ -28,12 +28,7 @@ export interface DTWConnectionConfig {
  * DTW client state.
  * 逆向: chunk-005.js:4113 (DTW mode checks, dtwEnabled flag)
  */
-export type DTWClientState =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "reconnecting"
-  | "error";
+export type DTWClientState = "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
 
 /**
  * Message sent from client to DTW server.

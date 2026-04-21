@@ -9,8 +9,6 @@
 import { Color } from "../src/screen/color.js";
 import { TextStyle } from "../src/screen/text-style.js";
 import { AppColorScheme } from "../src/widgets/color-scheme.js";
-import { Column } from "../src/widgets/column.js";
-import { Text } from "../src/widgets/text.js";
 import { defaultTheme, type ThemeData } from "../src/widgets/theme.js";
 
 // ── 颜色系统 ──────────────────────────────────

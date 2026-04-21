@@ -43,6 +43,39 @@ export interface LLMProvider {
    * @throws ProviderError - 不可重试的 API 错误
    */
   stream(params: StreamParams): AsyncGenerator<StreamDelta>;
+
+  /**
+   * Count the input tokens for a given set of messages, tools, and system prompt.
+   * Not all providers support this. Falls back to character-based approximation.
+   *
+   * 逆向: amp-cli-reversed/modules/0084_unknown_Qu.js (Anthropic countTokens)
+   *   `T.messages.countTokens({ model, messages, tools, system, thinking: { type: "enabled", budget_tokens: 1e4 } })`
+   *
+   * @returns input_tokens — the exact number of tokens the API would charge
+   */
+  countTokens?(params: CountTokensParams): Promise<CountTokensResult>;
+}
+
+/**
+ * Parameters for the countTokens API call.
+ *
+ * 逆向: amp-cli-reversed/modules/0088_Messages_oFT.js
+ *   Uses multiple "kinds": full, no_messages, no_tools, system_only, text
+ *   Flitter simplifies to a single full-count call.
+ */
+export interface CountTokensParams {
+  model: string;
+  messages?: Message[];
+  systemPrompt?: SystemPromptBlock[];
+  tools?: ToolDefinition[];
+  config: {
+    settings: Record<string, unknown>;
+    secrets: { getToken: (key: string) => Promise<string | null> };
+  };
+}
+
+export interface CountTokensResult {
+  inputTokens: number;
 }
 
 // ─── MessageTransformer 接口 ────────────────────────────

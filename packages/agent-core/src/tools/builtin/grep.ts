@@ -52,6 +52,7 @@ interface GrepArgs {
   "-i"?: boolean;
   "-n"?: boolean;
   multiline?: boolean;
+  literal?: boolean;
   head_limit?: number;
   offset?: number;
 }
@@ -89,6 +90,12 @@ function buildRgArgs(args: GrepArgs, cwd: string): string[] {
     rgArgs.push("-i");
   }
 
+  // Literal (fixed-string) mode — treat pattern as literal, not regex
+  // 逆向: amp's Grep tool has `literal` boolean that maps to rg --fixed-strings
+  if (args.literal) {
+    rgArgs.push("--fixed-strings");
+  }
+
   // Multiline
   if (args.multiline) {
     rgArgs.push("-U", "--multiline-dotall");
@@ -124,6 +131,7 @@ function buildRgArgs(args: GrepArgs, cwd: string): string[] {
 interface FallbackOptions {
   ignoreCase: boolean;
   multiline: boolean;
+  literal: boolean;
   outputMode: "content" | "files_with_matches" | "count";
   showLineNumbers: boolean;
   contextBefore: number;
@@ -198,9 +206,12 @@ async function grepFallback(
   options: FallbackOptions,
 ): Promise<string> {
   const flags = (options.ignoreCase ? "i" : "") + (options.multiline ? "ms" : "");
+  const effectivePattern = options.literal
+    ? pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    : pattern;
   let regex: RegExp;
   try {
-    regex = new RegExp(pattern, flags);
+    regex = new RegExp(effectivePattern, flags);
   } catch {
     return `Error: Invalid regex pattern: ${pattern}`;
   }
@@ -440,6 +451,11 @@ export const GrepTool: ToolSpec = {
         type: "boolean",
         description: "Enable multiline mode where . matches newlines and patterns can span lines.",
       },
+      literal: {
+        type: "boolean",
+        description:
+          "Treat the pattern as a literal string rather than a regular expression. Useful for searching special characters without escaping.",
+      },
       head_limit: {
         type: "number",
         description: "Limit output to first N lines/entries. Defaults to 0 (unlimited).",
@@ -492,6 +508,7 @@ export const GrepTool: ToolSpec = {
       output = await grepFallback(grepArgs.pattern, searchPath, {
         ignoreCase: grepArgs["-i"] ?? false,
         multiline: grepArgs.multiline ?? false,
+        literal: grepArgs.literal ?? false,
         outputMode,
         showLineNumbers: grepArgs["-n"] !== false,
         contextBefore,

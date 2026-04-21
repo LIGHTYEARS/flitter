@@ -63,6 +63,10 @@ export type {
   PluginActionModify,
   PluginActionRejectAndContinue,
   PluginActionSynthesize,
+  PluginAgentEndEvent,
+  PluginAgentEndResult,
+  PluginAgentStartEvent,
+  PluginAgentStartResult,
   PluginHostOptions,
   PluginInfo,
   PluginServiceOptions,
@@ -117,6 +121,12 @@ export type {
   SubAgentWorkerOptions,
 } from "./subagent/subagent";
 export { SubAgentManager } from "./subagent/subagent";
+export type { SubAgentTypeConfig } from "./subagent/subagent-types";
+export {
+  getSubAgentToolPatterns,
+  getSubAgentTypeConfig,
+  SUBAGENT_TYPE_REGISTRY,
+} from "./subagent/subagent-types";
 // ─── Title Generation ─────────────────────────────────
 export type {
   GenerateTitleOptions,
@@ -206,7 +216,7 @@ export {
   resolveGitHubToken,
 } from "./tools/github";
 export type { OrchestratorCallbacks, ToolThreadEvent, ToolUseItem } from "./tools/orchestrator";
-export { ToolOrchestrator } from "./tools/orchestrator";
+export { isDangerousToResume, isTerminalStatus, ToolOrchestrator } from "./tools/orchestrator";
 // ─── Tools — CLI Filters ─────────────────────────────────
 export type { CliToolFilters } from "./tools/registry";
 export { ToolRegistry } from "./tools/registry";
@@ -216,6 +226,7 @@ export type {
   ResourceKey,
   ToolContext,
   ToolDefinition,
+  ToolMessage,
   ToolResult,
   ToolSpec,
 } from "./tools/types";

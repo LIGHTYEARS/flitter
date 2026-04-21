@@ -7,10 +7,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  sanitizeToolName,
-  toToolboxName,
   resolveToolboxPaths,
+  sanitizeToolName,
   TOOLBOX_PREFIX,
+  toToolboxName,
 } from "./toolbox-utils";
 
 // ─── sanitizeToolName (逆向: O5R) ────────────────────────

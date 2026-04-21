@@ -4,6 +4,11 @@
  * Re-exports all plugin types and classes for external consumption.
  */
 
+// ─── Classes ──────────────────────────────────────────────
+export { PluginHost } from "./plugin-host";
+// ─── Runtime ──────────────────────────────────────────────
+export { generatePluginRuntime, validateRuntimeTemplate } from "./plugin-runtime";
+export { PluginService } from "./plugin-service";
 // ─── Types ────────────────────────────────────────────────
 export type {
   JsonRpcEvent,
@@ -16,6 +21,10 @@ export type {
   PluginActionModify,
   PluginActionRejectAndContinue,
   PluginActionSynthesize,
+  PluginAgentEndEvent,
+  PluginAgentEndResult,
+  PluginAgentStartEvent,
+  PluginAgentStartResult,
   PluginHostOptions,
   PluginInfo,
   PluginServiceOptions,
@@ -25,7 +34,6 @@ export type {
   PluginToolResultEvent,
   PluginToolResultOverride,
 } from "./types";
-
 // ─── Constants ────────────────────────────────────────────
 export {
   GLOBAL_PLUGIN_DIR,
@@ -37,10 +45,3 @@ export {
   SHUTDOWN_GRACE_PERIOD_MS,
   WORKSPACE_PLUGIN_DIR,
 } from "./types";
-
-// ─── Classes ──────────────────────────────────────────────
-export { PluginHost } from "./plugin-host";
-export { PluginService } from "./plugin-service";
-
-// ─── Runtime ──────────────────────────────────────────────
-export { generatePluginRuntime, validateRuntimeTemplate } from "./plugin-runtime";

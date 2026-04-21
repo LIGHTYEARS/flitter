@@ -5,10 +5,15 @@
  * Tests the DTW client transport with a mock HTTP server.
  */
 import assert from "node:assert/strict";
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { DTWClient } from "./dtw-client";
-import { isValidThreadId, isValidDurableObjectId, isValidUUID, DTW_ENDPOINTS } from "./dtw-protocol";
+import {
+  DTW_ENDPOINTS,
+  isValidDurableObjectId,
+  isValidThreadId,
+  isValidUUID,
+} from "./dtw-protocol";
 
 // ─── Protocol Tests ──────────────────────────────────────
 
@@ -129,7 +134,9 @@ describe("DTWClient", () => {
     routes.set("POST /api/durable-thread-workers", (req, res) => {
       receivedAuth = req.headers.authorization ?? "";
       let body = "";
-      req.on("data", (chunk) => { body += chunk; });
+      req.on("data", (chunk) => {
+        body += chunk;
+      });
       req.on("end", () => {
         receivedBody = body;
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -158,10 +165,7 @@ describe("DTWClient", () => {
     });
 
     const client = new DTWClient({ serviceUrl: serverUrl, apiKey: "test-key" });
-    await assert.rejects(
-      () => client.createThread(),
-      /did not include a valid thread ID/,
-    );
+    await assert.rejects(() => client.createThread(), /did not include a valid thread ID/);
     client.dispose();
   });
 
@@ -172,10 +176,7 @@ describe("DTWClient", () => {
     });
 
     const client = new DTWClient({ serviceUrl: serverUrl, apiKey: "test-key" });
-    await assert.rejects(
-      () => client.createThread(),
-      /Create request failed \(500\)/,
-    );
+    await assert.rejects(() => client.createThread(), /Create request failed \(500\)/);
     client.dispose();
   });
 
@@ -250,10 +251,7 @@ describe("DTWClient", () => {
   it("dispose prevents further operations", async () => {
     const client = new DTWClient({ serviceUrl: serverUrl, apiKey: "test-key" });
     client.dispose();
-    await assert.rejects(
-      () => client.createThread(),
-      /disposed/,
-    );
+    await assert.rejects(() => client.createThread(), /disposed/);
   });
 
   it("emits stateChange events on connect attempt", async () => {
@@ -282,7 +280,10 @@ describe("DTWClient", () => {
     // Access private method via prototype for testing
     const delay0 = client.getReconnectDelay();
     assert.ok(delay0 >= DTWClient.BASE_RECONNECT_DELAY_MS, "First delay should be >= base");
-    assert.ok(delay0 <= DTWClient.BASE_RECONNECT_DELAY_MS * 1.25, "First delay should be <= base * 1.25");
+    assert.ok(
+      delay0 <= DTWClient.BASE_RECONNECT_DELAY_MS * 1.25,
+      "First delay should be <= base * 1.25",
+    );
 
     client.dispose();
   });

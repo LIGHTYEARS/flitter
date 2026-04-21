@@ -175,9 +175,7 @@ describe("Theme palette color values", () => {
     expect(palette.primary.equals(Color.rgb(137, 180, 250))).toBe(true);
     expect(palette.isLight).toBe(false);
     // Check syntax highlighting too
-    expect(
-      palette.syntaxHighlight.keyword.equals(Color.rgb(203, 166, 247)),
-    ).toBe(true);
+    expect(palette.syntaxHighlight.keyword.equals(Color.rgb(203, 166, 247))).toBe(true);
   });
 
   it("solarized-dark should have exact amp RGB values", () => {

@@ -4,7 +4,7 @@
  * Cross-references: amp-cli-reversed/modules/1271_GlobalCachedValue_d5T.js
  */
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import { GlobalCachedValue } from "./global-cached-value";
 
 describe("GlobalCachedValue", () => {
@@ -280,7 +280,10 @@ describe("GlobalCachedValue", () => {
     it("should emit change events via eventsSubject", async () => {
       const events: Array<{ old: number | undefined; new: number | undefined }> = [];
 
-      const cache = new GlobalCachedValue<number, { old: number | undefined; new: number | undefined }>({
+      const cache = new GlobalCachedValue<
+        number,
+        { old: number | undefined; new: number | undefined }
+      >({
         softTTL: 0,
         hardTTL: 0,
         compute: async () => events.length + 1,
@@ -319,7 +322,10 @@ describe("GlobalCachedValue", () => {
       const events: Array<{ old: number | undefined; new: number | undefined }> = [];
       let shouldFail = false;
 
-      const cache = new GlobalCachedValue<number, { old: number | undefined; new: number | undefined }>({
+      const cache = new GlobalCachedValue<
+        number,
+        { old: number | undefined; new: number | undefined }
+      >({
         softTTL: 999_999,
         hardTTL: 999_999,
         compute: async () => {

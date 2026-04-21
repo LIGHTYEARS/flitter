@@ -77,9 +77,13 @@ export async function handleThreadsList(
     process.exitCode = 1;
     return;
   }
-  const entries$ = threadStore.observeThreadEntries();
-  const entries = entries$.getValue();
-  if (!entries || entries.length === 0) {
+  // 逆向: amp-cli-reversed/modules/2020_unknown_l$T.js:6
+  //   `observeThreadList({ includeArchived: t.includeArchived ?? false })`
+  // Filters out subagent threads and optionally archived threads.
+  const entries = threadStore.observeThreadList({
+    includeArchived: (options as unknown as Record<string, unknown>).includeArchived === true,
+  });
+  if (entries.length === 0) {
     process.stdout.write("No threads found.\n");
     return;
   }
@@ -601,10 +605,9 @@ export async function handleThreadsSearch(
 
   // Local search: match against thread entries (title, id)
   // 逆向: amp uses server-side search; this is a local fallback
-  const entries$ = threadStore.observeThreadEntries();
-  const entries = entries$.getValue();
+  const entries = threadStore.observeThreadList({ includeArchived: true });
 
-  if (!entries || entries.length === 0) {
+  if (entries.length === 0) {
     process.stdout.write("No threads found matching your query.\n");
     return;
   }
@@ -776,9 +779,8 @@ export async function handleThreadsDashboard(
     return;
   }
 
-  const entries$ = threadStore.observeThreadEntries();
-  const entries = entries$.getValue();
-  if (!entries || entries.length === 0) {
+  const entries = threadStore.observeThreadList({ includeArchived: false });
+  if (entries.length === 0) {
     process.stdout.write("No threads found.\n");
     return;
   }

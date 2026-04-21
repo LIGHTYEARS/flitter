@@ -40,11 +40,13 @@ export function calculateCost(
   if (cache) {
     // Cache write: 125% of base input price
     if (cache.cacheCreationInputTokens) {
-      cacheCost += (cache.cacheCreationInputTokens / 1_000_000) * info.cost.input * CACHE_WRITE_MULTIPLIER;
+      cacheCost +=
+        (cache.cacheCreationInputTokens / 1_000_000) * info.cost.input * CACHE_WRITE_MULTIPLIER;
     }
     // Cache read: 10% of base input price
     if (cache.cacheReadInputTokens) {
-      cacheCost += (cache.cacheReadInputTokens / 1_000_000) * info.cost.input * CACHE_READ_MULTIPLIER;
+      cacheCost +=
+        (cache.cacheReadInputTokens / 1_000_000) * info.cost.input * CACHE_READ_MULTIPLIER;
     }
   }
 

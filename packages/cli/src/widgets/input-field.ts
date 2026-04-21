@@ -27,15 +27,24 @@
  * @module
  */
 
-import { StatefulWidget, State, Column, SizedBox, Padding, EdgeInsets, RichText, TextSpan, MediaQuery } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
-import type { Widget, Element } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
-import { TextEditingController } from "@flitter/tui";
-import { FocusNode, type KeyEventResult } from "@flitter/tui";
-import { FocusManager } from "@flitter/tui";
-import type { KeyEvent, PasteEvent } from "@flitter/tui";
+import type { BuildContext, Element, KeyEvent, PasteEvent, Widget } from "@flitter/tui";
+import {
+  Color,
+  Column,
+  EdgeInsets,
+  FocusManager,
+  FocusNode,
+  type KeyEventResult,
+  MediaQuery,
+  Padding,
+  RichText,
+  SizedBox,
+  State,
+  StatefulWidget,
+  TextEditingController,
+  TextSpan,
+  TextStyle,
+} from "@flitter/tui";
 import { detectShellCommand, getShellModeBorderColor } from "./command-detection.js";
 
 // ════════════════════════════════════════════════════
@@ -255,7 +264,7 @@ export class InputFieldState extends State<InputField> {
     const lineCount = Math.min(5, Math.max(1, (text.match(/\n/g) || []).length + 1));
 
     // 边框字符 — 逆向: amp uses MediaQuery width for dynamic sizing
-    const borderInnerWidth = this.widget.config.width ?? (terminalWidth - 2);
+    const borderInnerWidth = this.widget.config.width ?? terminalWidth - 2;
     const horizontalLine = "\u2500".repeat(borderInnerWidth);
     const topBorder = `\u250C${horizontalLine}\u2510`;
     const bottomBorder = `\u2514${horizontalLine}\u2518`;
@@ -323,11 +332,7 @@ export class InputFieldState extends State<InputField> {
     }
 
     // 普通可打印字符 (单字符，无 ctrl/meta 修饰)
-    if (
-      event.key.length === 1 &&
-      !event.modifiers.ctrl &&
-      !event.modifiers.meta
-    ) {
+    if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
       this._controller.insertText(event.key);
       this._markDirty();
       return "handled";

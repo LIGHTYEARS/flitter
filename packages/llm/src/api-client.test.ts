@@ -6,8 +6,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ApiClientError, InternalApiClient } from "./api-client";
 import type { ThreadVisibility } from "./api-client";
+import { ApiClientError, InternalApiClient } from "./api-client";
 
 // ─── Mock Fetch ──────────────────────────────────────────
 
@@ -47,9 +47,7 @@ function createMockFetch(responses: MockResponse[]): typeof globalThis.fetch {
   return mockFetch as unknown as typeof globalThis.fetch;
 }
 
-function getCalls(
-  fetch: typeof globalThis.fetch,
-): Array<{ url: string; options: RequestInit }> {
+function getCalls(fetch: typeof globalThis.fetch): Array<{ url: string; options: RequestInit }> {
   return (fetch as unknown as { calls: Array<{ url: string; options: RequestInit }> }).calls;
 }
 
@@ -72,7 +70,10 @@ describe("InternalApiClient — Thread Labels", () => {
     assert.deepEqual(result, labels);
     const calls = getCalls(fetch);
     assert.equal(calls[0].url, "https://api.example.com/threads/thread-1/labels");
-    assert.equal((calls[0].options.headers as Record<string, string>).Authorization, "Bearer token-123");
+    assert.equal(
+      (calls[0].options.headers as Record<string, string>).Authorization,
+      "Bearer token-123",
+    );
   });
 
   it("should add a label to a thread", async () => {
@@ -156,10 +157,12 @@ describe("InternalApiClient — Thread Sharing", () => {
   });
 
   it("should share with custom visibility", async () => {
-    const fetch = createMockFetch([{
-      status: 200,
-      body: { shareUrl: "url", visibility: "thread_workspace_shared" },
-    }]);
+    const fetch = createMockFetch([
+      {
+        status: 200,
+        body: { shareUrl: "url", visibility: "thread_workspace_shared" },
+      },
+    ]);
 
     const client = new InternalApiClient({
       baseUrl: "https://api.example.com",
@@ -181,15 +184,17 @@ describe("InternalApiClient — Thread Sharing", () => {
 describe("InternalApiClient — Thread Listing", () => {
   it("should list threads", async () => {
     const threadData = {
-      threads: [{
-        id: "t1",
-        title: "Test thread",
-        visibility: "private" as ThreadVisibility,
-        labels: [],
-        createdAt: "2026-01-01T00:00:00Z",
-        updatedAt: "2026-01-01T00:00:00Z",
-        messageCount: 5,
-      }],
+      threads: [
+        {
+          id: "t1",
+          title: "Test thread",
+          visibility: "private" as ThreadVisibility,
+          labels: [],
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+          messageCount: 5,
+        },
+      ],
       total: 1,
     };
     const fetch = createMockFetch([{ status: 200, body: threadData }]);
@@ -207,10 +212,12 @@ describe("InternalApiClient — Thread Listing", () => {
   });
 
   it("should pass query parameters for listing", async () => {
-    const fetch = createMockFetch([{
-      status: 200,
-      body: { threads: [], total: 0 },
-    }]);
+    const fetch = createMockFetch([
+      {
+        status: 200,
+        body: { threads: [], total: 0 },
+      },
+    ]);
 
     const client = new InternalApiClient({
       baseUrl: "https://api.example.com",
@@ -268,7 +275,9 @@ describe("InternalApiClient — Retry Logic", () => {
       authToken: "token-123",
       maxRetries: 2,
       fetch,
-      delay: async (ms) => { delays.push(ms); },
+      delay: async (ms) => {
+        delays.push(ms);
+      },
     });
 
     const result = await client.listThreads();
@@ -316,9 +325,7 @@ describe("InternalApiClient — Retry Logic", () => {
   });
 
   it("should NOT retry on 401", async () => {
-    const fetch = createMockFetch([
-      { status: 401, body: { error: "unauthorized" } },
-    ]);
+    const fetch = createMockFetch([{ status: 401, body: { error: "unauthorized" } }]);
 
     const client = new InternalApiClient({
       baseUrl: "https://api.example.com",
@@ -328,22 +335,17 @@ describe("InternalApiClient — Retry Logic", () => {
       delay: async () => {},
     });
 
-    await assert.rejects(
-      client.listThreads(),
-      (err: unknown) => {
-        assert.ok(err instanceof ApiClientError);
-        assert.equal(err.status, 401);
-        return true;
-      },
-    );
+    await assert.rejects(client.listThreads(), (err: unknown) => {
+      assert.ok(err instanceof ApiClientError);
+      assert.equal(err.status, 401);
+      return true;
+    });
 
     assert.equal(getCalls(fetch).length, 1); // No retries
   });
 
   it("should NOT retry on 400", async () => {
-    const fetch = createMockFetch([
-      { status: 400, body: { error: "bad request" } },
-    ]);
+    const fetch = createMockFetch([{ status: 400, body: { error: "bad request" } }]);
 
     const client = new InternalApiClient({
       baseUrl: "https://api.example.com",
@@ -353,14 +355,11 @@ describe("InternalApiClient — Retry Logic", () => {
       delay: async () => {},
     });
 
-    await assert.rejects(
-      client.addThreadLabel("t1", { name: "" }),
-      (err: unknown) => {
-        assert.ok(err instanceof ApiClientError);
-        assert.equal(err.status, 400);
-        return true;
-      },
-    );
+    await assert.rejects(client.addThreadLabel("t1", { name: "" }), (err: unknown) => {
+      assert.ok(err instanceof ApiClientError);
+      assert.equal(err.status, 400);
+      return true;
+    });
 
     assert.equal(getCalls(fetch).length, 1);
   });
@@ -399,14 +398,11 @@ describe("InternalApiClient — Retry Logic", () => {
       delay: async () => {},
     });
 
-    await assert.rejects(
-      client.listThreads(),
-      (err: unknown) => {
-        assert.ok(err instanceof ApiClientError);
-        assert.equal(err.status, 500);
-        return true;
-      },
-    );
+    await assert.rejects(client.listThreads(), (err: unknown) => {
+      assert.ok(err instanceof ApiClientError);
+      assert.equal(err.status, 500);
+      return true;
+    });
 
     assert.equal(getCalls(fetch).length, 3); // 1 initial + 2 retries
   });

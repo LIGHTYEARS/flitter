@@ -8,27 +8,39 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, beforeEach } from "node:test";
-import { GitHubClient } from "./github-client";
+import { describe, it } from "node:test";
+import type { ToolContext } from "../types";
+import { createCommitSearchTool } from "./commit-search";
 import type { GitHubApiResult } from "./github-client";
+import { GitHubClient } from "./github-client";
+import { createGitHubDiffTool } from "./github-diff";
+import { createGlobGitHubTool } from "./glob-github";
 import {
-  parseRepository,
-  isFileContent,
-  describeContentType,
-  formatDirectoryEntries,
   applyReadRange,
   decodeBase64Content,
+  describeContentType,
+  formatDirectoryEntries,
   globMatch,
+  isFileContent,
+  parseRepository,
   truncateOutput,
 } from "./helpers";
+import { createGitHubTools } from "./index";
+import { createListDirectoryGitHubTool } from "./list-directory-github";
+import { createListRepositoriesTool } from "./list-repositories";
 import { createReadGitHubTool } from "./read-github";
 import { createSearchGitHubTool } from "./search-github";
-import { createCommitSearchTool } from "./commit-search";
-import { createListDirectoryGitHubTool } from "./list-directory-github";
-import { createGlobGitHubTool } from "./glob-github";
-import { createGitHubDiffTool } from "./github-diff";
-import { createListRepositoriesTool } from "./list-repositories";
-import { createGitHubTools } from "./index";
+
+// ---------------------------------------------------------------------------
+// Mock ToolContext
+// ---------------------------------------------------------------------------
+
+const mockContext: ToolContext = {
+  workingDirectory: "/tmp/test",
+  signal: new AbortController().signal,
+  threadId: "test-thread",
+  config: {} as ToolContext["config"],
+};
 
 // ---------------------------------------------------------------------------
 // Mock GitHubClient
@@ -46,10 +58,7 @@ function createMockClient(
   const client = new GitHubClient("test-token");
 
   // Override fetchJSON
-  client.fetchJSON = async function <T>(
-    path: string,
-    options?: unknown,
-  ): Promise<GitHubApiResult<T>> {
+  client.fetchJSON = async <T>(path: string, options?: unknown): Promise<GitHubApiResult<T>> => {
     calls.push({ path, options });
     if (typeof responses === "function") {
       return responses(path, options) as GitHubApiResult<T>;
@@ -74,17 +83,11 @@ describe("parseRepository", () => {
   });
 
   it("parses full GitHub URL", () => {
-    assert.equal(
-      parseRepository("https://github.com/owner/repo"),
-      "owner/repo",
-    );
+    assert.equal(parseRepository("https://github.com/owner/repo"), "owner/repo");
   });
 
   it("strips .git suffix", () => {
-    assert.equal(
-      parseRepository("https://github.com/owner/repo.git"),
-      "owner/repo",
-    );
+    assert.equal(parseRepository("https://github.com/owner/repo.git"), "owner/repo");
   });
 
   it("strips leading/trailing slashes", () => {
@@ -92,17 +95,11 @@ describe("parseRepository", () => {
   });
 
   it("rejects non-github URLs", () => {
-    assert.throws(
-      () => parseRepository("https://gitlab.com/owner/repo"),
-      /Only github.com/,
-    );
+    assert.throws(() => parseRepository("https://gitlab.com/owner/repo"), /Only github.com/);
   });
 
   it("rejects invalid format", () => {
-    assert.throws(
-      () => parseRepository("justarepo"),
-      /Invalid repository/,
-    );
+    assert.throws(() => parseRepository("justarepo"), /Invalid repository/);
   });
 
   it("handles extra path segments", () => {
@@ -112,10 +109,7 @@ describe("parseRepository", () => {
 
 describe("isFileContent", () => {
   it("returns true for valid file content", () => {
-    assert.equal(
-      isFileContent({ content: "abc", encoding: "base64" }),
-      true,
-    );
+    assert.equal(isFileContent({ content: "abc", encoding: "base64" }), true);
   });
 
   it("returns false for arrays", () => {
@@ -290,7 +284,7 @@ describe("read_github", () => {
     const tool = createReadGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", path: "src/index.ts" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -319,7 +313,7 @@ describe("read_github", () => {
     const tool = createReadGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", path: "file.txt", read_range: [2, 4] },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -347,10 +341,7 @@ describe("read_github", () => {
     );
 
     const tool = createReadGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", path: "src" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", path: "src" }, mockContext);
 
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("lib/"));
@@ -372,10 +363,7 @@ describe("read_github", () => {
     );
 
     const tool = createReadGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", path: "link" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", path: "link" }, mockContext);
 
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("symlink"));
@@ -384,18 +372,12 @@ describe("read_github", () => {
   it("returns error on API failure", async () => {
     const { client } = createMockClient(
       new Map([
-        [
-          "repos/owner/repo/contents/missing",
-          { ok: false, status: 404, statusText: "Not Found" },
-        ],
+        ["repos/owner/repo/contents/missing", { ok: false, status: 404, statusText: "Not Found" }],
       ]),
     );
 
     const tool = createReadGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", path: "missing" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", path: "missing" }, mockContext);
 
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("404"));
@@ -404,10 +386,7 @@ describe("read_github", () => {
   it("returns error for invalid repository", async () => {
     const { client } = createMockClient(new Map());
     const tool = createReadGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "invalid", path: "file.ts" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "invalid", path: "file.ts" }, mockContext);
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("Invalid repository"));
   });
@@ -437,21 +416,15 @@ describe("search_github", () => {
             items: [
               {
                 path: "src/index.ts",
-                text_matches: [
-                  { property: "content", fragment: "const foo = 1;" },
-                ],
+                text_matches: [{ property: "content", fragment: "const foo = 1;" }],
               },
               {
                 path: "src/index.ts",
-                text_matches: [
-                  { property: "content", fragment: "const bar = 2;" },
-                ],
+                text_matches: [{ property: "content", fragment: "const bar = 2;" }],
               },
               {
                 path: "src/utils.ts",
-                text_matches: [
-                  { property: "content", fragment: "export const foo = 3;" },
-                ],
+                text_matches: [{ property: "content", fragment: "export const foo = 3;" }],
               },
             ],
           },
@@ -461,10 +434,7 @@ describe("search_github", () => {
     });
 
     const tool = createSearchGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", pattern: "foo" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", pattern: "foo" }, mockContext);
 
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("src/index.ts"));
@@ -487,7 +457,7 @@ describe("search_github", () => {
     const tool = createSearchGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", pattern: "nonexistent" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -499,24 +469,21 @@ describe("search_github", () => {
     const tool = createSearchGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", pattern: "foo", offset: 7, limit: 5 },
-      {} as any,
+      mockContext,
     );
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("divisible"));
   });
 
   it("includes path scope in query", async () => {
-    const { client, calls } = createMockClient((path) => ({
+    const { client, calls } = createMockClient((_path) => ({
       ok: true,
       status: 200,
       data: { total_count: 0, items: [] },
     }));
 
     const tool = createSearchGitHubTool(client);
-    await tool.execute(
-      { repository: "owner/repo", pattern: "foo", path: "src/lib" },
-      {} as any,
-    );
+    await tool.execute({ repository: "owner/repo", pattern: "foo", path: "src/lib" }, mockContext);
 
     const apiPath = calls[0].path;
     assert.ok(apiPath.includes("path%3Asrc%2Flib") || apiPath.includes("path:src/lib"));
@@ -564,10 +531,7 @@ describe("commit_search", () => {
     });
 
     const tool = createCommitSearchTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", query: "fix bug" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", query: "fix bug" }, mockContext);
 
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("abc123de"));
@@ -602,10 +566,7 @@ describe("commit_search", () => {
     });
 
     const tool = createCommitSearchTool(client);
-    await tool.execute(
-      { repository: "owner/repo", path: "src/file.ts" },
-      {} as any,
-    );
+    await tool.execute({ repository: "owner/repo", path: "src/file.ts" }, mockContext);
 
     assert.ok(calls[0].path.startsWith("repos/owner/repo/commits"));
     assert.ok(calls[0].path.includes("path=src%2Ffile.ts"));
@@ -641,7 +602,7 @@ describe("commit_search", () => {
     const tool = createCommitSearchTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", query: "bug", path: "src" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -676,10 +637,7 @@ describe("commit_search", () => {
     });
 
     const tool = createCommitSearchTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", query: "x" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", query: "x" }, mockContext);
 
     const data = result.data as { commits: Array<{ message: string }> };
     assert.ok(data.commits[0].message.length < longMessage.length);
@@ -719,10 +677,7 @@ describe("list_directory_github", () => {
     );
 
     const tool = createListDirectoryGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo" },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo" }, mockContext);
 
     assert.equal(result.status, "done");
     assert.ok(result.content?.includes("src/"));
@@ -748,27 +703,21 @@ describe("list_directory_github", () => {
     );
 
     const tool = createListDirectoryGitHubTool(client);
-    const result = await tool.execute(
-      { repository: "owner/repo", limit: 2 },
-      {} as any,
-    );
+    const result = await tool.execute({ repository: "owner/repo", limit: 2 }, mockContext);
 
     const data = result.data as { entries: string[] };
     assert.equal(data.entries.length, 2);
   });
 
   it("normalizes path", async () => {
-    const { client, calls } = createMockClient((path) => ({
+    const { client, calls } = createMockClient((_path) => ({
       ok: true,
       status: 200,
       data: [],
     }));
 
     const tool = createListDirectoryGitHubTool(client);
-    await tool.execute(
-      { repository: "owner/repo", path: "/src/" },
-      {} as any,
-    );
+    await tool.execute({ repository: "owner/repo", path: "/src/" }, mockContext);
 
     // Path should have leading slash stripped
     assert.ok(calls[0].path.includes("contents/src"));
@@ -814,7 +763,7 @@ describe("glob_github", () => {
     const tool = createGlobGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", filePattern: "**/*.ts" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -842,7 +791,7 @@ describe("glob_github", () => {
     const tool = createGlobGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", filePattern: "**/*.ts" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "error");
@@ -874,7 +823,7 @@ describe("glob_github", () => {
     const tool = createGlobGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", filePattern: "*.ts", offset: 1, limit: 2 },
-      {} as any,
+      mockContext,
     );
 
     const data = result.data as { files: string[] };
@@ -903,7 +852,7 @@ describe("glob_github", () => {
     const tool = createGlobGitHubTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", filePattern: "**/*.ts" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -969,7 +918,7 @@ describe("github_diff", () => {
     const tool = createGitHubDiffTool(client);
     const result = await tool.execute(
       { repository: "owner/repo", base: "main", head: "feature" },
-      {} as any,
+      mockContext,
     );
 
     assert.equal(result.status, "done");
@@ -1022,7 +971,7 @@ describe("github_diff", () => {
         head: "feature",
         includePatches: true,
       },
-      {} as any,
+      mockContext,
     );
 
     const data = result.data as { files: Array<{ patch?: string }> };
@@ -1071,7 +1020,7 @@ describe("github_diff", () => {
         head: "b",
         includePatches: true,
       },
-      {} as any,
+      mockContext,
     );
 
     const data = result.data as { files: Array<{ patch?: string }> };
@@ -1094,7 +1043,7 @@ describe("list_repositories", () => {
   });
 
   it("lists user repos and supplements with search", async () => {
-    const { client, calls } = createMockClient((path) => {
+    const { client } = createMockClient((path) => {
       if (path.startsWith("user/repos")) {
         return {
           ok: true,
@@ -1133,10 +1082,7 @@ describe("list_repositories", () => {
     });
 
     const tool = createListRepositoriesTool(client);
-    const result = await tool.execute(
-      { limit: 30 },
-      {} as any,
-    );
+    const result = await tool.execute({ limit: 30 }, mockContext);
 
     assert.equal(result.status, "done");
     const data = result.data as { repositories: Array<{ name: string }> };
@@ -1178,10 +1124,7 @@ describe("list_repositories", () => {
     });
 
     const tool = createListRepositoriesTool(client);
-    const result = await tool.execute(
-      { pattern: "tool" },
-      {} as any,
-    );
+    const result = await tool.execute({ pattern: "tool" }, mockContext);
 
     const data = result.data as { repositories: Array<{ name: string }> };
     assert.equal(data.repositories.length, 1);
@@ -1236,7 +1179,7 @@ describe("list_repositories", () => {
     });
 
     const tool = createListRepositoriesTool(client);
-    const result = await tool.execute({}, {} as any);
+    const result = await tool.execute({}, mockContext);
 
     const data = result.data as { repositories: Array<{ name: string }> };
     const names = data.repositories.map((r) => r.name);
@@ -1248,10 +1191,7 @@ describe("list_repositories", () => {
   it("rejects invalid offset", async () => {
     const { client } = createMockClient(new Map());
     const tool = createListRepositoriesTool(client);
-    const result = await tool.execute(
-      { offset: 7, limit: 5 },
-      {} as any,
-    );
+    const result = await tool.execute({ offset: 7, limit: 5 }, mockContext);
     assert.equal(result.status, "error");
     assert.ok(result.error?.includes("divisible"));
   });

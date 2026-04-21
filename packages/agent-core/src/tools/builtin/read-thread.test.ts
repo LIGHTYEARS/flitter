@@ -5,9 +5,9 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { createReadThreadTool, type ThreadStoreLike } from "./read-thread";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { createReadThreadTool, type ThreadStoreLike } from "./read-thread";
 
 function makeContext(): ToolContext {
   return {
@@ -94,10 +94,7 @@ describe("createReadThreadTool", () => {
     });
 
     it("returns error when goal is missing", async () => {
-      const result = await tool.execute(
-        { threadID: "T-aaaa-bbbb-cccc-dddd" },
-        makeContext(),
-      );
+      const result = await tool.execute({ threadID: "T-aaaa-bbbb-cccc-dddd" }, makeContext());
       assert.equal(result.status, "error");
       assert.ok((result as { error: string }).error?.includes("goal"));
     });
@@ -128,8 +125,7 @@ describe("createReadThreadTool", () => {
     it("parses thread ID from URL", async () => {
       const result = await tool.execute(
         {
-          threadID:
-            "https://ampcode.com/v2/workspace/project/T-aaaa-bbbb-cccc-dddd",
+          threadID: "https://ampcode.com/v2/workspace/project/T-aaaa-bbbb-cccc-dddd",
           goal: "anything",
         },
         makeContext(),
@@ -142,9 +138,7 @@ describe("createReadThreadTool", () => {
 
     it("strips @ prefix from thread ID", async () => {
       // Create store with a simple ID
-      const simpleStore = makeThreadStore([
-        makeSnapshot({ id: "my-thread" }),
-      ]);
+      const simpleStore = makeThreadStore([makeSnapshot({ id: "my-thread" })]);
       const simpleTool = createReadThreadTool(simpleStore);
       const result = await simpleTool.execute(
         { threadID: "@my-thread", goal: "test" },
@@ -159,9 +153,7 @@ describe("createReadThreadTool", () => {
         messages: [
           {
             role: "assistant",
-            content: [
-              { type: "tool_use", name: "Read", id: "tu_1", input: {} },
-            ],
+            content: [{ type: "tool_use", name: "Read", id: "tu_1", input: {} }],
           },
           {
             role: "user",

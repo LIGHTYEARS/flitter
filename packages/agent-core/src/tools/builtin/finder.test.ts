@@ -5,9 +5,9 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { createFinderTool } from "./finder";
 import type { SubAgentManager, SubAgentResult } from "../../subagent/subagent";
 import type { ToolContext } from "../types";
+import { createFinderTool } from "./finder";
 
 function makeContext(): ToolContext {
   return {
@@ -18,9 +18,7 @@ function makeContext(): ToolContext {
   };
 }
 
-function makeMockSubAgentManager(
-  spawnResult: SubAgentResult,
-): SubAgentManager {
+function makeMockSubAgentManager(spawnResult: SubAgentResult): SubAgentManager {
   return {
     spawn: async () => spawnResult,
     activeAgents$: { getValue: () => new Map() } as never,
@@ -82,10 +80,7 @@ describe("createFinderTool", () => {
           status: "completed",
         }),
       );
-      const result = await tool.execute(
-        { query: "authentication module" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "authentication module" }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(result.content?.includes("auth module"));
     });
@@ -98,10 +93,7 @@ describe("createFinderTool", () => {
           status: "timeout",
         }),
       );
-      const result = await tool.execute(
-        { query: "some search" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "some search" }, makeContext());
       assert.equal(result.status, "error");
       assert.ok((result as { error: string }).error?.includes("timed out"));
     });
@@ -114,10 +106,7 @@ describe("createFinderTool", () => {
           status: "cancelled",
         }),
       );
-      const result = await tool.execute(
-        { query: "some search" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "some search" }, makeContext());
       assert.equal(result.status, "cancelled");
     });
 
@@ -130,14 +119,9 @@ describe("createFinderTool", () => {
           error: "Something went wrong",
         }),
       );
-      const result = await tool.execute(
-        { query: "some search" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "some search" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("Something went wrong"),
-      );
+      assert.ok((result as { error: string }).error?.includes("Something went wrong"));
     });
 
     it("handles spawn throwing an error", async () => {
@@ -150,14 +134,9 @@ describe("createFinderTool", () => {
       } as unknown as SubAgentManager;
 
       const tool = createFinderTool(failManager);
-      const result = await tool.execute(
-        { query: "some search" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "some search" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("not ready"),
-      );
+      assert.ok((result as { error: string }).error?.includes("not ready"));
     });
 
     it("passes search-focused prompt to subagent", async () => {
@@ -176,10 +155,7 @@ describe("createFinderTool", () => {
       } as unknown as SubAgentManager;
 
       const tool = createFinderTool(capturingManager);
-      await tool.execute(
-        { query: "database connection pooling" },
-        makeContext(),
-      );
+      await tool.execute({ query: "database connection pooling" }, makeContext());
       assert.ok(capturedPrompt.includes("database connection pooling"));
       assert.ok(capturedPrompt.includes("Grep"));
       assert.ok(capturedPrompt.includes("glob"));

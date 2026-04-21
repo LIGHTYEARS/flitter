@@ -6,8 +6,8 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { GoogleGenAILiveProvider } from "./live-provider";
 import type { LiveConnectionState } from "./live-provider";
+import { GoogleGenAILiveProvider } from "./live-provider";
 
 // ─── Mock WebSocket ──────────────────────────────────────
 

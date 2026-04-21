@@ -11,6 +11,8 @@ import { Observable } from "@flitter/util";
 import {
   batchToolsByDependency,
   hasResourceConflict,
+  isDangerousToResume,
+  isTerminalStatus,
   type OrchestratorCallbacks,
   ToolOrchestrator,
   type ToolThreadEvent,
@@ -480,7 +482,7 @@ describe("ToolOrchestrator", () => {
       // Wait for tools to register
       await new Promise((r) => setTimeout(r, 20));
 
-      orch.cancelAll();
+      await orch.cancelAll();
 
       assert.ok(orch.cancelledToolUses.has("1"));
       assert.ok(orch.cancelledToolUses.has("2"));
@@ -489,7 +491,7 @@ describe("ToolOrchestrator", () => {
       await promise.catch(() => {});
     });
 
-    it("将所有运行中工具 ID 加入 cancelledToolUses", () => {
+    it("将所有运行中工具 ID 加入 cancelledToolUses", async () => {
       const registry = createTestRegistry([]);
       const callbacks = createMockCallbacks();
       const orch = new ToolOrchestrator("t1", registry, callbacks);
@@ -498,7 +500,7 @@ describe("ToolOrchestrator", () => {
       orch.runningTools.set("1", { abort: new AbortController() });
       orch.runningTools.set("2", { abort: new AbortController() });
 
-      orch.cancelAll();
+      await orch.cancelAll();
 
       assert.ok(orch.cancelledToolUses.has("1"));
       assert.ok(orch.cancelledToolUses.has("2"));
@@ -577,5 +579,83 @@ describe("ToolOrchestrator", () => {
       orch.dispose();
       orch.dispose(); // should not throw
     });
+  });
+});
+
+// ─── Resume safety utilities ──────────────────────────────
+
+describe("isDangerousToResume", () => {
+  it("Bash is dangerous", () => {
+    assert.equal(isDangerousToResume("Bash"), true);
+  });
+
+  it("run_terminal_command is dangerous", () => {
+    assert.equal(isDangerousToResume("run_terminal_command"), true);
+  });
+
+  it("shell_command is dangerous", () => {
+    assert.equal(isDangerousToResume("shell_command"), true);
+  });
+
+  it("Task is dangerous", () => {
+    assert.equal(isDangerousToResume("Task"), true);
+  });
+
+  it("handoff is dangerous", () => {
+    assert.equal(isDangerousToResume("handoff"), true);
+  });
+
+  it("Read is safe", () => {
+    assert.equal(isDangerousToResume("Read"), false);
+  });
+
+  it("write_file is safe (idempotent)", () => {
+    assert.equal(isDangerousToResume("write_file"), false);
+  });
+
+  it("edit_file is safe (idempotent)", () => {
+    assert.equal(isDangerousToResume("edit_file"), false);
+  });
+
+  it("apply_patch is safe (idempotent)", () => {
+    assert.equal(isDangerousToResume("apply_patch"), false);
+  });
+
+  it("Grep is safe", () => {
+    assert.equal(isDangerousToResume("Grep"), false);
+  });
+});
+
+describe("isTerminalStatus", () => {
+  it("done is terminal", () => {
+    assert.equal(isTerminalStatus("done"), true);
+  });
+
+  it("error is terminal", () => {
+    assert.equal(isTerminalStatus("error"), true);
+  });
+
+  it("cancelled is terminal", () => {
+    assert.equal(isTerminalStatus("cancelled"), true);
+  });
+
+  it("rejected-by-user is terminal", () => {
+    assert.equal(isTerminalStatus("rejected-by-user"), true);
+  });
+
+  it("in-progress is not terminal", () => {
+    assert.equal(isTerminalStatus("in-progress"), false);
+  });
+
+  it("blocked-on-user is not terminal", () => {
+    assert.equal(isTerminalStatus("blocked-on-user"), false);
+  });
+
+  it("queued is not terminal", () => {
+    assert.equal(isTerminalStatus("queued"), false);
+  });
+
+  it("empty string is not terminal", () => {
+    assert.equal(isTerminalStatus(""), false);
   });
 });

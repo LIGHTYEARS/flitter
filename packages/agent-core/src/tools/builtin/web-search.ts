@@ -90,9 +90,9 @@ Use when you need up-to-date or precise documentation. Use \`read_web_page\` to 
 
     // 逆向: amp uses an internal API endpoint for search.
     // Flitter: check for configured endpoint in settings, fall back to error.
-    const endpoint = (context.config.settings as Record<string, unknown>)[
-      "web_search.endpoint"
-    ] as string | undefined;
+    const endpoint = (context.config.settings as Record<string, unknown>)["web_search.endpoint"] as
+      | string
+      | undefined;
 
     if (!endpoint) {
       // No external search API configured — return a helpful error
@@ -107,9 +107,7 @@ Use when you need up-to-date or precise documentation. Use \`read_web_page\` to 
 
     try {
       // Build the query from objective + optional search_queries
-      const query = searchQueries?.length
-        ? `${objective} ${searchQueries.join(" ")}`
-        : objective;
+      const query = searchQueries?.length ? `${objective} ${searchQueries.join(" ")}` : objective;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30_000);
@@ -166,10 +164,7 @@ Use when you need up-to-date or precise documentation. Use \`read_web_page\` to 
         clearTimeout(timeout);
         context.signal.removeEventListener("abort", onAbort);
 
-        if (
-          err instanceof Error &&
-          (err.name === "AbortError" || context.signal.aborted)
-        ) {
+        if (err instanceof Error && (err.name === "AbortError" || context.signal.aborted)) {
           return { status: "cancelled", error: "Search request cancelled" };
         }
         throw err;

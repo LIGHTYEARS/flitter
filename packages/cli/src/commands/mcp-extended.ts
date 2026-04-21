@@ -72,7 +72,8 @@ export async function handleMcpDoctor(deps: McpExtendedDeps): Promise<void> {
         const server = servers.find((s: { name: string }) => s.name === name);
         if (server) {
           const status = server.status?.type ?? "unknown";
-          const icon = status === "connected" ? "\u2713" : status === "failed" ? "\u2717" : "\u25CB";
+          const icon =
+            status === "connected" ? "\u2713" : status === "failed" ? "\u2717" : "\u25CB";
           process.stdout.write(`  [${icon}] ${name} (${transport}) — ${status}\n`);
           continue;
         }
@@ -101,16 +102,16 @@ export async function handleMcpApprove(deps: McpApproveDeps, serverName: string)
     | Record<string, unknown>
     | undefined;
 
-  if (!mcpServers || !mcpServers[serverName]) {
+  if (!mcpServers?.[serverName]) {
     process.stderr.write(`Error: MCP server "${serverName}" is not configured.\n`);
     process.exitCode = 1;
     return;
   }
 
   // Read existing trusted servers list
-  const trustedServers = ((config.settings as Record<string, unknown>)["mcp.trustedServers"] as
-    | string[]
-    | undefined) ?? [];
+  const trustedServers =
+    ((config.settings as Record<string, unknown>)["mcp.trustedServers"] as string[] | undefined) ??
+    [];
 
   if (trustedServers.includes(serverName)) {
     process.stdout.write(`MCP server "${serverName}" is already trusted.\n`);
@@ -143,7 +144,7 @@ export async function handleMcpOAuthLogin(
     | Record<string, unknown>
     | undefined;
 
-  if (!mcpServers || !mcpServers[serverName]) {
+  if (!mcpServers?.[serverName]) {
     process.stderr.write(`Error: MCP server "${serverName}" is not configured.\n`);
     process.exitCode = 1;
     return;
@@ -167,8 +168,8 @@ export async function handleMcpOAuthLogin(
       // Attempt to trigger OAuth through the server manager
       const servers = [...deps.mcpServerManager.servers$.getValue().values()];
       const server = servers.find((s: { name: string }) => s.name === serverName);
-      if ((server as any)?.startOAuth) {
-        await (server as any).startOAuth();
+      if ((server as unknown as { startOAuth?: () => Promise<void> })?.startOAuth) {
+        await (server as unknown as { startOAuth: () => Promise<void> }).startOAuth();
         process.stdout.write(`OAuth login initiated for "${serverName}". Check your browser.\n`);
         return;
       }
@@ -201,7 +202,7 @@ export async function handleMcpOAuthLogout(
     | Record<string, unknown>
     | undefined;
 
-  if (!mcpServers || !mcpServers[serverName]) {
+  if (!mcpServers?.[serverName]) {
     process.stderr.write(`Error: MCP server "${serverName}" is not configured.\n`);
     process.exitCode = 1;
     return;

@@ -37,7 +37,11 @@ function makeTmpGitRepo(): string {
 
 afterEach(() => {
   for (const dir of tmpDirs) {
-    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* best-effort */ }
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* best-effort */
+    }
   }
   tmpDirs.length = 0;
 });

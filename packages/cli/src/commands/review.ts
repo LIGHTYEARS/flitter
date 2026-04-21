@@ -17,7 +17,6 @@
 
 import { execSync } from "node:child_process";
 import type { ServiceContainer } from "@flitter/flitter";
-import type { ThreadSnapshot } from "@flitter/schemas";
 import type { CliContext } from "../context";
 
 export interface ReviewOptions {

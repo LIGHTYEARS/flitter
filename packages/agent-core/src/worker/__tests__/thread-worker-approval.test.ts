@@ -29,6 +29,7 @@ function createMinimalWorker(): ThreadWorker {
     executeToolsWithPlan: async () => {},
     cancelAll: () => {},
     cancelTool: () => {},
+    onNewUserMessage: async () => {},
     hasRunningTools: () => false,
     dispose: () => {},
     runningTools: new Map(),

@@ -33,9 +33,7 @@ function createMockManager(connections: Record<string, MCPConnectionLike>): MCPM
   };
 }
 
-function createMockConnection(
-  result: unknown[] | Error,
-): MCPConnectionLike {
+function createMockConnection(result: unknown[] | Error): MCPConnectionLike {
   return {
     async readResource(_uri: string, _signal?: AbortSignal): Promise<unknown[]> {
       if (result instanceof Error) throw result;
@@ -59,10 +57,7 @@ describe("ReadMcpResourceTool", () => {
   // ─── Successful read ──────────────────────────────────────
 
   it("reads text resource content", async () => {
-    const conn = createMockConnection([
-      { text: "Hello " },
-      { text: "World" },
-    ]);
+    const conn = createMockConnection([{ text: "Hello " }, { text: "World" }]);
     const manager = createMockManager({ myserver: conn });
     const tool = createReadMcpResourceTool(manager);
 
@@ -92,9 +87,7 @@ describe("ReadMcpResourceTool", () => {
   // ─── Binary content ──────────────────────────────────────
 
   it("reports binary content with type and length", async () => {
-    const conn = createMockConnection([
-      { blob: "AAAA", mimeType: "image/png" },
-    ]);
+    const conn = createMockConnection([{ blob: "AAAA", mimeType: "image/png" }]);
     const manager = createMockManager({ myserver: conn });
     const tool = createReadMcpResourceTool(manager);
 
@@ -108,9 +101,7 @@ describe("ReadMcpResourceTool", () => {
   });
 
   it("reports unknown type for blob without mimeType", async () => {
-    const conn = createMockConnection([
-      { blob: "AAAA" },
-    ]);
+    const conn = createMockConnection([{ blob: "AAAA" }]);
     const manager = createMockManager({ myserver: conn });
     const tool = createReadMcpResourceTool(manager);
 
@@ -178,10 +169,7 @@ describe("ReadMcpResourceTool", () => {
     const manager = createMockManager({});
     const tool = createReadMcpResourceTool(manager);
 
-    const result = await tool.execute(
-      { uri: "file:///test.txt" },
-      createMockContext(),
-    );
+    const result = await tool.execute({ uri: "file:///test.txt" }, createMockContext());
 
     assert.equal(result.status, "error");
     assert.ok(result.error!.includes("server"));
@@ -191,10 +179,7 @@ describe("ReadMcpResourceTool", () => {
     const manager = createMockManager({});
     const tool = createReadMcpResourceTool(manager);
 
-    const result = await tool.execute(
-      { server: "myserver" },
-      createMockContext(),
-    );
+    const result = await tool.execute({ server: "myserver" }, createMockContext());
 
     assert.equal(result.status, "error");
     assert.ok(result.error!.includes("uri"));

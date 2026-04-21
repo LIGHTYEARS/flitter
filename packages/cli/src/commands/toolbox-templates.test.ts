@@ -4,10 +4,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  generateToolboxTemplate,
-  getTemplateExtension,
-} from "./toolbox-templates";
+import { generateToolboxTemplate, getTemplateExtension } from "./toolbox-templates";
 
 describe("generateToolboxTemplate", () => {
   it("generates bun/ts template with tool name", () => {

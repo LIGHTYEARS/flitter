@@ -8,7 +8,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { KNOWN_COMPAT_CONFIGS, detectCompatFromURL } from "./compat";
+import { detectCompatFromURL, KNOWN_COMPAT_CONFIGS } from "./compat";
 
 // ─── KNOWN_COMPAT_CONFIGS preset existence & values ────────
 
@@ -19,10 +19,7 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have correct baseURL", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.fireworks.baseURL,
-        "https://api.fireworks.ai/inference/v1",
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.fireworks.baseURL, "https://api.fireworks.ai/inference/v1");
     });
 
     it("should have supportsStore=false", () => {
@@ -34,10 +31,7 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have supportsReasoningEffort=false", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.fireworks.supportsReasoningEffort,
-        false,
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.fireworks.supportsReasoningEffort, false);
     });
   });
 
@@ -47,10 +41,7 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have correct baseURL", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.baseten.baseURL,
-        "https://bridge.baseten.co/v1",
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.baseten.baseURL, "https://bridge.baseten.co/v1");
     });
 
     it("should have supportsStore=false", () => {
@@ -62,10 +53,7 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have supportsReasoningEffort=false", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.baseten.supportsReasoningEffort,
-        false,
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.baseten.supportsReasoningEffort, false);
     });
   });
 
@@ -75,10 +63,7 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have correct baseURL", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.moonshotai.baseURL,
-        "https://api.moonshot.cn/v1",
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.moonshotai.baseURL, "https://api.moonshot.cn/v1");
     });
 
     it("should have supportsStore=false", () => {
@@ -86,17 +71,11 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
     });
 
     it("should have supportsDeveloperRole=false", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.moonshotai.supportsDeveloperRole,
-        false,
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.moonshotai.supportsDeveloperRole, false);
     });
 
     it("should have supportsReasoningEffort=false", () => {
-      assert.equal(
-        KNOWN_COMPAT_CONFIGS.moonshotai.supportsReasoningEffort,
-        false,
-      );
+      assert.equal(KNOWN_COMPAT_CONFIGS.moonshotai.supportsReasoningEffort, false);
     });
   });
 });
@@ -106,16 +85,12 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
 describe("detectCompatFromURL", () => {
   describe("fireworks", () => {
     it("should detect fireworks from full baseURL", () => {
-      const result = detectCompatFromURL(
-        "https://api.fireworks.ai/inference/v1",
-      );
+      const result = detectCompatFromURL("https://api.fireworks.ai/inference/v1");
       assert.deepEqual(result, KNOWN_COMPAT_CONFIGS.fireworks);
     });
 
     it("should detect fireworks case-insensitively", () => {
-      const result = detectCompatFromURL(
-        "https://API.FIREWORKS.AI/inference/v1",
-      );
+      const result = detectCompatFromURL("https://API.FIREWORKS.AI/inference/v1");
       assert.deepEqual(result, KNOWN_COMPAT_CONFIGS.fireworks);
     });
   });
@@ -127,9 +102,7 @@ describe("detectCompatFromURL", () => {
     });
 
     it("should detect baseten from subdomain URL", () => {
-      const result = detectCompatFromURL(
-        "https://custom.baseten.co/v1/chat/completions",
-      );
+      const result = detectCompatFromURL("https://custom.baseten.co/v1/chat/completions");
       assert.deepEqual(result, KNOWN_COMPAT_CONFIGS.baseten);
     });
 

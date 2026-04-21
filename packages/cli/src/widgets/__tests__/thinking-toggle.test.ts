@@ -9,6 +9,7 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import type { BuildContext } from "@flitter/tui";
 
 // ─── Mock helpers ──────────────────────────────────────
 
@@ -101,9 +102,11 @@ describe("ThreadStateWidget thinking toggle", () => {
     });
 
     const state = widget.createState();
-    (state as any)._widget = widget;
+    (state as unknown as Record<string, unknown>)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as unknown as Record<string, unknown>).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     assert.equal(state.showThinkingBlocks, true);
@@ -128,9 +131,11 @@ describe("ThreadStateWidget thinking toggle", () => {
     });
 
     const state = widget.createState();
-    (state as any)._widget = widget;
+    (state as unknown as Record<string, unknown>)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as unknown as Record<string, unknown>).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     assert.equal(state.showThinkingBlocks, true);
@@ -147,10 +152,13 @@ describe("ThreadStateWidget thinking toggle", () => {
       id: "t1",
       v: 0,
       messages: [
-        { role: "assistant", content: [
-          { type: "thinking", thinking: "Let me think..." },
-          { type: "text", text: "Hello!" },
-        ]},
+        {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "Let me think..." },
+            { type: "text", text: "Hello!" },
+          ],
+        },
       ],
       relationships: [],
     });
@@ -164,13 +172,15 @@ describe("ThreadStateWidget thinking toggle", () => {
     });
 
     const state = widget.createState();
-    (state as any)._widget = widget;
+    (state as unknown as Record<string, unknown>)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as unknown as Record<string, unknown>).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     // Build with thinking visible
-    const tree1 = state.build({} as any);
+    const tree1 = state.build({} as unknown as BuildContext);
     assert.ok(tree1);
 
     // Toggle thinking off
@@ -178,7 +188,7 @@ describe("ThreadStateWidget thinking toggle", () => {
     assert.equal(state.showThinkingBlocks, false);
 
     // Build again - should still render (just without thinking blocks)
-    const tree2 = state.build({} as any);
+    const tree2 = state.build({} as unknown as BuildContext);
     assert.ok(tree2);
   });
 });

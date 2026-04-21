@@ -25,6 +25,7 @@
  * ```
  */
 
+import { SessionCostTracker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { runApp } from "@flitter/tui";
@@ -251,12 +252,14 @@ export async function launchInteractiveMode(
     container.configService.updateSettings("global", "dangerouslyAllowAll", true);
   }
 
-  // allowedTools / disallowedTools / noShellCmd → container runtime override
-  if (context.allowedTools) {
-    container.configService.updateSettings("global", "tools.allowed", context.allowedTools);
-  }
-  if (context.disallowedTools) {
-    container.configService.updateSettings("global", "tools.disallowed", context.disallowedTools);
+  // allowedTools / disallowedTools / noShellCmd → CLI tool filters on registry
+  // 逆向: amp uses tools.enable / tools.disable config keys, not tools.allowed / tools.disallowed.
+  // The CliToolFilters layer on ToolRegistry is the correct place for CLI-level filtering.
+  if (context.allowedTools || context.disallowedTools) {
+    container.toolRegistry.setCliFilters({
+      allowedTools: context.allowedTools,
+      disallowedTools: context.disallowedTools,
+    });
   }
   if (context.noShellCmd) {
     container.configService.updateSettings("global", "tools.noShellCmd", true);
@@ -273,6 +276,10 @@ export async function launchInteractiveMode(
       ? (workerOpts as Parameters<typeof container.createThreadWorker>[1])
       : undefined,
   );
+
+  // Wire SessionCostTracker to the worker's event stream
+  // 逆向: chunk-002.js:1331-1351 (_K / mergeUsage accumulator pattern)
+  const costTracker = new SessionCostTracker(worker.events$);
 
   // 逆向: toastController = new BQT() (chunk-006.js:34489)
   const toastManager = new ToastManager();
@@ -349,6 +356,23 @@ export async function launchInteractiveMode(
                 },
                 clearInput: () => {
                   // InputField clears on submit automatically
+                },
+                costTracker,
+                compactThread: async () => {
+                  const snapshot = container.threadStore.getThreadSnapshot(threadId);
+                  if (!snapshot) {
+                    return {
+                      compacted: false,
+                      thread: { messages: [] } as unknown as ThreadSnapshot,
+                      tokensBefore: 0,
+                      tokensAfter: 0,
+                    };
+                  }
+                  const result = await container.contextManager.checkAndCompact(snapshot);
+                  if (result.compacted) {
+                    container.threadStore.setCachedThread(result.thread, { scheduleUpload: true });
+                  }
+                  return result;
                 },
               };
               slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {

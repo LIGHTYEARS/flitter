@@ -351,7 +351,12 @@ describe("runExecuteMode", () => {
               content: [{ type: "text", text: "The answer is 42" }],
               messageId: 1,
               state: { type: "complete", stopReason: "end_turn" },
-              usage: { inputTokens: 100, outputTokens: 50, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 },
+              usage: {
+                inputTokens: 100,
+                outputTokens: 50,
+                cacheCreationInputTokens: 10,
+                cacheReadInputTokens: 5,
+              },
             },
           ],
         }) as unknown as ThreadSnapshot,
@@ -548,7 +553,15 @@ describe("runExecuteMode", () => {
 
     const runInference = async () => {
       events$.next({ type: "inference:start" });
-      events$.next({ type: "thinking", text: "secret thoughts" } as unknown as AgentEvent);
+      // Emit a proper inference:delta with only thinking content blocks
+      events$.next({
+        type: "inference:delta",
+        delta: {
+          content: [{ type: "thinking", thinking: "secret thoughts" }],
+          state: "streaming",
+          usage: undefined,
+        },
+      } as AgentEvent);
       events$.next({ type: "turn:complete" });
     };
 
@@ -574,7 +587,8 @@ describe("runExecuteMode", () => {
 
     const lines = stdoutData.flatMap((d) => d.split("\n").filter(Boolean));
     const types = lines.map((l) => JSON.parse(l).type);
-    expect(types).not.toContain("thinking");
+    // The thinking-only inference:delta should be filtered out
+    expect(types).not.toContain("inference:delta");
   });
 
   it("--stream-json-input reads multi-turn JSON Lines from stdin", async () => {

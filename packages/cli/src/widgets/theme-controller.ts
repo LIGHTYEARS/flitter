@@ -26,8 +26,8 @@
  * @module
  */
 
+import type { ColorPalette, Element, ThemeSpec, Widget } from "@flitter/tui";
 import { InheritedWidget, ThemeRegistry } from "@flitter/tui";
-import type { Widget, Element, ThemeSpec, ColorPalette } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  ThemeData 接口

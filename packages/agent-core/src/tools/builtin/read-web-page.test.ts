@@ -5,8 +5,8 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { ReadWebPageTool } from "./read-web-page";
 import type { ToolContext } from "../types";
+import { ReadWebPageTool } from "./read-web-page";
 
 function makeContext(overrides?: Partial<ToolContext>): ToolContext {
   return {
@@ -52,36 +52,21 @@ describe("ReadWebPageTool", () => {
     });
 
     it("rejects localhost URLs", async () => {
-      const result = await ReadWebPageTool.execute(
-        { url: "http://localhost:3000" },
-        makeContext(),
-      );
+      const result = await ReadWebPageTool.execute({ url: "http://localhost:3000" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("local"),
-      );
+      assert.ok((result as { error: string }).error?.includes("local"));
     });
 
     it("rejects 127.0.0.1 URLs", async () => {
-      const result = await ReadWebPageTool.execute(
-        { url: "http://127.0.0.1:8080" },
-        makeContext(),
-      );
+      const result = await ReadWebPageTool.execute({ url: "http://127.0.0.1:8080" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("local"),
-      );
+      assert.ok((result as { error: string }).error?.includes("local"));
     });
 
     it("rejects invalid URLs", async () => {
-      const result = await ReadWebPageTool.execute(
-        { url: "not-a-url" },
-        makeContext(),
-      );
+      const result = await ReadWebPageTool.execute({ url: "not-a-url" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("Invalid URL"),
-      );
+      assert.ok((result as { error: string }).error?.includes("Invalid URL"));
     });
 
     it("fetches and converts HTML to text", async () => {
@@ -96,10 +81,7 @@ describe("ReadWebPageTool", () => {
         );
 
       try {
-        const result = await ReadWebPageTool.execute(
-          { url: "https://example.com" },
-          makeContext(),
-        );
+        const result = await ReadWebPageTool.execute({ url: "https://example.com" }, makeContext());
         assert.equal(result.status, "done");
         assert.ok(result.content?.includes("Hello World"));
         assert.ok(result.content?.includes("bold"));
@@ -178,9 +160,7 @@ describe("ReadWebPageTool", () => {
           makeContext(),
         );
         assert.equal(result.status, "error");
-        assert.ok(
-          (result as { error: string }).error?.includes("DNS resolution"),
-        );
+        assert.ok((result as { error: string }).error?.includes("DNS resolution"));
       } finally {
         globalThis.fetch = originalFetch;
       }
@@ -221,10 +201,7 @@ describe("ReadWebPageTool", () => {
         );
 
       try {
-        const result = await ReadWebPageTool.execute(
-          { url: "https://example.com" },
-          makeContext(),
-        );
+        const result = await ReadWebPageTool.execute({ url: "https://example.com" }, makeContext());
         assert.equal(result.status, "done");
         assert.ok(result.content?.includes("Safe content"));
         assert.ok(!result.content?.includes("alert"));

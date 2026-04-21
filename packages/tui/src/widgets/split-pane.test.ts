@@ -13,10 +13,9 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { SplitPane, SplitPaneRenderObject } from "./split-pane.js";
-import { SizedBox } from "./sized-box.js";
 import { Color } from "../screen/color.js";
-import { BoxConstraints } from "../tree/constraints.js";
+import { SizedBox } from "./sized-box.js";
+import { SplitPane, SplitPaneRenderObject } from "./split-pane.js";
 
 // ════════════════════════════════════════════════════
 //  Construction tests
@@ -31,20 +30,22 @@ describe("SplitPane", () => {
       children: [left, right],
     });
     assert.equal(sp.direction, "horizontal");
-    assert.equal(sp.initialRatio, 0.5);  // default
-    assert.equal(sp.minRatio, 0.1);      // default
-    assert.equal(sp.maxRatio, 0.9);      // default
+    assert.equal(sp.initialRatio, 0.5); // default
+    assert.equal(sp.minRatio, 0.1); // default
+    assert.equal(sp.maxRatio, 0.9); // default
   });
 
   it("constructs with all props", () => {
     const left = new SizedBox();
     const right = new SizedBox();
-    let resizeRatio = 0;
+    let _resizeRatio = 0;
     const sp = new SplitPane({
       direction: "vertical",
       initialRatio: 0.3,
       children: [left, right],
-      onResize: (r) => { resizeRatio = r; },
+      onResize: (r) => {
+        _resizeRatio = r;
+      },
       minRatio: 0.2,
       maxRatio: 0.8,
       dividerColor: Color.red(),

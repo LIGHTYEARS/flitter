@@ -25,13 +25,12 @@
  * ```
  */
 
+import { readdirSync } from "node:fs";
 import {
   AutocompleteController,
   type AutocompleteOption,
   type TextEditingController,
 } from "@flitter/tui";
-import { readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
 
 // ════════════════════════════════════════════════════
 //  @-mention detection (standalone utility)

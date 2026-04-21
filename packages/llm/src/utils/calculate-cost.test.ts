@@ -48,7 +48,7 @@ describe("calculateCost", () => {
 
   it("should calculate cost for opus (expensive model)", () => {
     // cost: { input: 15, output: 75 }
-    const cost = calculateCost("claude-opus-4-20250515", 100_000, 32_000);
+    const cost = calculateCost("claude-opus-4-20250514", 100_000, 32_000);
     const expected = (100_000 / 1_000_000) * 15 + (32_000 / 1_000_000) * 75;
     assert.equal(cost, expected);
   });

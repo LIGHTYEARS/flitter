@@ -10,10 +10,10 @@
  * @module
  */
 
-import type { Screen } from "../screen/screen.js";
+import { Cell } from "../screen/cell.js";
 import type { Color } from "../screen/color.js";
 import { Color as ColorClass } from "../screen/color.js";
-import { Cell } from "../screen/cell.js";
+import type { Screen } from "../screen/screen.js";
 import { TextStyle } from "../screen/text-style.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import type { Element, Widget as WidgetInterface } from "../tree/element.js";
@@ -42,10 +42,7 @@ export type SplitDirection = "horizontal" | "vertical";
 export class SplitPaneRenderObject extends RenderBox {
   private _direction: SplitDirection;
   private _ratio: number;
-  private _minRatio: number;
-  private _maxRatio: number;
   private _dividerColor: Color;
-  private _onResize: ((ratio: number) => void) | undefined;
 
   constructor(
     direction: SplitDirection,
@@ -95,8 +92,10 @@ export class SplitPaneRenderObject extends RenderBox {
     if (this._direction === "horizontal") {
       // Both children side-by-side + 1 for divider
       let w = 1; // divider
-      if (this._children.length > 0) w += (this._children[0] as RenderBox).getMinIntrinsicWidth(height);
-      if (this._children.length > 1) w += (this._children[1] as RenderBox).getMinIntrinsicWidth(height);
+      if (this._children.length > 0)
+        w += (this._children[0] as RenderBox).getMinIntrinsicWidth(height);
+      if (this._children.length > 1)
+        w += (this._children[1] as RenderBox).getMinIntrinsicWidth(height);
       return w;
     }
     // Vertical: max of both children
@@ -114,8 +113,10 @@ export class SplitPaneRenderObject extends RenderBox {
   override getMinIntrinsicHeight(width: number): number {
     if (this._direction === "vertical") {
       let h = 1; // divider
-      if (this._children.length > 0) h += (this._children[0] as RenderBox).getMinIntrinsicHeight(width);
-      if (this._children.length > 1) h += (this._children[1] as RenderBox).getMinIntrinsicHeight(width);
+      if (this._children.length > 0)
+        h += (this._children[0] as RenderBox).getMinIntrinsicHeight(width);
+      if (this._children.length > 1)
+        h += (this._children[1] as RenderBox).getMinIntrinsicHeight(width);
       return h;
     }
     let maxH = 0;
@@ -150,16 +151,24 @@ export class SplitPaneRenderObject extends RenderBox {
       const firstW = Math.max(0, Math.floor(available * this._ratio));
       const secondW = Math.max(0, available - firstW);
 
-      first.layout(new BoxConstraints({
-        minWidth: firstW, maxWidth: firstW,
-        minHeight: h, maxHeight: h,
-      }));
+      first.layout(
+        new BoxConstraints({
+          minWidth: firstW,
+          maxWidth: firstW,
+          minHeight: h,
+          maxHeight: h,
+        }),
+      );
       first.setOffset(0, 0);
 
-      second.layout(new BoxConstraints({
-        minWidth: secondW, maxWidth: secondW,
-        minHeight: h, maxHeight: h,
-      }));
+      second.layout(
+        new BoxConstraints({
+          minWidth: secondW,
+          maxWidth: secondW,
+          minHeight: h,
+          maxHeight: h,
+        }),
+      );
       second.setOffset(firstW + 1, 0);
     } else {
       // Vertical split: first / divider(1) / second
@@ -167,16 +176,24 @@ export class SplitPaneRenderObject extends RenderBox {
       const firstH = Math.max(0, Math.floor(available * this._ratio));
       const secondH = Math.max(0, available - firstH);
 
-      first.layout(new BoxConstraints({
-        minWidth: w, maxWidth: w,
-        minHeight: firstH, maxHeight: firstH,
-      }));
+      first.layout(
+        new BoxConstraints({
+          minWidth: w,
+          maxWidth: w,
+          minHeight: firstH,
+          maxHeight: firstH,
+        }),
+      );
       first.setOffset(0, 0);
 
-      second.layout(new BoxConstraints({
-        minWidth: w, maxWidth: w,
-        minHeight: secondH, maxHeight: secondH,
-      }));
+      second.layout(
+        new BoxConstraints({
+          minWidth: w,
+          maxWidth: w,
+          minHeight: secondH,
+          maxHeight: secondH,
+        }),
+      );
       second.setOffset(0, firstH + 1);
     }
   }
@@ -196,14 +213,22 @@ export class SplitPaneRenderObject extends RenderBox {
       const available = Math.max(0, w - 1);
       const dividerX = x + Math.floor(available * this._ratio);
       for (let row = 0; row < h; row++) {
-        screen.setCell(dividerX, y + row, new Cell("│", new TextStyle({ foreground: this._dividerColor })));
+        screen.setCell(
+          dividerX,
+          y + row,
+          new Cell("│", new TextStyle({ foreground: this._dividerColor })),
+        );
       }
     } else {
       // Draw horizontal divider
       const available = Math.max(0, h - 1);
       const dividerY = y + Math.floor(available * this._ratio);
       for (let col = 0; col < w; col++) {
-        screen.setCell(x + col, dividerY, new Cell("─", new TextStyle({ foreground: this._dividerColor })));
+        screen.setCell(
+          x + col,
+          dividerY,
+          new Cell("─", new TextStyle({ foreground: this._dividerColor })),
+        );
       }
     }
   }

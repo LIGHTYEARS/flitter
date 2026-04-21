@@ -14,12 +14,12 @@
  * @module
  */
 
-import { describe, it, expect, mock } from "bun:test";
+import { describe, expect, it, mock } from "bun:test";
+import { Column, State, StatefulWidget } from "@flitter/tui";
 import { AppWidget, AppWidgetState } from "./app-widget.js";
-import { ThreadStateWidget, ThreadStateWidgetState } from "./thread-state-widget.js";
-import { ThemeController, type ThemeData } from "./theme-controller.js";
 import { ConfigProvider } from "./config-provider.js";
-import { Column, StatefulWidget, State } from "@flitter/tui";
+import { ThemeController, type ThemeData } from "./theme-controller.js";
+import { ThreadStateWidget, ThreadStateWidgetState } from "./thread-state-widget.js";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -189,7 +189,9 @@ describe("State 公共行为", () => {
     (state as unknown as { _element: unknown })._element = { markNeedsRebuild };
 
     let called = false;
-    state.setState(() => { called = true; });
+    state.setState(() => {
+      called = true;
+    });
 
     expect(called).toBe(true);
     expect(markNeedsRebuild).toHaveBeenCalledTimes(1);

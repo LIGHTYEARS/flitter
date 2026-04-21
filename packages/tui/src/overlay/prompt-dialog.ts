@@ -15,25 +15,25 @@
  * @module
  */
 
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
 import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
-import { PopupOverlay } from "./popup-overlay.js";
-import { Container } from "../widgets/container.js";
-import { Column } from "../widgets/column.js";
-import { Row } from "../widgets/row.js";
-import { Text } from "../widgets/text.js";
-import { Focus } from "../widgets/focus.js";
-import { GestureDetector } from "../widgets/gesture-detector.js";
-import { SizedBox } from "../widgets/sized-box.js";
-import { EdgeInsets } from "../widgets/edge-insets.js";
-import { BoxDecoration } from "../widgets/box-decoration.js";
 import { Border } from "../widgets/border.js";
 import { BorderSide } from "../widgets/border-side.js";
-import { TextStyle } from "../screen/text-style.js";
-import { TextSpan } from "../widgets/text-span.js";
+import { BoxDecoration } from "../widgets/box-decoration.js";
+import { Column } from "../widgets/column.js";
+import { Container } from "../widgets/container.js";
+import { EdgeInsets } from "../widgets/edge-insets.js";
+import { Focus } from "../widgets/focus.js";
+import { GestureDetector } from "../widgets/gesture-detector.js";
 import { RichText } from "../widgets/rich-text.js";
-import { Color } from "../screen/color.js";
+import { Row } from "../widgets/row.js";
+import { SizedBox } from "../widgets/sized-box.js";
+import { Text } from "../widgets/text.js";
+import { TextSpan } from "../widgets/text-span.js";
+import { PopupOverlay } from "./popup-overlay.js";
 
 // ════════════════════════════════════════════════════
 //  PromptDialog Widget

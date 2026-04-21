@@ -11,9 +11,9 @@
  * - Returns error if tree is truncated (repo too large)
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { globMatch, parseRepository, truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the glob_github tool spec, closing over a GitHubClient instance.
@@ -99,9 +99,7 @@ export function createGlobGitHubTool(client: GitHubClient): ToolSpec {
         .filter((path) => globMatch(filePattern, path))
         .slice(offset, offset + limit);
 
-      const output = matches.length > 0
-        ? matches.join("\n")
-        : "No files matched the pattern.";
+      const output = matches.length > 0 ? matches.join("\n") : "No files matched the pattern.";
 
       return {
         status: "done",

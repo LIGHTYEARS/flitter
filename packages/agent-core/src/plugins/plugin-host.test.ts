@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
-import { afterEach, beforeEach, describe, it } from "node:test";
+import { describe, it } from "node:test";
 import { PluginHost } from "./plugin-host";
 import type { PluginAction } from "./types";
 
@@ -18,9 +18,7 @@ import type { PluginAction } from "./types";
  * Instead of actually spawning a process, we intercept the spawn call
  * and provide mock stdin/stdout/stderr streams.
  */
-function createMockHost(options?: {
-  requestTimeoutMs?: number;
-}) {
+function _createMockHost(options?: { requestTimeoutMs?: number }) {
   const mockStdin = new PassThrough();
   const mockStdout = new PassThrough();
   const mockStderr = new PassThrough();
@@ -28,10 +26,13 @@ function createMockHost(options?: {
   // Track what was written to the mock subprocess stdin
   const stdinWrites: string[] = [];
   const originalWrite = mockStdin.write.bind(mockStdin);
-  mockStdin.write = function (chunk: any, ...args: any[]): boolean {
-    stdinWrites.push(typeof chunk === "string" ? chunk : chunk.toString());
-    return originalWrite(chunk, ...args);
-  } as any;
+  mockStdin.write = ((chunk: unknown, ...args: unknown[]): boolean => {
+    stdinWrites.push(typeof chunk === "string" ? chunk : String(chunk));
+    return originalWrite(
+      chunk as string,
+      ...(args as [BufferEncoding?, ((error: Error | null | undefined) => void)?]),
+    );
+  }) as typeof mockStdin.write;
 
   const host = new PluginHost("/test/mock-plugin.ts", {
     requestTimeoutMs: options?.requestTimeoutMs ?? 5000,
@@ -82,16 +83,16 @@ describe("PluginHost", () => {
     it("returns allow action for valid response", async () => {
       // Test the protocol: if plugin returns { action: "allow" }, host should return it
       // We test this by verifying the method's response validation logic
-      const host = new PluginHost("/test/plugin.ts");
+      const _host = new PluginHost("/test/plugin.ts");
 
       // Verify the PluginAction validation logic matches amp
       // 逆向: $aT.requestToolCall (chunk-002.js:26952-26961)
       const validResult = { action: "allow" };
       assert.ok(
         validResult &&
-        typeof validResult === "object" &&
-        "action" in validResult &&
-        typeof validResult.action === "string",
+          typeof validResult === "object" &&
+          "action" in validResult &&
+          typeof validResult.action === "string",
       );
     });
 
@@ -110,10 +111,7 @@ describe("PluginHost", () => {
       const actionTypes = ["allow", "error", "reject-and-continue", "synthesize", "modify"];
       for (const type of actionTypes) {
         const result = { action: type };
-        assert.ok(
-          typeof result.action === "string",
-          `Action type "${type}" should be a string`,
-        );
+        assert.ok(typeof result.action === "string", `Action type "${type}" should be a string`);
       }
     });
   });
@@ -122,9 +120,8 @@ describe("PluginHost", () => {
     it("returns undefined for invalid result", () => {
       // 逆向: $aT.requestToolResult (chunk-002.js:26963-26974)
       const result = { invalid: true };
-      const status = (result as any).status;
-      const isValid =
-        status === "done" || status === "error" || status === "cancelled";
+      const status = (result as Record<string, unknown>).status;
+      const isValid = status === "done" || status === "error" || status === "cancelled";
       assert.equal(isValid, false);
     });
 
@@ -133,9 +130,7 @@ describe("PluginHost", () => {
       for (const status of ["done", "error", "cancelled"]) {
         const result = { status, result: "output" };
         assert.ok(
-          result.status === "done" ||
-          result.status === "error" ||
-          result.status === "cancelled",
+          result.status === "done" || result.status === "error" || result.status === "cancelled",
         );
       }
     });

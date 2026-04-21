@@ -514,9 +514,7 @@ export class ConversationViewState extends State<ConversationView> {
         );
       } else {
         const hasNonZeroExit =
-          tool.status === "done" &&
-          typeof tool.exitCode === "number" &&
-          tool.exitCode !== 0;
+          tool.status === "done" && typeof tool.exitCode === "number" && tool.exitCode !== 0;
         const statusColor = hasNonZeroExit ? ERROR_COLOR_LOCAL : _getStatusColor(tool.status);
         spans.push(
           new TextSpan({
@@ -623,9 +621,7 @@ export class ConversationViewState extends State<ConversationView> {
       const outputLines = tool.output.split("\n");
       const MAX_VISIBLE_LINES = 5;
       const truncated = outputLines.length > MAX_VISIBLE_LINES;
-      const visibleLines = truncated
-        ? outputLines.slice(0, MAX_VISIBLE_LINES)
-        : outputLines;
+      const visibleLines = truncated ? outputLines.slice(0, MAX_VISIBLE_LINES) : outputLines;
 
       const outputText = visibleLines.join("\n");
       columnChildren.push(

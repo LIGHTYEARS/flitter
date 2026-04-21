@@ -12,8 +12,8 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Toggle } from "./toggle.js";
 import { Color } from "../screen/color.js";
+import { Toggle } from "./toggle.js";
 
 // ════════════════════════════════════════════════════
 //  Construction tests
@@ -32,7 +32,7 @@ describe("Toggle", () => {
   });
 
   it("constructs with all props", () => {
-    const onChange = (v: boolean) => {};
+    const onChange = (_v: boolean) => {};
     const color = Color.cyan();
     const toggle = new Toggle({
       value: false,
@@ -89,7 +89,9 @@ describe("Toggle callbacks", () => {
     let called = false;
     const toggle = new Toggle({
       value: false,
-      onChanged: (v) => { called = true; },
+      onChanged: (_v) => {
+        called = true;
+      },
     });
     // Call onChanged manually to verify it's wired
     toggle.onChanged(true);
@@ -100,7 +102,9 @@ describe("Toggle callbacks", () => {
     let received: boolean | null = null;
     const toggle = new Toggle({
       value: true,
-      onChanged: (v) => { received = v; },
+      onChanged: (v) => {
+        received = v;
+      },
     });
     // When toggled from true, should pass false
     toggle.onChanged(!toggle.value);

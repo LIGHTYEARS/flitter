@@ -15,11 +15,7 @@
  * @module
  */
 
-import {
-  BUILTIN_THEMES,
-  TERMINAL_THEME,
-  type ThemeSpec,
-} from "./builtin-themes.js";
+import { BUILTIN_THEMES, TERMINAL_THEME, type ThemeSpec } from "./builtin-themes.js";
 
 /**
  * Central theme registry.
@@ -63,11 +59,7 @@ export class ThemeRegistry {
    * @returns ThemeSpec or null if not found
    */
   get(name: string): ThemeSpec | null {
-    return (
-      this.customThemes.get(name) ??
-      BUILTIN_THEMES.find((t) => t.name === name) ??
-      null
-    );
+    return this.customThemes.get(name) ?? BUILTIN_THEMES.find((t) => t.name === name) ?? null;
   }
 
   /**

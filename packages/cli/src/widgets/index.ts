@@ -20,7 +20,25 @@
  */
 
 export { AppWidget, type AppWidgetConfig, AppWidgetState } from "./app-widget.js";
+export {
+  type ApprovalRequest,
+  type ApprovalResponse,
+  type ApprovalScope,
+  ApprovalWidget,
+} from "./approval-widget.js";
+export {
+  detectShellCommand,
+  getShellModeBorderColor,
+  type ShellCommandResult,
+} from "./command-detection.js";
+export { FlitterCommandPaletteProvider } from "./command-palette-provider.js";
 export { ConfigProvider } from "./config-provider.js";
+export {
+  ContextAnalyzer,
+  type ContextAnalyzerConfig,
+  ContextAnalyzerState,
+  type TokenBreakdown,
+} from "./context-analyzer.js";
 export {
   ConversationView,
   type ConversationViewConfig,
@@ -28,10 +46,21 @@ export {
   type Message,
 } from "./conversation-view.js";
 export {
+  type ActivityGroupItem,
+  type DisplayItem,
+  type MessageItem,
+  type ThinkingItem,
+  type ToolItem,
+  transformThreadToDisplayItems,
+} from "./display-items.js";
+export { FileAutocomplete, type FileAutocompleteConfig } from "./file-autocomplete.js";
+export {
   InputField,
   type InputFieldConfig,
   InputFieldState,
 } from "./input-field.js";
+export { SHORTCUT_ROWS, ShortcutsPopup } from "./shortcuts-popup.js";
+export { SlashCommandAutocomplete } from "./slash-command-autocomplete.js";
 export {
   CONTEXT_DANGER,
   CONTEXT_RECOMMENDATION,
@@ -44,39 +73,14 @@ export {
 } from "./status-bar.js";
 export { ThemeController, type ThemeData } from "./theme-controller.js";
 export {
-  ThreadStateWidget,
-  type ThreadStateWidgetConfig,
-  ThreadStateWidgetState,
-} from "./thread-state-widget.js";
-export { WelcomeScreen } from "./welcome-screen.js";
-export {
-  ApprovalWidget,
-  type ApprovalRequest,
-  type ApprovalResponse,
-  type ApprovalScope,
-} from "./approval-widget.js";
-export { FlitterCommandPaletteProvider } from "./command-palette-provider.js";
-export { ShortcutsPopup, SHORTCUT_ROWS } from "./shortcuts-popup.js";
-export { SlashCommandAutocomplete } from "./slash-command-autocomplete.js";
-export { detectShellCommand, getShellModeBorderColor, type ShellCommandResult } from "./command-detection.js";
-export { FileAutocomplete, type FileAutocompleteConfig } from "./file-autocomplete.js";
-export {
-  type DisplayItem,
-  type MessageItem,
-  type ToolItem,
-  type ActivityGroupItem,
-  type ThinkingItem,
-  transformThreadToDisplayItems,
-} from "./display-items.js";
-export {
   ThreadPicker,
   type ThreadPickerConfig,
   type ThreadPickerEntry,
   ThreadPickerState,
 } from "./thread-picker.js";
 export {
-  ContextAnalyzer,
-  type ContextAnalyzerConfig,
-  ContextAnalyzerState,
-  type TokenBreakdown,
-} from "./context-analyzer.js";
+  ThreadStateWidget,
+  type ThreadStateWidgetConfig,
+  ThreadStateWidgetState,
+} from "./thread-state-widget.js";
+export { WelcomeScreen } from "./welcome-screen.js";

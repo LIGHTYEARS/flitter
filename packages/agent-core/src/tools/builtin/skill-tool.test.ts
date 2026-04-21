@@ -39,9 +39,7 @@ const testSkill: SkillLike = {
     description: "A test skill",
   },
   body: "This is the skill body.\nDo things correctly.",
-  files: [
-    { path: "scripts/run.sh", fullPath: "/skills/test-skill/scripts/run.sh" },
-  ],
+  files: [{ path: "scripts/run.sh", fullPath: "/skills/test-skill/scripts/run.sh" }],
 };
 
 const argSkill: SkillLike = {
@@ -73,7 +71,7 @@ describe("SkillTool", () => {
 
   it("has correct ToolSpec shape", () => {
     const tool = createSkillTool(createMockSkillService([]));
-    assert.equal(tool.name, "Skill");
+    assert.equal(tool.name, "skill");
     assert.equal(tool.source, "builtin");
     assert.equal(tool.isReadOnly, true);
     assert.equal(typeof tool.execute, "function");

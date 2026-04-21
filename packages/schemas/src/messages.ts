@@ -82,6 +82,7 @@ export const ToolRunCancelledSchema = z.object({
 export const ToolRunRejectedSchema = z.object({
   status: z.literal("rejected-by-user"),
   reason: z.string().optional(),
+  toAllow: z.array(z.string()).optional(),
 });
 
 export const ToolRunInProgressSchema = z.object({

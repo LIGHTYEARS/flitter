@@ -5,6 +5,7 @@
  * Supports configurable timeout, abort signal cancellation, and output truncation.
  */
 import { type ChildProcess, spawn as cpSpawn } from "node:child_process";
+import { resolve as pathResolve } from "node:path";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 
 // ─── Constants ───────────────────────────────────────────
@@ -166,6 +167,57 @@ function executeShell(
   });
 }
 
+// ─── cd interception ────────────────────────────────────
+
+/**
+ * Parse a `cd path` command from the start of a shell command string.
+ *
+ * 逆向: amp's bWR (1300_unknown_bWR.js) uses a full parsimmon-based shell AST
+ * parser (IaT class). For flitter, we use a regex approach that handles the
+ * common patterns:
+ *
+ * - `cd path` → { resolvedPath, remainder: "" }
+ * - `cd path && rest` → { resolvedPath, remainder: "rest" }
+ * - `cd path; rest` → { resolvedPath, remainder: "rest" }
+ * - `cd "quoted path"` or `cd 'quoted'` → handles quotes
+ *
+ * Returns undefined if the command is not a simple cd, matching amp's behavior
+ * of skipping dynamic/computed cd targets.
+ */
+function parseCdCommand(command: string): { resolvedPath: string; remainder: string } | undefined {
+  // Match: cd <path> [&& rest | ; rest | end]
+  // Path can be: unquoted, double-quoted, or single-quoted
+  const cdRegex = /^cd\s+(?:"([^"]+)"|'([^']+)'|(\S+))(?:\s*(&&|;)\s*(.*))?$/;
+  const match = cdRegex.exec(command);
+  if (!match) return undefined;
+
+  const rawPath = match[1] ?? match[2] ?? match[3];
+  if (!rawPath) return undefined;
+
+  // Skip dynamic paths (containing $, backtick, or subshell)
+  // 逆向: amp's parser returns Symbol("Dynamic") for these; we skip them
+  if (rawPath.includes("$") || rawPath.includes("`")) return undefined;
+
+  // Expand ~ to home directory
+  // 逆向: bWR expands ~ to process.env.HOME || process.env.USERPROFILE
+  let expandedPath = rawPath;
+  if (expandedPath.startsWith("~")) {
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+    expandedPath = home + expandedPath.slice(1);
+  }
+
+  // Resolve relative paths against cwd (will be resolved again in execute, but
+  // we need an absolute path for the cwd field)
+  const resolvedPath = pathResolve(expandedPath);
+
+  // Extract remainder (commands after && or ;)
+  const separator = match[4]; // && or ;
+  const rest = match[5] ?? "";
+  const remainder = separator && rest ? rest.trim() : "";
+
+  return { resolvedPath, remainder };
+}
+
 // ─── BashTool ────────────────────────────────────────────
 
 /**
@@ -188,6 +240,8 @@ export const BashTool: ToolSpec = {
 
   executionProfile: {
     serial: true,
+    // 逆向: amp uses `meta: { disableTimeout: !0 }` on Bash (chunk-005.js:146312)
+    disableTimeout: true,
   },
 
   inputSchema: {
@@ -217,10 +271,53 @@ export const BashTool: ToolSpec = {
   },
 
   // 逆向: amp's Bash tool accepts `cmd` (chunk-005.js:2282 fallback logic)
+  // and intercepts `cd path` to rewrite `cwd` (bWR in 1300_unknown_bWR.js)
   preprocessArgs(args) {
+    // Step 1: Alias `cmd` → `command`
     if ("cmd" in args && !("command" in args)) {
-      return { ...args, command: args.cmd };
+      args = { ...args, command: args.cmd };
     }
+
+    // Step 2: If `cwd` already set explicitly, skip `cd` detection
+    // 逆向: bWR early-returns when T.cwd is already set
+    if (typeof args.cwd === "string" && args.cwd.trim().length > 0) {
+      // Expand ~ in explicit cwd
+      // 逆向: bWR expands ~ to HOME/USERPROFILE
+      const cwd = args.cwd as string;
+      if (cwd.startsWith("~")) {
+        const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+        return { ...args, cwd: home + cwd.slice(1) };
+      }
+      return args;
+    }
+
+    // Step 3: Detect `cd path` at the start of the command
+    // 逆向: amp uses a full shell AST parser (IaT / parsimmon) to detect cd.
+    // We use a regex approach that handles the common cases:
+    // - `cd path` (simple cd)
+    // - `cd path && rest` (cd followed by chained commands)
+    // - `cd "path with spaces"` (quoted path)
+    // - `cd 'path with spaces'` (single-quoted path)
+    // Cases intentionally NOT handled (matching amp's behavior):
+    // - `cd` with no args (bare cd to home)
+    // - `cd -` (OLDPWD)
+    // - `cd $(expr)` / `cd $VAR` (dynamic paths)
+    const command = typeof args.command === "string" ? args.command.trim() : "";
+    if (command) {
+      const cdMatch = parseCdCommand(command);
+      if (cdMatch) {
+        const newArgs: Record<string, unknown> = { ...args };
+        newArgs.cwd = cdMatch.resolvedPath;
+        if (cdMatch.remainder) {
+          newArgs.command = cdMatch.remainder;
+        } else {
+          // Pure `cd path` — replace with a no-op that succeeds
+          newArgs.command = "true";
+        }
+        return newArgs;
+      }
+    }
+
     return args;
   },
 

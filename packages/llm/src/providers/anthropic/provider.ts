@@ -12,7 +12,7 @@
  * ```
  */
 import Anthropic from "@anthropic-ai/sdk";
-import type { LLMProvider } from "../../provider";
+import type { CountTokensParams, CountTokensResult, LLMProvider } from "../../provider";
 import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
@@ -177,6 +177,93 @@ export class AnthropicProvider implements LLMProvider {
   }
 
   // ─── Private ──────────────────────────────────────────
+
+  /**
+   * Count input tokens via the Anthropic /v1/messages/count_tokens endpoint.
+   *
+   * 逆向: amp-cli-reversed/modules/0084_unknown_Qu.js:1-31
+   *   ```
+   *   async function Qu(T, R, a, e) {
+   *     let r = JSON.stringify(e.messages ?? []), h = ..., i = ...;
+   *     try {
+   *       return (await T.messages.countTokens({
+   *         model: R,
+   *         messages: e.messages ?? [{ role: "user", content: "x" }],
+   *         ...(e.tools?.length > 0 ? { tools: e.tools } : {}),
+   *         ...(e.system?.length > 0 ? { system: e.system } : {}),
+   *         thinking: { type: "enabled", budget_tokens: 1e4 }
+   *       }, { headers: a })).input_tokens;
+   *     } catch {
+   *       return n1R(r + h + i);  // fallback: Math.ceil(length / 4)
+   *     }
+   *   }
+   *   ```
+   *
+   * Passes `thinking: { type: "enabled", budget_tokens: 10000 }` to ensure
+   * the token count matches a thinking-enabled request.
+   *
+   * Falls back to character-based approximation (`Math.ceil(length / 4)`)
+   * on any error — matching amp's `n1R` fallback (modules/0083_unknown_l1R.js).
+   */
+  async countTokens(params: CountTokensParams): Promise<CountTokensResult> {
+    const { model, messages, systemPrompt, tools, config } = params;
+
+    // Get API key
+    const apiKey = await config.secrets.getToken("apiKey");
+    if (!apiKey) {
+      // No key — use fallback
+      return { inputTokens: this._countTokensFallback(messages, systemPrompt, tools) };
+    }
+
+    const client = this._injectedClient ?? this._createClient(apiKey, config.settings, model);
+
+    // Build messages and system blocks using the transformer
+    const anthropicMessages =
+      messages && messages.length > 0
+        ? this._transformer.toProviderMessages(messages, systemPrompt ?? [])
+        : [{ role: "user" as const, content: "x" }];
+    const system =
+      systemPrompt && systemPrompt.length > 0
+        ? this._transformer.toSystemBlocks(systemPrompt)
+        : undefined;
+    const anthropicTools =
+      tools && tools.length > 0 ? this._toolTransformer.toProviderTools(tools) : undefined;
+
+    try {
+      const response = await client.messages.countTokens({
+        model,
+        messages: anthropicMessages as Anthropic.MessageCountTokensParams["messages"],
+        ...(anthropicTools && anthropicTools.length > 0
+          ? { tools: anthropicTools as Anthropic.MessageCountTokensParams["tools"] }
+          : {}),
+        ...(system && system.length > 0
+          ? { system: system as Anthropic.MessageCountTokensParams["system"] }
+          : {}),
+        // 逆向: amp always passes thinking for accurate count
+        thinking: { type: "enabled", budget_tokens: 10000 },
+      });
+      return { inputTokens: response.input_tokens };
+    } catch {
+      // Fallback: character-based approximation
+      // 逆向: n1R(T) = Math.ceil(T.length / o1R), o1R = 4
+      return { inputTokens: this._countTokensFallback(messages, systemPrompt, tools) };
+    }
+  }
+
+  /**
+   * Character-based token count fallback.
+   * 逆向: amp's n1R(T) = Math.ceil(T.length / 4) (modules/0083_unknown_l1R.js:4-6)
+   */
+  private _countTokensFallback(
+    messages?: Array<{ role: string; content: unknown }>,
+    systemPrompt?: Array<{ type: string; text?: string }>,
+    tools?: Array<{ name: string; inputSchema?: unknown }>,
+  ): number {
+    const messagesStr = messages ? JSON.stringify(messages) : "";
+    const systemStr = systemPrompt ? JSON.stringify(systemPrompt) : "";
+    const toolsStr = tools ? JSON.stringify(tools) : "";
+    return Math.ceil((messagesStr.length + systemStr.length + toolsStr.length) / 4);
+  }
 
   /**
    * Non-streaming message creation (for title generation, etc.).

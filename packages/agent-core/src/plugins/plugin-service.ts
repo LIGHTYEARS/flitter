@@ -21,13 +21,17 @@
  */
 
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, extname, basename } from "node:path";
 import { homedir } from "node:os";
+import { basename, extname, join } from "node:path";
 import { createLogger } from "@flitter/util";
 
 import { PluginHost } from "./plugin-host";
 import type {
   PluginAction,
+  PluginAgentEndEvent,
+  PluginAgentEndResult,
+  PluginAgentStartEvent,
+  PluginAgentStartResult,
   PluginInfo,
   PluginServiceOptions,
   PluginStatus,
@@ -65,8 +69,7 @@ export class PluginService {
 
   constructor(options?: PluginServiceOptions) {
     this.workspaceDir = options?.workspaceDir;
-    this.userConfigDir =
-      options?.userConfigDir ?? join(homedir(), ".config", "flitter");
+    this.userConfigDir = options?.userConfigDir ?? join(homedir(), ".config", "flitter");
     this.pluginFilter = options?.pluginFilter?.trim();
   }
 
@@ -100,9 +103,7 @@ export class PluginService {
         return [];
       }
       const filter = this.pluginFilter.toLowerCase();
-      const filtered = files.filter((f) =>
-        basename(f).toLowerCase().includes(filter),
-      );
+      const filtered = files.filter((f) => basename(f).toLowerCase().includes(filter));
       log.info("Filtered plugins", {
         filter: this.pluginFilter,
         total: files.length,
@@ -283,11 +284,7 @@ export class PluginService {
    * Handle events from a plugin.
    * 逆向: chunk-002.js:27276-27278 (P function)
    */
-  private handlePluginEvent(
-    record: PluginRecord,
-    event: string,
-    _data: unknown,
-  ): void {
+  private handlePluginEvent(record: PluginRecord, event: string, _data: unknown): void {
     // If plugin reports that commands or tools changed, refresh registrations
     if (event === "commands.changed" || event === "tools.changed") {
       this.refreshRegistrations(record).catch(() => {});
@@ -320,10 +317,7 @@ export class PluginService {
           });
           return {
             action: "error" as const,
-            message:
-              err instanceof Error
-                ? err.message
-                : `Plugin error: ${String(err)}`,
+            message: err instanceof Error ? err.message : `Plugin error: ${String(err)}`,
           };
         }
       }),
@@ -344,9 +338,7 @@ export class PluginService {
    * Call all active plugins that registered for "tool.result" and return the first override.
    * 逆向: chunk-002.js:27610-27641 (aT function)
    */
-  async onToolResult(
-    event: PluginToolResultEvent,
-  ): Promise<PluginToolResultOverride | undefined> {
+  async onToolResult(event: PluginToolResultEvent): Promise<PluginToolResultOverride | undefined> {
     const activePlugins = this.getPluginsForEvent("tool.result");
     if (activePlugins.length === 0) return undefined;
 
@@ -372,6 +364,94 @@ export class PluginService {
     return undefined;
   }
 
+  // ─── Agent Lifecycle Hooks ─────────────────────────────
+
+  /**
+   * Notify plugins that an agent turn is starting (before inference).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:808-826
+   *   ```
+   *   let e = await this.deps.pluginService.event.agentStart({
+   *     message: a, id: R
+   *   }, tracer, { threadID: this.threadID });
+   *   if (e.message) this.updateThread({ type: "user:message:append-content", ... });
+   *   ```
+   *
+   * Returns: if any plugin provides a message, the first one is returned.
+   * The caller (ThreadWorker) should append it to the user message.
+   */
+  async onAgentStart(event: PluginAgentStartEvent): Promise<PluginAgentStartResult> {
+    const activePlugins = this.getPluginsForEvent("agent.start");
+    if (activePlugins.length === 0) return {};
+
+    const results = await Promise.all(
+      activePlugins.map(async (record) => {
+        try {
+          return await record.host.sendRequest("agent.start", event);
+        } catch (err) {
+          log.debug("Failed to emit agent.start to plugin", {
+            uri: record.uri,
+            error: err,
+          });
+          return null;
+        }
+      }),
+    );
+
+    // Return first plugin result that has a message
+    for (const result of results) {
+      if (result && typeof result === "object" && "message" in result) {
+        return result as PluginAgentStartResult;
+      }
+    }
+
+    return {};
+  }
+
+  /**
+   * Notify plugins that an agent turn has ended (done, interrupted, or error).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574-579, 682-689, 1005-1013
+   *   ```
+   *   this.deps.pluginService.event.agentEnd({
+   *     message: this.getMessageText(s),
+   *     id: s,
+   *     status: "done",
+   *     messages: Wq(this.getMessagesSince(s))
+   *   }, tracer).then(l => this.handleAgentEndResult(l));
+   *   ```
+   *
+   * Returns: if a plugin returns action "continue" with a userMessage,
+   * the caller should enqueue that message for another turn.
+   */
+  async onAgentEnd(event: PluginAgentEndEvent): Promise<PluginAgentEndResult> {
+    const activePlugins = this.getPluginsForEvent("agent.end");
+    if (activePlugins.length === 0) return {};
+
+    const results = await Promise.all(
+      activePlugins.map(async (record) => {
+        try {
+          return await record.host.sendRequest("agent.end", event);
+        } catch (err) {
+          log.debug("Failed to emit agent.end to plugin", {
+            uri: record.uri,
+            error: err,
+          });
+          return null;
+        }
+      }),
+    );
+
+    // Return first plugin result that has an action
+    for (const result of results) {
+      if (result && typeof result === "object" && "action" in result) {
+        return result as PluginAgentEndResult;
+      }
+    }
+
+    return {};
+  }
+
   // ─── Helpers ────────────────────────────────────────────
 
   /**
@@ -379,9 +459,7 @@ export class PluginService {
    * 逆向: chunk-002.js:27531-27533 (V function)
    */
   private getPluginsForEvent(event: string): PluginRecord[] {
-    return this.plugins.filter(
-      (p) => p.status === "active" && p.registeredEvents.has(event),
-    );
+    return this.plugins.filter((p) => p.status === "active" && p.registeredEvents.has(event));
   }
 
   /**

@@ -11,8 +11,8 @@
  * 逆向: chunk-005.js:71164 — included in Q2 (oracle tools)
  */
 
-import { createLogger } from "@flitter/util";
 import type { ThreadSnapshot } from "@flitter/schemas";
+import { createLogger } from "@flitter/util";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 
 const log = createLogger("tool:read_thread");
@@ -55,9 +55,7 @@ function renderThread(snapshot: ThreadSnapshot): string {
           lines.push(`[Tool: ${block.name}]`);
         } else if (block.type === "tool_result") {
           const resultContent =
-            typeof block.content === "string"
-              ? block.content
-              : JSON.stringify(block.content);
+            typeof block.content === "string" ? block.content : JSON.stringify(block.content);
           lines.push(`[Tool Result: ${resultContent.slice(0, 500)}]`);
         }
       }

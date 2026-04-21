@@ -41,10 +41,9 @@ const VALID_LOG_LEVELS = new Set<string>(["debug", "info", "warn", "error"]);
  * 1. FLITTER_LOG_LEVEL env var at startup
  * 2. setLogLevel() at runtime
  */
-let globalLogLevel: LogLevel =
-  VALID_LOG_LEVELS.has(process.env.FLITTER_LOG_LEVEL ?? "")
-    ? (process.env.FLITTER_LOG_LEVEL as LogLevel)
-    : "debug";
+let globalLogLevel: LogLevel = VALID_LOG_LEVELS.has(process.env.FLITTER_LOG_LEVEL ?? "")
+  ? (process.env.FLITTER_LOG_LEVEL as LogLevel)
+  : "debug";
 
 /**
  * Set the global minimum log level at runtime.

@@ -12,11 +12,10 @@
  */
 
 import * as assert from "node:assert/strict";
-import { describe, it, afterEach } from "node:test";
-import { ThemeRegistry } from "@flitter/tui";
-import { ThemeController, type ThemeData } from "./theme-controller.js";
-import { Element, setBuildOwner } from "@flitter/tui";
+import { afterEach, describe, it } from "node:test";
 import type { Key, Widget } from "@flitter/tui";
+import { Element, setBuildOwner, ThemeRegistry } from "@flitter/tui";
+import { ThemeController, type ThemeData } from "./theme-controller.js";
 
 // ════════════════════════════════════════════════════
 //  Test helpers
@@ -24,13 +23,21 @@ import type { Key, Widget } from "@flitter/tui";
 
 class TestWidget implements Widget {
   key: Key | undefined;
-  constructor(opts?: { key?: Key }) { this.key = opts?.key; }
-  canUpdate(other: Widget): boolean { return this.constructor === other.constructor; }
-  createElement(): Element { return new TestElement(this); }
+  constructor(opts?: { key?: Key }) {
+    this.key = opts?.key;
+  }
+  canUpdate(other: Widget): boolean {
+    return this.constructor === other.constructor;
+  }
+  createElement(): Element {
+    return new TestElement(this);
+  }
 }
 
 class TestElement extends Element {
-  override performRebuild(): void { super.performRebuild(); }
+  override performRebuild(): void {
+    super.performRebuild();
+  }
 }
 
 afterEach(() => {
@@ -87,8 +94,18 @@ describe("ThemeController.fromRegistry", () => {
   it("returns all 12 ThemeData fields", () => {
     const data = ThemeController.fromRegistry("dark");
     const fields: (keyof ThemeData)[] = [
-      "name", "primary", "secondary", "surface", "background",
-      "error", "text", "mutedText", "border", "accent", "success", "warning",
+      "name",
+      "primary",
+      "secondary",
+      "surface",
+      "background",
+      "error",
+      "text",
+      "mutedText",
+      "border",
+      "accent",
+      "success",
+      "warning",
     ];
     for (const f of fields) {
       assert.ok(f in data, `Missing field: ${f}`);
@@ -100,8 +117,17 @@ describe("ThemeController.fromRegistry", () => {
     const data = ThemeController.fromRegistry("dark");
     const hexPattern = /^#[0-9A-Fa-f]{6}$/;
     const colorFields: (keyof ThemeData)[] = [
-      "primary", "secondary", "surface", "background",
-      "error", "text", "mutedText", "border", "accent", "success", "warning",
+      "primary",
+      "secondary",
+      "surface",
+      "background",
+      "error",
+      "text",
+      "mutedText",
+      "border",
+      "accent",
+      "success",
+      "warning",
     ];
     for (const f of colorFields) {
       assert.match(data[f], hexPattern, `${f} = "${data[f]}" is not a valid hex color`);
@@ -188,8 +214,34 @@ describe("ThemeController backward compat", () => {
 
   it("updateShouldNotify still works", () => {
     const child = new TestWidget();
-    const data1: ThemeData = { name: "a", primary: "#ff0000", secondary: "#00ff00", surface: "#111", background: "#000", error: "#f00", text: "#fff", mutedText: "#888", border: "#333", accent: "#f0f", success: "#0f0", warning: "#ff0" };
-    const data2: ThemeData = { name: "b", primary: "#0000ff", secondary: "#00ff00", surface: "#111", background: "#000", error: "#f00", text: "#fff", mutedText: "#888", border: "#333", accent: "#f0f", success: "#0f0", warning: "#ff0" };
+    const data1: ThemeData = {
+      name: "a",
+      primary: "#ff0000",
+      secondary: "#00ff00",
+      surface: "#111",
+      background: "#000",
+      error: "#f00",
+      text: "#fff",
+      mutedText: "#888",
+      border: "#333",
+      accent: "#f0f",
+      success: "#0f0",
+      warning: "#ff0",
+    };
+    const data2: ThemeData = {
+      name: "b",
+      primary: "#0000ff",
+      secondary: "#00ff00",
+      surface: "#111",
+      background: "#000",
+      error: "#f00",
+      text: "#fff",
+      mutedText: "#888",
+      border: "#333",
+      accent: "#f0f",
+      success: "#0f0",
+      warning: "#ff0",
+    };
     const tc1 = new ThemeController({ data: data1, child });
     const tc2 = new ThemeController({ data: data2, child });
     assert.equal(tc2.updateShouldNotify(tc1), true);

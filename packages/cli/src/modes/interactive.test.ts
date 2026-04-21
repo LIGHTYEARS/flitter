@@ -8,9 +8,10 @@
  * 对 runApp 不做模块级 mock (无 bun:test mock.module)，
  * 仅测试可独立验证的内部函数和导出。
  */
-import assert from "node:assert/strict";
-import { describe, it, beforeEach } from "node:test";
+
 import { mock } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { CliContext } from "../context";
 
@@ -81,7 +82,11 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
     assert.ok(threadId);
     assert.equal(typeof threadId, "string");
     assert.ok(threadId.length > 0);
-    assert.equal((container.threadStore.setCachedThread as any).mock.calls.length, 1);
+    assert.equal(
+      (container.threadStore.setCachedThread as unknown as { mock: { calls: unknown[] } }).mock
+        .calls.length,
+      1,
+    );
   });
 
   it("resolveThread 有 threadId 时返回该 threadId", async () => {
@@ -98,10 +103,9 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
     const { _testing } = await import("./interactive.js");
     const container = createMockContainer();
     // 添加 listRecentThreadIds mock
-    (container.threadStore as any).listRecentThreadIds = (_n: number) => [
-      "recent-thread-1",
-      "older-thread-2",
-    ];
+    (container.threadStore as unknown as Record<string, unknown>).listRecentThreadIds = (
+      _n: number,
+    ) => ["recent-thread-1", "older-thread-2"];
     const context = createMockContext({ continueThread: true });
 
     const threadId = await _testing.resolveThread(container, context);
@@ -112,14 +116,20 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
   it("resolveThread --continue 无 threads 时创建新 thread", async () => {
     const { _testing } = await import("./interactive.js");
     const container = createMockContainer();
-    (container.threadStore as any).listRecentThreadIds = (_n: number) => [];
+    (container.threadStore as unknown as Record<string, unknown>).listRecentThreadIds = (
+      _n: number,
+    ) => [];
     const context = createMockContext({ continueThread: true });
 
     const threadId = await _testing.resolveThread(container, context);
 
     assert.equal(typeof threadId, "string");
     assert.ok(threadId.length > 0);
-    assert.equal((container.threadStore.setCachedThread as any).mock.calls.length, 1);
+    assert.equal(
+      (container.threadStore.setCachedThread as unknown as { mock: { calls: unknown[] } }).mock
+        .calls.length,
+      1,
+    );
   });
 
   it("resolveThread --continue 无 listRecentThreadIds 方法时创建新 thread", async () => {
@@ -176,13 +186,10 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
     );
 
     // 应该导入 ThreadStateWidget
-    assert.ok(
-      source.includes('import { ThreadStateWidget }'),
-      "should import ThreadStateWidget",
-    );
+    assert.ok(source.includes("import { ThreadStateWidget }"), "should import ThreadStateWidget");
     // 不应该直接导入 InputField (由 ThreadStateWidget 内部使用)
     assert.ok(
-      !source.includes('import { InputField }'),
+      !source.includes("import { InputField }"),
       "should NOT directly import InputField (owned by ThreadStateWidget)",
     );
     // 应该包含 worker.runInference() 在 onSubmit 中
@@ -191,15 +198,9 @@ describe("interactive.ts — resolveThread + 导出验证", () => {
       "should call worker.runInference() in onSubmit",
     );
     // 应该包含 continueThread 支持
-    assert.ok(
-      source.includes("continueThread"),
-      "should support continueThread flag",
-    );
+    assert.ok(source.includes("continueThread"), "should support continueThread flag");
     // 应该包含 modelName
-    assert.ok(
-      source.includes("modelName"),
-      "should pass modelName to ThreadStateWidget",
-    );
+    assert.ok(source.includes("modelName"), "should pass modelName to ThreadStateWidget");
     // 不应该有 new InputField 在顶层 (由 ThreadStateWidget 内部创建)
     // 检查 runApp 调用区块不含 InputField
     const runAppBlock = source.slice(

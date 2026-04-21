@@ -1,8 +1,8 @@
 # Plan Index
 
-> Last updated: 2026-04-20
+> Last updated: 2026-04-21
 
-## Active Plans (21)
+## Active Plans (18)
 
 Plans describing work that maps to open gaps in GAPS.md.
 
@@ -12,7 +12,6 @@ Plans describing work that maps to open gaps in GAPS.md.
 |------|--------|-------------|
 | [gap-closure-phase1](2026-04-20-gap-closure-phase1.md) | Multiple | Consolidated plan for 7 Critical+High gaps |
 | [gap-closure-phase2-3](2026-04-20-gap-closure-phase2-3.md) | Multiple | LLM provider gaps + compaction pinning |
-| [gap2-missing-builtin-tools](2026-04-19-gap2-missing-builtin-tools.md) | GAP-TOOL-01 | `apply_patch` tool (partially done — other tools shipped) |
 | [gap5-plugin-system](2026-04-19-gap5-plugin-system.md) | GAP-CORE-01 | Plugin system container wiring |
 | [approval-widget](2026-04-19-approval-widget.md) | GAP-TUI-02 | 5-option approval flow |
 | [image-display](2026-04-19-image-display.md) | GAP-TUI-01 | Kitty Graphics Protocol ImageWidget |
@@ -21,8 +20,6 @@ Plans describing work that maps to open gaps in GAPS.md.
 
 | File | Gap ID | Description |
 |------|--------|-------------|
-| [animated-spinner](2026-04-19-animated-spinner.md) | GAP-TUI-09 | Wire BrailleSpinner animation timer |
-| [compaction-pinning](2026-04-19-compaction-pinning.md) | GAP-CORE-02 | Info-role message pinning in compaction |
 | [config-admin-scope](2026-04-19-config-admin-scope.md) | — | Admin config scope + `.claude/` discovery |
 | [gap3-agent-modes](2026-04-19-gap3-agent-modes.md) | — | smart/fast/deep/auto mode system |
 | [gap4-tool-execution-batching](2026-04-19-gap4-tool-execution-batching.md) | — | Resource-based parallel tool batching |
@@ -38,12 +35,15 @@ Plans describing work that maps to open gaps in GAPS.md.
 
 ---
 
-## Completed Plans (27)
+## Completed Plans (30)
 
 All work shipped. Kept for historical reference. Each file has a `STATUS: COMPLETED` banner.
 
 | File | What shipped |
 |------|-------------|
+| [apply-patch-tool](2026-04-21-apply-patch-tool.md) | `apply_patch` Codex patch format tool (GAP-TOOL-01 Critical) |
+| [animated-spinner](2026-04-19-animated-spinner.md) | BrailleSpinner wired into ConversationView (GAP-TUI-09) |
+| [compaction-pinning](2026-04-19-compaction-pinning.md) | Info-role message pinning in compaction (GAP-CORE-02) |
 | [debug-logger-system](2026-04-16-debug-logger-system.md) | ScopedLogger + FLITTER_LOG_LEVEL gating |
 | [mouse-dispatch-pipeline](2026-04-16-mouse-dispatch-pipeline.md) | MouseManager click/hover/drag/scroll |
 | [tier1-correctness-fixes](2026-04-16-tier1-correctness-fixes.md) | 8 render-object correctness fixes |

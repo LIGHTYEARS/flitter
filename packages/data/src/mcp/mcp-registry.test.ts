@@ -6,8 +6,8 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { checkMcpRegistry, fetchRegistry } from "./mcp-registry";
 import type { McpServerSpec } from "./mcp-registry";
+import { checkMcpRegistry, fetchRegistry } from "./mcp-registry";
 
 /** Create a mock fetch function */
 function mockFetch(response: {

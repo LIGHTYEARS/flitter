@@ -310,9 +310,7 @@ describe("ConfigService", () => {
           initialSkipped = true;
           return;
         }
-        receivedValues.push(
-          (config.settings as Record<string, unknown>).proxy as string,
-        );
+        receivedValues.push((config.settings as Record<string, unknown>).proxy as string);
       });
 
       const handle = service.startWatching();

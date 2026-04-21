@@ -12,7 +12,6 @@
  */
 
 import { createLogger } from "@flitter/util";
-import type { ThreadSnapshot } from "@flitter/schemas";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 import type { ThreadStoreLike } from "./read-thread";
 
@@ -72,12 +71,8 @@ function searchThreads(
 
     if (score > 0) {
       // Extract a snippet (first 200 chars of first matching content)
-      const snippetSource = parts.find((p) =>
-        keywords.some((kw) => p.toLowerCase().includes(kw)),
-      );
-      const snippet = snippetSource
-        ? snippetSource.slice(0, 200)
-        : parts[0]?.slice(0, 200) ?? "";
+      const snippetSource = parts.find((p) => keywords.some((kw) => p.toLowerCase().includes(kw)));
+      const snippet = snippetSource ? snippetSource.slice(0, 200) : (parts[0]?.slice(0, 200) ?? "");
 
       results.push({
         id,
@@ -163,10 +158,7 @@ This tool searches **threads** (conversations), NOT git commits. Use this when t
       }
 
       const formatted = results
-        .map(
-          (r, i) =>
-            `${i + 1}. **${r.title ?? "(untitled)"}** (${r.id})\n   ${r.snippet}`,
-        )
+        .map((r, i) => `${i + 1}. **${r.title ?? "(untitled)"}** (${r.id})\n   ${r.snippet}`)
         .join("\n\n");
 
       return {

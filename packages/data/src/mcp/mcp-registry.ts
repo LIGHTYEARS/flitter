@@ -62,8 +62,8 @@ function isServerAllowed(spec: McpServerSpec, allowedServers: string[]): boolean
     if (spec.command && spec.command === allowed) return true;
     if (spec.url && spec.url === allowed) return true;
     // Also match by checking if the allowed string is contained in the command/url
-    if (spec.command && spec.command.includes(allowed)) return true;
-    if (spec.url && spec.url.includes(allowed)) return true;
+    if (spec.command?.includes(allowed)) return true;
+    if (spec.url?.includes(allowed)) return true;
   }
   return false;
 }

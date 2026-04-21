@@ -28,7 +28,8 @@
  * @module
  */
 
-import type { BuildContext, Widget } from "@flitter/tui";
+import { MODEL_REGISTRY } from "@flitter/llm";
+import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
   Column,
   Expanded,
@@ -42,7 +43,6 @@ import {
   StatefulWidget,
   Text,
 } from "@flitter/tui";
-import type { Element } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
 import type { ApprovalRequest } from "./approval-widget.js";
@@ -466,7 +466,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             tokenUsage: {
               inputTokens: this._totalInputTokens,
               outputTokens: this._totalOutputTokens,
-              maxInputTokens: 200000, // TODO: derive from model config
+              maxInputTokens: MODEL_REGISTRY[modelName ?? ""]?.contextWindow ?? 200000,
             },
             compactionState: this._compactionState,
             runningToolCount: this._runningToolCount,

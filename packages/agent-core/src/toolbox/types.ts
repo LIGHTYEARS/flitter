@@ -37,10 +37,7 @@ export interface ToolboxToolSpec {
 export interface LegacyTextSpec {
   name: string;
   description: string;
-  parameters: Record<
-    string,
-    { type: string; description: string; optional: boolean }
-  >;
+  parameters: Record<string, { type: string; description: string; optional: boolean }>;
 }
 
 // ─── Registration status ──────────────────────────────────

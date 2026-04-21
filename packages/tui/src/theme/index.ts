@@ -6,7 +6,6 @@
  * @module
  */
 
-export type { ColorPalette, SyntaxHighlightColors } from "./palette.js";
 export type { ThemeSpec } from "./builtin-themes.js";
 export {
   BUILTIN_THEMES,
@@ -19,4 +18,5 @@ export {
   SOLARIZED_LIGHT_THEME,
   TERMINAL_THEME,
 } from "./builtin-themes.js";
+export type { ColorPalette, SyntaxHighlightColors } from "./palette.js";
 export { ThemeRegistry } from "./theme-registry.js";

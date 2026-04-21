@@ -363,21 +363,83 @@ export class TransformState {
  */
 export const MODEL_REGISTRY: Record<string, ModelInfo> = {
   // ── Anthropic ──────────────────────────────────────
+  // 逆向: amp-cli-reversed/chunk-005.js:66585 CLAUDE_SONNET_4
   "claude-sonnet-4-20250514": {
     id: "claude-sonnet-4-20250514",
     provider: "anthropic",
-    contextWindow: 200_000,
-    maxOutputTokens: 16_384,
+    contextWindow: 1_000_000,
+    maxOutputTokens: 32_000,
     supportsThinking: true,
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: true,
     cost: { input: 3, output: 15 },
   },
-  "claude-opus-4-20250515": {
-    id: "claude-opus-4-20250515",
+  // 逆向: amp-cli-reversed/chunk-005.js:66604 CLAUDE_SONNET_4_5
+  "claude-sonnet-4-5-20250929": {
+    id: "claude-sonnet-4-5-20250929",
+    provider: "anthropic",
+    contextWindow: 1_000_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 3, output: 15 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66623 CLAUDE_SONNET_4_6
+  "claude-sonnet-4-6": {
+    id: "claude-sonnet-4-6",
+    provider: "anthropic",
+    contextWindow: 1_000_000,
+    maxOutputTokens: 64_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 3, output: 15 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66642 CLAUDE_OPUS_4
+  "claude-opus-4-20250514": {
+    id: "claude-opus-4-20250514",
     provider: "anthropic",
     contextWindow: 200_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 15, output: 75 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66661 CLAUDE_OPUS_4_1
+  "claude-opus-4-1-20250805": {
+    id: "claude-opus-4-1-20250805",
+    provider: "anthropic",
+    contextWindow: 200_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 15, output: 75 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66680 CLAUDE_OPUS_4_5
+  "claude-opus-4-5-20251101": {
+    id: "claude-opus-4-5-20251101",
+    provider: "anthropic",
+    contextWindow: 200_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: true,
+    cost: { input: 15, output: 75 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66699 CLAUDE_OPUS_4_6
+  "claude-opus-4-6": {
+    id: "claude-opus-4-6",
+    provider: "anthropic",
+    contextWindow: 332_000,
     maxOutputTokens: 32_000,
     supportsThinking: true,
     supportsTools: true,
@@ -432,6 +494,126 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: false,
     cost: { input: 0.15, output: 0.6 },
   },
+  // 逆向: amp-cli-reversed/chunk-005.js:66737 GPT_5
+  "gpt-5": {
+    id: "gpt-5",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 2, output: 8 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66754 GPT_5_1
+  "gpt-5.1": {
+    id: "gpt-5.1",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 2, output: 8 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66771 GPT_5_2
+  "gpt-5.2": {
+    id: "gpt-5.2",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 2, output: 8 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66788 GPT_5_4
+  "gpt-5.4": {
+    id: "gpt-5.4",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 2, output: 8 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66805 GPT_5_CODEX
+  "gpt-5-codex": {
+    id: "gpt-5-codex",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 1.25, output: 10 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66821 GPT_5_1_CODEX
+  "gpt-5.1-codex": {
+    id: "gpt-5.1-codex",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 1.25, output: 10 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66837 GPT_5_2_CODEX
+  "gpt-5.2-codex": {
+    id: "gpt-5.2-codex",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 1.75, output: 14 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66854 GPT_5_3_CODEX
+  "gpt-5.3-codex": {
+    id: "gpt-5.3-codex",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 1.75, output: 14 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66871 GPT_5_MINI
+  "gpt-5-mini": {
+    id: "gpt-5-mini",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 0.25, output: 2 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66888 GPT_5_NANO
+  "gpt-5-nano": {
+    id: "gpt-5-nano",
+    provider: "openai",
+    contextWindow: 400_000,
+    maxOutputTokens: 128_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 0.05, output: 0.4 },
+  },
   o3: {
     id: "o3",
     provider: "openai",
@@ -476,6 +658,17 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: false,
     cost: { input: 1.5, output: 6 },
   },
+  // 逆向: amp-cli-reversed/chunk-005.js:66937 GPT_OSS_120B
+  "openai/gpt-oss-120b": {
+    id: "openai/gpt-oss-120b",
+    provider: "openai",
+    contextWindow: 128_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
 
   // ── Gemini ─────────────────────────────────────────
   "gemini-2.5-pro": {
@@ -511,6 +704,28 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: false,
     cost: { input: 0.1, output: 0.4 },
   },
+  // 逆向: amp-cli-reversed/chunk-005.js:66959 GEMINI_3_PRO_PREVIEW
+  "gemini-3-pro-preview": {
+    id: "gemini-3-pro-preview",
+    provider: "gemini",
+    contextWindow: 1_048_576,
+    maxOutputTokens: 65_535,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js:66971 GEMINI_3_1_PRO_PREVIEW
+  "gemini-3.1-pro-preview": {
+    id: "gemini-3.1-pro-preview",
+    provider: "gemini",
+    contextWindow: 1_048_576,
+    maxOutputTokens: 65_535,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+  },
   // 逆向: amp-cli-reversed/chunk-005.js:66983 GEMINI3_FLASH_PREVIEW
   "gemini-3-flash-preview": {
     id: "gemini-3-flash-preview",
@@ -521,7 +736,6 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsTools: true,
     supportsImages: true,
     supportsCacheControl: false,
-    // Cost from Google Cloud pricing (not in amp source — amp only references the model name)
     cost: { input: 0.15, output: 0.6 },
   },
 
@@ -550,6 +764,7 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     cost: { input: 0.3, output: 0.5 },
     baseUrl: "https://api.x.ai/v1",
   },
+  // 逆向: amp-cli-reversed/chunk-005.js:66948 GROK_CODE_FAST_1
   "grok-code-fast-1": {
     id: "grok-code-fast-1",
     provider: "openai-compat",

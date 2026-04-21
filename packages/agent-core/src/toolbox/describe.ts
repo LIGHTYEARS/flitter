@@ -12,12 +12,8 @@
 
 import { type ChildProcess, spawn as cpSpawn } from "node:child_process";
 import { createLogger } from "@flitter/util";
-import type {
-  DescribeResult,
-  LegacyTextSpec,
-  ToolboxToolSpec,
-} from "./types";
 import { DESCRIBE_TIMEOUT_MS } from "./toolbox-utils";
+import type { DescribeResult, LegacyTextSpec, ToolboxToolSpec } from "./types";
 
 const log = createLogger("toolbox:describe");
 
@@ -83,9 +79,7 @@ export async function probeToolScript(
       log.debug("Failed to parse tool definition as JSON or text", {
         path: scriptPath,
         jsonError: String(jsonError),
-        stdout:
-          result.stdout.substring(0, 200) +
-          (result.stdout.length > 200 ? "..." : ""),
+        stdout: result.stdout.substring(0, 200) + (result.stdout.length > 200 ? "..." : ""),
       });
       return null;
     }
@@ -107,10 +101,7 @@ export async function probeToolScript(
  *   - Converts legacy `args` map → `inputSchema` via E5R()
  *   - Defaults empty inputSchema if missing
  */
-function parseJsonDescribe(
-  stdout: string,
-  scriptPath: string,
-): DescribeResult {
+function parseJsonDescribe(stdout: string, _scriptPath: string): DescribeResult {
   const parsed = JSON.parse(stdout) as ToolboxToolSpec;
 
   // Convert legacy "args" format to inputSchema
@@ -169,10 +160,7 @@ export function parseLegacyTextFormat(stdout: string): LegacyTextSpec | null {
 
   let name = "";
   const descriptionParts: string[] = [];
-  const parameters: Record<
-    string,
-    { type: string; description: string; optional: boolean }
-  > = {};
+  const parameters: Record<string, { type: string; description: string; optional: boolean }> = {};
 
   for (const line of lines) {
     const colonIdx = line.indexOf(":");
@@ -193,15 +181,8 @@ export function parseLegacyTextFormat(stdout: string): LegacyTextSpec | null {
         parameters[key] = { type: "string", description: value, optional: false };
       } else {
         let typePart = value.substring(0, spaceIdx);
-        let descPart = value.substring(spaceIdx + 1).trim();
-        const validTypes = [
-          "string",
-          "boolean",
-          "number",
-          "integer",
-          "array",
-          "object",
-        ];
+        const descPart = value.substring(spaceIdx + 1).trim();
+        const validTypes = ["string", "boolean", "number", "integer", "array", "object"];
         let isOptional = false;
 
         if (typePart.endsWith("?")) {
@@ -249,7 +230,7 @@ export function parseLegacyTextFormat(stdout: string): LegacyTextSpec | null {
  */
 export function textSpecToToolboxSpec(
   textSpec: LegacyTextSpec,
-  scriptPath: string,
+  _scriptPath: string,
 ): ToolboxToolSpec {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
@@ -310,9 +291,7 @@ export function textSpecToToolboxSpec(
  * - [type, desc] → {type, description: desc}
  * - {type?, description?} → uses given values
  */
-export function convertArgToSchema(
-  arg: unknown,
-): { type: string; description: string } {
+export function convertArgToSchema(arg: unknown): { type: string; description: string } {
   if (arg === undefined || arg === null || arg === false || arg === true) {
     return { type: "string", description: "generic argument - use a sensible value" };
   }
@@ -335,8 +314,7 @@ export function convertArgToSchema(
     const obj = arg as Record<string, unknown>;
     return {
       type: (obj.type as string) || "string",
-      description:
-        (obj.description as string) || "generic argument - use a sensible value",
+      description: (obj.description as string) || "generic argument - use a sensible value",
     };
   }
 
@@ -368,10 +346,7 @@ function defaultSpawn(
  *
  * 逆向: C5R uses Gl(EuT) (rxjs timeout) and kills the process on timeout.
  */
-function spawnWithTimeout(
-  child: ChildProcess,
-  timeoutMs: number,
-): Promise<SpawnResult> {
+function spawnWithTimeout(child: ChildProcess, timeoutMs: number): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -381,9 +356,7 @@ function spawnWithTimeout(
       if (!settled) {
         settled = true;
         if (!child.killed) child.kill("SIGKILL");
-        reject(
-          new Error(`Toolbox describe timed out after ${timeoutMs}ms`),
-        );
+        reject(new Error(`Toolbox describe timed out after ${timeoutMs}ms`));
       }
     }, timeoutMs);
 

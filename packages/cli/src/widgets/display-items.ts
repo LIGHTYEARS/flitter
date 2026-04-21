@@ -209,8 +209,10 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
     const flushTextParts = () => {
       if (textParts.length === 0) return;
       const joined = textParts.join("");
-      if (joined.trim().length > 0 &&
-        (msg.role === "user" || msg.role === "assistant" || msg.role === "system")) {
+      if (
+        joined.trim().length > 0 &&
+        (msg.role === "user" || msg.role === "assistant" || msg.role === "system")
+      ) {
         const contentArr = msg.content as RawContentBlock[];
         const hasToolResults = contentArr.some((b) => b.type === "tool_result");
         if (!hasToolResults || joined.trim()) {

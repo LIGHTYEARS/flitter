@@ -98,10 +98,7 @@ export class TaskStore {
     }
 
     // Sort by creation time
-    tasks.sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
+    tasks.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
     if (filters?.limit) {
       tasks = tasks.slice(0, filters.limit);
@@ -191,8 +188,7 @@ Write task descriptions with enough context that a future thread can pick up the
         dependsOn: {
           type: "array",
           items: { type: "string" },
-          description:
-            "Array of task IDs this task depends on - should be done after these tasks",
+          description: "Array of task IDs this task depends on - should be done after these tasks",
         },
         parentID: {
           type: "string",

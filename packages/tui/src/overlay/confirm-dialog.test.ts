@@ -25,10 +25,10 @@ describe("ConfirmDialog", () => {
       onCancel: () => {},
     });
     assert.equal(dialog.message, "Are you sure?");
-    assert.equal(dialog.title, "Confirm");         // default
-    assert.equal(dialog.confirmLabel, "Yes");       // default
-    assert.equal(dialog.cancelLabel, "No");         // default
-    assert.equal(dialog.dialogWidth, 40);           // default
+    assert.equal(dialog.title, "Confirm"); // default
+    assert.equal(dialog.confirmLabel, "Yes"); // default
+    assert.equal(dialog.cancelLabel, "No"); // default
+    assert.equal(dialog.dialogWidth, 40); // default
   });
 
   it("constructs with all props", () => {
@@ -52,7 +52,9 @@ describe("ConfirmDialog", () => {
     let confirmed = false;
     const dialog = new ConfirmDialog({
       message: "Confirm?",
-      onConfirm: () => { confirmed = true; },
+      onConfirm: () => {
+        confirmed = true;
+      },
       onCancel: () => {},
     });
     dialog.onConfirm();
@@ -64,7 +66,9 @@ describe("ConfirmDialog", () => {
     const dialog = new ConfirmDialog({
       message: "Confirm?",
       onConfirm: () => {},
-      onCancel: () => { cancelled = true; },
+      onCancel: () => {
+        cancelled = true;
+      },
     });
     dialog.onCancel();
     assert.equal(cancelled, true);

@@ -9,14 +9,16 @@ import * as fs from "node:fs";
 import {
   type Config,
   type ConfigScope,
+  GLOBAL_ONLY_KEYS,
   type ConfigService as IConfigService,
+  MERGED_ARRAY_KEYS,
   type SecretKey,
   type SecretStore,
   type Settings,
   SettingsSchema,
 } from "@flitter/schemas";
-import { GLOBAL_ONLY_KEYS, MERGED_ARRAY_KEYS } from "@flitter/schemas";
-import { BehaviorSubject, type Subscription, createLogger } from "@flitter/util";
+import { BehaviorSubject, createLogger, type Subscription } from "@flitter/util";
+import { readAdminSettings } from "./admin-settings";
 import type { FileSettingsStorage } from "./settings-storage";
 
 const log = createLogger("config-service");
@@ -160,11 +162,30 @@ export class ConfigService implements IConfigService {
   /** 从文件加载并合并配置
    * Task 9: After merging, validate against Zod schema. On failure, log warning, use validated subset.
    * 逆向: amp validates config against schema on load
+   *
+   * Admin settings merge:
+   * 逆向: amp-cli-reversed/modules/1273_unknown_iHR.js
+   *   Admin settings are read from a system-level managed-settings.json file.
+   *   Any key present in admin settings takes unconditional priority over
+   *   the global+workspace merge. This is the iHR wrapper: `get(a, e)` checks
+   *   if the key exists in admin settings first.
+   *
+   * 逆向: amp-cli-reversed/modules/2002_unknown_S8.js:70
+   *   `t = iHR(t)` — admin overlay applied last (highest priority).
    */
   async reload(): Promise<void> {
     const global = await this.storage.read("global");
     const workspace = this._workspaceRoot ? await this.storage.read("workspace") : {};
     let settings = mergeSettings(global, workspace);
+
+    // Apply admin settings overlay (highest priority)
+    // 逆向: iHR(T) — modules/1273_unknown_iHR.js
+    //   `get(a, e) { if (e === "admin" || a in adminDict) return adminDict[a]; return T.get(a, e); }`
+    const adminSettings = await readAdminSettings();
+    if (Object.keys(adminSettings).length > 0) {
+      settings = { ...settings, ...adminSettings } as Settings;
+      log.debug("Admin settings merged", { keys: Object.keys(adminSettings) });
+    }
 
     // Task 9: Settings validation (Gap #41)
     // Validate merged settings against the Zod schema.

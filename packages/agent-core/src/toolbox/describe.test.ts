@@ -11,13 +11,13 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 import { describe, it } from "node:test";
+import type { SpawnFn } from "./describe";
 import {
   convertArgToSchema,
   parseLegacyTextFormat,
   probeToolScript,
   textSpecToToolboxSpec,
 } from "./describe";
-import type { SpawnFn } from "./describe";
 
 // ─── Mock spawn factory ─────────────────────────────────
 
@@ -36,13 +36,20 @@ function createMockSpawn(opts: {
     const child = new EventEmitter() as ReturnType<SpawnFn>;
     const stdoutStream = new Readable({ read() {} });
     const stderrStream = new Readable({ read() {} });
-    const stdinStream = new Writable({ write(_chunk, _enc, cb) { cb(); } });
+    const stdinStream = new Writable({
+      write(_chunk, _enc, cb) {
+        cb();
+      },
+    });
 
     child.stdout = stdoutStream;
     child.stderr = stderrStream;
     child.stdin = stdinStream;
     child.killed = false;
-    child.kill = () => { child.killed = true; return true; };
+    child.kill = () => {
+      child.killed = true;
+      return true;
+    };
     child.pid = 12345;
 
     const emit = () => {

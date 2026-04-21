@@ -439,11 +439,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
 
     // ── Assemble column ──
     // 逆向: b0R.build (chunk-006.js:23038-23042) — Column([header, options, footer])
-    const columnChildren = [
-      ...headerChildren,
-      ...optionRows,
-      footerHint,
-    ];
+    const columnChildren = [...headerChildren, ...optionRows, footerHint];
 
     const column = new Column({
       crossAxisAlignment: "stretch",

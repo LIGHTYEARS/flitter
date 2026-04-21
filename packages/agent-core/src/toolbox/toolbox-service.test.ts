@@ -9,15 +9,15 @@
  */
 
 import assert from "node:assert/strict";
-import * as fs from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { afterEach, beforeEach, describe, it } from "node:test";
 import { EventEmitter } from "node:events";
+import * as fs from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import { ToolRegistry } from "../tools/registry";
-import { ToolboxService } from "./toolbox-service";
 import type { SpawnFn } from "./describe";
+import { ToolboxService } from "./toolbox-service";
 
 // ─── Test helpers ────────────────────────────────────────
 
@@ -42,19 +42,29 @@ function writeScript(dir: string, name: string, content: string): string {
  * Each path maps to a JSON describe output.
  */
 function createScriptSpawn(
-  scripts: Record<string, { name: string; description: string; inputSchema?: Record<string, unknown> }>,
+  scripts: Record<
+    string,
+    { name: string; description: string; inputSchema?: Record<string, unknown> }
+  >,
 ): SpawnFn {
   return (command, _args, options) => {
     const child = new EventEmitter() as ReturnType<SpawnFn>;
     const stdoutStream = new Readable({ read() {} });
     const stderrStream = new Readable({ read() {} });
-    const stdinStream = new Writable({ write(_chunk, _enc, cb) { cb(); } });
+    const stdinStream = new Writable({
+      write(_chunk, _enc, cb) {
+        cb();
+      },
+    });
 
     child.stdout = stdoutStream;
     child.stderr = stderrStream;
     child.stdin = stdinStream;
     child.killed = false;
-    child.kill = () => { child.killed = true; return true; };
+    child.kill = () => {
+      child.killed = true;
+      return true;
+    };
     child.pid = 12345;
 
     setImmediate(() => {

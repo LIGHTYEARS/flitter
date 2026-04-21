@@ -5,9 +5,9 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { createCodeReviewTool } from "./code-review";
 import type { SubAgentManager, SubAgentResult } from "../../subagent/subagent";
 import type { ToolContext } from "../types";
+import { createCodeReviewTool } from "./code-review";
 
 function makeContext(): ToolContext {
   return {
@@ -18,9 +18,7 @@ function makeContext(): ToolContext {
   };
 }
 
-function makeMockSubAgentManager(
-  spawnResult: SubAgentResult,
-): SubAgentManager {
+function makeMockSubAgentManager(spawnResult: SubAgentResult): SubAgentManager {
   return {
     spawn: async () => spawnResult,
     activeAgents$: { getValue: () => new Map() } as never,
@@ -66,10 +64,7 @@ describe("createCodeReviewTool", () => {
       const schema = tool.inputSchema as {
         properties: Record<string, { enum?: string[] }>;
       };
-      assert.deepEqual(schema.properties.thoroughness.enum, [
-        "methodical",
-        "quick",
-      ]);
+      assert.deepEqual(schema.properties.thoroughness.enum, ["methodical", "quick"]);
     });
   });
 
@@ -84,24 +79,18 @@ describe("createCodeReviewTool", () => {
       );
       const result = await tool.execute({}, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("diff_description"),
-      );
+      assert.ok((result as { error: string }).error?.includes("diff_description"));
     });
 
     it("spawns subagent and returns completed review", async () => {
       const tool = createCodeReviewTool(
         makeMockSubAgentManager({
           threadId: "t1",
-          response:
-            "## Review Summary\n\n1 bug found in auth.ts line 42: missing null check.",
+          response: "## Review Summary\n\n1 bug found in auth.ts line 42: missing null check.",
           status: "completed",
         }),
       );
-      const result = await tool.execute(
-        { diff_description: "git diff HEAD~1" },
-        makeContext(),
-      );
+      const result = await tool.execute({ diff_description: "git diff HEAD~1" }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(result.content?.includes("bug found"));
     });
@@ -114,10 +103,7 @@ describe("createCodeReviewTool", () => {
           status: "timeout",
         }),
       );
-      const result = await tool.execute(
-        { diff_description: "git diff" },
-        makeContext(),
-      );
+      const result = await tool.execute({ diff_description: "git diff" }, makeContext());
       assert.equal(result.status, "error");
       assert.ok((result as { error: string }).error?.includes("timed out"));
     });
@@ -130,10 +116,7 @@ describe("createCodeReviewTool", () => {
           status: "cancelled",
         }),
       );
-      const result = await tool.execute(
-        { diff_description: "git diff" },
-        makeContext(),
-      );
+      const result = await tool.execute({ diff_description: "git diff" }, makeContext());
       assert.equal(result.status, "cancelled");
     });
 
@@ -146,14 +129,9 @@ describe("createCodeReviewTool", () => {
           error: "Review agent failed",
         }),
       );
-      const result = await tool.execute(
-        { diff_description: "git diff" },
-        makeContext(),
-      );
+      const result = await tool.execute({ diff_description: "git diff" }, makeContext());
       assert.equal(result.status, "error");
-      assert.ok(
-        (result as { error: string }).error?.includes("Review agent failed"),
-      );
+      assert.ok((result as { error: string }).error?.includes("Review agent failed"));
     });
 
     it("includes files in prompt when provided", async () => {
@@ -225,10 +203,7 @@ describe("createCodeReviewTool", () => {
       } as unknown as SubAgentManager;
 
       const tool = createCodeReviewTool(capturingManager);
-      await tool.execute(
-        { diff_description: "test" },
-        makeContext(),
-      );
+      await tool.execute({ diff_description: "test" }, makeContext());
       assert.equal(capturedType, "code-review");
     });
 

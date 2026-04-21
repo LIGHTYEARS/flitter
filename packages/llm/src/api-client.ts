@@ -115,11 +115,7 @@ export class InternalApiClient {
   }
 
   /** Remove a label from a thread */
-  async removeThreadLabel(
-    threadId: string,
-    labelId: string,
-    signal?: AbortSignal,
-  ): Promise<void> {
+  async removeThreadLabel(threadId: string, labelId: string, signal?: AbortSignal): Promise<void> {
     await this._request("DELETE", `/threads/${threadId}/labels/${labelId}`, undefined, signal);
   }
 

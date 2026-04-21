@@ -175,12 +175,8 @@ export class ContextManager {
       if (promotedUserMsg) {
         keepIds.add(promotedUserMsg.messageId);
       }
-      const dedupedInfoMsgs = pinnedInfoMessages.filter(
-        (m) => !keepIds.has(m.messageId),
-      );
-      const dedupedCacheMsgs = pinnedCacheMessages.filter(
-        (m) => !keepIds.has(m.messageId),
-      );
+      const dedupedInfoMsgs = pinnedInfoMessages.filter((m) => !keepIds.has(m.messageId));
+      const dedupedCacheMsgs = pinnedCacheMessages.filter((m) => !keepIds.has(m.messageId));
 
       // ── Construct new thread with pinned messages ──
       // Order: summary → pinned info messages → pinned cache_control messages
@@ -311,9 +307,7 @@ function findSummaryBlock(
  * messages. In amp this is server-side; for Flitter's client-side
  * compaction we preserve these messages so cached context survives.
  */
-function extractCacheControlMessages(
-  messages: ThreadMessage[],
-): ThreadMessage[] {
+function extractCacheControlMessages(messages: ThreadMessage[]): ThreadMessage[] {
   const result: ThreadMessage[] = [];
 
   for (const msg of messages) {
@@ -323,8 +317,7 @@ function extractCacheControlMessages(
       (block: ThreadContentBlock) =>
         // cache_control is not in the Zod schema but is set at runtime
         // by the API layer (Anthropic cache_control protocol)
-        "cache_control" in block &&
-        (block as Record<string, unknown>).cache_control != null,
+        "cache_control" in block && (block as Record<string, unknown>).cache_control != null,
     );
 
     if (hasCacheControl) {

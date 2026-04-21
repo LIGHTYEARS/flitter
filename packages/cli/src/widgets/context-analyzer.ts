@@ -75,13 +75,11 @@ export class ContextAnalyzer extends StatefulWidget {
 
 export class ContextAnalyzerState extends State<ContextAnalyzer> {
   build(_context: BuildContext): Widget {
-    const { breakdown, isLoading, error, modelName, onDismiss } = this.widget.config;
+    const { breakdown, isLoading, error, modelName, onDismiss: _onDismiss } = this.widget.config;
 
     // Title
     const titleRow = new Row({
-      children: [
-        new Text({ data: `Context Analysis: ${modelName}` }),
-      ],
+      children: [new Text({ data: `Context Analysis: ${modelName}` })],
     });
 
     if (error) {
@@ -110,9 +108,7 @@ export class ContextAnalyzerState extends State<ContextAnalyzer> {
     const availableInput = breakdown.contextWindow - breakdown.maxOutputTokens;
     const usedTokens = breakdown.totalTokens;
     const remainingTokens = Math.max(0, availableInput - usedTokens);
-    const usagePercent = availableInput > 0
-      ? Math.round((usedTokens / availableInput) * 100)
-      : 0;
+    const usagePercent = availableInput > 0 ? Math.round((usedTokens / availableInput) * 100) : 0;
 
     // Build usage bar (simple text-based bar)
     const barWidth = 40;
@@ -133,7 +129,9 @@ export class ContextAnalyzerState extends State<ContextAnalyzer> {
         new Text({ data: "Token Breakdown:" }),
         new Text({ data: `  System Prompt:    ${fmt(breakdown.systemPromptTokens).padStart(10)}` }),
         new Text({ data: `  Messages:         ${fmt(breakdown.messageTokens).padStart(10)}` }),
-        new Text({ data: `  Tool Definitions: ${fmt(breakdown.toolDefinitionTokens).padStart(10)}` }),
+        new Text({
+          data: `  Tool Definitions: ${fmt(breakdown.toolDefinitionTokens).padStart(10)}`,
+        }),
         new Text({ data: `  Overhead:         ${fmt(breakdown.overheadTokens).padStart(10)}` }),
         new Text({ data: `  ${"─".repeat(30)}` }),
         new Text({ data: `  Total Used:       ${fmt(usedTokens).padStart(10)}` }),

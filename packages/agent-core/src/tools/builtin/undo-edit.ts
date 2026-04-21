@@ -53,7 +53,11 @@ function createUnifiedDiff(oldContent: string, newContent: string, filePath: str
 
     // Advance through differing lines
     while (endOld < oldLines.length || endNew < newLines.length) {
-      if (endOld < oldLines.length && endNew < newLines.length && oldLines[endOld] === newLines[endNew]) {
+      if (
+        endOld < oldLines.length &&
+        endNew < newLines.length &&
+        oldLines[endOld] === newLines[endNew]
+      ) {
         // Check if we have enough matching lines to end the hunk
         let matchCount = 0;
         while (
@@ -73,11 +77,18 @@ function createUnifiedDiff(oldContent: string, newContent: string, filePath: str
       }
     }
 
-    const contextEnd = Math.min(Math.max(oldLines.length, newLines.length), Math.max(endOld, endNew) + CONTEXT);
+    const contextEnd = Math.min(
+      Math.max(oldLines.length, newLines.length),
+      Math.max(endOld, endNew) + CONTEXT,
+    );
     const hunkOldStart = contextStart + 1; // 1-indexed
     const hunkNewStart = Math.max(0, j - (i - contextStart)) + 1;
-    const hunkOldLen = Math.min(oldLines.length, contextEnd) - contextStart;
-    const hunkNewLen = Math.min(newLines.length, contextEnd - contextStart + (endNew - endOld) + contextStart) - Math.max(0, j - (i - contextStart)) + hunkNewStart - 1;
+    const _hunkOldLen = Math.min(oldLines.length, contextEnd) - contextStart;
+    const _hunkNewLen =
+      Math.min(newLines.length, contextEnd - contextStart + (endNew - endOld) + contextStart) -
+      Math.max(0, j - (i - contextStart)) +
+      hunkNewStart -
+      1;
 
     // Build hunk using a simpler approach
     const hunkLines: string[] = [];
@@ -101,11 +112,13 @@ function createUnifiedDiff(oldContent: string, newContent: string, filePath: str
     }
 
     // Calculate proper hunk header
-    const removedCount = hunkLines.filter(l => l.startsWith("-")).length;
-    const addedCount = hunkLines.filter(l => l.startsWith("+")).length;
-    const contextCount = hunkLines.filter(l => l.startsWith(" ")).length;
+    const removedCount = hunkLines.filter((l) => l.startsWith("-")).length;
+    const addedCount = hunkLines.filter((l) => l.startsWith("+")).length;
+    const contextCount = hunkLines.filter((l) => l.startsWith(" ")).length;
 
-    hunks.push(`@@ -${hunkOldStart},${removedCount + contextCount} +${hunkNewStart},${addedCount + contextCount} @@`);
+    hunks.push(
+      `@@ -${hunkOldStart},${removedCount + contextCount} +${hunkNewStart},${addedCount + contextCount} @@`,
+    );
     hunks.push(...hunkLines);
 
     // Move past this region

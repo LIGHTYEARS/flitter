@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import type { Settings } from "@flitter/schemas";
-import { ToolRegistry } from "./registry";
+import { matchToolPattern, ToolRegistry } from "./registry";
 import type { ToolSpec } from "./types";
 
 /** 创建 mock ToolSpec */
@@ -252,12 +252,12 @@ describe("ToolRegistry", () => {
     });
 
     it("skips disabled tools and returns first enabled one", () => {
-      const disabledRead = createMockToolSpec({
+      const _disabledRead = createMockToolSpec({
         name: "read",
         description: "disabled",
         isEnabled: () => false,
       });
-      const enabledRead = createMockToolSpec({
+      const _enabledRead = createMockToolSpec({
         name: "read",
         description: "enabled",
         isEnabled: () => true,
@@ -326,5 +326,163 @@ describe("ToolRegistry", () => {
     it("mcp__ 开头但不足 3 段原样返回", () => {
       assert.equal(registry.normalizeToolName("mcp__single"), "mcp__single");
     });
+  });
+
+  // ─── Glob pattern matching (GAP-CORE-09) ────────────────
+
+  describe("listEnabled with glob patterns", () => {
+    it("tools.disable with wildcard * disables matching tools", () => {
+      registry.register(createMockToolSpec({ name: "mcp__playwright__click" }));
+      registry.register(createMockToolSpec({ name: "mcp__playwright__type" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      const config = { "tools.disable": ["mcp__playwright__*"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Bash");
+    });
+
+    it("tools.enable with wildcard * enables matching tools", () => {
+      registry.register(createMockToolSpec({ name: "mcp__playwright__click" }));
+      registry.register(createMockToolSpec({ name: "mcp__playwright__type" }));
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      const config = { "tools.enable": ["mcp__playwright__*"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 2);
+      const names = result.map((t) => t.name);
+      assert.ok(names.includes("mcp__playwright__click"));
+      assert.ok(names.includes("mcp__playwright__type"));
+    });
+
+    it("tools.disable with ? matches single character", () => {
+      registry.register(createMockToolSpec({ name: "ReadA" }));
+      registry.register(createMockToolSpec({ name: "ReadB" }));
+      registry.register(createMockToolSpec({ name: "ReadAB" }));
+      const config = { "tools.disable": ["Read?"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "ReadAB");
+    });
+
+    it("tools.disable with {a,b} brace expansion matches alternatives", () => {
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.register(createMockToolSpec({ name: "Read" }));
+      registry.register(createMockToolSpec({ name: "Write" }));
+      const config = { "tools.disable": ["{Bash,Write}"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Read");
+    });
+
+    it("exact string match still works without glob chars", () => {
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      registry.register(createMockToolSpec({ name: "Read" }));
+      const config = { "tools.disable": ["Bash"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Read");
+    });
+
+    it("builtin: prefix matching works for disable", () => {
+      registry.register(createMockToolSpec({ name: "Bash", source: "builtin" }));
+      registry.register(createMockToolSpec({ name: "Read", source: "builtin" }));
+      const config = { "tools.disable": ["builtin:Bash"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Read");
+    });
+
+    it("toolbox: prefix matching works for disable", () => {
+      registry.register(createMockToolSpec({ name: "my_tool", source: { toolbox: "custom" } }));
+      registry.register(createMockToolSpec({ name: "Bash", source: "builtin" }));
+      const config = { "tools.disable": ["toolbox:my_tool"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Bash");
+    });
+
+    it("MCP tool bare name matching works for disable", () => {
+      registry.register(
+        createMockToolSpec({
+          name: "mcp__server__mytool",
+          source: { mcp: "server" },
+        }),
+      );
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      // Disable by bare tool name — yy checks the bare tool part
+      const config = { "tools.disable": ["mytool"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "Bash");
+    });
+
+    it("builtin:* disables all builtin tools", () => {
+      registry.register(createMockToolSpec({ name: "Bash", source: "builtin" }));
+      registry.register(createMockToolSpec({ name: "Read", source: "builtin" }));
+      registry.register(createMockToolSpec({ name: "mcp_tool", source: { mcp: "srv" } }));
+      const config = { "tools.disable": ["builtin:*"] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+      assert.equal(result[0].name, "mcp_tool");
+    });
+
+    it("empty patterns in disable list are ignored", () => {
+      registry.register(createMockToolSpec({ name: "Bash" }));
+      const config = { "tools.disable": ["", ""] } as Settings;
+      const result = registry.listEnabled(config);
+      assert.equal(result.length, 1);
+    });
+  });
+});
+
+// ─── matchToolPattern unit tests ────────────────────────────
+
+describe("matchToolPattern", () => {
+  it("exact match returns true", () => {
+    assert.equal(matchToolPattern("Bash", ["Bash"]), true);
+  });
+
+  it("no match returns false", () => {
+    assert.equal(matchToolPattern("Bash", ["Read"]), false);
+  });
+
+  it("wildcard * matches anything", () => {
+    assert.equal(matchToolPattern("anything", ["*"]), true);
+  });
+
+  it("glob * at end matches prefix", () => {
+    assert.equal(matchToolPattern("mcp__server__click", ["mcp__server__*"]), true);
+  });
+
+  it("glob * does not match partial mismatch", () => {
+    assert.equal(matchToolPattern("mcp__other__click", ["mcp__server__*"]), false);
+  });
+
+  it("glob ? matches single char", () => {
+    assert.equal(matchToolPattern("ReadA", ["Read?"]), true);
+    assert.equal(matchToolPattern("ReadAB", ["Read?"]), false);
+  });
+
+  it("brace expansion {a,b} matches alternatives", () => {
+    assert.equal(matchToolPattern("Bash", ["{Bash,Read}"]), true);
+    assert.equal(matchToolPattern("Read", ["{Bash,Read}"]), true);
+    assert.equal(matchToolPattern("Write", ["{Bash,Read}"]), false);
+  });
+
+  it("character class [abc] matches listed chars", () => {
+    assert.equal(matchToolPattern("ReadA", ["Read[AB]"]), true);
+    assert.equal(matchToolPattern("ReadC", ["Read[AB]"]), false);
+  });
+
+  it("empty patterns are skipped", () => {
+    assert.equal(matchToolPattern("Bash", [""]), false);
+  });
+
+  it("empty list returns false", () => {
+    assert.equal(matchToolPattern("Bash", []), false);
+  });
+
+  it("invalid glob pattern is silently ignored", () => {
+    // Unclosed [ should not throw
+    assert.equal(matchToolPattern("Bash", ["[unclosed"]), false);
   });
 });

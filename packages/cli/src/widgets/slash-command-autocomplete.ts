@@ -27,26 +27,24 @@
  * ```
  */
 
+import type { BuildContext, LayerLink, Widget } from "@flitter/tui";
 import {
   AutocompleteController,
   type AutocompleteOption,
-  type TextEditingController,
-  type OverlayState,
-  OverlayEntry,
-  StatelessWidget,
+  Color,
   Column,
-  RichText,
-  TextSpan,
-  Padding,
   EdgeInsets,
+  OverlayEntry,
+  type OverlayState,
+  Padding,
+  RichText,
   Row,
   SizedBox,
+  StatelessWidget,
+  type TextEditingController,
+  TextSpan,
+  TextStyle,
 } from "@flitter/tui";
-import { TextStyle } from "@flitter/tui";
-import { Color } from "@flitter/tui";
-import type { Widget } from "@flitter/tui";
-import type { BuildContext } from "@flitter/tui";
-import type { LayerLink } from "@flitter/tui";
 import type { FlitterCommandPaletteProvider } from "./command-palette-provider.js";
 
 // ════════════════════════════════════════════════════
@@ -63,7 +61,7 @@ const FG_COLOR = Color.rgb(0xc0, 0xca, 0xf5);
 const MUTED_COLOR = Color.rgb(0x56, 0x5f, 0x89);
 
 /** surface 色 (#1a1b26) — 选中背景 */
-const SURFACE_COLOR = Color.rgb(0x1a, 0x1b, 0x26);
+const _SURFACE_COLOR = Color.rgb(0x1a, 0x1b, 0x26);
 
 // ════════════════════════════════════════════════════
 //  SlashCommandAutocompleteConfig
@@ -109,9 +107,6 @@ export class SlashCommandAutocomplete {
 
   /** @internal 弹出层状态 */
   private _overlayState: OverlayState | null;
-
-  /** @internal 锚点链接 */
-  private _layerLink: LayerLink | null;
 
   /** @internal 是否已释放 */
   private _disposed: boolean = false;
@@ -239,9 +234,10 @@ export class SlashCommandAutocomplete {
   private _showOverlay(): void {
     if (!this._overlayState || this._overlayEntry) return;
     this._overlayEntry = new OverlayEntry({
-      builder: () => new SlashCommandOverlayWidget({
-        autocomplete: this._autocomplete,
-      }),
+      builder: () =>
+        new SlashCommandOverlayWidget({
+          autocomplete: this._autocomplete,
+        }),
     });
     this._overlayState.insert(this._overlayEntry);
   }

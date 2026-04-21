@@ -8,9 +8,9 @@
  */
 
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
 
 import { PluginService } from "./plugin-service";
@@ -20,7 +20,10 @@ import { PluginService } from "./plugin-service";
 let testDir: string;
 
 function setupTestDir(): string {
-  const dir = join(tmpdir(), `flitter-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(
+    tmpdir(),
+    `flitter-plugin-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   mkdirSync(dir, { recursive: true });
   return dir;
 }
@@ -37,7 +40,10 @@ function createPluginFile(dir: string, name: string, content?: string): string {
   const pluginDir = join(dir, ".flitter", "plugins");
   mkdirSync(pluginDir, { recursive: true });
   const filePath = join(pluginDir, name);
-  writeFileSync(filePath, content ?? `export default { "tool.call": async () => ({ action: "allow" }) };`);
+  writeFileSync(
+    filePath,
+    content ?? `export default { "tool.call": async () => ({ action: "allow" }) };`,
+  );
   return filePath;
 }
 
@@ -45,7 +51,10 @@ function createGlobalPluginFile(configDir: string, name: string, content?: strin
   const pluginDir = join(configDir, "plugins");
   mkdirSync(pluginDir, { recursive: true });
   const filePath = join(pluginDir, name);
-  writeFileSync(filePath, content ?? `export default { "tool.call": async () => ({ action: "allow" }) };`);
+  writeFileSync(
+    filePath,
+    content ?? `export default { "tool.call": async () => ({ action: "allow" }) };`,
+  );
   return filePath;
 }
 

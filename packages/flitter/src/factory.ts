@@ -17,12 +17,7 @@ import type { PermissionEngineOpts } from "@flitter/agent-core";
 import {
   ApplyPatchTool,
   BashTool,
-  createDeleteFileTool,
-  createReadMcpResourceTool,
-  createSkillTool,
-  createUndoEditTool,
   EditTool,
-  FileChangeTracker,
   FuzzyFindTool,
   GlobTool,
   GrepTool,
@@ -45,8 +40,9 @@ import {
   type ThreadPersistenceOptions,
   ThreadStore,
 } from "@flitter/data";
-import { MCPServerManager, type MCPServerManagerOptions } from "@flitter/llm";
+import { MCPServerManager, type MCPServerManagerOptions, MODEL_REGISTRY } from "@flitter/llm";
 import type { ToolApprovalRequest } from "@flitter/schemas";
+import { DEFAULT_MODEL } from "@flitter/schemas";
 import { Subject } from "@flitter/util";
 import type { ContainerOptions, GuidanceLoader } from "./container";
 
@@ -59,6 +55,27 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
   let cachedSettingsApiKey: string | undefined;
   let settingsApiKeyCached = false;
 
+  /**
+   * Determine the current provider from settings, for provider-aware API key lookup.
+   * Uses cached model value when available (set during getToken), falls back to env.
+   *
+   * 逆向: amp uses separate code paths per provider (e.g., OpenRouter reads
+   * settings["openrouter.apiKey"] then env OPENROUTER_API_KEY). Flitter uses
+   * a unified getToken("apiKey") call, so we need to determine the provider
+   * here to check the right settings key and env vars.
+   */
+  let cachedProvider: string | undefined;
+
+  async function detectActiveProvider(): Promise<"anthropic" | "gemini" | "openai" | string> {
+    if (cachedProvider) return cachedProvider;
+    const modelId = (await opts.settings.get("internal.model")) as string | undefined;
+    const model = modelId ?? DEFAULT_MODEL;
+    const entry = MODEL_REGISTRY[model];
+    const provider = entry?.provider ?? "anthropic";
+    cachedProvider = provider;
+    return provider;
+  }
+
   const serviceOpts: ConfigServiceOptions = {
     storage: opts.settings,
     secretStorage: {
@@ -67,19 +84,48 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
         const fromSecrets = await opts.secrets.get(key, url);
         if (fromSecrets) return fromSecrets;
 
-        // 2. Fallback: check settings for anthropic.apiKey
-        // 逆向: amp's _a class (0576_unknown__a.js:8) reads ANTHROPIC_API_KEY from env.
-        // Flitter supports settings-based apiKey for compatible endpoints (e.g., ARK).
+        // 2. Provider-aware fallback: settings key → env var(s)
+        // 逆向: amp's OpenRouter pattern (chunk-002.js:18070-18072):
+        //   settings["openrouter.apiKey"] → process.env.OPENROUTER_API_KEY → throw
+        // 逆向: amp's Gemini YdR() (modules/0975_unknown_YdR.js):
+        //   GOOGLE_API_KEY → GEMINI_API_KEY → undefined
         if (key === "apiKey") {
-          const fromSettings = await opts.settings.get("anthropic.apiKey");
-          if (typeof fromSettings === "string" && fromSettings.length > 0) {
-            cachedSettingsApiKey = fromSettings;
-            settingsApiKeyCached = true;
-            return fromSettings;
+          const provider = await detectActiveProvider();
+
+          if (provider === "gemini") {
+            // Gemini: settings["gemini.apiKey"] → GOOGLE_API_KEY → GEMINI_API_KEY
+            const fromSettings = await opts.settings.get("gemini.apiKey");
+            if (typeof fromSettings === "string" && fromSettings.length > 0) {
+              cachedSettingsApiKey = fromSettings;
+              settingsApiKeyCached = true;
+              return fromSettings;
+            }
+            // 逆向: YdR() checks GOOGLE_API_KEY first, then GEMINI_API_KEY
+            const fromGoogleEnv = process.env.GOOGLE_API_KEY;
+            if (fromGoogleEnv) return fromGoogleEnv;
+            const fromGeminiEnv = process.env.GEMINI_API_KEY;
+            if (fromGeminiEnv) return fromGeminiEnv;
+          } else if (provider === "openai") {
+            // OpenAI: settings["openai.apiKey"] → OPENAI_API_KEY
+            const fromSettings = await opts.settings.get("openai.apiKey");
+            if (typeof fromSettings === "string" && fromSettings.length > 0) {
+              cachedSettingsApiKey = fromSettings;
+              settingsApiKeyCached = true;
+              return fromSettings;
+            }
+            const fromEnv = process.env.OPENAI_API_KEY;
+            if (fromEnv) return fromEnv;
+          } else {
+            // Anthropic (default): settings["anthropic.apiKey"] → ANTHROPIC_API_KEY
+            const fromSettings = await opts.settings.get("anthropic.apiKey");
+            if (typeof fromSettings === "string" && fromSettings.length > 0) {
+              cachedSettingsApiKey = fromSettings;
+              settingsApiKeyCached = true;
+              return fromSettings;
+            }
+            const fromEnv = process.env.ANTHROPIC_API_KEY;
+            if (fromEnv) return fromEnv;
           }
-          // 3. Env var fallback: ANTHROPIC_API_KEY
-          const fromEnv = process.env.ANTHROPIC_API_KEY;
-          if (fromEnv) return fromEnv;
         }
         return undefined;
       },
@@ -87,8 +133,28 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
         if (key === "apiKey") {
           // Check cached value first (populated after first getToken call)
           if (settingsApiKeyCached && cachedSettingsApiKey) return true;
-          // Check env var
-          if (process.env.ANTHROPIC_API_KEY) return true;
+
+          // Provider-aware env var check using cached provider (set by getToken)
+          // Falls back to checking ALL provider env vars if provider not yet known.
+          // isSet() is a guard — false-positive is safe (provider throws 401 later),
+          // false-negative would skip the provider entirely.
+          const provider = cachedProvider;
+          if (!provider) {
+            // Before first getToken call, check all env vars
+            if (
+              process.env.ANTHROPIC_API_KEY ||
+              process.env.GOOGLE_API_KEY ||
+              process.env.GEMINI_API_KEY ||
+              process.env.OPENAI_API_KEY
+            )
+              return true;
+          } else if (provider === "gemini") {
+            if (process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) return true;
+          } else if (provider === "openai") {
+            if (process.env.OPENAI_API_KEY) return true;
+          } else {
+            if (process.env.ANTHROPIC_API_KEY) return true;
+          }
         }
         return false;
       },

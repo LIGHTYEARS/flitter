@@ -8,8 +8,8 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 import { describe, it } from "node:test";
-import { argsToTextFormat, executeToolboxScript } from "./execute";
 import type { SpawnFn } from "./describe";
+import { argsToTextFormat, executeToolboxScript } from "./execute";
 
 // ─── Mock spawn factory ─────────────────────────────────
 
@@ -42,7 +42,10 @@ function createMockSpawn(opts: {
     child.stderr = stderrStream;
     child.stdin = stdinStream;
     child.killed = false;
-    child.kill = () => { child.killed = true; return true; };
+    child.kill = () => {
+      child.killed = true;
+      return true;
+    };
     child.pid = 12345;
 
     const emit = () => {
@@ -79,7 +82,9 @@ describe("executeToolboxScript", () => {
       {
         spawn: createMockSpawn({
           stdout: "Test passed!",
-          captureStdin: (d) => { capturedStdin = d; },
+          captureStdin: (d) => {
+            capturedStdin = d;
+          },
         }),
       },
     );
@@ -113,7 +118,9 @@ describe("executeToolboxScript", () => {
         format: "text",
         spawn: createMockSpawn({
           stdout: "ok",
-          captureStdin: (d) => { capturedStdin = d; },
+          captureStdin: (d) => {
+            capturedStdin = d;
+          },
         }),
       },
     );

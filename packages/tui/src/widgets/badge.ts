@@ -10,13 +10,13 @@
  * @module
  */
 
+import { Color } from "../screen/color.js";
+import { TextStyle } from "../screen/text-style.js";
 import type { Widget as WidgetInterface } from "../tree/element.js";
 import { type BuildContext, StatelessWidget } from "../tree/stateless-widget.js";
 import type { Key } from "../tree/widget.js";
 import { RichText } from "./rich-text.js";
 import { TextSpan } from "./text-span.js";
-import { TextStyle } from "../screen/text-style.js";
-import { Color } from "../screen/color.js";
 
 // ════════════════════════════════════════════════════
 //  Badge Widget

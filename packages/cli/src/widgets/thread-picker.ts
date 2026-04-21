@@ -92,8 +92,7 @@ export class ThreadPickerState extends State<ThreadPicker> {
     if (this._filterText) {
       const lower = this._filterText.toLowerCase();
       threads = threads.filter(
-        (t) =>
-          t.title.toLowerCase().includes(lower) || t.id.toLowerCase().includes(lower),
+        (t) => t.title.toLowerCase().includes(lower) || t.id.toLowerCase().includes(lower),
       );
     }
 
@@ -153,10 +152,7 @@ export class ThreadPickerState extends State<ThreadPicker> {
 
     if (loadError) {
       return new Column({
-        children: [
-          new Text({ data: "Error loading threads:" }),
-          new Text({ data: loadError }),
-        ],
+        children: [new Text({ data: "Error loading threads:" }), new Text({ data: loadError })],
       });
     }
 

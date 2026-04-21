@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "bun:test";
 import type { BuildContext } from "@flitter/tui";
-import { Column, Padding, RichText, Row, StatelessWidget } from "@flitter/tui";
+import { Column, RichText, Row, StatelessWidget } from "@flitter/tui";
 import { StatusBar, type StatusBarConfig, type StatusBarState } from "./status-bar.js";
 
 // ════════════════════════════════════════════════════

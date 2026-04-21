@@ -4,14 +4,32 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ThreadPicker, ThreadPickerState } from "./thread-picker.js";
 import type { ThreadPickerEntry } from "./thread-picker.js";
+import { ThreadPicker, ThreadPickerState } from "./thread-picker.js";
 
 function makeEntries(): ThreadPickerEntry[] {
   return [
-    { id: "t1", title: "Fix login bug", updatedAt: new Date().toISOString(), messageCount: 5, workspace: "/ws1" },
-    { id: "t2", title: "Add search feature", updatedAt: new Date(Date.now() - 3600000).toISOString(), messageCount: 12, workspace: "/ws1" },
-    { id: "t3", title: "Refactor TUI", updatedAt: new Date(Date.now() - 86400000).toISOString(), messageCount: 3, workspace: "/ws2" },
+    {
+      id: "t1",
+      title: "Fix login bug",
+      updatedAt: new Date().toISOString(),
+      messageCount: 5,
+      workspace: "/ws1",
+    },
+    {
+      id: "t2",
+      title: "Add search feature",
+      updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      messageCount: 12,
+      workspace: "/ws1",
+    },
+    {
+      id: "t3",
+      title: "Refactor TUI",
+      updatedAt: new Date(Date.now() - 86400000).toISOString(),
+      messageCount: 3,
+      workspace: "/ws2",
+    },
   ];
 }
 
@@ -44,7 +62,9 @@ describe("ThreadPicker", () => {
 
   it("should store config correctly", () => {
     const threads = makeEntries();
-    const onSelect = (id: string) => { void id; };
+    const onSelect = (id: string) => {
+      void id;
+    };
     const onCancel = () => {};
 
     const picker = new ThreadPicker({

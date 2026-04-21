@@ -2,9 +2,9 @@
  * Tests for GitHub Copilot OAuth provider (Device Code flow).
  */
 
+import { mock } from "bun:test";
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { mock } from "bun:test";
 import type { OAuthLoginCallbacks } from "../types";
 import { GitHubCopilotOAuthProvider } from "./github-copilot";
 

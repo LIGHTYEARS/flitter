@@ -11,9 +11,7 @@ import { processAssistantMessage } from "./process-assistant-message";
 
 describe("processAssistantMessage", () => {
   it("trims whitespace from text blocks", () => {
-    const input = [
-      { type: "text", text: "  hello world  " },
-    ] as AssistantContentBlock[];
+    const input = [{ type: "text", text: "  hello world  " }] as AssistantContentBlock[];
     const result = processAssistantMessage(input);
     assert.equal(result.length, 1);
     assert.equal((result[0] as Record<string, unknown>).text, "hello world");

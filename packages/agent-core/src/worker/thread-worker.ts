@@ -14,6 +14,7 @@ import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@fl
 import { resolveModelName } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
+import type { PluginService } from "../plugins/plugin-service";
 import type { TitleGenerationProvider } from "../title/generate-title";
 import { extractTextFromContent, generateThreadTitle } from "../title/generate-title";
 import type { ToolOrchestrator, ToolUseItem } from "../tools/orchestrator";
@@ -103,6 +104,15 @@ export interface ThreadWorkerOptions {
    * 逆向: amp injects generateThreadTitle via deps (1244:770)
    */
   titleProvider?: TitleGenerationProvider;
+
+  /**
+   * Optional plugin service for agent lifecycle hooks.
+   * If provided, agentStart/agentEnd events are emitted to plugins.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:808 (agentStart)
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574,682,1005 (agentEnd)
+   */
+  pluginService?: PluginService;
 }
 
 // ─── ThreadWorker 类 ────────────────────────────────────
@@ -242,6 +252,10 @@ export class ThreadWorker {
    * the previous session was interrupted mid-stream. We truncate that incomplete
    * message so the next inference starts clean.
    *
+   * After truncation + file tracking, calls `toolOrchestrator.onResume()` to
+   * handle in-progress tools from the previous session (re-invoke safe tools,
+   * cancel dangerous ones, restore approval queue for blocked tools).
+   *
    * Idempotent: second call is a no-op.
    *
    * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:259-270
@@ -252,8 +266,14 @@ export class ThreadWorker {
    *   if (T?.role === "assistant" && T.state.type === "streaming")
    *     this.updateThread({ type: "thread:truncate", fromIndex: this.thread.messages.length - 1 });
    *   ```
+   * 逆向: ov.js:268-269
+   *   ```
+   *   if (this.trackFilesFromHistory(), this.triggerTitleGeneration(),
+   *       !this.shouldResumeFromLastMessage(T)) return;
+   *   await this.toolOrchestrator.onResume(), ...
+   *   ```
    */
-  resume(): void {
+  async resume(): Promise<void> {
     if (this.resumed) return;
     this.resumed = true;
 
@@ -275,6 +295,80 @@ export class ThreadWorker {
     // 逆向: ov.js:3-15 — trackFilesFromHistory is called on resume
     // to restore the tracked files set from the persisted thread history
     this.trackFilesFromHistory();
+
+    // 逆向: ov.js:268-269 — shouldResumeFromLastMessage guard, then onResume
+    // Check if we should resume tool execution based on last message state
+    if (!this.shouldResumeFromLastMessage(lastMsg)) {
+      this.inferenceState$.next("cancelled");
+      return;
+    }
+
+    // Resume in-progress tools from the previous session
+    // 逆向: ov.js:269 `await this.toolOrchestrator.onResume()`
+    const currentSnapshot = this.opts.getThreadSnapshot();
+    await this.opts.toolOrchestrator.onResume(currentSnapshot);
+  }
+
+  /**
+   * Check whether the last message state warrants resuming tool execution.
+   *
+   * Returns false (don't resume) if:
+   * - Last assistant message was cancelled
+   * - Last user message contains a cancelled tool_result
+   * - Last user message contains a rejected-by-user tool_result
+   * - Last message is an info/system message
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:272-275
+   *   ```
+   *   shouldResumeFromLastMessage(T) {
+   *     if (NlR(T) || HlR(T) && !this.shouldContinueAfterRejection || NET(T))
+   *       return this._inferenceState.next("cancelled"), !1;
+   *     return !0;
+   *   }
+   *   ```
+   * 逆向: NlR (1600_unknown_NlR.js:5-9) — isCancelledMessage
+   * 逆向: HlR (1601_unknown_O0T.js:5-8) — isRejectedMessage
+   * 逆向: NET (1601_unknown_O0T.js:10-13) — isInfoMessage
+   */
+  private shouldResumeFromLastMessage(msg: unknown): boolean {
+    if (!msg) return true; // empty thread — nothing to resume, but not cancelled
+    const m = msg as Record<string, unknown>;
+
+    // NlR: isCancelledMessage
+    if (m.role === "assistant") {
+      const state = m.state as Record<string, unknown> | undefined;
+      if (state?.type === "cancelled") return false;
+    }
+    if (m.role === "user") {
+      const content = m.content as Array<Record<string, unknown>> | undefined;
+      if (
+        content?.some(
+          (b) =>
+            b.type === "tool_result" && (b.run as Record<string, unknown>)?.status === "cancelled",
+        )
+      ) {
+        return false;
+      }
+    }
+
+    // HlR: isRejectedMessage (no shouldContinueAfterRejection override — defaults to false)
+    if (m.role === "user") {
+      const content = m.content as Array<Record<string, unknown>> | undefined;
+      if (
+        content?.some(
+          (b) =>
+            b.type === "tool_result" &&
+            (b.run as Record<string, unknown>)?.status === "rejected-by-user",
+        )
+      ) {
+        return false;
+      }
+    }
+
+    // NET: isInfoMessage
+    if (m.role === "info") return false;
+
+    return true;
   }
 
   /**
@@ -308,6 +402,11 @@ export class ThreadWorker {
       // Buffer the message — will be dequeued on turn:complete
       this.messageQueue.push(message);
     } else {
+      // New user message arriving: clear pending approvals + cancel in-progress tools.
+      // 逆向: amp's doRunInferenceSetup → toolOrchestrator.onNewUserMessage()
+      //   (modules/1244_ThreadWorker_ov.js:839)
+      // Fire-and-forget since enqueueMessage is synchronous.
+      void this.opts.toolOrchestrator.onNewUserMessage();
       // Process immediately: append to snapshot
       this.appendMessageToSnapshot(message);
     }
@@ -361,6 +460,33 @@ export class ThreadWorker {
       this._turnStartTime = Date.now();
       this._turnElapsedMs = undefined;
 
+      // ─── Plugin: agentStart ────────────────────────
+      // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:802-826
+      //   `if (T?.agentStart) { ... await this.deps.pluginService.event.agentStart(...) }`
+      // Fires once per user turn, before inference begins. If a plugin returns
+      // message content, it is appended to the user message.
+      if (this.opts.pluginService) {
+        const snapshot = this.opts.getThreadSnapshot();
+        const lastUserMsg = this._findLastUserMessage(snapshot);
+        if (lastUserMsg) {
+          try {
+            const result = await this.opts.pluginService.onAgentStart({
+              message: extractTextFromContent(
+                lastUserMsg.content as Array<{ type: string; text?: string }>,
+              ),
+              id: ((lastUserMsg as Record<string, unknown>).messageId as number) ?? 0,
+              thread: { id: snapshot.id },
+            });
+            // If plugin returned content to inject, append to user message
+            if (result.message?.content) {
+              this._appendContentToLastUserMessage(result.message.content);
+            }
+          } catch {
+            // Swallow errors from plugin hooks — matches amp behavior
+          }
+        }
+      }
+
       // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:878
       //   `this.triggerTitleGeneration();` (called at start of inference loop)
       this.triggerTitleGeneration();
@@ -404,6 +530,9 @@ export class ThreadWorker {
       }
 
       if (signal.aborted) {
+        // ─── Plugin: agentEnd (interrupted) ───────
+        // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574-579
+        this._emitAgentEnd("interrupted");
         this.inferenceState$.next("cancelled");
         return;
       }
@@ -463,6 +592,11 @@ export class ThreadWorker {
           type: "turn:complete",
           turnElapsedMs: this._turnElapsedMs,
         } as AgentEvent);
+
+        // ─── Plugin: agentEnd (done) ──────────────
+        // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:682-689
+        //   `this.deps.pluginService.event.agentEnd({ ... status: "done" ... })`
+        this._emitAgentEnd("done");
 
         // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:661-662
         //   `if (this.thread.queuedMessages && this.thread.queuedMessages.length > 0)
@@ -536,6 +670,9 @@ export class ThreadWorker {
       }
 
       // 4. Non-retryable or max-retries-exceeded — surface error
+      // ─── Plugin: agentEnd (error) ─────────────
+      // 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:1005-1013
+      this._emitAgentEnd("error");
       this.inferenceState$.next("idle");
       this.events$.next({ type: "inference:error", error: err });
     }
@@ -550,7 +687,10 @@ export class ThreadWorker {
       this.abortController.abort();
       this.abortController = null;
     }
-    this.opts.toolOrchestrator.cancelAll();
+    // cancelAll() is now async (acquires processingMutex). Fire-and-forget here
+    // because the AbortController abort above does the immediate interrupt work;
+    // the mutex-guarded cleanup runs asynchronously afterward.
+    void this.opts.toolOrchestrator.cancelAll("user:cancelled");
     this.inferenceState$.next("cancelled");
   }
 
@@ -838,6 +978,126 @@ export class ThreadWorker {
    */
   getTurnElapsedMs(): number | undefined {
     return this._turnElapsedMs;
+  }
+
+  // ─── Plugin Lifecycle Helpers ──────────────────────────
+
+  /**
+   * Record a successful skill tool activation into the thread's activatedSkills.
+   * Deduplicates by skill name — each skill is recorded only once per thread.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:211-219
+   *   ```
+   *   onSkillToolComplete(T) {
+   *     let R = T.input;
+   *     this.thread = Lt(this.thread, a => {
+   *       if (!a.activatedSkills) a.activatedSkills = [];
+   *       if (!a.activatedSkills.some(e => e.name === R.name))
+   *         a.activatedSkills.push({ name: R.name, arguments: R.arguments });
+   *     });
+   *   }
+   *   ```
+   *
+   * Called from orchestrator's onSkillToolComplete callback when a tool named
+   * "skill" completes with status "done".
+   */
+  onSkillToolComplete(toolUse: { input: Record<string, unknown> }): void {
+    const skillName = toolUse.input.name as string;
+    const skillArgs = toolUse.input.arguments as string | undefined;
+    if (!skillName) return;
+
+    const snapshot = this.opts.getThreadSnapshot();
+    const existing = (snapshot as Record<string, unknown>).activatedSkills as
+      | Array<{ name: string; arguments?: string }>
+      | undefined;
+
+    // Dedup: skip if already recorded
+    if (existing?.some((s) => s.name === skillName)) return;
+
+    const activated = [
+      ...(existing ?? []),
+      { name: skillName, ...(skillArgs !== undefined ? { arguments: skillArgs } : {}) },
+    ];
+    this.opts.updateThreadSnapshot({
+      ...snapshot,
+      activatedSkills: activated,
+    } as ThreadSnapshot);
+  }
+
+  /**
+   * Find the last user message in the thread snapshot.
+   *
+   * 逆向: amp uses `dt(R, "user")` — find last message with role "user"
+   */
+  private _findLastUserMessage(snapshot: ThreadSnapshot): Record<string, unknown> | undefined {
+    const messages = snapshot.messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "user") return messages[i] as Record<string, unknown>;
+    }
+    return undefined;
+  }
+
+  /**
+   * Append text content to the last user message in the snapshot.
+   * Used by agentStart plugin hook to inject plugin-provided content.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:814-821
+   *   `this.updateThread({ type: "user:message:append-content", messageId: R, content: [{ type: "text", text: e.message.content }] })`
+   */
+  private _appendContentToLastUserMessage(text: string): void {
+    const snapshot = this.opts.getThreadSnapshot();
+    const messages = [...snapshot.messages];
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i]!.role === "user") {
+        const msg = messages[i]!;
+        const content = Array.isArray(msg.content) ? [...msg.content] : [];
+        content.push({ type: "text", text } as never);
+        messages[i] = { ...msg, content } as typeof msg;
+        this.opts.updateThreadSnapshot({ ...snapshot, messages });
+        return;
+      }
+    }
+  }
+
+  /**
+   * Emit agentEnd event to the plugin service (fire-and-forget).
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574-579, 682-689, 1005-1013
+   *   Fire-and-forget `.then(l => this.handleAgentEndResult(l)).catch(...)`
+   */
+  private _emitAgentEnd(status: "done" | "interrupted" | "error"): void {
+    if (!this.opts.pluginService) return;
+
+    const snapshot = this.opts.getThreadSnapshot();
+    const lastUserMsg = this._findLastUserMessage(snapshot);
+    if (!lastUserMsg) return;
+
+    const msgText = extractTextFromContent(
+      lastUserMsg.content as Array<{ type: string; text?: string }>,
+    );
+    const msgId = (lastUserMsg.messageId as number) ?? 0;
+
+    // Fire-and-forget — matches amp's `.then(...).catch(...)` pattern
+    this.opts.pluginService
+      .onAgentEnd({
+        message: msgText,
+        id: msgId,
+        status,
+        thread: { id: snapshot.id },
+      })
+      .then((result) => {
+        // Handle "continue" action from plugin
+        // 逆向: ov.js:734-748 handleAgentEndResult
+        if (result.action === "continue" && result.userMessage) {
+          this.enqueueMessage({
+            role: "user",
+            content: [{ type: "text", text: result.userMessage }],
+          } as Message);
+        }
+      })
+      .catch(() => {
+        // Swallow errors — matches amp behavior
+      });
   }
 
   /**

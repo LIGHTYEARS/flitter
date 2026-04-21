@@ -11,9 +11,9 @@
  * - Returns base/head commit info and ahead/behind counts
  */
 
+import type { ToolResult, ToolSpec } from "../types";
 import type { GitHubClient } from "./github-client";
 import { MAX_PATCH_SIZE, parseRepository, truncateOutput } from "./helpers";
-import type { ToolResult, ToolSpec } from "../types";
 
 /**
  * Create the github_diff tool spec, closing over a GitHubClient instance.
@@ -89,9 +89,7 @@ export function createGitHubDiffTool(client: GitHubClient): ToolSpec {
         message: data.base_commit?.commit?.message?.trim() ?? "",
       };
 
-      const lastCommit = data.commits?.length
-        ? data.commits[data.commits.length - 1]
-        : undefined;
+      const lastCommit = data.commits?.length ? data.commits[data.commits.length - 1] : undefined;
       const headCommit = {
         sha: lastCommit?.sha ?? head,
         message: lastCommit?.commit?.message?.trim() ?? "",

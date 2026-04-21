@@ -122,6 +122,9 @@ function createMockOrchestrator(opts?: {
       mock.cancelAllCalled = true;
     },
     cancelTool: () => {},
+    onNewUserMessage: async () => {
+      mock.cancelAllCalled = true;
+    },
     hasRunningTools: () => false,
     runningTools: new Map(),
     cancelledToolUses: new Set<string>(),
@@ -933,10 +936,7 @@ describe("ThreadWorker — Turn Timing", () => {
       worker.getTurnElapsedMs() !== undefined,
       "turnElapsedMs should be set after inference",
     );
-    assert.ok(
-      worker.getTurnElapsedMs()! >= 0,
-      "turnElapsedMs should be non-negative",
-    );
+    assert.ok(worker.getTurnElapsedMs()! >= 0, "turnElapsedMs should be non-negative");
   });
 
   it("turn:complete event includes turnElapsedMs", async () => {
@@ -946,10 +946,7 @@ describe("ThreadWorker — Turn Timing", () => {
 
     const turnCompleteEvent = events.find((e) => e.type === "turn:complete");
     assert.ok(turnCompleteEvent);
-    assert.ok(
-      "turnElapsedMs" in turnCompleteEvent!,
-      "turn:complete should have turnElapsedMs",
-    );
+    assert.ok("turnElapsedMs" in turnCompleteEvent!, "turn:complete should have turnElapsedMs");
   });
 });
 
@@ -985,7 +982,10 @@ describe("ThreadWorker — Message Queue enhancements", () => {
     // Force running state
     (worker.inferenceState$ as BehaviorSubject<InferenceState>).next("running");
 
-    const msg = { role: "user" as const, content: [{ type: "text" as const, text: "hi" }] } as Message;
+    const msg = {
+      role: "user" as const,
+      content: [{ type: "text" as const, text: "hi" }],
+    } as Message;
     worker.enqueueMessage(msg);
     assert.equal(worker.queuedMessageCount, 1);
   });
@@ -1001,8 +1001,14 @@ describe("ThreadWorker — Message Queue enhancements", () => {
     // Force running state
     (worker.inferenceState$ as BehaviorSubject<InferenceState>).next("running");
 
-    const msg1 = { role: "user" as const, content: [{ type: "text" as const, text: "first" }] } as Message;
-    const msg2 = { role: "user" as const, content: [{ type: "text" as const, text: "second" }] } as Message;
+    const msg1 = {
+      role: "user" as const,
+      content: [{ type: "text" as const, text: "first" }],
+    } as Message;
+    const msg2 = {
+      role: "user" as const,
+      content: [{ type: "text" as const, text: "second" }],
+    } as Message;
     worker.enqueueMessage(msg1);
     worker.enqueueMessage(msg2);
     assert.equal(worker.queuedMessageCount, 2);
@@ -1010,9 +1016,11 @@ describe("ThreadWorker — Message Queue enhancements", () => {
     worker.dequeueMessage();
     assert.equal(worker.queuedMessageCount, 1);
     const messages = getSnapshot().messages;
-    assert.ok(messages.some((m) => {
-      const content = m.content as Array<Record<string, unknown>>;
-      return content.some((c) => c.text === "first");
-    }));
+    assert.ok(
+      messages.some((m) => {
+        const content = m.content as Array<Record<string, unknown>>;
+        return content.some((c) => c.text === "first");
+      }),
+    );
   });
 });

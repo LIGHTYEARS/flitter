@@ -13,9 +13,9 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ProgressBar, ProgressBarRenderObject } from "./progress-bar.js";
 import { Color } from "../screen/color.js";
 import { BoxConstraints } from "../tree/constraints.js";
+import { ProgressBar, ProgressBarRenderObject } from "./progress-bar.js";
 
 // ════════════════════════════════════════════════════
 //  Construction tests
@@ -65,16 +65,34 @@ describe("ProgressBar", () => {
 
 describe("ProgressBarRenderObject", () => {
   it("clamps value to 0-1 range", () => {
-    const ro = new ProgressBarRenderObject(-0.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro = new ProgressBarRenderObject(
+      -0.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     // Value is clamped internally — we verify via intrinsic width
     assert.ok(ro.getMinIntrinsicWidth(1) > 0);
 
-    const ro2 = new ProgressBarRenderObject(1.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro2 = new ProgressBarRenderObject(
+      1.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     assert.ok(ro2.getMinIntrinsicWidth(1) > 0);
   });
 
   it("calculates correct intrinsic width without label", () => {
-    const ro = new ProgressBarRenderObject(0.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro = new ProgressBarRenderObject(
+      0.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     assert.equal(ro.getMinIntrinsicWidth(1), 20);
     assert.equal(ro.getMaxIntrinsicWidth(1), 20);
   });
@@ -86,20 +104,38 @@ describe("ProgressBarRenderObject", () => {
   });
 
   it("has height of 1", () => {
-    const ro = new ProgressBarRenderObject(0.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro = new ProgressBarRenderObject(
+      0.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     assert.equal(ro.getMinIntrinsicHeight(100), 1);
     assert.equal(ro.getMaxIntrinsicHeight(100), 1);
   });
 
   it("performs layout within constraints", () => {
-    const ro = new ProgressBarRenderObject(0.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro = new ProgressBarRenderObject(
+      0.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     ro.layout(new BoxConstraints({ minWidth: 0, maxWidth: 80, minHeight: 0, maxHeight: 24 }));
     assert.equal(ro.size.width, 20);
     assert.equal(ro.size.height, 1);
   });
 
   it("update triggers repaint", () => {
-    const ro = new ProgressBarRenderObject(0.5, 20, undefined, Color.green(), Color.rgb(80, 80, 80));
+    const ro = new ProgressBarRenderObject(
+      0.5,
+      20,
+      undefined,
+      Color.green(),
+      Color.rgb(80, 80, 80),
+    );
     ro.layout(new BoxConstraints({ minWidth: 0, maxWidth: 80, minHeight: 0, maxHeight: 24 }));
     ro.update(0.8, 30, "New Label", Color.red(), Color.blue());
     // After update, re-layout

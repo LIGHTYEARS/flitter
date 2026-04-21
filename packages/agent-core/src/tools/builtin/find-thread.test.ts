@@ -5,10 +5,10 @@
 
 import { describe, it } from "bun:test";
 import assert from "node:assert/strict";
-import { createFindThreadTool } from "./find-thread";
-import type { ThreadStoreLike } from "./read-thread";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import type { ToolContext } from "../types";
+import { createFindThreadTool } from "./find-thread";
+import type { ThreadStoreLike } from "./read-thread";
 
 function makeContext(): ToolContext {
   return {
@@ -49,7 +49,9 @@ describe("createFindThreadTool", () => {
       { role: "user", content: [{ type: "text", text: "Migrate auth to OAuth2" }] },
       {
         role: "assistant",
-        content: [{ type: "text", text: "I'll help with the OAuth2 migration for authentication." }],
+        content: [
+          { type: "text", text: "I'll help with the OAuth2 migration for authentication." },
+        ],
       },
     ]),
     makeSnapshot("t2", "Database Optimization", [
@@ -112,29 +114,20 @@ describe("createFindThreadTool", () => {
     });
 
     it("finds threads matching multiple keywords", async () => {
-      const result = await tool.execute(
-        { query: "auth OAuth2" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "auth OAuth2" }, makeContext());
       assert.equal(result.status, "done");
       // t1 matches both keywords, t3 matches one
       assert.ok(result.content?.includes("Auth Migration"));
     });
 
     it("returns empty when no matches", async () => {
-      const result = await tool.execute(
-        { query: "nonexistent" },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "nonexistent" }, makeContext());
       assert.equal(result.status, "done");
       assert.ok(result.content?.includes("No threads found"));
     });
 
     it("respects limit parameter", async () => {
-      const result = await tool.execute(
-        { query: "auth", limit: 1 },
-        makeContext(),
-      );
+      const result = await tool.execute({ query: "auth", limit: 1 }, makeContext());
       assert.equal(result.status, "done");
       // Should only return 1 result
       assert.ok(result.content?.includes("Found 1 thread"));

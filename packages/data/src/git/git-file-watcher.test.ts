@@ -15,12 +15,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import {
-  GitFileWatcher,
-  NoOpFileWatcher,
-  createFileWatcher,
-} from "./git-file-watcher";
 import type { FileSystemEvent } from "./git-file-watcher";
+import { createFileWatcher, GitFileWatcher, NoOpFileWatcher } from "./git-file-watcher";
 
 describe("NoOpFileWatcher", () => {
   it("should return empty watched paths", () => {

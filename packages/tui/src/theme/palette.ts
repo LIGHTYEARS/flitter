@@ -10,7 +10,7 @@
  * @module
  */
 
-import { Color } from "../screen/color.js";
+import type { Color } from "../screen/color.js";
 
 /**
  * Syntax highlighting color scheme.

@@ -729,3 +729,32 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - 17 new tests (7 updateThreadMeta + 10 share/visibility), 0 TypeScript errors
 - 5 gaps closed: DATA-02, DATA-05, CLI-02, CLI-03, TUI-17
 - Total open gaps reduced from 44 to 39
+
+## ADR-023: Iteration 23 — OpenRouter API key, compat flags, 15 new models, permissions re-eval, review flags
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Deep audit expanded gap count from ~39 to 108. Iteration 23 targets 5 High/Medium gaps across 3 domains (LLM, CORE, CLI) that are achievable in a single iteration. Critical gaps (TUI-18 QueryParser, TUI-19 RGB color) are too large — deferred.
+
+### Decisions
+
+1. **OpenRouter per-provider API key (LLM-11)**: Amp's `R7R` (modules/1174_unknown_R7R.js) reads `settings["openrouter.apiKey"]` → `OPENROUTER_API_KEY` env var → throws. Flitter's unified `getToken("apiKey")` in `factory.ts` now has `else if (provider === "openrouter")` and `else if (provider === "fireworks")` branches that follow the same pattern. `isSet()` also checks `OPENROUTER_API_KEY` and `FIREWORKS_API_KEY` env vars. This ensures users with separate OpenRouter/Fireworks keys don't get the wrong API key.
+
+2. **OpenRouter compat flags (LLM-14)**: Amp's OpenRouter body (a7R, chunk-002.js:18107-18123) contains ONLY `{ model, messages, tools, stream: true }` — no `store`, no `stream_options.include_usage`. Added `supportsStore: false` and `supportsUsageInStreaming: false` to the OpenRouter preset in `compat.ts`. Without this fix, flitter was sending `store: false` and `stream_options: {include_usage: true}` which OpenRouter may reject.
+
+3. **15 missing models (LLM-13)**: Added all models from amp's registry that were absent in flitter: 1 Cerebras (`zai-glm-4.7`), 6 Fireworks (qwen3-coder-480b, kimi-k2, qwen3-235b, glm-4p6, glm-5, minimax-m2p5), 1 Baseten (`moonshotai/Kimi-K2.5`), 5 OpenRouter (sonoma-sky-alpha, z-ai/glm-4.6, moonshotai/kimi-k2-0905, qwen/qwen3-coder, qwen/qwen3-235b-a22b-2507), 1 Gemini (`gemini-3-pro-image-preview` with `supportsTools: false`). These use provider-specific IDs matching amp's registry exactly.
+
+4. **Settings change → blocked tool re-evaluation (CORE-22)**: Amp's `ThreadWorker` (ov.js:33-39) subscribes to config changes via `.pipe(JR, E9, DnR(1), M$)` — projecting permissions+dangerouslyAllowAll, distinctUntilChanged, skip first, takeUntil disposed. When permissions change, it calls `reevaluateBlockedTools()` and auto-approves newly-permitted tools. Added `configObservable?: BehaviorSubject<Config>` and `permissionEngine?: PermissionEngine` to `ThreadWorkerOptions`. The `setupPermissionsChangeHandler()` method mirrors amp's RxJS pattern using manual `lastKey` comparison for DnR(1) and distinctUntilChanged.
+
+5. **Review command `--files`, `--instructions`, `--thoroughness` (CLI-29)**: Amp's `code_review` tool (2026_tail_anonymous.js:140331) accepts `files`, `instructions`, and `thoroughness` parameters. Added `-f/--files` (repeatable), `-i/--instructions`, and `--thoroughness` (methodical/quick) to the review command in both `program.ts` and `review.ts`. The system prompt now includes structured output format (file, line range, severity, type, fix) and respects `--files` file scoping and `--instructions` focus area. Git diff also scopes to specific files when `--files` is provided.
+
+### Consequences
+
+- OpenRouter and Fireworks users can now use separate API keys
+- OpenRouter requests no longer send unsupported `store` and `stream_options` fields
+- 15 new models routable and discoverable in MODEL_REGISTRY
+- Blocked tools auto-re-evaluated on permission changes (matching amp's reactive pattern)
+- Review command now supports file scoping, custom instructions, and depth control
+- 26 new tests (7 API key + 5 compat + 6 models + 5 re-eval + 4 review), 5517 total passing, 0 type errors
+- 5 gaps closed: LLM-11, LLM-13, LLM-14, CORE-22, CLI-29
+- Total open gaps: 103 (down from 108)

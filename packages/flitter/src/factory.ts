@@ -120,6 +120,28 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
             }
             const fromEnv = process.env.OPENAI_API_KEY;
             if (fromEnv) return fromEnv;
+          } else if (provider === "openrouter") {
+            // 逆向: R7R (modules/1174_unknown_R7R.js):
+            //   settings["openrouter.apiKey"] → process.env.OPENROUTER_API_KEY → throw
+            const fromSettings = await opts.settings.get("openrouter.apiKey");
+            if (typeof fromSettings === "string" && fromSettings.length > 0) {
+              cachedSettingsApiKey = fromSettings;
+              settingsApiKeyCached = true;
+              return fromSettings;
+            }
+            const fromEnv = process.env.OPENROUTER_API_KEY;
+            if (fromEnv) return fromEnv;
+          } else if (provider === "fireworks") {
+            // 逆向: Z4R (modules/1085_unknown_Z4R.js):
+            //   settings["fireworks.apiKey"] → FIREWORKS_API_KEY
+            const fromSettings = await opts.settings.get("fireworks.apiKey");
+            if (typeof fromSettings === "string" && fromSettings.length > 0) {
+              cachedSettingsApiKey = fromSettings;
+              settingsApiKeyCached = true;
+              return fromSettings;
+            }
+            const fromEnv = process.env.FIREWORKS_API_KEY;
+            if (fromEnv) return fromEnv;
           } else {
             // Anthropic (default): settings["anthropic.apiKey"] → ANTHROPIC_API_KEY
             const fromSettings = await opts.settings.get("anthropic.apiKey");
@@ -150,13 +172,19 @@ export function createConfigService(opts: ContainerOptions): ConfigService {
               process.env.ANTHROPIC_API_KEY ||
               process.env.GOOGLE_API_KEY ||
               process.env.GEMINI_API_KEY ||
-              process.env.OPENAI_API_KEY
+              process.env.OPENAI_API_KEY ||
+              process.env.OPENROUTER_API_KEY ||
+              process.env.FIREWORKS_API_KEY
             )
               return true;
           } else if (provider === "gemini") {
             if (process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY) return true;
           } else if (provider === "openai") {
             if (process.env.OPENAI_API_KEY) return true;
+          } else if (provider === "openrouter") {
+            if (process.env.OPENROUTER_API_KEY) return true;
+          } else if (provider === "fireworks") {
+            if (process.env.FIREWORKS_API_KEY) return true;
           } else {
             if (process.env.ANTHROPIC_API_KEY) return true;
           }

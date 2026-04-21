@@ -33,6 +33,11 @@ export const KNOWN_COMPAT_CONFIGS: Record<string, Partial<OpenAICompatConfig>> =
   openrouter: {
     baseURL: "https://openrouter.ai/api/v1",
     thinkingFormat: "openrouter",
+    // 逆向: R7R/a7R (modules/1174_unknown_R7R.js, chunk-002.js:18107-18123)
+    // Amp's OpenRouter body contains ONLY { model, messages, tools, stream: true }
+    // — no store, no stream_options.include_usage, no prompt_cache_key
+    supportsStore: false,
+    supportsUsageInStreaming: false,
   },
   cerebras: {
     baseURL: "https://api.cerebras.ai/v1",

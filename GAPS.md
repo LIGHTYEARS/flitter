@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 22)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 22 targets: thread metadata remote update, archive remote sync, threads share command, diff viewer parity verification.
+> **Last updated:** 2026-04-21 (iteration 23)
+> **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
 
@@ -14,7 +14,10 @@
 
 ## Critical Gaps
 
-*None — GAP-TOOL-01 closed 2026-04-21.*
+| ID | Domain | Feature | Description |
+|----|--------|---------|-------------|
+| GAP-TUI-18 | TUI | **Terminal capability probing (QueryParser)** | Amp has a full in-band VT capability parser (`dY`) that sends DECRQSS/DA1/DA2/XTVERSION/XTGETTCAP queries and blocks `runApp` until DA1 reply (up to 1000ms). Detects: sync output, emoji width, pixel-mouse, color-palette-notifications, kitty graphics, osc52 per-terminal, terminal emulator name, kitty explicit width. Flitter uses heuristic env-var detection only — never sends VT queries, so the 1s timeout always fires immediately. This is the root dependency for: image display, RGB color palette, pixel-mouse, per-terminal OSC 52 opt-in, and animation decisions. |
+| GAP-TUI-19 | TUI | **RGB color detection / live palette** | Amp's `WidgetsBinding` queries terminal for actual fg/bg/cursor/ANSI colors via OSC 10/11/12/4, calls `Screen.setDefaultColors()`/`setIndexRgbMapping()`, and updates theme luminance (`"dark"/"light"`). Flitter has `colorPaletteNotifications: false` hardcoded everywhere; no `updateRgbColors()`, no `setDefaultColors()` on Screen. Theme colors are always approximations. |
 
 ---
 
@@ -22,14 +25,41 @@
 
 | ID | Domain | Feature | Description |
 |----|--------|---------|-------------|
-| GAP-CLI-01 | CLI | ~~**`skill` / `skills` command group**~~ | **Closed (iteration 19)** — `handleSkillList`, `handleSkillInfo`, `handleSkillRemove`, `handleSkillAdd` in `skills.ts`. `skill` command tree in `program.ts` with `list` (--json), `info` (--json), `remove`, `add` (--name, --overwrite, --global). Wired in `main.ts`. 11 new tests. |
-| GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
-| GAP-CLI-28 | CLI | ~~`threads handoff` subcommand~~ | **Closed (iteration 14)** — `handleThreadsHandoff` with `--goal/-g` and `--print/-p` flags, parent context extraction, child thread seeding, bidirectional relationship wiring. |
-| GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
-| GAP-DATA-02 | Data | ~~**Thread metadata remote update**~~ | **Closed (iteration 22)** — `setThreadMeta(id, meta)` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `updateThreadMeta(id, meta)` on ThreadStore follows amp's three-phase protocol: (1) `uploadThreadNow`, (2) `remote.setThreadMeta`, (3) reload from server and replace local cache. `uploadThreadNow()` convenience method added. `ThreadMeta` type exported. Matches amp's azT.updateThreadMeta (modules/1342:260-272). 7 new tests. |
-| GAP-DATA-13 | Data | ~~`ensureThreadEntriesLoaded` (remote list + local merge)~~ | **Closed (iteration 14)** — Lazy-load remote thread entries on first subscribe, three-phase merge (remote → local overlay → identity-preserving dedup), coalescing promise to prevent concurrent fetches. |
-| GAP-CORE-07 | Core | ~~`blocked-on-user` persisted to thread state~~ | **Closed (iteration 13)** — `blocked-on-user` status persisted via `tool:data` delta BEFORE approval prompt shown. `getThreadSessionState()` utility for crash recovery. |
-| GAP-CORE-08 | Core | ~~Skill invocation enforcement~~ | **Closed (iteration 13)** — `setPendingSkills()`, `injectPendingSkills()` (info message injection), `checkAndAppendAwaitedSkills()` (synthetic tool_use + stopReason flip). Full amp `YwR` behavior. |
+| GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has `ImageWidget` + Kitty APC protocol, format conversion (JPEG/GIF→PNG via `Vd0`), chunked transmission. Also detects `kittyGraphics` at startup (even inside tmux). Flitter has no image widget, no graphics protocol. Plan: `2026-04-19-image-display.md`. |
+| GAP-TUI-20 | TUI | **Image paste from clipboard** | Amp has multi-platform clipboard image paste: macOS (osascript JPEG/PNG/TIFF), Linux Wayland (wl-paste), WSL (wslpath + temp files), PowerShell. Images converted to PNG for Kitty graphics. Flitter's `Clipboard` only handles text. |
+| GAP-TUI-21 | TUI | **Table widget** | Amp has `JY`/`EQT` Table widget with fixed/intrinsic/flex/proportional column sizing, row-height measurement, border painting with corner joins, cell padding, shrink-to-fit overflow. Flitter has no standalone Table widget. |
+| GAP-TUI-22 | TUI | **CompositedTransformFollower/Target** | Amp has `pZT` (Follower) and `bZT` (Target) RenderObjects backed by `mZT` (LayerLink) for popup positioning across the widget tree. Flitter has `LayerLink` data object but no corresponding RenderObject/Widget wrappers. |
+| GAP-TUI-23 | TUI | **Offstage widget** | Amp has `sQ` RenderObject that lays out child normally but sets size to 0×0 and skips paint/hitTest when `offstage=true`. Used by overlay system. Flitter has no `Offstage`; inactive `OverlayEntry` instances are simply not built. |
+| GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | Amp has `_RR` (modal dialog) and `E9R` (sticky-header) render objects. Dialog splits available width into columns with borders. Sticky header pins at viewport top on scroll. Neither exists in flitter. |
+| GAP-TUI-25 | TUI | **Chart/data-visualization widget** | Amp has `uRR` chart render object: bar, stacked-bar, line, sparkline, stacked-area, horizontal-bar with X/Y axes, color series, highlight, valueFormatter. Flitter has no chart widget. |
+| GAP-TUI-26 | TUI | **TextField missing props** | Amp's `Gm` TextField has: `wrap`, `expands`, `prompts`/`setPromptRules`, `copyOnSelectionEnabled`+`onCopy`, `onOpenInEditor`, `ensureVisible`, `maxWidth`. All missing from flitter's TextField. |
+| GAP-CORE-19 | Core | **Plugin `registerTool`** | Plugins cannot add tools to the agent. `PluginHost.getTools()` returns `[]` stub. Amp's plugin system allows `registerTool(spec)` with full `tool.list`/`tool.execute`/`tools.changed` lifecycle. |
+| GAP-CORE-20 | Core | **Toolbox service** | No `S5R`-equivalent: external tool discovery from `~/.config/amp/toolbox`/`AMP_TOOLBOX` env paths. `tools make` scaffolds files but flitter can't discover/register them at runtime. Amp's `ToolboxService` scans dirs, describes tools via `--describe`, and registers them with ToolRegistry. |
+| GAP-CORE-21 | Core | **Agg-man orchestrator mode** | Amp's hidden `agg-man` mode spawns parallel executor subagents with `send_message_to_aggman`/`render_agg_man` tools. This is the multi-agent dispatch pattern. Flitter has no equivalent orchestrator mode. |
+| GAP-CORE-22 | Core | **Settings change → blocked tool re-evaluation** | **Closed (iteration 23)** — `ThreadWorker.setupPermissionsChangeHandler()` subscribes to `configObservable` (BehaviorSubject<Config>), computes change key from `permissions` + `dangerouslyAllowAll`, skips first emission (DnR(1)), distinctUntilChanged, calls `PermissionEngine.reevaluateBlockedTools()` to auto-approve newly-permitted tools. 5 new tests. |
+| GAP-LLM-11 | LLM | **OpenRouter per-provider API key** | **Closed (iteration 23)** — `factory.ts` now resolves `settings["openrouter.apiKey"]` → `OPENROUTER_API_KEY` env var for OpenRouter models. Also added `fireworks.apiKey` / `FIREWORKS_API_KEY` for Fireworks provider. `isSet()` checks all provider env vars. 7 new tests. |
+| GAP-LLM-12 | LLM | **MCP transport built-in fallback** | Amp's transport layer tries StreamableHTTP first, falls back to SSE automatically (`nPR`). Flitter's `MCPConnection._createTransport()` throws unless a `createTransport` factory is injected — the caller must implement all transport negotiation. |
+| GAP-CLI-29 | CLI | **Review command: `-f/--files`, `-i/--instructions`** | **Closed (iteration 23)** — Added `--files` (repeatable, scopes diff to specific files), `--instructions` (review focus), `--thoroughness` (methodical/quick). System prompt now includes structured output format (file, line range, severity, type, fix). 4 new tests. |
+| GAP-DATA-18 | Data | **DTW / live-sync infrastructure** | Amp has real-time thread state via Cloudflare Durable Objects WebSocket push (DTW v2). `amp live-sync` syncs local filesystem to remote worker session with conflict detection + process locking. Flitter is pull-only (no equivalent infrastructure). |
+
+---
+
+### Previously High, Now Closed
+
+| ID | Domain | Feature | Status |
+|----|--------|---------|--------|
+| GAP-CLI-01 | CLI | `skill` / `skills` command group | Closed (iteration 19) |
+| GAP-CLI-27 | CLI | `tools use <name>` direct invocation | Closed (iteration 13) |
+| GAP-CLI-28 | CLI | `threads handoff` subcommand | Closed (iteration 14) |
+| GAP-CLI-29 | CLI | Review command `--files`, `--instructions` | Closed (iteration 23) |
+| GAP-CORE-22 | Core | Settings change → blocked tool re-eval | Closed (iteration 23) |
+| GAP-DATA-02 | Data | Thread metadata remote update | Closed (iteration 22) |
+| GAP-DATA-13 | Data | `ensureThreadEntriesLoaded` | Closed (iteration 14) |
+| GAP-CORE-07 | Core | `blocked-on-user` persisted to thread state | Closed (iteration 13) |
+| GAP-CORE-08 | Core | Skill invocation enforcement | Closed (iteration 13) |
+| GAP-LLM-11 | LLM | OpenRouter per-provider API key | Closed (iteration 23) |
+| GAP-LLM-13 | LLM | 14+ models missing from MODEL_REGISTRY | Closed (iteration 23) |
+| GAP-LLM-14 | LLM | OpenRouter compat config flags | Closed (iteration 23) |
 
 ---
 
@@ -48,45 +78,113 @@
 | GAP-CLI-08 | ~~`usage` (top-level)~~ | **Closed (iteration 18)** — Already implemented: `handleThreadsUsage` aggregates token counts from assistant messages in thread snapshots. Wired at `main.ts:415-426`. |
 | GAP-CLI-09 | ~~`--mcp-config <json>`~~ | **Closed (iteration 19)** — `extractCliMcpConfig` + `parseMcpConfigValue` in `main.ts`. Accepts inline JSON or file path. Merges into runtime config via `configService.setRuntimeOverride("mcpServers", ...)` + `mcpServerManager.refresh()`. |
 | GAP-CLI-25 | 2 slash commands are informational-only | `/switch`, `/dashboard` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete`, `/new`, `/editor`, `/history` now functional — 7 of 9 stubs done.) |
+| GAP-CLI-30 | `--settings-file <path>` flag | Override settings file path. Useful for CI and multi-profile setups. Amp has it, flitter does not. |
+| GAP-CLI-31 | `--notifications` flag | Sound notification toggle. Amp has `--notifications`/`--no-notifications`. |
+| GAP-CLI-32 | `--ide` / `--no-ide` flag | IDE connection toggle. Amp supports JetBrains/Zed/Neovim IDE integration. No IDE integration in flitter at all. |
+| GAP-CLI-33 | `--log-level` / `--log-file` flags | Runtime log control. Flitter only has `--verbose`. Amp has explicit level and file path flags. |
+| GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
+| GAP-CLI-35 | `context: analyze` slash command | Token usage analysis overlay (amp requires Claude Opus 4.6 / GPT-5.4). No flitter equivalent. |
+| GAP-CLI-36 | `agents-md: generate/list` commands | Generate AGENTS.md from codebase analysis; list active AGENTS.md files. Missing from command palette/slash. |
+| GAP-CLI-37 | `skill: invoke` from TUI | Invoke a skill directly from TUI command palette. Flitter has no interactive skill invocation. |
+| GAP-CLI-38 | Thread navigation (prev/next/parent) | Amp: `thread: switch to previous/next/parent` in command palette. No flitter equivalent. |
+| GAP-CLI-39 | Clipboard commands | Amp: `copy URL`, `copy ID`, `copy markdown`, `copy selection`, `paste image`. Flitter has none of these. |
+| GAP-CLI-40 | `/remove-label` | Flitter only has `/label` (add). No remove. Amp has `label: remove`. |
+| GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |
+| GAP-CLI-42 | `mcp: status` / `mcp: reload` | MCP status modal and reload from TUI. Flitter's `/mcp` only shows help text. |
+| GAP-CLI-43 | `toolbox: list` | List discovered toolbox scripts from TUI. No `/toolbox` slash command. |
+| GAP-CLI-44 | `review` check runner | Amp's review has `--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`. An integrated check runner subsystem. Flitter review has no check support. |
 
 ### Tools
 
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-TOOL-02 | ~~`get_diagnostics`~~ | **Closed (iteration 14)** — Shell-out based diagnostics tool: TypeScript (`tsc --noEmit`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`). 10s timeout, normalized diagnostic format. Registered as builtin. |
-| GAP-TOOL-03 | ~~`oracle`~~ | **Closed (iteration 16)** — Senior engineering advisor subagent tool. Params: task (required), context, files. Spawns oracle subagent via SubAgentManager with filtered toolset (Read, Grep, Glob, web_search, read_web_page, read_thread, find_thread). Prompt builder matches amp's EVR. disableTimeout, no resource conflicts. Registered in container.ts. |
-| GAP-TOOL-04 | ~~`librarian`~~ | **Closed (iteration 17)** — Codebase understanding subagent for remote repositories. Params: query (required), context (optional). Spawns librarian subagent via SubAgentManager with GitHub-specific toolset (read_github, search_github, commit_search, diff, list_directory_github, list_repositories, glob_github). Prompt builder matches amp's mKR. disableTimeout, no resource conflicts. Registered in container.ts. |
-| GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents with `command`, `workdir`, `login`, `timeout_ms` params. Maps to Bash execution via `preprocessArgs`. Registered as builtin. |
-| GAP-TOOL-27 | ~~`look_at` tool~~ | **Closed (iteration 18)** — Multimodal file analysis via Google Gemini. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Detects MIME type from extension, sends binary as base64 inlineData or text as fenced code block (truncated at 100K chars). System prompt matches amp's pVR. preprocessArgs expands ~ and resolves relative paths. Registered in container.ts. 22 new tests. |
+| GAP-TOOL-03 | ~~`oracle`~~ | **Closed (iteration 16)** — Senior engineering advisor subagent tool. |
+| GAP-TOOL-04 | ~~`librarian`~~ | **Closed (iteration 17)** — Codebase understanding subagent for remote repositories. |
+| GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents. |
+| GAP-TOOL-27 | ~~`look_at` tool~~ | **Closed (iteration 18)** — Multimodal file analysis via Google Gemini. |
+| GAP-TOOL-32 | `handoff` as LLM-callable tool | Amp registers `handoff` as a named `ToolSpec` in the model's toolbox. Flitter has handoff state/hooks but no standalone tool registration. |
+| GAP-TOOL-33 | `chart` tool | Data visualization from shell output JSON. Bar/line/sparkline/area chart types. Used in amp's smart/rush tool sets. |
+| GAP-TOOL-34 | `repl` tool | Interactive REPL subprocess (node/python/psql) with autonomous agent loop. |
+| GAP-TOOL-35 | `code_tour` / `walkthrough` tools | Guided code explanation and architecture exploration sub-tools. |
+| GAP-TOOL-36 | `thread_status` / `send_message_to_thread` | Cross-thread coordination tools. Check status and send messages between threads. |
+| GAP-TOOL-37 | Bitbucket Enterprise tools | 7 tools for enterprise Bitbucket VCS integration (read, search, glob, diff, list, commit_search). |
 
 ### TUI
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-TUI-05 | **Terminal RGB color query** | Amp's QueryParser probes terminal for actual RGB palette and dynamically updates theme colors. Flitter has no query parser. |
-| GAP-TUI-07 | ~~**OverlapColumn widget**~~ | **Closed (iteration 20)** — `OverlapColumn` widget + `RenderOverlapColumn` render object. Vertical column with `overlap` rows subtracted between adjacent children (merged borders). Cross-axis alignment (start/end/center/stretch), reverse paint order for visual stacking. 23 new tests. |
-| GAP-TUI-08 | ~~**IntrinsicHeight widget**~~ | **Closed (iteration 21)** — `IntrinsicHeight` widget + `RenderIntrinsicHeight` render object. Forces child height to its max intrinsic height. Short-circuits when constraints already tight. Intrinsic measurement delegation matches amp's `n1T` (chunk-006.js:3030-3065). Exported from `@flitter/tui`. 19 new tests. |
-| GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** — Three surgical fixes: (1) `CommandPaletteState.build()` rebuilt from stub to full visual tree with opaque `Container` + `BoxDecoration({ color: Color.default() })`, TextField prompt, item list. (2) `FuzzyPicker` outer Container changed from `Color.rgb(0,0,0)` to `Color.default()`. (3) FuzzyPicker items Column changed to `crossAxisAlignment: "stretch"` for full-width selection. (4) Non-selected items given explicit `Color.default()` background. 10 new tests. |
+| GAP-TUI-05 | **Terminal RGB color query** | Amp's QueryParser probes terminal for actual RGB palette and dynamically updates theme colors. Flitter has no query parser. (Blocked by GAP-TUI-18.) |
+| GAP-TUI-07 | ~~**OverlapColumn widget**~~ | **Closed (iteration 20)** |
+| GAP-TUI-08 | ~~**IntrinsicHeight widget**~~ | **Closed (iteration 21)** |
+| GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** |
+| GAP-TUI-27 | **ForceDim InheritedWidget** | Amp has `CA` InheritedWidget that propagates `forceDim` downward and auto-dims Container borders. Flitter's `Container` has `setForceDim()` on RenderObject but no automatic InheritedWidget propagation. |
+| GAP-TUI-28 | **SelectionArea: double/triple-click, auto-scroll** | Amp: double-click selects word (500ms drag timer), triple-click selects line/paragraph, auto-scroll during drag, cursor shape changes, auto-copy with highlight flash. Flitter: basic drag only, immediate copy, no double/triple-click, no auto-scroll. |
+| GAP-TUI-29 | **Scrollable: `position: "bottom"` + pixel-mouse step** | Amp has bottom-stick viewport and per-terminal scroll step (1 for ghostty/tmux, 3 for others via `shouldUsePixelMouse()`). Flitter: no bottom-stick, hardcoded step 3. |
+| GAP-TUI-30 | **Idle / focus tracking** | Amp calls `initFocusTracking(tui)` and `initIdleTracking(tui)` for analytics/UI decisions. Flitter has neither. |
+| GAP-TUI-31 | **Pixel-mouse support** | Amp detects `pixelMouse` + `pixelDimensions` via DECRQSS `?1016`, enables sub-character hit-testing. Not in flitter. |
 
 ### LLM
 
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-LLM-05 | Request-level telemetry headers | Amp sends `x-amp-feature`, `x-amp-thread-id`, `x-amp-mode` etc. via proxy server. These are proxy-specific — direct API impact is nil. Low priority for self-hosted. |
+| GAP-LLM-13 | **14+ models missing from MODEL_REGISTRY** | **Closed (iteration 23)** — Added 15 models: `zai-glm-4.7` (Cerebras), 6 Fireworks models (qwen3-coder-480b, kimi-k2, qwen3-235b, glm-4p6, glm-5, minimax-m2p5), Baseten `moonshotai/Kimi-K2.5`, 5 OpenRouter models (sonoma-sky-alpha, z-ai/glm-4.6, moonshotai/kimi-k2-0905, qwen/qwen3-coder, qwen/qwen3-235b-a22b-2507), Gemini `gemini-3-pro-image-preview`. 6 new tests. |
+| GAP-LLM-14 | **OpenRouter compat config missing flags** | **Closed (iteration 23)** — Added `supportsStore: false` and `supportsUsageInStreaming: false` to OpenRouter preset in `compat.ts`. Matches amp's minimal request body. 5 new tests. |
+| GAP-LLM-15 | **MCP OAuth cross-process locking** | Amp's `M5T` implements file-based PID locking so concurrent CLI processes coordinate the OAuth callback server. Flitter has no cross-process coordination — port conflicts on multi-terminal use. |
+| GAP-LLM-16 | **Gemini token counting** | Amp's Gemini SDK client has `countTokens()`. Flitter only implements `countTokens()` on `AnthropicProvider`. Gemini context management falls back to char/4 approximation. |
+| GAP-LLM-17 | **Provider-specific reasoning effort defaults** | Amp's `t7R()` injects per-provider effort defaults (Anthropic→high, OpenAI→medium, Gemini→reads setting). Flitter passes `reasoningEffort` directly — no default injection. OpenAI/Gemini may behave differently when effort is omitted. |
+| GAP-LLM-18 | **OpenAI Responses API divergence** | Flitter's `OpenAIProvider` uses the Responses API (`responses.create`); amp uses `chat.completions.create`. Different field names (`input` vs `messages`, `max_output_tokens` vs `max_completion_tokens`). May break on proxies that only speak ChatCompletion. |
 
 ### Data
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-DATA-04 | ~~Fetch-from-server on cache miss~~ | **Closed (iteration 21)** — `ensureThreadSubject(id, opts)` added to `ThreadStore`: checks local cache first, then fetches from remote via `ThreadRemoteTransport.getThread()`. Coalescing promise (`pendingThreadLoads` Map) deduplicates concurrent fetches. `fetchThread(id)` async wrapper for callers that just need the snapshot. Graceful error handling (returns null on network failure). Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). 9 new tests. |
-| GAP-DATA-05 | Thread archive via remote API | **Closed (iteration 22)** — `handleThreadsArchive` now calls `threadStore.uploadThreadNow(threadId)` after setting `archived` flag + incrementing version, matching amp's synchronous archive behavior (azT:255-258). Server PATCH endpoint already handles `archived: boolean`. |
-| GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** — `searchThreads()` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `ThreadStoreLike.searchRemote` optional callback. `find_thread` tool tries remote FTS5 first, falls back to local keyword matching. 7 new tests (4 find_thread + 3 transport). |
+| GAP-DATA-04 | ~~Fetch-from-server on cache miss~~ | **Closed (iteration 21)** |
+| GAP-DATA-05 | Thread archive via remote API | **Closed (iteration 22)** |
+| GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** |
+| GAP-DATA-19 | **`workspaceRoot` not Observable** | Amp's config exposes `workspaceRoot` as reactive stream; SkillService subscribes and re-scans on workspace change. Flitter's `workspaceRoot` is a static string — SkillService can't react to workspace changes. |
+| GAP-DATA-20 | **Skill discovery paths narrower** | Amp searches 5 skill paths (`.agents/skills`, `.claude/skills` in workspace + `~/.config/agents/skills`, `~/.config/amp/skills`, `~/.claude/skills` globally). Flitter only searches 2 (`.flitter/skills` in workspace, `{userConfigDir}/skills` globally). |
+| GAP-DATA-21 | **`invalidateThreadListCache()`** | Force re-fetch from server. Amp's `azT.invalidateThreadListCache()` clears all cached entries and forces reload. Flitter has no equivalent. |
+| GAP-DATA-22 | **Actual API token counts → ContextManager** | Flitter's `ContextManager` uses char-based approximation only. Amp feeds actual `usage.input_tokens` from API responses back to context tracking. Compaction threshold is imprecise. |
+| GAP-DATA-23 | **Thread visibility inheritance on fork** | Amp's `O4R` propagates visibility/sharedGroupIDs from origin thread to forked thread. Flitter stores visibility but doesn't inherit on fork. |
 
 ### Agent-Core
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CORE-04 | ~~ThreadWorkerService missing `handoff`/`createThread`~~ | **Closed (iteration 20)** — `createThread()` and `createThreadWorker()` methods added to `ThreadWorkerService`. `createThread` orchestrates: thread ID generation, message seeding, worker creation+resume, idempotency guard, parent relationship, initial user message. `handoff()` deferred (requires LLM summarizer). 9 new tests. |
+| GAP-CORE-04 | ~~ThreadWorkerService missing `handoff`/`createThread`~~ | **Closed (iteration 20)** |
+| GAP-CORE-23 | **Plugin `registerCommand`** | Plugins cannot register CLI commands. Amp's `cI.registerCommand()` exposes `command.list`/`command.execute`/`commands.changed`. Flitter returns `[]` stub. |
+| GAP-CORE-24 | **Plugin `configuration` API** | Plugins cannot read/write agent settings. Amp's `iD` class provides `configuration.get/update/delete` RPC. Not implemented in flitter. |
+| GAP-CORE-25 | **`deep` mode model mismatch** | Amp's `deep` mode uses GPT-5.4 with restricted tool set (`SiT`). Flitter's `deep` mode uses Claude Opus 4.6 with all tools — different model and no tool restriction. |
+| GAP-CORE-26 | **`rush`/`fast` mode tool restriction** | Amp's `rush` restricts to subset `$iT`. Flitter `fast`/`rush` gives all tools. |
+| GAP-CORE-27 | **`free` tier mode** | Amp has `free` mode (Haiku 4.5, minimal tool set `giT`) for free-tier users. Not implemented in flitter. |
+| GAP-CORE-28 | **`delegate` permission action** | Amp routes `delegate` to external decision programs. Flitter's `PermissionEngine` doesn't handle `delegate` action. |
+
+---
+
+---
+
+## Flitter Extensions (Not in Amp)
+
+Features present in flitter that amp does not have. Not gaps — documented for completeness.
+
+| Domain | Feature | Description |
+|--------|---------|-------------|
+| LLM | **Bedrock provider** | AWS Bedrock integration (`@flitter/llm/providers/bedrock`). Amp has no AWS provider. |
+| TUI | **FlingScrollPhysics** | Kinetic friction-based fling model with `VelocityTracker`. Amp only has clamping scroll physics. |
+| TUI | **SplitPane widget** | Resizable two-panel layout widget. Amp uses bespoke split layouts. |
+| TUI | **NotificationBanner widget** | Dedicated banner widget. Amp composes banners inside larger app widgets. |
+| TUI | **ProgressBar widget** | Standalone progress bar. Amp renders progress inline via text spans. |
+| TUI | **BrailleSpinner widget** | Cellular automaton spinner. Amp uses Unicode dot-spinner characters inline. |
+| TUI | **ClipBox widget** | Standalone clip widget. Amp embeds clip behavior in RenderObject only. |
+| TUI | **BoxDecoration standalone** | Composable decoration type separate from Container. Amp merges decoration into Container. |
+| TUI | **Markdown renderer in TUI package** | Full CommonMark + GFM parser/renderer with syntax highlighting in the TUI framework layer. Amp's markdown is in the application layer. |
+| TUI | **7 named built-in themes** | Catppuccin (4 variants), Gruvbox (2), Tokyo Night. Amp ships one default theme. |
+| Data | **Self-hosted sync server** | SQLite + FTS5 sync server (`@flitter/server`). Amp uses cloud DTW/Durable Objects. |
+| Core | **`auto` agent mode** | Sonnet 4.6 mode. Not in amp's mode set. |
+| Tool | **`fuzzy_find` tool** | Flitter-unique fuzzy file search tool. No amp equivalent. |
+| Tool | **`delete_file` standalone** | Amp handles file deletion through `apply_patch`. Flitter has a dedicated tool. |
 
 ---
 
@@ -96,39 +194,47 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** — `--last` flag on `threads continue` resolves most recent thread via `listRecentThreadIds(1)` without picker. Thread ID argument now optional. Alias `c` added. |
-| GAP-CLI-11 | ~~`threads --include-archived`~~ | **Closed (iteration 16)** — `--include-archived` flag on `threads list`. Typed in `ThreadsListOptions`, passed through `main.ts` to `observeThreadList()` (backend from DATA-17). Removed unsafe cast. |
-| GAP-CLI-12 | ~~`threads archive --unarchive`~~ | **Closed (iteration 17)** — `--unarchive` option on `archive` command. `handleThreadsArchive` now accepts options with `unarchive?: boolean`, toggles `archived: false` to restore archived threads. Wired through `main.ts` and `program.ts`. |
+| GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** |
+| GAP-CLI-11 | ~~`threads --include-archived`~~ | **Closed (iteration 16)** |
+| GAP-CLI-12 | ~~`threads archive --unarchive`~~ | **Closed (iteration 17)** |
 | GAP-CLI-13 | `--visibility` (top-level) | Thread creation visibility flag. |
 | GAP-CLI-14 | `--remote` flag | Server-side async agent execution. Requires server infrastructure. |
 | GAP-CLI-15 | `--notifications` | Sound notification toggle. |
 | GAP-CLI-16 | `--settings-file <path>` | Override settings file path. |
 | GAP-CLI-17 | `--log-level` / `--log-file` | Explicit log control flags (flitter only has `--verbose`). |
 | GAP-CLI-18 | `mcp oauth status` | OAuth status check for MCP servers. |
-| GAP-CLI-19 | ~~`threads` aliases~~ | **Closed (iteration 16)** — Commander.js `.alias()` chains: threads→t/thread, new→n, list→l/ls. (continue→c, markdown→md, search→find, rename→r, handoff→h were already done.) Matches amp's chunk-005.js:4879 alias mapping. |
+| GAP-CLI-19 | ~~`threads` aliases~~ | **Closed (iteration 16)** |
 | GAP-CLI-20 | `install` (hidden) | Install ripgrep to `$AMP_HOME/bin`. |
 | GAP-CLI-21 | `--jetbrains` / `--ide` flags | IDE integration toggles. |
+| GAP-CLI-45 | `-x` vs `-e` for `--execute` | Amp uses `-x` short form; flitter uses `-e`. Minor script incompatibility. |
+| GAP-CLI-46 | `-m` short for `--mode` | Amp has `-m`; flitter has `--mode` only. |
+| GAP-CLI-47 | `threads new --visibility` | Amp's `threads new` accepts `--visibility`. Flitter's only takes `--model`. |
+| GAP-CLI-48 | `send-queued-message` command | TUI command to immediately send already-queued message. Different from `/queue`. |
+| GAP-CLI-49 | `thread: open in browser` | Open thread URL in default browser from TUI. |
+| GAP-CLI-50 | `share with support` | Share thread with Amp/support team for debugging. Server-dependent. |
+| GAP-CLI-51 | `thread: mention` | Insert thread mention into prompt from TUI. |
 
 ### Tools
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-TOOL-11 | ~~`mermaid`~~ | **Closed (iteration 19)** — Mermaid diagram tool registered as builtin. No-op execute returns success + mermaid.live base64 link. Schema: `{code, citations}` matching amp's gVR. TUI rendering deferred. 13 new tests. |
+| GAP-TOOL-11 | ~~`mermaid`~~ | **Closed (iteration 19)** |
 | GAP-TOOL-12 | `chart` | Chart generation from JSON data. |
 | GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
 | GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
-| GAP-TOOL-15 | ~~`todo_write`~~ | **Closed (iteration 16)** — Stateless todo tracking tool pair (todo_write + todo_read). todo_write: no-op execution, state lives in conversation history. Accepts `todos` array ({content, status}) or `content` string. todo_read: reads from ToolContext.todos. `getTodosFromThread()` scanner matches amp's O0T (backward scan, summary boundary). Registered as builtin. |
-| GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** — Auto-detects formatter by file extension + project config (biome.json). Supported: TypeScript/JS (prettier/biome), Python (ruff/black), Go (gofmt), Rust (rustfmt). 15s timeout. Registered as builtin. |
+| GAP-TOOL-15 | ~~`todo_write`~~ | **Closed (iteration 16)** |
+| GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** |
 | GAP-TOOL-17 | `look_at` | IDE-specific code navigation. |
-| GAP-TOOL-18 | `painter` | Image/diagram generation. |
+| GAP-TOOL-18 | `painter` | AI image generation via Gemini Pro Image. |
 | GAP-TOOL-19 | `repl` | Interactive REPL tool. |
 | GAP-TOOL-20 | `docs_list/read/write` | Documentation management (server-side). |
 | GAP-TOOL-21 | `handoff` | Transfer conversation to another thread. Server-dependent. |
 | GAP-TOOL-22 | Thread lifecycle tools | `create_thread`, `archive_thread`, `unarchive_thread`. Server-dependent. |
 | GAP-TOOL-23 | Inter-thread messaging | `send_message_to_thread`, `send_message_to_aggman`. Server-dependent. |
 | GAP-TOOL-24 | Slack tools | `slack_write`, `slack_read`. Server-dependent. |
-| GAP-TOOL-25 | ~~`github_repo_ci_status`~~ | **Closed (iteration 17)** — Client-side CI status tool. Queries GitHub REST API for check-runs and workflow-runs on a given ref. Shows summary with pass/fail/pending counts. Follows `createXxxTool(client: GitHubClient)` factory pattern. Added to `createGitHubTools()` array (now 8 tools). |
+| GAP-TOOL-25 | ~~`github_repo_ci_status`~~ | **Closed (iteration 17)** |
 | GAP-TOOL-26 | Bitbucket Enterprise tools | 7 enterprise Bitbucket integration tools. |
+| GAP-TOOL-38 | `search_documents` / `get_document` | Amp platform doc search tools. Server-dependent. |
 
 ### TUI
 
@@ -139,7 +245,14 @@
 | GAP-TUI-13 | `modifyOtherKeys` | Enhanced key disambiguation mode. |
 | GAP-TUI-15 | Ghostty progress bar | Terminal-specific progress integration. |
 | GAP-TUI-16 | Custom theme TOML loading | File-based custom theme loading. Plan: `2026-04-19-gap8-theme-system.md`. |
-| GAP-TUI-17 | Diff viewer as full widget | **Closed (iteration 22)** — Flitter's `buildDiffWidget()` is a function returning `RichText`, exactly matching amp's `cE0(T, R)` (chunk-004.js:21105-21125). Amp also uses a function (not a StatefulWidget). Feature-complete by comparison. |
+| GAP-TUI-17 | Diff viewer as full widget | **Closed (iteration 22)** — Verified functional parity with amp's `cE0`. |
+| GAP-TUI-32 | OSC 52 per-terminal opt-in | Amp tracks `osc52` capability per terminal (ghostty/kitty/wezterm/foot/alacritty/iterm2/tmux). Flitter always uses OSC 52 as fallback without terminal-specific check. |
+| GAP-TUI-33 | `WidgetsBinding.on()` raw event API | Amp's `d9.on('key'|'mouse'|'paste', cb)` + `dispatchSyntheticPaste`. Flitter has `addKeyInterceptor` but no multi-event subscription. |
+| GAP-TUI-34 | Kitty explicit width detection | Amp probes terminal for explicit width override via cursor position report. Not in flitter. |
+| GAP-TUI-35 | Animation support detection | Amp detects `animationSupport: "fast"/"slow"/"disabled"` based on environment (Emacs/JetBrains/SSH). Consumers use this for spinner decisions. |
+| GAP-TUI-36 | Underline support detection | Amp detects `underlineSupport: "none"/"standard"` (disabled in tmux without passthrough). |
+| GAP-TUI-37 | Mouse hover throttling | Amp's `SelectionArea._handleMouseHover` throttles to 16ms and skips same-position events. Flitter dispatches every mouse event. |
+| GAP-TUI-38 | `toggleFrameStatsOverlay()` on binding | Amp's `d9` has public method to toggle perf overlay. Flitter has the overlay but no binding-level entry point. |
 
 ### LLM
 
@@ -148,6 +261,8 @@
 | GAP-LLM-08 | `service_tier` for OpenAI speed | Amp auto-computes from agent mode; flitter requires explicit setting. |
 | GAP-LLM-09 | `cacheTTL` in pricing model | Amp tracks 5-minute TTL for cache invalidation awareness. |
 | GAP-LLM-10 | Context-limit → Gemini fallback | Amp auto-falls back to Gemini on context overflow. Flitter detects but doesn't auto-fallback. |
+| GAP-LLM-19 | MCP OAuth headless auth handler | Amp's `M5T` supports `headlessAuthHandler` for CI environments. Flitter has `onManualCodeInput` only. |
+| GAP-LLM-20 | Anthropic `output_config.effort` for non-eap | Amp sets `output_config` for non-eap models when `anthropic.effort` setting is specified. Flitter only uses `output_config` for eap models. |
 
 ### Data
 
@@ -159,6 +274,19 @@
 | GAP-DATA-10 | `observeThreadList` with filtering | Reactive filtered view (excludes archived/child) with throttle. Flitter returns raw list. |
 | GAP-DATA-11 | Thread labels via server API | Labels don't propagate to remote. |
 | GAP-DATA-12 | `invalidateThreadListCache` | Force re-fetch from server. N/A without remote transport. |
+| GAP-DATA-24 | Admin settings `.changes` not merged | Amp's `iHR` merges admin `.changes` into config Observable. Flitter admin overlay applies on `reload()` only — admin changes not pushed live. |
+| GAP-DATA-25 | `GlobalCachedValue` TTL cache | Amp uses this pervasively for expensive async values. Flitter has no equivalent — each consumer manages its own caching. |
+| GAP-DATA-26 | `PollingFileWatcher` fallback | Flitter's factory goes `GitWatcher → NoOp`, skipping the polling fallback for non-git directories. |
+| GAP-DATA-27 | MCP `includeTools` merge across skills | Amp warns on server name collision and merges `includeTools` arrays. Flitter silently overwrites (last-wins). |
+| GAP-DATA-28 | GitHub skill install support | Flitter's `SkillService.install()` only accepts local paths. Amp supports GitHub URLs. |
+
+### Agent-Core
+
+| ID | Feature | Description |
+|----|---------|-------------|
+| GAP-CORE-29 | Plugin tracing/spans | Amp's plugin system has `span.event` RPC with OpenTelemetry tracer. Not implemented. |
+| GAP-CORE-30 | Plugin `ai.*`/`system.*`/`helpers.*` context | Amp's `cI` class gives plugins AI primitives, system access, Bun shell. Not implemented. |
+| GAP-CORE-31 | Subagent depth enforcement | Amp's `createWorker` callback omits SubAgentManager for nested spawns. Flitter documents depth=1 but doesn't enforce. |
 
 ---
 
@@ -329,30 +457,34 @@ These were previously identified as gaps but are now implemented in flitter.
 
 | Severity | Count |
 |----------|-------|
-| Critical | 0 |
-| High | 0 |
-| Medium | 3 |
-| Low | 36 |
-| **Total open gaps** | **39** |
+| Critical | 2 |
+| High | 16 |
+| Medium | 38 |
+| Low | 52 |
+| **Total open gaps** | **108** |
 | Closed gaps | 127+ |
 
 ### Cross-Cutting Themes
 
-1. **Server infrastructure**: The self-hosted sync server (`packages/server/`) is now implemented. Remaining DATA gaps (DATA-04/05/06/13) need to wire the existing server endpoints into client-side fetches. CLI share/visibility/handoff gaps still need additional server endpoints or client support.
+1. **Terminal capability probing (NEW — Critical)**: The two Critical gaps (GAP-TUI-18, GAP-TUI-19) are the root dependencies for: Kitty graphics/image display, RGB color palette, pixel-mouse, per-terminal OSC 52 opt-in, animation decisions, underline detection, and scroll step calibration. Implementing the QueryParser unblocks ~10 downstream gaps.
 
-2. **Terminal protocol activation**: ~~Several TUI capabilities are detected but never activated (synchronized output, kitty keyboard, emoji width, in-band resize, modifyOtherKeys). These are quick wins.~~ **Partially resolved** — Synchronized output (TUI-03) and kitty keyboard (TUI-04) are now activated with heuristic detection. Remaining: emoji width mode (`?2027`), in-band resize, `modifyOtherKeys`.
+2. **Plugin extensibility (NEW — High)**: Plugin `registerTool` (CORE-19) and `registerCommand` (CORE-23) are stubbed but not wired. Plugins can intercept tool calls but cannot extend the agent's capabilities — a key amp feature for power users.
 
-3. **Model/provider freshness**: ~~The model registry and provider presets need updating to match amp's latest models (Claude 4.x, GPT-5.x, Gemini 3.x).~~ **Resolved** — MODEL_REGISTRY expanded to ~35 models, context windows corrected (GAP-LLM-04 closed).
+3. **Multi-agent orchestration (NEW — High)**: The agg-man mode (CORE-21) with `send_message_to_aggman`/`render_agg_man` tools is amp's multi-agent dispatch pattern. Flitter has basic subagent spawning but no orchestrator mode.
 
-4. **Stream reliability**: ~~The two High LLM gaps (idle timeout + double-retry) are reliability issues that affect production use. They should be addressed before heavy usage.~~ **Resolved** — `withStreamIdleTimeout` (120s) wraps all 5 providers; `maxRetries: 0` prevents double-retry on Anthropic, OpenAI, OpenAI-compat, and Bedrock SDK clients.
+4. **Toolbox runtime (NEW — High)**: `tools make` scaffolds tool scripts, but flitter has no `ToolboxService` (CORE-20) to discover and register them at runtime. The entire toolbox pipeline is write-only.
 
-5. **Slash command completeness**: ~~Many interactive slash commands (`/model`, `/cost`, `/compact`, `/new`, `/switch`, etc.) are stubs that print help text rather than performing actions inline.~~ `/cost`, `/compact`, `/model`, `/rename`, `/label`, `/archive` now fully functional (GAP-CLI-22/23/24/25 partial). Remaining 6 stubs need context interface changes (`switchThread` callback) or TUI lifecycle work.
+5. **Review command architecture (NEW — High)**: Flitter's review is single-turn inference with a hardcoded prompt. Amp's runs a full agent loop with tools, file scoping, instructions, and a check runner subsystem.
 
-6. **Orchestrator safety gaps**: ~~Iteration 7 uncovered multiple safety-critical gaps in the tool orchestrator: no tool resume on reconnect (CORE-05), no dangerous-tool safety gate (CORE-06), no persisted approval state (CORE-07), no per-tool cancel (CORE-11). These affect production reliability and should be addressed as a group.~~ **Resolved** — CORE-05, CORE-06 (iter 9), CORE-10, CORE-13, CORE-14 (iter 10), CORE-11, CORE-12 (iter 11), CORE-07 (iter 13) all closed.
+6. **TUI widget library (NEW — High)**: Table (TUI-21), CompositedTransformFollower (TUI-22), Offstage (TUI-23), StickyHeader/DialogBox (TUI-24), Chart (TUI-25) are all missing. These are used by amp's application-level widgets.
 
-7. **Skill system vertical (new)**: Skills are a first-class amp feature with CLI commands, slash commands, invocation enforcement, and activation tracking. **Now complete:** CLI command group (CLI-01 closed iter 19), activation tracking (CORE-17), enforcement (CORE-08), SkillTool. All 4 layers implemented.
+7. **Server infrastructure**: The self-hosted sync server is implemented. Remaining DATA gaps need additional wiring (invalidateThreadListCache, labels to remote, visibility inheritance on fork). DTW/live-sync (DATA-18) is a fundamentally different architecture.
 
-8. **Provider API key wiring**: ~~Gemini and OpenAI providers don't read per-provider API keys from settings (DATA-14) or environment variables (DATA-15). This blocks users who don't use the default Anthropic provider.~~ **Resolved** — DATA-14 and DATA-15 closed in iteration 9. Provider-aware key resolution now covers Anthropic, Gemini, and OpenAI.
+8. **Terminal protocol activation**: Synchronized output (TUI-03) and kitty keyboard (TUI-04) are activated. Remaining: emoji width, in-band resize, modifyOtherKeys, pixel-mouse, per-terminal OSC 52.
+
+9. **Model/provider freshness**: MODEL_REGISTRY needs ~14 more models (LLM-13). OpenRouter needs config fixes (LLM-14). MCP transport needs built-in fallback (LLM-12).
+
+10. **Slash command completeness**: 27 of 29 slash commands functional. Amp's command palette has ~30 more commands not covered by flitter's slash system (thread navigation, clipboard ops, agents-md, skill invoke, permissions toggle, context analyze, etc.).
 
 ### Iteration 13 — Skill enforcement, tools use, guarded-file approval, blocked-on-user
 - **GAP-CORE-08** (completed): Skill invocation enforcement — `_pendingSkills`/`_awaitingSkillInvocation` BehaviorSubjects on ThreadWorker, `setPendingSkills()` public API, `injectPendingSkills()` drains pending skills on user message and injects info message, `checkAndAppendAwaitedSkills()` after inference completes checks if model called required skills and injects synthetic `tool_use` blocks + flips `stopReason` to `"tool_use"` if not. Full `YwR` equivalent. 7 new tests.

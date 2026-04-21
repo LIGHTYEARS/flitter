@@ -221,7 +221,15 @@ export function createProgram(version: string): Command {
   program
     .command("review [diff]")
     .description("Run AI code review on staged changes or provided diff")
-    .option("--format <fmt>", "Output format (text|json|markdown)", "text");
+    .option("--format <fmt>", "Output format (text|json|markdown)", "text")
+    // 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js — code_review tool schema
+    .option("-f, --files <file>", "Scope review to specific file(s) (repeatable)", collect, [])
+    .option("-i, --instructions <text>", "Additional instructions to guide the review focus")
+    .option(
+      "--thoroughness <level>",
+      "Review depth: methodical or quick (default: methodical)",
+      "methodical",
+    );
 
   // ─── Config 管理 ────────────────────────────────────────
 

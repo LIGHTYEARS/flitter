@@ -55,6 +55,8 @@ const ENV_KEYS = [
   "GOOGLE_API_KEY",
   "GEMINI_API_KEY",
   "OPENAI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "FIREWORKS_API_KEY",
 ] as const;
 
 let savedEnv: Record<string, string | undefined> = {};
@@ -239,5 +241,81 @@ describe("Provider API key wiring", () => {
     const config = configService.get();
     const key = await config.secrets.getToken("apiKey");
     expect(key).toBe("sk-ant-settings");
+  });
+
+  // ── OpenRouter (GAP-LLM-11) ────────────────────────
+
+  test("openrouter: getToken reads openrouter.apiKey from settings", async () => {
+    const configService = createConfigService(
+      createOpts({
+        "internal.model": "sonoma-sky-alpha",
+        "openrouter.apiKey": "sk-or-test-key",
+      }),
+    );
+    const config = configService.get();
+    const key = await config.secrets.getToken("apiKey");
+    expect(key).toBe("sk-or-test-key");
+  });
+
+  test("openrouter: getToken reads OPENROUTER_API_KEY from env", async () => {
+    saveEnv();
+    process.env.OPENROUTER_API_KEY = "sk-or-env-key";
+    const configService = createConfigService(
+      createOpts({
+        "internal.model": "sonoma-sky-alpha",
+      }),
+    );
+    const config = configService.get();
+    const key = await config.secrets.getToken("apiKey");
+    expect(key).toBe("sk-or-env-key");
+  });
+
+  test("openrouter: settings key takes priority over env var", async () => {
+    saveEnv();
+    process.env.OPENROUTER_API_KEY = "sk-or-env";
+    const configService = createConfigService(
+      createOpts({
+        "internal.model": "sonoma-sky-alpha",
+        "openrouter.apiKey": "sk-or-settings",
+      }),
+    );
+    const config = configService.get();
+    const key = await config.secrets.getToken("apiKey");
+    expect(key).toBe("sk-or-settings");
+  });
+
+  test("openrouter: isSet returns true for OPENROUTER_API_KEY env", () => {
+    saveEnv();
+    process.env.OPENROUTER_API_KEY = "sk-or-env-key";
+    const configService = createConfigService(createOpts());
+    const config = configService.get();
+    expect(config.secrets.isSet("apiKey")).toBe(true);
+  });
+
+  // ── Fireworks ──────────────────────────────────────
+
+  test("fireworks: getToken reads fireworks.apiKey from settings", async () => {
+    const configService = createConfigService(
+      createOpts({
+        "internal.model": "accounts/fireworks/models/glm-5",
+        "fireworks.apiKey": "fw-test-key",
+      }),
+    );
+    const config = configService.get();
+    const key = await config.secrets.getToken("apiKey");
+    expect(key).toBe("fw-test-key");
+  });
+
+  test("fireworks: getToken reads FIREWORKS_API_KEY from env", async () => {
+    saveEnv();
+    process.env.FIREWORKS_API_KEY = "fw-env-key";
+    const configService = createConfigService(
+      createOpts({
+        "internal.model": "accounts/fireworks/models/glm-5",
+      }),
+    );
+    const config = configService.get();
+    const key = await config.secrets.getToken("apiKey");
+    expect(key).toBe("fw-env-key");
   });
 });

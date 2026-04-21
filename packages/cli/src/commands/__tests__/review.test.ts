@@ -123,4 +123,129 @@ describe("handleReview", () => {
     expect(process.exitCode).toBe(1);
     expect(stderrChunks.join("")).toContain("No changes to review");
   });
+
+  // ── GAP-CLI-29: --files and --instructions flags ──
+
+  it("should pass files to system prompt when --files provided", async () => {
+    let capturedSystemPrompt = "";
+    const container = createMockContainer({
+      createThreadWorker: () => ({
+        events$: { subscribe: () => ({ unsubscribe: () => {} }) },
+        runInference: mock(async () => {}),
+        cancelInference: mock(() => {}),
+      }),
+      threadStore: {
+        setCachedThread: mock(() => {}),
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          messages: [
+            { role: "user", content: [{ type: "text", text: "review" }] },
+            { role: "assistant", content: [{ type: "text", text: "Review complete." }] },
+          ],
+          relationships: [],
+        }),
+      },
+    });
+
+    // Override createThreadWorker to capture the system prompt
+    (container as Record<string, unknown>).createThreadWorker = (
+      _id: string,
+      opts: { buildSystemPrompt: () => Promise<Array<{ text: string }>> },
+    ) => {
+      const worker = {
+        events$: { subscribe: () => ({ unsubscribe: () => {} }) },
+        runInference: mock(async () => {
+          const prompts = await opts.buildSystemPrompt();
+          capturedSystemPrompt = prompts[0]?.text ?? "";
+        }),
+        cancelInference: mock(() => {}),
+      };
+      return worker;
+    };
+
+    await handleReview(container, ctx, {
+      diff: "diff --git a/file.ts\n+new line",
+      files: ["src/foo.ts", "src/bar.ts"],
+    });
+
+    expect(capturedSystemPrompt).toContain("src/foo.ts");
+    expect(capturedSystemPrompt).toContain("src/bar.ts");
+    expect(capturedSystemPrompt).toContain("File Scope");
+  });
+
+  it("should pass instructions to system prompt when --instructions provided", async () => {
+    let capturedSystemPrompt = "";
+    (createMockContainer() as Record<string, unknown>).createThreadWorker;
+
+    const container = createMockContainer();
+    (container as Record<string, unknown>).createThreadWorker = (
+      _id: string,
+      opts: { buildSystemPrompt: () => Promise<Array<{ text: string }>> },
+    ) => {
+      const worker = {
+        events$: { subscribe: () => ({ unsubscribe: () => {} }) },
+        runInference: mock(async () => {
+          const prompts = await opts.buildSystemPrompt();
+          capturedSystemPrompt = prompts[0]?.text ?? "";
+        }),
+        cancelInference: mock(() => {}),
+      };
+      return worker;
+    };
+
+    await handleReview(container, ctx, {
+      diff: "diff --git a/file.ts\n+new line",
+      instructions: "Focus on SQL injection vulnerabilities",
+    });
+
+    expect(capturedSystemPrompt).toContain("SQL injection vulnerabilities");
+    expect(capturedSystemPrompt).toContain("Additional Focus");
+  });
+
+  it("should use quick thoroughness when --thoroughness=quick", async () => {
+    let capturedSystemPrompt = "";
+    const container = createMockContainer();
+    (container as Record<string, unknown>).createThreadWorker = (
+      _id: string,
+      opts: { buildSystemPrompt: () => Promise<Array<{ text: string }>> },
+    ) => ({
+      events$: { subscribe: () => ({ unsubscribe: () => {} }) },
+      runInference: mock(async () => {
+        const prompts = await opts.buildSystemPrompt();
+        capturedSystemPrompt = prompts[0]?.text ?? "";
+      }),
+      cancelInference: mock(() => {}),
+    });
+
+    await handleReview(container, ctx, {
+      diff: "diff --git a/file.ts\n+new line",
+      thoroughness: "quick",
+    });
+
+    expect(capturedSystemPrompt).toContain("quick scan");
+    expect(capturedSystemPrompt).not.toContain("thorough, methodical");
+  });
+
+  it("should use methodical thoroughness by default", async () => {
+    let capturedSystemPrompt = "";
+    const container = createMockContainer();
+    (container as Record<string, unknown>).createThreadWorker = (
+      _id: string,
+      opts: { buildSystemPrompt: () => Promise<Array<{ text: string }>> },
+    ) => ({
+      events$: { subscribe: () => ({ unsubscribe: () => {} }) },
+      runInference: mock(async () => {
+        const prompts = await opts.buildSystemPrompt();
+        capturedSystemPrompt = prompts[0]?.text ?? "";
+      }),
+      cancelInference: mock(() => {}),
+    });
+
+    await handleReview(container, ctx, {
+      diff: "diff --git a/file.ts\n+new line",
+    });
+
+    expect(capturedSystemPrompt).toContain("thorough, methodical");
+  });
 });

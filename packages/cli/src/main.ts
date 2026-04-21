@@ -794,6 +794,9 @@ export async function main(opts?: MainOptions): Promise<void> {
         await handleReview(c, ctx, {
           diff: diff as string | undefined,
           format: (cmdOpts?.format as string) ?? "text",
+          files: (cmdOpts?.files as string[]) ?? [],
+          instructions: cmdOpts?.instructions as string | undefined,
+          thoroughness: (cmdOpts?.thoroughness as "methodical" | "quick") ?? "methodical",
         });
       });
     }

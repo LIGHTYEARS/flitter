@@ -776,6 +776,173 @@ export const MODEL_REGISTRY: Record<string, ModelInfo> = {
     supportsCacheControl: false,
     baseUrl: "https://api.x.ai/v1",
   },
+
+  // ── Cerebras (via openai-compat) ──────────────────
+  // 逆向: amp-cli-reversed/chunk-005.js Z_AI_GLM_4_7
+  "zai-glm-4.7": {
+    id: "zai-glm-4.7",
+    provider: "cerebras",
+    contextWindow: 131_000,
+    maxOutputTokens: 40_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+
+  // ── Fireworks (via openai-compat) ─────────────────
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_QWEN3_CODER_480B
+  "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
+    id: "accounts/fireworks/models/qwen3-coder-480b-a35b-instruct",
+    provider: "fireworks",
+    contextWindow: 230_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_KIMI_K2_INSTRUCT
+  "accounts/fireworks/models/kimi-k2-instruct-0905": {
+    id: "accounts/fireworks/models/kimi-k2-instruct-0905",
+    provider: "fireworks",
+    contextWindow: 230_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_QWEN3_235B
+  "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
+    id: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
+    provider: "fireworks",
+    contextWindow: 230_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_GLM_4P6
+  "accounts/fireworks/models/glm-4p6": {
+    id: "accounts/fireworks/models/glm-4p6",
+    provider: "fireworks",
+    contextWindow: 162_752,
+    maxOutputTokens: 40_000,
+    supportsThinking: true,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_GLM_5
+  "accounts/fireworks/models/glm-5": {
+    id: "accounts/fireworks/models/glm-5",
+    provider: "fireworks",
+    contextWindow: 202_800,
+    maxOutputTokens: 40_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 1, output: 3.2 },
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js FIREWORKS_MINIMAX_M2P5
+  "accounts/fireworks/models/minimax-m2p5": {
+    id: "accounts/fireworks/models/minimax-m2p5",
+    provider: "fireworks",
+    contextWindow: 200_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+    cost: { input: 0.3, output: 1.2 },
+  },
+
+  // ── Baseten (via openai-compat) ───────────────────
+  // 逆向: amp-cli-reversed/chunk-005.js BASETEN_KIMI_K2P5
+  "moonshotai/Kimi-K2.5": {
+    id: "moonshotai/Kimi-K2.5",
+    provider: "baseten",
+    contextWindow: 262_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: true,
+    supportsCacheControl: false,
+    cost: { input: 0.6, output: 3 },
+  },
+
+  // ── OpenRouter (via openai-compat) ────────────────
+  // 逆向: amp-cli-reversed/chunk-005.js SONOMA_SKY_ALPHA
+  "sonoma-sky-alpha": {
+    id: "sonoma-sky-alpha",
+    provider: "openrouter",
+    contextWindow: 256_000,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js OPENROUTER_GLM_4_6
+  "z-ai/glm-4.6": {
+    id: "z-ai/glm-4.6",
+    provider: "openrouter",
+    contextWindow: 131_000,
+    maxOutputTokens: 40_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js OPENROUTER_KIMI_K2_0905
+  "moonshotai/kimi-k2-0905": {
+    id: "moonshotai/kimi-k2-0905",
+    provider: "openrouter",
+    contextWindow: 262_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js OPENROUTER_QWEN3_CODER_480B
+  "qwen/qwen3-coder": {
+    id: "qwen/qwen3-coder",
+    provider: "openrouter",
+    contextWindow: 262_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+  // 逆向: amp-cli-reversed/chunk-005.js OPENROUTER_QWEN3_235B
+  "qwen/qwen3-235b-a22b-2507": {
+    id: "qwen/qwen3-235b-a22b-2507",
+    provider: "openrouter",
+    contextWindow: 262_144,
+    maxOutputTokens: 32_000,
+    supportsThinking: false,
+    supportsTools: true,
+    supportsImages: false,
+    supportsCacheControl: false,
+  },
+
+  // ── Gemini image generation (VertexAI) ────────────
+  // 逆向: amp-cli-reversed/chunk-005.js GEMINI_3_PRO_IMAGE
+  "gemini-3-pro-image-preview": {
+    id: "gemini-3-pro-image-preview",
+    provider: "gemini",
+    contextWindow: 1_048_576,
+    maxOutputTokens: 65_535,
+    supportsThinking: false,
+    supportsTools: false,
+    supportsImages: true,
+    supportsCacheControl: false,
+  },
 };
 
 /**

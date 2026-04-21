@@ -78,6 +78,29 @@ describe("KNOWN_COMPAT_CONFIGS", () => {
       assert.equal(KNOWN_COMPAT_CONFIGS.moonshotai.supportsReasoningEffort, false);
     });
   });
+
+  // 逆向: R7R/a7R (modules/1174_unknown_R7R.js) — OpenRouter sends minimal body
+  describe("openrouter (GAP-LLM-14)", () => {
+    it("should exist in KNOWN_COMPAT_CONFIGS", () => {
+      assert.ok(KNOWN_COMPAT_CONFIGS.openrouter, "openrouter preset missing");
+    });
+
+    it("should have correct baseURL", () => {
+      assert.equal(KNOWN_COMPAT_CONFIGS.openrouter.baseURL, "https://openrouter.ai/api/v1");
+    });
+
+    it("should have supportsStore=false", () => {
+      assert.equal(KNOWN_COMPAT_CONFIGS.openrouter.supportsStore, false);
+    });
+
+    it("should have supportsUsageInStreaming=false", () => {
+      assert.equal(KNOWN_COMPAT_CONFIGS.openrouter.supportsUsageInStreaming, false);
+    });
+
+    it("should have thinkingFormat=openrouter", () => {
+      assert.equal(KNOWN_COMPAT_CONFIGS.openrouter.thinkingFormat, "openrouter");
+    });
+  });
 });
 
 // ─── detectCompatFromURL ───────────────────────────────────

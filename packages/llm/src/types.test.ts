@@ -71,6 +71,58 @@ describe("MODEL_REGISTRY", () => {
     assert.equal(model.baseUrl, "https://api.x.ai/v1");
   });
 
+  // 逆向: amp-cli-reversed/chunk-005.js — new provider models (iteration 23)
+  it("should contain Cerebras model (zai-glm-4.7)", () => {
+    const model = MODEL_REGISTRY["zai-glm-4.7"];
+    assert.ok(model, "zai-glm-4.7 should exist");
+    assert.equal(model.provider, "cerebras");
+    assert.equal(model.contextWindow, 131_000);
+    assert.equal(model.maxOutputTokens, 40_000);
+  });
+
+  it("should contain Fireworks models", () => {
+    const qwen3 = MODEL_REGISTRY["accounts/fireworks/models/qwen3-coder-480b-a35b-instruct"];
+    assert.ok(qwen3, "qwen3-coder-480b should exist");
+    assert.equal(qwen3.provider, "fireworks");
+    assert.equal(qwen3.contextWindow, 230_144);
+
+    const glm5 = MODEL_REGISTRY["accounts/fireworks/models/glm-5"];
+    assert.ok(glm5, "glm-5 should exist");
+    assert.equal(glm5.cost?.input, 1);
+    assert.equal(glm5.cost?.output, 3.2);
+
+    const glm4p6 = MODEL_REGISTRY["accounts/fireworks/models/glm-4p6"];
+    assert.ok(glm4p6, "glm-4p6 should exist");
+    assert.equal(glm4p6.supportsThinking, true);
+  });
+
+  it("should contain OpenRouter models", () => {
+    const sonoma = MODEL_REGISTRY["sonoma-sky-alpha"];
+    assert.ok(sonoma, "sonoma-sky-alpha should exist");
+    assert.equal(sonoma.provider, "openrouter");
+    assert.equal(sonoma.contextWindow, 256_000);
+
+    const glm46 = MODEL_REGISTRY["z-ai/glm-4.6"];
+    assert.ok(glm46, "z-ai/glm-4.6 should exist");
+    assert.equal(glm46.provider, "openrouter");
+  });
+
+  it("should contain Baseten model (moonshotai/Kimi-K2.5)", () => {
+    const model = MODEL_REGISTRY["moonshotai/Kimi-K2.5"];
+    assert.ok(model, "moonshotai/Kimi-K2.5 should exist");
+    assert.equal(model.provider, "baseten");
+    assert.equal(model.supportsImages, true);
+    assert.equal(model.cost?.input, 0.6);
+  });
+
+  it("should contain gemini-3-pro-image-preview with supportsTools false", () => {
+    const model = MODEL_REGISTRY["gemini-3-pro-image-preview"];
+    assert.ok(model, "gemini-3-pro-image-preview should exist");
+    assert.equal(model.provider, "gemini");
+    assert.equal(model.supportsTools, false);
+    assert.equal(model.supportsImages, true);
+  });
+
   it("claude-sonnet-4-20250514 should have contextWindow 200_000", () => {
     const model = MODEL_REGISTRY["claude-sonnet-4-20250514"];
     assert.ok(model);

@@ -14,6 +14,7 @@ import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@fl
 import { resolveModelName } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
+import type { PermissionEngine } from "../permissions/engine";
 import type { PluginService } from "../plugins/plugin-service";
 import type { TitleGenerationProvider } from "../title/generate-title";
 import { extractTextFromContent, generateThreadTitle } from "../title/generate-title";
@@ -114,6 +115,24 @@ export interface ThreadWorkerOptions {
    * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:574,682,1005 (agentEnd)
    */
   pluginService?: PluginService;
+
+  /**
+   * Optional config observable for reactive settings change detection.
+   * If provided along with permissionEngine, blocked tools are
+   * re-evaluated when permissions/dangerouslyAllowAll settings change.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:33-39
+   *   configService.config.pipe(JR, E9, DnR(1), M$).subscribe(() => reevaluateBlockedTools())
+   */
+  configObservable?: BehaviorSubject<Config>;
+
+  /**
+   * Optional permission engine for blocked tool re-evaluation.
+   * Must be provided alongside configObservable for re-evaluation to work.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:41-50
+   */
+  permissionEngine?: PermissionEngine;
 }
 
 // ─── ThreadWorker 类 ────────────────────────────────────
@@ -328,6 +347,62 @@ export class ThreadWorker {
     // 逆向: ov.js:269 `await this.toolOrchestrator.onResume()`
     const currentSnapshot = this.opts.getThreadSnapshot();
     await this.opts.toolOrchestrator.onResume(currentSnapshot);
+
+    // 逆向: ov.js:269 — setupSettingsChangeHandlers() called after onResume()
+    this.setupPermissionsChangeHandler();
+  }
+
+  /**
+   * Subscribe to config changes and re-evaluate blocked tools when
+   * permissions or dangerouslyAllowAll settings change.
+   *
+   * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:33-39
+   *   ```
+   *   setupPermissionsChangeHandler() {
+   *     this.deps.configService.config.pipe(
+   *       JR(T => ({ permissions: I0T(T.settings?.permissions), dangerouslyAllowAll: ... })),
+   *       E9((T, R) => T.dangerouslyAllowAll === R.dangerouslyAllowAll && T.permissions === R.permissions),
+   *       DnR(1),
+   *       M$(this.disposed$)
+   *     ).subscribe(() => this.reevaluateBlockedTools())
+   *   }
+   *   ```
+   */
+  private setupPermissionsChangeHandler(): void {
+    if (!this.opts.configObservable || !this.opts.permissionEngine) return;
+
+    let lastKey: string | undefined;
+
+    const sub = this.opts.configObservable.subscribe((config) => {
+      if (this.disposed) return;
+
+      const settings = config.settings as Record<string, unknown>;
+      // Build a cheap change-detection key (amp uses I0T = JSON.stringify)
+      const key =
+        JSON.stringify(settings.permissions) + String(settings.dangerouslyAllowAll ?? false);
+
+      // Skip first emission — DnR(1) equivalent
+      if (lastKey === undefined) {
+        lastKey = key;
+        return;
+      }
+      // distinctUntilChanged — E9 equivalent
+      if (key === lastKey) return;
+      lastKey = key;
+
+      // Re-evaluate blocked tools with current thread state
+      const snapshot = this.opts.getThreadSnapshot();
+      this.opts.permissionEngine!.reevaluateBlockedTools(snapshot, (toolUseID: string) => {
+        // 逆向: ov.js:51-84 checkAndApproveBlockedTool — resolve the pending approval
+        const resolve = this._pendingApprovals.get(toolUseID);
+        if (resolve) {
+          resolve({ accepted: true });
+          this._pendingApprovals.delete(toolUseID);
+        }
+      });
+    });
+
+    this.subscriptions.push(sub);
   }
 
   /**

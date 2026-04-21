@@ -24,21 +24,63 @@ export interface ReviewOptions {
   diff?: string;
   /** Output format: text, json, markdown */
   format?: string;
+  /**
+   * Specific files to scope the review to.
+   * 逆向: amp code_review tool `files` parameter (2026_tail_anonymous.js:140331)
+   */
+  files?: string[];
+  /**
+   * Additional instructions to guide the review focus.
+   * 逆向: amp code_review tool `instructions` parameter
+   */
+  instructions?: string;
+  /**
+   * Review depth: "methodical" (thorough, default) or "quick" (fast scan).
+   * 逆向: amp code_review tool `thoroughness` parameter
+   */
+  thoroughness?: "methodical" | "quick";
 }
 
 /**
  * 逆向: 2026_tail_anonymous.js:9685-9700 (OkR code_review skill prompt)
  * amp's code review prompt instructs the model to review code changes and output
- * a numbered list of issues. We use a similar system prompt for the CLI shortcut.
+ * structured comments with filename, line numbers, severity, and fixes.
+ *
+ * When --thoroughness=quick, the model does a fast scan;
+ * when --thoroughness=methodical (default), it goes file-by-file with higher reasoning.
  */
-const CODE_REVIEW_SYSTEM_PROMPT = `You are a code reviewer. Analyze the provided diff and give a concise, actionable review.
+function buildReviewSystemPrompt(opts: ReviewOptions): string {
+  const depth =
+    opts.thoroughness === "quick"
+      ? "Do a quick scan — focus only on critical issues and obvious bugs."
+      : "Do a thorough, methodical review — go file-by-file through each changed hunk.";
+
+  let instructions = `You are a senior software engineer performing a code review. Analyze the provided diff and give a concise, actionable review.
+
+## Review Depth
+${depth}
 
 ## Instructions
 - Focus on bugs, security issues, performance problems, and code quality
-- Output a numbered list of issues found
-- For each issue, include the file and line reference, severity (critical/warning/info), and a brief explanation
+- For each issue, include:
+  - **File** and **line range** (e.g., \`src/foo.ts:42-45\`)
+  - **Severity**: critical, high, medium, or low
+  - **Type**: bug, security, performance, style, or suggestion
+  - **Description**: what's wrong and why
+  - **Fix**: how to fix it (code snippet if helpful)
 - If no issues are found, state that the code looks good
-- Be concise and specific`;
+- Be concise and specific — avoid generic advice`;
+
+  if (opts.files && opts.files.length > 0) {
+    instructions += `\n\n## File Scope\nFocus your review ONLY on these files: ${opts.files.join(", ")}`;
+  }
+
+  if (opts.instructions) {
+    instructions += `\n\n## Additional Focus\n${opts.instructions}`;
+  }
+
+  return instructions;
+}
 
 /**
  * Handle the `flitter review` command
@@ -57,15 +99,20 @@ export async function handleReview(
   // Get diff text
   let diffText = opts.diff;
   if (!diffText) {
+    // Build git diff command — scope to specific files if --files provided
+    // 逆向: amp's code_review tool passes files as path filters to git diff
+    const fileArgs =
+      opts.files && opts.files.length > 0 ? ` -- ${opts.files.map((f) => `"${f}"`).join(" ")}` : "";
+
     try {
-      diffText = execSync("git diff --staged", {
+      diffText = execSync(`git diff --staged${fileArgs}`, {
         encoding: "utf-8",
         maxBuffer: 10 * 1024 * 1024,
       }).trim();
     } catch {
       // Fall back to unstaged diff
       try {
-        diffText = execSync("git diff", {
+        diffText = execSync(`git diff${fileArgs}`, {
           encoding: "utf-8",
           maxBuffer: 10 * 1024 * 1024,
         }).trim();
@@ -94,7 +141,7 @@ export async function handleReview(
         content: [{ type: "text" as const, text: userMessage }],
       },
     ],
-    buildSystemPrompt: async () => [{ type: "text" as const, text: CODE_REVIEW_SYSTEM_PROMPT }],
+    buildSystemPrompt: async () => [{ type: "text" as const, text: buildReviewSystemPrompt(opts) }],
   });
 
   try {

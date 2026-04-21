@@ -125,6 +125,7 @@ function createMockOrchestrator(opts?: {
     onNewUserMessage: async () => {
       mock.cancelAllCalled = true;
     },
+    onResume: async () => {},
     hasRunningTools: () => false,
     runningTools: new Map(),
     cancelledToolUses: new Set<string>(),
@@ -1022,5 +1023,211 @@ describe("ThreadWorker — Message Queue enhancements", () => {
         return content.some((c) => c.text === "first");
       }),
     );
+  });
+});
+
+// ─── setupPermissionsChangeHandler tests (GAP-CORE-22) ──
+
+describe("ThreadWorker — setupPermissionsChangeHandler", () => {
+  it("re-evaluates blocked tools when permissions change after resume()", async () => {
+    const { BehaviorSubject: BSubject } = await import("@flitter/util");
+    const { PermissionEngine } = await import("../permissions/engine");
+
+    const configSubject = new BSubject<Config>({
+      settings: { model: "test-model", permissions: [] } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config);
+
+    // Create a mock PermissionEngine that always permits after change
+    const engine = new PermissionEngine({
+      getConfig: () => configSubject.value,
+      getProjectRoot: () => "/tmp",
+    });
+
+    // Build a thread with a blocked tool
+    const snapshot = createSnapshot([
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } }],
+      } as unknown as Message,
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            toolUseID: "tu-1",
+            content: "",
+            run: { status: "blocked-on-user" },
+          },
+        ],
+      } as unknown as Message,
+    ]);
+
+    const { worker } = createWorker({
+      getThreadSnapshot: () => snapshot,
+      configObservable: configSubject,
+      permissionEngine: engine,
+    });
+
+    // Resume to set up the subscription
+    await worker.resume();
+
+    // Store a pending approval to check if it gets resolved
+    let approvalResolved = false;
+    worker._pendingApprovals.set("tu-1", () => {
+      approvalResolved = true;
+    });
+
+    // Change permissions → trigger re-evaluation
+    configSubject.next({
+      settings: {
+        model: "test-model",
+        permissions: [{ tool: "Bash", action: "allow" }],
+        dangerouslyAllowAll: true,
+      } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config);
+
+    // The approval should have been resolved because dangerouslyAllowAll=true
+    assert.ok(
+      approvalResolved,
+      "Blocked tool approval should be resolved after permissions change",
+    );
+    assert.ok(
+      !worker._pendingApprovals.has("tu-1"),
+      "Pending approval should be removed after resolution",
+    );
+
+    worker.dispose();
+  });
+
+  it("skips first emission (DnR(1) equivalent) — no re-evaluation on subscribe", async () => {
+    const { BehaviorSubject: BSubject } = await import("@flitter/util");
+    const { PermissionEngine } = await import("../permissions/engine");
+
+    const configSubject = new BSubject<Config>({
+      settings: { model: "test-model", permissions: [] } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config);
+
+    const engine = new PermissionEngine({
+      getConfig: () => configSubject.value,
+      getProjectRoot: () => "/tmp",
+    });
+
+    const snapshot = createSnapshot([
+      {
+        role: "assistant",
+        content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: { command: "ls" } }],
+      } as unknown as Message,
+      {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            toolUseID: "tu-1",
+            content: "",
+            run: { status: "blocked-on-user" },
+          },
+        ],
+      } as unknown as Message,
+    ]);
+
+    const { worker } = createWorker({
+      getThreadSnapshot: () => snapshot,
+      configObservable: configSubject,
+      permissionEngine: engine,
+    });
+
+    // Set a pending approval
+    let approvalResolved = false;
+    worker._pendingApprovals.set("tu-1", () => {
+      approvalResolved = true;
+    });
+
+    // Resume triggers subscription — should NOT re-evaluate on initial emit
+    await worker.resume();
+
+    assert.ok(!approvalResolved, "Should not resolve on initial subscription (skip first)");
+
+    worker.dispose();
+  });
+
+  it("does not re-evaluate when config values are unchanged (distinctUntilChanged)", async () => {
+    const { BehaviorSubject: BSubject } = await import("@flitter/util");
+    const { PermissionEngine } = await import("../permissions/engine");
+
+    const initialConfig = {
+      settings: {
+        model: "test-model",
+        permissions: [],
+        dangerouslyAllowAll: false,
+      } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config;
+
+    const configSubject = new BSubject<Config>(initialConfig);
+
+    const engine = new PermissionEngine({
+      getConfig: () => configSubject.value,
+      getProjectRoot: () => "/tmp",
+    });
+
+    const snapshot = createSnapshot();
+
+    let reevaluateCount = 0;
+    const origReevaluate = engine.reevaluateBlockedTools.bind(engine);
+    engine.reevaluateBlockedTools = (...args: Parameters<typeof origReevaluate>) => {
+      reevaluateCount++;
+      return origReevaluate(...args);
+    };
+
+    const { worker } = createWorker({
+      getThreadSnapshot: () => snapshot,
+      configObservable: configSubject,
+      permissionEngine: engine,
+    });
+
+    await worker.resume();
+
+    // Emit same config again — should not trigger reevaluate
+    configSubject.next(initialConfig);
+    assert.equal(reevaluateCount, 0, "Should not re-evaluate when config is unchanged");
+
+    worker.dispose();
+  });
+
+  it("cleans up subscription on dispose()", async () => {
+    const { BehaviorSubject: BSubject } = await import("@flitter/util");
+
+    const configSubject = new BSubject<Config>({
+      settings: { model: "test-model", permissions: [] } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config);
+
+    const { worker } = createWorker({
+      configObservable: configSubject,
+    });
+
+    await worker.resume();
+    worker.dispose();
+
+    // After dispose, emitting should not cause errors
+    configSubject.next({
+      settings: {
+        model: "test-model",
+        permissions: [{ tool: "Bash", action: "allow" }],
+      } as unknown as Settings,
+      secrets: { getToken: async () => undefined, isSet: () => false },
+    } as Config);
+    // No assertion needed — if dispose didn't clean up, it would try to access disposed state
+  });
+
+  it("is a no-op when configObservable or permissionEngine not provided", async () => {
+    // Worker without configObservable/permissionEngine should resume fine
+    const { worker } = createWorker();
+    await worker.resume();
+    // No errors should occur
+    worker.dispose();
   });
 });

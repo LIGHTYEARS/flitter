@@ -18,9 +18,9 @@
  *   3. On truncation/undo, calls restoreSnapshot to revert to the saved tree
  */
 import { execFile } from "node:child_process";
+import { unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { unlinkSync } from "node:fs";
 
 // ─── Types ─────────────────────────────────────────────
 
@@ -126,10 +126,9 @@ export async function createSnapshot(
     // Store as a ref for later retrieval
     // 逆向: `refs/amp/snapshots/${R}/${a}`
     const ref = `refs/flitter/snapshots/${threadId}/${messageId}`;
-    await gitExec(
-      ["update-ref", "-m", `flitter snapshot ${threadId} ${messageId}`, ref, treeOID],
-      { cwd: repoRoot },
-    );
+    await gitExec(["update-ref", "-m", `flitter snapshot ${threadId} ${messageId}`, ref, treeOID], {
+      cwd: repoRoot,
+    });
 
     return { treeOID, repoRoot };
   } finally {
@@ -175,14 +174,18 @@ export async function createSnapshots(
 }
 
 /**
- * Restore the working directory to a previously saved snapshot.
+ * Restore a file, directory, or entire workspace to a previously saved snapshot.
  *
- * 逆向: amp-cli-reversed/chunk-002.js:21461-21500 (GwR + restoreSnapshot)
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:14244-14298 (Y2R)
  *   Uses a temporary index to checkout the saved tree:
- *   1. git read-tree <treeOID> (or --empty fallback + add -A)
- *   2. git checkout --no-overlay <treeOID> -- .
+ *   1. git read-tree HEAD (or --empty fallback)
+ *   2. git add -A
+ *   3. git checkout --no-overlay <treeOID> -- <path>
+ *
+ * @param snapshot - The snapshot OID and repo root
+ * @param restorePath - File or directory path to restore (relative to repo root). Defaults to "." (entire workspace).
  */
-export async function restoreSnapshot(snapshot: SnapshotOID): Promise<void> {
+export async function restoreSnapshot(snapshot: SnapshotOID, restorePath = "."): Promise<void> {
   const tmpIndex = join(tmpdir(), `flitter-restore-${Date.now()}`);
   const env = {
     GIT_INDEX_FILE: tmpIndex,
@@ -199,11 +202,12 @@ export async function restoreSnapshot(snapshot: SnapshotOID): Promise<void> {
 
     await gitExec(["add", "-A"], { cwd: snapshot.repoRoot, env });
 
-    // Checkout the tree
-    await gitExec(
-      ["checkout", "--no-overlay", snapshot.treeOID, "--", "."],
-      { cwd: snapshot.repoRoot, env },
-    );
+    // Checkout the tree — restore specified path (or entire workspace)
+    // 逆向: amp Y2R uses `["checkout", "--no-overlay", r, "--", t]` where t = args.path
+    await gitExec(["checkout", "--no-overlay", snapshot.treeOID, "--", restorePath], {
+      cwd: snapshot.repoRoot,
+      env,
+    });
   } finally {
     try {
       unlinkSync(tmpIndex);

@@ -183,3 +183,44 @@ The `SessionCostTracker` is instantiated in `interactive.ts` immediately after t
 - Tools now accept both amp-style and flitter-style parameter names, improving robustness with diverse LLMs
 - Cursor shape changes are visible in supporting terminals (most except Emacs/JetBrains)
 - Users can rename threads, add labels, and archive threads inline without leaving the conversation
+
+---
+
+## ADR-011: Iteration 6 — restore_snapshot tool, ThreadRelationship schema, seedThreadMessages
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 6 explored 4 candidates via parallel subagents:
+
+| Gap | Effort | Selected? |
+|-----|--------|-----------|
+| GAP-TOOL-02 (get_diagnostics) | Medium | No — requires LSP/subprocess infra |
+| GAP-TOOL-05 (restore_snapshot) | Small | **Yes** |
+| GAP-TOOL-03 (oracle) | Large | No — requires OpenAI Responses API or alternate scaffold |
+| GAP-CORE-04 (handoff/seed) | Mixed | **Partial** — schema + seedThreadMessages + applyParentRelationship |
+
+**Decision:**
+
+- **GAP-TOOL-05 (restore_snapshot)**: Created `RestoreSnapshotTool` in `packages/agent-core/src/tools/builtin/restore-snapshot.ts`. The tool wraps the existing `restoreSnapshot()` from `auto-snapshot.ts`, which already implements amp's exact git operations (temp index → read-tree → add -A → checkout --no-overlay). Added a `restorePath` parameter to `restoreSnapshot()` (previously hardcoded to `"."`), matching amp's Y2R which accepts an arbitrary path. Registered as a static builtin in `registerBuiltinTools()`.
+
+  The tool spec mirrors amp's J2R (modules/2026_tail_anonymous.js:140789): `{ path, treeOID }` with the same description format. The execution flow matches amp's Y2R (14244-14298): parse args → get workingDirectory → restoreSnapshot({ treeOID, repoRoot }, path) → return success/error.
+
+  Note: The agent won't receive snapshot OIDs until `userState.snapshotOIDs` is surfaced in the system prompt context (separate gap). The tool itself is fully functional for manual or programmatic use.
+
+- **GAP-CORE-04 partial (schema + service methods)**:
+  1. **ThreadRelationshipSchema**: Added `role: z.enum(["child", "parent"]).optional()` and `createdAt: z.number().optional()`. Fields are optional for backward compatibility with existing persisted threads. Amp deduplicates relationships on `(threadID, type, role)` — the `role` field enables this.
+  
+  2. **ThreadWorkerService.seedThreadMessages()**: Atomic message seeding using `exclusiveSyncReadWriter`. Recomputes `nextMessageId` as `max(messageId) + 1`, optionally stamps `agentMode` on user messages. Mirrors amp QWT.seedThreadMessages exactly.
+  
+  3. **ThreadWorkerService.applyParentRelationship()**: Bidirectional relationship wiring — adds `role: "child"` to child thread and `role: "parent"` to parent thread. Deduplicates on `(threadID, type, role)`. Currently uses direct store writes; worker delta dispatch can be added when thread-worker handle() gains a "relationship" delta handler.
+  
+  4. **ThreadStoreForService interface**: Avoids importing full ThreadStore class to prevent circular dependencies. `setThreadStore()` method wired in container after both services are created.
+
+  The `handoff()` method itself is deferred — it requires the `b4R` summarizer (an LLM call that extracts relevant files and context), which is a medium-to-large task.
+
+**Consequences:**
+- Agents can restore file snapshots via tool call, enabling undo-to-checkpoint workflows
+- Thread relationships now carry role information, enabling proper parent-child traversal
+- `seedThreadMessages` enables thread forking (create thread with pre-seeded conversation)
+- `applyParentRelationship` enables handoff thread creation (prerequisite for GAP-CORE-04 `handoff()`)
+- `createThread` orchestration method can be built in a future iteration atop these primitives

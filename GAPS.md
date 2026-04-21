@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 4)
+> **Last updated:** 2026-04-21 (iteration 6)
 > **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`.
 
 ## How to Read This Document
@@ -52,7 +52,6 @@
 | GAP-TOOL-02 | `get_diagnostics` | LSP diagnostics (errors/warnings) for a file or directory. |
 | GAP-TOOL-03 | `oracle` | Internal reasoning/planning tool. |
 | GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
-| GAP-TOOL-05 | `restore_snapshot` tool spec | Snapshot utilities exist in `auto-snapshot.ts` but no tool spec wraps them. |
 | GAP-TOOL-06 | `shell_command` (subagent) | Alternate Bash tool for subagents with `workdir`/`login`/`timeout_ms` params. |
 
 ### TUI
@@ -82,7 +81,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CORE-04 | ThreadWorkerService missing `handoff`/`seedThreadMessages` | Amp's `QWT.seedThreadMessages()`, `applyParentRelationship()`, `handoff()` not implemented. Handoff thread creation is broken. |
+| GAP-CORE-04 | ThreadWorkerService missing `handoff`/`createThread` | Amp's `QWT.handoff()` and `createThread()` not implemented. (`seedThreadMessages` and `applyParentRelationship` now implemented; `handoff` requires `b4R` summarizer LLM call.) |
 
 ---
 
@@ -241,6 +240,12 @@ These were previously identified as gaps but are now implemented in flitter.
 ### CLI (from iteration 5)
 - **GAP-CLI-25 partial**: `/rename`, `/label`, `/archive` slash commands wired to mutate thread state via `threadStore.setCachedThread()` instead of printing info messages. 3 of 9 stubs now functional.
 
+### Tools (from iteration 6)
+- **GAP-TOOL-05**: `restore_snapshot` tool spec — wraps existing `auto-snapshot.ts` `restoreSnapshot()` function. Input: `{ path, treeOID }`. Added `restorePath` parameter to support file/directory-level restore (not just full workspace). Registered as static builtin.
+
+### Agent-Core (from iteration 6)
+- **GAP-CORE-04 partial**: `ThreadRelationshipSchema` extended with `role` ("child"/"parent") and `createdAt` fields. `ThreadWorkerService` gained `seedThreadMessages()` (atomic message seeding via `exclusiveSyncReadWriter`) and `applyParentRelationship()` (bidirectional child-parent relationship wiring with dedup). `handoff()` and `createThread()` deferred.
+
 ---
 
 ## Summary Statistics
@@ -249,10 +254,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 4 |
-| Medium | 23 |
+| Medium | 22 |
 | Low | 43 |
-| **Total open gaps** | **70** |
-| Closed gaps | 68+ |
+| **Total open gaps** | **69** |
+| Closed gaps | 70+ |
 
 ### Cross-Cutting Themes
 

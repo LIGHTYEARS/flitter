@@ -76,7 +76,7 @@ import type {
 } from "@flitter/data";
 import type { MCPServerManager, ModelInfo, ProviderName } from "@flitter/llm";
 import { getProviderForModel, registerModel } from "@flitter/llm";
-import { resolveModelName, type ThreadSnapshot } from "@flitter/schemas";
+import { type Message, resolveModelName, type ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
 // Direct imports to avoid worktree symlink resolution issues with new files
 import type { CliToolFilters } from "../../agent-core/src/tools/registry";
@@ -434,7 +434,74 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     // 9. ContextManager
     // 逆向: amp includes environment/tool context when building summaries
     // (chunk-002.js:20586, fwR collectContextBlocks)
+    // 逆向: amp compaction prompt nfR (chunk-005.js:16533-16555)
+    const COMPACTION_PROMPT =
+      `You have been working on the task described above but have not yet completed it. ` +
+      `Write a continuation summary that will allow you (or another instance of yourself) ` +
+      `to resume work efficiently in a future context window where the conversation history ` +
+      `will be replaced with this summary. Your summary should be structured, concise, and actionable. Include:\n` +
+      `1. Task Overview\nThe user's core request and success criteria\nAny clarifications or constraints they specified\n` +
+      `2. Current State\nWhat has been completed so far\nFiles created, modified, or analyzed (with paths if relevant)\n` +
+      `Key outputs or artifacts produced\n` +
+      `3. Important Discoveries\nTechnical constraints or requirements uncovered\nDecisions made and their rationale\n` +
+      `Errors encountered and how they were resolved\nWhat approaches were tried that didn't work (and why)\n` +
+      `4. Next Steps\nSpecific actions needed to complete the task\nAny blockers or open questions to resolve\n` +
+      `Priority order if multiple steps remain\n` +
+      `5. Context to Preserve\nUser preferences or style requirements\nDomain-specific details that aren't obvious\n` +
+      `Any promises made to the user\n` +
+      `Be concise but complete—err on the side of including information that would prevent duplicate work or repeated mistakes. ` +
+      `Write in a way that enables immediate resumption of the task.\n` +
+      `Wrap your summary in <summary></summary> tags.`;
+
     const contextManager = createContextManager({
+      compactFn: async (messages) => {
+        // 逆向: amp's Q5R uses same model as main conversation, non-streaming
+        // (chunk-005.js:87826-87855)
+        const config = configService.get();
+        const model = resolveModelName(config.settings);
+        const provider = getProviderForModel(model);
+
+        // Append the compaction prompt as a final user message
+        const messagesForLLM: Message[] = [
+          ...(messages as unknown as Message[]),
+          {
+            role: "user" as const,
+            messageId: -99,
+            content: [{ type: "text" as const, text: COMPACTION_PROMPT }],
+          } as unknown as Message,
+        ];
+
+        let fullText = "";
+        try {
+          for await (const delta of provider.stream({
+            model,
+            messages: messagesForLLM,
+            systemPrompt: [],
+            tools: [],
+            config,
+            signal: AbortSignal.timeout(120_000), // 2min timeout for compaction
+          })) {
+            const textBlock = delta.content.find(
+              (b): b is { type: "text"; text: string } => b.type === "text",
+            );
+            if (textBlock) fullText = textBlock.text;
+          }
+        } catch (err) {
+          log.error("Compaction LLM call failed", { error: err });
+          // Return empty to signal failure — ContextManager will skip compaction
+          return "";
+        }
+
+        // Extract <summary>…</summary> if present, else return full text
+        const match = fullText.match(/<summary>([\s\S]*?)<\/summary>/);
+        const summary = match ? match[1].trim() : fullText.trim();
+        log.info("Compaction summary generated", {
+          model,
+          inputMessages: messages.length,
+          summaryLength: summary.length,
+        });
+        return summary;
+      },
       getSystemContext: async () => {
         try {
           const config = configService.get();
@@ -838,6 +905,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       container.createThreadWorker(threadId),
     );
     container.threadWorkerService = threadWorkerService;
+    // Wire ThreadStore into ThreadWorkerService for seedThreadMessages / applyParentRelationship
+    // 逆向: amp QWT receives deps (including threadStore) in method calls
+    threadWorkerService.setThreadStore(threadStore);
     disposables.push({ dispose: () => threadWorkerService.disposeAll() });
     log.info("ThreadWorkerService created");
 

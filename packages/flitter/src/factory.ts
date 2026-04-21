@@ -15,6 +15,7 @@
 
 import type { PermissionEngineOpts } from "@flitter/agent-core";
 import {
+  ApplyPatchTool,
   BashTool,
   createDeleteFileTool,
   createReadMcpResourceTool,
@@ -27,6 +28,7 @@ import {
   GrepTool,
   PermissionEngine,
   ReadTool,
+  RestoreSnapshotTool,
   ToolRegistry,
   WriteTool,
 } from "@flitter/agent-core";
@@ -107,17 +109,19 @@ export function createToolRegistry(): ToolRegistry {
 }
 
 /**
- * 注册 7 个内置工具 (ToolSpec 常量对象)
- * 逆向: cFT 中注册代码 (Read/Write/Edit/Bash/Grep/Glob/FuzzyFind)
+ * 注册 8 个内置工具 (ToolSpec 常量对象)
+ * 逆向: cFT 中注册代码 (Read/Write/Edit/Bash/Grep/Glob/FuzzyFind/ApplyPatch)
  */
 export function registerBuiltinTools(registry: ToolRegistry): void {
   registry.register(ReadTool);
   registry.register(WriteTool);
   registry.register(EditTool);
+  registry.register(ApplyPatchTool);
   registry.register(BashTool);
   registry.register(GrepTool);
   registry.register(GlobTool);
   registry.register(FuzzyFindTool);
+  registry.register(RestoreSnapshotTool);
 }
 
 /**
@@ -203,8 +207,11 @@ export function createThreadPersistence(opts: ContainerOptions): ThreadPersisten
  */
 export function createContextManager(opts: Partial<ContextManagerOptions> = {}): ContextManager {
   const managerOpts: ContextManagerOptions = {
-    // compactFn 由上层提供 (ThreadWorker 连接 LLM)
-    compactFn: async () => "",
+    // compactFn MUST be provided by container.ts with a real LLM call.
+    // This empty fallback exists only to satisfy the type — if it fires,
+    // compaction produces an empty summary (ContextManager treats "" as no-op).
+    // 逆向: amp wires compactFn to a non-streaming LLM call (chunk-005.js:87826)
+    compactFn: opts.compactFn ?? (async () => ""),
     ...opts,
   };
   return new ContextManager(managerOpts);

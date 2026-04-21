@@ -26,8 +26,32 @@
  *   ```
  */
 
+import type { ThreadMessage, ThreadRelationship, ThreadSnapshot } from "@flitter/schemas";
 import { createLogger } from "@flitter/util";
 import type { ThreadWorker } from "./thread-worker";
+
+/**
+ * Interface for the ThreadStore subset that ThreadWorkerService needs.
+ * Avoids importing the full ThreadStore class to prevent circular deps.
+ *
+ * 逆向: amp QWT accesses threadStore via deps (T argument to methods).
+ */
+export interface ThreadStoreForService {
+  getThreadSnapshot(id: string): ThreadSnapshot | undefined;
+  setCachedThread(
+    thread: ThreadSnapshot,
+    opts?: { scheduleUpload?: boolean },
+  ): { getValue(): ThreadSnapshot };
+  exclusiveSyncReadWriter(
+    threadId: string,
+    opts?: { scheduleUpload?: boolean },
+  ): {
+    read(): ThreadSnapshot;
+    write(thread: ThreadSnapshot): void;
+    update(fn: (draft: ThreadSnapshot) => Partial<ThreadSnapshot> | void): ThreadSnapshot;
+    asyncDispose(): Promise<void>;
+  };
+}
 
 const log = createLogger("thread-worker-service");
 
@@ -52,8 +76,23 @@ export class ThreadWorkerService {
   /** Factory for creating new workers */
   private readonly factory: ThreadWorkerFactory;
 
+  /**
+   * Optional thread store — needed for seedThreadMessages / applyParentRelationship.
+   * Wired via setThreadStore() after construction to avoid circular dependencies.
+   * 逆向: amp QWT receives threadStore via deps passed to each method.
+   */
+  private threadStore: ThreadStoreForService | null = null;
+
   constructor(factory: ThreadWorkerFactory) {
     this.factory = factory;
+  }
+
+  /**
+   * Wire the thread store reference.
+   * Called by container after both ThreadStore and ThreadWorkerService are created.
+   */
+  setThreadStore(store: ThreadStoreForService): void {
+    this.threadStore = store;
   }
 
   /**
@@ -143,5 +182,153 @@ export class ThreadWorkerService {
   /** List all active thread IDs */
   get threadIds(): string[] {
     return Array.from(this.workers.keys());
+  }
+
+  // ─── Thread seeding & relationships ──────────────────────
+  // 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
+  //   seedThreadMessages (QWT.js:42-85)
+  //   applyParentRelationship (QWT.js:87-145)
+
+  /**
+   * Seed a thread with a pre-built message array before launching it.
+   *
+   * Uses exclusiveSyncReadWriter to atomically write a snapshot with
+   * the seeded messages, recomputing nextMessageId. Optionally stamps
+   * agentMode on every user message.
+   *
+   * 逆向: amp QWT.seedThreadMessages(deps, threadID, messages, agentMode?)
+   *   1. exclusiveSyncReadWriter(threadID)
+   *   2. Writes { ...snapshot, messages, nextMessageId: max(messageId)+1, agentMode?, v: v+1 }
+   *
+   * @param threadId - Target thread ID (must already exist in ThreadStore)
+   * @param messages - Messages to seed the thread with
+   * @param agentMode - Optional agent mode to stamp on user messages
+   */
+  async seedThreadMessages(
+    threadId: string,
+    messages: ThreadMessage[],
+    agentMode?: string,
+  ): Promise<void> {
+    if (!this.threadStore) {
+      throw new Error("ThreadWorkerService: threadStore not wired (call setThreadStore first)");
+    }
+
+    const rw = this.threadStore.exclusiveSyncReadWriter(threadId, { scheduleUpload: true });
+    try {
+      const current = rw.read();
+
+      // 逆向: amp recomputes nextMessageId as max(messageId)+1
+      let maxId = 0;
+      for (const msg of messages) {
+        if (msg.messageId > maxId) maxId = msg.messageId;
+      }
+
+      // 逆向: amp stamps agentMode on every user message if provided
+      const stampedMessages = agentMode
+        ? messages.map((m) => (m.role === "user" ? { ...m, agentMode } : m))
+        : messages;
+
+      rw.write({
+        ...current,
+        messages: stampedMessages,
+        nextMessageId: maxId + 1,
+        v: current.v + 1,
+      });
+
+      log.info("Seeded thread with messages", {
+        threadId,
+        messageCount: messages.length,
+        agentMode,
+      });
+    } finally {
+      await rw.asyncDispose();
+    }
+  }
+
+  /**
+   * Apply a bidirectional parent-child relationship between two threads.
+   *
+   * Sends a "child" relationship to the child thread and a "parent"
+   * relationship to the parent thread. Deduplicates on (threadID, type, role).
+   *
+   * 逆向: amp QWT.applyParentRelationship(deps, childWorker, childThreadID, parentSpec)
+   *   1. Send { type: "relationship", relationship: { role: "child", ... } } to child worker
+   *   2. If parent worker is running, send { role: "parent" } via worker.handle()
+   *   3. Otherwise, write directly via exclusiveSyncReadWriter
+   *
+   * @param childThreadId - The child thread ID
+   * @param parentThreadId - The parent thread ID
+   * @param type - Relationship type (default: "handoff")
+   */
+  async applyParentRelationship(
+    childThreadId: string,
+    parentThreadId: string,
+    type: "handoff" = "handoff",
+  ): Promise<void> {
+    if (!this.threadStore) {
+      throw new Error("ThreadWorkerService: threadStore not wired (call setThreadStore first)");
+    }
+
+    const now = Date.now();
+
+    // Child side: add "child" relationship pointing to parent
+    const childRelationship: ThreadRelationship = {
+      threadID: parentThreadId,
+      type,
+      role: "child",
+      createdAt: now,
+    };
+    await this.addRelationshipToThread(childThreadId, childRelationship);
+
+    // Parent side: add "parent" relationship pointing to child
+    const parentRelationship: ThreadRelationship = {
+      threadID: childThreadId,
+      type,
+      role: "parent",
+      createdAt: now,
+    };
+    await this.addRelationshipToThread(parentThreadId, parentRelationship);
+
+    log.info("Applied parent relationship", { childThreadId, parentThreadId, type });
+  }
+
+  /**
+   * Add a relationship to a thread, deduplicating on (threadID, type, role).
+   *
+   * 逆向: amp deduplicates by checking existing relationships before adding.
+   * Uses exclusiveSyncReadWriter if worker is not running, otherwise
+   * dispatches via worker.handle().
+   */
+  private async addRelationshipToThread(
+    threadId: string,
+    relationship: ThreadRelationship,
+  ): Promise<void> {
+    // 逆向: amp checks if worker is running; if so, dispatches delta
+    // For now, always use direct store write (worker delta handling can be added later)
+    const rw = this.threadStore!.exclusiveSyncReadWriter(threadId, {
+      scheduleUpload: true,
+    });
+    try {
+      const snapshot = rw.read();
+      const existing = snapshot.relationships ?? [];
+
+      // 逆向: dedup on (threadID, type, role)
+      const isDuplicate = existing.some(
+        (r) =>
+          r.threadID === relationship.threadID &&
+          r.type === relationship.type &&
+          r.role === relationship.role,
+      );
+
+      if (!isDuplicate) {
+        rw.write({
+          ...snapshot,
+          relationships: [...existing, relationship],
+          v: snapshot.v + 1,
+        });
+      }
+    } finally {
+      await rw.asyncDispose();
+    }
   }
 }

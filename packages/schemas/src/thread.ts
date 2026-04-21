@@ -21,6 +21,18 @@ export type GuidanceFileRef = z.infer<typeof GuidanceFileRefSchema>;
 export const ThreadRelationshipSchema = z.object({
   threadID: z.string(),
   type: z.literal("handoff"),
+  /**
+   * Role in the parent-child relationship.
+   * 逆向: amp-cli-reversed/modules/1246_ThreadWorkerService_QWT.js
+   *   applyParentRelationship sends { role: "child" } to child, { role: "parent" } to parent.
+   *   Deduplication key: (threadID, type, role).
+   */
+  role: z.enum(["child", "parent"]).optional(),
+  /**
+   * Timestamp when the relationship was created.
+   * 逆向: amp relationship deltas carry createdAt for ordering.
+   */
+  createdAt: z.number().optional(),
   messageIndex: z.number().optional(),
   blockIndex: z.number().optional(),
   comment: z.string().optional(),

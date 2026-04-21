@@ -517,3 +517,34 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - `format_file` enables agents to auto-format code after edits (prettier, biome, gofmt, rustfmt, ruff)
 - `threads continue --last` provides a quick path to resume work without a thread picker
 - 39 new tests (15 shell_command + 20 format_file + 4 threads continue --last), 0 TypeScript errors
+
+## ADR-021: Iteration 16 — todo_write, oracle, threads aliases, --include-archived
+
+**Date:** 2026-04-21
+**Status:** Accepted
+**Context:** Iteration 16 targeted 4 gaps: 2 tools (todo_write, oracle) and 2 CLI improvements (thread aliases, include-archived). Research agents investigated all 4 candidates plus oracle/librarian internals. The selection balanced two medium-effort tool implementations with two small CLI polish items.
+
+| Gap | Domain | Effort | Selected? |
+|-----|--------|--------|-----------|
+| GAP-TOOL-15 (todo_write) | Tools | Small-medium | **Yes** — stateless no-op tool, clear amp reference (O0T) |
+| GAP-TOOL-03 (oracle) | Tools | Medium | **Yes** — subagent tool, follows Task/finder pattern |
+| GAP-CLI-19 (threads aliases) | CLI | Small | **Yes** — pure .alias() calls |
+| GAP-CLI-11 (--include-archived) | CLI | Small | **Yes** — backend already existed from DATA-17 |
+
+### Decisions
+
+1. **Stateless Todo Model (TOOL-15)**: Following amp's design, `todo_write` is a pure no-op tool — execution returns "Todos updated." immediately, and the actual state lives in the conversation history as tool_use blocks. `getTodosFromThread()` scans backward through thread messages matching amp's `O0T` (modules/1601), stopping at summary boundaries (info messages with `summary.type === "message"`). This avoids any persistence layer — the thread IS the store. `todo_read` reads from `ToolContext.todos` which is set by `ThreadWorker` using the scanner.
+
+2. **Oracle as SubAgentManager Consumer (TOOL-03)**: Rather than implementing a new subagent runner, oracle reuses the existing `SubAgentManager.spawn()` with `type: "oracle"`, which already maps to the correct tool patterns via `SUBAGENT_TYPE_REGISTRY`. The `buildOraclePrompt()` function mirrors amp's `EVR` (modules/0050): combines task + context + file list + parent thread reference. Oracle-specific model override (`internal.model.oracle` → GPT-5.4 default) and reasoning effort (`internal.oracleReasoningEffort`) are noted but not yet wired into the spawn call — they require model override support in SubAgentManager which will be a future enhancement.
+
+3. **Thread Alias Subset (CLI-19)**: Only aliases for existing commands were added: `t`/`thread` (threads group), `n` (new), `l`/`ls` (list). Aliases for commands that don't exist in flitter (`v` for visibility, `s` for share, `f` for fork) were not added to avoid dead-end commands.
+
+4. **Type-Safe Include-Archived (CLI-11)**: The flag was already flowing through via an unsafe `as unknown as Record<string, unknown>` cast from a previous iteration. This iteration properly types it in `ThreadsListOptions` and passes it through `main.ts` explicitly, removing the cast.
+
+### Consequences
+
+- LLMs can now track progress with `todo_write`/`todo_read` — the TUI can scan thread history to render todo lists
+- Oracle subagent enables senior-engineering advice from GPT-5.4 (or configurable model) for architecture, code review, and debugging
+- `flitter t l --include-archived` is now a properly typed path from CLI to data layer
+- 47 new tests (23 todo_write + 22 oracle + 2 include-archived), 0 TypeScript errors
+- Total: 5307 tests passing across 295 files

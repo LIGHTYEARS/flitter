@@ -235,6 +235,46 @@ describe("handleThreadsList", () => {
     assert.equal(process.exitCode, 1);
     assert.ok(output.stderr.join("").includes("ThreadStore not available"));
   });
+
+  it("should exclude archived threads by default", async () => {
+    const { store, entriesSubject } = createMockThreadStore();
+    entriesSubject.next([
+      { id: "active-1", title: "Active Thread", userLastInteractedAt: 1700000000000 },
+      {
+        id: "archived-1",
+        title: "Archived Thread",
+        userLastInteractedAt: 1700000000000,
+        archived: true,
+      },
+    ]);
+    await handleThreadsList({ threadStore: store }, ctx, {
+      limit: "20",
+      format: "json",
+    });
+    const parsed = JSON.parse(output.stdout.join(""));
+    assert.equal(parsed.length, 1);
+    assert.equal(parsed[0].id, "active-1");
+  });
+
+  it("should include archived threads when includeArchived is true", async () => {
+    const { store, entriesSubject } = createMockThreadStore();
+    entriesSubject.next([
+      { id: "active-1", title: "Active Thread", userLastInteractedAt: 1700000000000 },
+      {
+        id: "archived-1",
+        title: "Archived Thread",
+        userLastInteractedAt: 1700000000000,
+        archived: true,
+      },
+    ]);
+    await handleThreadsList({ threadStore: store }, ctx, {
+      limit: "20",
+      format: "json",
+      includeArchived: true,
+    });
+    const parsed = JSON.parse(output.stdout.join(""));
+    assert.equal(parsed.length, 2);
+  });
 });
 
 // ─── handleThreadsNew 测试 ───────────────────────────────

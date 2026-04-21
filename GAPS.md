@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 15)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 15 targets: `shell_command` subagent tool, `format_file` tool, `threads continue --last` flag.
+> **Last updated:** 2026-04-21 (iteration 16)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 16 targets: `todo_write`/`todo_read` tools, `oracle` subagent tool, `threads` command aliases, `--include-archived` flag.
 
 ## How to Read This Document
 
@@ -55,7 +55,7 @@
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-TOOL-02 | ~~`get_diagnostics`~~ | **Closed (iteration 14)** — Shell-out based diagnostics tool: TypeScript (`tsc --noEmit`), Python (`ruff`), Go (`go vet`), Rust (`cargo check`). 10s timeout, normalized diagnostic format. Registered as builtin. |
-| GAP-TOOL-03 | `oracle` | Internal reasoning/planning tool. |
+| GAP-TOOL-03 | ~~`oracle`~~ | **Closed (iteration 16)** — Senior engineering advisor subagent tool. Params: task (required), context, files. Spawns oracle subagent via SubAgentManager with filtered toolset (Read, Grep, Glob, web_search, read_web_page, read_thread, find_thread). Prompt builder matches amp's EVR. disableTimeout, no resource conflicts. Registered in container.ts. |
 | GAP-TOOL-04 | `librarian` | Code/doc search orchestrator — meta-search above finder/grep. |
 | GAP-TOOL-06 | ~~`shell_command` (subagent)~~ | **Closed (iteration 15)** — Alternate Bash tool for subagents with `command`, `workdir`, `login`, `timeout_ms` params. Maps to Bash execution via `preprocessArgs`. Registered as builtin. |
 | GAP-TOOL-27 | `look_at` tool missing | AI-powered file analysis for PDFs/images/media. Params: `path`, `objective`, `context` (required), `referenceFiles` (optional). Multimodal analysis capability. |
@@ -98,7 +98,7 @@
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** — `--last` flag on `threads continue` resolves most recent thread via `listRecentThreadIds(1)` without picker. Thread ID argument now optional. Alias `c` added. |
-| GAP-CLI-11 | `threads --include-archived` | Filter flag for `threads list`. |
+| GAP-CLI-11 | ~~`threads --include-archived`~~ | **Closed (iteration 16)** — `--include-archived` flag on `threads list`. Typed in `ThreadsListOptions`, passed through `main.ts` to `observeThreadList()` (backend from DATA-17). Removed unsafe cast. |
 | GAP-CLI-12 | `threads archive --unarchive` | Restore archived threads. |
 | GAP-CLI-13 | `--visibility` (top-level) | Thread creation visibility flag. |
 | GAP-CLI-14 | `--remote` flag | Server-side async agent execution. Requires server infrastructure. |
@@ -106,7 +106,7 @@
 | GAP-CLI-16 | `--settings-file <path>` | Override settings file path. |
 | GAP-CLI-17 | `--log-level` / `--log-file` | Explicit log control flags (flitter only has `--verbose`). |
 | GAP-CLI-18 | `mcp oauth status` | OAuth status check for MCP servers. |
-| GAP-CLI-19 | `threads` aliases | Short aliases: `t`, `n`, `c`, `l`, `f`, `h`, `s`, `v`. |
+| GAP-CLI-19 | ~~`threads` aliases~~ | **Closed (iteration 16)** — Commander.js `.alias()` chains: threads→t/thread, new→n, list→l/ls. (continue→c, markdown→md, search→find, rename→r, handoff→h were already done.) Matches amp's chunk-005.js:4879 alias mapping. |
 | GAP-CLI-20 | `install` (hidden) | Install ripgrep to `$AMP_HOME/bin`. |
 | GAP-CLI-21 | `--jetbrains` / `--ide` flags | IDE integration toggles. |
 
@@ -118,7 +118,7 @@
 | GAP-TOOL-12 | `chart` | Chart generation from JSON data. |
 | GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
 | GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
-| GAP-TOOL-15 | `todo_write` | Write TODO annotations. |
+| GAP-TOOL-15 | ~~`todo_write`~~ | **Closed (iteration 16)** — Stateless todo tracking tool pair (todo_write + todo_read). todo_write: no-op execution, state lives in conversation history. Accepts `todos` array ({content, status}) or `content` string. todo_read: reads from ToolContext.todos. `getTodosFromThread()` scanner matches amp's O0T (backward scan, summary boundary). Registered as builtin. |
 | GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** — Auto-detects formatter by file extension + project config (biome.json). Supported: TypeScript/JS (prettier/biome), Python (ruff/black), Go (gofmt), Rust (rustfmt). 15s timeout. Registered as builtin. |
 | GAP-TOOL-17 | `look_at` | IDE-specific code navigation. |
 | GAP-TOOL-18 | `painter` | Image/diagram generation. |
@@ -294,10 +294,10 @@ These were previously identified as gaps but are now implemented in flitter.
 |----------|-------|
 | Critical | 0 |
 | High | 4 |
-| Medium | 12 |
+| Medium | 8 |
 | Low | 40 |
-| **Total open gaps** | **56** |
-| Closed gaps | 106+ |
+| **Total open gaps** | **52** |
+| Closed gaps | 110+ |
 
 ### Cross-Cutting Themes
 
@@ -334,3 +334,9 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-TOOL-06** (completed): `shell_command` subagent tool — thin wrapper around Bash execution with `command`, `workdir`, `login`, `timeout_ms` params. `preprocessArgs` maps `workdir→cwd`, `timeout_ms→timeout`, strips `login`, then delegates to `BashTool.preprocessArgs` for cd interception. Reuses `BashTool.execute`. 15 new tests.
 - **GAP-TOOL-16** (completed): `format_file` builtin tool — auto-detects formatter by file extension + project config (biome.json/biome.jsonc). Dispatches to: gofmt (Go), rustfmt (Rust), ruff/black (Python), biome (JS/TS with config), prettier (JS/TS default + generic fallback). 15s timeout. Ruff→black fallback on error. `detectFormatter()` exported for unit testing. 20 new tests.
 - **GAP-CLI-10** (completed): `threads continue --last` — thread ID argument changed from required `<id>` to optional `[id]`. `--last` flag resolves most recent thread via `listRecentThreadIds(1)`. Alias `c` added matching amp. 4 new tests (total 7 for continue).
+
+### Iteration 16 — todo_write, oracle, threads aliases, --include-archived
+- **GAP-TOOL-15** (completed): `todo_write`/`todo_read` tool pair — Stateless todo tracking. `todo_write` is a no-op executor; state persists in conversation history. Accepts `{todos: Array<{content, status}>}` or `{content: string}` fallback. `getTodosFromThread()` scanner matches amp's `O0T` (backward scan stopping at summary boundary). `todo_read` reads from `ToolContext.todos`. Both registered as builtins. 23 new tests.
+- **GAP-TOOL-03** (completed): `oracle` subagent tool — Senior engineering advisor spawned via `SubAgentManager.spawn({type: "oracle"})`. Params: `task` (required), `context`, `files`. `buildOraclePrompt()` matches amp's `EVR`. `disableTimeout: true`, empty `resourceKeys`. Restricted to read-only tools (Read, Grep, Glob, web_search, read_web_page, read_thread, find_thread). Registered in `container.ts` alongside finder/code_review. 22 new tests.
+- **GAP-CLI-19** (completed): `threads` command aliases — Commander.js `.alias()` chains: threads→`t`/`thread`, new→`n`, list→`l`/`ls`. Matches amp's chunk-005.js:4879 mapping. (continue→c, markdown→md, search→find, rename→r, handoff→h were already done in prior iterations.)
+- **GAP-CLI-11** (completed): `threads --include-archived` flag — `.option("--include-archived")` added to `threads list` in `program.ts`. `ThreadsListOptions.includeArchived?: boolean` properly typed. Unsafe `as unknown as Record<string, unknown>` cast removed from `handleThreadsList`. Passed through `main.ts`. Backend `observeThreadList({includeArchived})` already implemented (DATA-17). 2 new tests.

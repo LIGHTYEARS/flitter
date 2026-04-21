@@ -301,6 +301,7 @@ export async function main(opts?: MainOptions): Promise<void> {
           await handleThreadsList({ threadStore: c.threadStore }, ctx, {
             limit: (cmdOpts?.limit as string) ?? "20",
             format: (cmdOpts?.format as "table" | "json") ?? "table",
+            includeArchived: cmdOpts?.includeArchived === true,
           });
         });
       }

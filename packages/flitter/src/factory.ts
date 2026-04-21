@@ -27,6 +27,8 @@ import {
   ReadTool,
   RestoreSnapshotTool,
   ShellCommandTool,
+  TodoReadTool,
+  TodoWriteTool,
   ToolRegistry,
   WriteTool,
 } from "@flitter/agent-core";
@@ -194,6 +196,8 @@ export function registerBuiltinTools(registry: ToolRegistry): void {
   registry.register(RestoreSnapshotTool);
   registry.register(GetDiagnosticsTool);
   registry.register(ShellCommandTool);
+  registry.register(TodoWriteTool);
+  registry.register(TodoReadTool);
 }
 
 /**

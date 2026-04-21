@@ -105,16 +105,25 @@ export function createProgram(version: string): Command {
 
   // ─── Thread 管理 ────────────────────────────────────────
 
-  const threads = program.command("threads").description("Manage conversation threads");
+  // 逆向: amp-cli-reversed/chunk-005.js:4879 — threads group aliases
+  const threads = program
+    .command("threads")
+    .alias("t")
+    .alias("thread")
+    .description("Manage conversation threads");
 
   threads
     .command("list")
+    .alias("l")
+    .alias("ls")
     .description("List all threads")
     .option("--limit <n>", "Max threads to show", "20")
-    .option("--format <fmt>", "Output format (table|json)", "table");
+    .option("--format <fmt>", "Output format (table|json)", "table")
+    .option("--include-archived", "Include archived threads in the list");
 
   threads
     .command("new")
+    .alias("n")
     .description("Create a new thread")
     .option("--model <model>", "LLM model to use");
 

@@ -50,6 +50,8 @@ export interface ThreadsListOptions {
   limit: string;
   /** 输出格式 (table|json) */
   format: "table" | "json";
+  /** 包含已归档的 threads */
+  includeArchived?: boolean;
 }
 
 /** threads new 命令选项 */
@@ -81,7 +83,7 @@ export async function handleThreadsList(
   //   `observeThreadList({ includeArchived: t.includeArchived ?? false })`
   // Filters out subagent threads and optionally archived threads.
   const entries = threadStore.observeThreadList({
-    includeArchived: (options as unknown as Record<string, unknown>).includeArchived === true,
+    includeArchived: options.includeArchived === true,
   });
   if (entries.length === 0) {
     process.stdout.write("No threads found.\n");

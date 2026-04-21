@@ -184,6 +184,7 @@ export { GetDiagnosticsTool } from "./tools/builtin/get-diagnostics";
 export { GlobTool } from "./tools/builtin/glob";
 export { GrepTool } from "./tools/builtin/grep";
 // ─── Built-in Tools ────────────────────────────────────
+export { buildOraclePrompt, createOracleTool } from "./tools/builtin/oracle";
 export { ReadTool } from "./tools/builtin/read";
 export { createReadMcpResourceTool } from "./tools/builtin/read-mcp-resource";
 export { createReadThreadTool } from "./tools/builtin/read-thread";
@@ -193,6 +194,8 @@ export { ShellCommandTool } from "./tools/builtin/shell-command";
 export { createSkillTool } from "./tools/builtin/skill-tool";
 export { createTaskTool } from "./tools/builtin/task";
 export { createTaskListTool, TaskStore } from "./tools/builtin/task-list";
+export type { TodoItem } from "./tools/builtin/todo-write";
+export { getTodosFromThread, TodoReadTool, TodoWriteTool } from "./tools/builtin/todo-write";
 export { createUndoEditTool } from "./tools/builtin/undo-edit";
 export { WebSearchTool } from "./tools/builtin/web-search";
 export { WriteTool } from "./tools/builtin/write";

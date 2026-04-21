@@ -241,6 +241,194 @@ describe("ToolboxService", () => {
     assert.equal(service.getStatus().toolCount, 0);
   });
 
+  // ─── subscribeToConfigChanges ────────────────────────
+
+  it("subscribeToConfigChanges re-scans on path change", async () => {
+    // Set up first dir with a tool
+    const scriptPath1 = writeScript(testDir, "tool-a", "#!/bin/bash\n");
+    const dir2 = setupTestDir();
+    const scriptPath2 = writeScript(dir2, "tool-b", "#!/bin/bash\n");
+
+    const spawn = createScriptSpawn({
+      [scriptPath1]: { name: "tool-a", description: "Tool A" },
+      [scriptPath2]: { name: "tool-b", description: "Tool B" },
+    });
+
+    // Create a simple BehaviorSubject-like mock observable
+    type Config = { paths: string[] };
+    let subscriber: ((value: Config) => void) | null = null;
+    let unsubscribeCalled = false;
+    const observable = {
+      subscribe(fn: (value: Config) => void) {
+        subscriber = fn;
+        return {
+          unsubscribe() {
+            unsubscribeCalled = true;
+          },
+        };
+      },
+    };
+
+    const service = new ToolboxService(registry, [testDir], { spawn });
+    await service.scan();
+
+    assert.ok(registry.has("tb__tool-a"), "tool-a registered after initial scan");
+    assert.ok(!registry.has("tb__tool-b"), "tool-b not yet registered");
+
+    // Wire up config subscription
+    service.subscribeToConfigChanges(observable, (cfg) => cfg.paths);
+
+    // Initial emission — should be skipped (no re-scan)
+    subscriber!({ paths: [testDir] });
+    // Give any async scan time to run (it shouldn't)
+    await new Promise((r) => setImmediate(r));
+    assert.ok(!registry.has("tb__tool-b"), "no re-scan on first emission");
+
+    // Now emit a changed path
+    subscriber!({ paths: [dir2] });
+    // Wait for async scan to complete
+    await new Promise((r) => setTimeout(r, 50));
+
+    assert.ok(!registry.has("tb__tool-a"), "tool-a unregistered after path change");
+    assert.ok(registry.has("tb__tool-b"), "tool-b registered after path change");
+
+    fs.rmSync(dir2, { recursive: true, force: true });
+  });
+
+  it("subscribeToConfigChanges skips first emission", async () => {
+    const spawn = createScriptSpawn({});
+    const service = new ToolboxService(registry, [], { spawn });
+
+    let scanCallCount = 0;
+    const originalScan = service.scan.bind(service);
+    service.scan = async () => {
+      scanCallCount++;
+      return originalScan();
+    };
+
+    // Do the initial scan manually (simulating startup)
+    await service.scan();
+    const initialScanCount = scanCallCount;
+
+    type Config = { paths: string[] };
+    let subscriber: ((value: Config) => void) | null = null;
+    const observable = {
+      subscribe(fn: (value: Config) => void) {
+        subscriber = fn;
+        return { unsubscribe() {} };
+      },
+    };
+
+    service.subscribeToConfigChanges(observable, (cfg) => cfg.paths);
+
+    // First emission should be skipped
+    subscriber!({ paths: ["/some/path"] });
+    await new Promise((r) => setImmediate(r));
+
+    assert.equal(scanCallCount, initialScanCount, "no re-scan on first emission");
+  });
+
+  it("subscribeToConfigChanges uses distinctUntilChanged", async () => {
+    const spawn = createScriptSpawn({});
+    const service = new ToolboxService(registry, [], { spawn });
+
+    let scanCallCount = 0;
+    const originalScan = service.scan.bind(service);
+    service.scan = async () => {
+      scanCallCount++;
+      return originalScan();
+    };
+
+    await service.scan();
+    const initialScanCount = scanCallCount;
+
+    type Config = { paths: string[] };
+    let subscriber: ((value: Config) => void) | null = null;
+    const observable = {
+      subscribe(fn: (value: Config) => void) {
+        subscriber = fn;
+        return { unsubscribe() {} };
+      },
+    };
+
+    service.subscribeToConfigChanges(observable, (cfg) => cfg.paths);
+
+    // Seed emission — skipped
+    subscriber!({ paths: ["/path/a"] });
+    await new Promise((r) => setImmediate(r));
+
+    // Same paths — should not trigger re-scan
+    subscriber!({ paths: ["/path/a"] });
+    await new Promise((r) => setImmediate(r));
+
+    assert.equal(scanCallCount, initialScanCount, "no re-scan for duplicate paths");
+
+    // Different paths — should trigger re-scan
+    subscriber!({ paths: ["/path/b"] });
+    await new Promise((r) => setTimeout(r, 50));
+
+    assert.equal(scanCallCount, initialScanCount + 1, "re-scan triggered for new paths");
+  });
+
+  it("dispose cleans up config subscription", async () => {
+    const spawn = createScriptSpawn({});
+    const service = new ToolboxService(registry, [], { spawn });
+
+    let unsubscribeCalled = false;
+    const observable = {
+      subscribe(_fn: (value: unknown) => void) {
+        return {
+          unsubscribe() {
+            unsubscribeCalled = true;
+          },
+        };
+      },
+    };
+
+    service.subscribeToConfigChanges(observable, () => []);
+
+    assert.equal(unsubscribeCalled, false, "unsubscribe not called yet");
+    service.dispose();
+    assert.equal(unsubscribeCalled, true, "unsubscribe called on dispose");
+  });
+
+  it("subscribeToConfigChanges updates internal paths on change", async () => {
+    const dir2 = setupTestDir();
+    const scriptPath = writeScript(dir2, "new-tool", "#!/bin/bash\n");
+
+    const spawn = createScriptSpawn({
+      [scriptPath]: { name: "new-tool", description: "New tool in new dir" },
+    });
+
+    const service = new ToolboxService(registry, [testDir], { spawn });
+    await service.scan();
+
+    assert.equal(service.getStatus().toolCount, 0, "no tools in initial empty dir");
+
+    type Config = { paths: string[] };
+    let subscriber: ((value: Config) => void) | null = null;
+    const observable = {
+      subscribe(fn: (value: Config) => void) {
+        subscriber = fn;
+        return { unsubscribe() {} };
+      },
+    };
+
+    service.subscribeToConfigChanges(observable, (cfg) => cfg.paths);
+
+    // Seed
+    subscriber!({ paths: [testDir] });
+
+    // Change to dir2 which has the new-tool
+    subscriber!({ paths: [dir2] });
+    await new Promise((r) => setTimeout(r, 50));
+
+    assert.ok(registry.has("tb__new-tool"), "new-tool registered after path update");
+    assert.equal(service.getStatus().toolCount, 1, "status reflects updated path scan");
+
+    fs.rmSync(dir2, { recursive: true, force: true });
+  });
+
   it("registered tool executes via ToolRegistry", async () => {
     const scriptPath = writeScript(testDir, "exec-tool", "#!/bin/bash\n");
 

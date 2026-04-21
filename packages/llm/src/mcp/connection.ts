@@ -12,6 +12,7 @@
 import { BehaviorSubject } from "@flitter/util";
 import type { MCPAuthProvider } from "./auth/types";
 import { createNotification, McpError, RequestManager } from "./protocol";
+import { createMCPTransport } from "./transport/factory";
 import type {
   ClientCapabilities,
   ImplementationInfo,
@@ -430,14 +431,15 @@ export class MCPConnection {
     }
   }
 
-  private _createTransport(_spec: MCPServerSpec): MCPTransport {
-    // Dynamic imports would be needed in production, but for now
-    // we throw if no createTransport is provided and there's no way
-    // to dynamically create transports
-    throw new Error(
-      "No transport factory provided. Pass createTransport in options, " +
-        "or use MCPConnection with a transport factory.",
-    );
+  private _createTransport(spec: MCPServerSpec): MCPTransport {
+    // 逆向: pPR() in modules/1795_unknown_pPR.js — transport selection
+    // Delegates to createMCPTransport which handles:
+    //   - URL specs: StreamableHTTP → SSE fallback
+    //   - Command specs: Stdio
+    return createMCPTransport(spec, {
+      authProvider: this._options.authProvider,
+      cwd: this._options.workingDirectory,
+    });
   }
 
   private _setupNotificationHandlers(client: MCPClient): void {

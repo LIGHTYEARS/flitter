@@ -820,3 +820,96 @@ describe("uploadThreadNow (GAP-DATA-02)", () => {
     await store.uploadThreadNow("nonexistent");
   });
 });
+
+// ──────────────────────────────────────────────────────
+//  invalidateThreadListCache (GAP-DATA-21)
+// ──────────────────────────────────────────────────────
+
+describe("invalidateThreadListCache (GAP-DATA-21)", () => {
+  it("resets threadEntriesLoaded — threadEntriesState emits null", async () => {
+    const store = new ThreadStore();
+    // Wire a simple remote that returns one entry
+    let listCallCount = 0;
+    const remote: ThreadRemoteTransport = {
+      ...createMockRemote(new Map()),
+      async listThreads() {
+        listCallCount++;
+        return [];
+      },
+    };
+    store.setRemote(remote);
+
+    // Load entries so threadEntriesLoaded becomes true
+    await store.ensureThreadEntriesLoaded();
+    // Confirm entries are non-null after load
+    assert.notEqual(store.observeThreadEntries().getValue(), null);
+
+    // Invalidate
+    store.invalidateThreadListCache();
+
+    // threadEntriesState must have been reset to null
+    assert.equal(
+      store.observeThreadEntries().getValue(),
+      null,
+      "threadEntriesState should be null after invalidate",
+    );
+  });
+
+  it("preserves locally cached threads after invalidate", () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-cached", messages: [makeUserMessage(1000)] });
+    store.setCachedThread(thread);
+
+    store.invalidateThreadListCache();
+
+    // The thread subject should still be accessible
+    const subject = store.getThread("t-cached");
+    assert.ok(subject, "getThread should still return the cached thread subject");
+    assert.equal(subject.getValue().id, "t-cached");
+  });
+
+  it("allows re-fetch from remote after invalidate", async () => {
+    const store = new ThreadStore();
+    let listCallCount = 0;
+    const remote: ThreadRemoteTransport = {
+      ...createMockRemote(new Map()),
+      async listThreads() {
+        listCallCount++;
+        return [];
+      },
+    };
+    store.setRemote(remote);
+
+    // First load
+    await store.ensureThreadEntriesLoaded();
+    assert.equal(listCallCount, 1, "Should have fetched once");
+
+    // Without invalidate, second call is a no-op
+    await store.ensureThreadEntriesLoaded();
+    assert.equal(listCallCount, 1, "Should not fetch again without invalidate");
+
+    // After invalidate, a new fetch should be triggered
+    store.invalidateThreadListCache();
+    await store.ensureThreadEntriesLoaded();
+    assert.equal(listCallCount, 2, "Should fetch again after invalidate");
+  });
+
+  it("rebuilds threadEntriesByID from cached snapshots", async () => {
+    const store = new ThreadStore();
+    // Seed a cached thread before invalidating
+    const thread = makeThread({ id: "t-rebuild", messages: [makeUserMessage(500)] });
+    store.setCachedThread(thread);
+
+    // Wire remote that returns nothing — so threadEntriesByID only comes from cache
+    store.setRemote(createMockRemote(new Map()));
+
+    store.invalidateThreadListCache();
+
+    // After re-loading, the cached thread should appear in entries
+    await store.ensureThreadEntriesLoaded();
+    const entries = store.observeThreadEntries().getValue();
+    assert.ok(entries);
+    const found = entries.find((e) => e.id === "t-rebuild");
+    assert.ok(found, "Cached thread should appear in entries after re-load");
+  });
+});

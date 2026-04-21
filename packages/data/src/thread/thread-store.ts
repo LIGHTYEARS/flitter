@@ -224,6 +224,22 @@ export class ThreadStore {
   }
 
   /**
+   * Reset the thread entries cache, forcing a fresh remote fetch on next
+   * ensureThreadEntriesLoaded() call.
+   *
+   * Preserves locally-cached thread snapshots but discards the remote entries index.
+   * 逆向: azT.invalidateThreadListCache (modules/1342_ThreadService_azT.js:297-299)
+   */
+  invalidateThreadListCache(): void {
+    // Rebuild entries from locally-cached snapshots only
+    const cached = this.threadEntriesFromCachedThreads();
+    this.threadEntriesByID = new Map(cached.map((e) => [e.id, e]));
+    this.threadEntriesLoaded = false;
+    this.threadEntriesLoadPromise = null;
+    this.threadEntriesState.next(null);
+  }
+
+  /**
    * 缓存线程快照 + 更新 ThreadEntry 索引
    * 从 azT.setCachedThread 翻译
    *

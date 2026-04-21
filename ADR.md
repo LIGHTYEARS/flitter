@@ -758,3 +758,34 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - 26 new tests (7 API key + 5 compat + 6 models + 5 re-eval + 4 review), 5517 total passing, 0 type errors
 - 5 gaps closed: LLM-11, LLM-13, LLM-14, CORE-22, CLI-29
 - Total open gaps: 103 (down from 108)
+
+## ADR-024: Iteration 24 — Offstage widget, MCP transport fallback, skill paths, toolbox re-scan, invalidateThreadListCache
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 24 targets 5 implementable gaps across 4 domains (TUI, LLM, CORE, DATA) plus 2 gaps found already closed (LLM-17, CLI-30). Focus on achievable High/Medium gaps. Remaining Critical gaps (TUI-18, TUI-19) deferred — they require the full VT query parser.
+
+### Decisions
+
+1. **Offstage widget (TUI-23)**: Amp has `sQ` RenderObject + `cQ` Widget (layout_widgets.js:1587-1640, misc_utils.js:2300-2318). `RenderOffstage` extends `RenderBox` — when `offstage=true`: all 4 intrinsic measurements return 0, `performLayout` sets size to 0×0 but still lays out child (preserving state), `paint()` and `hitTest()` are no-ops. When `offstage=false`: transparent pass-through. `Offstage` widget defaults to `offstage=true` matching amp's `cQ`. Used by navigator/overlay system to hide background pages.
+
+2. **MCP transport fallback factory (LLM-12)**: Amp's `pPR` (modules/1795) selects transport by spec type: URL→`nPR`, command→`APR`. `nPR` (modules/1792) tries `StreamableHTTPClientTransport` first; on any failure, closes it and retries with `SSEClientTransport` (JD). Created `FallbackURLTransport` class that encapsulates this try/catch pattern inside `start()`. `createMCPTransport(spec)` is the public factory. Wired into `MCPConnection._createTransport()` replacing the previous stub that threw.
+
+3. **Skill discovery paths expanded (DATA-20)**: Amp's `P7T` (modules/1847) discovers skills from 7+ locations. Expanded `SkillService.getDiscoveryPaths()` from 2 to 8 paths: (1) `{workspaceRoot}/.flitter/skills`, (2) `~/.config/agents/skills`, (3) ancestor `.agents/skills`, (4) ancestor `.claude/skills` (unless disabled), (5) `~/.claude/skills`, (6) `~/.claude/plugins/cache`, (7) `userConfigDir/skills`, (8) `skills.path` config. Added `settings` option to `SkillServiceOptions` for `skills.disableClaudeCodeSkills` and `skills.path`. Added `getAncestorPaths()` helper.
+
+4. **Toolbox reactive re-scan (CORE-20)**: Amp's `S5R` subscribes to config changes and re-registers tools when `toolbox.path` changes. Added `ToolboxService.subscribeToConfigChanges<T>(configObservable, extractPaths)` — generic, decoupled from config system. Uses DnR(1) skip-first + distinctUntilChanged (JSON key comparison). Updates internal paths and triggers `scan()`. Changed `paths` from `readonly` to mutable. Updated `dispose()` to clean up subscription.
+
+5. **invalidateThreadListCache (DATA-21)**: Amp's `azT.invalidateThreadListCache()` (1342:297-299) resets `threadEntriesByID` to cached-only entries, sets `threadEntriesLoaded=false`, clears `threadEntriesLoadPromise`, emits `null` on `threadEntriesState`. Key adaptation: amp's `threadEntriesFromCachedThreads()` returns `Map<string, ThreadEntry>`, Flitter's returns `ThreadEntry[]` — converted via `new Map(cached.map(e => [e.id, e]))`.
+
+6. **LLM-17 and CLI-30 found pre-existing**: Exploration revealed `resolveReasoningEffort()` already fully implements per-provider effort defaults. CLI-30 (`--settings-file`) was an internal debug option in amp, not a public CLI feature.
+
+### Consequences
+
+- Offstage widget enables navigator pattern (hide background while showing foreground)
+- MCP connections no longer require external transport factory — works out of the box
+- Skills discoverable from 8 locations including cross-tool `.agents/` and Claude Code compat
+- Toolbox responds to config changes at runtime (no restart needed)
+- Thread list cache can be invalidated for fresh remote fetch
+- 57 new tests (25 Offstage + 13 MCP + 9 skill + 4 cache + 5 toolbox + 1 misc), 5574 total passing, 0 type errors
+- 7 gaps closed: TUI-23, LLM-12, DATA-20, DATA-21, CORE-20, LLM-17, CLI-30
+- Total open gaps: ~96 (down from 103)

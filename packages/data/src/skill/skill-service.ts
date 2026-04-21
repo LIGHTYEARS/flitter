@@ -15,6 +15,10 @@ export interface SkillServiceOptions {
   workspaceRoot: string | null;
   userConfigDir: string;
   debounceMs?: number;
+  /** Optional config getter for skills.path and skills.disableClaudeCodeSkills */
+  settings?: {
+    get(key: string): unknown;
+  };
 }
 
 export class SkillService {
@@ -25,6 +29,7 @@ export class SkillService {
   private workspaceRoot: string | null;
   private userConfigDir: string;
   private debounceMs: number;
+  private settings: { get(key: string): unknown } | null;
   private watchers: fs.FSWatcher[] = [];
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -32,19 +37,88 @@ export class SkillService {
     this.workspaceRoot = options.workspaceRoot;
     this.userConfigDir = options.userConfigDir;
     this.debounceMs = options.debounceMs ?? 500;
+    this.settings = options.settings ?? null;
   }
 
   /**
-   * Get discovery paths (KD-30):
-   * 1. {workspaceRoot}/.flitter/skills/
-   * 2. ~/.config/flitter/skills/ (userConfigDir/skills)
+   * Get discovery paths in priority order (KD-30, expanded to match amp P7T).
+   *
+   * Priority order:
+   * 1. {workspaceRoot}/.flitter/skills/ (project-local, highest priority)
+   * 2. ~/.config/agents/skills/ (global cross-tool agent skills)
+   * 3. {ancestors}/.agents/skills (ancestor .agents dirs walking up)
+   * 4. {ancestors}/.claude/skills (ancestor .claude dirs, unless disabled)
+   * 5. ~/.claude/skills (global Claude skills, unless disabled)
+   * 6. ~/.claude/plugins/cache (plugin skill cache, unless disabled)
+   * 7. ~/.config/flitter/skills/ (userConfigDir — global flitter skills)
+   * 8. skills.path config (custom colon-separated paths, lowest priority)
+   *
+   * 逆向: P7T() in modules/1847_unknown_P7T.js
    */
   getDiscoveryPaths(): string[] {
     const paths: string[] = [];
+    const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+
+    const disableClaudeSkills = this.settings?.get("skills.disableClaudeCodeSkills");
+
+    // 1. Project-local .flitter/skills
     if (this.workspaceRoot) {
       paths.push(path.join(this.workspaceRoot, ".flitter", "skills"));
     }
+
+    // 2. Global agent skills (~/.config/agents/skills)
+    if (home) {
+      paths.push(path.join(home, ".config", "agents", "skills"));
+    }
+
+    // 3. Ancestor .agents/skills dirs
+    paths.push(...this.getAncestorPaths(path.join(".agents", "skills")));
+
+    // 4. Ancestor .claude/skills dirs (unless disabled)
+    if (!disableClaudeSkills) {
+      paths.push(...this.getAncestorPaths(path.join(".claude", "skills")));
+    }
+
+    // 5. Global ~/.claude/skills (unless disabled)
+    if (!disableClaudeSkills && home) {
+      paths.push(path.join(home, ".claude", "skills"));
+    }
+
+    // 6. Global ~/.claude/plugins/cache (unless disabled)
+    if (!disableClaudeSkills && home) {
+      paths.push(path.join(home, ".claude", "plugins", "cache"));
+    }
+
+    // 7. Global flitter skills (userConfigDir/skills)
     paths.push(path.join(this.userConfigDir, "skills"));
+
+    // 8. skills.path custom paths (colon-separated)
+    const customPaths = this.settings?.get("skills.path");
+    if (typeof customPaths === "string" && customPaths.length > 0) {
+      for (const p of customPaths.split(":")) {
+        const trimmed = p.trim();
+        if (trimmed) paths.push(trimmed);
+      }
+    }
+
+    return paths;
+  }
+
+  /**
+   * Walk up from workspaceRoot to root, collecting paths that have the given subdirectory.
+   * 逆向: P7T walks workspace ancestors for .agents/skills and .claude/skills
+   */
+  private getAncestorPaths(subdir: string): string[] {
+    if (!this.workspaceRoot) return [];
+    const paths: string[] = [];
+    let dir = this.workspaceRoot;
+    while (true) {
+      const candidate = path.join(dir, subdir);
+      paths.push(candidate);
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
     return paths;
   }
 

@@ -37,6 +37,7 @@ export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
 export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";
 export type { NotificationType } from "./widgets/notification-banner.js";
 export { NotificationBanner } from "./widgets/notification-banner.js";
+export { Offstage, RenderOffstage } from "./widgets/offstage.js";
 export type { OverlapCrossAxisAlignment } from "./widgets/overlap-column.js";
 export { OverlapColumn, RenderOverlapColumn } from "./widgets/overlap-column.js";
 export { Padding } from "./widgets/padding.js";

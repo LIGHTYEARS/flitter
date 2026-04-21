@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { afterEach, describe, it } from "node:test";
+import { afterEach, beforeEach, describe, it } from "node:test";
 import {
   loadSkill,
   parseSkillFrontmatter,
@@ -216,10 +216,166 @@ describe("scanSkillFiles", () => {
 });
 
 // ---------------------------------------------------------------------------
+// SkillService.getDiscoveryPaths
+// ---------------------------------------------------------------------------
+
+describe("SkillService.getDiscoveryPaths", () => {
+  const origHome = process.env.HOME;
+
+  afterEach(() => {
+    if (origHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = origHome;
+    }
+  });
+
+  it("includes .flitter/skills as first path when workspaceRoot is set", () => {
+    const workspace = "/some/project";
+    const userConfig = "/home/user/.config/flitter";
+    process.env.HOME = "/home/user";
+    const service = new SkillService({ workspaceRoot: workspace, userConfigDir: userConfig });
+    const paths = service.getDiscoveryPaths();
+    assert.equal(paths[0], path.join(workspace, ".flitter", "skills"));
+  });
+
+  it("includes global ~/.config/agents/skills", () => {
+    process.env.HOME = "/home/user";
+    const service = new SkillService({
+      workspaceRoot: "/some/project",
+      userConfigDir: "/home/user/.config/flitter",
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes("/home/user/.config/agents/skills"));
+  });
+
+  it("includes ancestor .agents/skills paths walking up from workspaceRoot", () => {
+    process.env.HOME = "/home/user";
+    const workspace = "/home/user/projects/myapp";
+    const service = new SkillService({
+      workspaceRoot: workspace,
+      userConfigDir: "/home/user/.config/flitter",
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes(path.join(workspace, ".agents", "skills")));
+    assert.ok(paths.includes(path.join("/home/user/projects", ".agents", "skills")));
+    assert.ok(paths.includes(path.join("/home/user", ".agents", "skills")));
+  });
+
+  it("includes ancestor .claude/skills paths when not disabled", () => {
+    process.env.HOME = "/home/user";
+    const workspace = "/home/user/projects/myapp";
+    const service = new SkillService({
+      workspaceRoot: workspace,
+      userConfigDir: "/home/user/.config/flitter",
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes(path.join(workspace, ".claude", "skills")));
+    assert.ok(paths.includes(path.join("/home/user/projects", ".claude", "skills")));
+  });
+
+  it("excludes all .claude paths when skills.disableClaudeCodeSkills is set", () => {
+    process.env.HOME = "/home/user";
+    const workspace = "/home/user/projects/myapp";
+    const service = new SkillService({
+      workspaceRoot: workspace,
+      userConfigDir: "/home/user/.config/flitter",
+      settings: {
+        get(key: string) {
+          if (key === "skills.disableClaudeCodeSkills") return true;
+          return undefined;
+        },
+      },
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(!paths.some((p) => p.includes(".claude")));
+  });
+
+  it("includes global ~/.claude/skills when not disabled", () => {
+    process.env.HOME = "/home/user";
+    const service = new SkillService({
+      workspaceRoot: "/some/project",
+      userConfigDir: "/home/user/.config/flitter",
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes("/home/user/.claude/skills"));
+  });
+
+  it("includes global ~/.claude/plugins/cache when not disabled", () => {
+    process.env.HOME = "/home/user";
+    const service = new SkillService({
+      workspaceRoot: "/some/project",
+      userConfigDir: "/home/user/.config/flitter",
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes("/home/user/.claude/plugins/cache"));
+  });
+
+  it("includes userConfigDir/skills", () => {
+    process.env.HOME = "/home/user";
+    const userConfig = "/home/user/.config/flitter";
+    const service = new SkillService({
+      workspaceRoot: "/some/project",
+      userConfigDir: userConfig,
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes(path.join(userConfig, "skills")));
+  });
+
+  it("includes custom skills.path entries (colon-separated)", () => {
+    process.env.HOME = "/home/user";
+    const service = new SkillService({
+      workspaceRoot: "/some/project",
+      userConfigDir: "/home/user/.config/flitter",
+      settings: {
+        get(key: string) {
+          if (key === "skills.path") return "/custom/a:/custom/b";
+          return undefined;
+        },
+      },
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes("/custom/a"));
+    assert.ok(paths.includes("/custom/b"));
+  });
+
+  it("returns only userConfigDir/skills when workspaceRoot is null (no workspace paths)", () => {
+    process.env.HOME = "";
+    delete process.env.HOME;
+    delete process.env.USERPROFILE;
+    const userConfig = "/home/user/.config/flitter";
+    const service = new SkillService({
+      workspaceRoot: null,
+      userConfigDir: userConfig,
+    });
+    const paths = service.getDiscoveryPaths();
+    assert.ok(paths.includes(path.join(userConfig, "skills")));
+    // No workspace-relative paths
+    assert.ok(!paths.some((p) => p.includes(".flitter")));
+    assert.ok(!paths.some((p) => p.includes(".agents")));
+  });
+});
+
+// ---------------------------------------------------------------------------
 // SkillService.scan
 // ---------------------------------------------------------------------------
 
 describe("SkillService.scan", () => {
+  let savedHome: string | undefined;
+  let fakeHome: string;
+
+  // Use a fresh empty home dir so real ~/.claude/skills etc. don't bleed in
+  beforeEach(() => {
+    savedHome = process.env.HOME;
+    fakeHome = makeTmpDir();
+    process.env.HOME = fakeHome;
+  });
+
+  afterEach(() => {
+    if (savedHome === undefined) delete process.env.HOME;
+    else process.env.HOME = savedHome;
+  });
+
   it("discovers skills from workspace and user config paths", async () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
@@ -236,7 +392,6 @@ describe("SkillService.scan", () => {
     });
     const result = await service.scan();
 
-    assert.equal(result.skills.length, 2);
     const names = result.skills.map((s) => s.name);
     assert.ok(names.includes("alpha-skill"));
     assert.ok(names.includes("beta-skill"));
@@ -264,9 +419,10 @@ describe("SkillService.scan", () => {
     });
     const result = await service.scan();
 
-    // Should only have one skill, the project version (discovered first)
-    assert.equal(result.skills.length, 1);
-    assert.equal(result.skills[0]!.description, "Project version");
+    // Should contain the project version, not the global version
+    const mySkill = result.skills.find((s) => s.name === "my-skill");
+    assert.ok(mySkill, "my-skill should be present");
+    assert.equal(mySkill!.description, "Project version");
     assert.ok(result.warnings.some((w) => w.includes("Duplicate") && w.includes("my-skill")));
   });
 });
@@ -401,6 +557,18 @@ describe("SkillService.remove", () => {
 // ---------------------------------------------------------------------------
 
 describe("SkillService.list", () => {
+  let savedHome: string | undefined;
+
+  beforeEach(() => {
+    savedHome = process.env.HOME;
+    process.env.HOME = makeTmpDir();
+  });
+
+  afterEach(() => {
+    if (savedHome === undefined) delete process.env.HOME;
+    else process.env.HOME = savedHome;
+  });
+
   it("returns frontmatters of all scanned skills", async () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
@@ -415,9 +583,9 @@ describe("SkillService.list", () => {
     await service.scan();
 
     const frontmatters = service.list();
-    assert.equal(frontmatters.length, 1);
-    assert.equal(frontmatters[0]!.name, "list-skill");
-    assert.equal(frontmatters[0]!.description, "Listed");
+    const listSkill = frontmatters.find((f) => f.name === "list-skill");
+    assert.ok(listSkill, "list-skill should be in frontmatters");
+    assert.equal(listSkill!.description, "Listed");
   });
 });
 

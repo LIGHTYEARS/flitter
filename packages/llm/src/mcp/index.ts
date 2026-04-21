@@ -56,6 +56,8 @@ export {
   truncateToolResult,
 } from "./tools";
 // ─── Transport ────────────────────────────────────────────
+export type { TransportCreateResult, TransportFactoryOptions } from "./transport/factory";
+export { createMCPTransport } from "./transport/factory";
 export { ReadBuffer } from "./transport/read-buffer";
 export { SSETransport } from "./transport/sse";
 export { SSEEventParser } from "./transport/sse-parser";

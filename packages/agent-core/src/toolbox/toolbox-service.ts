@@ -50,9 +50,13 @@ export class ToolboxService {
   /** Injectable spawn function (for testing) */
   private spawn: SpawnFn | undefined;
 
+  /** Subscription cleanup for config change watching */
+  // 逆向: S5R registerToolsWithToolService() — `o.unsubscribe()` on dispose
+  private configSubscriptionDispose: (() => void) | null = null;
+
   constructor(
     private readonly toolRegistry: ToolRegistry,
-    private readonly paths: string[],
+    private paths: string[],
     options?: { spawn?: SpawnFn },
   ) {
     this.spawn = options?.spawn;
@@ -112,6 +116,11 @@ export class ToolboxService {
 
   /** Dispose all registrations */
   dispose(): void {
+    // Clean up config subscription first
+    // 逆向: registerToolsWithToolService dispose — `o.unsubscribe()`
+    this.configSubscriptionDispose?.();
+    this.configSubscriptionDispose = null;
+
     for (const reg of this.registrations.values()) {
       reg.dispose();
     }
@@ -120,7 +129,64 @@ export class ToolboxService {
     this.tools.clear();
   }
 
+  /**
+   * Subscribe to config changes and re-scan when toolbox paths change.
+   *
+   * The configObservable should emit the current config object whenever it changes.
+   * We extract toolbox paths from config and re-scan when they differ.
+   *
+   * 逆向: S5R watches config.pipe(map(paths), distinctUntilChanged) and calls
+   *        registerToolsWithToolService() on change. The `t = e.pipe(KS(300))`
+   *        (debounce 300ms) feeds `t.subscribe(...)` inside registerToolsWithToolService.
+   *        We skip the first emission (DnR(1)) because startup already called scan().
+   *
+   * @param configObservable - Observable-like with subscribe(callback) → { unsubscribe() }
+   * @param extractPaths - Function to extract toolbox paths from the emitted config value
+   */
+  subscribeToConfigChanges<T>(
+    configObservable: { subscribe(fn: (value: T) => void): { unsubscribe(): void } },
+    extractPaths: (config: T) => string[],
+  ): void {
+    // Clean up any previous subscription
+    this.configSubscriptionDispose?.();
+
+    let lastPathsKey: string | undefined;
+
+    const sub = configObservable.subscribe((config) => {
+      const newPaths = extractPaths(config);
+      const newKey = JSON.stringify(newPaths);
+
+      // Skip first emission — startup already called scan()
+      // 逆向: DnR(1) skips the seed value in amp's pipeline
+      if (lastPathsKey === undefined) {
+        lastPathsKey = newKey;
+        return;
+      }
+
+      // distinctUntilChanged — only re-scan when paths actually change
+      // 逆向: E9() in the config pipe performs deep equality on envPath + configPath
+      if (newKey === lastPathsKey) return;
+      lastPathsKey = newKey;
+
+      // Update paths and re-scan
+      this.updatePaths(newPaths);
+      this.scan().catch((err) => {
+        log.debug("Re-scan after config change failed", { error: err });
+      });
+    });
+
+    this.configSubscriptionDispose = () => sub.unsubscribe();
+  }
+
   // ── Internal ──────────────────────────────────────────
+
+  /**
+   * Update the toolbox paths. Called when config changes.
+   * Next scan() will use the new paths.
+   */
+  private updatePaths(newPaths: string[]): void {
+    this.paths = newPaths;
+  }
 
   /**
    * Scan a single directory for toolbox scripts.

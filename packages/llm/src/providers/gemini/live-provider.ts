@@ -61,6 +61,8 @@ export class GoogleGenAILiveProvider extends EventEmitter {
   private _state: LiveConnectionState = "disconnected";
   private _ws: WebSocket | null = null;
   private readonly _config: LiveProviderConfig;
+  private _reconnectAttempts = 0;
+  private _maxReconnectAttempts = 3;
 
   constructor(config: LiveProviderConfig) {
     super();

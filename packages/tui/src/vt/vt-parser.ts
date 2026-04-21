@@ -111,6 +111,9 @@ export class VtParser {
   /** CSI/DCS 参数列表 */
   private params: CsiParam[] = [];
 
+  /** 是否正在解析子参数 */
+  private inSubparam: boolean = false;
+
   /** 当前参数正在累积的数值（-1 表示尚未收到数字） */
   private currentParamValue: number = -1;
 

@@ -108,6 +108,9 @@ export class SlashCommandAutocomplete {
   /** @internal 弹出层状态 */
   private _overlayState: OverlayState | null;
 
+  /** @internal 锚点链接 */
+  private _layerLink: LayerLink | null;
+
   /** @internal 是否已释放 */
   private _disposed: boolean = false;
 

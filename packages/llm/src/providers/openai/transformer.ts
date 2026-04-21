@@ -157,6 +157,7 @@ export class OpenAIToolTransformer extends BaseToolTransformer<OpenAITool> {
 export class OpenAITransformer extends BaseMessageTransformer<OpenAIInputItem, OpenAISSEEvent> {
   /** 内部状态: message-level tracking */
   private _model = "";
+  private _responseId = "";
   private _inputTokens = 0;
   private _outputTokens = 0;
   private _cachedTokens: number | null = null;

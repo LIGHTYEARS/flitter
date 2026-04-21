@@ -43,6 +43,9 @@ export class SplitPaneRenderObject extends RenderBox {
   private _direction: SplitDirection;
   private _ratio: number;
   private _dividerColor: Color;
+  private _minRatio: number;
+  private _maxRatio: number;
+  private _onResize: ((ratio: number) => void) | undefined;
 
   constructor(
     direction: SplitDirection,

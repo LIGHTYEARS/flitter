@@ -142,6 +142,8 @@ export class TextEditingController {
   private _killBuffer: string = "";
   /** 连续 kill 追加标记 */
   private _lastKillWasContiguous: boolean = false;
+  /** 是否已销毁 */
+  private _disposed: boolean = false;
 
   /**
    * 创建文本编辑控制器

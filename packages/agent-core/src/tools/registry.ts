@@ -16,6 +16,8 @@
 
 import type { ToolDefinition } from "@flitter/llm";
 import type { Settings } from "@flitter/schemas";
+import type { AgentMode } from "../modes/agent-modes";
+import { isToolAllowedInMode } from "../modes/agent-modes";
 import type { ToolSpec } from "./types";
 
 // ─── Glob pattern matching ──────────────────────────────
@@ -357,6 +359,43 @@ export class ToolRegistry {
    */
   getToolDefinitions(config: Settings): ToolDefinition[] {
     return this.listEnabled(config).map((spec) => ({
+      name: spec.name,
+      description: spec.description,
+      inputSchema: spec.inputSchema,
+    }));
+  }
+
+  /**
+   * 返回按模式过滤的已启用工具列表.
+   *
+   * 逆向: amp's getToolsForMode(mode) → getTools(mode) → filter via IiT()
+   *   chunk-002.js:20483  o = await m0(T.toolService.getToolsForMode(s, l) : T.toolService.getTools(s))
+   *   1737_EarliestNonDisabledTool:420-435  getTools(o) { return R.filter(p => { ... IiT(p.spec.name, o) }) }
+   *
+   * Combines config-based enable/disable (yy), CLI filters, and mode restrictions (IiT).
+   *
+   * @param config - Current settings (for enable/disable filtering)
+   * @param mode - Agent mode key for tool restriction
+   * @returns Filtered tool specs
+   */
+  listEnabledForMode(config: Settings, mode: AgentMode): ToolSpec[] {
+    return this.listEnabledWithCliFilters(config).filter((spec) =>
+      isToolAllowedInMode(spec.name, mode),
+    );
+  }
+
+  /**
+   * 生成按模式过滤的 LLM 工具定义列表.
+   *
+   * 逆向: amp builds tool definitions from getToolsForMode() result
+   *   chunk-002.js:20494-20499 — maps filtered tools to specs for LLM
+   *
+   * @param config - Current settings
+   * @param mode - Agent mode key
+   * @returns Tool definitions filtered by mode
+   */
+  getToolDefinitionsForMode(config: Settings, mode: AgentMode): ToolDefinition[] {
+    return this.listEnabledForMode(config, mode).map((spec) => ({
       name: spec.name,
       description: spec.description,
       inputSchema: spec.inputSchema,

@@ -17,7 +17,13 @@ import {
   type Settings,
   SettingsSchema,
 } from "@flitter/schemas";
-import { BehaviorSubject, createLogger, type Subscription } from "@flitter/util";
+import {
+  BehaviorSubject,
+  createLogger,
+  distinctUntilChanged,
+  type Observable,
+  type Subscription,
+} from "@flitter/util";
 import { readAdminSettings } from "./admin-settings";
 import type { FileSettingsStorage } from "./settings-storage";
 
@@ -77,6 +83,13 @@ export class ConfigService implements IConfigService {
   readonly homeDir: string;
   readonly userConfigDir: string;
   private configSubject: BehaviorSubject<Config>;
+  /**
+   * 逆向: amp-cli-reversed/modules/1276_unknown_LX.js:98
+   *   workspaceRoot: a  — amp exposes workspaceRoot as an Observable on the configService.
+   *   Consumers pipe it with distinctUntilChanged (E9) for reactive updates.
+   *   e.g. chunk-002.js:27349: a.workspaceRoot.pipe(E9(...))
+   */
+  private workspaceRootSubject: BehaviorSubject<string | undefined>;
   private watchers: fs.FSWatcher[] = [];
   private subscriptions: Subscription[] = [];
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,6 +105,9 @@ export class ConfigService implements IConfigService {
       settings: {} as Settings,
       secrets: this.secretStorage,
     });
+    this.workspaceRootSubject = new BehaviorSubject<string | undefined>(
+      options.workspaceRoot ?? undefined,
+    );
   }
 
   get workspaceRoot(): string {
@@ -112,6 +128,22 @@ export class ConfigService implements IConfigService {
   /** 配置变更 Observable */
   observe(): BehaviorSubject<Config> {
     return this.configSubject;
+  }
+
+  /**
+   * Reactive workspace root Observable.
+   *
+   * 逆向: amp-cli-reversed/modules/1276_unknown_LX.js:98
+   *   workspaceRoot: a  — amp's configService exposes workspaceRoot as an Observable.
+   *
+   * Consumers in amp apply distinctUntilChanged when subscribing:
+   *   chunk-002.js:27349: a.workspaceRoot.pipe(E9((X, rT) => X?.toString() === rT?.toString()))
+   *   modules/1338_SkillService_UqR.js:15: T.workspaceRoot.pipe(JR(aT => aT ? d0(aT) : null), E9())
+   *
+   * We apply distinctUntilChanged here so callers get deduplicated emissions by default.
+   */
+  observeWorkspaceRoot(): Observable<string | undefined> {
+    return this.workspaceRootSubject.pipe(distinctUntilChanged());
   }
 
   /** 更新 settings 单键 */

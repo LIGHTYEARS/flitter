@@ -26,6 +26,7 @@
  *   ```
  */
 
+import type { ThreadMeta } from "@flitter/data";
 import type {
   ThreadMessage,
   ThreadRelationship,
@@ -56,6 +57,23 @@ export interface ThreadStoreForService {
     update(fn: (draft: ThreadSnapshot) => Partial<ThreadSnapshot> | void): ThreadSnapshot;
     asyncDispose(): Promise<void>;
   };
+  /**
+   * Get thread metadata (visibility, sharedGroupIDs).
+   * Used by inheritVisibilityIfNeeded to read origin thread metadata.
+   * 逆向: O4R calls `(await T.get(R))?.meta`
+   */
+  getThreadMeta(threadId: string): Record<string, unknown> | undefined;
+  /**
+   * Update thread metadata on the remote server.
+   * 逆向: O4R calls `T.updateThreadMeta(a, h)`
+   */
+  updateThreadMeta(threadId: string, meta: ThreadMeta): Promise<void>;
+  /**
+   * Set thread visibility locally.
+   * Fallback when updateThreadMeta is not available (no remote).
+   * 逆向: amp e0R:529-588
+   */
+  setVisibility(threadId: string, level: string): void;
 }
 
 const log = createLogger("thread-worker-service");
@@ -359,6 +377,94 @@ export class ThreadWorkerService {
   // ─── createThread ───────────────────────────────────────
 
   /**
+   * Inherit visibility from origin thread when forking via "handoff".
+   *
+   * 逆向: amp QWT.inheritVisibilityIfNeeded(T, R, a) (QWT.js:76-78)
+   *   ```
+   *   async inheritVisibilityIfNeeded(T, R, a) {
+   *     if (R.type === "handoff") await O4R(T.threadService, R.threadID, a);
+   *   }
+   *   ```
+   *
+   * Delegates to the O4R pattern: reads origin thread meta, validates
+   * visibility level, copies it to the forked thread.
+   *
+   * @param parent - Parent relationship spec (threadID + type)
+   * @param forkedThreadID - The newly created fork thread
+   */
+  async inheritVisibilityIfNeeded(
+    parent: { threadID: string; type: string },
+    forkedThreadID: string,
+  ): Promise<void> {
+    // 逆向: amp only inherits for "handoff" type
+    if (parent.type !== "handoff") return;
+    if (!this.threadStore) return;
+
+    try {
+      const meta = this.threadStore.getThreadMeta(parent.threadID);
+      if (!meta) {
+        log.debug("Origin thread has no metadata to inherit", {
+          name: "inheritThreadVisibility",
+          originThreadID: parent.threadID,
+          forkedThreadID,
+        });
+        return;
+      }
+
+      // 逆向: O4R checks `"visibility" in e ? e.visibility : void 0`
+      const visibility = "visibility" in meta ? meta.visibility : undefined;
+
+      // 逆向: O4R validates against the 4 known visibility levels
+      if (
+        visibility !== "private" &&
+        visibility !== "thread_workspace_shared" &&
+        visibility !== "public_unlisted" &&
+        visibility !== "public_discoverable"
+      ) {
+        log.debug("Origin thread has no shareable visibility metadata", {
+          name: "inheritThreadVisibility",
+          originThreadID: parent.threadID,
+          forkedThreadID,
+          metadata: meta,
+        });
+        return;
+      }
+
+      // 逆向: O4R copies sharedGroupIDs only for "private" visibility
+      const sharedGroupIDs =
+        "sharedGroupIDs" in meta && Array.isArray(meta.sharedGroupIDs)
+          ? (meta.sharedGroupIDs as unknown[]).filter((s): s is string => typeof s === "string")
+          : [];
+
+      const inheritedMeta: ThreadMeta =
+        visibility === "private" ? { visibility, sharedGroupIDs } : { visibility };
+
+      // 逆向: O4R calls `await T.updateThreadMeta(a, h)` — try remote first, fall back to local
+      try {
+        await this.threadStore.updateThreadMeta(forkedThreadID, inheritedMeta);
+      } catch {
+        // If updateThreadMeta fails (e.g. no remote transport), fall back
+        // to local-only visibility setting.
+        this.threadStore.setVisibility(forkedThreadID, visibility as string);
+      }
+
+      log.debug("Successfully inherited thread visibility", {
+        name: "inheritThreadVisibility",
+        originThreadID: parent.threadID,
+        forkedThreadID,
+        metadata: meta,
+      });
+    } catch (err) {
+      log.debug("Failed to inherit thread visibility settings", {
+        name: "inheritThreadVisibility",
+        error: err,
+        originThreadID: parent.threadID,
+        forkedThreadID,
+      });
+    }
+  }
+
+  /**
    * Create a new thread with an optional pre-built message set, parent relationship,
    * and initial user message.
    *
@@ -377,7 +483,6 @@ export class ThreadWorkerService {
    *   - draftContent
    *   - setPendingNavigation
    *   - transferQueuedMessages
-   *   - inheritVisibilityIfNeeded
    *
    * @param opts - Creation options
    * @returns Thread ID and worker instance
@@ -413,10 +518,11 @@ export class ThreadWorkerService {
       return { threadID, worker };
     }
 
-    // Step 5: Apply parent relationship
-    // 逆向: `if (R?.parent) await this.applyParentRelationship(T, r, a, R.parent)`
+    // Step 5: Apply parent relationship + inherit visibility
+    // 逆向: `if (R?.parent) await this.applyParentRelationship(T, r, a, R.parent), await this.inheritVisibilityIfNeeded(T, R.parent, a)`
     if (opts?.parent) {
       await this.applyParentRelationship(threadID, opts.parent.threadID, opts.parent.type);
+      await this.inheritVisibilityIfNeeded(opts.parent, threadID);
     }
 
     // Step 6: Send initial user message (mutually exclusive with seeded messages)

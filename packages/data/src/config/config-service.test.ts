@@ -287,12 +287,19 @@ describe("ConfigService", () => {
         "utf-8",
       );
 
-      // Wait for debounce + reload
-      await new Promise((r) => setTimeout(r, 500));
+      // Poll until the change is detected (max 3s) — avoids race with fs.watch + debounce
+      let detected = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        const config = service.get();
+        if ((config.settings as Record<string, unknown>).proxy === "changed") {
+          detected = true;
+          break;
+        }
+      }
       handle.dispose();
 
-      const config = service.get();
-      assert.equal((config.settings as Record<string, unknown>).proxy, "changed");
+      assert.ok(detected, "Expected proxy to change to 'changed' within 3 seconds");
     });
 
     it("should notify subscribers when file changes are detected", async () => {
@@ -388,6 +395,41 @@ describe("ConfigService", () => {
       });
       await service.reload();
       assert.equal((service.get().settings as Record<string, unknown>).proxy, "global-only");
+    });
+  });
+
+  describe("observeWorkspaceRoot", () => {
+    it("should return an Observable", () => {
+      const service = makeService();
+      const obs = service.observeWorkspaceRoot();
+      assert.ok(obs);
+      assert.equal(typeof obs.subscribe, "function");
+      assert.equal(typeof obs.pipe, "function");
+    });
+
+    it("should emit current workspace root immediately (BehaviorSubject)", () => {
+      const service = makeService();
+      const values: (string | undefined)[] = [];
+      const sub = service.observeWorkspaceRoot().subscribe((v) => values.push(v));
+      assert.equal(values.length, 1);
+      assert.equal(values[0], path.join(tmpDir, "workspace"));
+      sub.unsubscribe();
+    });
+
+    it("should emit undefined when workspace root is null", () => {
+      const storage = makeStorage();
+      const service = new ConfigService({
+        storage,
+        secretStorage: mockSecretStore,
+        workspaceRoot: null,
+        homeDir: tmpDir,
+        userConfigDir: globalDir,
+      });
+      const values: (string | undefined)[] = [];
+      const sub = service.observeWorkspaceRoot().subscribe((v) => values.push(v));
+      assert.equal(values.length, 1);
+      assert.equal(values[0], undefined);
+      sub.unsubscribe();
     });
   });
 });

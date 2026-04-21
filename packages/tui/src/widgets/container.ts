@@ -21,6 +21,7 @@ import type { Key } from "../tree/widget.js";
 import { Widget } from "../tree/widget.js";
 import type { BoxDecoration } from "./box-decoration.js";
 import type { EdgeInsets } from "./edge-insets.js";
+import { ForceDimWidget } from "./force-dim.js";
 import { SingleChildRenderObjectElement } from "./padding.js";
 
 // ════════════════════════════════════════════════════
@@ -533,6 +534,54 @@ export class ContainerRenderObject extends RenderBox {
 }
 
 // ════════════════════════════════════════════════════
+//  ContainerElement
+// ════════════════════════════════════════════════════
+
+/**
+ * Container 专属元素节点 — 在 mount/rebuild 时读取 ForceDimWidget 祖先。
+ *
+ * 逆向: h1T extends Tf (misc_utils.js:166-181)
+ *
+ * 在挂载和重建时自动查询最近的 {@link ForceDimWidget} 祖先，
+ * 将 `forceDim` 状态传递给 {@link ContainerRenderObject.setForceDim}。
+ */
+export class ContainerElement extends SingleChildRenderObjectElement {
+  /**
+   * 逆向: h1T.mount() — super.mount(), this._updateForceDim()
+   */
+  override mount(parent?: Element): void {
+    super.mount(parent);
+    this._updateForceDim();
+  }
+
+  /**
+   * 逆向: h1T.performRebuild() — super.performRebuild(), this._updateForceDim()
+   */
+  override performRebuild(): void {
+    super.performRebuild();
+    this._updateForceDim();
+  }
+
+  /**
+   * 读取祖先 ForceDimWidget 状态并设置到渲染对象上。
+   *
+   * 逆向: h1T._updateForceDim()
+   * ```js
+   * if (!this.renderObject) return;
+   * let T = new Ib(this, this.widget), R = CA.shouldForceDim(T);
+   * if (this.renderObject instanceof qw) this.renderObject.setForceDim(R);
+   * ```
+   */
+  private _updateForceDim(): void {
+    if (!this.renderObject) return;
+    const forceDim = ForceDimWidget.shouldForceDim(this);
+    if (this.renderObject instanceof ContainerRenderObject) {
+      this.renderObject.setForceDim(forceDim);
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════
 //  Container Widget
 // ════════════════════════════════════════════════════
 
@@ -604,7 +653,7 @@ export class Container extends Widget implements RenderObjectWidget {
    * 逆向: SR.createElement() → new h1T(this)
    */
   createElement(): Element {
-    return new SingleChildRenderObjectElement(this as unknown as WidgetInterface);
+    return new ContainerElement(this as unknown as WidgetInterface);
   }
 
   /**

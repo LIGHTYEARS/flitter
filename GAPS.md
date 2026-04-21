@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 24)
+> **Last updated:** 2026-04-22 (iteration 25)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -66,6 +66,12 @@
 | GAP-DATA-20 | Data | Skill discovery paths (8 paths) | Closed (iteration 24) |
 | GAP-DATA-21 | Data | `invalidateThreadListCache` | Closed (iteration 24) |
 | GAP-LLM-17 | LLM | Provider reasoning effort defaults | Closed (iteration 24, pre-existing) |
+| GAP-TUI-27 | TUI | ForceDim InheritedWidget | Closed (iteration 25) |
+| GAP-CORE-25 | Core | Deep mode tool restriction | Closed (iteration 25) |
+| GAP-CORE-26 | Core | Rush/fast mode tool restriction | Closed (iteration 25) |
+| GAP-DATA-19 | Data | workspaceRoot Observable | Closed (iteration 25) |
+| GAP-LLM-16 | LLM | Gemini countTokens | Closed (iteration 25) |
+| GAP-DATA-23 | Data | Thread visibility inheritance on fork | Closed (iteration 25) |
 
 ---
 
@@ -124,7 +130,7 @@
 | GAP-TUI-07 | ~~**OverlapColumn widget**~~ | **Closed (iteration 20)** |
 | GAP-TUI-08 | ~~**IntrinsicHeight widget**~~ | **Closed (iteration 21)** |
 | GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** |
-| GAP-TUI-27 | **ForceDim InheritedWidget** | Amp has `CA` InheritedWidget that propagates `forceDim` downward and auto-dims Container borders. Flitter's `Container` has `setForceDim()` on RenderObject but no automatic InheritedWidget propagation. |
+| GAP-TUI-27 | **ForceDim InheritedWidget** | **Closed (iteration 25)** — `ForceDimWidget` InheritedWidget subclass with `maybeOf(ctx)`/`shouldForceDim(ctx)` static helpers matching amp's `CA` (misc_utils.js:91-114). `ContainerElement` overrides `mount()`/`performRebuild()` to read inherited dim state. 16 new tests. |
 | GAP-TUI-28 | **SelectionArea: double/triple-click, auto-scroll** | Amp: double-click selects word (500ms drag timer), triple-click selects line/paragraph, auto-scroll during drag, cursor shape changes, auto-copy with highlight flash. Flitter: basic drag only, immediate copy, no double/triple-click, no auto-scroll. |
 | GAP-TUI-29 | **Scrollable: `position: "bottom"` + pixel-mouse step** | Amp has bottom-stick viewport and per-terminal scroll step (1 for ghostty/tmux, 3 for others via `shouldUsePixelMouse()`). Flitter: no bottom-stick, hardcoded step 3. |
 | GAP-TUI-30 | **Idle / focus tracking** | Amp calls `initFocusTracking(tui)` and `initIdleTracking(tui)` for analytics/UI decisions. Flitter has neither. |
@@ -138,7 +144,7 @@
 | GAP-LLM-13 | **14+ models missing from MODEL_REGISTRY** | **Closed (iteration 23)** — Added 15 models: `zai-glm-4.7` (Cerebras), 6 Fireworks models (qwen3-coder-480b, kimi-k2, qwen3-235b, glm-4p6, glm-5, minimax-m2p5), Baseten `moonshotai/Kimi-K2.5`, 5 OpenRouter models (sonoma-sky-alpha, z-ai/glm-4.6, moonshotai/kimi-k2-0905, qwen/qwen3-coder, qwen/qwen3-235b-a22b-2507), Gemini `gemini-3-pro-image-preview`. 6 new tests. |
 | GAP-LLM-14 | **OpenRouter compat config missing flags** | **Closed (iteration 23)** — Added `supportsStore: false` and `supportsUsageInStreaming: false` to OpenRouter preset in `compat.ts`. Matches amp's minimal request body. 5 new tests. |
 | GAP-LLM-15 | **MCP OAuth cross-process locking** | Amp's `M5T` implements file-based PID locking so concurrent CLI processes coordinate the OAuth callback server. Flitter has no cross-process coordination — port conflicts on multi-terminal use. |
-| GAP-LLM-16 | **Gemini token counting** | Amp's Gemini SDK client has `countTokens()`. Flitter only implements `countTokens()` on `AnthropicProvider`. Gemini context management falls back to char/4 approximation. |
+| GAP-LLM-16 | **Gemini token counting** | **Closed (iteration 25)** — `GeminiProvider.countTokens()` calls `client.models.countTokens()` via `@google/genai` SDK, falls back to `Math.ceil(text.length / 4)` on error (matching amp's `o1R=4` fallback pattern). 7 new tests. |
 | GAP-LLM-17 | **Provider-specific reasoning effort defaults** | **Closed (iteration 24, found pre-existing)** — `resolveReasoningEffort()` in `packages/agent-core/src/modes/reasoning-effort.ts` already implements full per-provider effort defaults matching amp's `t7R()`. |
 | GAP-LLM-18 | **OpenAI Responses API divergence** | Flitter's `OpenAIProvider` uses the Responses API (`responses.create`); amp uses `chat.completions.create`. Different field names (`input` vs `messages`, `max_output_tokens` vs `max_completion_tokens`). May break on proxies that only speak ChatCompletion. |
 
@@ -149,11 +155,11 @@
 | GAP-DATA-04 | ~~Fetch-from-server on cache miss~~ | **Closed (iteration 21)** |
 | GAP-DATA-05 | Thread archive via remote API | **Closed (iteration 22)** |
 | GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** |
-| GAP-DATA-19 | **`workspaceRoot` not Observable** | Amp's config exposes `workspaceRoot` as reactive stream; SkillService subscribes and re-scans on workspace change. Flitter's `workspaceRoot` is a static string — SkillService can't react to workspace changes. |
+| GAP-DATA-19 | **`workspaceRoot` not Observable** | **Closed (iteration 25)** — `ConfigService.observeWorkspaceRoot()` returns `Observable<string | undefined>` projected from `workspaceRootSubject` with `distinctUntilChanged()`. Matches amp's `LX` factory pattern (modules/1276:98). 3 new tests. |
 | GAP-DATA-20 | **Skill discovery paths narrower** | **Closed (iteration 24)** — `SkillService.getDiscoveryPaths()` expanded from 2 to 8 paths matching amp's P7T: `.flitter/skills`, `~/.config/agents/skills`, ancestor `.agents/skills`, ancestor `.claude/skills`, `~/.claude/skills`, `~/.claude/plugins/cache`, `userConfigDir/skills`, `skills.path` config. Supports `skills.disableClaudeCodeSkills`. 9 new tests. |
 | GAP-DATA-21 | **`invalidateThreadListCache()`** | **Closed (iteration 24)** — `ThreadStore.invalidateThreadListCache()` resets `threadEntriesByID` to cached-only entries, sets `threadEntriesLoaded=false`, clears `threadEntriesLoadPromise`, emits null. Matches amp's `azT.invalidateThreadListCache` (1342:297-299). 4 new tests. |
 | GAP-DATA-22 | **Actual API token counts → ContextManager** | Flitter's `ContextManager` uses char-based approximation only. Amp feeds actual `usage.input_tokens` from API responses back to context tracking. Compaction threshold is imprecise. |
-| GAP-DATA-23 | **Thread visibility inheritance on fork** | Amp's `O4R` propagates visibility/sharedGroupIDs from origin thread to forked thread. Flitter stores visibility but doesn't inherit on fork. |
+| GAP-DATA-23 | **Thread visibility inheritance on fork** | **Closed (iteration 25)** — `inheritThreadVisibility()` copies visibility/sharedGroupIDs from origin thread. `ThreadWorkerService.inheritVisibilityIfNeeded()` wired into `createThread()` for handoff type. Matches amp's `O4R` (chunk-002.js:14326-14368). 20 new tests. |
 
 ### Agent-Core
 
@@ -162,8 +168,8 @@
 | GAP-CORE-04 | ~~ThreadWorkerService missing `handoff`/`createThread`~~ | **Closed (iteration 20)** |
 | GAP-CORE-23 | **Plugin `registerCommand`** | Plugins cannot register CLI commands. Amp's `cI.registerCommand()` exposes `command.list`/`command.execute`/`commands.changed`. Flitter returns `[]` stub. |
 | GAP-CORE-24 | **Plugin `configuration` API** | Plugins cannot read/write agent settings. Amp's `iD` class provides `configuration.get/update/delete` RPC. Not implemented in flitter. |
-| GAP-CORE-25 | **`deep` mode model mismatch** | Amp's `deep` mode uses GPT-5.4 with restricted tool set (`SiT`). Flitter's `deep` mode uses Claude Opus 4.6 with all tools — different model and no tool restriction. |
-| GAP-CORE-26 | **`rush`/`fast` mode tool restriction** | Amp's `rush` restricts to subset `$iT`. Flitter `fast`/`rush` gives all tools. |
+| GAP-CORE-25 | **`deep` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.deep.includeTools` populated with 13 tools matching amp's `SiT` list (shell_command, apply_patch, web_search, etc). `isToolAllowedInMode()` function matches amp's `IiT()`. `ToolRegistry.listEnabledForMode()` + `getToolDefinitionsForMode()` wired into `ThreadWorker` Step 3. 18 new tests. |
+| GAP-CORE-26 | **`rush`/`fast` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.fast.includeTools` and `rush.includeTools` populated with 24 tools matching amp's `$iT` list. Shared via `FAST_TOOLS` constant. All mode tool lists verified as subsets of smart (except auto which allows all). |
 | GAP-CORE-27 | **`free` tier mode** | Amp has `free` mode (Haiku 4.5, minimal tool set `giT`) for free-tier users. Not implemented in flitter. |
 | GAP-CORE-28 | **`delegate` permission action** | Amp routes `delegate` to external decision programs. Flitter's `PermissionEngine` doesn't handle `delegate` action. |
 

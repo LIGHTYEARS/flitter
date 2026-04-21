@@ -789,3 +789,39 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - 57 new tests (25 Offstage + 13 MCP + 9 skill + 4 cache + 5 toolbox + 1 misc), 5574 total passing, 0 type errors
 - 7 gaps closed: TUI-23, LLM-12, DATA-20, DATA-21, CORE-20, LLM-17, CLI-30
 - Total open gaps: ~96 (down from 103)
+
+## ADR-025: Iteration 25 — Mode tool restriction, ForceDim, workspaceRoot Observable, Gemini countTokens, visibility inheritance
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 25 gap analysis selected 5 targets across 4 packages: GAP-CORE-25+26 (mode tool restriction wiring), GAP-TUI-27 (ForceDim InheritedWidget), GAP-DATA-19 (workspaceRoot Observable), GAP-LLM-16 (Gemini countTokens), GAP-DATA-23 (thread visibility inheritance on fork).
+
+### Decisions
+
+1. **Mode tool restriction wiring (CORE-25+26)**: Amp's `IiT()` function (modules/1614:23-36) checks tool membership in `mode.includeTools` + `mode.deferredTools`. Three layered changes:
+   - Populated `AGENT_MODES` tool lists: `SMART_TOOLS` (26 tools matching amp's `UW`), `FAST_TOOLS` (24 tools matching amp's `$iT`), `DEEP_TOOLS` (13 tools matching amp's `SiT`). Auto mode keeps empty list (all tools).
+   - Added `isToolAllowedInMode(toolName, mode)` matching `IiT`: MCP tools always pass, empty includeTools = all allowed, deferred tools always allowed.
+   - Added `ToolRegistry.listEnabledForMode()` + `getToolDefinitionsForMode()`. Wired into `ThreadWorker` Step 3 via `opts.agentMode?` optional parameter.
+   - Key decision: tool names mapped from amp conventions (`create_file`→`Write`, `edit_file`→`Edit`, `glob`→`Glob`, `task_list`→`todo_read/todo_write`). Tools not yet in flitter (chart, handoff, repl, painter) omitted.
+
+2. **ForceDim InheritedWidget (TUI-27)**: Created `ForceDimWidget` extending `InheritedWidget` with `forceDim: boolean`, matching amp's `CA` class (misc_utils.js:91-114). Static `maybeOf(ctx)` and `shouldForceDim(ctx)` helpers. Created `ContainerElement` (matching amp's `h1T extends Tf`) that overrides `mount()` and `performRebuild()` to call `_updateForceDim()` reading from inherited widget.
+
+3. **workspaceRoot Observable (DATA-19)**: Added `ConfigService.observeWorkspaceRoot()` returning `Observable<string|undefined>` from `workspaceRootSubject.pipe(distinctUntilChanged())`. Matches amp's `LX` factory (modules/1276:98) where consumers like SkillService subscribe for reactive path changes.
+
+4. **Gemini countTokens (LLM-16)**: Added `GeminiProvider.countTokens()` calling `client.models.countTokens({ model, contents })` via `@google/genai` SDK. Falls back to `Math.ceil(text.length / 4)` matching amp's `o1R=4` fallback pattern. Extracted shared `_buildClient()` method to avoid duplication.
+
+5. **Thread visibility inheritance (DATA-23)**: `inheritThreadVisibility(store, originID, forkedID)` copies visibility + sharedGroupIDs from origin thread, matching amp's `O4R` (chunk-002.js:14326-14368). Wired into `ThreadWorkerService.createThread()` at Step 5 for handoff-type forks.
+
+6. **Flaky test fixes**: Fixed two pre-existing flaky tests: (a) ConfigService hot-reload test race condition (fixed with poll loop instead of fixed delay), (b) ThreadWorker cancel test timeout (mock now listens to abort signal instead of sleeping 5s matching the test timeout).
+
+### Consequences
+
+- Deep mode now restricts LLM to 13 tools (was unrestricted) — better matches amp's constrained reasoning environment
+- Fast/rush modes restrict to 24 tools, smart/large to 26 tools with deferred code_review
+- ForceDim propagates through InheritedWidget tree — enables automatic border dimming in nested containers
+- workspaceRoot is now reactive — services can subscribe to workspace changes
+- Gemini provider has proper token counting instead of always using char/4 estimate
+- Forked threads inherit parent visibility — no more visibility loss on handoff
+- ~65 new tests (18 mode + 16 ForceDim + 3 workspaceRoot + 7 Gemini + 20 visibility + 1 fix), 5639 total passing, 0 type errors
+- 6 gaps closed: CORE-25, CORE-26, TUI-27, DATA-19, LLM-16, DATA-23
+- Total open gaps: ~90 (down from 96)

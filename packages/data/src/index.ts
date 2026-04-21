@@ -70,6 +70,7 @@ export type { ThreadVisibility } from "./thread/thread-store";
 export {
   computeUserLastInteractedAt,
   entryEquals,
+  inheritThreadVisibility,
   snapshotToEntry,
   ThreadStore,
 } from "./thread/thread-store";

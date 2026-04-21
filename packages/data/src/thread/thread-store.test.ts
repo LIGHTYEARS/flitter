@@ -829,11 +829,11 @@ describe("invalidateThreadListCache (GAP-DATA-21)", () => {
   it("resets threadEntriesLoaded — threadEntriesState emits null", async () => {
     const store = new ThreadStore();
     // Wire a simple remote that returns one entry
-    let listCallCount = 0;
+    let _listCallCount = 0;
     const remote: ThreadRemoteTransport = {
       ...createMockRemote(new Map()),
       async listThreads() {
-        listCallCount++;
+        _listCallCount++;
         return [];
       },
     };
@@ -911,5 +911,137 @@ describe("invalidateThreadListCache (GAP-DATA-21)", () => {
     assert.ok(entries);
     const found = entries.find((e) => e.id === "t-rebuild");
     assert.ok(found, "Cached thread should appear in entries after re-load");
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  getThreadMeta (GAP-DATA-23)
+// ──────────────────────────────────────────────────────
+
+describe("getThreadMeta (GAP-DATA-23)", () => {
+  it("returns metadata for a cached thread with meta", () => {
+    const store = new ThreadStore();
+    const thread = makeThread({
+      id: "t-meta",
+      meta: { visibility: "public_unlisted", sharedGroupIDs: ["g1"] },
+    });
+    store.setCachedThread(thread);
+
+    const meta = store.getThreadMeta("t-meta");
+    assert.ok(meta);
+    assert.equal(meta.visibility, "public_unlisted");
+    assert.deepEqual(meta.sharedGroupIDs, ["g1"]);
+  });
+
+  it("returns undefined for a thread with no meta", () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-no-meta" });
+    store.setCachedThread(thread);
+
+    assert.equal(store.getThreadMeta("t-no-meta"), undefined);
+  });
+
+  it("returns undefined for a non-existent thread", () => {
+    const store = new ThreadStore();
+    assert.equal(store.getThreadMeta("nonexistent"), undefined);
+  });
+
+  it("returns undefined when meta is not an object", () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-bad-meta", meta: "not-an-object" as unknown });
+    store.setCachedThread(thread);
+
+    assert.equal(store.getThreadMeta("t-bad-meta"), undefined);
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  inheritThreadVisibility (GAP-DATA-23)
+//  逆向: amp O4R (chunk-002.js:14326-14368)
+// ──────────────────────────────────────────────────────
+
+describe("inheritThreadVisibility (GAP-DATA-23)", () => {
+  // Import the standalone function
+  let inheritThreadVisibility: typeof import("./thread-store").inheritThreadVisibility;
+  beforeEach(async () => {
+    const mod = await import("./thread-store");
+    inheritThreadVisibility = mod.inheritThreadVisibility;
+  });
+
+  it("copies public_unlisted visibility via setVisibility fallback", async () => {
+    const store = new ThreadStore();
+    const origin = makeThread({
+      id: "origin",
+      meta: { visibility: "public_unlisted" },
+      messages: [makeUserMessage()],
+    });
+    const fork = makeThread({ id: "fork", messages: [makeUserMessage()] });
+    store.setCachedThread(origin);
+    store.setCachedThread(fork);
+
+    // No remote configured — will fall back to setVisibility
+    await inheritThreadVisibility(store, "origin", "fork");
+
+    const forkMeta = store.getThreadMeta("fork");
+    assert.ok(forkMeta);
+    assert.equal(forkMeta.visibility, "public_unlisted");
+  });
+
+  it("copies private visibility with sharedGroupIDs", async () => {
+    const store = new ThreadStore();
+    const origin = makeThread({
+      id: "origin",
+      meta: { visibility: "private", sharedGroupIDs: ["g1", "g2"] },
+      messages: [makeUserMessage()],
+    });
+    const fork = makeThread({ id: "fork", messages: [makeUserMessage()] });
+    store.setCachedThread(origin);
+    store.setCachedThread(fork);
+
+    await inheritThreadVisibility(store, "origin", "fork");
+
+    const forkMeta = store.getThreadMeta("fork");
+    assert.ok(forkMeta);
+    assert.equal(forkMeta.visibility, "private");
+  });
+
+  it("does not throw when origin thread has no metadata", async () => {
+    const store = new ThreadStore();
+    const origin = makeThread({ id: "origin", messages: [makeUserMessage()] });
+    const fork = makeThread({ id: "fork", messages: [makeUserMessage()] });
+    store.setCachedThread(origin);
+    store.setCachedThread(fork);
+
+    // Should not throw
+    await inheritThreadVisibility(store, "origin", "fork");
+
+    // Fork should have no visibility
+    assert.equal(store.getThreadMeta("fork"), undefined);
+  });
+
+  it("does not throw when origin thread does not exist", async () => {
+    const store = new ThreadStore();
+    const fork = makeThread({ id: "fork", messages: [makeUserMessage()] });
+    store.setCachedThread(fork);
+
+    // Should not throw — O4R wraps everything in try/catch
+    await inheritThreadVisibility(store, "nonexistent", "fork");
+  });
+
+  it("skips when origin has an unrecognized visibility level", async () => {
+    const store = new ThreadStore();
+    const origin = makeThread({
+      id: "origin",
+      meta: { visibility: "some_future_level" },
+      messages: [makeUserMessage()],
+    });
+    const fork = makeThread({ id: "fork", messages: [makeUserMessage()] });
+    store.setCachedThread(origin);
+    store.setCachedThread(fork);
+
+    await inheritThreadVisibility(store, "origin", "fork");
+
+    // Fork should have no visibility set
+    assert.equal(store.getThreadMeta("fork"), undefined);
   });
 });

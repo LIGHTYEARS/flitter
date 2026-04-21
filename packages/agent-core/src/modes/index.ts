@@ -10,6 +10,7 @@ export {
   getModelForMode,
   getModeSpec,
   isDeepReasoningMode,
+  isToolAllowedInMode,
   isValidAgentMode,
 } from "./agent-modes";
 export type { ReasoningEffort } from "./reasoning-effort";

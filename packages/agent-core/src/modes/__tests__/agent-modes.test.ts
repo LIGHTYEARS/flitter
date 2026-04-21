@@ -18,6 +18,7 @@ import {
   getModeSpec,
   inferProviderFromModel,
   isDeepReasoningMode,
+  isToolAllowedInMode,
   isValidAgentMode,
   resolveReasoningEffort,
 } from "../index";
@@ -132,6 +133,107 @@ describe("getModeSpec", () => {
     expect(spec.key).toBe("smart");
     expect(spec.displayName).toBe("Smart");
     expect(spec.primaryModel).toBe("claude-opus-4-6");
+  });
+});
+
+// ─── isToolAllowedInMode ───────────────────────────────
+
+describe("isToolAllowedInMode", () => {
+  describe("smart mode (full tool set)", () => {
+    test("allows Read", () => {
+      expect(isToolAllowedInMode("Read", "smart")).toBe(true);
+    });
+
+    test("allows Bash", () => {
+      expect(isToolAllowedInMode("Bash", "smart")).toBe(true);
+    });
+
+    test("allows deferred tool code_review", () => {
+      expect(isToolAllowedInMode("code_review", "smart")).toBe(true);
+    });
+
+    test("rejects tool not in smart list", () => {
+      expect(isToolAllowedInMode("nonexistent_tool", "smart")).toBe(false);
+    });
+  });
+
+  describe("deep mode (restricted set)", () => {
+    test("allows shell_command", () => {
+      expect(isToolAllowedInMode("shell_command", "deep")).toBe(true);
+    });
+
+    test("allows apply_patch", () => {
+      expect(isToolAllowedInMode("apply_patch", "deep")).toBe(true);
+    });
+
+    test("rejects Read (not in deep tools)", () => {
+      expect(isToolAllowedInMode("Read", "deep")).toBe(false);
+    });
+
+    test("rejects Edit (not in deep tools)", () => {
+      expect(isToolAllowedInMode("Edit", "deep")).toBe(false);
+    });
+
+    test("rejects Glob (not in deep tools)", () => {
+      expect(isToolAllowedInMode("Glob", "deep")).toBe(false);
+    });
+
+    test("allows deferred tool code_review", () => {
+      expect(isToolAllowedInMode("code_review", "deep")).toBe(true);
+    });
+  });
+
+  describe("auto mode (empty includeTools = all allowed)", () => {
+    test("allows any tool", () => {
+      expect(isToolAllowedInMode("Read", "auto")).toBe(true);
+      expect(isToolAllowedInMode("whatever_tool", "auto")).toBe(true);
+    });
+  });
+
+  describe("MCP tools always pass through", () => {
+    test("allows mcp__ prefixed tools regardless of mode", () => {
+      expect(isToolAllowedInMode("mcp__server__tool", "deep")).toBe(true);
+      expect(isToolAllowedInMode("mcp__myserver__custom", "smart")).toBe(true);
+    });
+  });
+
+  describe("fast mode", () => {
+    test("allows Read", () => {
+      expect(isToolAllowedInMode("Read", "fast")).toBe(true);
+    });
+
+    test("allows Grep", () => {
+      expect(isToolAllowedInMode("Grep", "fast")).toBe(true);
+    });
+  });
+});
+
+// ─── Tool list consistency ─────────────────────────────
+
+describe("includeTools consistency", () => {
+  test("smart and large share the same tool set", () => {
+    expect(AGENT_MODES.smart.includeTools).toEqual(AGENT_MODES.large.includeTools);
+  });
+
+  test("fast and rush share the same tool set", () => {
+    expect(AGENT_MODES.fast.includeTools).toEqual(AGENT_MODES.rush.includeTools);
+  });
+
+  test("deep is a strict subset of smart", () => {
+    const smartSet = new Set(AGENT_MODES.smart.includeTools);
+    for (const tool of AGENT_MODES.deep.includeTools) {
+      expect(smartSet.has(tool)).toBe(true);
+    }
+  });
+
+  test("deep has fewer tools than smart", () => {
+    expect(AGENT_MODES.deep.includeTools.length).toBeLessThan(
+      AGENT_MODES.smart.includeTools.length,
+    );
+  });
+
+  test("auto mode has empty includeTools (all tools allowed)", () => {
+    expect(AGENT_MODES.auto.includeTools).toEqual([]);
   });
 });
 

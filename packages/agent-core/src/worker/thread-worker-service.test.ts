@@ -454,6 +454,181 @@ describe("createThread", () => {
 });
 
 // ──────────────────────────────────────────────────────
+//  inheritVisibilityIfNeeded tests
+//  逆向: amp O4R (chunk-002.js:14326-14368) + QWT.inheritVisibilityIfNeeded (QWT.js:76-78)
+// ──────────────────────────────────────────────────────
+
+describe("inheritVisibilityIfNeeded", () => {
+  it("copies public_unlisted visibility from origin to fork", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { visibility: "public_unlisted" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.equal(store.updateThreadMetaCalls[0].threadId, "fork");
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, { visibility: "public_unlisted" });
+  });
+
+  it("copies public_discoverable visibility from origin to fork", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { visibility: "public_discoverable" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, { visibility: "public_discoverable" });
+  });
+
+  it("copies thread_workspace_shared visibility from origin to fork", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { visibility: "thread_workspace_shared" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, {
+      visibility: "thread_workspace_shared",
+    });
+  });
+
+  it("copies private visibility with sharedGroupIDs from origin to fork", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      {
+        id: "origin",
+        v: 1,
+        messages: [],
+        meta: { visibility: "private", sharedGroupIDs: ["group-1", "group-2"] },
+      },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, {
+      visibility: "private",
+      sharedGroupIDs: ["group-1", "group-2"],
+    });
+  });
+
+  it("skips when origin has no metadata", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [] },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 0);
+  });
+
+  it("skips when origin has no visibility in metadata", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { someOther: "field" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 0);
+  });
+
+  it("skips when origin has an invalid visibility value", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { visibility: "unknown_level" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 0);
+  });
+
+  it("skips when parent type is not handoff", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "origin", v: 1, messages: [], meta: { visibility: "public_unlisted" } },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    // 逆向: amp only inherits for "handoff" type
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "other" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 0);
+  });
+
+  it("skips when threadStore is not wired (does not throw)", async () => {
+    const { service } = createService();
+    // No setThreadStore call — should not throw, just silently skip
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+    // No assertion needed — just verifying it doesn't throw
+  });
+
+  it("filters non-string values from sharedGroupIDs", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      {
+        id: "origin",
+        v: 1,
+        messages: [],
+        meta: { visibility: "private", sharedGroupIDs: ["group-1", 42, null, "group-2"] },
+      },
+      { id: "fork", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.inheritVisibilityIfNeeded({ threadID: "origin", type: "handoff" }, "fork");
+
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, {
+      visibility: "private",
+      sharedGroupIDs: ["group-1", "group-2"],
+    });
+  });
+
+  it("inherits visibility when creating a thread with parent", async () => {
+    const { service } = createService();
+    const store = createMockThreadStore(
+      { id: "parent-vis", v: 1, messages: [], meta: { visibility: "public_unlisted" } },
+      { id: "child-vis", v: 1, messages: [] },
+    );
+    service.setThreadStore(store);
+
+    await service.createThread({
+      newThreadID: "child-vis",
+      parent: { threadID: "parent-vis", type: "handoff" },
+    });
+
+    // Should have called updateThreadMeta to copy visibility
+    assert.equal(store.updateThreadMetaCalls.length, 1);
+    assert.equal(store.updateThreadMetaCalls[0].threadId, "child-vis");
+    assert.deepEqual(store.updateThreadMetaCalls[0].meta, { visibility: "public_unlisted" });
+  });
+});
+
+// ──────────────────────────────────────────────────────
 //  Mock ThreadStore for seedThreadMessages tests
 // ──────────────────────────────────────────────────────
 
@@ -463,14 +638,23 @@ function createMockThreadStore(
     v: number;
     messages: unknown[];
     nextMessageId?: number;
+    meta?: Record<string, unknown>;
   }>
-): ThreadStoreForService {
+): ThreadStoreForService & {
+  /** Track updateThreadMeta calls for assertions */
+  updateThreadMetaCalls: Array<{ threadId: string; meta: unknown }>;
+} {
   const threads = new Map<string, ThreadSnapshot>();
   for (const t of initialThreads) {
     threads.set(t.id, t as unknown as ThreadSnapshot);
   }
 
-  const store: ThreadStoreForService = {
+  const updateThreadMetaCalls: Array<{ threadId: string; meta: unknown }> = [];
+
+  const store: ThreadStoreForService & {
+    updateThreadMetaCalls: Array<{ threadId: string; meta: unknown }>;
+  } = {
+    updateThreadMetaCalls,
     getThreadSnapshot(id: string) {
       return threads.get(id);
     },
@@ -510,6 +694,29 @@ function createMockThreadStore(
           disposed = true;
         },
       };
+    },
+    getThreadMeta(threadId: string): Record<string, unknown> | undefined {
+      const snap = threads.get(threadId);
+      if (!snap) return undefined;
+      const meta = (snap as unknown as { meta?: Record<string, unknown> }).meta;
+      if (!meta || typeof meta !== "object") return undefined;
+      return meta;
+    },
+    async updateThreadMeta(threadId: string, meta: unknown) {
+      updateThreadMetaCalls.push({ threadId, meta });
+      // Apply the meta to the snapshot locally (simulating remote roundtrip)
+      const snap = threads.get(threadId);
+      if (!snap) throw new Error(`Thread ${threadId} not found`);
+      const current = (snap as unknown as { meta?: Record<string, unknown> }).meta ?? {};
+      const updated = { ...snap, meta: { ...current, ...(meta as Record<string, unknown>) } };
+      threads.set(threadId, updated as unknown as ThreadSnapshot);
+    },
+    setVisibility(threadId: string, level: string) {
+      const snap = threads.get(threadId);
+      if (!snap) throw new Error(`Thread ${threadId} not found`);
+      const current = (snap as unknown as { meta?: Record<string, unknown> }).meta ?? {};
+      const updated = { ...snap, meta: { ...current, visibility: level } };
+      threads.set(threadId, updated as unknown as ThreadSnapshot);
     },
   };
   return store;

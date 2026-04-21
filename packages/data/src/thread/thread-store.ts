@@ -739,6 +739,19 @@ export class ThreadStore {
     return this.exclusiveLocks.has(threadId);
   }
 
+  /**
+   * Get the metadata of a cached thread.
+   * Used by inheritThreadVisibility to read origin thread metadata.
+   * 逆向: O4R calls `T.get(R)` to fetch the origin thread
+   */
+  getThreadMeta(threadId: string): Record<string, unknown> | undefined {
+    const snapshot = this.threadSubjects.get(threadId)?.getValue();
+    if (!snapshot) return undefined;
+    const meta = snapshot.meta;
+    if (!meta || typeof meta !== "object") return undefined;
+    return meta as Record<string, unknown>;
+  }
+
   // ─── 以下为原内部方法 ────────────────────────────────
 
   private syncThreadEntryFromThread(thread: ThreadSnapshot): void {
@@ -766,5 +779,100 @@ export class ThreadStore {
 
   private emitCurrentThreadEntries(): void {
     this.threadEntriesState.next(this.currentThreadEntries());
+  }
+}
+
+/**
+ * Inherit thread visibility from origin thread to forked thread.
+ *
+ * 逆向: amp-cli-reversed/modules/1065_unknown_O4R.js (chunk-002.js:14326-14368)
+ *   ```
+ *   async function O4R(T, R, a) {
+ *     let e = (await T.get(R))?.meta;
+ *     if (!e || typeof e !== "object") return;
+ *     let t = "visibility" in e ? e.visibility : void 0;
+ *     if (t !== "private" && t !== "thread_workspace_shared"
+ *         && t !== "public_unlisted" && t !== "public_discoverable") return;
+ *     let r = "sharedGroupIDs" in e && Array.isArray(e.sharedGroupIDs)
+ *       ? e.sharedGroupIDs.filter(i => typeof i === "string") : [];
+ *     let h = t === "private" ? { visibility: t, sharedGroupIDs: r } : { visibility: t };
+ *     await T.updateThreadMeta(a, h);
+ *   }
+ *   ```
+ *
+ * Called from ThreadWorkerService.createThread when parent relationship
+ * type is "handoff" — propagates the origin thread's visibility setting
+ * to the new fork so shared/public threads remain shared when branched.
+ *
+ * @param store - ThreadStore instance
+ * @param originThreadID - The parent thread being forked from
+ * @param forkedThreadID - The newly created fork thread
+ */
+export async function inheritThreadVisibility(
+  store: ThreadStore,
+  originThreadID: string,
+  forkedThreadID: string,
+): Promise<void> {
+  try {
+    const meta = store.getThreadMeta(originThreadID);
+    if (!meta) {
+      log.debug("Origin thread has no metadata to inherit", {
+        name: "inheritThreadVisibility",
+        originThreadID,
+        forkedThreadID,
+      });
+      return;
+    }
+
+    const visibility = "visibility" in meta ? meta.visibility : undefined;
+
+    // 逆向: amp validates against the 4 known visibility levels
+    if (
+      visibility !== "private" &&
+      visibility !== "thread_workspace_shared" &&
+      visibility !== "public_unlisted" &&
+      visibility !== "public_discoverable"
+    ) {
+      log.debug("Origin thread has no shareable visibility metadata", {
+        name: "inheritThreadVisibility",
+        originThreadID,
+        forkedThreadID,
+        metadata: meta,
+      });
+      return;
+    }
+
+    // 逆向: amp copies sharedGroupIDs only for "private" visibility
+    const sharedGroupIDs =
+      "sharedGroupIDs" in meta && Array.isArray(meta.sharedGroupIDs)
+        ? (meta.sharedGroupIDs as unknown[]).filter((s): s is string => typeof s === "string")
+        : [];
+
+    const inheritedMeta =
+      visibility === "private" ? { visibility, sharedGroupIDs } : { visibility };
+
+    // 逆向: amp uses updateThreadMeta for remote sync; we use it too when
+    // remote is available, falling back to local setVisibility otherwise.
+    try {
+      await store.updateThreadMeta(forkedThreadID, inheritedMeta);
+    } catch {
+      // If updateThreadMeta fails (e.g. no remote transport), fall back to
+      // local-only visibility setting so the fork still gets the right level.
+      store.setVisibility(forkedThreadID, visibility as ThreadVisibility);
+    }
+
+    log.debug("Successfully inherited thread visibility", {
+      name: "inheritThreadVisibility",
+      originThreadID,
+      forkedThreadID,
+      metadata: meta,
+    });
+  } catch (err) {
+    log.debug("Failed to inherit thread visibility settings", {
+      name: "inheritThreadVisibility",
+      error: err,
+      originThreadID,
+      forkedThreadID,
+    });
   }
 }

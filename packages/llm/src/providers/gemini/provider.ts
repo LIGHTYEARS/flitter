@@ -13,7 +13,7 @@
  * ```
  */
 import { ApiError, GoogleGenAI } from "@google/genai";
-import type { LLMProvider } from "../../provider";
+import type { CountTokensParams, CountTokensResult, LLMProvider } from "../../provider";
 import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
@@ -80,43 +80,8 @@ export class GeminiProvider implements LLMProvider {
 
     // Build SDK client (injected for tests, or create on-demand)
     // 逆向: amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js:17-30
-    //   GoogleGenAI reads project/location from constructor args and env vars:
-    //   T.project ?? GOOGLE_CLOUD_PROJECT, T.location ?? GOOGLE_CLOUD_LOCATION
-    //   vertexai flag enables Vertex AI mode (project/location required, no apiKey)
     const settings = config.settings as Record<string, unknown>;
-    const vertexProject =
-      (settings["vertexai.project"] as string | undefined) ??
-      (settings["google.project"] as string | undefined);
-    const vertexLocation =
-      (settings["vertexai.location"] as string | undefined) ??
-      (settings["google.location"] as string | undefined);
-    const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as string | undefined;
-
-    let client: GoogleGenAI;
-    if (this._injectedClient) {
-      client = this._injectedClient;
-    } else if (vertexProject && vertexLocation) {
-      // 逆向: Vertex AI mode — project + location, optionally with service account
-      // amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js:25-28
-      const opts: Record<string, unknown> = {
-        vertexai: true,
-        project: vertexProject,
-        location: vertexLocation,
-      };
-      // If service account key file is provided, pass as googleAuthOptions
-      // 逆向: GoogleGenAI accepts googleAuthOptions.credentials for Vertex AI auth
-      if (serviceAccountKeyFile) {
-        opts.googleAuthOptions = { keyFile: serviceAccountKeyFile };
-      }
-      // Only include apiKey if no service account (they're mutually exclusive in GoogleGenAI)
-      if (!serviceAccountKeyFile && apiKey) {
-        opts.apiKey = apiKey;
-      }
-      client = new GoogleGenAI(opts as ConstructorParameters<typeof GoogleGenAI>[0]);
-    } else {
-      // Standard Gemini API mode with API key
-      client = new GoogleGenAI({ apiKey });
-    }
+    const client = this._buildClient(apiKey, settings);
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -199,7 +164,104 @@ export class GeminiProvider implements LLMProvider {
     }
   }
 
+  /**
+   * Count input tokens using Gemini's countTokens API.
+   *
+   * 逆向: amp-cli-reversed/chunk-005.js:101711 — Gemini SDK countTokens
+   *   `client.models.countTokens({ model, contents })` returns `{ totalTokens }`
+   *
+   * Note: amp does not implement Gemini-specific provider-level countTokens
+   * (amp-cli-reversed/chunk-003.js:3910 only dispatches to "anthropic" and "openai").
+   * This uses the same SDK method and matches the fallback pattern from
+   * amp's n1R(T) = Math.ceil(T.length / 4) (modules/0083_unknown_l1R.js:4-5).
+   */
+  async countTokens(params: CountTokensParams): Promise<CountTokensResult> {
+    const { model, messages, systemPrompt, tools, config } = params;
+
+    // Get API key
+    const apiKey = await config.secrets.getToken("apiKey");
+    if (!apiKey) {
+      // No key — use fallback
+      return { inputTokens: this._countTokensFallback(messages, systemPrompt, tools) };
+    }
+
+    // Build SDK client
+    const client = this._buildClient(apiKey, config.settings);
+
+    // Build contents using the transformer (same as stream())
+    const contents = this._transformer.toProviderMessages(
+      messages && messages.length > 0
+        ? messages
+        : [{ role: "user", content: [{ type: "text", text: "x" }] } as never],
+      systemPrompt ?? [],
+    );
+
+    try {
+      const response = await client.models.countTokens({
+        model,
+        contents: contents as Parameters<typeof client.models.countTokens>[0]["contents"],
+      });
+      return { inputTokens: response.totalTokens ?? 0 };
+    } catch {
+      // Fallback: character-based approximation
+      // 逆向: n1R(T) = Math.ceil(T.length / 4) (modules/0083_unknown_l1R.js:4-5)
+      return { inputTokens: this._countTokensFallback(messages, systemPrompt, tools) };
+    }
+  }
+
   // ─── Private ──────────────────────────────────────────
+
+  /**
+   * Build a GoogleGenAI client from API key and settings.
+   * Shared between stream() and countTokens().
+   *
+   * 逆向: amp-cli-reversed/modules/0973_GoogleGenAI_L6T.js:17-30
+   */
+  private _buildClient(apiKey: string, settings: Record<string, unknown>): GoogleGenAI {
+    if (this._injectedClient) {
+      return this._injectedClient;
+    }
+
+    const vertexProject =
+      (settings["vertexai.project"] as string | undefined) ??
+      (settings["google.project"] as string | undefined);
+    const vertexLocation =
+      (settings["vertexai.location"] as string | undefined) ??
+      (settings["google.location"] as string | undefined);
+    const serviceAccountKeyFile = settings["vertexai.serviceAccountKeyFile"] as string | undefined;
+
+    if (vertexProject && vertexLocation) {
+      const opts: Record<string, unknown> = {
+        vertexai: true,
+        project: vertexProject,
+        location: vertexLocation,
+      };
+      if (serviceAccountKeyFile) {
+        opts.googleAuthOptions = { keyFile: serviceAccountKeyFile };
+      }
+      if (!serviceAccountKeyFile && apiKey) {
+        opts.apiKey = apiKey;
+      }
+      return new GoogleGenAI(opts as ConstructorParameters<typeof GoogleGenAI>[0]);
+    }
+
+    return new GoogleGenAI({ apiKey });
+  }
+
+  /**
+   * Character-based token count fallback.
+   * 逆向: amp's n1R(T) = Math.ceil(T.length / 4) (modules/0083_unknown_l1R.js:4-6)
+   */
+  private _countTokensFallback(
+    messages?: Array<{ role: string; content: unknown }>,
+    systemPrompt?: Array<{ type: string; text?: string }>,
+    tools?: Array<{ name: string; inputSchema?: unknown }>,
+  ): number {
+    const messagesStr = messages ? JSON.stringify(messages) : "";
+    const systemStr = systemPrompt ? JSON.stringify(systemPrompt) : "";
+    const toolsStr = tools ? JSON.stringify(tools) : "";
+    return Math.ceil((messagesStr.length + systemStr.length + toolsStr.length) / 4);
+  }
 
   private _buildConfig(
     systemInstruction: ReturnType<GeminiTransformer["toSystemInstruction"]>,

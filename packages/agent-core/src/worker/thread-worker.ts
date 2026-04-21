@@ -14,6 +14,7 @@ import type { AssistantContentBlock, Config, Message, ThreadSnapshot } from "@fl
 import { resolveModelName } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
 import { BehaviorSubject, Subject } from "@flitter/util";
+import type { AgentMode } from "../modes/agent-modes";
 import type { PermissionEngine } from "../permissions/engine";
 import type { PluginService } from "../plugins/plugin-service";
 import type { TitleGenerationProvider } from "../title/generate-title";
@@ -133,6 +134,16 @@ export interface ThreadWorkerOptions {
    * 逆向: amp-cli-reversed/modules/1244_ThreadWorker_ov.js:41-50
    */
   permissionEngine?: PermissionEngine;
+
+  /**
+   * Optional agent mode for tool restriction.
+   * When set, only tools allowed in this mode are sent to the LLM.
+   *
+   * 逆向: chunk-002.js:20479 — agentMode parameter passed to LO()
+   *   o = await m0(T.toolService.getToolsForMode(s, l) : T.toolService.getTools(s))
+   *   where s = agentMode
+   */
+  agentMode?: AgentMode;
 }
 
 // ─── ThreadWorker 类 ────────────────────────────────────
@@ -609,8 +620,13 @@ export class ThreadWorker {
       const systemPrompt = await this.opts.buildSystemPrompt();
 
       // ─── Step 3: 获取工具定义 ──────────────────
+      // 逆向: chunk-002.js:20483
+      //   o = await m0(T.toolService.getToolsForMode(s, l) : T.toolService.getTools(s))
+      //   When agentMode is set, filter tools by mode (IiT check).
       const config = this.opts.getConfig();
-      const toolDefs = this.opts.toolRegistry.getToolDefinitions(config.settings);
+      const toolDefs = this.opts.agentMode
+        ? this.opts.toolRegistry.getToolDefinitionsForMode(config.settings, this.opts.agentMode)
+        : this.opts.toolRegistry.getToolDefinitions(config.settings);
 
       // ─── Step 4: 构建 StreamParams ─────────────
       const messages = this.opts.getMessages();

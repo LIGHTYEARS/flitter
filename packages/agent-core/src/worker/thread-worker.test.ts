@@ -643,8 +643,14 @@ describe("ThreadWorker — cancelInference", () => {
       async *stream(params: StreamParams) {
         capturedSignal = params.signal;
         yield createTextDelta("partial");
-        // Hang here to simulate long-running inference
-        await new Promise<void>((resolve) => setTimeout(resolve, 5000));
+        // Hang here to simulate long-running inference; resolve early on abort
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, 30_000);
+          params.signal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            resolve();
+          });
+        });
         yield createCompleteDelta("done");
       },
     };

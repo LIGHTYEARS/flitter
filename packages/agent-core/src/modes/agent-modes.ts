@@ -64,6 +64,96 @@ export interface AgentModeSpec {
   deferredTools: string[];
 }
 
+// ─── Tool Lists per Mode ────────────────────────────────
+
+/**
+ * Tool name constants for mode restriction.
+ *
+ * 逆向: chunk-005.js:67177
+ *   UW (smart/large) — full set of ~27 tools
+ *   $iT (rush/fast) — ~24 tools, no restore_snapshot/code_tour/repl
+ *   SiT (deep) — ~17 tools, shell_command + apply_patch instead of Read/Edit/etc
+ *   HW / viT — deferred tools (lazy-loaded via skill)
+ *
+ * Mapping amp tool names → flitter:
+ *   create_file → Write, edit_file → Edit, glob → Glob
+ *   task_list → todo_read/todo_write, undo_edit → (not yet), chart/handoff/painter → (not yet)
+ *   MCP tools (read_mcp_resource) pass through unconditionally regardless of includeTools.
+ */
+const SMART_TOOLS = [
+  "Read",
+  "finder",
+  "Bash",
+  "Write",
+  "Edit",
+  "web_search",
+  "read_web_page",
+  "todo_read",
+  "todo_write",
+  "read_thread",
+  "find_thread",
+  "skill",
+  "oracle",
+  "librarian",
+  "Task",
+  "Grep",
+  "Glob",
+  "mermaid",
+  "look_at",
+  "get_diagnostics",
+  "restore_snapshot",
+  "delete_file",
+  "FuzzyFind",
+  "apply_patch",
+  "shell_command",
+];
+
+const FAST_TOOLS = [
+  "Read",
+  "Grep",
+  "Glob",
+  "finder",
+  "Bash",
+  "Write",
+  "Edit",
+  "get_diagnostics",
+  "web_search",
+  "read_web_page",
+  "mermaid",
+  "read_thread",
+  "find_thread",
+  "skill",
+  "oracle",
+  "librarian",
+  "Task",
+  "todo_read",
+  "todo_write",
+  "look_at",
+  "delete_file",
+  "FuzzyFind",
+  "apply_patch",
+  "shell_command",
+];
+
+const DEEP_TOOLS = [
+  "shell_command",
+  "apply_patch",
+  "web_search",
+  "read_web_page",
+  "mermaid",
+  "skill",
+  "read_thread",
+  "find_thread",
+  "librarian",
+  "oracle",
+  "finder",
+  "todo_read",
+  "todo_write",
+];
+
+const SMART_DEFERRED = ["code_review"];
+const DEEP_DEFERRED = ["code_review"];
+
 // ─── Mode Definitions ───────────────────────────────────
 
 /**
@@ -83,15 +173,15 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     displayName: "Smart",
     description: "The most capable model and set of tools",
     primaryModel: "claude-opus-4-6",
-    includeTools: [], // all tools
-    deferredTools: ["code_review", "code_tour"],
+    includeTools: SMART_TOOLS,
+    deferredTools: SMART_DEFERRED,
   },
   fast: {
     key: "fast",
     displayName: "Fast",
     description: "Faster and cheaper for small, well-defined tasks",
     primaryModel: "claude-haiku-4-5-20251001",
-    includeTools: [], // all tools, smaller model
+    includeTools: FAST_TOOLS,
     deferredTools: [],
   },
   deep: {
@@ -100,15 +190,15 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     description: "Extended reasoning for complex problems",
     primaryModel: "claude-opus-4-6",
     reasoningEffort: "high",
-    includeTools: [],
-    deferredTools: [],
+    includeTools: DEEP_TOOLS,
+    deferredTools: DEEP_DEFERRED,
   },
   auto: {
     key: "auto",
     displayName: "Auto",
     description: "Automatically selects mode based on task complexity",
     primaryModel: "claude-sonnet-4-6",
-    includeTools: [],
+    includeTools: [], // empty = all tools allowed
     deferredTools: [],
   },
   // 逆向: Ab.RUSH (chunk-005.js:67221-67242)
@@ -119,7 +209,7 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     displayName: "Rush",
     description: "Faster and cheaper for small, well-defined tasks (alias for fast)",
     primaryModel: "claude-haiku-4-5-20251001",
-    includeTools: [],
+    includeTools: FAST_TOOLS,
     deferredTools: [],
   },
   // 逆向: Ab.LARGE (chunk-005.js:67263-67284)
@@ -129,8 +219,8 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     displayName: "Large",
     description: "The biggest context window possible, for large tasks",
     primaryModel: "claude-opus-4-6",
-    includeTools: [],
-    deferredTools: ["code_review", "code_tour"],
+    includeTools: SMART_TOOLS,
+    deferredTools: SMART_DEFERRED,
   },
 };
 
@@ -186,4 +276,44 @@ export function isValidAgentMode(value: string): value is AgentMode {
     value === "rush" ||
     value === "large"
   );
+}
+
+/**
+ * Check if a tool is allowed in a given agent mode.
+ *
+ * 逆向: modules/1614_unknown_IiT.js:23-36 — IiT(toolName, modeKey)
+ *   ```
+ *   function IiT(T, R) {
+ *     let a = xi(R);              // get mode spec
+ *     if (!a) return false;
+ *     if (a.includeTools) {        // if mode restricts tools:
+ *       if (a.deferredTools?.includes(T)) return true; // deferred always OK
+ *       return a.includeTools.includes(T);             // must be in include list
+ *     }
+ *     return true;                 // no restriction → allow all
+ *   }
+ *   ```
+ *
+ * MCP tools (prefixed with "mcp__") are always allowed regardless of mode,
+ * matching amp's behavior where source === "mcp" bypasses IiT.
+ *
+ * @param toolName - Tool name to check
+ * @param mode - Agent mode key
+ * @returns true if the tool is allowed in the given mode
+ */
+export function isToolAllowedInMode(toolName: string, mode: AgentMode): boolean {
+  const spec = AGENT_MODES[mode];
+  if (!spec) return false;
+
+  // MCP tools always pass through (逆向: chunk-005.js L420-427 source check)
+  if (toolName.startsWith("mcp__")) return true;
+
+  // Empty includeTools = all tools allowed (auto mode, or future extension)
+  if (spec.includeTools.length === 0) return true;
+
+  // Deferred tools are always allowed (loaded lazily via skill)
+  if (spec.deferredTools.includes(toolName)) return true;
+
+  // Must be in the include list
+  return spec.includeTools.includes(toolName);
 }

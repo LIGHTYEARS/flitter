@@ -31,7 +31,7 @@
 // ─── Types ──────────────────────────────────────────────
 
 /** Agent mode identifier */
-export type AgentMode = "smart" | "fast" | "deep" | "auto" | "rush" | "large";
+export type AgentMode = "smart" | "fast" | "deep" | "auto" | "rush" | "large" | "free";
 
 /** Agent mode specification */
 export interface AgentModeSpec {
@@ -154,6 +154,35 @@ const DEEP_TOOLS = [
 const SMART_DEFERRED = ["code_review"];
 const DEEP_DEFERRED = ["code_review"];
 
+/**
+ * Free tier tool list.
+ *
+ * 逆向: giT (2026_tail_anonymous.js:61010)
+ *   16 tools — reduced set without undo_edit, oracle, handoff, librarian,
+ *   Task (subagent), code_tour, painter, look_at, restore_snapshot.
+ *
+ * Mapping amp → flitter: create_file→Write, edit_file→Edit, glob→Glob,
+ *   task_list→todo_read/todo_write, chart→(not yet)
+ */
+const FREE_TOOLS = [
+  "Read",
+  "Grep",
+  "Glob",
+  "finder",
+  "Bash",
+  "Write",
+  "Edit",
+  "get_diagnostics",
+  "web_search",
+  "read_web_page",
+  "todo_read",
+  "todo_write",
+  "read_thread",
+  "find_thread",
+  "mermaid",
+  "skill",
+];
+
 // ─── Mode Definitions ───────────────────────────────────
 
 /**
@@ -222,6 +251,17 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     includeTools: SMART_TOOLS,
     deferredTools: SMART_DEFERRED,
   },
+  // 逆向: Ab.FREE (2026_tail_anonymous.js:61034-61052)
+  // Free tier mode — limited model (Haiku) and reduced tool set.
+  // 逆向: qt(T) → T === "free" || T.startsWith("free-") (chunk-001.js:6241)
+  free: {
+    key: "free",
+    displayName: "Free",
+    description: "Flitter Free — limited model and tools for free-tier users",
+    primaryModel: "claude-haiku-4-5-20251001",
+    includeTools: FREE_TOOLS,
+    deferredTools: [],
+  },
 };
 
 // ─── Helpers ────────────────────────────────────────────
@@ -274,8 +314,25 @@ export function isValidAgentMode(value: string): value is AgentMode {
     value === "deep" ||
     value === "auto" ||
     value === "rush" ||
-    value === "large"
+    value === "large" ||
+    value === "free"
   );
+}
+
+/**
+ * Check if a mode is the free tier.
+ *
+ * 逆向: chunk-001.js:6241 — qt(T)
+ *   qt(T) → T === "free" || T.startsWith("free-")
+ *
+ * Used to select the abbreviated free-mode system prompt and
+ * enforce usage limits.
+ *
+ * @param mode - Agent mode key
+ * @returns true if the mode is a free-tier variant
+ */
+export function isFreeMode(mode: AgentMode | string): boolean {
+  return mode === "free" || mode.startsWith("free-");
 }
 
 /**

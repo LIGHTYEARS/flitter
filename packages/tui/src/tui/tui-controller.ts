@@ -36,6 +36,8 @@ import {
   ALT_SCREEN_ON,
   AnsiRenderer,
   type ColorDepth,
+  FOCUS_OFF,
+  FOCUS_ON,
   KITTY_KEYBOARD_OFF,
   KITTY_KEYBOARD_ON,
   MOUSE_OFF,
@@ -49,7 +51,12 @@ import {
 } from "../screen/ansi-renderer.js";
 import { Screen } from "../screen/screen.js";
 import { InputParser } from "../vt/input-parser.js";
-import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
+import type {
+  KeyEvent,
+  PasteEvent,
+  FocusEvent as TermFocusEvent,
+  MouseEvent as TermMouseEvent,
+} from "../vt/types.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 import { createTtyInput, createTtyOutput } from "./tty-input.js";
 
@@ -276,6 +283,8 @@ export class TuiController {
   /** 能力检测完成处理器 */
   private capabilityHandlers: ((event: CapabilityEvent) => void)[] = [];
 
+  private focusHandlers: ((event: TermFocusEvent) => void)[] = [];
+
   /** 绑定的 resize 处理函数引用（用于移除监听器） */
   private boundHandleResize = this.handleResize.bind(this);
   /** 绑定的 cleanup 处理函数引用（用于移除监听器） */
@@ -324,8 +333,11 @@ export class TuiController {
           case "paste":
             for (const handler of this.pasteHandlers) handler(event);
             break;
+          case "focus":
+            for (const handler of this.focusHandlers) handler(event);
+            break;
           default:
-            // focus, resize 等其他事件暂不通过 InputParser 分发
+            // resize 等其他事件暂不通过 InputParser 分发
             break;
         }
       });
@@ -364,6 +376,7 @@ export class TuiController {
       this.enableMouse();
       this.enableBracketedPaste();
       this.enableKittyKeyboard();
+      this.enableFocusReporting();
     } catch (error) {
       this.deinit();
       throw error;
@@ -398,6 +411,7 @@ export class TuiController {
     this.resizeHandlers.length = 0;
     this.pasteHandlers.length = 0;
     this.capabilityHandlers.length = 0;
+    this.focusHandlers.length = 0;
 
     // 移除信号和事件监听器
     process.removeListener("SIGWINCH", this.boundHandleResize);
@@ -620,6 +634,29 @@ export class TuiController {
     this.capabilityHandlers.push(handler);
   }
 
+  /**
+   * 注册终端焦点事件处理器。
+   *
+   * 逆向: amp's FNR (modules/1253_unknown_iUR.js:1-6) — initFocusTracking
+   * subscribes via tui.onFocus(). Terminal sends CSI I / CSI O when
+   * focus reporting is enabled (DECSET ?1004).
+   *
+   * @param handler - 焦点事件回调
+   */
+  onFocus(handler: (event: TermFocusEvent) => void): void {
+    this.focusHandlers.push(handler);
+  }
+
+  /**
+   * 注销终端焦点事件处理器。
+   *
+   * @param handler - 之前注册的焦点事件回调
+   */
+  offFocus(handler: (event: TermFocusEvent) => void): void {
+    const idx = this.focusHandlers.indexOf(handler);
+    if (idx !== -1) this.focusHandlers.splice(idx, 1);
+  }
+
   // ════════════════════════════════════════════════════
   //  渲染
   // ════════════════════════════════════════════════════
@@ -752,6 +789,18 @@ export class TuiController {
   }
 
   /**
+   * 启用终端焦点报告 (DECSET ?1004)。
+   *
+   * 逆向: amp enables focus reporting at init. Terminal sends CSI I (focus in)
+   * and CSI O (focus out). Used by idle/focus tracking (modules/1253_unknown_iUR.js).
+   *
+   * @private
+   */
+  private enableFocusReporting(): void {
+    this.ttyOutput?.stream.write(FOCUS_ON);
+  }
+
+  /**
    * 同步恢复终端状态（ANSI 序列写入）。
    *
    * 逆向: XXT.deinit (sync part) in clipboard-and-input.js:600-607
@@ -765,6 +814,7 @@ export class TuiController {
     let seq = "";
     seq += MOUSE_OFF;
     seq += PASTE_OFF;
+    seq += FOCUS_OFF;
     // Disable kitty keyboard if it was enabled
     if (this.capabilities?.kittyKeyboard) {
       seq += KITTY_KEYBOARD_OFF;
@@ -856,6 +906,7 @@ export class TuiController {
     this.enableMouse();
     this.enableBracketedPaste();
     this.enableKittyKeyboard();
+    this.enableFocusReporting();
     this.screen.needsFullRefresh = true;
     this.suspended = false;
   }

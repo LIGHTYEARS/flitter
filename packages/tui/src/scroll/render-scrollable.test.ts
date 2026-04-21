@@ -335,4 +335,117 @@ describe("RenderScrollable", () => {
       expect(controller.maxScrollExtent).toBe(0);
     });
   });
+
+  // ─── TUI-29: position="bottom" (bottom-stick viewport) ───
+
+  describe('position="bottom"', () => {
+    it("anchors short content to bottom of viewport", () => {
+      const controller = new ScrollController();
+      const scrollable = new RenderScrollable(controller, "bottom");
+      const child = new MockChildRenderBox(10); // 10 rows, viewport 30
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+
+      // maxScrollExtent should be 0 (content < viewport)
+      expect(controller.maxScrollExtent).toBe(0);
+
+      // Paint: child should be offset by (30 - 10) = 20 rows from top
+      const screen = new Screen(80, 30);
+      scrollable.paint(screen, 0, 0);
+
+      expect(child.paintCalls.length).toBeGreaterThan(0);
+      const lastPaint = child.paintCalls[child.paintCalls.length - 1]!;
+      expect(lastPaint.offsetY).toBe(20); // bottom-anchored: 0 - 0 + 20
+    });
+
+    it("no bottom anchor when content >= viewport", () => {
+      const controller = new ScrollController();
+      const scrollable = new RenderScrollable(controller, "bottom");
+      const child = new MockChildRenderBox(50); // 50 rows, viewport 30
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+
+      // maxScrollExtent should be 20
+      expect(controller.maxScrollExtent).toBe(20);
+
+      // Since followMode is true by default, controller should be at bottom
+      // So scrollOffset = 20, bottomAnchorOffset = 0
+      const screen = new Screen(80, 30);
+      scrollable.paint(screen, 0, 0);
+
+      const lastPaint = child.paintCalls[child.paintCalls.length - 1]!;
+      // offsetY = 0 - 20 + 0 = -20
+      expect(lastPaint.offsetY).toBe(-20);
+    });
+
+    it("position defaults to top", () => {
+      const controller = new ScrollController();
+      const scrollable = new RenderScrollable(controller);
+      const child = new MockChildRenderBox(10); // 10 rows, viewport 30
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+
+      const screen = new Screen(80, 30);
+      scrollable.paint(screen, 0, 0);
+
+      // Top position: no bottom anchor, so offsetY = 0
+      const lastPaint = child.paintCalls[child.paintCalls.length - 1]!;
+      expect(lastPaint.offsetY).toBe(0);
+    });
+
+    it("position setter triggers relayout", () => {
+      const controller = new ScrollController();
+      const scrollable = new RenderScrollable(controller, "top");
+      const child = new MockChildRenderBox(10);
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+
+      // Initially top: paint at 0
+      const screen = new Screen(80, 30);
+      scrollable.paint(screen, 0, 0);
+      expect(child.paintCalls[child.paintCalls.length - 1]!.offsetY).toBe(0);
+
+      // Switch to bottom
+      scrollable.position = "bottom";
+      scrollable.layout(parentConstraints);
+      scrollable.paint(screen, 0, 0);
+      expect(child.paintCalls[child.paintCalls.length - 1]!.offsetY).toBe(20);
+    });
+  });
 });

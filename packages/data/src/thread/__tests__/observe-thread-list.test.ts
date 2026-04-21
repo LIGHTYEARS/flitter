@@ -133,3 +133,115 @@ describe("DATA-17: observeThreadList filtering", () => {
     expect(ids).toContain("t4");
   });
 });
+
+// ─── DATA-10: Reactive observeThreadList$ ─────────────────
+
+describe("DATA-10: reactive observeThreadList$", () => {
+  it("emits filtered entries when threadEntriesState changes", async () => {
+    const store = new ThreadStore();
+    store.markEntriesLoaded();
+
+    const collected: ThreadEntry[][] = [];
+    const sub = store.observeThreadList$().subscribe((entries) => {
+      collected.push(entries);
+    });
+
+    // Add entries one at a time
+    store.upsertThreadEntry(makeEntry({ id: "t1" }));
+    store.upsertThreadEntry(makeEntry({ id: "child", mainThreadID: "t1" }));
+    store.upsertThreadEntry(makeEntry({ id: "t2", archived: true }));
+
+    // Wait for throttle to flush trailing
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Should have received emissions that exclude child threads
+    // and exclude archived by default
+    const last = collected[collected.length - 1]!;
+    const ids = last.map((e) => e.id);
+    expect(ids).toContain("t1");
+    expect(ids).not.toContain("child");
+    expect(ids).not.toContain("t2");
+
+    sub.unsubscribe();
+  });
+
+  it("observeThreadList$ with includeArchived emits archived entries", async () => {
+    const store = new ThreadStore();
+    store.markEntriesLoaded();
+
+    const collected: ThreadEntry[][] = [];
+    const sub = store.observeThreadList$({ includeArchived: true }).subscribe((entries) => {
+      collected.push(entries);
+    });
+
+    store.upsertThreadEntry(makeEntry({ id: "active" }));
+    store.upsertThreadEntry(makeEntry({ id: "archived", archived: true }));
+
+    await new Promise((r) => setTimeout(r, 300));
+
+    const last = collected[collected.length - 1]!;
+    expect(last).toHaveLength(2);
+    const ids = last.map((e) => e.id);
+    expect(ids).toContain("active");
+    expect(ids).toContain("archived");
+
+    sub.unsubscribe();
+  });
+
+  it("observeThreadEntries$ filters null emissions", async () => {
+    const store = new ThreadStore();
+    // Don't mark entries loaded — state starts as null
+
+    const collected: ThreadEntry[][] = [];
+    const sub = store.observeThreadEntries$().subscribe((entries) => {
+      collected.push(entries);
+    });
+
+    // No emissions yet since state is null
+    await new Promise((r) => setTimeout(r, 50));
+    expect(collected).toHaveLength(0);
+
+    // Now load entries
+    store.markEntriesLoaded();
+    store.upsertThreadEntry(makeEntry({ id: "t1" }));
+
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(collected.length).toBeGreaterThan(0);
+    expect(collected[collected.length - 1]![0]!.id).toBe("t1");
+
+    sub.unsubscribe();
+  });
+
+  it("distinctUntilChanged suppresses version-only changes", async () => {
+    const store = new ThreadStore();
+    store.markEntriesLoaded();
+
+    const collected: ThreadEntry[][] = [];
+    const sub = store.observeThreadList$().subscribe((entries) => {
+      collected.push([...entries]);
+    });
+
+    const fixedTime = 1000000;
+    store.upsertThreadEntry(
+      makeEntry({ id: "t1", v: 1, created: fixedTime, userLastInteractedAt: fixedTime }),
+    );
+
+    // Wait for leading emission + trailing
+    await new Promise((r) => setTimeout(r, 300));
+    const countAfterFirst = collected.length;
+
+    // Update same entry with only version change (all other fields identical)
+    store.upsertThreadEntry(
+      makeEntry({ id: "t1", v: 2, created: fixedTime, userLastInteractedAt: fixedTime }),
+    );
+
+    // Wait for throttle
+    await new Promise((r) => setTimeout(r, 300));
+
+    // distinctUntilChanged with includeVersion:false should suppress this
+    expect(collected.length).toBe(countAfterFirst);
+
+    sub.unsubscribe();
+  });
+});

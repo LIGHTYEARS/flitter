@@ -56,13 +56,33 @@ export class RenderScrollable extends RenderBox {
   private _onScrollChange: (() => void) | null = null;
 
   /**
+   * Viewport position: "top" (default) or "bottom".
+   *
+   * 逆向: amp v1T._position (chunk-006:4094)
+   * When "bottom", short content (< viewport) is anchored to the bottom edge
+   * via a negative paint offset.
+   */
+  private _position: "top" | "bottom";
+
+  /**
+   * Bottom-anchor paint offset — when content < viewport and position="bottom",
+   * this holds the negative offset to push content to the bottom edge.
+   *
+   * 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
+   *   _scrollOffset = -(viewportHeight - contentHeight)
+   */
+  private _bottomAnchorOffset: number = 0;
+
+  /**
    * 创建可滚动视口渲染对象。
    *
    * @param scrollController - 滚动控制器实例
+   * @param position - Viewport position ("top" or "bottom")
    */
-  constructor(scrollController: ScrollController) {
+  constructor(scrollController: ScrollController, position: "top" | "bottom" = "top") {
     super();
     this._scrollController = scrollController;
+    this._position = position;
   }
 
   /**
@@ -96,6 +116,17 @@ export class RenderScrollable extends RenderBox {
       this._scrollController.addListener(this._onScrollChange);
     }
 
+    this.markNeedsLayout();
+  }
+
+  /**
+   * Set viewport position.
+   *
+   * @param value - "top" or "bottom"
+   */
+  set position(value: "top" | "bottom") {
+    if (this._position === value) return;
+    this._position = value;
     this.markNeedsLayout();
   }
 
@@ -184,6 +215,15 @@ export class RenderScrollable extends RenderBox {
 
     const viewportHeight = this._size.height;
     this._scrollController.updateMaxScrollExtent(Math.max(0, childHeight - viewportHeight));
+
+    // 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
+    // When position="bottom" and content is shorter than viewport,
+    // compute a negative paint offset to anchor content to the bottom edge.
+    if (this._position === "bottom" && childHeight <= viewportHeight) {
+      this._bottomAnchorOffset = viewportHeight - childHeight;
+    } else {
+      this._bottomAnchorOffset = 0;
+    }
   }
 
   // ════════════════════════════════════════════════════
@@ -219,6 +259,13 @@ export class RenderScrollable extends RenderBox {
       this._size.height,
     );
 
-    this.child.paint(clipScreen as unknown as Screen, offsetX, offsetY - scrollOffset);
+    // Apply bottom-anchor offset when content is shorter than viewport
+    // 逆向: amp v1T.paint uses _scrollOffset which can be negative for bottom-stick
+    const bottomOffset = this._bottomAnchorOffset;
+    this.child.paint(
+      clipScreen as unknown as Screen,
+      offsetX,
+      offsetY - scrollOffset + bottomOffset,
+    );
   }
 }

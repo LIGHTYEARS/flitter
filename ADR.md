@@ -924,4 +924,35 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Delegate permission action fully operational: external programs can make tool-level allow/ask/reject decisions
 - Terminal-aware scroll step: ghostty and JetBrains get 1-line steps, others get 3-line
 - 24 new tests, 5713 total passing, 0 type errors
+
+---
+
+## ADR-029: Idle/focus tracking, free mode, reactive thread list, MCP merge, notifications, bottom-stick
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 29 targets 6 gaps across TUI, core, data, and CLI domains. All have clear amp references and are self-contained.
+
+**Decisions:**
+
+1. **GAP-TUI-30 (Idle/focus tracking):** Implemented as module-level globals (`terminalFocused`, `lastActiveTime`) in `terminal-tracking.ts`, matching amp's FNR/GNR pattern (modules/1253). TuiController gains `onFocus`/`offFocus` methods and enables DECSET ?1004 focus reporting at init. Focus events already parsed by InputParser (CSI I/O) — just needed to be dispatched.
+
+2. **GAP-CORE-27 (Free tier mode):** Added `"free"` to AgentMode union and AGENT_MODES record. FREE_TOOLS is a strict subset of FAST_TOOLS (16 vs 24 tools), missing oracle/librarian/Task/restore_snapshot/look_at/delete_file/FuzzyFind/apply_patch/shell_command. `isFreeMode()` matches amp's `qt()` (supports "free-" prefix variants). Free mode uses Haiku 4.5 like rush/fast.
+
+3. **GAP-DATA-10 (Reactive observeThreadList):** Added `throttleTime` operator to `@flitter/util` reactive operators (leading+trailing edge, timer-based). `observeThreadEntries$()` wraps BehaviorSubject with null-filter + 200ms throttle. `observeThreadList$()` adds map+distinctUntilChanged with `entryEquals({includeVersion:false})` — suppresses spurious emissions from version-only bumps. Cached observable cleared on `invalidateThreadListCache()`.
+
+4. **GAP-DATA-27 (MCP includeTools merge):** `SkillService.updateMcpServers()` now strips `includeTools`/`_skill*` metadata before JSON-comparing base specs. Matching specs → Set-deduped includeTools merge with per-skill tracking (`_skillIncludeTools`). Different specs → warn and skip conflicting entry. MCPServerSpec extended with `includeTools`, `_skillName`, `_skillNames`, `_skillIncludeTools` metadata fields.
+
+5. **GAP-CLI-31 (--notifications flag):** Added `--notifications`/`--no-notifications` to program.ts. `CliContext.notifications` is tristate: `true` (explicit enable), `false` (explicit disable), `undefined` (use default: TUI=enabled, execute=disabled). Matches amp's 1472:6690 flag definition and SB:227 defaulting logic.
+
+6. **GAP-TUI-29 (Bottom-stick viewport):** Added `position: "top" | "bottom"` prop to Scrollable, ScrollViewport, RenderScrollable. `ScrollController.followMode` gains a setter. `ScrollableState._configureController()` sets `followMode = (position === "bottom")`. `RenderScrollable.performLayout()` computes `_bottomAnchorOffset = viewportHeight - childHeight` when content < viewport and position=bottom. Paint applies this offset to push content to bottom edge.
+
+**Consequences:**
+- Terminal focus/idle state available for notification decisions and analytics
+- Free tier mode enables resource-constrained deployments with Haiku
+- Thread list consumers can subscribe to reactive filtered streams
+- Multiple skills referencing the same MCP server no longer silently clobber each other
+- Notifications can be explicitly controlled via CLI flag
+- Scrollable widgets can anchor content to bottom, enabling chat-style auto-scroll
+- 39 new tests, 5752 total passing, 0 type errors
 - 5 gaps closed: DATA-26, DATA-24, TUI-38, TUI-37, CORE-28; 1 partially closed: TUI-29 (scroll step only)

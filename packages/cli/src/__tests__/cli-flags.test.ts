@@ -251,4 +251,20 @@ describe("New CLI flag parsing", () => {
     const ctx = parseContext(["--mode", "smart"]);
     expect(ctx.agentMode).toBe("smart");
   });
+
+  // 逆向: modules/1472_tail_anonymous.js:6690-6694 — --notifications flag
+  test("--notifications sets notifications to true", () => {
+    const ctx = parseContext(["--notifications"]);
+    expect(ctx.notifications).toBe(true);
+  });
+
+  test("--no-notifications sets notifications to false", () => {
+    const ctx = parseContext(["--no-notifications"]);
+    expect(ctx.notifications).toBe(false);
+  });
+
+  test("notifications is undefined when not specified", () => {
+    const ctx = parseContext([]);
+    expect(ctx.notifications).toBeUndefined();
+  });
 });

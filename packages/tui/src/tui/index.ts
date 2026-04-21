@@ -16,6 +16,13 @@
  * @module
  */
 
+export {
+  _resetTrackingState,
+  getIsIdle,
+  getTerminalFocused,
+  initFocusTracking,
+  initIdleTracking,
+} from "./terminal-tracking.js";
 export type {
   TtyInputOptions,
   TtyInputSource,

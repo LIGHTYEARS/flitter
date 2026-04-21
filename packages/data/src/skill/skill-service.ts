@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
-import { BehaviorSubject } from "@flitter/util";
+import { BehaviorSubject, createLogger } from "@flitter/util";
 import { loadSkill, validateSkillName } from "./skill-parser.js";
 import type {
   MCPServerSpec,
@@ -10,6 +10,8 @@ import type {
   SkillInstallResult,
   SkillScanResult,
 } from "./skill-types.ts";
+
+const log = createLogger("skill");
 
 export interface SkillServiceOptions {
   workspaceRoot: string | null;
@@ -273,14 +275,94 @@ export class SkillService {
     }, this.debounceMs);
   }
 
+  /**
+   * Derive merged MCP servers from skills with collision detection.
+   *
+   * 逆向: modules/1338_SkillService_UqR.js:73-137
+   *
+   * When multiple skills reference the same MCP server name:
+   * - If the base specs (command, args, env) differ → warn and skip the conflicting entry
+   * - If they match → merge includeTools arrays (Set dedup)
+   * - Track per-skill includeTools for downstream filtering
+   */
   private updateMcpServers(skills: Skill[]): void {
     const servers: Record<string, MCPServerSpec> = {};
+
     for (const skill of skills) {
-      if (skill.frontmatter.mcpServers) {
-        for (const [name, spec] of Object.entries(skill.frontmatter.mcpServers)) {
-          servers[name] = spec;
+      if (!skill.frontmatter.mcpServers) continue;
+      for (const [serverName, spec] of Object.entries(skill.frontmatter.mcpServers)) {
+        const existing = servers[serverName];
+
+        if (!existing) {
+          // First encounter — store with skill metadata
+          const skillIncludeTools = spec.includeTools
+            ? { [skill.name]: spec.includeTools }
+            : undefined;
+          servers[serverName] = {
+            ...spec,
+            _skillName: skill.name,
+            _skillNames: [skill.name],
+            _skillIncludeTools: skillIncludeTools,
+          };
+          continue;
         }
+
+        // Collision — compare base specs (strip skill metadata + includeTools)
+        const existingNames =
+          existing._skillNames ?? (existing._skillName ? [existing._skillName] : []);
+        const mergedNames = existingNames.includes(skill.name)
+          ? existingNames
+          : [...existingNames, skill.name];
+
+        const stripMeta = (s: MCPServerSpec): Record<string, unknown> => {
+          const {
+            includeTools: _it,
+            _skillName: _sn,
+            _skillNames: _sns,
+            _skillIncludeTools: _sit,
+            ...base
+          } = s;
+          return base;
+        };
+
+        if (JSON.stringify(stripMeta(existing)) !== JSON.stringify(stripMeta(spec))) {
+          log.warn("Skill MCP server name collision with different specs", {
+            serverName,
+            firstSkill: existingNames[0],
+            conflictingSkill: skill.name,
+          });
+          continue;
+        }
+
+        // Specs match — merge includeTools
+        const merged = Array.from(
+          new Set([...(existing.includeTools ?? []), ...(spec.includeTools ?? [])]),
+        );
+        const mergedIncludeTools = merged.length > 0 ? merged : undefined;
+
+        // Update per-skill tracking
+        const perSkillTools: Record<string, string[]> = {
+          ...(existing._skillIncludeTools ?? {}),
+        };
+        if (spec.includeTools) {
+          perSkillTools[skill.name] = spec.includeTools;
+        }
+
+        servers[serverName] = {
+          ...spec,
+          includeTools: mergedIncludeTools,
+          _skillName: mergedNames[0],
+          _skillNames: mergedNames,
+          _skillIncludeTools: Object.keys(perSkillTools).length > 0 ? perSkillTools : undefined,
+        };
       }
+    }
+
+    if (Object.keys(servers).length > 0) {
+      log.info("SkillService derived MCP servers from skills", {
+        serverCount: Object.keys(servers).length,
+        serverNames: Object.keys(servers),
+      });
     }
     this.mcpServersFromSkills.next(servers);
   }

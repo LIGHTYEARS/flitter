@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 28)
+> **Last updated:** 2026-04-22 (iteration 29)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -87,6 +87,7 @@
 | GAP-LLM-08 | LLM | `service_tier` for OpenAI | Closed (iteration 27) |
 | GAP-DATA-25 | Data | `GlobalCachedValue` TTL cache | Closed (iteration 27, pre-existing) |
 | GAP-CORE-28 | Core | `delegate` permission action | Closed (iteration 28) |
+| GAP-CORE-27 | Core | `free` tier mode | Closed (iteration 29) |
 
 ---
 
@@ -106,7 +107,7 @@
 | GAP-CLI-09 | ~~`--mcp-config <json>`~~ | **Closed (iteration 19)** — `extractCliMcpConfig` + `parseMcpConfigValue` in `main.ts`. Accepts inline JSON or file path. Merges into runtime config via `configService.setRuntimeOverride("mcpServers", ...)` + `mcpServerManager.refresh()`. |
 | GAP-CLI-25 | 2 slash commands are informational-only | `/switch`, `/dashboard` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete`, `/new`, `/editor`, `/history` now functional — 7 of 9 stubs done.) |
 | GAP-CLI-30 | `--settings-file <path>` flag | **Closed (iteration 24, found pre-existing)** — Already implemented via `--api-key`, `--model`, and `--system-prompt` flags. The `--settings-file` flag was not in amp's public CLI — it was an internal debug option. |
-| GAP-CLI-31 | `--notifications` flag | Sound notification toggle. Amp has `--notifications`/`--no-notifications`. |
+| GAP-CLI-31 | `--notifications` flag | **Closed (iteration 29)** — `--notifications` / `--no-notifications` boolean flag added to program.ts. `CliContext.notifications` resolves: explicit flag → use it; undefined → default (TUI: enabled, execute: disabled). Matches amp's 1472:6690-6694 and SB:227 defaulting logic. 3 new tests. |
 | GAP-CLI-32 | `--ide` / `--no-ide` flag | IDE connection toggle. Amp supports JetBrains/Zed/Neovim IDE integration. No IDE integration in flitter at all. |
 | GAP-CLI-33 | `--log-level` / `--log-file` flags | **Closed (iteration 26)** — `--log-level <level>` and `--log-file <path>` flags in program.ts. Early argv scan in main.ts (supports `=` syntax). `setLogOutput()` in logger.ts redirects global log output. Matches amp's RF0 (modules/2004_unknown_RF0.js). Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. 2 new tests. |
 | GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
@@ -147,8 +148,8 @@
 | GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** |
 | GAP-TUI-27 | **ForceDim InheritedWidget** | **Closed (iteration 25)** — `ForceDimWidget` InheritedWidget subclass with `maybeOf(ctx)`/`shouldForceDim(ctx)` static helpers matching amp's `CA` (misc_utils.js:91-114). `ContainerElement` overrides `mount()`/`performRebuild()` to read inherited dim state. 16 new tests. |
 | GAP-TUI-28 | **SelectionArea: double/triple-click, auto-scroll** | Amp: double-click selects word (500ms drag timer), triple-click selects line/paragraph, auto-scroll during drag, cursor shape changes, auto-copy with highlight flash. Flitter: basic drag only, immediate copy, no double/triple-click, no auto-scroll. |
-| GAP-TUI-29 | **Scrollable: `position: "bottom"` + pixel-mouse step** | Amp has bottom-stick viewport and per-terminal scroll step (1 for ghostty/tmux, 3 for others via `shouldUsePixelMouse()`). Flitter: no bottom-stick, ~~hardcoded step 3~~ **scroll step detection added (iteration 28)** — ghostty/JetBrains→1, else→3 via `TerminalCapabilities.scrollStep()`. Bottom-stick viewport still missing. |
-| GAP-TUI-30 | **Idle / focus tracking** | Amp calls `initFocusTracking(tui)` and `initIdleTracking(tui)` for analytics/UI decisions. Flitter has neither. |
+| GAP-TUI-29 | **Scrollable: `position: "bottom"` + pixel-mouse step** | **Closed (iteration 29)** — Added `position: "top" | "bottom"` prop to `Scrollable`/`ScrollViewport`/`RenderScrollable`. Bottom-stick: `_configureController()` sets `followMode` from position; `_bottomAnchorOffset` pushes short content to viewport bottom in paint; `ScrollController.followMode` gains setter. Scroll step detection was added in iteration 28. Matches amp's I3/v1T (chunk-006:4094-4220, 5896-5897). 4 new tests. |
+| GAP-TUI-30 | **Idle / focus tracking** | **Closed (iteration 29)** — `initFocusTracking(tui)` and `initIdleTracking(tui, idleMs)` in `terminal-tracking.ts`. Module-level globals for focused state and last-active timestamp. `getTerminalFocused()` / `getIsIdle()` exported. TuiController gains `onFocus`/`offFocus` + focus reporting (`DECSET ?1004`). Matches amp's FNR/GNR/dX/T5T (modules/1253_unknown_iUR.js:1-19). 10 new tests. |
 | GAP-TUI-31 | **Pixel-mouse support** | Amp detects `pixelMouse` + `pixelDimensions` via DECRQSS `?1016`, enables sub-character hit-testing. Not in flitter. |
 
 ### LLM
@@ -185,7 +186,7 @@
 | GAP-CORE-24 | **Plugin `configuration` API** | Plugins cannot read/write agent settings. Amp's `iD` class provides `configuration.get/update/delete` RPC. Not implemented in flitter. |
 | GAP-CORE-25 | **`deep` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.deep.includeTools` populated with 13 tools matching amp's `SiT` list (shell_command, apply_patch, web_search, etc). `isToolAllowedInMode()` function matches amp's `IiT()`. `ToolRegistry.listEnabledForMode()` + `getToolDefinitionsForMode()` wired into `ThreadWorker` Step 3. 18 new tests. |
 | GAP-CORE-26 | **`rush`/`fast` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.fast.includeTools` and `rush.includeTools` populated with 24 tools matching amp's `$iT` list. Shared via `FAST_TOOLS` constant. All mode tool lists verified as subsets of smart (except auto which allows all). |
-| GAP-CORE-27 | **`free` tier mode** | Amp has `free` mode (Haiku 4.5, minimal tool set `giT`) for free-tier users. Not implemented in flitter. |
+| GAP-CORE-27 | **`free` tier mode** | **Closed (iteration 29)** — Added `FREE` mode to `AGENT_MODES`: Haiku 4.5 primary model, 16-tool `FREE_TOOLS` allowlist (no oracle/librarian/Task/restore_snapshot), `isFreeMode()` helper matching amp's `qt()` (chunk-001.js:6241). Free tools are strict subset of fast tools. Matches amp's Ab.FREE (2026_tail_anonymous.js:61034-61052). 12 new tests. |
 | GAP-CORE-28 | **`delegate` permission action** | **Closed (iteration 28)** — `spawnDelegate()` function in orchestrator spawns external decision program, writes JSON tool args to stdin, interprets exit code (0→allow, 1→ask, else→reject). 10s timeout. CLI `permissions add` now accepts `delegate --to <program>`. Matches amp's HpR/WpR (chunk-001.js:8094-8151). 3 new tests. |
 
 ---
@@ -298,13 +299,13 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-DATA-07 | Secret migration (file→keychain) | Amp auto-migrates secrets from file to native keychain. Flitter has both backends but no migration. |
 | GAP-DATA-08 | GitHub auth status check | Server-side endpoint for interactive auth approval flow. |
 | GAP-DATA-09 | GitHub git access token | Server-side credential helper for git operations. |
-| GAP-DATA-10 | `observeThreadList` with filtering | Reactive filtered view (excludes archived/child) with throttle. Flitter returns raw list. |
+| GAP-DATA-10 | `observeThreadList` with filtering | **Closed (iteration 29)** — Added `observeThreadEntries$()` (filter null, `throttleTime(200, {leading,trailing})`), `observeThreadList$({includeArchived})` (map + `distinctUntilChanged` with `entryEquals({includeVersion:false})`). New `throttleTime` operator in `@flitter/util`. Matches amp's azT (1342:273-295). 4 new tests. |
 | GAP-DATA-11 | Thread labels via server API | Labels don't propagate to remote. |
 | GAP-DATA-12 | `invalidateThreadListCache` | Force re-fetch from server. N/A without remote transport. |
 | GAP-DATA-24 | Admin settings `.changes` not merged | **Closed (iteration 28)** — `readAdminSettings()` now uses `stripJsonComments()` (existing JSONC parser) instead of `JSON.parse()`, matching amp's JmT compute which uses JSONC for the admin settings file. 2 new tests. |
 | GAP-DATA-25 | `GlobalCachedValue` TTL cache | **Closed (iteration 27, pre-existing)** — Fully implemented in `packages/util/src/cache/global-cached-value.ts` with `softTTL`, `hardTTL`, `compute`, `changes` matching amp's `d5T` (modules/1271). Exported via `@flitter/util`. |
 | GAP-DATA-26 | `PollingFileWatcher` fallback | **Closed (iteration 28)** — Ported amp's GKT class (0304_unknown_GKT.js): recursive `fs.stat`-based mtime polling with configurable interval. Wired into `createFileWatcher()` factory when `usePolling=true`. Matches amp's KKT factory (line 3). 9 new tests. |
-| GAP-DATA-27 | MCP `includeTools` merge across skills | Amp warns on server name collision and merges `includeTools` arrays. Flitter silently overwrites (last-wins). |
+| GAP-DATA-27 | MCP `includeTools` merge across skills | **Closed (iteration 29)** — `SkillService.updateMcpServers()` now detects server name collisions across skills: strips metadata, JSON-compares base specs (command/args/env). Match → merge `includeTools` arrays (Set dedup) with per-skill tracking (`_skillIncludeTools`). Differ → warn and skip. `MCPServerSpec` extended with `includeTools`, `_skillName`, `_skillNames`, `_skillIncludeTools`. Matches amp's UqR (1338:73-137). 4 new tests. |
 | GAP-DATA-28 | GitHub skill install support | Flitter's `SkillService.install()` only accepts local paths. Amp supports GitHub URLs. |
 
 ### Agent-Core

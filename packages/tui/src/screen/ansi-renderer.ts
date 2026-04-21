@@ -146,6 +146,16 @@ export const KITTY_KEYBOARD_ON = `${CSI}>1u`;
 export const KITTY_KEYBOARD_OFF = `${CSI}<u`;
 
 /**
+ * Focus reporting mode (DECSET ?1004).
+ *
+ * 逆向: amp enables focus reporting so it can detect terminal blur/focus
+ * for idle tracking and OS notification decisions.
+ * Terminal sends CSI I (focus in) and CSI O (focus out).
+ */
+export const FOCUS_ON = `${CSI}?1004h`;
+export const FOCUS_OFF = `${CSI}?1004l`;
+
+/**
  * OSC 8 超链接序列
  *
  * 逆向: amp G.hyperlink — wraps text with OSC 8 start/end sequences.

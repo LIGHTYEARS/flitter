@@ -18,6 +18,7 @@ import {
   getModeSpec,
   inferProviderFromModel,
   isDeepReasoningMode,
+  isFreeMode,
   isToolAllowedInMode,
   isValidAgentMode,
   resolveReasoningEffort,
@@ -31,9 +32,9 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 // ─── AGENT_MODES ────────────────────────────────────────
 
 describe("AGENT_MODES", () => {
-  test("has exactly 6 modes: smart, fast, deep, auto, rush, large", () => {
+  test("has exactly 7 modes: smart, fast, deep, auto, rush, large, free", () => {
     const keys = Object.keys(AGENT_MODES).sort();
-    expect(keys).toEqual(["auto", "deep", "fast", "large", "rush", "smart"]);
+    expect(keys).toEqual(["auto", "deep", "fast", "free", "large", "rush", "smart"]);
   });
 
   test("each mode has required fields", () => {
@@ -84,6 +85,11 @@ describe("getModelForMode", () => {
   test("returns claude-opus-4-6 for large", () => {
     expect(getModelForMode("large")).toBe("claude-opus-4-6");
   });
+
+  // 逆向: Ab.FREE (2026_tail_anonymous.js:61034-61052) — CLAUDE_HAIKU_4_5
+  test("returns claude-haiku-4-5-20251001 for free", () => {
+    expect(getModelForMode("free")).toBe("claude-haiku-4-5-20251001");
+  });
 });
 
 // ─── isDeepReasoningMode ────────────────────────────────
@@ -116,6 +122,7 @@ describe("isValidAgentMode", () => {
     expect(isValidAgentMode("auto")).toBe(true);
     expect(isValidAgentMode("rush")).toBe(true);
     expect(isValidAgentMode("large")).toBe(true);
+    expect(isValidAgentMode("free")).toBe(true);
   });
 
   test("returns false for invalid strings", () => {
@@ -206,6 +213,40 @@ describe("isToolAllowedInMode", () => {
       expect(isToolAllowedInMode("Grep", "fast")).toBe(true);
     });
   });
+
+  describe("free mode (reduced tool set)", () => {
+    test("allows Read", () => {
+      expect(isToolAllowedInMode("Read", "free")).toBe(true);
+    });
+
+    test("allows Bash", () => {
+      expect(isToolAllowedInMode("Bash", "free")).toBe(true);
+    });
+
+    test("allows skill", () => {
+      expect(isToolAllowedInMode("skill", "free")).toBe(true);
+    });
+
+    test("rejects oracle (not in free tools)", () => {
+      expect(isToolAllowedInMode("oracle", "free")).toBe(false);
+    });
+
+    test("rejects librarian (not in free tools)", () => {
+      expect(isToolAllowedInMode("librarian", "free")).toBe(false);
+    });
+
+    test("rejects Task (not in free tools)", () => {
+      expect(isToolAllowedInMode("Task", "free")).toBe(false);
+    });
+
+    test("rejects restore_snapshot (not in free tools)", () => {
+      expect(isToolAllowedInMode("restore_snapshot", "free")).toBe(false);
+    });
+
+    test("MCP tools still pass through", () => {
+      expect(isToolAllowedInMode("mcp__server__tool", "free")).toBe(true);
+    });
+  });
 });
 
 // ─── Tool list consistency ─────────────────────────────
@@ -232,8 +273,39 @@ describe("includeTools consistency", () => {
     );
   });
 
+  test("free is a strict subset of fast", () => {
+    const fastSet = new Set(AGENT_MODES.fast.includeTools);
+    for (const tool of AGENT_MODES.free.includeTools) {
+      expect(fastSet.has(tool)).toBe(true);
+    }
+  });
+
+  test("free has fewer tools than fast", () => {
+    expect(AGENT_MODES.free.includeTools.length).toBeLessThan(AGENT_MODES.fast.includeTools.length);
+  });
+
   test("auto mode has empty includeTools (all tools allowed)", () => {
     expect(AGENT_MODES.auto.includeTools).toEqual([]);
+  });
+});
+
+// ─── isFreeMode ───────────────────────────────────────
+
+describe("isFreeMode", () => {
+  test("returns true for free", () => {
+    expect(isFreeMode("free")).toBe(true);
+  });
+
+  test("returns true for free- prefixed variants", () => {
+    expect(isFreeMode("free-trial")).toBe(true);
+    expect(isFreeMode("free-limited")).toBe(true);
+  });
+
+  test("returns false for other modes", () => {
+    expect(isFreeMode("smart")).toBe(false);
+    expect(isFreeMode("fast")).toBe(false);
+    expect(isFreeMode("deep")).toBe(false);
+    expect(isFreeMode("auto")).toBe(false);
   });
 });
 

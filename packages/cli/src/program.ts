@@ -95,6 +95,11 @@ export function createProgram(version: string): Command {
     .option("--toolbox <path>", "Path to toolbox scripts directory")
     .option("--include-co-authors", "Include co-author attribution in output")
     .option("--output-format <format>", "Output format: text, json, markdown (default: text)")
+    .option(
+      "--notifications",
+      "Enable sound/system notifications (default: enabled in TUI, disabled in execute mode)",
+    )
+    .option("--no-notifications", "Disable sound/system notifications")
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {

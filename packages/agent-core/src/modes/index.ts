@@ -10,6 +10,7 @@ export {
   getModelForMode,
   getModeSpec,
   isDeepReasoningMode,
+  isFreeMode,
   isToolAllowedInMode,
   isValidAgentMode,
 } from "./agent-modes";

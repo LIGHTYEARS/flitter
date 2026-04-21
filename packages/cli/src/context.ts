@@ -130,6 +130,16 @@ export interface CliContext {
    * 逆向: no direct amp equivalent; Flitter extension
    */
   outputFormat?: "text" | "json" | "markdown";
+  /**
+   * Enable/disable sound and system notifications.
+   *
+   * 逆向: modules/1472_tail_anonymous.js:6690-6694 — `--notifications` flag
+   *        modules/2001_unknown_SB.js:227 — default true in TUI, false in execute mode
+   *
+   * `true` = explicitly enabled, `false` = explicitly disabled, `undefined` = use default
+   * (TUI: enabled, execute: disabled)
+   */
+  notifications?: boolean;
 }
 
 /**
@@ -214,5 +224,10 @@ export function resolveCliContext(program: Command): CliContext {
     toolbox: opts.toolbox as string | undefined,
     includeCoAuthors: Boolean(opts.includeCoAuthors) || undefined,
     outputFormat: (opts.outputFormat as "text" | "json" | "markdown") ?? undefined,
+    // 逆向: modules/2001_unknown_SB.js:227
+    // L = R.notifications !== void 0 ? R.notifications : !T.executeMode
+    // Explicit --notifications/--no-notifications overrides default.
+    // Default: enabled in TUI mode, disabled in execute mode.
+    notifications: opts.notifications !== undefined ? Boolean(opts.notifications) : undefined,
   };
 }

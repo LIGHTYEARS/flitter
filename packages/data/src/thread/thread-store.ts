@@ -12,7 +12,15 @@
  * ```
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { BehaviorSubject, createLogger } from "@flitter/util";
+import {
+  BehaviorSubject,
+  createLogger,
+  distinctUntilChanged,
+  filter,
+  map,
+  type Observable,
+  throttleTime,
+} from "@flitter/util";
 import type { ThreadMeta, ThreadRemoteTransport, ThreadUploadManager } from "./thread-upload";
 import type { ThreadEntry, ThreadStoreOptions } from "./types";
 
@@ -236,6 +244,8 @@ export class ThreadStore {
     this.threadEntriesByID = new Map(cached.map((e) => [e.id, e]));
     this.threadEntriesLoaded = false;
     this.threadEntriesLoadPromise = null;
+    // Clear cached reactive observable (逆向: azT line 298 — _observeThreadEntries = void 0)
+    this._observeThreadEntries$ = undefined;
     this.threadEntriesState.next(null);
   }
 
@@ -409,6 +419,56 @@ export class ThreadStore {
 
     const includeArchived = opts.includeArchived ?? false;
     return entries.filter((entry) => !entry.mainThreadID && (includeArchived || !entry.archived));
+  }
+
+  /**
+   * Cached reactive stream of non-null thread entries with 200ms throttle.
+   *
+   * 逆向: azT.observeThreadEntries() (modules/1342:273-285)
+   *   Lazy-creates a shared observable from threadEntriesState:
+   *   - filter(R => R !== null)
+   *   - throttleTime(200, { leading: true, trailing: true })
+   *   - shareReplay(1)  (f3() in amp)
+   */
+  private _observeThreadEntries$: Observable<ThreadEntry[]> | undefined;
+
+  observeThreadEntries$(): Observable<ThreadEntry[]> {
+    if (!this._observeThreadEntries$) {
+      this._observeThreadEntries$ = this.threadEntriesState.pipe<ThreadEntry[]>(
+        filter((v: ThreadEntry[] | null) => v !== null) as never,
+        throttleTime(200, { leading: true, trailing: true }),
+      );
+    }
+    return this._observeThreadEntries$;
+  }
+
+  /**
+   * Reactive filtered thread list: excludes subagent threads, optionally archived.
+   * Uses custom deep comparator (excl version) to suppress spurious emissions.
+   *
+   * 逆向: azT.observeThreadList(T) (modules/1342:286-295)
+   *   pipe(
+   *     map(entries => entries.filter(e => !e.mainThreadID && (includeArchived || !e.archived))),
+   *     distinctUntilChanged(deepCompare)
+   *   )
+   *
+   * @param opts.includeArchived - When true, archived threads are included (default: false)
+   */
+  observeThreadList$(opts: { includeArchived?: boolean } = {}): Observable<ThreadEntry[]> {
+    const includeArchived = opts.includeArchived ?? false;
+
+    return this.observeThreadEntries$().pipe<ThreadEntry[]>(
+      map((entries: ThreadEntry[]) =>
+        entries.filter((e) => !e.mainThreadID && (includeArchived || !e.archived)),
+      ) as never,
+      distinctUntilChanged((prev: ThreadEntry[], curr: ThreadEntry[]) => {
+        if (prev.length !== curr.length) return false;
+        return prev.every((entry, idx) => {
+          const other = curr[idx];
+          return other ? entryEquals(entry, other, { includeVersion: false }) : false;
+        });
+      }) as never,
+    );
   }
 
   /** 标记线程待持久化，同时通知 upload manager

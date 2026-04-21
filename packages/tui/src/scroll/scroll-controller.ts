@@ -102,10 +102,24 @@ export class ScrollController {
    * 跟随模式开启时，当 maxScrollExtent 更新时会自动滚动到底部，
    * 适用于流式输出场景。
    *
+   * 逆向: amp Q3 has both getter and setter for followMode
+   * (widget-property-system.js:393)
+   *
    * @returns 跟随模式状态
    */
   get followMode(): boolean {
     return this._followMode;
+  }
+
+  /**
+   * 设置跟随模式。
+   *
+   * 逆向: amp Q3.followMode setter — used by render objects:
+   *   this._controller.followMode = this.widget.position === "bottom"
+   *   (chunk-006.js:5897)
+   */
+  set followMode(value: boolean) {
+    this._followMode = value;
   }
 
   /**

@@ -8,5 +8,5 @@ export {
 } from "./observable";
 export { ObservableMap } from "./observable-map";
 export { ObservableSet } from "./observable-set";
-export { distinctUntilChanged, filter, map } from "./operators";
+export { distinctUntilChanged, filter, map, throttleTime } from "./operators";
 export { BehaviorSubject, Subject } from "./subject";

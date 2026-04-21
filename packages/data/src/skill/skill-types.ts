@@ -11,6 +11,14 @@ export interface MCPServerSpec {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+  /** Tool names to include from this MCP server when associated with a skill */
+  includeTools?: string[];
+  /** Internal: first skill that contributed this server (逆向: _ampSkillName) */
+  _skillName?: string;
+  /** Internal: all skills that contributed this server (逆向: _ampSkillNames) */
+  _skillNames?: string[];
+  /** Internal: per-skill includeTools map (逆向: _ampSkillIncludeTools) */
+  _skillIncludeTools?: Record<string, string[]>;
 }
 
 /** Parsed Skill */

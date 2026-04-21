@@ -39,6 +39,13 @@ interface ScrollViewportArgs {
   key?: Key;
   controller: ScrollController;
   child?: WidgetInterface;
+  /**
+   * Viewport position: "top" anchors content to the top (default),
+   * "bottom" anchors content to the bottom and enables follow mode.
+   *
+   * 逆向: amp I3 Scrollable accepts position: "top" | "bottom" (chunk-006:4094)
+   */
+  position?: "top" | "bottom";
 }
 
 /**
@@ -53,11 +60,13 @@ interface ScrollViewportArgs {
 export class ScrollViewport extends Widget implements RenderObjectWidget {
   readonly scrollController: ScrollController;
   readonly child: WidgetInterface | undefined;
+  readonly position: "top" | "bottom";
 
   constructor(args: ScrollViewportArgs) {
     super({ key: args.key });
     this.scrollController = args.controller;
     this.child = args.child;
+    this.position = args.position ?? "top";
   }
 
   createElement(): Element {
@@ -65,11 +74,13 @@ export class ScrollViewport extends Widget implements RenderObjectWidget {
   }
 
   createRenderObject(): RenderObject {
-    return new RenderScrollable(this.scrollController);
+    return new RenderScrollable(this.scrollController, this.position);
   }
 
   updateRenderObject(renderObject: RenderObject): void {
-    (renderObject as RenderScrollable).scrollController = this.scrollController;
+    const rs = renderObject as RenderScrollable;
+    rs.scrollController = this.scrollController;
+    rs.position = this.position;
   }
 }
 
@@ -88,6 +99,14 @@ interface ScrollableArgs {
   keyboardScrolling?: boolean;
   /** 是否自动聚焦，默认 false */
   autofocus?: boolean;
+  /**
+   * Viewport position: "top" (default) or "bottom".
+   * "bottom" enables follow mode on the controller and anchors
+   * short content to the bottom of the viewport.
+   *
+   * 逆向: amp I3 Scrollable accepts position (chunk-006:4094-4220)
+   */
+  position?: "top" | "bottom";
   /**
    * 视口构建函数。
    *
@@ -121,6 +140,7 @@ export class Scrollable extends StatefulWidget {
   readonly axisDirection: AxisDirection;
   readonly keyboardScrolling: boolean;
   readonly autofocus: boolean;
+  readonly position: "top" | "bottom";
   readonly viewportBuilder: (
     context: BuildContext,
     controller: ScrollController,
@@ -132,6 +152,7 @@ export class Scrollable extends StatefulWidget {
     this.axisDirection = args.axisDirection ?? "vertical";
     this.keyboardScrolling = args.keyboardScrolling ?? true;
     this.autofocus = args.autofocus ?? false;
+    this.position = args.position ?? "top";
     this.viewportBuilder = args.viewportBuilder;
   }
 
@@ -184,6 +205,10 @@ export class ScrollableState extends State<Scrollable> {
       this._internalController = new ScrollController();
     }
 
+    // 逆向: amp chunk-006:5896-5897 — _configureController()
+    // Sets followMode based on position: "bottom" enables follow mode.
+    this._configureController();
+
     // 逆向: amp I1T line 15 — new P1T(this)
     this._scrollBehavior = new ScrollBehavior(this.controller, {
       axisDirection: this.widget.axisDirection,
@@ -194,6 +219,19 @@ export class ScrollableState extends State<Scrollable> {
       if (this.mounted) this.setState();
     };
     this.controller.addListener(this._scrollListener);
+  }
+
+  /**
+   * Configure controller based on widget position.
+   *
+   * 逆向: amp chunk-006:5896-5897 — _configureController()
+   *   this._controller.followMode = this.widget.position === "bottom"
+   *
+   * Called from initState and could be called from didUpdateWidget
+   * if position changes.
+   */
+  private _configureController(): void {
+    this.controller.followMode = this.widget.position === "bottom";
   }
 
   /**

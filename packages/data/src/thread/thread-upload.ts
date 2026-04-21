@@ -40,6 +40,16 @@ export interface SearchThreadsResponse {
  * Remote transport interface for thread operations.
  * 逆向: azT.remote — used in uploadThread, getThread, listThreads, deleteThread
  */
+/**
+ * Thread metadata object for remote update.
+ * 逆向: amp MA() — maps user-facing levels to internal visibility + sharedGroupIDs
+ */
+export interface ThreadMeta {
+  visibility?: string;
+  sharedGroupIDs?: string[];
+  shareWithAllCreatorGroups?: boolean;
+}
+
 export interface ThreadRemoteTransport {
   uploadThread(thread: ThreadSnapshot): Promise<void>;
   getThread(id: string): Promise<ThreadSnapshot | null>;
@@ -50,6 +60,11 @@ export interface ThreadRemoteTransport {
    * 逆向: amp fi(`/api/threads/find?q=...&limit=...`)
    */
   searchThreads(opts: { q: string; limit?: number }): Promise<SearchThreadsResponse>;
+  /**
+   * Update thread metadata on the server (visibility, sharedGroupIDs, etc.).
+   * 逆向: ezT.setThreadMeta(R, a) — modules/1343_unknown_ezT.js:55-64
+   */
+  setThreadMeta(id: string, meta: ThreadMeta): Promise<void>;
 }
 
 export interface ThreadUploadManagerOptions {

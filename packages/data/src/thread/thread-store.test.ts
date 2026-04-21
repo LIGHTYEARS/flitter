@@ -11,7 +11,7 @@ import {
   snapshotToEntry,
   ThreadStore,
 } from "./thread-store";
-import type { SearchThreadsResponse, ThreadRemoteTransport } from "./thread-upload";
+import type { SearchThreadsResponse, ThreadMeta, ThreadRemoteTransport } from "./thread-upload";
 import type { ThreadEntry } from "./types";
 
 function makeThread(
@@ -510,6 +510,7 @@ function createMockRemote(threads: Map<string, ThreadSnapshot>): ThreadRemoteTra
     async searchThreads(_opts: { q: string; limit?: number }): Promise<SearchThreadsResponse> {
       return { threads: [], hasMore: false };
     },
+    async setThreadMeta(_id: string, _meta: ThreadMeta): Promise<void> {},
   };
 }
 
@@ -652,5 +653,170 @@ describe("fetchThread (GAP-DATA-04)", () => {
 
     const result = await store.fetchThread("nonexistent");
     assert.equal(result, null);
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  updateThreadMeta (GAP-DATA-02)
+// ──────────────────────────────────────────────────────
+
+describe("updateThreadMeta (GAP-DATA-02)", () => {
+  it("follows three-phase protocol: upload, setMeta, reload", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-meta", v: 1, title: "Original" });
+    store.setCachedThread(thread);
+
+    const log: string[] = [];
+    const updatedThread = makeThread({
+      id: "t-meta",
+      v: 2,
+      title: "Original",
+      meta: { visibility: "public_discoverable" },
+    });
+
+    const remote: ThreadRemoteTransport = {
+      ...createMockRemote(new Map()),
+      async uploadThread(_t: ThreadSnapshot) {
+        log.push("upload");
+      },
+      async setThreadMeta(_id: string, _meta: ThreadMeta) {
+        log.push("setMeta");
+      },
+      async getThread(_id: string) {
+        log.push("reload");
+        return updatedThread;
+      },
+    };
+    store.setRemote(remote);
+
+    // Need an upload manager for uploadThreadNow
+    const { ThreadUploadManager } = await import("./thread-upload");
+    const uploadManager = new ThreadUploadManager({
+      getThreadSnapshot: (id) => store.getThreadSnapshot(id),
+      remote,
+    });
+    store.setUploadManager(uploadManager);
+
+    await store.updateThreadMeta("t-meta", { visibility: "public_discoverable" });
+
+    // Verify three-phase order
+    assert.deepEqual(log, ["upload", "setMeta", "reload"]);
+
+    // Verify local cache updated to reloaded version
+    const cached = store.getThreadSnapshot("t-meta");
+    assert.ok(cached);
+    assert.equal(cached!.v, 2);
+  });
+
+  it("throws when thread not found", async () => {
+    const store = new ThreadStore();
+    store.setRemote(createMockRemote(new Map()));
+
+    await assert.rejects(
+      () => store.updateThreadMeta("nonexistent", { visibility: "private" }),
+      /Thread nonexistent not found/,
+    );
+  });
+
+  it("throws when no remote transport configured", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-no-remote", v: 1 });
+    store.setCachedThread(thread);
+    // No setRemote call — remote is null
+
+    await assert.rejects(
+      () => store.updateThreadMeta("t-no-remote", { visibility: "private" }),
+      /No remote transport configured/,
+    );
+  });
+
+  it("throws when reload returns null", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-vanish", v: 1 });
+    store.setCachedThread(thread);
+
+    const remote: ThreadRemoteTransport = {
+      ...createMockRemote(new Map()),
+      async getThread() {
+        return null;
+      }, // thread vanished on server
+    };
+    store.setRemote(remote);
+
+    const { ThreadUploadManager } = await import("./thread-upload");
+    const uploadManager = new ThreadUploadManager({
+      getThreadSnapshot: (id) => store.getThreadSnapshot(id),
+      remote,
+    });
+    store.setUploadManager(uploadManager);
+
+    await assert.rejects(
+      () => store.updateThreadMeta("t-vanish", { visibility: "private" }),
+      /could not be reloaded/,
+    );
+  });
+
+  it("sets uploaded version on upload manager after reload", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-version", v: 1 });
+    store.setCachedThread(thread);
+
+    const updatedThread = makeThread({ id: "t-version", v: 5 });
+    const remote: ThreadRemoteTransport = {
+      ...createMockRemote(new Map()),
+      async getThread() {
+        return updatedThread;
+      },
+    };
+    store.setRemote(remote);
+
+    const { ThreadUploadManager } = await import("./thread-upload");
+    const uploadManager = new ThreadUploadManager({
+      getThreadSnapshot: (id) => store.getThreadSnapshot(id),
+      remote,
+    });
+    store.setUploadManager(uploadManager);
+
+    await store.updateThreadMeta("t-version", { visibility: "public_discoverable" });
+
+    // Upload manager should have the reloaded version tracked
+    assert.equal(uploadManager.getUploadedVersion("t-version"), 5);
+  });
+});
+
+// ──────────────────────────────────────────────────────
+//  uploadThreadNow (GAP-DATA-02)
+// ──────────────────────────────────────────────────────
+
+describe("uploadThreadNow (GAP-DATA-02)", () => {
+  it("delegates to upload manager", async () => {
+    const store = new ThreadStore();
+    const thread = makeThread({ id: "t-upload", v: 1 });
+    store.setCachedThread(thread);
+
+    let uploaded = false;
+    const remote = {
+      ...createMockRemote(new Map()),
+      async uploadThread(_t: ThreadSnapshot) {
+        uploaded = true;
+      },
+    };
+    store.setRemote(remote);
+
+    const { ThreadUploadManager } = await import("./thread-upload");
+    const uploadManager = new ThreadUploadManager({
+      getThreadSnapshot: (id) => store.getThreadSnapshot(id),
+      remote,
+    });
+    store.setUploadManager(uploadManager);
+
+    await store.uploadThreadNow("t-upload");
+    assert.equal(uploaded, true);
+  });
+
+  it("is a no-op when no upload manager", async () => {
+    const store = new ThreadStore();
+    // No upload manager — should not throw
+    await store.uploadThreadNow("nonexistent");
   });
 });

@@ -777,10 +777,10 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
   registry.register({
     name: "visibility",
     aliases: ["share", "private"],
-    description: "Set thread visibility (private/workspace/public)",
+    description: "Set thread visibility (private/workspace/public/unlisted/group)",
     execute: async (args, ctx) => {
       const level = args.trim().toLowerCase();
-      const validLevels = ["private", "workspace", "public", "unlisted"];
+      const validLevels = ["private", "workspace", "public", "unlisted", "group"];
       if (!level) {
         ctx.showMessage("Usage: /visibility <level>\n" + `Valid levels: ${validLevels.join(", ")}`);
         return;
@@ -791,7 +791,26 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         );
         return;
       }
-      ctx.showMessage(`Set thread ${ctx.threadId} visibility to "${level}" requested.`);
+
+      // 逆向: MA() maps user-facing levels to internal visibility values
+      const levelToInternal: Record<
+        string,
+        "private" | "public_unlisted" | "public_discoverable" | "thread_workspace_shared"
+      > = {
+        private: "private",
+        unlisted: "public_unlisted",
+        public: "public_discoverable",
+        workspace: "thread_workspace_shared",
+        group: "private", // group also uses "private" visibility with shared flag
+      };
+
+      const internal = levelToInternal[level];
+      if (ctx.threadStore.setVisibility && internal) {
+        ctx.threadStore.setVisibility(ctx.threadId, internal);
+        ctx.showMessage(`\u2713 Thread ${ctx.threadId} visibility changed to ${level}.`);
+      } else {
+        ctx.showMessage(`Set thread ${ctx.threadId} visibility to "${level}" requested.`);
+      }
     },
   });
 }

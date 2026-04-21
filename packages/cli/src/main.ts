@@ -74,6 +74,7 @@ import {
   handleThreadsNew,
   handleThreadsRename,
   handleThreadsSearch,
+  handleThreadsShare,
   handleThreadsUsage,
 } from "./commands/threads";
 import { handleThreadsHandoff } from "./commands/threads-handoff";
@@ -366,6 +367,20 @@ export async function main(opts?: MainOptions): Promise<void> {
             { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
             ctx,
             threadId,
+          );
+        });
+      }
+      // 逆向: oF0 in 2013_unknown_oF0.js — threads share
+      const shareCmd = threadsCmd.commands.find((c) => c.name() === "share");
+      if (shareCmd) {
+        shareCmd.action(async (threadId: string, cmdOpts?: { visibility?: string }) => {
+          const c = await ensureContainer();
+          const ctx = resolveCliContext(program);
+          await handleThreadsShare(
+            { threadStore: c.threadStore, threadPersistence: c.threadPersistence },
+            ctx,
+            threadId,
+            { visibility: cmdOpts?.visibility },
           );
         });
       }

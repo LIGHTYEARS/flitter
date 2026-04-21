@@ -22,7 +22,7 @@
  * );
  * ```
  */
-import type { ThreadPersistence, ThreadStore } from "@flitter/data";
+import type { ThreadMeta, ThreadPersistence, ThreadStore } from "@flitter/data";
 import type {
   AssistantThreadMessage,
   ThreadContentBlock,
@@ -208,8 +208,14 @@ export async function handleThreadsContinue(
 /**
  * 处理 threads archive 命令
  *
- * 逆向: amp has separate archive/unarchive (OlR/dlR constants)
- * Flitter: single command with --unarchive flag to toggle direction
+ * 逆向: azT:241-258 — archive(threadId, archived):
+ *   e = await this.exclusiveSyncReadWriter(T);
+ *   e.update(t => { t.archived = R; t.v++; });
+ *   await e.asyncDispose();
+ *   await this.uploadThreadNow(T);
+ *
+ * Flitter: single command with --unarchive flag to toggle direction.
+ * Now calls uploadThreadNow() for immediate remote sync (GAP-DATA-05).
  *
  * @param deps - Thread 管理所需的依赖服务
  * @param context - CLI 运行上下文
@@ -236,10 +242,133 @@ export async function handleThreadsArchive(
     return;
   }
   const archived = !(options?.unarchive === true);
-  threadStore.setCachedThread({ ...snapshot, archived } as unknown as ThreadSnapshot, {
-    scheduleUpload: true,
-  });
+  // 逆向: azT increments version + sets archived, then uploads immediately
+  threadStore.setCachedThread(
+    { ...snapshot, archived, v: snapshot.v + 1 } as unknown as ThreadSnapshot,
+    { scheduleUpload: true },
+  );
+  // GAP-DATA-05: immediate upload (matching amp's uploadThreadNow after archive)
+  await threadStore.uploadThreadNow(threadId);
   process.stdout.write(`${archived ? "Archived" : "Unarchived"} thread: ${threadId}\n`);
+}
+
+/**
+ * Valid user-facing visibility levels.
+ * 逆向: urT() in modules/2513_unknown_urT.js validates against these levels.
+ */
+const VALID_VISIBILITY_LEVELS = ["private", "unlisted", "public", "workspace", "group"] as const;
+type UserVisibilityLevel = (typeof VALID_VISIBILITY_LEVELS)[number];
+
+/**
+ * Map user-facing visibility level to thread metadata object.
+ *
+ * 逆向: MA(T) in modules/2514_unknown_MA.js
+ *   ```
+ *   function MA(T) {
+ *     switch (T) {
+ *       case "public": return { visibility: "public_discoverable" };
+ *       case "unlisted": return { visibility: "public_unlisted" };
+ *       case "workspace": return { visibility: "thread_workspace_shared" };
+ *       case "private": return { visibility: "private", sharedGroupIDs: [] };
+ *       case "group": return { visibility: "private", shareWithAllCreatorGroups: true };
+ *     }
+ *   }
+ *   ```
+ */
+export function visibilityToMeta(level: UserVisibilityLevel): ThreadMeta {
+  switch (level) {
+    case "public":
+      return { visibility: "public_discoverable" };
+    case "unlisted":
+      return { visibility: "public_unlisted" };
+    case "workspace":
+      return { visibility: "thread_workspace_shared" };
+    case "private":
+      return { visibility: "private", sharedGroupIDs: [] };
+    case "group":
+      return { visibility: "private", shareWithAllCreatorGroups: true };
+  }
+}
+
+/**
+ * 处理 threads share 命令
+ *
+ * 逆向: oF0 in modules/2013_unknown_oF0.js
+ *   ```
+ *   if (i) await r.threadService.updateThreadMeta(a, MA(i));
+ *   C9.write(oR.green(`✓ Thread ${a} visibility changed to ${i}.\n`));
+ *   ```
+ *
+ * @param deps - Thread 管理所需的依赖服务
+ * @param context - CLI 运行上下文
+ * @param threadId - Thread ID to share
+ * @param options - Command options (--visibility)
+ */
+export async function handleThreadsShare(
+  deps: ThreadsCommandDeps,
+  context: CliContext,
+  threadId: string,
+  options: { visibility?: string },
+): Promise<void> {
+  void context;
+  const threadStore = deps.threadStore;
+  if (!threadStore) {
+    process.stderr.write("Error: ThreadStore not available\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  const level = options.visibility;
+  if (!level) {
+    process.stderr.write(
+      `Error: Must specify --visibility <level>\nValid levels: ${VALID_VISIBILITY_LEVELS.join(", ")}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // 逆向: urT() validates the level string
+  if (!VALID_VISIBILITY_LEVELS.includes(level as UserVisibilityLevel)) {
+    process.stderr.write(
+      `Error: Invalid visibility. Must be one of: ${VALID_VISIBILITY_LEVELS.join(", ")}\n`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const snapshot = threadStore.getThreadSnapshot(threadId);
+  if (!snapshot) {
+    process.stderr.write(`Error: Thread "${threadId}" not found\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // 逆向: oF0 — calls updateThreadMeta(id, MA(visibility))
+  const meta = visibilityToMeta(level as UserVisibilityLevel);
+  try {
+    await threadStore.updateThreadMeta(threadId, meta);
+    process.stdout.write(`\u2713 Thread ${threadId} visibility changed to ${level}.\n`);
+  } catch (err) {
+    // Fallback to local-only update if no remote transport
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("No remote transport")) {
+      // Apply locally via setVisibility
+      threadStore.setVisibility(
+        threadId,
+        meta.visibility as
+          | "private"
+          | "public_unlisted"
+          | "public_discoverable"
+          | "thread_workspace_shared",
+      );
+      process.stdout.write(
+        `\u2713 Thread ${threadId} visibility changed to ${level} (local only).\n`,
+      );
+    } else {
+      process.stderr.write(`Error: Failed to update visibility: ${msg}\n`);
+      process.exitCode = 1;
+    }
+  }
 }
 
 /**

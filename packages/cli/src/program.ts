@@ -147,6 +147,16 @@ export function createProgram(version: string): Command {
 
   threads.command("delete").description("Delete a thread").argument("<id>", "Thread ID to delete");
 
+  // 逆向: oF0 in 2013_unknown_oF0.js — threads share command
+  threads
+    .command("share")
+    .description("Share a thread / set visibility")
+    .argument("<id>", "Thread ID or URL to share")
+    .option(
+      "--visibility <level>",
+      "Visibility level: private, unlisted, public, workspace, group",
+    );
+
   // 逆向: sF0 in 2012_unknown_sF0.js
   threads
     .command("export")

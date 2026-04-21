@@ -65,6 +65,7 @@ export type { HttpRemoteTransportOptions } from "./thread/http-remote-transport"
 // Thread Remote Sync
 export { HttpRemoteTransport } from "./thread/http-remote-transport";
 export { ThreadPersistence } from "./thread/thread-persistence";
+export type { ThreadVisibility } from "./thread/thread-store";
 // Thread
 export {
   computeUserLastInteractedAt,
@@ -75,6 +76,7 @@ export {
 export type {
   SearchThreadResult,
   SearchThreadsResponse,
+  ThreadMeta,
   ThreadRemoteTransport,
   ThreadUploadManagerOptions,
 } from "./thread/thread-upload";

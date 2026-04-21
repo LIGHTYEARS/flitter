@@ -11,7 +11,7 @@
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { createLogger } from "@flitter/util";
-import type { SearchThreadsResponse, ThreadRemoteTransport } from "./thread-upload";
+import type { SearchThreadsResponse, ThreadMeta, ThreadRemoteTransport } from "./thread-upload";
 import type { ThreadEntry } from "./types";
 
 const log = createLogger("http-remote-transport");
@@ -153,6 +153,29 @@ export class HttpRemoteTransport implements ThreadRemoteTransport {
     }
 
     return (await resp.json()) as SearchThreadsResponse;
+  }
+
+  /**
+   * Update thread metadata on the server.
+   * Uses PATCH /api/threads/:id which updates visibility/archived in both
+   * the snapshot JSON and dedicated columns.
+   *
+   * 逆向: ezT.setThreadMeta(R, a) — modules/1343_unknown_ezT.js:55-64
+   * Amp calls N3.setThreadMeta({ thread: R, meta: a }); we use PATCH directly.
+   */
+  async setThreadMeta(id: string, meta: ThreadMeta): Promise<void> {
+    log.debug("Setting thread meta", { id, meta });
+
+    const resp = await this._fetch(`${this._baseUrl}/api/threads/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: this._headers(),
+      body: JSON.stringify(meta),
+    });
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(`setThreadMeta failed: ${resp.status} ${text}`);
+    }
   }
 
   private _headers(): Record<string, string> {

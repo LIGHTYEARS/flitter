@@ -702,3 +702,30 @@ Iteration 13 targets 4 gaps spanning the agent-core, CLI, and TUI layers:
 - 38 new tests (10 overlay + 19 IntrinsicHeight + 9 fetch-from-server), 0 TypeScript errors
 - 3 gaps closed: TUI-10, TUI-08, DATA-04
 - Total open gaps reduced from 47 to 44
+
+## ADR-022: Iteration 22 — Thread metadata remote update, archive sync, threads share, diff viewer
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** With all Critical and High-severity gaps closed except DATA-02 (thread metadata remote update), iteration 22 focuses on the DATA-02 → DATA-05 → CLI-02/03 dependency chain. DATA-02 is the foundational piece: adding `setThreadMeta` to the remote transport enables both archive sync (DATA-05) and the `threads share` command (CLI-02/03). GAP-TUI-17 (diff viewer widget) turned out to be already at parity upon investigation.
+
+### Decisions
+
+1. **Thread metadata remote update (DATA-02)**: Amp's `updateThreadMeta` (azT:260-272) follows a three-phase protocol that ensures server is source of truth: (1) upload full snapshot first, (2) PATCH metadata via `setThreadMeta`, (3) reload from server and replace local cache. This prevents stale-read bugs when multiple clients modify the same thread. We implement this exactly: `ThreadMeta` type for the meta payload, `setThreadMeta(id, meta)` on `ThreadRemoteTransport` (PATCH /api/threads/:id — server endpoint already exists), `updateThreadMeta(id, meta)` on `ThreadStore` with the three-phase flow, and `uploadThreadNow(id)` as a convenience method delegating to `ThreadUploadManager`.
+
+2. **Thread archive remote sync (DATA-05)**: Amp's archive (azT:255-258) uses an exclusive read-writer to set `archived` and increment version, then calls `uploadThreadNow` immediately — not the lazy/batched upload path. We add `threadStore.uploadThreadNow(threadId)` after `setCachedThread` in `handleThreadsArchive`. Also increment version (`v: snapshot.v + 1`) to match amp's behavior. The server's PATCH endpoint already handles `archived: boolean`.
+
+3. **`threads share --visibility` command (CLI-02/03)**: Amp's `MA()` function (modules/2514) maps user-facing levels to internal ThreadMeta objects. `visibilityToMeta()` is the flitter equivalent. The share handler calls `updateThreadMeta` when remote is available, falls back to local-only `setVisibility` when not. The `/visibility` slash handler (previously a stub that only printed a message) now calls `ctx.threadStore.setVisibility()` to actually change the visibility. `SlashCommandContext.threadStore` interface extended. Both CLI and slash command share the same MA() mapping logic.
+
+4. **Diff viewer parity (TUI-17)**: Investigation confirmed that amp's `cE0` (chunk-004.js:21105-21125) is a pure function returning `RichText` — not a StatefulWidget. Flitter's `buildDiffWidget()` matches this exactly. The GAPS.md entry suggested flitter was incomplete, but both implementations have identical architecture: split on newlines, create colored TextSpans for +/- lines, return RichText. No code changes needed.
+
+### Consequences
+
+- All HIGH gaps now closed (DATA-02 was the last one)
+- Thread metadata changes now sync to server immediately via three-phase protocol
+- Archive/unarchive operations sync to server immediately (not batched)
+- `flitter threads share <id> --visibility <level>` command fully functional
+- `/visibility` slash command now functional (was previously a stub)
+- 17 new tests (7 updateThreadMeta + 10 share/visibility), 0 TypeScript errors
+- 5 gaps closed: DATA-02, DATA-05, CLI-02, CLI-03, TUI-17
+- Total open gaps reduced from 44 to 39

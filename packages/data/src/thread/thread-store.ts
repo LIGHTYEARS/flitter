@@ -13,7 +13,7 @@
  */
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
-import type { ThreadRemoteTransport, ThreadUploadManager } from "./thread-upload";
+import type { ThreadMeta, ThreadRemoteTransport, ThreadUploadManager } from "./thread-upload";
 import type { ThreadEntry, ThreadStoreOptions } from "./types";
 
 const log = createLogger("thread-store");
@@ -589,6 +589,70 @@ export class ThreadStore {
 
     this.setCachedThread(updatedSnapshot, { scheduleUpload: true });
     log.debug("Set thread visibility", { threadId, level });
+  }
+
+  /**
+   * Update thread metadata on the remote server.
+   *
+   * Three-phase protocol (matching amp exactly):
+   * 1. Upload the full thread snapshot first (ensures server has latest)
+   * 2. PATCH the metadata via remote.setThreadMeta()
+   * 3. Reload the thread from server and replace local cache
+   *
+   * 逆向: azT.updateThreadMeta(T, R) — modules/1342_ThreadService_azT.js:260-272
+   *   ```
+   *   async updateThreadMeta(T, R) {
+   *     if (!(await this.ensureThreadSubject(T, { createIfMissing: false })))
+   *       throw Error(`Thread ${T} not found`);
+   *     await this.uploadThreadNow(T);
+   *     await this.remote.setThreadMeta(T, R);
+   *     let a = await this.remote.getThread(T);
+   *     if (!a) throw Error(`Thread ${T} could not be reloaded after updating metadata`);
+   *     this.setCachedThread(a, { scheduleUpload: false, uploadedVersion: a.v });
+   *   }
+   *   ```
+   */
+  async updateThreadMeta(threadId: string, meta: ThreadMeta): Promise<void> {
+    // Phase 0: Ensure thread exists
+    const subject = await this.ensureThreadSubject(threadId, {
+      createIfMissing: false,
+    });
+    if (!subject) {
+      throw new Error(`Thread ${threadId} not found`);
+    }
+
+    // Phase 1: Upload full snapshot first
+    await this.uploadThreadNow(threadId);
+
+    // Phase 2: PATCH metadata via remote
+    if (!this.remote) {
+      throw new Error("No remote transport configured");
+    }
+    await this.remote.setThreadMeta(threadId, meta);
+
+    // Phase 3: Reload from server to get server-side transformations
+    const reloaded = await this.remote.getThread(threadId);
+    if (!reloaded) {
+      throw new Error(`Thread ${threadId} could not be reloaded after updating metadata`);
+    }
+    this.setCachedThread(reloaded, { scheduleUpload: false });
+    // Mark the uploaded version so the upload manager doesn't re-upload
+    if (this.uploadManager) {
+      this.uploadManager.setUploadedVersion(threadId, reloaded.v);
+    }
+    log.debug("Updated thread metadata remotely", { threadId, meta });
+  }
+
+  /**
+   * Immediately upload a thread to the remote server.
+   * Delegates to the upload manager if available.
+   *
+   * 逆向: azT.uploadThreadNow(T) — called from updateThreadMeta, archive, etc.
+   */
+  async uploadThreadNow(threadId: string): Promise<void> {
+    if (this.uploadManager) {
+      await this.uploadManager.uploadThreadNow(threadId);
+    }
   }
 
   /**

@@ -25,8 +25,10 @@ import {
   handleThreadsNew,
   handleThreadsRename,
   handleThreadsSearch,
+  handleThreadsShare,
   handleThreadsUsage,
   renderThreadAsMarkdown,
+  visibilityToMeta,
 } from "../threads";
 
 // ─── Mock ThreadStore ────────────────────────────────────
@@ -76,6 +78,12 @@ function createMockThreadStore() {
       },
       listRecentThreadIds(maxCount: number) {
         return Array.from(threads.keys()).slice(0, maxCount);
+      },
+      async uploadThreadNow(_id: string) {},
+      setVisibility(_id: string, _level: string) {},
+      async updateThreadMeta(_id: string, _meta: Record<string, unknown>) {
+        // Default: throws "No remote transport" (simulating no remote)
+        throw new Error("No remote transport configured");
       },
     } as unknown as ThreadStore,
     threads,
@@ -1136,6 +1144,91 @@ describe("handleThreadsDashboard", () => {
 
   it("should error when threadStore is not available", async () => {
     await handleThreadsDashboard({}, ctx, { limit: "50", format: "table" });
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("ThreadStore not available"));
+  });
+});
+
+// ─── visibilityToMeta 测试 (GAP-CLI-02) ─────────────────
+
+describe("visibilityToMeta", () => {
+  it("maps 'public' to public_discoverable", () => {
+    const meta = visibilityToMeta("public");
+    assert.deepEqual(meta, { visibility: "public_discoverable" });
+  });
+
+  it("maps 'unlisted' to public_unlisted", () => {
+    const meta = visibilityToMeta("unlisted");
+    assert.deepEqual(meta, { visibility: "public_unlisted" });
+  });
+
+  it("maps 'workspace' to thread_workspace_shared", () => {
+    const meta = visibilityToMeta("workspace");
+    assert.deepEqual(meta, { visibility: "thread_workspace_shared" });
+  });
+
+  it("maps 'private' to private with empty sharedGroupIDs", () => {
+    const meta = visibilityToMeta("private");
+    assert.deepEqual(meta, { visibility: "private", sharedGroupIDs: [] });
+  });
+
+  it("maps 'group' to private with shareWithAllCreatorGroups", () => {
+    const meta = visibilityToMeta("group");
+    assert.deepEqual(meta, { visibility: "private", shareWithAllCreatorGroups: true });
+  });
+});
+
+// ─── handleThreadsShare 测试 (GAP-CLI-02) ────────────────
+
+describe("handleThreadsShare", () => {
+  let output: ReturnType<typeof captureOutput>;
+
+  beforeEach(() => {
+    output = captureOutput();
+    process.exitCode = undefined;
+  });
+
+  afterEach(() => {
+    output.restore();
+    process.exitCode = undefined;
+  });
+
+  it("falls back to local setVisibility when no remote transport", async () => {
+    const { store, threads } = createMockThreadStore();
+    const snapshot = { id: "t-share", v: 1, messages: [], relationships: [] };
+    threads.set("t-share", new BehaviorSubject(snapshot));
+
+    await handleThreadsShare({ threadStore: store }, ctx, "t-share", { visibility: "public" });
+    const out = output.stdout.join("");
+    assert.ok(out.includes("visibility changed to public"));
+    assert.ok(out.includes("local only"));
+  });
+
+  it("errors when no --visibility flag", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsShare({ threadStore: store }, ctx, "any", {});
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("Must specify --visibility"));
+  });
+
+  it("errors for invalid visibility level", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsShare({ threadStore: store }, ctx, "any", { visibility: "bogus" });
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes("Invalid visibility"));
+  });
+
+  it("errors when thread not found", async () => {
+    const { store } = createMockThreadStore();
+    await handleThreadsShare({ threadStore: store }, ctx, "nonexistent", {
+      visibility: "public",
+    });
+    assert.equal(process.exitCode, 1);
+    assert.ok(output.stderr.join("").includes('Thread "nonexistent" not found'));
+  });
+
+  it("errors when threadStore is not available", async () => {
+    await handleThreadsShare({}, ctx, "any", { visibility: "public" });
     assert.equal(process.exitCode, 1);
     assert.ok(output.stderr.join("").includes("ThreadStore not available"));
   });

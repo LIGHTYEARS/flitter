@@ -23,6 +23,10 @@ export interface SlashCommandContext {
     getThreadSnapshot(id: string): ThreadSnapshot | null | undefined;
     setCachedThread(snapshot: ThreadSnapshot, opts?: { scheduleUpload?: boolean }): void;
     deleteThread(id: string): void;
+    setVisibility?(
+      threadId: string,
+      level: "private" | "public_unlisted" | "public_discoverable" | "thread_workspace_shared",
+    ): void;
   };
   threadWorker: {
     runInference(): Promise<void>;

@@ -1,7 +1,7 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-21 (iteration 21)
-> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 21 targets: overlay background fix, `IntrinsicHeight` widget, thread fetch-from-server on cache miss.
+> **Last updated:** 2026-04-22 (iteration 22)
+> **Method:** Automated parallel analysis of `amp-cli-reversed/` modules against `packages/` source, cross-referenced with existing plan docs in `docs/superpowers/plans/`. Iteration 22 targets: thread metadata remote update, archive remote sync, threads share command, diff viewer parity verification.
 
 ## How to Read This Document
 
@@ -26,7 +26,7 @@
 | GAP-CLI-27 | CLI | ~~`tools use <name>` direct invocation~~ | **Closed (iteration 13)** — `handleToolsUse` with `--only`/`--stream` flags, CLI arg parsing, stdin JSON, type coercion. |
 | GAP-CLI-28 | CLI | ~~`threads handoff` subcommand~~ | **Closed (iteration 14)** — `handleThreadsHandoff` with `--goal/-g` and `--print/-p` flags, parent context extraction, child thread seeding, bidirectional relationship wiring. |
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has a full `ImageWidget` with Kitty APC protocol transmission, format conversion (JPEG/GIF→PNG), chunked transmission, lifecycle management. Flitter has no image widget. Plan: `2026-04-19-image-display.md`. |
-| GAP-DATA-02 | Data | **Thread metadata remote update** | Amp's `updateThreadMeta` calls `remote.setThreadMeta()` then reloads from server. Flitter only updates in-memory + marks dirty for local persistence. |
+| GAP-DATA-02 | Data | ~~**Thread metadata remote update**~~ | **Closed (iteration 22)** — `setThreadMeta(id, meta)` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `updateThreadMeta(id, meta)` on ThreadStore follows amp's three-phase protocol: (1) `uploadThreadNow`, (2) `remote.setThreadMeta`, (3) reload from server and replace local cache. `uploadThreadNow()` convenience method added. `ThreadMeta` type exported. Matches amp's azT.updateThreadMeta (modules/1342:260-272). 7 new tests. |
 | GAP-DATA-13 | Data | ~~`ensureThreadEntriesLoaded` (remote list + local merge)~~ | **Closed (iteration 14)** — Lazy-load remote thread entries on first subscribe, three-phase merge (remote → local overlay → identity-preserving dedup), coalescing promise to prevent concurrent fetches. |
 | GAP-CORE-07 | Core | ~~`blocked-on-user` persisted to thread state~~ | **Closed (iteration 13)** — `blocked-on-user` status persisted via `tool:data` delta BEFORE approval prompt shown. `getThreadSessionState()` utility for crash recovery. |
 | GAP-CORE-08 | Core | ~~Skill invocation enforcement~~ | **Closed (iteration 13)** — `setPendingSkills()`, `injectPendingSkills()` (info message injection), `checkAndAppendAwaitedSkills()` (synthetic tool_use + stopReason flip). Full amp `YwR` behavior. |
@@ -39,8 +39,8 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-CLI-02 | `threads share <id>` | Amp has `threads share` with `--visibility` and `--support [message]` for sharing with support. |
-| GAP-CLI-03 | `threads visibility [level]` | Show/set default thread visibility for a repo. |
+| GAP-CLI-02 | `threads share <id>` | **Closed (iteration 22)** — `handleThreadsShare` with `--visibility <level>` flag. `visibilityToMeta()` maps user-facing levels (public/unlisted/workspace/private/group) to internal meta objects matching amp's MA() (modules/2514). Registered in program.ts + main.ts. Falls back to local-only `setVisibility` when no remote transport. 10 new tests. |
+| GAP-CLI-03 | `threads visibility [level]` | **Closed (iteration 22)** — Handled via `threads share --visibility <level>` and `/visibility` slash command. `/visibility` slash handler now calls `ctx.threadStore.setVisibility()` instead of printing info message. `SlashCommandContext.threadStore` interface extended with `setVisibility` method. |
 | GAP-CLI-04 | `threads handoff [id]` | **Closed (iteration 14)** — Duplicate of GAP-CLI-28. |
 | GAP-CLI-05 | ~~`tools make <name>`~~ | **Closed (iteration 14)** — `handleToolsMake` with `--bun/--bash/--zsh/--force` flags, toolbox dir resolution (`FLITTER_TOOLBOX`/`AMP_TOOLBOX`), name validation, template generation, chmod 755. |
 | GAP-CLI-06 | ~~`tools use <name>`~~ | **Closed (iteration 13)** — Duplicate of GAP-CLI-27. |
@@ -79,7 +79,7 @@
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-DATA-04 | ~~Fetch-from-server on cache miss~~ | **Closed (iteration 21)** — `ensureThreadSubject(id, opts)` added to `ThreadStore`: checks local cache first, then fetches from remote via `ThreadRemoteTransport.getThread()`. Coalescing promise (`pendingThreadLoads` Map) deduplicates concurrent fetches. `fetchThread(id)` async wrapper for callers that just need the snapshot. Graceful error handling (returns null on network failure). Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). 9 new tests. |
-| GAP-DATA-05 | Thread archive via remote API | Amp uploads archive state to server. Flitter archives locally only. |
+| GAP-DATA-05 | Thread archive via remote API | **Closed (iteration 22)** — `handleThreadsArchive` now calls `threadStore.uploadThreadNow(threadId)` after setting `archived` flag + incrementing version, matching amp's synchronous archive behavior (azT:255-258). Server PATCH endpoint already handles `archived: boolean`. |
 | GAP-DATA-06 | ~~Thread search (client-side wiring)~~ | **Closed (iteration 20)** — `searchThreads()` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport`. `ThreadStoreLike.searchRemote` optional callback. `find_thread` tool tries remote FTS5 first, falls back to local keyword matching. 7 new tests (4 find_thread + 3 transport). |
 
 ### Agent-Core
@@ -139,7 +139,7 @@
 | GAP-TUI-13 | `modifyOtherKeys` | Enhanced key disambiguation mode. |
 | GAP-TUI-15 | Ghostty progress bar | Terminal-specific progress integration. |
 | GAP-TUI-16 | Custom theme TOML loading | File-based custom theme loading. Plan: `2026-04-19-gap8-theme-system.md`. |
-| GAP-TUI-17 | Diff viewer as full widget | `buildDiffWidget()` exists as function, not a proper stateful widget. |
+| GAP-TUI-17 | Diff viewer as full widget | **Closed (iteration 22)** — Flitter's `buildDiffWidget()` is a function returning `RichText`, exactly matching amp's `cE0(T, R)` (chunk-004.js:21105-21125). Amp also uses a function (not a StatefulWidget). Feature-complete by comparison. |
 
 ### LLM
 
@@ -309,6 +309,14 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-TUI-08** (completed): `IntrinsicHeight` widget + `RenderIntrinsicHeight` render object — forces child height to its max intrinsic height. Short-circuits when constraints already tight. Intrinsic measurement delegation: `getMinIntrinsicHeight` delegates to `getMaxIntrinsicHeight`; width queries resolve infinite height via child's intrinsic height first. Matches amp's `BtT`/`n1T` (chunk-006.js:3019-3065). Exported from `@flitter/tui`. 19 new tests.
 - **GAP-DATA-04** (completed): Fetch-from-server on cache miss — `ensureThreadSubject(id, opts)` on ThreadStore: checks local cache first, fetches from remote via `ThreadRemoteTransport.getThread()` on miss. Coalescing promise (`pendingThreadLoads` Map) deduplicates concurrent fetches for same thread. `fetchThread(id)` async wrapper. Graceful error handling. Matches amp's `azT.ensureThreadSubject` (modules/1342:128-155). 9 new tests.
 - **38 new tests total** (10 overlay + 19 IntrinsicHeight + 9 fetch-from-server), 0 TypeScript errors.
+
+### Iteration 22 — Thread metadata remote update, archive sync, threads share, diff viewer parity
+- **GAP-DATA-02** (completed): Thread metadata remote update — `setThreadMeta(id, meta)` added to `ThreadRemoteTransport` interface + `HttpRemoteTransport` (PATCH /api/threads/:id). `updateThreadMeta(id, meta)` on `ThreadStore` follows amp's three-phase protocol (modules/1342:260-272): (1) `uploadThreadNow` to ensure server has latest snapshot, (2) `remote.setThreadMeta` to PATCH metadata, (3) reload from server and replace local cache with `setCachedThread(reloaded, { scheduleUpload: false })`. `ThreadMeta` type + `uploadThreadNow()` convenience method exported. 7 new tests.
+- **GAP-DATA-05** (completed): Thread archive via remote API — `handleThreadsArchive` now increments version (`v: snapshot.v + 1`) and calls `threadStore.uploadThreadNow(threadId)` after setting archived flag, matching amp's synchronous archive behavior (azT:255-258). Server PATCH endpoint already handles `archived: boolean`.
+- **GAP-CLI-02** (completed): `threads share` command — `handleThreadsShare` with `--visibility <level>` flag. `visibilityToMeta()` maps user-facing levels to internal ThreadMeta objects matching amp's MA() function (modules/2514): public→public_discoverable, unlisted→public_unlisted, workspace→thread_workspace_shared, private→private+sharedGroupIDs:[], group→private+shareWithAllCreatorGroups. Falls back to local `setVisibility` when no remote transport. Registered in program.ts + main.ts. 10 new tests (5 visibilityToMeta + 5 handleThreadsShare).
+- **GAP-CLI-03** (completed): `/visibility` slash command fix — Handler now calls `ctx.threadStore.setVisibility()` instead of printing info message. `SlashCommandContext.threadStore` interface extended with optional `setVisibility` method. Added "group" to valid levels.
+- **GAP-TUI-17** (completed): Diff viewer parity verification — Confirmed flitter's `buildDiffWidget()` exactly matches amp's `cE0(T, R)` (chunk-004.js:21105-21125). Both are pure functions returning `RichText` with colored `TextSpan` nodes. No StatefulWidget needed.
+- **17 new tests total** (7 updateThreadMeta + 10 share/visibility), 0 TypeScript errors, 0 High gaps remaining.
 - **GAP-CLI-01** (completed): `skill` CLI command group — `skill list` (--json), `skill info <name>` (--json), `skill remove <name>`, `skill add <source>` (--name, --overwrite, --global). Handlers in `skills.ts`, command tree in `program.ts`, wired in `main.ts`. Backend uses `SkillService.scan()`/`.install()`/`.remove()` (API difference from amp: single `scan()` vs amp's `getSkills()`+`getSkillErrors()`+`getSkill(name)`). 11 new tests.
 - **GAP-CLI-09** (completed): `--mcp-config <json-or-path>` flag — `extractCliMcpConfig()` peeks argv before Commander parse, `parseMcpConfigValue()` accepts inline JSON (starts with `{`) or file path. Parsed servers merged into runtime config via `configService.setRuntimeOverride("mcpServers", merged)` + `mcpServerManager.refresh()`. Matches amp's EC0 parser + CC0 merge pattern. In-memory only (never persisted).
 - **GAP-CLI-07** (completed): `permissions edit` — `handlePermissionsEdit()` opens rules in `$EDITOR` (FLITTER_EDITOR > EDITOR > VISUAL > vi). Serializes `PermissionEntry[]` to text (`<action> <tool> [key=value ...]`, one per line), writes to temp file with comment header, reads back, parses with error annotation + retry loop (up to 3 attempts). Matches amp's MQT/DQT/J2/Z2 flow.
@@ -322,11 +330,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 2 |
-| Medium | 6 |
+| High | 0 |
+| Medium | 3 |
 | Low | 36 |
-| **Total open gaps** | **44** |
-| Closed gaps | 122+ |
+| **Total open gaps** | **39** |
+| Closed gaps | 127+ |
 
 ### Cross-Cutting Themes
 

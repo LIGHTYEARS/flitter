@@ -6,9 +6,7 @@
  *
  * build() 返回完整的 Column 布局:
  *   Expanded > Scrollable > ConversationView (消息列表)
- *   SizedBox (分隔线)
  *   StatusBar (状态栏)
- *   SizedBox (分隔线)
  *   InputField (输入框)
  *
  * 逆向参考: Z8R (html-sanitizer-repl.js ~1100)
@@ -29,19 +27,16 @@
  */
 
 import { resolveModel } from "@flitter/llm";
-import type { BuildContext, Element, Widget } from "@flitter/tui";
+import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Column,
   Expanded,
-  MediaQuery,
   Positioned,
   Scrollable,
   ScrollController,
-  SizedBox,
   Stack,
   State,
   StatefulWidget,
-  Text,
 } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
@@ -480,10 +475,11 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    *
    * 返回完整的 Column 布局 (per UI-SPEC):
    *   Expanded > Scrollable > ConversationView (消息滚动区)
-   *   SizedBox(1) > Text (分隔线)
    *   StatusBar (状态栏)
-   *   SizedBox(1) > Text (分隔线)
    *   InputField (输入框)
+   *
+   * 逆向: amp has no separator lines — the input box border itself
+   * serves as the visual separator between conversation and input areas.
    *
    * @param _context - 构建上下文
    * @returns Column 根节点
@@ -491,14 +487,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   build(_context: BuildContext): Widget {
     const { onSubmit, modelName, toastManager } = this.widget.config;
     const { threadWorker } = this.widget.config;
-
-    // 逆向: amp uses I9.sizeOf(T).width for dynamic separator sizing
-    let separatorWidth = 80; // fallback
-    try {
-      separatorWidth = MediaQuery.sizeOf(_context as unknown as Element).width;
-    } catch {
-      // MediaQuery not in ancestor tree — use default
-    }
 
     // Filter thinking items when showThinkingBlocks is disabled.
     // 逆向: amp-cli-reversed/modules/1959_unknown_x8R.js:230
@@ -541,11 +529,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     return new Column({
       children: [
         mainContent,
-        // 分隔线
-        new SizedBox({
-          height: 1,
-          child: new Text({ data: "\u2500".repeat(separatorWidth) }),
-        }),
         // 状态栏 — derive live StatusBarState from tracked fields
         // 逆向: yB() state machine (2731_unknown_yB.js)
         new StatusBar({
@@ -562,11 +545,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             runningToolCount: this._runningToolCount,
             waitingForApproval: this._waitingForApproval,
           },
-        }),
-        // 分隔线
-        new SizedBox({
-          height: 1,
-          child: new Text({ data: "\u2500".repeat(separatorWidth) }),
         }),
         // 输入框 or 审批对话框
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows

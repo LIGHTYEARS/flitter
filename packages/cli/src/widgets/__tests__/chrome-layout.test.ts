@@ -6,4 +6,10 @@ describe("ThreadStateWidget chrome layout", () => {
     const separatorPattern = /new SizedBox\(\{[\s\S]*?"─"\.repeat/;
     expect(separatorPattern.test(src)).toBe(false);
   });
+
+  it("should not render StatusBar as standalone widget in build()", async () => {
+    const src = await Bun.file("packages/cli/src/widgets/thread-state-widget.ts").text();
+    const buildBody = src.slice(src.indexOf("build(_context"));
+    expect(buildBody).not.toMatch(/new StatusBar\(/);
+  });
 });

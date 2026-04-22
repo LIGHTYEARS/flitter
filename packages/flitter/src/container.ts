@@ -47,6 +47,7 @@ import {
   createOracleTool,
   createReadMcpResourceTool,
   createReadThreadTool,
+  createReplTool,
   createSkillTool,
   createTaskListTool,
   createTaskTool,
@@ -61,6 +62,7 @@ import {
   PluginService,
   parseHooksConfig,
   ReadWebPageTool,
+  type ReplInferenceFn,
   resolveToolboxPaths,
   SubAgentManager,
   ThreadWorker as ThreadWorkerImpl,
@@ -665,7 +667,89 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createLookAtTool());
     // 逆向: chunk-005.js:148612-148686 (gVR — mermaid tool spec)
     toolRegistry.register(createMermaidTool());
-    log.info("finder, code_review, oracle, librarian, look_at, and mermaid tools registered");
+    // 逆向: chunk-005.js:117268-117337 (iqT — repl tool spec)
+    // The REPL tool needs an inference function. We create one that wraps the
+    // container's LLM provider stream into a collected response. The actual
+    // provider is resolved at execute-time via configService.
+    const replInferenceFn: ReplInferenceFn = async (messages, tools, systemPromptText, signal) => {
+      const config = configService.get();
+      const model = resolveModelName(config.settings);
+      const provider = createFallbackProvider(model);
+
+      // Convert simplified REPL messages to flitter Message format
+      const flitterMessages: Message[] = messages.map((m) => {
+        if (typeof m.content === "string") {
+          return {
+            role: m.role,
+            content: [{ type: "text" as const, text: m.content }],
+          } as unknown as Message;
+        }
+        return {
+          role: m.role,
+          content: m.content.map((block) => {
+            if (block.type === "tool_result") {
+              return {
+                type: "tool_result" as const,
+                tool_use_id: block.tool_use_id ?? "",
+                content: block.content ?? "",
+              };
+            }
+            if (block.type === "tool_use") {
+              return {
+                type: "tool_use" as const,
+                id: block.id ?? "",
+                name: block.name ?? "",
+                input: block.input ?? {},
+              };
+            }
+            return { type: "text" as const, text: block.text ?? "" };
+          }),
+        } as unknown as Message;
+      });
+
+      const stream = provider.stream({
+        model,
+        messages: flitterMessages,
+        systemPrompt: [{ type: "text", text: systemPromptText }],
+        tools: tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+        })),
+        config,
+        signal,
+      });
+
+      // Collect stream into final response
+      let lastContent: import("@flitter/schemas").AssistantContentBlock[] = [];
+      for await (const delta of stream) {
+        if (signal.aborted) break;
+        lastContent = delta.content;
+      }
+
+      if (lastContent.length === 0) return {};
+
+      return {
+        message: {
+          content: lastContent.map((block) => {
+            if (block.type === "text") {
+              return { type: "text" as const, text: block.text };
+            }
+            if (block.type === "tool_use") {
+              return {
+                type: "tool_use" as const,
+                id: block.id,
+                name: block.name,
+                input: block.input as Record<string, unknown>,
+              };
+            }
+            return { type: "text" as const, text: "" };
+          }),
+        },
+      };
+    };
+    toolRegistry.register(createReplTool(replInferenceFn));
+    log.info("finder, code_review, oracle, librarian, look_at, mermaid, and repl tools registered");
 
     log.info("Service container initialized successfully.");
 

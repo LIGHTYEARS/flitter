@@ -1,6 +1,6 @@
 # HEALTH — 项目健康度 Overview
 
-> 最后更新: 2026-04-19 | 更新者: claude-opus-4-6
+> 最后更新: 2026-04-22 | 更新者: claude-opus-4-6
 
 Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widget 框架。本文件是项目当前状态的活快照，由 AI 在每次 session 中维护。静态架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -10,7 +10,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟢 | 4777 pass / 0 fail，262 测试文件，全包有测试 |
+| 测试覆盖 | 🟡 | 6228 pass / 1 fail (pre-existing container-integration provider type check), 328 测试文件. Iteration 35: +163 tests (58 TUI widgets, 54 check-runner, 30 repl, 21 OAuth lock) |
 | 技术债务 | 🟢 | 1 个真实 TODO，0 FIXME/HACK，极度干净（grep.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 

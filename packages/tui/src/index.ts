@@ -27,6 +27,7 @@ export { Center } from "./widgets/center.js";
 export { ClipBox, RenderClipBox } from "./widgets/clip-box.js";
 export { Column } from "./widgets/column.js";
 export { Container, ContainerElement, ContainerRenderObject } from "./widgets/container.js";
+export { DialogBox, RenderDialogBox } from "./widgets/dialog-box.js";
 export { EdgeInsets } from "./widgets/edge-insets.js";
 export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";
@@ -52,6 +53,7 @@ export { Spacer } from "./widgets/spacer.js";
 export type { SplitDirection } from "./widgets/split-pane.js";
 export { SplitPane, SplitPaneRenderObject } from "./widgets/split-pane.js";
 export { Positioned, Stack } from "./widgets/stack.js";
+export { RenderStickyHeader, StickyHeader } from "./widgets/sticky-header.js";
 export type {
   TableCell,
   TableColumnConfig,

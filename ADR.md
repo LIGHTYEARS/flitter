@@ -1133,3 +1133,53 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - MCP server management from TUI without restarting flitter
 - Double-click word select / triple-click line select — fundamental text interaction
 - 88 new tests across 2 files, 0 type errors
+
+---
+
+## ADR-035: Iteration 35 — StickyHeader/DialogBox, review check runner, OAuth locking, REPL tool
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 35 selected 4 self-contained, medium-impact gaps for parallel implementation. Selection criteria: no cross-dependencies, under 350 lines each, high user-visible impact.
+
+**Decision:** Implement these 4 gaps via parallel subagents:
+
+1. **GAP-TUI-24 (StickyHeader/DialogBox):** Two new TUI widgets matching amp's application-level layout primitives.
+   - `RenderDialogBox` (amp's `_RR`, chunk-006.js:19492-19650): Multi-child bordered two-column layout with center divider at `floor(width/2)`. Supports rounded/square border styles, banner mode (top-left ├), `userHeight` override (min 4), `maxHeight` cap. Intrinsic height uses 50-row cap for left column.
+   - `RenderStickyHeader` (amp's `E9R`, chunk-006.js:28390-28456): Two-child layout where header pins at viewport top during scroll. Uses `getClipRegion()` (duck-typed L50 equivalent) to detect when header has scrolled above viewport. Push-up behavior when widget bottom approaches clip top.
+   - Key adaptation: Flitter passes node absolute position (pre-computed by parent), unlike amp which passes parent absolute position.
+
+2. **GAP-CLI-44 (Review check runner):** Full check subsystem matching amp's 14+ reference functions:
+   - 4 new CLI flags: `--check-scope`, `--check-filter`, `--checks-only`, `--summary-only` (amp's `p40`).
+   - Check discovery walks up directory tree looking in `.agents/checks/` + `.flitter/checks/` + global config dirs (amp's pFR/mFR/uFR).
+   - Frontmatter parsing with name/description/severity-default/tools fields (amp's AFR).
+   - System prompt includes `<checkResult>` XML template with severity/file/line attributes (amp's yFR).
+   - Result parsing extracts XML blocks including status/filesAnalyzed/issues (amp's MFR).
+   - Parallel subagent execution per check (amp's fFR/IFR).
+   - Result merge combines main review + check runs (amp's dFR).
+
+3. **GAP-LLM-15 (MCP OAuth cross-process locking):** File-based PID locking for OAuth callback server coordination.
+   - `acquireOAuthLock()` (amp's `dj`): Atomic temp-file + `fs.link()` pattern. On EEXIST, re-reads lock to determine race winner. Recursive retry on stale winner.
+   - `releaseOAuthLock()` (amp's `ED`): Only removes lock if owned by current PID. Silently handles ENOENT.
+   - `readOAuthLock()` (amp's `yL`): Validates JSON structure (requires `pid: number`, `timestamp: number`).
+   - `isLockStale()` (amp's `zW`): Two conditions — age > 5min OR (same hostname AND dead PID via `process.kill(pid, 0)`).
+   - Constants match amp exactly: STALE_LOCK_TIMEOUT=300s, POLL_INTERVAL=2s, WAIT_TIMEOUT=300s.
+
+4. **GAP-TOOL-34 (REPL tool):** Interactive subprocess tool with autonomous agent loop.
+   - Spawns subprocess via `child_process.spawn` with pipe stdio (amp's SBR, chunk-002.js:23251-23312).
+   - Creates `prompt` + `stop` mini-tools for the subagent (amp's rqT).
+   - Agent loop: max 50 iterations (DBR), 60s/iteration timeout (dmT), 5s drain with 10MB overflow protection (OmT).
+   - Code block extraction from model responses (amp's MBR) — unwraps fenced code blocks before piping to REPL stdin.
+   - First-input-no-output detection triggers "not interactive mode" error with fix suggestions.
+   - Added to SMART_TOOLS only (matching amp — not in FREE/FAST/DEEP).
+
+**Skipped candidates:**
+- GAP-TUI-25 (Chart widget): ~800 lines, too large for single iteration.
+- GAP-LLM-18 (OpenAI Responses API divergence): Needs design decision — Responses API may be intentional for forward-compat.
+
+**Consequences:**
+- StickyHeader/DialogBox unblock amp's application-level UI patterns (modal dialogs, scrollable headers)
+- Review command now has a check subsystem matching amp's architecture for automated code quality enforcement
+- Multi-terminal OAuth conflicts resolved — concurrent CLI processes coordinate via file locks
+- REPL tool enables agents to interact with live interpreters (node, python, psql)
+- 163 new tests across 4 files, 0 type errors

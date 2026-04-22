@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 34)
+> **Last updated:** 2026-04-22 (iteration 35)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -30,7 +30,7 @@
 | GAP-TUI-21 | TUI | **Table widget** | **Closed (iteration 32)** — `Table` widget + `RenderTable` render object with fixed/intrinsic/flex/proportional column sizing via 3-pass algorithm matching amp's EQT (layout_widgets.js:1127-1436). Border painting with rounded corners (╭╮╰╯), row/column dividers, intersection detection. `shrinkColumnWidths()` proportional overflow. 34 new tests. |
 | GAP-TUI-22 | TUI | **CompositedTransformFollower/Target** | **Closed (iteration 32)** — `RenderCompositedTransformTarget` (from amp's bZT) registers with `LayerLink` on attach/detach, tracks global position, notifies followers on change. `RenderCompositedTransformFollower` (from amp's pZT) positions child at target position + offset, hides when unlinked (unless showWhenUnlinked=true). `LayerLink.notifyFollowers()` made public. Matches amp chunk-006.js:12811-12996. 32 new tests. |
 | GAP-TUI-23 | TUI | **Offstage widget** | **Closed (iteration 24)** — `RenderOffstage` + `Offstage` widget. When `offstage=true`: intrinsic sizes return 0, size=0×0, paint/hitTest skip; still lays out child. Matches amp's `sQ`/`cQ`. 25 new tests. |
-| GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | Amp has `_RR` (modal dialog) and `E9R` (sticky-header) render objects. Dialog splits available width into columns with borders. Sticky header pins at viewport top on scroll. Neither exists in flitter. |
+| GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | **Closed (iteration 35)** — `DialogBox` widget + `RenderDialogBox` render object (from amp's `pRR`/`_RR` chunk-006.js:19492-19650): multi-child bordered two-column layout with center divider, rounded/square borders, banner mode, `userHeight`/`maxHeight`. `StickyHeader` widget + `RenderStickyHeader` (from amp's `d9R`/`E9R` chunk-006.js:28390-28456): pins header at viewport top via `getClipRegion()` (L50). 58 new tests. |
 | GAP-TUI-25 | TUI | **Chart/data-visualization widget** | Amp has `uRR` chart render object: bar, stacked-bar, line, sparkline, stacked-area, horizontal-bar with X/Y axes, color series, highlight, valueFormatter. Flitter has no chart widget. |
 | GAP-TUI-26 | TUI | **TextField missing props** | **Closed (iteration 33)** — Added 9 props to TextField matching amp's Gm (chunk-006.js:4272-4500): `wrap` (word/none mode via TextLayoutEngine), `expands` (unbounded height), `maxWidth` (layout constraint), `prompts`/`setPromptRules` (PromptRule[] on controller), `onChanged` (text change callback), `copyOnSelectionEnabled`+`onCopy` (500ms auto-copy timer), `onOpenInEditor`, `ensureVisible`. 40 new tests. |
 | GAP-CORE-19 | Core | **Plugin `registerTool`** | **Closed (iteration 31)** — `PluginHost.listTools()` sends `tool.list` RPC, `executeTool()` sends `tool.execute`. `PluginService.refreshRegistrations()` calls list methods in parallel (events + tools + commands), matching amp's G5T/X5T at chunk-002.js:27256-27275. `getRegisteredTools()` aggregates across active plugins. `RegisteredTool` type added with name/description/inputSchema/pluginName. 18 new tests. |
@@ -98,6 +98,8 @@
 | GAP-TUI-22 | TUI | CompositedTransformFollower/Target | Closed (iteration 32) |
 | GAP-TUI-26 | TUI | TextField missing props | Closed (iteration 33) |
 | GAP-TUI-28 | TUI | SelectionArea double/triple-click | Closed (iteration 34) |
+| GAP-TUI-24 | TUI | StickyHeader / DialogBox layout | Closed (iteration 35) |
+| GAP-LLM-15 | LLM | MCP OAuth cross-process locking | Closed (iteration 35) |
 
 ---
 
@@ -130,7 +132,7 @@
 | GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |
 | GAP-CLI-42 | `mcp: status` / `mcp: reload` | **Closed (iteration 34)** — `/mcp-reload` calls `mcpServerManager.restartServers()` with status message. `/mcp-status` formats server list with status icons (+/-/~/!), tool counts, error details. `mcpServerManager` added to `SlashCommandContext`. Matches amp's e0R.js:1321-1351. |
 | GAP-CLI-43 | `toolbox: list` | **Closed (iteration 26)** — `/toolbox` slash command lists discovered toolbox scripts with status icons (+/!/~). `ToolboxService` exposed on `ServiceContainer`. `SlashCommandContext.toolboxService` interface added. Alias `/toolbox-list`. Matches amp's e0R:1353-1362. 4 new tests. |
-| GAP-CLI-44 | `review` check runner | Amp's review has `--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`. An integrated check runner subsystem. Flitter review has no check support. |
+| GAP-CLI-44 | `review` check runner | **Closed (iteration 35)** — 4 new CLI flags (`--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`) matching amp's `p40`. `check-runner.ts` implements full subsystem: `discoverChecks()` walks `.agents/checks/`+`.flitter/checks/` dirs (amp's pFR/uFR), `parseCheckFrontmatter()` (amp's AFR), `buildCheckSystemPrompt()` with `<checkResult>` XML template (amp's yFR), `parseCheckResult()` (amp's MFR), parallel subagent execution (amp's fFR/IFR), `mergeReviewResults()` (amp's dFR). 54 new tests. |
 
 ### Tools
 
@@ -143,7 +145,7 @@
 | GAP-TOOL-27 | ~~`look_at` tool~~ | **Closed (iteration 18)** — Multimodal file analysis via Google Gemini. |
 | GAP-TOOL-32 | `handoff` as LLM-callable tool | **Closed (iteration 30)** — `createHandoffTool(callbacks)` in `handoff.ts`. LLM-callable tool with `goal` (required), `follow` (boolean, default false), `mode` (optional). Delegates to `HandoffToolCallbacks.executeHandoff()`. Matches amp's sqT/j0T/qBR. 10 new tests. |
 | GAP-TOOL-33 | `chart` tool | **Closed (iteration 30)** — `createChartTool()` in `chart.ts`. Runs shell command, parses JSON, validates array/object, returns structured chart data. Schema: cmd, chartType (bar/line/area), xColumn, yColumns + optional title/subtitle/stacked/horizontal/hoverColumns/groupColumn. 100-row max, 30s timeout, serial execution. Matches amp's $D/tFR/rFR. 14 new tests. |
-| GAP-TOOL-34 | `repl` tool | Interactive REPL subprocess (node/python/psql) with autonomous agent loop. |
+| GAP-TOOL-34 | `repl` tool | **Closed (iteration 35)** — `createReplTool()` in `repl.ts`. Spawns subprocess (node/python/psql), creates `prompt`+`stop` mini-tools, runs autonomous agent loop (max 50 iterations, 60s/iter timeout). 5s drain with 10MB overflow protection. Code block extraction (amp's MBR), first-input-no-output detection, 5s spawn timeout. Matches amp's OBR/SBR/iqT/rqT (chunk-002.js:23251-23807, chunk-005.js:117248-117337). Added to SMART_TOOLS. 30 new tests. |
 | GAP-TOOL-35 | `code_tour` / `walkthrough` tools | Guided code explanation and architecture exploration sub-tools. |
 | GAP-TOOL-36 | `thread_status` / `send_message_to_thread` | Cross-thread coordination tools. Check status and send messages between threads. |
 | GAP-TOOL-37 | Bitbucket Enterprise tools | 7 tools for enterprise Bitbucket VCS integration (read, search, glob, diff, list, commit_search). |
@@ -169,7 +171,7 @@
 | GAP-LLM-05 | Request-level telemetry headers | Amp sends `x-amp-feature`, `x-amp-thread-id`, `x-amp-mode` etc. via proxy server. These are proxy-specific — direct API impact is nil. Low priority for self-hosted. |
 | GAP-LLM-13 | **14+ models missing from MODEL_REGISTRY** | **Closed (iteration 23)** — Added 15 models: `zai-glm-4.7` (Cerebras), 6 Fireworks models (qwen3-coder-480b, kimi-k2, qwen3-235b, glm-4p6, glm-5, minimax-m2p5), Baseten `moonshotai/Kimi-K2.5`, 5 OpenRouter models (sonoma-sky-alpha, z-ai/glm-4.6, moonshotai/kimi-k2-0905, qwen/qwen3-coder, qwen/qwen3-235b-a22b-2507), Gemini `gemini-3-pro-image-preview`. 6 new tests. |
 | GAP-LLM-14 | **OpenRouter compat config missing flags** | **Closed (iteration 23)** — Added `supportsStore: false` and `supportsUsageInStreaming: false` to OpenRouter preset in `compat.ts`. Matches amp's minimal request body. 5 new tests. |
-| GAP-LLM-15 | **MCP OAuth cross-process locking** | Amp's `M5T` implements file-based PID locking so concurrent CLI processes coordinate the OAuth callback server. Flitter has no cross-process coordination — port conflicts on multi-terminal use. |
+| GAP-LLM-15 | **MCP OAuth cross-process locking** | **Closed (iteration 35)** — `acquireOAuthLock()`/`releaseOAuthLock()`/`readOAuthLock()`/`isLockStale()` in `packages/llm/src/oauth/lock.ts`. Atomic `fs.link()` from temp→lock file (POSIX advisory locking). Stale detection: 5-min timeout + dead PID check via `process.kill(pid, 0)`. Race-condition handling on EEXIST with recursive retry. Constants match amp: STALE_LOCK_TIMEOUT_MS=300000, LOCK_POLL_INTERVAL_MS=2000. Matches amp's dj/ED/yL/zW (chunk-001.js:7624-7769). 21 new tests. |
 | GAP-LLM-16 | **Gemini token counting** | **Closed (iteration 25)** — `GeminiProvider.countTokens()` calls `client.models.countTokens()` via `@google/genai` SDK, falls back to `Math.ceil(text.length / 4)` on error (matching amp's `o1R=4` fallback pattern). 7 new tests. |
 | GAP-LLM-17 | **Provider-specific reasoning effort defaults** | **Closed (iteration 24, found pre-existing)** — `resolveReasoningEffort()` in `packages/agent-core/src/modes/reasoning-effort.ts` already implements full per-provider effort defaults matching amp's `t7R()`. |
 | GAP-LLM-18 | **OpenAI Responses API divergence** | Flitter's `OpenAIProvider` uses the Responses API (`responses.create`); amp uses `chat.completions.create`. Different field names (`input` vs `messages`, `max_output_tokens` vs `max_completion_tokens`). May break on proxies that only speak ChatCompletion. |
@@ -502,6 +504,13 @@ These were previously identified as gaps but are now implemented in flitter.
 - **New gaps discovered:** CLI-52 (enterprise visibility default), CLI-53 (threads share --support), TOOL-40 (create_project), CLI-54 (threads search DSL).
 - 33 new tests, 0 type errors.
 
+### Iteration 35 — StickyHeader/DialogBox, review check runner, OAuth locking, REPL tool
+- **GAP-TUI-24** (completed): StickyHeader + DialogBox layout widgets — `RenderDialogBox` (amp's `_RR`) multi-child bordered two-column layout with center divider, rounded/square borders, banner mode. `RenderStickyHeader` (amp's `E9R`) pins header at viewport top via `getClipRegion()`. 58 new tests.
+- **GAP-CLI-44** (completed): Review check runner subsystem — 4 new flags (`--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`). Full check discovery + parallel subagent execution + result parsing + merge. Matches amp's pFR/uFR/fFR/IFR/MFR/dFR architecture. 54 new tests.
+- **GAP-LLM-15** (completed): MCP OAuth cross-process file locking — `acquireOAuthLock()`/`releaseOAuthLock()` with atomic `fs.link()` POSIX pattern, stale PID detection, race-condition handling. Matches amp's dj/ED/yL/zW. 21 new tests.
+- **GAP-TOOL-34** (completed): Interactive REPL tool — spawns subprocess, `prompt`+`stop` mini-tools, autonomous agent loop (50 iter max, 60s/iter), 5s drain with 10MB overflow protection. Matches amp's OBR/SBR/iqT/rqT. Added to SMART_TOOLS. 30 new tests.
+- 163 new tests, 0 type errors.
+
 ---
 
 ## Summary Statistics
@@ -509,11 +518,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 2 |
-| High | 16 |
-| Medium | 31 |
-| Low | 52 |
-| **Total open gaps** | **101** |
-| Closed gaps | 138+ |
+| High | 14 |
+| Medium | 28 |
+| Low | 51 |
+| **Total open gaps** | **95** |
+| Closed gaps | 142+ |
 
 ### Cross-Cutting Themes
 

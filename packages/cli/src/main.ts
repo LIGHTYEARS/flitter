@@ -824,6 +824,7 @@ export async function main(opts?: MainOptions): Promise<void> {
     }
 
     // ── Task 2: Review command ────────────────────────────
+    // 逆向: p40 (2535_unknown_p40.js) — review command with check runner flags
     const reviewCmd = program.commands.find((c) => c.name() === "review");
     if (reviewCmd) {
       reviewCmd.action(async (diff: string | undefined, cmdOpts: Record<string, unknown>) => {
@@ -835,6 +836,10 @@ export async function main(opts?: MainOptions): Promise<void> {
           files: (cmdOpts?.files as string[]) ?? [],
           instructions: cmdOpts?.instructions as string | undefined,
           thoroughness: (cmdOpts?.thoroughness as "methodical" | "quick") ?? "methodical",
+          checkScope: cmdOpts?.checkScope as string | undefined,
+          checkFilter: cmdOpts?.checkFilter as string[] | undefined,
+          checksOnly: cmdOpts?.checksOnly === true,
+          summaryOnly: cmdOpts?.summaryOnly === true,
         });
       });
     }

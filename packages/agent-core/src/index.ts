@@ -195,6 +195,8 @@ export { ReadTool } from "./tools/builtin/read";
 export { createReadMcpResourceTool } from "./tools/builtin/read-mcp-resource";
 export { createReadThreadTool } from "./tools/builtin/read-thread";
 export { ReadWebPageTool } from "./tools/builtin/read-web-page";
+export type { ReplInferenceFn, ReplProcess } from "./tools/builtin/repl";
+export { createReplTool } from "./tools/builtin/repl";
 export { RestoreSnapshotTool } from "./tools/builtin/restore-snapshot";
 export { ShellCommandTool } from "./tools/builtin/shell-command";
 export { createSkillTool } from "./tools/builtin/skill-tool";

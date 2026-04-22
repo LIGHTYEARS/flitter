@@ -234,6 +234,7 @@ export function createProgram(version: string): Command {
 
   // ─── Review ────────────────────────────────────────────
 
+  // 逆向: amp review command p40 (2535_unknown_p40.js) — full flag set
   program
     .command("review [diff]")
     .description("Run AI code review on staged changes or provided diff")
@@ -245,7 +246,12 @@ export function createProgram(version: string): Command {
       "--thoroughness <level>",
       "Review depth: methodical or quick (default: methodical)",
       "methodical",
-    );
+    )
+    // 逆向: p40 — check runner flags
+    .option("-s, --check-scope <dir>", "Directory to search for checks")
+    .option("-c, --check-filter <checks...>", "Specific check names to run (repeatable)")
+    .option("--checks-only", "Only run checks, skip the main review agent")
+    .option("--summary-only", "Only generate and print the diff summary, skip full review");
 
   // ─── Config 管理 ────────────────────────────────────────
 

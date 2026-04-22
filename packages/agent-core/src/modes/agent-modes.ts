@@ -84,6 +84,7 @@ const SMART_TOOLS = [
   "Read",
   "finder",
   "Bash",
+  "repl",
   "Write",
   "Edit",
   "web_search",

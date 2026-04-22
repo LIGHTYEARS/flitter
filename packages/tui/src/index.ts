@@ -52,6 +52,14 @@ export { Spacer } from "./widgets/spacer.js";
 export type { SplitDirection } from "./widgets/split-pane.js";
 export { SplitPane, SplitPaneRenderObject } from "./widgets/split-pane.js";
 export { Positioned, Stack } from "./widgets/stack.js";
+export type {
+  TableCell,
+  TableColumnConfig,
+  TableColumnWidthType,
+  TableProps,
+  TableRow,
+} from "./widgets/table.js";
+export { RenderTable, Table } from "./widgets/table.js";
 export { Text } from "./widgets/text.js";
 export { TextSpan } from "./widgets/text-span.js";
 export type { ToggleStyle } from "./widgets/toggle.js";

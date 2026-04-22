@@ -12,6 +12,7 @@
  */
 
 import { createLogger } from "@flitter/util";
+import { parseThreadQuery } from "../../data/thread-search-dsl";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 import type { ThreadStoreLike } from "./read-thread";
 
@@ -21,18 +22,58 @@ const log = createLogger("tool:find_thread");
 const DEFAULT_LIMIT = 20;
 
 /**
- * Simple thread search: match query keywords against thread title and message text.
+ * Collect searchable text parts from a snapshot (title + message text blocks).
+ */
+function collectTextParts(snapshot: {
+  title?: string;
+  messages: Array<{ content: unknown }>;
+}): string[] {
+  const parts: string[] = [];
+  if (snapshot.title) parts.push(snapshot.title);
+
+  for (const msg of snapshot.messages) {
+    const content = (msg as { content: unknown }).content;
+    if (typeof content === "string") {
+      parts.push(content);
+    } else if (Array.isArray(content)) {
+      for (const block of content as Array<Record<string, unknown>>) {
+        if (block.type === "text" && typeof block.text === "string") {
+          parts.push(block.text as string);
+        }
+      }
+    }
+  }
+
+  return parts;
+}
+
+/**
+ * Local thread search using the DSL parser.
  *
- * 逆向: amp has a full query DSL parser (keywords, file:, repo:, author:, after:, before:).
- * Flitter: simplified — case-insensitive keyword matching against thread content.
- * Full DSL can be added later.
+ * 逆向: chunk-005.js:147059-147070 (amp find_thread DSL spec)
+ *   amp's rGR calls the server-side /api/threads/find. This local implementation
+ *   parses the same DSL and applies structured filters against cached snapshots.
+ *
+ * Filters applied:
+ *   - keywords: case-insensitive substring match in title + message text; scored
+ *   - file:     substring match in full text (file paths appear in tool args/results)
+ *   - repo:     substring match in full text (repo URLs appear in environment/messages)
+ *   - author:   substring match in creatorUserID (or "me" matches any)
+ *   - after:    thread userLastInteractedAt >= date (or snapshot.created)
+ *   - before:   thread userLastInteractedAt < date
+ *   - is:archived → snapshot.archived === true
+ *   - label:    snapshot.labels array contains label (case-insensitive)
+ *
+ * All filters are AND-combined. A thread must pass all filters.
  */
 function searchThreads(
   threadStore: ThreadStoreLike,
   query: string,
   limit: number,
 ): Array<{ id: string; title: string | null; snippet: string }> {
-  const keywords = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const parsed = parseThreadQuery(query);
+  const { keywords, file, repo, author, after, before, isArchived, label } = parsed;
+
   const results: Array<{
     id: string;
     title: string | null;
@@ -45,45 +86,99 @@ function searchThreads(
     if (!snapshot) continue;
 
     // Build searchable text from thread
-    const parts: string[] = [];
-    if (snapshot.title) parts.push(snapshot.title);
-
-    for (const msg of snapshot.messages) {
-      const content = (msg as { content: unknown }).content;
-      if (typeof content === "string") {
-        parts.push(content);
-      } else if (Array.isArray(content)) {
-        for (const block of content as Array<Record<string, unknown>>) {
-          if (block.type === "text" && typeof block.text === "string") {
-            parts.push(block.text);
-          }
-        }
-      }
-    }
-
+    const parts = collectTextParts(
+      snapshot as { title?: string; messages: Array<{ content: unknown }> },
+    );
     const fullText = parts.join(" ").toLowerCase();
 
-    // Score: count how many keywords match
-    let score = 0;
-    for (const kw of keywords) {
-      if (fullText.includes(kw)) score++;
+    // ── Structured filters (AND logic) ────────────────────
+
+    // is:archived filter
+    if (isArchived !== undefined) {
+      const snapshotArchived = (snapshot as { archived?: boolean }).archived === true;
+      if (snapshotArchived !== isArchived) continue;
     }
 
-    if (score > 0) {
-      // Extract a snippet (first 200 chars of first matching content)
-      const snippetSource = parts.find((p) => keywords.some((kw) => p.toLowerCase().includes(kw)));
+    // label: filter
+    if (label !== undefined) {
+      const snapshotLabels = ((snapshot as { labels?: string[] }).labels ?? []).map((l) =>
+        l.toLowerCase(),
+      );
+      if (!snapshotLabels.includes(label.toLowerCase())) continue;
+    }
+
+    // file: filter — substring match in full message text
+    // (file paths appear in tool_use inputs and tool_result outputs)
+    if (file !== undefined) {
+      if (!fullText.includes(file.toLowerCase())) continue;
+    }
+
+    // repo: filter — substring match in full text
+    if (repo !== undefined) {
+      if (!fullText.includes(repo.toLowerCase())) continue;
+    }
+
+    // author: filter — check creatorUserID or "me" special case
+    if (author !== undefined && author !== "me") {
+      const creatorId = (
+        (snapshot as { creatorUserID?: string }).creatorUserID ?? ""
+      ).toLowerCase();
+      if (!creatorId.includes(author.toLowerCase())) continue;
+    }
+    // author:me → no server-side user ID available locally; include all threads
+
+    // after: / before: filters — use userLastInteractedAt timestamp from threadStore
+    // Fall back to snapshot.created (milliseconds) if entry not available
+    const snapshotCreated = (snapshot as { created?: number }).created;
+    // ThreadEntry.userLastInteractedAt is available if threadStore exposes entries
+    // We look up the entry's timestamp via the store if the method exists
+    const entryTime: number | undefined = (() => {
+      const store = threadStore as {
+        getThreadEntry?: (id: string) => { userLastInteractedAt?: number } | undefined;
+      };
+      if (typeof store.getThreadEntry === "function") {
+        return store.getThreadEntry(id)?.userLastInteractedAt;
+      }
+      return undefined;
+    })();
+    const timestamp = entryTime ?? snapshotCreated;
+
+    if (after !== undefined && timestamp !== undefined) {
+      if (timestamp < after.getTime()) continue;
+    }
+
+    if (before !== undefined && timestamp !== undefined) {
+      if (timestamp >= before.getTime()) continue;
+    }
+
+    // ── Keyword scoring ───────────────────────────────────
+
+    if (keywords.length > 0) {
+      let score = 0;
+      for (const kw of keywords) {
+        if (fullText.includes(kw.toLowerCase())) score++;
+      }
+      if (score === 0) continue;
+
+      const snippetSource = parts.find((p) =>
+        keywords.some((kw) => p.toLowerCase().includes(kw.toLowerCase())),
+      );
       const snippet = snippetSource ? snippetSource.slice(0, 200) : (parts[0]?.slice(0, 200) ?? "");
 
+      results.push({ id, title: (snapshot as { title?: string }).title ?? null, snippet, score });
+    } else {
+      // No keywords → structured-filter-only match; score = 1
+      const snippet = parts[0]?.slice(0, 200) ?? "";
       results.push({
         id,
-        title: snapshot.title ?? null,
+        title: (snapshot as { title?: string }).title ?? null,
         snippet,
-        score,
+        score: 1,
       });
     }
   }
 
-  // Sort by score descending, then by ID
+  // Sort by score descending, then by ID for determinism
   results.sort((a, b) => b.score - a.score || a.id.localeCompare(b.id));
   return results.slice(0, limit);
 }
@@ -96,7 +191,7 @@ function searchThreads(
 export function createFindThreadTool(threadStore: ThreadStoreLike): ToolSpec {
   return {
     name: "find_thread",
-    description: `Find threads (conversation threads) using a search query.
+    description: `Find threads (conversation threads) using a search query DSL.
 
 ## What this tool finds
 
@@ -105,6 +200,22 @@ This tool searches **threads** (conversations), NOT git commits. Use this when t
 ## Query syntax
 
 - **Keywords**: Bare words or quoted phrases for text search: \`auth\` or \`"race condition"\`
+- **File filter**: \`file:path\` to find threads that touched a file: \`file:src/auth/login.ts\`
+- **Repo filter**: \`repo:url\` to scope to a repository: \`repo:github.com/owner/repo\` or \`repo:owner/repo\`
+- **Author filter**: \`author:name\` to find threads by a user: \`author:alice\` or \`author:me\` for your own threads
+- **Date filters**: \`after:date\` and \`before:date\` to filter by date: \`after:2024-01-15\`, \`after:7d\`, \`before:2w\`
+- **Archived filter**: \`is:archived\` to find only archived threads
+- **Label filter**: \`label:name\` to filter by label: \`label:bug\`
+- **Combine filters**: Use implicit AND: \`auth file:src/foo.ts repo:amp after:7d\`
+
+All matching is case-insensitive. File paths use partial matching. Date formats: ISO dates (\`2024-01-15\`), relative days (\`7d\`), or weeks (\`2w\`).
+
+## Examples
+
+- \`auth file:src/login.ts\` — threads mentioning auth that touched login.ts
+- \`"race condition" after:7d\` — threads mentioning "race condition" in the last 7 days
+- \`author:me is:archived\` — your own archived threads
+- \`label:bug before:2w\` — threads labeled bug from more than 2 weeks ago
 
 ## When to use this tool
 
@@ -123,7 +234,8 @@ This tool searches **threads** (conversations), NOT git commits. Use this when t
       properties: {
         query: {
           type: "string",
-          description: "Search query. Supports keywords for text search.",
+          description:
+            "Search query using DSL syntax. Supports keywords, file:path, repo:url, author:name, after:date, before:date, is:archived, and label:name filters.",
         },
         limit: {
           type: "number",

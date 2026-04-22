@@ -1026,3 +1026,37 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Secret migration enables seamless file→keychain upgrade path
 - Context overflow automatically falls back to Gemini instead of failing
 - 34 new tests across 3 files, 0 type errors
+
+## ADR-032: Iteration 32 — Table widget, CompositedTransformFollower/Target, thread search DSL
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 32 targets 3 gaps across 2 domains: 2 TUI primitives (TUI-21 Table, TUI-22 CompositedTransform) and 1 CLI feature (CLI-54 thread search DSL). Table widget is needed for usage displays, thread lists, MCP status. CompositedTransform unblocks popup positioning. Search DSL is a power-user feature with direct daily value.
+
+**Decisions:**
+
+1. **GAP-TUI-21 (Table widget):** Faithful port of amp's JY/EQT (layout_widgets.js:1080-1436). Key design choices:
+   - Column width 3-pass algorithm: (1) assign fixed/intrinsic widths, (2) proportional by intrinsic ratio with min-width=16 floor, (3) flex columns get equal share of remainder. Matches amp's exact sequence.
+   - `shrinkColumnWidths()` proportional overflow handling with fractional-remainder distribution to highest-fraction columns — prevents rounding error from losing columns.
+   - Border painting uses rounded Unicode box-drawing (╭╮╰╯ + ─│├┤┬┴┼). `setBorderCell()` preserves existing background color when overwriting border positions.
+   - Widget layer wraps each cell child in Padding with `cellPadding` and flattens into single children array. Cell [row][col] accessed as `children[row * numCols + col]`.
+   - MultiChildRenderObjectWidget pattern (like Column/Row) with `MultiChildRenderObjectElement`.
+
+2. **GAP-TUI-22 (CompositedTransformFollower/Target):** Port of amp's pZT/bZT (chunk-006.js:12811-12996). Key design choices:
+   - `LayerLink.notifyFollowers()` made public — amp uses private `_notifyFollowers()` directly, but flitter's encapsulation is stronger. Adding a public method is cleaner than exposing internals.
+   - Target's `getGlobalPosition()` walks parent chain summing offsets (same as amp). `updateGlobalPosition()` compares to cached value, only notifies followers on actual change.
+   - Follower's `performLayout()`: when `!shouldShow()` sets size 0×0 and returns. Otherwise computes target position via `link.getTargetTransform()`, subtracts parent global offset, and applies as `setOffset()`. Child gets loosened constraints.
+   - Both widgets use SingleChildRenderObjectElement pattern following clip-box.ts.
+
+3. **GAP-CLI-54 (Thread search DSL):** Parser at `thread-search-dsl.ts` in agent-core/data. Design choices:
+   - Tokenizer handles quoted phrases ("multi word") via index-based parsing, not regex split — handles edge cases like unclosed quotes.
+   - Known filter keys: `file`, `repo`, `author`, `after`, `before`, `is`, `label`. Unknown `key:value` tokens treated as keywords (forward-compatible with future server-side filters).
+   - Date parsing: ISO (2024-01-15), relative days (7d), relative weeks (2w). Relative dates compute from current time.
+   - `searchThreads()` updated to AND-combine structured filters with keyword scoring. Threads matching filters but with no keywords get score=1.
+   - Both `find_thread` tool and CLI `threads search` command now use the same parser.
+
+**Consequences:**
+- Table widget available for usage display, MCP status, permission summaries
+- Popup/tooltip positioning now possible via CompositedTransformFollower/Target
+- Thread search supports structured filtering (file:, author:, after:, label:, etc.)
+- 91 new tests across 3 files, 0 type errors

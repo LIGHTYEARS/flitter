@@ -22,6 +22,8 @@
  * );
  * ```
  */
+
+import { parseThreadQuery } from "@flitter/agent-core";
 import type { ThreadMeta, ThreadPersistence, ThreadStore } from "@flitter/data";
 import type {
   AssistantThreadMessage,
@@ -763,15 +765,15 @@ export interface ThreadsSearchOptions {
  *
  * 逆向: uF0 in 2023_unknown_uF0.js
  * - amp calls /api/threads/find?q=...&limit=...&offset=...
- * - For local-only: scan cached thread entries for text match
+ * - For local-only: parse DSL query and apply filters against cached thread entries
  *
  * NOTE: amp's search is server-side with full-text indexing.
- * This local implementation provides basic substring matching
- * on cached thread titles and IDs as a fallback.
+ * This local implementation applies DSL filters (keywords, file, repo, author,
+ * after, before, is:archived, label) against cached thread entries.
  *
  * @param deps - Thread 管理所需的依赖服务
  * @param context - CLI 运行上下文
- * @param query - 搜索查询
+ * @param query - 搜索查询 (DSL)
  * @param options - 搜索选项
  */
 export async function handleThreadsSearch(
@@ -790,10 +792,21 @@ export async function handleThreadsSearch(
 
   const limit = Number.parseInt(options.limit, 10) || 20;
   const offset = Number.parseInt(options.offset, 10) || 0;
-  const queryLower = query.toLowerCase();
 
-  // Local search: match against thread entries (title, id)
-  // 逆向: amp uses server-side search; this is a local fallback
+  // Parse DSL query
+  const parsed = parseThreadQuery(query);
+  const { keywords, file, repo, author, after, before, isArchived, label } = parsed;
+  const hasFilters =
+    keywords.length > 0 ||
+    file !== undefined ||
+    repo !== undefined ||
+    author !== undefined ||
+    after !== undefined ||
+    before !== undefined ||
+    isArchived !== undefined ||
+    label !== undefined;
+
+  // Load all entries — always include archived so is:archived filter works correctly
   const entries = threadStore.observeThreadList({ includeArchived: true });
 
   if (entries.length === 0) {
@@ -802,9 +815,92 @@ export async function handleThreadsSearch(
   }
 
   const matches = entries.filter((e) => {
-    const title = (e.title ?? "").toLowerCase();
-    const id = e.id.toLowerCase();
-    return title.includes(queryLower) || id.includes(queryLower);
+    // is:archived filter
+    if (isArchived !== undefined) {
+      if ((e.archived === true) !== isArchived) return false;
+    }
+
+    // label: filter
+    if (label !== undefined) {
+      const snapshot = threadStore.getThreadSnapshot(e.id);
+      const snapshotLabels = ((snapshot as { labels?: string[] } | undefined)?.labels ?? []).map(
+        (l) => l.toLowerCase(),
+      );
+      if (!snapshotLabels.includes(label.toLowerCase())) return false;
+    }
+
+    // after: / before: date filters — use userLastInteractedAt
+    if (after !== undefined) {
+      if (e.userLastInteractedAt < after.getTime()) return false;
+    }
+    if (before !== undefined) {
+      if (e.userLastInteractedAt >= before.getTime()) return false;
+    }
+
+    // author: filter — check creatorUserID
+    if (author !== undefined && author !== "me") {
+      const creatorId = (e.creatorUserID ?? "").toLowerCase();
+      if (!creatorId.includes(author.toLowerCase())) return false;
+    }
+    // author:me → no server-side user ID available locally; include all threads
+
+    // For keyword/file/repo filters we need the snapshot text
+    const needsText = keywords.length > 0 || file !== undefined || repo !== undefined;
+    if (needsText) {
+      const snapshot = threadStore.getThreadSnapshot(e.id);
+      if (!snapshot) {
+        // No snapshot loaded: fall back to title/id match for keywords
+        if (keywords.length > 0) {
+          const titleLower = (e.title ?? "").toLowerCase();
+          const idLower = e.id.toLowerCase();
+          const hasKeyword = keywords.some(
+            (kw) => titleLower.includes(kw.toLowerCase()) || idLower.includes(kw.toLowerCase()),
+          );
+          if (!hasKeyword) return false;
+        }
+        if (file !== undefined || repo !== undefined) return false;
+        return true;
+      }
+
+      // Build full text
+      const parts: string[] = [];
+      if (snapshot.title) parts.push(snapshot.title);
+      for (const msg of snapshot.messages) {
+        const content = (msg as { content: unknown }).content;
+        if (typeof content === "string") {
+          parts.push(content);
+        } else if (Array.isArray(content)) {
+          for (const block of content as Array<Record<string, unknown>>) {
+            if (block.type === "text" && typeof block.text === "string") {
+              parts.push(block.text as string);
+            }
+          }
+        }
+      }
+      const fullText = parts.join(" ").toLowerCase();
+
+      // keyword matching
+      if (keywords.length > 0) {
+        const hasAll = keywords.every((kw) => fullText.includes(kw.toLowerCase()));
+        if (!hasAll) return false;
+      }
+
+      // file: filter
+      if (file !== undefined) {
+        if (!fullText.includes(file.toLowerCase())) return false;
+      }
+
+      // repo: filter
+      if (repo !== undefined) {
+        if (!fullText.includes(repo.toLowerCase())) return false;
+      }
+    }
+
+    return !hasFilters
+      ? // No filters at all — match everything (same as original behavior for empty query)
+        (e.title ?? "").toLowerCase().includes(query.toLowerCase()) ||
+          e.id.toLowerCase().includes(query.toLowerCase())
+      : true;
   });
 
   const paged = matches.slice(offset, offset + limit);

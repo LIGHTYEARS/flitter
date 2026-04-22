@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 31)
+> **Last updated:** 2026-04-22 (iteration 32)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -27,8 +27,8 @@
 |----|--------|---------|-------------|
 | GAP-TUI-01 | TUI | **Image display (Kitty Graphics)** | Amp has `ImageWidget` + Kitty APC protocol, format conversion (JPEG/GIF→PNG via `Vd0`), chunked transmission. Also detects `kittyGraphics` at startup (even inside tmux). Flitter has no image widget, no graphics protocol. Plan: `2026-04-19-image-display.md`. |
 | GAP-TUI-20 | TUI | **Image paste from clipboard** | Amp has multi-platform clipboard image paste: macOS (osascript JPEG/PNG/TIFF), Linux Wayland (wl-paste), WSL (wslpath + temp files), PowerShell. Images converted to PNG for Kitty graphics. Flitter's `Clipboard` only handles text. |
-| GAP-TUI-21 | TUI | **Table widget** | Amp has `JY`/`EQT` Table widget with fixed/intrinsic/flex/proportional column sizing, row-height measurement, border painting with corner joins, cell padding, shrink-to-fit overflow. Flitter has no standalone Table widget. |
-| GAP-TUI-22 | TUI | **CompositedTransformFollower/Target** | Amp has `pZT` (Follower) and `bZT` (Target) RenderObjects backed by `mZT` (LayerLink) for popup positioning across the widget tree. Flitter has `LayerLink` data object but no corresponding RenderObject/Widget wrappers. |
+| GAP-TUI-21 | TUI | **Table widget** | **Closed (iteration 32)** — `Table` widget + `RenderTable` render object with fixed/intrinsic/flex/proportional column sizing via 3-pass algorithm matching amp's EQT (layout_widgets.js:1127-1436). Border painting with rounded corners (╭╮╰╯), row/column dividers, intersection detection. `shrinkColumnWidths()` proportional overflow. 34 new tests. |
+| GAP-TUI-22 | TUI | **CompositedTransformFollower/Target** | **Closed (iteration 32)** — `RenderCompositedTransformTarget` (from amp's bZT) registers with `LayerLink` on attach/detach, tracks global position, notifies followers on change. `RenderCompositedTransformFollower` (from amp's pZT) positions child at target position + offset, hides when unlinked (unless showWhenUnlinked=true). `LayerLink.notifyFollowers()` made public. Matches amp chunk-006.js:12811-12996. 32 new tests. |
 | GAP-TUI-23 | TUI | **Offstage widget** | **Closed (iteration 24)** — `RenderOffstage` + `Offstage` widget. When `offstage=true`: intrinsic sizes return 0, size=0×0, paint/hitTest skip; still lays out child. Matches amp's `sQ`/`cQ`. 25 new tests. |
 | GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | Amp has `_RR` (modal dialog) and `E9R` (sticky-header) render objects. Dialog splits available width into columns with borders. Sticky header pins at viewport top on scroll. Neither exists in flitter. |
 | GAP-TUI-25 | TUI | **Chart/data-visualization widget** | Amp has `uRR` chart render object: bar, stacked-bar, line, sparkline, stacked-area, horizontal-bar with X/Y axes, color series, highlight, valueFormatter. Flitter has no chart widget. |
@@ -94,6 +94,8 @@
 | GAP-CORE-23 | Core | Plugin `registerCommand` | Closed (iteration 31) |
 | GAP-CORE-24 | Core | Plugin `configuration` API | Closed (iteration 31) |
 | GAP-LLM-10 | LLM | Context-limit → Gemini fallback | Closed (iteration 31) |
+| GAP-TUI-21 | TUI | Table widget | Closed (iteration 32) |
+| GAP-TUI-22 | TUI | CompositedTransformFollower/Target | Closed (iteration 32) |
 
 ---
 
@@ -249,7 +251,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-CLI-51 | `thread: mention` | Insert thread mention into prompt from TUI. |
 | GAP-CLI-52 | `threads visibility` enterprise default | Amp defaults thread visibility to `"enterprise"` for enterprise accounts (`O4R` chunk-002.js:14326). Flitter has no enterprise visibility level. |
 | GAP-CLI-53 | `threads share --support` | Amp has `--support` flag on `threads share` to share with Amp support team. Server-dependent. |
-| GAP-CLI-54 | `threads search` DSL | Amp's thread search supports structured DSL: `is:archived`, `label:foo`, `before:`, `after:` filters. Flitter only has plain text search. |
+| GAP-CLI-54 | `threads search` DSL | **Closed (iteration 32)** — `parseThreadQuery()` tokenizer with quoted phrase support. Filters: `file:`, `repo:`, `author:`, `after:`/`before:` (ISO + relative 7d/2w), `is:archived`, `label:`. AND-combined. `searchThreads()` updated in find-thread.ts. `handleThreadsSearch()` updated in threads.ts. Matches amp chunk-005.js:147050-147104. 25 new tests. |
 
 ### Tools
 

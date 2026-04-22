@@ -124,6 +124,19 @@ export class LayerLink {
   }
 
   /**
+   * 通知所有 followers 目标位置已变化。
+   *
+   * 由 RenderCompositedTransformTarget.updateGlobalPosition() 调用，
+   * 当目标的全局位置改变时手动触发更新。
+   *
+   * 逆向: mZT._notifyFollowers (chunk-006.js:12984) — bZT 调用
+   * this._link._notifyFollowers() 而非 clearTarget/setTarget
+   */
+  notifyFollowers(): void {
+    this._notifyFollowers();
+  }
+
+  /**
    * @internal 通知所有 followers。
    *
    * 安全调用每个回调，捕获并记录错误。

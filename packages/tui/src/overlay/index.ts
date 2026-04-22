@@ -2,6 +2,8 @@
 
 export * from "./autocomplete-controller.js";
 export * from "./command-palette.js";
+export * from "./composited-transform-follower.js";
+export * from "./composited-transform-target.js";
 export * from "./confirm-dialog.js";
 export * from "./fuzzy-match.js";
 export * from "./fuzzy-picker.js";

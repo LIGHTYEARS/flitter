@@ -21,6 +21,9 @@ export { parseMemoryCommand } from "./commands/memory-command";
 export type { SessionTotals, TurnUsage } from "./cost/session-cost-tracker";
 // ─── Cost Tracking ────────────────────────────────────
 export { SessionCostTracker } from "./cost/session-cost-tracker";
+// ─── Data / Search ────────────────────────────────────
+export type { ThreadSearchQuery } from "./data/thread-search-dsl";
+export { parseDate, parseThreadQuery } from "./data/thread-search-dsl";
 // ─── Lifecycle Hooks ──────────────────────────────────
 // ─── Admin Hook Matcher ───────────────────────────────
 export type {

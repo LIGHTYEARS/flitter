@@ -359,6 +359,7 @@ export async function launchInteractiveMode(
                 },
                 costTracker,
                 toolboxService: container.toolboxService,
+                skillService: container.skillService,
                 compactThread: async () => {
                   const snapshot = container.threadStore.getThreadSnapshot(threadId);
                   if (!snapshot) {

@@ -99,6 +99,38 @@ export interface SlashCommandContext {
     getTools(): Array<{ name: string; description: string; status: string; error?: string }>;
     getStatus(): { type: string; toolCount?: number };
   };
+
+  /**
+   * Skill service — scan/list available skills.
+   * 逆向: e0R:1797-1860 (skill-invoke calls R.skillService.getSkills())
+   * Amp uses getSkills() async; Flitter's SkillService exposes scan() async + list() sync.
+   * We type the minimal surface needed by the slash command.
+   */
+  skillService?: {
+    scan(): Promise<{
+      skills: Array<{ name: string; description: string }>;
+      errors: Array<{ path: string; error: string }>;
+      warnings: string[];
+    }>;
+    list(): Array<{ name: string; description: string }>;
+  };
+
+  /**
+   * Thread navigation — back/forward history.
+   * 逆向: SrT.navigateBack/navigateForward (2633_unknown_SrT.js:94-121)
+   * Amp guards with canNavigateBack/canNavigateForward before calling navigate.
+   */
+  navigateBack?: () => Promise<void>;
+  navigateForward?: () => Promise<void>;
+  canNavigateBack?: () => boolean;
+  canNavigateForward?: () => boolean;
+
+  /**
+   * Switch to an arbitrary thread by ID.
+   * 逆向: SrT.switchThread() (2633_unknown_SrT.js:83-87)
+   * Used by /parent to jump to the parent thread.
+   */
+  switchToThread?: (threadId: string) => Promise<void>;
 }
 
 /**

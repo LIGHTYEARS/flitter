@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 32)
+> **Last updated:** 2026-04-22 (iteration 33)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -32,7 +32,7 @@
 | GAP-TUI-23 | TUI | **Offstage widget** | **Closed (iteration 24)** — `RenderOffstage` + `Offstage` widget. When `offstage=true`: intrinsic sizes return 0, size=0×0, paint/hitTest skip; still lays out child. Matches amp's `sQ`/`cQ`. 25 new tests. |
 | GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | Amp has `_RR` (modal dialog) and `E9R` (sticky-header) render objects. Dialog splits available width into columns with borders. Sticky header pins at viewport top on scroll. Neither exists in flitter. |
 | GAP-TUI-25 | TUI | **Chart/data-visualization widget** | Amp has `uRR` chart render object: bar, stacked-bar, line, sparkline, stacked-area, horizontal-bar with X/Y axes, color series, highlight, valueFormatter. Flitter has no chart widget. |
-| GAP-TUI-26 | TUI | **TextField missing props** | Amp's `Gm` TextField has: `wrap`, `expands`, `prompts`/`setPromptRules`, `copyOnSelectionEnabled`+`onCopy`, `onOpenInEditor`, `ensureVisible`, `maxWidth`. All missing from flitter's TextField. |
+| GAP-TUI-26 | TUI | **TextField missing props** | **Closed (iteration 33)** — Added 9 props to TextField matching amp's Gm (chunk-006.js:4272-4500): `wrap` (word/none mode via TextLayoutEngine), `expands` (unbounded height), `maxWidth` (layout constraint), `prompts`/`setPromptRules` (PromptRule[] on controller), `onChanged` (text change callback), `copyOnSelectionEnabled`+`onCopy` (500ms auto-copy timer), `onOpenInEditor`, `ensureVisible`. 40 new tests. |
 | GAP-CORE-19 | Core | **Plugin `registerTool`** | **Closed (iteration 31)** — `PluginHost.listTools()` sends `tool.list` RPC, `executeTool()` sends `tool.execute`. `PluginService.refreshRegistrations()` calls list methods in parallel (events + tools + commands), matching amp's G5T/X5T at chunk-002.js:27256-27275. `getRegisteredTools()` aggregates across active plugins. `RegisteredTool` type added with name/description/inputSchema/pluginName. 18 new tests. |
 | GAP-CORE-20 | Core | **Toolbox service** | **Closed (iteration 24)** — `ToolboxService.subscribeToConfigChanges()` reactive re-scan on `toolbox.path` config changes. Skips first emission (DnR(1)), distinctUntilChanged, updates paths and re-scans. Matches amp's S5R config-watching pattern. 5 new tests. |
 | GAP-CORE-21 | Core | **Agg-man orchestrator mode** | Amp's hidden `agg-man` mode spawns parallel executor subagents with `send_message_to_aggman`/`render_agg_man` tools. This is the multi-agent dispatch pattern. Flitter has no equivalent orchestrator mode. |
@@ -96,6 +96,7 @@
 | GAP-LLM-10 | LLM | Context-limit → Gemini fallback | Closed (iteration 31) |
 | GAP-TUI-21 | TUI | Table widget | Closed (iteration 32) |
 | GAP-TUI-22 | TUI | CompositedTransformFollower/Target | Closed (iteration 32) |
+| GAP-TUI-26 | TUI | TextField missing props | Closed (iteration 33) |
 
 ---
 
@@ -121,8 +122,8 @@
 | GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
 | GAP-CLI-35 | `context: analyze` slash command | Token usage analysis overlay (amp requires Claude Opus 4.6 / GPT-5.4). No flitter equivalent. |
 | GAP-CLI-36 | `agents-md: generate/list` commands | Generate AGENTS.md from codebase analysis; list active AGENTS.md files. Missing from command palette/slash. |
-| GAP-CLI-37 | `skill: invoke` from TUI | Invoke a skill directly from TUI command palette. Flitter has no interactive skill invocation. |
-| GAP-CLI-38 | Thread navigation (prev/next/parent) | Amp: `thread: switch to previous/next/parent` in command palette. No flitter equivalent. |
+| GAP-CLI-37 | `skill: invoke` from TUI | **Closed (iteration 33)** — `/skill-invoke` slash command (aliases: `invoke-skill`, `use-skill`). No args → lists skills from `skillService.scan()`. With args → case-insensitive name match, invokes via `submitMessage("/skill <name>")`. Matches amp's `skill-invoke` customFlow at e0R.js:1797-1860 (simplified: text-based vs overlay picker). 11 new tests. |
+| GAP-CLI-38 | Thread navigation (prev/next/parent) | **Closed (iteration 33)** — `ThreadNavigationHistory` class with back/forward stacks matching amp's SrT (modules/2633:30-121). `recordNavigation()` pushes to back + clears forward. `navigateBack()`/`navigateForward()` pop/push between stacks. Three slash commands: `/back` (aliases: prev, previous), `/forward` (alias: next), `/parent` (filters relationships where role=parent). SlashCommandContext extended with navigation callbacks. 17 new tests. |
 | GAP-CLI-39 | Clipboard commands | Amp: `copy URL`, `copy ID`, `copy markdown`, `copy selection`, `paste image`. Flitter has none of these. |
 | GAP-CLI-40 | `/remove-label` | **Closed (iteration 26)** — `/remove-label` slash command filters target label from `snapshot.labels` array and updates thread via `setCachedThread`. Alias `/unlabel`. Matches amp's e0R:725-822 (simplified: local labels vs amp's server API). 6 new tests. |
 | GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |

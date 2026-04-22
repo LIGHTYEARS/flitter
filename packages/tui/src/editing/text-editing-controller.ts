@@ -25,8 +25,27 @@
  */
 
 import { graphemeSegments } from "../text/char-width.js";
-import type { LayoutLine, LayoutPosition } from "./text-layout-engine.js";
+import type { LayoutLine, LayoutPosition, WrapMode } from "./text-layout-engine.js";
 import { TextLayoutEngine } from "./text-layout-engine.js";
+
+// ════════════════════════════════════════════════════
+//  PromptRule
+// ════════════════════════════════════════════════════
+
+/**
+ * Prompt 规则，用于实现 shell prompt 前缀隐藏/高亮等功能。
+ *
+ * 还原自逆向代码 wc.setPromptRules / wc._getMinimumCursorPosition
+ * (chunk-004.js:7447-7453)。
+ */
+export interface PromptRule {
+  /** 判断文本是否匹配该规则 */
+  match: (text: string) => boolean;
+  /** 隐藏前缀时，光标不能移动到 display 长度之前 */
+  concealPrefix?: boolean;
+  /** 用于替换原始文本前缀的显示文本 */
+  display?: string;
+}
 
 /**
  * 光标移动选项
@@ -142,7 +161,20 @@ export class TextEditingController {
   private _killBuffer: string = "";
   /** 连续 kill 追加标记 */
   private _lastKillWasContiguous: boolean = false;
-  /** 是否已销毁 */
+
+  // ── 滚动偏移 (还原自逆向代码 wc._vScrollOffset, chunk-004.js:7100) ──
+
+  /** 垂直滚动偏移（行索引），由 TextFieldState 管理 */
+  private _vScrollOffset: number = 0;
+  /** 滚动监听器 (还原自逆向代码 wc._scrollListeners) */
+  private _scrollListeners: Array<() => void> = [];
+
+  // ── Prompt 规则 (还原自逆向代码 wc._promptRules, chunk-004.js:7105) ──
+
+  /** Prompt 规则列表 */
+  private _promptRules: PromptRule[] = [];
+
+  /** Whether the controller has been disposed */
   private _disposed: boolean = false;
 
   /**
@@ -268,6 +300,19 @@ export class TextEditingController {
       start: Math.min(this._selectionBase, this._selectionExtent),
       end: Math.max(this._selectionBase, this._selectionExtent),
     };
+  }
+
+  /**
+   * 获取当前选中的文本
+   *
+   * 还原自逆向代码 wc.selectedText (chunk-004.js:7148-7151)。
+   *
+   * @returns 选中文本，无选区返回空字符串
+   */
+  get selectedText(): string {
+    const range = this.selectionRange;
+    if (!range) return "";
+    return this.graphemes.slice(range.start, range.end).join("");
   }
 
   /**
@@ -812,6 +857,87 @@ export class TextEditingController {
   }
 
   /**
+   * 更新布局配置（宽度 + 换行模式）
+   *
+   * 还原自逆向代码 wc.updateLayoutConfig (chunk-004.js:7159-7166)。
+   *
+   * @param width - 最大宽度（列数）
+   * @param wrapMode - 换行模式 ("none" | "word" | "char")
+   */
+  updateLayoutConfig(width: number, wrapMode: WrapMode = "none"): void {
+    this._layoutEngine.updateWidth(width);
+    this._layoutEngine.updateWrapMode(wrapMode);
+  }
+
+  /**
+   * 获取当前垂直滚动偏移
+   *
+   * 还原自逆向代码 wc.getScrollOffset (chunk-004.js:7438-7440)。
+   *
+   * @returns 垂直滚动偏移（行索引）
+   */
+  getScrollOffset(): number {
+    return this._vScrollOffset;
+  }
+
+  /**
+   * 设置垂直滚动偏移，并通知滚动监听器
+   *
+   * 还原自逆向代码 wc.setScrollOffset (chunk-004.js:7441-7443)。
+   *
+   * @param offset - 新的滚动偏移
+   */
+  setScrollOffset(offset: number): void {
+    if (this._vScrollOffset !== offset) {
+      this._vScrollOffset = offset;
+      this._notifyScrollListeners();
+    }
+  }
+
+  /**
+   * 添加滚动监听器
+   *
+   * 还原自逆向代码 wc.addScrollListener (chunk-004.js:7428-7430)。
+   *
+   * @param fn - 回调函数
+   */
+  addScrollListener(fn: () => void): void {
+    this._scrollListeners.push(fn);
+  }
+
+  /**
+   * 移除滚动监听器
+   *
+   * 还原自逆向代码 wc.removeScrollListener (chunk-004.js:7431-7434)。
+   *
+   * @param fn - 回调函数
+   */
+  removeScrollListener(fn: () => void): void {
+    const idx = this._scrollListeners.indexOf(fn);
+    if (idx >= 0) this._scrollListeners.splice(idx, 1);
+  }
+
+  /**
+   * 设置 Prompt 规则列表
+   *
+   * 还原自逆向代码 wc.setPromptRules (chunk-004.js:7447-7449)。
+   *
+   * @param rules - PromptRule 数组
+   */
+  setPromptRules(rules: PromptRule[]): void {
+    this._promptRules = rules;
+  }
+
+  /**
+   * 获取当前 Prompt 规则列表
+   *
+   * @returns PromptRule 数组
+   */
+  getPromptRules(): PromptRule[] {
+    return this._promptRules;
+  }
+
+  /**
    * 获取当前光标的行列位置
    *
    * @returns LayoutPosition
@@ -875,6 +1001,7 @@ export class TextEditingController {
    */
   dispose(): void {
     this._listeners.length = 0;
+    this._scrollListeners.length = 0;
     this._disposed = true;
   }
 
@@ -887,6 +1014,17 @@ export class TextEditingController {
    */
   private _notifyListeners(): void {
     for (const fn of this._listeners) {
+      fn();
+    }
+  }
+
+  /**
+   * 通知所有滚动监听器
+   *
+   * 还原自逆向代码 wc._notifyScrollListeners (chunk-004.js:7435-7437)。
+   */
+  private _notifyScrollListeners(): void {
+    for (const fn of this._scrollListeners) {
       fn();
     }
   }

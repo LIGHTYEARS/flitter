@@ -21,8 +21,9 @@ describe("TextEditingController.getLayoutLines()", () => {
     expect(lines[1]!.startOffset).toBe(3);
   });
 
-  it("soft-wraps when text exceeds width", () => {
+  it("soft-wraps when text exceeds width and wrapMode is char", () => {
     const ctrl = new TextEditingController({ text: "abcde", width: 3 });
+    ctrl.updateLayoutConfig(3, "char");
     const lines = ctrl.getLayoutLines();
     expect(lines.length).toBeGreaterThan(1);
     expect(lines[0]!.endOffset).toBe(3);

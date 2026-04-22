@@ -1060,3 +1060,38 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Popup/tooltip positioning now possible via CompositedTransformFollower/Target
 - Thread search supports structured filtering (file:, author:, after:, label:, etc.)
 - 91 new tests across 3 files, 0 type errors
+
+## ADR-033: Iteration 33 — TextField missing props, thread navigation, skill invoke
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 33 targets 3 gaps: 1 TUI widget enhancement (TUI-26 TextField props) and 2 CLI features (CLI-38 thread navigation, CLI-37 skill invoke). TextField props are needed for the core prompt input. Thread navigation enables multi-thread workflows. Skill invoke provides discoverability.
+
+**Decisions:**
+
+1. **GAP-TUI-26 (TextField missing props):** Added 9 props matching amp's Gm (chunk-006.js:4272-4500). Key design choices:
+   - `wrap` implemented as `WrapMode` enum ("none"/"word"/"char") on `TextLayoutEngine`, with `updateWrapMode()` method. TextField passes `wrap ? "word" : "none"` matching amp's line 4479.
+   - `expands` removes maxLines cap when combined with multiline — when `expands && isMultiline`, effective maxLines becomes undefined (unbounded growth).
+   - `prompts` as `PromptRule[]` passed through to `controller.setPromptRules()` in both `initState` and `didUpdateWidget`. Controller stores rules but rendering is deferred to when prompt-cycling UI is built.
+   - `copyOnSelectionEnabled` + `onCopy`: 500ms auto-copy timer via `_scheduleAutoCopy()` → `_autoCopySelection()`. Timer cleared on new selection start. Matches amp's sP pattern.
+   - `maxWidth` applied in `RenderTextField.performLayout()` — constrains layout width before passing to controller's `updateLayoutConfig()`.
+   - Fixed 2 type errors: missing `_disposed` field on `TextEditingController`, missing `_copyHighlightActive` field on `TextFieldState`.
+
+2. **GAP-CLI-38 (Thread navigation):** `ThreadNavigationHistory` class matching amp's SrT (modules/2633:30-121). Design choices:
+   - Two-stack model: `backStack` and `forwardStack` — identical to amp's `threadBackStack`/`threadForwardStack`.
+   - `recordNavigation(fromId)` pushes previous thread to back and clears forward — prevents stale forward entries after branching.
+   - `navigateBack()`/`navigateForward()` return target ID or null (caller handles switching).
+   - Three slash commands: `/back` (aliases: prev, previous), `/forward` (alias: next), `/parent`. Parent uses `snapshot.relationships.filter(r => r.role === "parent")` from existing ThreadRelationshipSchema.
+   - SlashCommandContext extended with 5 new optional callbacks for navigation.
+
+3. **GAP-CLI-37 (Skill invoke):** Simple text-based approach (Path A) rather than amp's overlay picker (no `customFlow` equivalent in flitter). Design choices:
+   - `/skill-invoke` slash command — no args lists skills, with args does case-insensitive match and invokes via `submitMessage("/skill <name>")`.
+   - Fallback chain: tries `skillService.scan()` (async), falls back to `skillService.list()` (sync) on error.
+   - Wired `skillService` from container into `SlashCommandContext` in interactive.ts.
+   - Decision recorded: deferred overlay picker approach until flitter has a reusable FuzzyPickerOverlay widget.
+
+**Consequences:**
+- TextField now has feature parity with amp's Gm for all props needed by the prompt input
+- Thread navigation enables back/forward/parent switching in multi-thread workflows
+- Skills discoverable and invokable from slash commands
+- 68 new tests across 3 files, 0 type errors

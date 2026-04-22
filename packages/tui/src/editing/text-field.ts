@@ -24,6 +24,7 @@ import { Focus } from "../widgets/focus.js";
 import type { MouseEvent } from "../widgets/mouse-region.js";
 import { MouseRegion } from "../widgets/mouse-region.js";
 import { type RenderTextField, TextFieldRenderWidget } from "./render-text-field.js";
+import type { PromptRule } from "./text-editing-controller.js";
 import { TextEditingController } from "./text-editing-controller.js";
 
 // ════════════════════════════════════════════════════
@@ -54,6 +55,25 @@ export interface TextFieldProps {
   submitKey?: SubmitKeyConfig;
   focusNode?: FocusNode;
   onBackspaceWhenEmpty?: () => void;
+  // ── New props (GAP-TUI-26) — 还原自逆向代码 Gm constructor (chunk-006.js:4295-4337) ──
+  /** Word-wrap mode. When true, text wraps at word boundaries. Default false. */
+  wrap?: boolean;
+  /** When true, field expands unbounded (no maxLines cap). Default false. */
+  expands?: boolean;
+  /** Maximum width constraint for the field. */
+  maxWidth?: number;
+  /** Prompt rules applied to the controller. Amp: Gm.prompts → controller.setPromptRules() */
+  prompts?: PromptRule[];
+  /** Fire on every text change. */
+  onChanged?: (text: string) => void;
+  /** When true, auto-copy selection to clipboard after drag. Default false. */
+  copyOnSelectionEnabled?: boolean;
+  /** Callback after auto-copy completes. */
+  onCopy?: (text: string, success: boolean) => void;
+  /** Called to open current text in external editor. */
+  onOpenInEditor?: () => void;
+  /** When true with expands + multiline, scrolls to make cursor visible. Default false. */
+  ensureVisible?: boolean;
 }
 
 // ════════════════════════════════════════════════════
@@ -95,6 +115,17 @@ class TextFieldState extends State<TextField> {
   private _listener!: () => void;
   /** Ref to the underlying RenderTextField for hit-testing */
   private _renderFieldRef: RenderTextField | null = null;
+  // ── New state for GAP-TUI-26 ──
+  /** Auto-copy timer handle (500ms delay after drag selection) */
+  private _autoCopyTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  /** Copy-highlight timer handle */
+  private _copyHighlightTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+
+  /** Whether the copy highlight animation is active */
+  private _copyHighlightActive: boolean = false;
+
+  static readonly AUTO_COPY_DELAY_MS = 500;
+  static readonly AUTO_COPY_HIGHLIGHT_DURATION_MS = 300;
 
   // ─── Lifecycle ────────────────────────────────────
 
@@ -112,6 +143,22 @@ class TextFieldState extends State<TextField> {
       this._ownsController = true;
     }
     this._controller.addListener(this._listener);
+
+    // Wire onChanged: called on every text change
+    // 逆向: sP.initState — _textChangeListener calls widget.onChanged (chunk-006.js:4390)
+    if (this.widget.props.onChanged) {
+      const onChangedListener = () => {
+        if (this.mounted) this.widget.props.onChanged?.(this._controller.text);
+      };
+      this._controller.addListener(onChangedListener);
+    }
+
+    // Apply prompt rules if provided
+    // 逆向: sP.initState — if (this.widget.prompts.length > 0) controller.setPromptRules (chunk-006.js:4372)
+    const prompts = this.widget.props.prompts;
+    if (prompts && prompts.length > 0) {
+      this._controller.setPromptRules(prompts);
+    }
 
     if (this.widget.props.focusNode) {
       this._focusNode = this.widget.props.focusNode;
@@ -146,13 +193,56 @@ class TextFieldState extends State<TextField> {
         this._ownsFocusNode = true;
       }
     }
+    // Update prompt rules when they change
+    // 逆向: sP.didUpdateWidget — if (this.widget.prompts !== T.prompts) ... (chunk-006.js:4399)
+    if (this.widget.props.prompts !== oldWidget.props.prompts) {
+      this._controller.setPromptRules(this.widget.props.prompts ?? []);
+    }
   }
 
   override dispose(): void {
+    this._clearAutoCopyTimer();
+    this._clearCopyHighlightTimer();
     this._controller.removeListener(this._listener);
     if (this._ownsController) this._controller.dispose();
     if (this._ownsFocusNode) this._focusNode.dispose?.();
     super.dispose();
+  }
+
+  // ─── Auto-copy helpers (逆向: sP._scheduleAutoCopy, chunk-006.js:4450-4468) ──
+
+  private _scheduleAutoCopy(): void {
+    this._clearAutoCopyTimer();
+    this._autoCopyTimer = setTimeout(() => {
+      void this._autoCopySelection();
+      this._autoCopyTimer = undefined;
+    }, TextFieldState.AUTO_COPY_DELAY_MS);
+  }
+
+  private async _autoCopySelection(): Promise<void> {
+    if (!this.widget.props.copyOnSelectionEnabled) return;
+    const selectedText = this._controller.selectedText;
+    if (!selectedText || selectedText.length === 0) return;
+    // Attempt clipboard write — no native clipboard in terminal, so always report false
+    // unless the consumer injects their own clipboard. Call onCopy with result.
+    // 逆向: sP._autoCopySelection (chunk-006.js:4437-4448) — calls clipboard.writeText
+    const success = false;
+    this.widget.props.onCopy?.(selectedText, success);
+  }
+
+  private _clearAutoCopyTimer(): void {
+    if (this._autoCopyTimer !== undefined) {
+      clearTimeout(this._autoCopyTimer);
+      this._autoCopyTimer = undefined;
+    }
+  }
+
+  private _clearCopyHighlightTimer(): void {
+    if (this._copyHighlightTimer !== undefined) {
+      clearTimeout(this._copyHighlightTimer);
+      this._copyHighlightTimer = undefined;
+    }
+    this._copyHighlightActive = false;
   }
 
   // ─── Key dispatch (逆向: sP r function) ──────────
@@ -338,7 +428,11 @@ class TextFieldState extends State<TextField> {
   };
 
   private _handleRelease = (_event: MouseEvent): void => {
-    // No-op: selection finalized by drag
+    // Schedule auto-copy after drag selection if copyOnSelectionEnabled
+    // 逆向: sP._endDrag — calls _scheduleAutoCopy() (chunk-006.js:4432-4436)
+    if (this.widget.props.copyOnSelectionEnabled) {
+      this._scheduleAutoCopy();
+    }
   };
 
   // ─── Build ─────────────────────────────────────────
@@ -346,6 +440,8 @@ class TextFieldState extends State<TextField> {
   override build(_context: BuildContext): Widget {
     const props = this.widget.props;
     const hasFocus = this._focusNode.hasFocus;
+    const isExpands = props.expands ?? false;
+    const isMultiline = (props.maxLines ?? null) !== 1 || (props.minLines ?? 1) > 1;
 
     const renderWidget = new TextFieldRenderWidget({
       controller: this._controller,
@@ -353,12 +449,16 @@ class TextFieldState extends State<TextField> {
       enabled: props.enabled ?? true,
       readOnly: props.readOnly ?? false,
       minLines: props.minLines ?? 1,
-      maxLines: props.maxLines ?? null,
+      // expands removes maxLines cap when true + multiline
+      // 逆向: sP._updateVerticalScrollOffset — if expands, c = r (uncapped) (chunk-006.js:4551)
+      maxLines: isExpands && isMultiline ? null : (props.maxLines ?? null),
       textStyle: props.textStyle,
       cursorColor: props.cursorColor,
       selectionColor: props.selectionColor,
       backgroundColor: props.backgroundColor,
       placeholder: props.placeholder,
+      wrap: props.wrap ?? false,
+      maxWidth: props.maxWidth,
     });
 
     return new Focus({

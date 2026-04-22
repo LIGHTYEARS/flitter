@@ -844,6 +844,99 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     },
   });
 
+  // /skill-invoke -- invoke (load) a skill for this thread
+  // 逆向: e0R:1797-1860 (id: "skill-invoke", noun: "skill", verb: "invoke")
+  // Amp shows a FuzzyList picker (customFlow), then calls:
+  //   R.addPendingSkill({ name }) — queues the skill for injection on the next message
+  //   R.showToast(`Skill "${name}" will be used on next message`, "success")
+  // Flitter CLI: no overlay picker available in TUI; instead:
+  //   - No args → scan skills and print the list via showMessage
+  //   - With args → case-insensitive match by name, then inject as submitMessage
+  //     (addPendingSkill equivalent: next user message will include the skill)
+  registry.register({
+    name: "skill-invoke",
+    aliases: ["invoke-skill", "use-skill"],
+    description: "Invoke (load) a skill for this thread",
+    execute: async (args, ctx) => {
+      // 逆向: e0R:1797 — R.skillService.getSkills() (async, returns array)
+      if (!ctx.skillService) {
+        ctx.showMessage("Skill service is not available in this session.");
+        return;
+      }
+
+      const query = args.trim();
+
+      if (!query) {
+        // No args — list available skills
+        // 逆向: amp shows FuzzyList; Flitter shows text list
+        let skills: Array<{ name: string; description: string }>;
+        try {
+          const result = await ctx.skillService.scan();
+          skills = result.skills;
+        } catch {
+          skills = ctx.skillService.list();
+        }
+
+        if (skills.length === 0) {
+          ctx.showMessage(
+            'No skills available. Add skills with "skill add" or create one in .flitter/skills/.',
+          );
+          return;
+        }
+
+        const lines = skills.map((s) => {
+          const desc = s.description ? ` — ${s.description}` : "";
+          return `  • ${s.name}${desc}`;
+        });
+        ctx.showMessage(
+          `Available skills (${skills.length}):\n${lines.join("\n")}\n\nUsage: /skill-invoke <name>`,
+        );
+        return;
+      }
+
+      // Args provided — find matching skill (case-insensitive)
+      // 逆向: e0R:1857 — onAccept: async c => { await a({ name: c.name }), e(); }
+      let skills: Array<{ name: string; description: string }>;
+      try {
+        const result = await ctx.skillService.scan();
+        skills = result.skills;
+      } catch {
+        skills = ctx.skillService.list();
+      }
+
+      const queryLower = query.toLowerCase();
+      const match = skills.find((s) => s.name.toLowerCase() === queryLower);
+
+      if (!match) {
+        // 逆向: amp shows nothing (FuzzyList filters in real-time); Flitter shows error + list
+        const names = skills.map((s) => `  • ${s.name}`).join("\n");
+        const notFoundMsg =
+          skills.length > 0
+            ? `Skill "${query}" not found.\n\nAvailable skills:\n${names}`
+            : `Skill "${query}" not found. No skills are currently installed.`;
+        ctx.showMessage(notFoundMsg);
+        return;
+      }
+
+      // Invoke the skill
+      // 逆向: execute: async (R, a, e) => {
+      //   R.addPendingSkill({ name: e.name })
+      //   R.showToast(`Skill "${e.name}" will be used on next message`, "success")
+      // }
+      // Flitter equivalent: inject as user message so the skill context loads on the next turn.
+      // submitMessage sends it through the normal LLM path, which includes skill injection.
+      if (ctx.submitMessage) {
+        ctx.submitMessage(`/skill ${match.name}`);
+        ctx.showMessage(`Skill "${match.name}" will be used on next message.`);
+      } else {
+        ctx.showMessage(
+          `Skill "${match.name}" selected.\n` +
+            "(submitMessage not available — skill injection requires TUI mode.)",
+        );
+      }
+    },
+  });
+
   // /visibility -- set thread visibility
   // 逆向: e0R:528-588 (id: "visibility", noun: "thread", verb: "set visibility")
   registry.register({
@@ -883,6 +976,90 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       } else {
         ctx.showMessage(`Set thread ${ctx.threadId} visibility to "${level}" requested.`);
       }
+    },
+  });
+
+  // ─── Thread Navigation Commands ─────────────────────────────
+
+  // /back -- navigate to previous thread in history
+  // 逆向: e0R:477-487 (id: "thread-previous", verb: "switch to previous", aliases: ["back"])
+  // Amp: `if (R.canNavigateBack) await R.navigateBack()`
+  // isShown: guards with canNavigateBack — shows error string when unavailable
+  registry.register({
+    name: "back",
+    aliases: ["prev", "previous"],
+    description: "Navigate to previous thread",
+    execute: async (_args, ctx) => {
+      if (!ctx.canNavigateBack?.()) {
+        ctx.showMessage("No previous thread in navigation history.");
+        return;
+      }
+      await ctx.navigateBack?.();
+    },
+  });
+
+  // /forward -- navigate to next thread in history
+  // 逆向: e0R:487-497 (id: "thread-next", verb: "switch to next", aliases: ["forward"])
+  // Amp: `if (R.canNavigateForward) await R.navigateForward()`
+  registry.register({
+    name: "forward",
+    aliases: ["next"],
+    description: "Navigate to next thread",
+    execute: async (_args, ctx) => {
+      if (!ctx.canNavigateForward?.()) {
+        ctx.showMessage("No next thread in navigation history.");
+        return;
+      }
+      await ctx.navigateForward?.();
+    },
+  });
+
+  // /parent -- navigate to parent thread
+  // 逆向: e0R:497-527 (id: "thread-parent", verb: "switch to parent")
+  // Amp calls vD(R.thread) which filters relationships where role === "child"
+  // (meaning the current thread has spawned those threads as children, so they are
+  // "parents" in the navigation sense of "threads I came from").
+  // Flitter spec: filter relationships where role === "parent" — the current thread
+  // is the child and the relationship points to its parent.
+  // isShown: `vD(R.thread).length > 0` — only shown when parent exists
+  registry.register({
+    name: "parent",
+    description: "Navigate to parent thread",
+    execute: async (_args, ctx) => {
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot) {
+        ctx.showMessage("Error: Could not load current thread snapshot.");
+        return;
+      }
+
+      // Filter relationships with role === "parent": this thread is a child of those threads
+      const parentRelationships = (snapshot.relationships ?? []).filter((r) => r.role === "parent");
+
+      if (parentRelationships.length === 0) {
+        ctx.showMessage("No parent thread.");
+        return;
+      }
+
+      if (parentRelationships.length === 1) {
+        const parentId = parentRelationships[0]!.threadID;
+        if (ctx.switchToThread) {
+          await ctx.switchToThread(parentId);
+        } else {
+          ctx.showMessage(
+            `Parent thread: ${parentId}\n` +
+              "(Thread switching not available — use 'flitter --thread-id' to open it.)",
+          );
+        }
+        return;
+      }
+
+      // Multiple parents (rare but possible with handoff chains)
+      // 逆向: e0R:508-519 shows a FuzzyList picker for multiple parents
+      const parentIds = parentRelationships.map((r) => r.threadID);
+      ctx.showMessage(
+        `Multiple parent threads found:\n${parentIds.map((id) => `  ${id}`).join("\n")}\n\n` +
+          "Use /switch <thread-id> to navigate to a specific parent.",
+      );
     },
   });
 }

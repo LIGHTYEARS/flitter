@@ -78,11 +78,24 @@ const segmenter = new Intl.Segmenter("zh", { granularity: "grapheme" });
  * engine.offsetToPosition(6); // { line: 1, col: 0 }
  * ```
  */
+/**
+ * 换行模式
+ *
+ * - "none": 不自动换行（文本扩展超出宽度，靠水平滚动访问）
+ * - "word": 按词边界换行（整词不拆分）
+ * - "char": 按字符边界换行
+ *
+ * 还原自逆向代码 Kw wrapMode 参数 (chunk-004.js:6984)。
+ */
+export type WrapMode = "none" | "word" | "char";
+
 export class TextLayoutEngine {
   /** 原始文本 */
   private _text: string = "";
   /** 视口宽度（列数） */
   private _width: number = 80;
+  /** 换行模式 — 默认 "none" (不换行)，匹配 amp wc 构造函数 */
+  private _wrapMode: WrapMode = "none";
   /** 布局后的行信息（惰性计算） */
   private _layoutLines: LayoutLine[] | null = null;
   /** 全文 grapheme 列表（惰性计算） */
@@ -108,6 +121,20 @@ export class TextLayoutEngine {
   updateWidth(width: number): void {
     if (this._width !== width) {
       this._width = width;
+      this._invalidateCache();
+    }
+  }
+
+  /**
+   * 设置换行模式，标记布局缓存为脏
+   *
+   * 还原自逆向代码 Kw.updateConfig (chunk-004.js:6921-6923)。
+   *
+   * @param mode - 换行模式 ("none" | "word" | "char")
+   */
+  updateWrapMode(mode: WrapMode): void {
+    if (this._wrapMode !== mode) {
+      this._wrapMode = mode;
       this._invalidateCache();
     }
   }
@@ -347,8 +374,10 @@ export class TextLayoutEngine {
       // 计算当前 grapheme 宽度
       const gw = charWidth(g);
 
-      // 软换行: 当前行宽度不够放下此 grapheme
-      if (lineWidth + gw > maxWidth && lineWidth > 0) {
+      // 软换行: 仅在 wrapMode !== "none" 时触发
+      // 还原自逆向代码 Kw._computeLines (chunk-004.js:7016):
+      //   if (a !== "none" && r + s > R && r > 0) { ... }
+      if (this._wrapMode !== "none" && lineWidth + gw > maxWidth && lineWidth > 0) {
         this._layoutLines.push({
           startOffset: lineStart,
           endOffset: idx,

@@ -67,6 +67,7 @@ describe("TextLayoutEngine", () => {
     const engine = new TextLayoutEngine();
     engine.updateText("abcdefghij");
     engine.updateWidth(5);
+    engine.updateWrapMode("char");
     expect(engine.getLineCount()).toBe(2);
     expect(engine.getLine(0)).toBe("abcde");
     expect(engine.getLine(1)).toBe("fghij");
@@ -78,6 +79,7 @@ describe("TextLayoutEngine", () => {
     // width=6 → 第1行 "你好世" (宽度6), 第2行 "界" (宽度2)
     engine.updateText("你好世界");
     engine.updateWidth(6);
+    engine.updateWrapMode("char");
     expect(engine.getLineCount()).toBe(2);
     expect(engine.getLine(0)).toBe("你好世");
     expect(engine.getLine(1)).toBe("界");
@@ -89,6 +91,7 @@ describe("TextLayoutEngine", () => {
     // width=4 → 第1行 "ab你" (4列), 第2行 "好" (2列)
     engine.updateText("ab你好");
     engine.updateWidth(4);
+    engine.updateWrapMode("char");
     expect(engine.getLineCount()).toBe(2);
     expect(engine.getLine(0)).toBe("ab你");
     expect(engine.getLine(1)).toBe("好");
@@ -99,6 +102,7 @@ describe("TextLayoutEngine", () => {
     // "a你" → a(1) 你(2), width=2 → 第1行 "a" (1列), 第2行 "你" (2列)
     engine.updateText("a你");
     engine.updateWidth(2);
+    engine.updateWrapMode("char");
     expect(engine.getLineCount()).toBe(2);
     expect(engine.getLine(0)).toBe("a");
     expect(engine.getLine(1)).toBe("你");
@@ -203,6 +207,7 @@ describe("TextLayoutEngine", () => {
     const engine = new TextLayoutEngine();
     engine.updateText("abcdef");
     engine.updateWidth(6);
+    engine.updateWrapMode("char");
     expect(engine.getLineCount()).toBe(1);
 
     engine.updateWidth(3);

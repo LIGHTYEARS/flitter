@@ -56,6 +56,10 @@ export interface RenderTextFieldProps {
   selectionColor?: Color;
   backgroundColor?: Color;
   placeholder?: string;
+  /** Word-wrap mode: when true, wraps at word boundaries. Default false (no wrap). */
+  wrap?: boolean;
+  /** Maximum width constraint for the field. */
+  maxWidth?: number;
 }
 
 // ════════════════════════════════════════════════════
@@ -119,7 +123,8 @@ export class RenderTextField extends RenderBox {
   }
 
   override getMinIntrinsicHeight(width: number): number {
-    this._props.controller.updateWidth(width);
+    const w = this._props.maxWidth !== undefined ? Math.min(width, this._props.maxWidth) : width;
+    this._props.controller.updateLayoutConfig(w, this._props.wrap ? "word" : "none");
     const totalLines = this._props.controller.lineCount;
     const { minLines, maxLines } = this._props;
     if (maxLines !== null) {
@@ -138,8 +143,16 @@ export class RenderTextField extends RenderBox {
 
   override performLayout(): void {
     const constraints = this._lastConstraints!;
-    const w = constraints.maxWidth;
-    this._props.controller.updateWidth(w);
+    // Apply maxWidth constraint if provided
+    // 逆向: L1T.performLayout + sP._updateScrollOffset — uses (maxWidth || containerWidth) (chunk-006.js:4478)
+    const w =
+      this._props.maxWidth !== undefined
+        ? Math.min(constraints.maxWidth, this._props.maxWidth)
+        : constraints.maxWidth;
+
+    // Pass wrapMode to the controller's layout engine
+    // 逆向: sP._updateScrollOffset — updateLayoutConfig(width, wrap ? "word" : "none", ...) (chunk-006.js:4479)
+    this._props.controller.updateLayoutConfig(w, this._props.wrap ? "word" : "none");
 
     const totalLines = this._props.controller.lineCount;
     const { minLines, maxLines } = this._props;

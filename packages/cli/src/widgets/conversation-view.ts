@@ -32,6 +32,7 @@ import {
   Container,
   EdgeInsets,
   Expanded,
+  GestureDetector,
   MarkdownParser,
   MarkdownRenderer,
   RichText,
@@ -241,6 +242,12 @@ export class ConversationViewState extends State<ConversationView> {
   private _expandedThinking: Set<number> = new Set();
 
   /**
+   * Expansion state for activity groups, keyed by item index.
+   * 逆向: stateController.denseViewItemStates Map
+   */
+  private _activityGroupExpanded: Map<number, boolean> = new Map();
+
+  /**
    * ScrollController for conversation auto-scroll (followMode: true).
    * 逆向: amp conversation auto-scrolls to bottom
    */
@@ -326,6 +333,21 @@ export class ConversationViewState extends State<ConversationView> {
       this._startAnimation();
     } else if (wasActive && !isActive) {
       this._stopAnimation();
+    }
+
+    // 逆向: _closeDenseActivityGroupsOnBoundary — auto-collapse completed groups
+    const items = this.widget.config.items;
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (
+          item.type === "activity-group" &&
+          !item.hasInProgress &&
+          this._activityGroupExpanded.get(i) === true
+        ) {
+          this._activityGroupExpanded.set(i, false);
+        }
+      }
     }
   }
 
@@ -813,23 +835,89 @@ export class ConversationViewState extends State<ConversationView> {
   }
 
   /**
-   * Build an ActivityGroupItem widget — renders each action individually.
+   * Build an ActivityGroupItem widget — collapsed by default for completed groups,
+   * expanded for in-progress groups. Click header to toggle.
    *
-   * 逆向: x3/B9R/W9R (misc_utils.js:6280-8127) — each tool rendered individually
-   * as "{icon} {toolName} {path/detail}" rather than a grouped summary.
-   * B9R (Read) shows R.input.path, W9R (Grep) shows R.input.pattern.
+   * 逆向: Y1T (actions_intents.js) + denseViewItemStates (chunk-005.js:3280) —
+   * default expanded = !completed (i.e., in-progress groups start expanded).
+   * _closeDenseActivityGroupsOnBoundary auto-collapses completed groups.
    *
    * @param group - ActivityGroupItem from DisplayItem[]
-   * @param _itemIndex - Index in items array (unused here — no collapse in individual mode)
-   * @returns Column of individual tool-action rows
+   * @param itemIndex - Index in items array, used to key collapse state
+   * @returns Header widget (collapsed) or Column with header + rows (expanded)
    */
-  private _buildActivityGroupWidget(group: ActivityGroupItem, _itemIndex?: number): Widget {
-    const actionWidgets: Widget[] = [];
+  private _buildActivityGroupWidget(group: ActivityGroupItem, itemIndex?: number): Widget {
+    const hasActions = group.actions.length > 0;
 
+    // 逆向: denseViewItemStates.get(id) ?? !completed — default expanded when in-progress
+    const defaultExpanded = group.hasInProgress;
+    const isExpanded =
+      itemIndex !== undefined
+        ? (this._activityGroupExpanded.get(itemIndex) ?? defaultExpanded)
+        : defaultExpanded;
+
+    // Build summary header row
+    const headerSpans: TextSpan[] = [];
+
+    // Status icon for the group
+    if (group.hasInProgress) {
+      headerSpans.push(
+        new TextSpan({
+          text: `${this._spinner.toBraille()} `,
+          style: new TextStyle({ foreground: TOOL_COLOR }),
+        }),
+      );
+    } else {
+      headerSpans.push(
+        new TextSpan({
+          text: "\u2713 ",
+          style: new TextStyle({ foreground: SUCCESS_COLOR }),
+        }),
+      );
+    }
+
+    // Summary text
+    headerSpans.push(
+      new TextSpan({
+        text: group.summary,
+        style: new TextStyle({ foreground: DIM_COLOR }),
+      }),
+    );
+
+    // Expand/collapse indicator
+    if (hasActions) {
+      headerSpans.push(
+        new TextSpan({
+          text: isExpanded ? " \u25BC" : " \u25B6",
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      );
+    }
+
+    const headerWidget = new GestureDetector({
+      onTap:
+        hasActions && itemIndex !== undefined
+          ? () => {
+              this.setState(() => {
+                this._activityGroupExpanded.set(itemIndex, !isExpanded);
+              });
+            }
+          : undefined,
+      child: new RichText({
+        text: new TextSpan({ children: headerSpans }),
+      }),
+    });
+
+    // Collapsed: just the header
+    if (!isExpanded || !hasActions) {
+      return headerWidget;
+    }
+
+    // Expanded: header + individual action rows
+    const actionWidgets: Widget[] = [];
     for (const action of group.actions) {
       const spans: TextSpan[] = [];
 
-      // Status icon
       if (action.status === "in-progress") {
         spans.push(
           new TextSpan({
@@ -848,7 +936,6 @@ export class ConversationViewState extends State<ConversationView> {
         );
       }
 
-      // Tool name (bold)
       spans.push(
         new TextSpan({
           text: action.toolName,
@@ -856,8 +943,6 @@ export class ConversationViewState extends State<ConversationView> {
         }),
       );
 
-      // File path / detail
-      // 逆向: B9R R.input.path (misc_utils.js:7789), W9R R.input.pattern (misc_utils.js:8107)
       const toolDetail = action.path || action.detail;
       if (toolDetail) {
         spans.push(
@@ -877,7 +962,7 @@ export class ConversationViewState extends State<ConversationView> {
 
     return new Column({
       mainAxisSize: "min",
-      children: actionWidgets,
+      children: [headerWidget, ...actionWidgets],
     });
   }
 

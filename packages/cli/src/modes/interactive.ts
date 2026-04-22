@@ -143,6 +143,30 @@ export function resolveThemeData(themeName: string): ThemeData {
 
 // ─── 核心函数 ─────────────────────────────────────────────
 
+/** Resolve short CWD display (逆向: chunk-006.js:37949) */
+function shortCwd(): string {
+  const cwd = process.cwd();
+  const home = process.env.HOME ?? "";
+  if (home && cwd.startsWith(home)) {
+    return `~${cwd.slice(home.length)}`;
+  }
+  return cwd;
+}
+
+/** Resolve git branch (逆向: chunk-006.js:36749) */
+async function resolveGitBranch(): Promise<string | undefined> {
+  try {
+    const proc = Bun.spawn(["git", "rev-parse", "--abbrev-ref", "HEAD"], {
+      stdout: "pipe",
+      stderr: "ignore",
+    });
+    const text = await new Response(proc.stdout).text();
+    return text.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * 解析要使用的 thread
  *
@@ -216,6 +240,11 @@ export async function launchInteractiveMode(
   const themeName =
     ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
   let themeData: ThemeData = resolveThemeData(themeName);
+
+  // Resolve CWD and git branch for InputField border overlays
+  // 逆向: chunk-006.js:37949-37963 (bottom-right label: "{cwd} ({branch})")
+  const cwdDisplay = shortCwd();
+  const gitBranch = await resolveGitBranch();
 
   // 2. 创建或恢复 thread
   const threadId = await resolveThread(container, context);
@@ -406,6 +435,11 @@ export async function launchInteractiveMode(
             "claude-sonnet-4-20250514",
           tokenCount: 0,
           toastManager,
+          cwdDisplay,
+          gitBranch,
+          modeName: (context.agentMode as string | undefined) ?? "smart",
+          // biome-ignore lint/suspicious/noExplicitAny: skillService type varies by container version
+          skillCount: (container.skillService as any)?.listSkills?.()?.length as number | undefined,
         }),
       }),
       {

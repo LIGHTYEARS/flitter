@@ -50,7 +50,6 @@ import type { DisplayItem } from "./display-items.js";
 import { projectStreamingMessage, transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
-import { StatusBar } from "./status-bar.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
 import { WelcomeScreen } from "./welcome-screen.js";
@@ -94,6 +93,18 @@ export interface ThreadStateWidgetConfig {
   tokenCount?: number;
   /** Toast notification manager (optional, for overlay rendering) */
   toastManager?: ToastManager;
+  /** Current working directory display string
+   * 逆向: chunk-006.js:37949-37963 */
+  cwdDisplay?: string;
+  /** Git branch name
+   * 逆向: chunk-006.js:36749-36759 */
+  gitBranch?: string;
+  /** Active agent mode name (e.g., "smart", "fast")
+   * 逆向: chunk-006.js:37846 */
+  modeName?: string;
+  /** Number of available skills
+   * 逆向: chunk-006.js:37867 */
+  skillCount?: number;
 }
 
 // ════════════════════════════════════════════════════
@@ -197,9 +208,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
 
   /** Total output tokens consumed in this session */
   private _totalOutputTokens = 0;
-
-  /** Compaction state for status bar */
-  private _compactionState: "idle" | "compacting" = "idle";
 
   /** Whether waiting for user approval on a tool */
   private _waitingForApproval = false;
@@ -400,16 +408,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             }
           });
           break;
-        case "compaction:start":
-          this.setState(() => {
-            this._compactionState = "compacting";
-          });
-          break;
-        case "compaction:complete":
-          this.setState(() => {
-            this._compactionState = "idle";
-          });
-          break;
         case "approval:request":
           this.setState(() => {
             this._waitingForApproval = true;
@@ -488,17 +486,32 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
-   * Build top-right border label: "{mode}".
+   * Build top-right border label: "{mode}──!─{skills}─skills".
    * 逆向: chunk-006.js:37846-37867
+   *   `${_T ? "! " : ""}${OT} ${o9(OT, "skill")}` where OT is the skill count.
+   *   The mode name (e.g. "smart") prefixes the skills count separated by ──!─.
    */
   private _buildTopRightLabel(): string {
-    return "smart";
+    const mode = this.widget.config.modeName ?? "smart";
+    const skills = this.widget.config.skillCount;
+    if (skills != null && skills >= 0) {
+      return `${mode}\u2500\u2500!\u2500${skills}\u2500${skills === 1 ? "skill" : "skills"}`;
+    }
+    return mode;
   }
 
   /**
-   * Build bottom-right border label (placeholder for Task 6).
+   * Build bottom-right border label: "{cwd} ({branch})".
+   * 逆向: chunk-006.js:37949-37963
+   *   `this.buildDisplayText(F, this.currentGitBranch || void 0, E, O)`
+   *   where F = toHomeRelative(shorten(cwd)) and currentGitBranch comes from git.
    */
   private _buildBottomRightLabel(): string {
+    const cwd = this.widget.config.cwdDisplay;
+    const branch = this.widget.config.gitBranch;
+    if (cwd && branch) return `${cwd} (${branch})`;
+    if (cwd) return cwd;
+    if (branch) return `(${branch})`;
     return "";
   }
 
@@ -517,7 +530,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    * @returns Column 根节点
    */
   build(_context: BuildContext): Widget {
-    const { onSubmit, modelName, toastManager } = this.widget.config;
+    const { onSubmit, toastManager } = this.widget.config;
     const { threadWorker } = this.widget.config;
 
     // Filter thinking items when showThinkingBlocks is disabled.
@@ -569,23 +582,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     return new Column({
       children: [
         mainContent,
-        // 状态栏 — derive live StatusBarState from tracked fields
-        // 逆向: yB() state machine (2731_unknown_yB.js)
-        new StatusBar({
-          state: {
-            modelName: modelName ?? "unknown",
-            inferenceState: this._inferenceState,
-            hasStartedStreaming: this._hasStartedStreaming,
-            tokenUsage: {
-              inputTokens: this._totalInputTokens,
-              outputTokens: this._totalOutputTokens,
-              maxInputTokens: resolveModel(modelName ?? "")?.contextWindow ?? 200000,
-            },
-            compactionState: this._compactionState,
-            runningToolCount: this._runningToolCount,
-            waitingForApproval: this._waitingForApproval,
-          },
-        }),
         // 输入框 or 审批对话框
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows
         // A0R (confirmation widget) instead of input when approval is pending

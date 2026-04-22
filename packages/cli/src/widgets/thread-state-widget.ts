@@ -51,6 +51,7 @@ import { PromptHistory } from "./prompt-history.js";
 import { StatusBar } from "./status-bar.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
+import { WelcomeScreen } from "./welcome-screen.js";
 
 // ════════════════════════════════════════════════════
 //  ThreadStateWidgetConfig 接口
@@ -472,6 +473,34 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
+   * Build top-left border label: "{percent}% of {max}".
+   * 逆向: chunk-004.js:24704-24708 (XM token formatting)
+   */
+  private _buildTopLeftLabel(): string {
+    const maxTokens = resolveModel(this.widget.config.modelName ?? "")?.contextWindow ?? 200000;
+    const totalUsed = this._totalInputTokens + this._totalOutputTokens;
+    if (maxTokens <= 0) return "";
+    const pct = Math.round((totalUsed / maxTokens) * 100);
+    const maxStr = maxTokens >= 1000 ? `${Math.round(maxTokens / 1000)}k` : `${maxTokens}`;
+    return `${pct}% of ${maxStr}`;
+  }
+
+  /**
+   * Build top-right border label: "{mode}".
+   * 逆向: chunk-006.js:37846-37867
+   */
+  private _buildTopRightLabel(): string {
+    return "smart";
+  }
+
+  /**
+   * Build bottom-right border label (placeholder for Task 6).
+   */
+  private _buildBottomRightLabel(): string {
+    return "";
+  }
+
+  /**
    * 构建子 Widget 树。
    *
    * 返回完整的 Column 布局 (per UI-SPEC):
@@ -497,17 +526,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
       ? this._items
       : this._items.filter((item) => item.type !== "thinking");
 
-    // 消息区域 (占据全部剩余空间)
-    // 逆向: Scrollable wrapping ConversationView
-    const conversationScrollable = new Scrollable({
-      controller: this._scrollController,
-      viewportBuilder: () =>
-        new ConversationView({
-          items: displayItems,
-          inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
-          error: this._error,
-        }),
-    });
+    // 逆向: jetbrains_wizard.js:4961-5006
+    //   isTranscriptEmpty() ? brT (welcome screen) : G8R (conversation view)
+    const conversationArea =
+      displayItems.length === 0
+        ? new WelcomeScreen({ productName: "Flitter" })
+        : new Scrollable({
+            controller: this._scrollController,
+            viewportBuilder: () =>
+              new ConversationView({
+                items: displayItems,
+                inferenceState:
+                  this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+                error: this._error,
+              }),
+          });
 
     // 逆向: NQT (chunk-006.js:11009-11020) — Stack([child, Positioned(top:0, left:0, right:0, child: toastColumn)])
     // When toastManager is provided, wrap conversation in a Stack with ToastOverlay positioned on top.
@@ -515,7 +548,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
       ? new Expanded({
           child: new Stack({
             children: [
-              conversationScrollable,
+              conversationArea,
               new Positioned({
                 top: 0,
                 left: 0,
@@ -525,7 +558,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             ],
           }),
         })
-      : new Expanded({ child: conversationScrollable });
+      : new Expanded({ child: conversationArea });
 
     return new Column({
       children: [
@@ -561,7 +594,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                 });
               },
             })
-          : new InputField({ onSubmit, promptHistory: this._promptHistory }),
+          : new InputField({
+              onSubmit,
+              promptHistory: this._promptHistory,
+              topLeftLabel: this._buildTopLeftLabel(),
+              topRightLabel: this._buildTopRightLabel(),
+              bottomRightLabel: this._buildBottomRightLabel(),
+            }),
         // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
         new BottomStatusLine({
           inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,

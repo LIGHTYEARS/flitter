@@ -88,6 +88,11 @@ export interface InputFieldConfig {
   promptHistory?: import("./prompt-history.js").PromptHistory;
   /** Override width for border rendering (default: derived from MediaQuery or 78) */
   width?: number;
+  /** Border overlay labels (逆向: YrT overlayTexts, text_rendering.js:2395) */
+  topLeftLabel?: string;
+  topRightLabel?: string;
+  bottomLeftLabel?: string;
+  bottomRightLabel?: string;
 }
 
 // ════════════════════════════════════════════════════
@@ -260,19 +265,30 @@ export class InputFieldState extends State<InputField> {
       });
     }
 
-    // 计算行数: clamp 到 1-5
-    const lineCount = Math.min(5, Math.max(1, (text.match(/\n/g) || []).length + 1));
-
-    // 边框字符 — 逆向: amp uses MediaQuery width for dynamic sizing
+    // Fixed 3-row height (逆向: YrT maxHeight, text_rendering.js:2395)
     const borderInnerWidth = this.widget.config.width ?? terminalWidth - 2;
-    const horizontalLine = "\u2500".repeat(borderInnerWidth);
-    const topBorder = `\u250C${horizontalLine}\u2510`;
-    const bottomBorder = `\u2514${horizontalLine}\u2518`;
+
+    // Top border with overlay labels
+    // 逆向: Rt._buildOverlayWidgets (jetbrains_wizard.js:32-175)
+    const topLeft = this.widget.config.topLeftLabel ?? "";
+    const topRight = this.widget.config.topRightLabel ?? "";
+    const topLeftStr = topLeft ? `${topLeft}\u2500` : "";
+    const topRightStr = topRight ? `\u2500${topRight}` : "";
+    const topFillLen = Math.max(0, borderInnerWidth - topLeftStr.length - topRightStr.length);
+    const topBorder = `\u256D\u2500${topLeftStr}${"\u2500".repeat(topFillLen)}${topRightStr}\u2500\u256E`;
+
+    // Bottom border with overlay labels
+    const bottomLeft = this.widget.config.bottomLeftLabel ?? "";
+    const bottomRight = this.widget.config.bottomRightLabel ?? "";
+    const bottomLeftStr = bottomLeft ? `${bottomLeft}\u2500` : "";
+    const bottomRightStr = bottomRight ? `\u2500${bottomRight}` : "";
+    const bottomFillLen = Math.max(0, borderInnerWidth - bottomLeftStr.length - bottomRightStr.length);
+    const bottomBorder = `\u2570\u2500${bottomLeftStr}${"\u2500".repeat(bottomFillLen)}${bottomRightStr}\u2500\u256F`;
 
     return new Column({
       mainAxisSize: "min",
       children: [
-        // 顶部边框: ┌──...──┐
+        // 顶部边框: ╭──...──╮
         new RichText({
           text: new TextSpan({ text: topBorder, style: borderStyle }),
         }),
@@ -280,11 +296,11 @@ export class InputFieldState extends State<InputField> {
         new Padding({
           padding: EdgeInsets.symmetric({ horizontal: 1 }),
           child: new SizedBox({
-            height: lineCount,
+            height: 3,
             child: contentWidget,
           }),
         }),
-        // 底部边框: └──...──┘
+        // 底部边框: ╰──...──╯
         new RichText({
           text: new TextSpan({ text: bottomBorder, style: borderStyle }),
         }),

@@ -81,10 +81,13 @@ describe("InputField adaptive width", () => {
     const built = state.build({} as BuildContext);
     const allText = extractAllText(built as unknown as Record<string, unknown>);
 
-    // The top border should be ┌ + 40 x ─ + ┐ = 42 chars total
-    const topBorderMatch = allText.match(/\u250C(\u2500+)\u2510/);
+    // The top border should be ╭─── + fill + ───╮ (rounded corners)
+    // With width=40, topBorder = ╭─ + 40 x ─ + ─╮ = 44 chars total
+    // topFillLen = 40 - 0 - 0 = 40, topBorder = ╭ + ─ + ─*40 + ─ + ╮ = 44 chars
+    const topBorderMatch = allText.match(/\u256D(\u2500+)\u256E/);
     expect(topBorderMatch).not.toBeNull();
-    expect(topBorderMatch![1].length).toBe(40);
+    // inner dashes: 1 (leading) + topFillLen (40) + 1 (trailing) = 42
+    expect(topBorderMatch![1].length).toBe(42);
 
     state.dispose();
   });
@@ -95,9 +98,10 @@ describe("InputField adaptive width", () => {
     const built = state.build({} as BuildContext);
     const allText = extractAllText(built as unknown as Record<string, unknown>);
 
-    const topBorderMatch = allText.match(/\u250C(\u2500+)\u2510/);
+    const topBorderMatch = allText.match(/\u256D(\u2500+)\u256E/);
     expect(topBorderMatch).not.toBeNull();
-    expect(topBorderMatch![1].length).toBe(78);
+    // inner dashes: 1 (leading) + topFillLen (78) + 1 (trailing) = 80
+    expect(topBorderMatch![1].length).toBe(80);
 
     state.dispose();
   });

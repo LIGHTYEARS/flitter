@@ -205,6 +205,13 @@ export class RenderParagraph extends RenderBox {
     let currentLineWidth = 0;
 
     for (const glyph of allGlyphs) {
+      // 逆向: amp Kw._computeLines (2151_unknown_Kw.js:96-104) — \n triggers hard break
+      if (glyph.grapheme === "\n") {
+        lines.push(currentLine);
+        currentLine = [];
+        currentLineWidth = 0;
+        continue; // don't add \n to any line
+      }
       if (currentLine.length > 0 && currentLineWidth + glyph.width > maxWidth) {
         lines.push(currentLine);
         currentLine = [];
@@ -213,7 +220,7 @@ export class RenderParagraph extends RenderBox {
       currentLine.push(glyph);
       currentLineWidth += glyph.width;
     }
-    if (currentLine.length > 0) lines.push(currentLine);
+    lines.push(currentLine);
 
     return lines;
   }
@@ -233,7 +240,7 @@ export class RenderParagraph extends RenderBox {
     let maxWordWidth = 0;
     let currentWordWidth = 0;
     for (const glyph of allGlyphs) {
-      if (glyph.grapheme === " " || glyph.grapheme === "\t") {
+      if (glyph.grapheme === " " || glyph.grapheme === "\t" || glyph.grapheme === "\n") {
         if (currentWordWidth > maxWordWidth) maxWordWidth = currentWordWidth;
         currentWordWidth = 0;
       } else {
@@ -250,9 +257,19 @@ export class RenderParagraph extends RenderBox {
   override getMaxIntrinsicWidth(_height: number): number {
     const allGlyphs: LayoutGlyph[] = [];
     this._collectGlyphs(this._textSpan, [], allGlyphs);
-    let total = 0;
-    for (const glyph of allGlyphs) total += glyph.width;
-    return total;
+    // 逆向: amp Kw — max line width considering \n hard breaks
+    let maxLineWidth = 0;
+    let currentLineWidth = 0;
+    for (const glyph of allGlyphs) {
+      if (glyph.grapheme === "\n") {
+        if (currentLineWidth > maxLineWidth) maxLineWidth = currentLineWidth;
+        currentLineWidth = 0;
+      } else {
+        currentLineWidth += glyph.width;
+      }
+    }
+    if (currentLineWidth > maxLineWidth) maxLineWidth = currentLineWidth;
+    return maxLineWidth;
   }
 
   /**

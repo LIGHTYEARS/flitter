@@ -473,6 +473,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   private _submitFeedback(): void {
     const text = this._feedbackText.trim();
     this._feedbackText = "";
+    this._feedbackActive = false; // defensive reset (amp relies on widget disposal)
     if (text) {
       this._respondFull({ approved: false, feedback: text });
     } else {

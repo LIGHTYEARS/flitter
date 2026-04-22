@@ -28,7 +28,7 @@
  * @module
  */
 
-import { MODEL_REGISTRY } from "@flitter/llm";
+import { resolveModel } from "@flitter/llm";
 import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
   Column,
@@ -466,7 +466,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             tokenUsage: {
               inputTokens: this._totalInputTokens,
               outputTokens: this._totalOutputTokens,
-              maxInputTokens: MODEL_REGISTRY[modelName ?? ""]?.contextWindow ?? 200000,
+              maxInputTokens: resolveModel(modelName ?? "")?.contextWindow ?? 200000,
             },
             compactionState: this._compactionState,
             runningToolCount: this._runningToolCount,

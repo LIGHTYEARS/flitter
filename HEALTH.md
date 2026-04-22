@@ -10,13 +10,12 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6289 pass / 2 fail (pre-existing: container-integration provider type check + config-service hot-reload timing), 330 测试文件. Iteration 36: +62 tests (26 thread-coordination, 15 slash-handlers, 12 context-analyze, 9 permissions-toggle) |
-| 技术债务 | 🟢 | 1 个真实 TODO，0 FIXME/HACK，极度干净（grep.ts JSDoc 示例中的 'TODO' 不计入） |
+| 测试覆盖 | 🟡 | 6301 pass / 1 fail (pre-existing: unhandled error in interactive.ts source reading), 332 测试文件. Bugfix session: +12 tests (7 RenderParagraph newline, 3 resolveModel, 1 ApprovalWidget feedback, 1 status-bar-tokens) |
+| 技术债务 | 🟢 | 0 真实 TODO，0 FIXME/HACK，极度干净（grep.ts/todo-write.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
 ### ⚠️ Watch Items
 
-- ApprovalWidget `_feedbackActive` 提交后未重置 — `packages/cli/src/widgets/approval-widget.ts:372`，已记录在回归计划 Task 4，未修复
 - 无 CI/CD pipeline — 仅有 pre-commit biome lint hook，测试靠手动运行
 
 ---
@@ -25,16 +24,16 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 包 | 测试文件 | E2E | 通过 | 失败 | 跳过 |
 |----|---------|-----|------|------|------|
-| @flitter/tui | 80 | 1 | ✓ | 0 | 0 |
+| @flitter/tui | 81 | 1 | ✓ | 0 | 0 |
 | @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 56 | 2 | ✓ | 0 | 0 |
+| @flitter/cli | 57 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 17 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 11 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **330** | **3** | **6289** | **0** | **0** |
+| **总计** | **332** | **3** | **6301** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 
@@ -46,17 +45,16 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 包 | TODO | FIXME | HACK | 跳过测试 | 说明 |
 |----|------|-------|------|---------|------|
-| @flitter/cli | 1 真实 + 7 模板 | 0 | 0 | 0 | 7 个 TODO 在 `toolbox-templates.ts` 中，是 `tools make` 命令生成的脚手架占位符，非真实债务 |
+| @flitter/cli | 0 真实 + 7 模板 | 0 | 0 | 0 | 7 个 TODO 在 `toolbox-templates.ts` 中，是 `tools make` 命令生成的脚手架占位符，非真实债务 |
 | 其余 8 包 | 0 | 0 | 0 | 0 | |
 
-**唯一的真实 TODO：**
-- `packages/cli/src/widgets/thread-state-widget.ts:422` — `maxInputTokens: 200000` 硬编码，待从 model config 动态获取
+**无真实 TODO** — 所有真实技术债务已清零。
 
 ### 已知 Bug
 
 | Bug | 位置 | 严重度 | 状态 |
 |-----|------|--------|------|
-| ApprovalWidget `_feedbackActive` 提交后未重置，下次审批请求会卡在 feedback 模式 | `packages/cli/src/widgets/approval-widget.ts:372` | 中 | 已记录，未修复 |
+| 无已知 Bug | — | — | — |
 
 ---
 

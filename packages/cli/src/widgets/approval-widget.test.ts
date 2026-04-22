@@ -141,4 +141,37 @@ describe("ApprovalWidget", () => {
     });
     assert.equal(widget.config.request.toolName, "Write");
   });
+
+  it("_feedbackActive is reset after feedback submission", () => {
+    let received: ApprovalResponse | null = null;
+    const widget = new ApprovalWidget({
+      request: sampleRequest,
+      onRespond: (_id, resp) => {
+        received = resp;
+      },
+    });
+    const state = widget.createState() as ApprovalWidgetState;
+
+    // Wire up state internals so this.widget is accessible
+    // (normally done by the framework during mount)
+    // biome-ignore lint/suspicious/noExplicitAny: testing internal state requires accessing private fields
+    const s = state as any;
+    s._widget = widget;
+    s._mounted = true;
+
+    // Verify initial state
+    assert.equal(s._feedbackActive, false, "should start inactive");
+
+    // Simulate entering feedback mode
+    s._feedbackActive = true;
+    s._feedbackText = "use grep instead";
+
+    // Submit feedback
+    s._submitFeedback();
+    assert.equal(s._feedbackActive, false, "should reset after submission");
+    assert.equal(s._feedbackText, "", "should clear text after submission");
+    assert.ok(received, "should have called onRespond");
+    assert.equal(received!.approved, false);
+    assert.equal(received!.feedback, "use grep instead");
+  });
 });

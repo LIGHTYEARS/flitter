@@ -177,3 +177,82 @@ describe("RichText — propagates textAlign / overflow / maxLines", () => {
     assert.equal(ro.maxLines, 2);
   });
 });
+
+// ════════════════════════════════════════════════════
+//  RenderParagraph — newline hard breaks (amp Kw alignment)
+// ════════════════════════════════════════════════════
+
+describe("RenderParagraph — newline hard breaks (amp Kw alignment)", () => {
+  it("\\n creates a hard line break", () => {
+    const span = new TextSpan({ text: "Hello\nWorld" });
+    const rp = new RenderParagraph(span);
+    rp.layout(new BoxConstraints({ minWidth: 0, maxWidth: 80, minHeight: 0, maxHeight: 100 }));
+
+    // Should produce 2 lines: "Hello" and "World"
+    assert.equal(rp.size.height, 2);
+
+    const screen = new Screen(80, 24);
+    rp.paint(screen, 0, 0);
+    assert.equal(screen.getCell(0, 0).char, "H");
+    assert.equal(screen.getCell(0, 1).char, "W");
+  });
+
+  it("\\n\\n creates a blank line between paragraphs", () => {
+    const span = new TextSpan({ text: "Para1\n\nPara2" });
+    const rp = new RenderParagraph(span);
+    rp.layout(new BoxConstraints({ minWidth: 0, maxWidth: 80, minHeight: 0, maxHeight: 100 }));
+
+    // Should produce 3 lines: "Para1", "" (empty), "Para2"
+    assert.equal(rp.size.height, 3);
+
+    const screen = new Screen(80, 24);
+    rp.paint(screen, 0, 0);
+    assert.equal(screen.getCell(0, 0).char, "P"); // "Para1"
+    assert.equal(screen.getCell(0, 2).char, "P"); // "Para2"
+  });
+
+  it("trailing \\n produces an extra empty line", () => {
+    const span = new TextSpan({ text: "Hello\n" });
+    const rp = new RenderParagraph(span);
+    rp.layout(new BoxConstraints({ minWidth: 0, maxWidth: 80, minHeight: 0, maxHeight: 100 }));
+
+    // "Hello" + trailing empty line = 2 lines
+    assert.equal(rp.size.height, 2);
+  });
+
+  it("\\n interacts with soft wrapping", () => {
+    const span = new TextSpan({ text: "abcdef\nghij" });
+    const rp = new RenderParagraph(span);
+    rp.layout(new BoxConstraints({ minWidth: 0, maxWidth: 4, minHeight: 0, maxHeight: 100 }));
+
+    // "abcdef" soft-wraps to ["abcd", "ef"], then \n, then "ghij" → 3 lines
+    assert.equal(rp.size.height, 3);
+
+    const screen = new Screen(80, 24);
+    rp.paint(screen, 0, 0);
+    assert.equal(screen.getCell(0, 0).char, "a");
+    assert.equal(screen.getCell(0, 1).char, "e"); // soft-wrap continuation
+    assert.equal(screen.getCell(0, 2).char, "g"); // after hard break
+  });
+
+  it("getMinIntrinsicHeight accounts for \\n", () => {
+    const span = new TextSpan({ text: "Hi\nThere" });
+    const rp = new RenderParagraph(span);
+    // Width 80 — no soft wrap, but \n produces 2 lines
+    assert.equal(rp.getMinIntrinsicHeight(80), 2);
+  });
+
+  it("getMaxIntrinsicWidth counts only the widest line", () => {
+    const span = new TextSpan({ text: "Hi\nThere" });
+    const rp = new RenderParagraph(span);
+    // "There" = 5 is wider than "Hi" = 2
+    assert.equal(rp.getMaxIntrinsicWidth(Infinity), 5);
+  });
+
+  it("getMinIntrinsicWidth counts widest word across \\n lines", () => {
+    const span = new TextSpan({ text: "ab\ncdef" });
+    const rp = new RenderParagraph(span);
+    // Widest word: "cdef" = 4
+    assert.equal(rp.getMinIntrinsicWidth(Infinity), 4);
+  });
+});

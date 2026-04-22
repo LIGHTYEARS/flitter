@@ -220,16 +220,45 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       continue;
     }
 
-    // 逆向: ux0 — info role messages with manual_bash_invocation
-    // Rendered as "$ cmd" or "$$ cmd" (hidden) in the system message style
     if (msg.role === "info") {
       if (typeof msg.content !== "string") {
-        for (const block of msg.content) {
+        for (let blockIdx = 0; blockIdx < msg.content.length; blockIdx++) {
+          const block = msg.content[blockIdx];
           if (block.type === "manual_bash_invocation" && block.args) {
             const cmd = ((block as Record<string, unknown>).args as Record<string, unknown>)
               .cmd as string;
-            const hidden = block.hidden === true;
-            if (cmd) {
+            if (!cmd) continue;
+
+            const toolRun = (block as Record<string, unknown>).toolRun as
+              | {
+                  status: string;
+                  result?: { output?: string; exitCode?: number };
+                  error?: { message?: string };
+                }
+              | undefined;
+
+            if (toolRun) {
+              // 逆向: yx0 manualBashInvocation → bash ToolItem with output/exitCode/error
+              flushActivityBuffer();
+              const msgId = (msg as Record<string, unknown>).messageId ?? "info";
+              items.push({
+                type: "tool",
+                toolUseId: `manual-bash:${msgId}:${blockIdx}`,
+                toolName: "Bash",
+                kind: "bash",
+                status: (toolRun.status as ToolItem["status"]) ?? "done",
+                command: cmd,
+                output:
+                  typeof toolRun.result?.output === "string" ? toolRun.result.output : undefined,
+                exitCode:
+                  typeof toolRun.result?.exitCode === "number"
+                    ? toolRun.result.exitCode
+                    : undefined,
+                error: toolRun.error?.message,
+              });
+            } else {
+              // Fallback: no toolRun data, render as system text (逆向: DN0 hidden prefix)
+              const hidden = block.hidden === true;
               flushActivityBuffer();
               items.push({
                 type: "message",

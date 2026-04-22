@@ -1,6 +1,6 @@
 # HEALTH — 项目健康度 Overview
 
-> 最后更新: 2026-04-22 | 更新者: claude-opus-4-6
+> 最后更新: 2026-04-23 | 更新者: claude-opus-4-6
 
 Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widget 框架。本文件是项目当前状态的活快照，由 AI 在每次 session 中维护。静态架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -10,7 +10,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6337 pass / 1 fail (pre-existing: container integration inference roundtrip), 341 测试文件. UI chrome gap session: +6 test files, +15 tests (chrome-layout, input-field-border, bottom-status-line, welcome-screen-mount, conversation-layout, status-data-wiring) |
+| 测试覆盖 | 🟡 | 6355 pass / 1 fail (pre-existing: container integration inference roundtrip), 346 测试文件. Phase 2 chat-view alignment: +6 test files, +18 tests (cancellation-requested, manual-bash-tool, thinking-streaming, specialized-tools, disclosure, display-items extensions) |
 | 技术债务 | 🟢 | 0 真实 TODO，0 FIXME/HACK，极度干净（grep.ts/todo-write.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
@@ -24,16 +24,16 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 包 | 测试文件 | E2E | 通过 | 失败 | 跳过 |
 |----|---------|-----|------|------|------|
-| @flitter/tui | 81 | 1 | ✓ | 0 | 0 |
+| @flitter/tui | 92 | 1 | ✓ | 0 | 0 |
 | @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 74 | 2 | ✓ | 0 | 0 |
+| @flitter/cli | 79 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 17 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 11 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **341** | **3** | **6337** | **0** | **0** |
+| **总计** | **346** | **3** | **6355** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 
@@ -61,6 +61,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 | 项目 | 位置 | 说明 |
 |------|------|------|
 | StatusBar 类未使用 | `packages/cli/src/widgets/status-bar.ts` | StatusBar 数据已迁移到 InputField border overlays (Gap B/F)。StatusBar 类保留但不再挂载，可考虑删除或改为纯函数。 |
+| Disclosure widget 无消费者 | `packages/tui/src/widgets/disclosure.ts` | Phase 2 Task 7 创建，但 Task 8 activity group collapse 使用了内联 GestureDetector 方案。目前无消费者，可在 Phase 3 thinking collapse 中使用。 |
 
 ---
 

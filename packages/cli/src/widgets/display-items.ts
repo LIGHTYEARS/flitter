@@ -371,6 +371,25 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       }
     }
 
+    // 逆向: ai() in 2167_unknown_Ex0.js:9-11 — extract first truthy string from known property names
+    const extractDetail = (input: Record<string, unknown> | undefined): string | undefined => {
+      if (!input) return undefined;
+      for (const key of [
+        "path",
+        "filePattern",
+        "pattern",
+        "query",
+        "url",
+        "objective",
+        "description",
+        "prompt",
+      ]) {
+        const v = input[key];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return undefined;
+    };
+
     // Process tool_use blocks (逆向: yx0 main classification switch)
     for (const block of msg.content) {
       if (block.type !== "tool_use") continue;
@@ -525,19 +544,18 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
         });
       } else if (block.name === "Task") {
         // 逆向: yx0 Task branch — render as Subagent with description detail
-        // 逆向: ai() in 2167_unknown_Ex0.js:9-11 — iterates property names to find detail string
+        // Uses extractDetail (逆向: ai()) to find the best detail string
         flushActivityBuffer();
-        const description =
-          typeof block.input?.description === "string"
-            ? block.input.description
-            : JSON.stringify(block.input ?? {});
+        const detail =
+          extractDetail(block.input as Record<string, unknown>) ??
+          JSON.stringify(block.input ?? {});
         items.push({
           type: "tool",
           toolUseId: block.id,
           toolName: "Subagent",
           kind: "generic",
           status,
-          args: { detail: description },
+          args: { detail },
           error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
         });
       } else {

@@ -284,7 +284,8 @@ export class ConversationViewState extends State<ConversationView> {
     return items.some(
       (item) =>
         (item.type === "activity-group" && item.hasInProgress) ||
-        (item.type === "tool" && item.status === "in-progress"),
+        (item.type === "tool" && item.status === "in-progress") ||
+        (item.type === "thinking" && (item as ThinkingItem).isStreaming === true),
     );
   }
 
@@ -866,8 +867,10 @@ export class ConversationViewState extends State<ConversationView> {
    * Build a ThinkingItem widget — renders a thinking block with expand/collapse.
    *
    * 逆向: Rd / fJT (chunk-006.js:16846-17009) — ThinkingBlock widget.
-   * Collapsed: "✓ Thinking ▶" (SUCCESS_COLOR for ✓, DIM for text, ▶ indicator)
-   * Expanded: "✓ Thinking ▼" followed by thinking text in DIM_COLOR with 2-space indent
+   * Three states:
+   * - streaming: accent color + braille spinner prefix
+   * - cancelled: warning color + "(interrupted)" suffix, no icon
+   * - complete: success color + ✓ prefix
    *
    * @param item - ThinkingItem from DisplayItem[]
    * @param itemIndex - Index in the items array, used to track expand/collapse state
@@ -875,34 +878,47 @@ export class ConversationViewState extends State<ConversationView> {
    */
   private _buildThinkingWidget(item: ThinkingItem, itemIndex: number): Widget {
     const isExpanded = this._expandedThinking.has(itemIndex);
-
     const spans: TextSpan[] = [];
 
-    // 逆向: fJT.build() line 16905 — "✓ " in success color for complete thinking
-    spans.push(
-      new TextSpan({
-        text: "\u2713 ",
-        style: new TextStyle({ foreground: SUCCESS_COLOR }),
-      }),
-    );
+    // 逆向: fJT.build() — isCancelled → warning, no icon; isStreaming → accent, spinner; else → success, ✓
+    if (item.isCancelled) {
+      // No icon prefix for cancelled
+    } else if (item.isStreaming) {
+      spans.push(
+        new TextSpan({
+          text: `${this._spinner.toBraille()} `,
+          style: new TextStyle({ foreground: ACCENT_COLOR }),
+        }),
+      );
+    } else {
+      spans.push(
+        new TextSpan({
+          text: "\u2713 ",
+          style: new TextStyle({ foreground: SUCCESS_COLOR }),
+        }),
+      );
+    }
 
-    // "Thinking" label — 逆向: chunk-006.js:16921 new G(h.header ?? "Thinking", ...)
+    const labelColor = item.isCancelled ? WARNING_COLOR : DIM_COLOR;
     spans.push(
       new TextSpan({
         text: "Thinking",
-        style: new TextStyle({ foreground: DIM_COLOR }),
+        style: new TextStyle({ foreground: labelColor }),
       }),
     );
 
-    // Expand/collapse indicator — 逆向: chunk-006.js:16911
-    // expanded: ▼, collapsed: ▶
-    const hasContent = item.text.trim().length > 0;
-    if (hasContent) {
+    if (item.isCancelled) {
       spans.push(
         new TextSpan({
-          text: " ",
+          text: " (interrupted)",
+          style: new TextStyle({ foreground: WARNING_COLOR, italic: true }),
         }),
       );
+    }
+
+    const hasContent = item.text.trim().length > 0;
+    if (hasContent) {
+      spans.push(new TextSpan({ text: " " }));
       spans.push(
         new TextSpan({
           text: isExpanded ? "\u25BC" : "\u25B6",
@@ -915,15 +931,11 @@ export class ConversationViewState extends State<ConversationView> {
       text: new TextSpan({ children: spans }),
     });
 
-    // If expanded, show thinking text below with 2-space indent
-    // 逆向: fJT.build() line 16996-17005 — uR padding left:2, Z3 markdown content
     if (isExpanded && hasContent) {
-      // Indent each line by 2 spaces
       const indentedText = item.text
         .split("\n")
         .map((line) => `  ${line}`)
         .join("\n");
-
       return new Column({
         children: [
           headerRow,

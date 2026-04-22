@@ -4,22 +4,90 @@
  * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:192-1560
  * (registerCommands with all built-in commands)
  *
- * Flitter implements 29 slash commands matching amp's command palette.
+ * Flitter implements 32 slash commands matching amp's command palette.
  * Original 6: /help, /clear, /compact, /cost, /model, /status
- * Added 23: /new, /switch, /dashboard, /delete, /archive, /mode,
+ * Added 26: /new, /switch, /dashboard, /delete, /archive, /mode,
  *           /settings, /theme, /mcp, /tasks, /quit, /rename,
  *           /visibility, /refresh, /editor, /history, /label,
- *           /permissions, /plugins, /handoff, /queue, /dequeue,
- *           /toggle-thinking-blocks
+ *           /permissions, /permissions-enable, /permissions-disable,
+ *           /plugins, /handoff, /queue, /dequeue,
+ *           /toggle-thinking-blocks, /context-analyze
  */
 
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { countMessageTokens } from "@flitter/data";
 import { MODEL_REGISTRY } from "@flitter/llm";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import type { SlashCommandRegistry } from "./slash-registry.js";
+import type {
+  SlashCommandContext,
+  SlashCommandRegistry,
+  SlashThreadEntry,
+} from "./slash-registry.js";
+
+// ─── Helpers for /switch and /dashboard ─────────────────
+
+/**
+ * Get the thread list from context, using observeThreadList if available,
+ * falling back to listRecentThreadIds + getThreadSnapshot.
+ *
+ * 逆向: e0R:226 — R.threads.filter(c => !c.archived)
+ * Amp filters non-archived threads; we respect the includeArchived option.
+ */
+function getThreadList(
+  ctx: SlashCommandContext,
+  opts?: { includeArchived?: boolean },
+): SlashThreadEntry[] {
+  // Prefer observeThreadList (provides full entry data)
+  if (ctx.threadStore.observeThreadList) {
+    return ctx.threadStore.observeThreadList(opts);
+  }
+
+  // Fallback: use listRecentThreadIds + getThreadSnapshot to build entries
+  if (ctx.threadStore.listRecentThreadIds) {
+    const ids = ctx.threadStore.listRecentThreadIds(50);
+    const entries: SlashThreadEntry[] = [];
+    for (const id of ids) {
+      const snap = ctx.threadStore.getThreadSnapshot(id);
+      if (!snap) continue;
+      const ext = snap as ThreadSnapshot & { archived?: boolean; created?: number };
+      if (!opts?.includeArchived && ext.archived) continue;
+      entries.push({
+        id: snap.id,
+        title: snap.title ?? null,
+        messageCount: snap.messages?.length ?? 0,
+        userLastInteractedAt: ext.created ?? 0,
+        archived: ext.archived,
+      });
+    }
+    return entries;
+  }
+
+  // Last resort: no thread listing available
+  return [];
+}
+
+/**
+ * Format a timestamp as a human-readable relative time string.
+ * E.g., "2m ago", "3h ago", "5d ago".
+ */
+function formatRelativeTime(timestamp: number): string {
+  if (!timestamp || timestamp <= 0) return "";
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return "just now";
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
 
 /**
  * Register all built-in slash commands on the given registry.
@@ -238,32 +306,154 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
   // /switch -- switch to existing thread
   // 逆向: e0R:202-244 (id: "continue", noun: "thread", verb: "switch")
+  // customFlow: shows wQ (ThreadContinuationPicker) with R.threads.filter(c => !c.archived)
+  // execute: async (R, a, e) => { await R.switchToThread(e); }
   registry.register({
     name: "switch",
     aliases: ["continue"],
     description: "Switch to an existing thread",
     execute: async (args, ctx) => {
-      if (!args.trim()) {
-        ctx.showMessage("Usage: /switch <thread-id>\nTip: use /dashboard for interactive picker.");
+      const query = args.trim();
+
+      if (!query) {
+        // No args: list recent non-archived threads
+        // 逆向: e0R:226 — R.threads.filter(c => !c.archived)
+        // 逆向: wQ shows these threads in a picker with title "Select a thread"
+        const threads = getThreadList(ctx);
+        if (threads.length === 0) {
+          ctx.showMessage("No threads found. Use /new to create a thread.");
+          return;
+        }
+
+        const lines: string[] = ["Select a thread:\n"];
+        for (const t of threads) {
+          const title = t.title ?? "(untitled)";
+          const age = formatRelativeTime(t.userLastInteractedAt);
+          const current = t.id === ctx.threadId ? " (current)" : "";
+          lines.push(`  ${t.id.slice(0, 8)}  ${title}  ${age}  ${t.messageCount} msgs${current}`);
+        }
+        lines.push("\nUse /switch <thread-id> to switch.");
+        ctx.showMessage(lines.join("\n"));
+        return;
+      }
+
+      // With args: search for matching thread and switch to it
+      // 逆向: e0R:242-244 — execute: async (R, a, e) => { await R.switchToThread(e); }
+      const threads = getThreadList(ctx);
+
+      // Try exact ID match first (full or prefix)
+      let match = threads.find((t) => t.id === query);
+      if (!match) {
+        match = threads.find((t) => t.id.startsWith(query));
+      }
+      // Then try title substring match (case-insensitive)
+      if (!match) {
+        const queryLower = query.toLowerCase();
+        const titleMatches = threads.filter((t) => t.title?.toLowerCase().includes(queryLower));
+        if (titleMatches.length === 1) {
+          match = titleMatches[0];
+        } else if (titleMatches.length > 1) {
+          const lines = titleMatches.map(
+            (t) => `  ${t.id.slice(0, 8)}  ${t.title ?? "(untitled)"}`,
+          );
+          ctx.showMessage(
+            `Multiple threads match "${query}":\n${lines.join("\n")}\n\nUse a more specific query or thread ID.`,
+          );
+          return;
+        }
+      }
+
+      if (!match) {
+        ctx.showMessage(`No thread found matching "${query}".`);
+        return;
+      }
+
+      if (match.id === ctx.threadId) {
+        ctx.showMessage(
+          `Already on thread ${match.id.slice(0, 8)} (${match.title ?? "untitled"}).`,
+        );
+        return;
+      }
+
+      if (ctx.switchToThread) {
+        try {
+          await ctx.switchToThread(match.id);
+          ctx.showMessage(
+            `Switched to thread: ${match.id.slice(0, 8)} (${match.title ?? "untitled"})`,
+          );
+        } catch (err) {
+          // 逆向: e0R:218-223 — J.error("Failed to switch thread from command palette", ...)
+          const msg = err instanceof Error ? err.message : "Unknown error";
+          ctx.showMessage(`Failed to switch thread: ${msg}`);
+        }
       } else {
         ctx.showMessage(
-          `Switch to thread: ${args.trim()}\n` +
-            "(Thread switching is handled by the session manager.)",
+          `Thread found: ${match.id} (${match.title ?? "untitled"})\n` +
+            "(Thread switching not available — use 'flitter --thread-id' to open it.)",
         );
       }
     },
   });
 
-  // /dashboard -- interactive thread picker
+  // /dashboard -- thread overview / workspace stats
   // 逆向: e0R:202-244 (continue command's customFlow uses thread picker wQ)
+  // Amp's "continue" customFlow shows thread list with stats.
+  // Flitter's /dashboard shows a text-based summary of workspace state.
   registry.register({
     name: "dashboard",
     aliases: ["dash", "threads"],
     description: "Open interactive thread dashboard",
     execute: async (_args, ctx) => {
+      const threads = getThreadList(ctx, { includeArchived: true });
+      const active = threads.filter((t) => !t.archived);
+      const archived = threads.filter((t) => t.archived);
+      const totalMessages = threads.reduce((sum, t) => sum + t.messageCount, 0);
+
+      const config = ctx.configService.get();
+      const model = (config.settings["internal.model"] as string) ?? "unknown";
+      const agentMode =
+        (config.settings["experimental.agentMode"] as string) ??
+        (config.settings["agent.mode"] as string) ??
+        "smart";
+      const workspace = process.cwd();
+
+      // Session token info (if available)
+      let tokenLine = "";
+      if (ctx.costTracker) {
+        const totals = ctx.costTracker.getTotals();
+        const costStr = totals.estimatedUSD !== null ? ` ($${totals.estimatedUSD.toFixed(4)})` : "";
+        tokenLine = `  Session tokens:  ${(totals.inputTokens + totals.outputTokens).toLocaleString()}${costStr}\n`;
+      }
+
+      // Current thread info
+      const currentSnapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      const currentTitle = currentSnapshot?.title ?? "(untitled)";
+      const currentMsgCount = currentSnapshot?.messages?.length ?? 0;
+
+      // Recent threads list (up to 5)
+      const recentLines: string[] = [];
+      const recentThreads = active.slice(0, 5);
+      for (const t of recentThreads) {
+        const title = t.title ?? "(untitled)";
+        const age = formatRelativeTime(t.userLastInteractedAt);
+        const current = t.id === ctx.threadId ? " *" : "";
+        recentLines.push(`  ${t.id.slice(0, 8)}  ${title}  ${age}${current}`);
+      }
+
       ctx.showMessage(
-        "Thread dashboard requested.\n" +
-          "(Use 'flitter threads dashboard' for the TUI thread picker.)",
+        `Workspace Dashboard\n` +
+          `${"─".repeat(40)}\n` +
+          `  Workspace:       ${workspace}\n` +
+          `  Model:           ${model}\n` +
+          `  Mode:            ${agentMode}\n` +
+          `  Current thread:  ${currentTitle} (${currentMsgCount} msgs)\n` +
+          tokenLine +
+          `${"─".repeat(40)}\n` +
+          `  Threads: ${active.length} active, ${archived.length} archived\n` +
+          `  Total messages:  ${totalMessages}\n` +
+          (recentLines.length > 0
+            ? `${"─".repeat(40)}\n` + `  Recent threads:\n${recentLines.join("\n")}`
+            : ""),
       );
     },
   });
@@ -680,6 +870,62 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
           "  flitter permissions add       — add a rule\n" +
           "  flitter permissions test      — test a tool invocation",
       );
+    },
+  });
+
+  // /permissions-enable -- enable permissions (re-enable after dangerouslyAllowAll)
+  // 逆向: e0R:1161-1171 (id: "permissions-enable", verb: "enable")
+  // Amp: Ms("dangerouslyAllowAll", false) → sets runtime override on BehaviorSubject CX
+  // Amp returns: new Tc("Amp is now following permissions rules for this session")
+  // On error: Error("Failed to enable permissions for this session")
+  registry.register({
+    name: "permissions-enable",
+    description: "Enable permissions",
+    execute: async (_args, ctx) => {
+      try {
+        if (!ctx.configService.setRuntimeOverride) {
+          ctx.showMessage("Runtime config override not available in this session.");
+          return;
+        }
+        // 逆向: Ms("dangerouslyAllowAll", !1) — set to false to re-enable permission checks
+        ctx.configService.setRuntimeOverride("dangerouslyAllowAll", false);
+        // 逆向: new Tc("Amp is now following permissions rules for this session")
+        ctx.showMessage("Flitter is now following permissions rules for this session.");
+      } catch (err) {
+        // 逆向: J.error("Failed to set dangerously allow all setting", R)
+        ctx.showMessage(
+          `Failed to enable permissions for this session: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+  });
+
+  // /permissions-disable -- disable permissions (equivalent to --dangerously-allow-all)
+  // 逆向: e0R:1173-1183 (id: "permissions-disable", verb: "dangerously allow all")
+  // Amp: Ms("dangerouslyAllowAll", true) → sets runtime override on BehaviorSubject CX
+  // Amp returns: new Tc("Permissions disabled for this session - you will NOT be asked ...")
+  // On error: Error("Failed to disable permissions for this session")
+  registry.register({
+    name: "permissions-disable",
+    description: "Disable permissions (dangerously allow all)",
+    execute: async (_args, ctx) => {
+      try {
+        if (!ctx.configService.setRuntimeOverride) {
+          ctx.showMessage("Runtime config override not available in this session.");
+          return;
+        }
+        // 逆向: Ms("dangerouslyAllowAll", !0) — set to true to skip all permission checks
+        ctx.configService.setRuntimeOverride("dangerouslyAllowAll", true);
+        // 逆向: new Tc("Permissions disabled for this session - you will NOT be asked ...")
+        ctx.showMessage(
+          "Permissions disabled for this session — you will NOT be asked for confirmation before Flitter runs a command.",
+        );
+      } catch (err) {
+        // 逆向: J.error("Failed to set dangerously allow all setting", R)
+        ctx.showMessage(
+          `Failed to disable permissions for this session: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
   });
 
@@ -1355,6 +1601,182 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       ctx.showMessage(
         `MCP Servers (${connected}/${servers.length} connected):\n${lines.join("\n")}`,
       );
+    },
+  });
+
+  // ─── Context Analysis (CLI-35) ─────────────────────────
+  // 逆向: e0R:274-286 (id: "context-analyze", noun: "context", verb: "analyze")
+  // 逆向: oFT in 0088_Messages_oFT.js — builds token breakdown via API counting.
+  // 逆向: eX0 in 0246_unknown_eX0.js — CLI output formatting.
+  //
+  // Amp's oFT makes multiple API calls (full, no_messages, no_tools, system_only)
+  // to get exact token counts. Flitter uses local approximate counting from the
+  // thread snapshot since we don't have a counting API endpoint.
+  //
+  // Output format matches amp's eX0:
+  //   Context Usage Analysis
+  //   ──────────────────────────────────────────────────────
+  //   Model: <name> (<contextWindow>k context)
+  //
+  //   <section>  <tokens>  (<pct>%)
+  //   ...
+  //
+  //   Used:  <total> tokens (<pct>% used)
+  //   Free:  <free> tokens
+
+  registry.register({
+    name: "context-analyze",
+    aliases: ["analyze-context"],
+    description: "Analyze context token usage",
+    execute: async (_args, ctx) => {
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+
+      // ── Resolve model and context window ──
+      // 逆向: oFT:19-46 — resolves model from agentModeOverride or config settings
+      const config = ctx.configService.get();
+      const modelId =
+        ctx.contextAnalyzer?.modelId ??
+        (config.settings["internal.model"] as string) ??
+        "claude-sonnet-4-20250514";
+      const modelInfo = MODEL_REGISTRY[modelId];
+      const modelDisplayName = modelId;
+      const contextWindow = modelInfo?.contextWindow ?? 200_000;
+      const maxOutputTokens = modelInfo?.maxOutputTokens ?? 32_000;
+
+      // 逆向: oFT:38-40 — maxContextTokens = contextWindow - maxOutputTokens (for anthropic)
+      const maxContextTokens = contextWindow - maxOutputTokens;
+
+      // ── Count tokens by category ──
+      // 逆向: oFT:139-195 — amp counts: full, no_messages, no_tools, system_only
+      // Flitter approximation: iterate messages and categorize by role.
+
+      let userMessageTokens = 0;
+      let assistantMessageTokens = 0;
+      let toolResultTokens = 0;
+
+      if (snapshot?.messages) {
+        for (const msg of snapshot.messages) {
+          const msgTokens = countMessageTokens(msg);
+          if (msg.role === "user") {
+            // Check if message contains tool_result blocks
+            const hasToolResult =
+              Array.isArray(msg.content) &&
+              msg.content.some((b: { type: string }) => b.type === "tool_result");
+            if (hasToolResult) {
+              toolResultTokens += msgTokens;
+            } else {
+              userMessageTokens += msgTokens;
+            }
+          } else if (msg.role === "assistant") {
+            assistantMessageTokens += msgTokens;
+          } else {
+            // info, system, etc. — count as user messages
+            userMessageTokens += msgTokens;
+          }
+        }
+      }
+
+      const messageTokens = userMessageTokens + assistantMessageTokens + toolResultTokens;
+
+      // ── Use last API token count if available ──
+      // 逆向: oFT:139-141 — full = Ts(O, { kind: "full" })
+      // If the context analyzer provides an API-reported count, use that as
+      // totalTokens; otherwise fall back to approximate counting.
+      const lastApi = ctx.contextAnalyzer?.lastApiInputTokens;
+      const totalTokens = lastApi != null && lastApi > 0 ? lastApi : messageTokens;
+
+      // ── Build sections (matches amp's oFT:232-286 output structure) ──
+      // 逆向: oFT:232-286 — sections: System prompt, Builtin tools, MCP tools, Messages
+      // Flitter simplification: we don't have separate system prompt / tool
+      // definition token counts (those require API counting). We report Messages
+      // breakdown by sub-category.
+
+      interface Section {
+        name: string;
+        tokens: number;
+        percentage: number;
+      }
+
+      const sections: Section[] = [];
+
+      if (userMessageTokens > 0) {
+        sections.push({
+          name: "User messages",
+          tokens: userMessageTokens,
+          percentage: maxContextTokens > 0 ? (userMessageTokens / maxContextTokens) * 100 : 0,
+        });
+      }
+
+      if (assistantMessageTokens > 0) {
+        sections.push({
+          name: "Assistant messages",
+          tokens: assistantMessageTokens,
+          percentage: maxContextTokens > 0 ? (assistantMessageTokens / maxContextTokens) * 100 : 0,
+        });
+      }
+
+      if (toolResultTokens > 0) {
+        sections.push({
+          name: "Tool results",
+          tokens: toolResultTokens,
+          percentage: maxContextTokens > 0 ? (toolResultTokens / maxContextTokens) * 100 : 0,
+        });
+      }
+
+      // ── Format output (matches amp's eX0:38-70) ──
+      // 逆向: eX0:38 — "Context Usage Analysis"
+      // 逆向: eX0:40 — "─".repeat(50)
+      // 逆向: eX0:43 — "Model: <displayName> (<contextWindow> context)"
+
+      // Ki() helper — 逆向: eX0:1-4 — formats numbers as "Nk" or localeString
+      const formatTokens = (n: number, forceExact = false): string => {
+        if (forceExact || n < 1000) return n.toLocaleString();
+        return `${(n / 1000).toFixed(1)}k`;
+      };
+
+      const lines: string[] = [];
+      lines.push("Context Usage Analysis");
+      lines.push("\u2500".repeat(50));
+      lines.push(`Model: ${modelDisplayName} (${formatTokens(maxContextTokens)} context)\n`);
+
+      // 逆向: eX0:46-59 — section table with padded columns
+      if (sections.length > 0) {
+        const nameWidth = Math.max(...sections.map((s) => s.name.length));
+        for (const section of sections) {
+          const name = section.name.padEnd(nameWidth + 2);
+          const tokens = formatTokens(section.tokens).padStart(8);
+          const pct = `(${section.percentage.toFixed(1)}%)`.padStart(8);
+          lines.push(`  ${name}${tokens} ${pct}`);
+        }
+        lines.push("");
+      }
+
+      // 逆向: eX0:63-66 — "Used: <total> tokens (<pct>% used)" / "Free: <free> tokens"
+      const freeSpace = Math.max(0, maxContextTokens - totalTokens);
+      const usedPercent =
+        maxContextTokens > 0 ? ((totalTokens / maxContextTokens) * 100).toFixed(1) : "0.0";
+      lines.push(`Used:  ${formatTokens(totalTokens, true)} tokens (${usedPercent}% used)`);
+      lines.push(`Free:  ${formatTokens(freeSpace, true)} tokens`);
+
+      // ── Message count summary ──
+      const messageCount = snapshot?.messages?.length ?? 0;
+      lines.push(`Messages: ${messageCount}`);
+
+      // ── Warning if near capacity ──
+      const usedPct = maxContextTokens > 0 ? (totalTokens / maxContextTokens) * 100 : 0;
+      if (usedPct > 90) {
+        lines.push("\nWARNING: Context window is nearly full. Consider using /compact.");
+      }
+
+      // ── Note about approximation when API count unavailable ──
+      if (lastApi == null || lastApi <= 0) {
+        lines.push(
+          "\n(Token counts are approximate estimates. " +
+            "Actual usage may differ based on encoding.)",
+        );
+      }
+
+      ctx.showMessage(lines.join("\n"));
     },
   });
 }

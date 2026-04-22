@@ -48,9 +48,11 @@ import {
   createReadMcpResourceTool,
   createReadThreadTool,
   createReplTool,
+  createSendMessageToThreadTool,
   createSkillTool,
   createTaskListTool,
   createTaskTool,
+  createThreadStatusTool,
   createUndoEditTool,
   executePostHook,
   executePreHook,
@@ -1103,6 +1105,84 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     threadWorkerService.setThreadStore(threadStore);
     disposables.push({ dispose: () => threadWorkerService.disposeAll() });
     log.info("ThreadWorkerService created");
+
+    // 12. Register cross-thread coordination tools (depends on ThreadWorkerService + ThreadStore)
+    // 逆向: amp-cli-reversed — thread_status in SiT (deep tools), send_message_to_thread in jiT (aggman tools)
+    // Flitter: both registered as builtin tools, wired to local ThreadWorkerService.
+    toolRegistry.register(
+      createThreadStatusTool({
+        getThreadStatus: (threadId) => {
+          const worker = threadWorkerService!.get(threadId);
+          if (!worker) return undefined;
+          // 逆向: f3T(T, R) — compute status from worker inference state + tool state
+          const inferenceState = worker.inferenceState$.getValue();
+          const snapshot = threadStore.getThreadSnapshot(threadId);
+          // 逆向: E4R(T) — count running/blocked tools from last user message
+          let running = 0;
+          let blocked = 0;
+          if (snapshot && inferenceState !== "running") {
+            const lastMsg = snapshot.messages.at(-1);
+            if (lastMsg && (lastMsg as { role: string }).role === "user") {
+              const content = (lastMsg as { content: unknown[] }).content;
+              if (Array.isArray(content)) {
+                for (const block of content as Array<Record<string, unknown>>) {
+                  if (block.type === "tool_result") {
+                    const run = block.run as { status: string } | undefined;
+                    if (run?.status === "in-progress") running++;
+                    else if (run?.status === "blocked-on-user") blocked++;
+                  }
+                }
+              }
+            }
+          }
+          // 逆向: IUT(T, R, a) — compute interaction state
+          let interactionState: string | false = false;
+          if (inferenceState !== "running" && inferenceState !== "cancelled" && snapshot) {
+            const lastMsg = snapshot.messages.at(-1);
+            if (!lastMsg) {
+              interactionState = "user-message-initial";
+            } else if ((lastMsg as { role: string }).role === "assistant") {
+              const state = (lastMsg as { state?: { type: string; stopReason?: string } }).state;
+              if (state?.type === "complete" && state.stopReason === "end_turn") {
+                interactionState = "user-message-reply";
+              }
+            } else if (blocked > 0) {
+              interactionState = "user-tool-approval";
+            } else if (running > 0) {
+              interactionState = "tool-running";
+            }
+          }
+          return {
+            inferenceState,
+            toolState: { running, blocked },
+            interactionState,
+          };
+        },
+        getThreadSnapshot: (threadId) => threadStore.getThreadSnapshot(threadId),
+        getActiveThreadIds: () => threadWorkerService!.threadIds,
+      }),
+    );
+    toolRegistry.register(
+      createSendMessageToThreadTool({
+        sendMessage: async (threadId, message, _workflow) => {
+          const worker = threadWorkerService!.get(threadId);
+          if (!worker) return false;
+          // 逆向: amp enqueues a user message via worker.handle({ type: "user:message", ... })
+          // Flitter: use ThreadWorker.enqueueMessage()
+          const snapshot = threadStore.getThreadSnapshot(threadId);
+          const messageId =
+            (snapshot as { nextMessageId?: number } | undefined)?.nextMessageId ?? 1;
+          worker.enqueueMessage({
+            role: "user",
+            messageId,
+            content: [{ type: "text", text: message }],
+          } as import("@flitter/schemas").Message);
+          return true;
+        },
+        hasThread: (threadId) => threadWorkerService!.has(threadId),
+      }),
+    );
+    log.info("thread_status and send_message_to_thread tools registered");
 
     return container;
   } catch (err) {

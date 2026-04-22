@@ -11,6 +11,21 @@ import type { CompactionResult } from "@flitter/data";
 import type { ThreadSnapshot } from "@flitter/schemas";
 
 /**
+ * Lightweight thread entry used by /switch and /dashboard.
+ * Mirrors the essential fields from ThreadEntry in @flitter/data.
+ *
+ * 逆向: amp's wQ (ThreadContinuationPicker) receives threads with id, title,
+ * archived, messageCount — used for display and filtering.
+ */
+export interface SlashThreadEntry {
+  id: string;
+  title: string | null;
+  messageCount: number;
+  userLastInteractedAt: number;
+  archived?: boolean;
+}
+
+/**
  * Context passed to slash command handlers.
  *
  * 逆向: amp's command execute receives a context object with thread handle,
@@ -27,6 +42,18 @@ export interface SlashCommandContext {
       threadId: string,
       level: "private" | "public_unlisted" | "public_discoverable" | "thread_workspace_shared",
     ): void;
+    /**
+     * Return non-subagent thread entries, optionally including archived.
+     * 逆向: azT.observeThreadList({ includeArchived }) — modules/1342:286-295
+     * Used by /switch (no args) and /dashboard to list threads.
+     */
+    observeThreadList?(opts?: { includeArchived?: boolean }): SlashThreadEntry[];
+    /**
+     * Return thread IDs sorted by most recently interacted, limited to maxCount.
+     * 逆向: amp threadService.listLocalThreads() sorts by lastInteracted desc
+     * Fallback when observeThreadList is not available.
+     */
+    listRecentThreadIds?(maxCount: number): string[];
   };
   threadWorker: {
     runInference(): Promise<void>;
@@ -53,6 +80,13 @@ export interface SlashCommandContext {
   configService: {
     get(): { settings: Record<string, unknown> };
     updateSettings?(scope: string, key: string, value: unknown): void;
+    /**
+     * Apply a runtime-only override (in-memory, never persisted to disk).
+     * 逆向: amp-cli-reversed/modules/1276_unknown_LX.js:11-16
+     *   Ms(T, R) { CX.next({ ...CX.getValue(), [T]: R }); }
+     * Used by /permissions-enable and /permissions-disable to toggle dangerouslyAllowAll.
+     */
+    setRuntimeOverride?(key: string, value: unknown): void;
   };
   /** Display a message to the user (e.g., toast or inline) */
   showMessage: (text: string) => void;
@@ -160,6 +194,23 @@ export interface SlashCommandContext {
       toolCount?: number;
       error?: string;
     }>;
+  };
+
+  /**
+   * Context analyzer dependencies for /context-analyze.
+   * 逆向: e0R:274-286 (id: "context-analyze", noun: "context", verb: "analyze")
+   * 逆向: oFT in 0088_Messages_oFT.js — builds token breakdown using API counting.
+   * Flitter uses local approximate token counting (no API calls needed).
+   *
+   * If absent, /context-analyze uses built-in approximate counting from the
+   * thread snapshot. When provided, the modelId and contextWindow from here
+   * take precedence over config-based lookups.
+   */
+  contextAnalyzer?: {
+    /** Current model ID (used for display and context window lookup) */
+    modelId: string;
+    /** Last API-reported input token count (from ContextManager) */
+    lastApiInputTokens?: number | null;
   };
 }
 

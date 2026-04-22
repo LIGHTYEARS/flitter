@@ -109,6 +109,8 @@ const SMART_TOOLS = [
   "FuzzyFind",
   "apply_patch",
   "shell_command",
+  "thread_status",
+  "send_message_to_thread",
 ];
 
 const FAST_TOOLS = [
@@ -156,6 +158,8 @@ const DEEP_TOOLS = [
   "handoff",
   "todo_read",
   "todo_write",
+  "thread_status",
+  "send_message_to_thread",
 ];
 
 const SMART_DEFERRED = ["code_review"];

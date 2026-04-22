@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 35)
+> **Last updated:** 2026-04-22 (iteration 36)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -100,6 +100,10 @@
 | GAP-TUI-28 | TUI | SelectionArea double/triple-click | Closed (iteration 34) |
 | GAP-TUI-24 | TUI | StickyHeader / DialogBox layout | Closed (iteration 35) |
 | GAP-LLM-15 | LLM | MCP OAuth cross-process locking | Closed (iteration 35) |
+| GAP-CLI-25 | CLI | /switch, /dashboard wired | Closed (iteration 36) |
+| GAP-CLI-35 | CLI | /context-analyze command | Closed (iteration 36) |
+| GAP-CLI-41 | CLI | /permissions-enable, /disable | Closed (iteration 36) |
+| GAP-TOOL-36 | Tool | thread_status, send_message_to_thread | Closed (iteration 36) |
 
 ---
 
@@ -117,19 +121,19 @@
 | GAP-CLI-07 | ~~`permissions edit`~~ | **Closed (iteration 19)** — `handlePermissionsEdit` opens rules in `$EDITOR` with retry loop (up to 3 attempts on parse error). Serialize/parse text format: `<action> <tool> [key=value ...]`. Comment header, error annotation. |
 | GAP-CLI-08 | ~~`usage` (top-level)~~ | **Closed (iteration 18)** — Already implemented: `handleThreadsUsage` aggregates token counts from assistant messages in thread snapshots. Wired at `main.ts:415-426`. |
 | GAP-CLI-09 | ~~`--mcp-config <json>`~~ | **Closed (iteration 19)** — `extractCliMcpConfig` + `parseMcpConfigValue` in `main.ts`. Accepts inline JSON or file path. Merges into runtime config via `configService.setRuntimeOverride("mcpServers", ...)` + `mcpServerManager.refresh()`. |
-| GAP-CLI-25 | 2 slash commands are informational-only | `/switch`, `/dashboard` print "use `flitter threads X` from CLI" instead of performing the action inline. (`/rename`, `/label`, `/archive`, `/delete`, `/new`, `/editor`, `/history` now functional — 7 of 9 stubs done.) |
+| GAP-CLI-25 | 2 slash commands are informational-only | **Closed (iteration 36)** — `/switch` (no args: lists threads; with args: searches by ID/title, calls `switchToThread`). `/dashboard` (workspace summary: thread counts, model, mode, session costs). `SlashCommandContext` extended with `observeThreadList`/`listRecentThreadIds`/`switchToThread` callbacks. 9 of 9 slash stubs now functional. 15 new tests. |
 | GAP-CLI-30 | `--settings-file <path>` flag | **Closed (iteration 24, found pre-existing)** — Already implemented via `--api-key`, `--model`, and `--system-prompt` flags. The `--settings-file` flag was not in amp's public CLI — it was an internal debug option. |
 | GAP-CLI-31 | `--notifications` flag | **Closed (iteration 29)** — `--notifications` / `--no-notifications` boolean flag added to program.ts. `CliContext.notifications` resolves: explicit flag → use it; undefined → default (TUI: enabled, execute: disabled). Matches amp's 1472:6690-6694 and SB:227 defaulting logic. 3 new tests. |
 | GAP-CLI-32 | `--ide` / `--no-ide` flag | IDE connection toggle. Amp supports JetBrains/Zed/Neovim IDE integration. No IDE integration in flitter at all. |
 | GAP-CLI-33 | `--log-level` / `--log-file` flags | **Closed (iteration 26)** — `--log-level <level>` and `--log-file <path>` flags in program.ts. Early argv scan in main.ts (supports `=` syntax). `setLogOutput()` in logger.ts redirects global log output. Matches amp's RF0 (modules/2004_unknown_RF0.js). Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. 2 new tests. |
 | GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
-| GAP-CLI-35 | `context: analyze` slash command | Token usage analysis overlay (amp requires Claude Opus 4.6 / GPT-5.4). No flitter equivalent. |
+| GAP-CLI-35 | `context: analyze` slash command | **Closed (iteration 36)** — `/context-analyze` (alias `/analyze-context`) computes token breakdown by category (system prompt, tools, user/assistant messages, files, images, cached) with percentage bars. Uses `ctx.contextAnalyzer.lastApiInputTokens` for accurate counts. Matches amp's e0R:274-286 (oFT, eX0). 12 new tests. |
 | GAP-CLI-36 | `agents-md: generate/list` commands | **Closed (iteration 34)** — `/agents-md-generate` sends amp's exact `qWT` prompt via `submitMessage`. `/agents-md-list` recursively discovers AGENTS.md/.agents.md/AGENT.md files (max depth 8, skips node_modules/.git). Matches amp's e0R.js:1105-1139. 28 new tests (shared file). |
 | GAP-CLI-37 | `skill: invoke` from TUI | **Closed (iteration 33)** — `/skill-invoke` slash command (aliases: `invoke-skill`, `use-skill`). No args → lists skills from `skillService.scan()`. With args → case-insensitive name match, invokes via `submitMessage("/skill <name>")`. Matches amp's `skill-invoke` customFlow at e0R.js:1797-1860 (simplified: text-based vs overlay picker). 11 new tests. |
 | GAP-CLI-38 | Thread navigation (prev/next/parent) | **Closed (iteration 33)** — `ThreadNavigationHistory` class with back/forward stacks matching amp's SrT (modules/2633:30-121). `recordNavigation()` pushes to back + clears forward. `navigateBack()`/`navigateForward()` pop/push between stacks. Three slash commands: `/back` (aliases: prev, previous), `/forward` (alias: next), `/parent` (filters relationships where role=parent). SlashCommandContext extended with navigation callbacks. 17 new tests. |
 | GAP-CLI-39 | Clipboard commands | **Closed (iteration 34)** — `/copy-url` (constructs thread URL from appBaseUrl + threadId), `/copy-id` (writes threadId), `/copy-markdown` (converts thread messages to markdown with role headers + char count). All use `ctx.writeClipboard` with graceful fallback. Matches amp's e0R.js:341-467. |
 | GAP-CLI-40 | `/remove-label` | **Closed (iteration 26)** — `/remove-label` slash command filters target label from `snapshot.labels` array and updates thread via `setCachedThread`. Alias `/unlabel`. Matches amp's e0R:725-822 (simplified: local labels vs amp's server API). 6 new tests. |
-| GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |
+| GAP-CLI-41 | `permissions: enable/disable` toggle | **Closed (iteration 36)** — `/permissions-enable` and `/permissions-disable` slash commands. Enable calls `configService.setRuntimeOverride("permissions", { enabled: true })`, disable sets `enabled: false`. Output messages include active state. Matches amp's e0R:1161-1183. 9 new tests. |
 | GAP-CLI-42 | `mcp: status` / `mcp: reload` | **Closed (iteration 34)** — `/mcp-reload` calls `mcpServerManager.restartServers()` with status message. `/mcp-status` formats server list with status icons (+/-/~/!), tool counts, error details. `mcpServerManager` added to `SlashCommandContext`. Matches amp's e0R.js:1321-1351. |
 | GAP-CLI-43 | `toolbox: list` | **Closed (iteration 26)** — `/toolbox` slash command lists discovered toolbox scripts with status icons (+/!/~). `ToolboxService` exposed on `ServiceContainer`. `SlashCommandContext.toolboxService` interface added. Alias `/toolbox-list`. Matches amp's e0R:1353-1362. 4 new tests. |
 | GAP-CLI-44 | `review` check runner | **Closed (iteration 35)** — 4 new CLI flags (`--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`) matching amp's `p40`. `check-runner.ts` implements full subsystem: `discoverChecks()` walks `.agents/checks/`+`.flitter/checks/` dirs (amp's pFR/uFR), `parseCheckFrontmatter()` (amp's AFR), `buildCheckSystemPrompt()` with `<checkResult>` XML template (amp's yFR), `parseCheckResult()` (amp's MFR), parallel subagent execution (amp's fFR/IFR), `mergeReviewResults()` (amp's dFR). 54 new tests. |
@@ -147,7 +151,7 @@
 | GAP-TOOL-33 | `chart` tool | **Closed (iteration 30)** — `createChartTool()` in `chart.ts`. Runs shell command, parses JSON, validates array/object, returns structured chart data. Schema: cmd, chartType (bar/line/area), xColumn, yColumns + optional title/subtitle/stacked/horizontal/hoverColumns/groupColumn. 100-row max, 30s timeout, serial execution. Matches amp's $D/tFR/rFR. 14 new tests. |
 | GAP-TOOL-34 | `repl` tool | **Closed (iteration 35)** — `createReplTool()` in `repl.ts`. Spawns subprocess (node/python/psql), creates `prompt`+`stop` mini-tools, runs autonomous agent loop (max 50 iterations, 60s/iter timeout). 5s drain with 10MB overflow protection. Code block extraction (amp's MBR), first-input-no-output detection, 5s spawn timeout. Matches amp's OBR/SBR/iqT/rqT (chunk-002.js:23251-23807, chunk-005.js:117248-117337). Added to SMART_TOOLS. 30 new tests. |
 | GAP-TOOL-35 | `code_tour` / `walkthrough` tools | Guided code explanation and architecture exploration sub-tools. |
-| GAP-TOOL-36 | `thread_status` / `send_message_to_thread` | Cross-thread coordination tools. Check status and send messages between threads. |
+| GAP-TOOL-36 | `thread_status` / `send_message_to_thread` | **Closed (iteration 36)** — `createThreadStatusTool()` returns thread state (inference state, tool running/blocked counts, interaction state, title, message count). `createSendMessageToThreadTool()` enqueues messages on target thread with optional `workflow` param (merge_changes, code_review). Factory callbacks wired to ThreadWorkerService + ThreadStore in container. Added to SMART_TOOLS + DEEP_TOOLS. Matches amp's QWT/f3T/E4R/IUT (modules/1246, 1066, 1067, 1068) and V7R (Agg Man prompt). 26 new tests. |
 | GAP-TOOL-37 | Bitbucket Enterprise tools | 7 tools for enterprise Bitbucket VCS integration (read, search, glob, diff, list, commit_search). |
 
 ### TUI
@@ -269,7 +273,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** |
 | GAP-TOOL-17 | `look_at` | IDE-specific code navigation. |
 | GAP-TOOL-18 | `painter` | AI image generation via Gemini Pro Image. |
-| GAP-TOOL-19 | `repl` | Interactive REPL tool. |
+| GAP-TOOL-19 | `repl` | **Closed (iteration 36, duplicate of GAP-TOOL-34)** — Duplicate entry. See GAP-TOOL-34 (closed iteration 35). |
 | GAP-TOOL-20 | `docs_list/read/write` | Documentation management (server-side). |
 | GAP-TOOL-21 | `handoff` | Transfer conversation to another thread. Server-dependent. |
 | GAP-TOOL-22 | Thread lifecycle tools | `create_thread`, `archive_thread`, `unarchive_thread`. Server-dependent. |
@@ -521,8 +525,8 @@ These were previously identified as gaps but are now implemented in flitter.
 | High | 14 |
 | Medium | 28 |
 | Low | 51 |
-| **Total open gaps** | **95** |
-| Closed gaps | 142+ |
+| **Total open gaps** | **90** |
+| Closed gaps | 147+ |
 
 ### Cross-Cutting Themes
 

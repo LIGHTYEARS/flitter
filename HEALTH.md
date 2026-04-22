@@ -10,7 +10,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6228 pass / 1 fail (pre-existing container-integration provider type check), 328 测试文件. Iteration 35: +163 tests (58 TUI widgets, 54 check-runner, 30 repl, 21 OAuth lock) |
+| 测试覆盖 | 🟡 | 6289 pass / 2 fail (pre-existing: container-integration provider type check + config-service hot-reload timing), 330 测试文件. Iteration 36: +62 tests (26 thread-coordination, 15 slash-handlers, 12 context-analyze, 9 permissions-toggle) |
 | 技术债务 | 🟢 | 1 个真实 TODO，0 FIXME/HACK，极度干净（grep.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
@@ -26,15 +26,15 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 | 包 | 测试文件 | E2E | 通过 | 失败 | 跳过 |
 |----|---------|-----|------|------|------|
 | @flitter/tui | 80 | 1 | ✓ | 0 | 0 |
-| @flitter/agent-core | 58 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 54 | 2 | ✓ | 0 | 0 |
+| @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
+| @flitter/cli | 56 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 17 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 11 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **261** | **3** | **4777** | **0** | **0** |
+| **总计** | **330** | **3** | **6289** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 

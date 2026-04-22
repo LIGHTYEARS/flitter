@@ -815,4 +815,486 @@ describe("createBuiltinCommands", () => {
     expect(message).toContain("[!] broken-tool");
     expect(message).toContain("(parse error)");
   });
+
+  // ── GAP-CLI-25: /switch and /dashboard wired implementations ──
+
+  it("/switch with no args and no threads shows empty message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("switch", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("No threads found");
+    expect(message).toContain("/new");
+  });
+
+  it("/switch with no args lists recent threads", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const now = Date.now();
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix session",
+            messageCount: 5,
+            userLastInteractedAt: now - 60000,
+          },
+          {
+            id: "thread-bbb-222",
+            title: "Feature work",
+            messageCount: 12,
+            userLastInteractedAt: now - 3600000,
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("switch", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Select a thread");
+    expect(message).toContain("Bug fix session");
+    expect(message).toContain("Feature work");
+    expect(message).toContain("5 msgs");
+    expect(message).toContain("12 msgs");
+  });
+
+  it("/switch with exact thread ID calls switchToThread", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const switchMock = mock(async () => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      switchToThread: switchMock,
+    });
+    await registry.dispatch("switch", "thread-aaa-111", ctx);
+    expect(switchMock).toHaveBeenCalledTimes(1);
+    expect(switchMock).toHaveBeenCalledWith("thread-aaa-111");
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Switched to thread");
+    expect(message).toContain("Bug fix");
+  });
+
+  it("/switch with thread ID prefix matches thread", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const switchMock = mock(async () => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+          {
+            id: "thread-bbb-222",
+            title: "Feature",
+            messageCount: 3,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      switchToThread: switchMock,
+    });
+    await registry.dispatch("switch", "thread-aaa", ctx);
+    expect(switchMock).toHaveBeenCalledTimes(1);
+    expect(switchMock).toHaveBeenCalledWith("thread-aaa-111");
+  });
+
+  it("/switch with title match finds thread", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const switchMock = mock(async () => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix session",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+          {
+            id: "thread-bbb-222",
+            title: "Feature work",
+            messageCount: 3,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      switchToThread: switchMock,
+    });
+    await registry.dispatch("switch", "Feature work", ctx);
+    expect(switchMock).toHaveBeenCalledTimes(1);
+    expect(switchMock).toHaveBeenCalledWith("thread-bbb-222");
+  });
+
+  it("/switch with ambiguous title shows multiple matches", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix: login",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+          {
+            id: "thread-bbb-222",
+            title: "Bug fix: signup",
+            messageCount: 3,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("switch", "Bug fix", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Multiple threads match");
+    expect(message).toContain("login");
+    expect(message).toContain("signup");
+  });
+
+  it("/switch with no match shows error", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("switch", "nonexistent-id", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("No thread found");
+  });
+
+  it("/switch to current thread shows already-on message", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadId: "thread-aaa-111",
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Current thread",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("switch", "thread-aaa-111", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Already on thread");
+  });
+
+  it("/switch without switchToThread shows thread info as fallback", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      // No switchToThread — fallback path
+    });
+    await registry.dispatch("switch", "thread-aaa-111", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Thread found");
+    expect(message).toContain("thread-aaa-111");
+    expect(message).toContain("not available");
+  });
+
+  it("/switch handles switchToThread error gracefully", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const switchMock = mock(async () => {
+      throw new Error("Thread not found on server");
+    });
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => null,
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [
+          {
+            id: "thread-aaa-111",
+            title: "Bug fix",
+            messageCount: 5,
+            userLastInteractedAt: Date.now(),
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      switchToThread: switchMock,
+    });
+    await registry.dispatch("switch", "thread-aaa-111", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Failed to switch thread");
+    expect(message).toContain("Thread not found on server");
+  });
+
+  it("/switch falls back to listRecentThreadIds when observeThreadList missing", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const switchMock = mock(async () => {});
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: (id: string) => {
+          if (id === "thread-fallback") {
+            return {
+              id: "thread-fallback",
+              v: 1,
+              title: "Fallback thread",
+              messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+              relationships: [],
+            };
+          }
+          return null;
+        },
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        listRecentThreadIds: (_max: number) => ["thread-fallback"],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      switchToThread: switchMock,
+    });
+    await registry.dispatch("switch", "thread-fallback", ctx);
+    expect(switchMock).toHaveBeenCalledTimes(1);
+    expect(switchMock).toHaveBeenCalledWith("thread-fallback");
+  });
+
+  // ── /dashboard tests ──────────────────────────────────
+
+  it("/dashboard shows workspace summary with threads", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const now = Date.now();
+    const ctx = makeContext({
+      threadId: "thread-current",
+      threadStore: {
+        getThreadSnapshot: (id: string) => {
+          if (id === "thread-current") {
+            return {
+              id: "thread-current",
+              v: 1,
+              title: "My current work",
+              messages: [
+                { role: "user", content: [{ type: "text", text: "hello" }] },
+                { role: "assistant", content: [{ type: "text", text: "hi" }] },
+              ],
+              relationships: [],
+            };
+          }
+          return null;
+        },
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: (opts?: { includeArchived?: boolean }) => {
+          const all = [
+            {
+              id: "thread-current",
+              title: "My current work",
+              messageCount: 2,
+              userLastInteractedAt: now - 60000,
+            },
+            {
+              id: "thread-old",
+              title: "Old session",
+              messageCount: 10,
+              userLastInteractedAt: now - 86400000,
+            },
+            {
+              id: "thread-arch",
+              title: "Archived",
+              messageCount: 3,
+              userLastInteractedAt: now - 172800000,
+              archived: true,
+            },
+          ];
+          if (!opts?.includeArchived) return all.filter((t) => !t.archived);
+          return all;
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("dashboard", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Workspace Dashboard");
+    expect(message).toContain("2 active");
+    expect(message).toContain("1 archived");
+    expect(message).toContain("My current work");
+    expect(message).toContain("claude-sonnet-4-20250514");
+    expect(message).toContain("smart");
+    expect(message).toContain("15"); // total messages: 2 + 10 + 3
+  });
+
+  it("/dashboard with no threads shows zero counts", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("dashboard", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Workspace Dashboard");
+    expect(message).toContain("0 active");
+    expect(message).toContain("0 archived");
+  });
+
+  it("/dashboard shows session token info when costTracker available", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: () => [],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+      costTracker: {
+        getTotals: () => ({
+          inputTokens: 5000,
+          outputTokens: 2000,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+          estimatedUSD: 0.035,
+        }),
+        getTurnHistory: () => [],
+      },
+    });
+    await registry.dispatch("dashboard", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Session tokens:");
+    expect(message).toContain("7,000");
+    expect(message).toContain("$0.0350");
+  });
+
+  it("/dashboard shows recent threads list", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const now = Date.now();
+    const ctx = makeContext({
+      threadId: "thread-1",
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "thread-1",
+          v: 1,
+          title: "First thread",
+          messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+        observeThreadList: (_opts?: { includeArchived?: boolean }) => [
+          { id: "thread-1", title: "First thread", messageCount: 1, userLastInteractedAt: now },
+          {
+            id: "thread-2",
+            title: "Second thread",
+            messageCount: 5,
+            userLastInteractedAt: now - 3600000,
+          },
+          {
+            id: "thread-3",
+            title: "Third thread",
+            messageCount: 8,
+            userLastInteractedAt: now - 7200000,
+          },
+        ],
+        // biome-ignore lint/suspicious/noExplicitAny: test mock
+      } as any,
+    });
+    await registry.dispatch("dashboard", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Recent threads:");
+    expect(message).toContain("First thread");
+    expect(message).toContain("Second thread");
+    expect(message).toContain("Third thread");
+  });
 });

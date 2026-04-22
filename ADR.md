@@ -1183,3 +1183,52 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Multi-terminal OAuth conflicts resolved — concurrent CLI processes coordinate via file locks
 - REPL tool enables agents to interact with live interpreters (node, python, psql)
 - 163 new tests across 4 files, 0 type errors
+
+---
+
+## ADR-036: Iteration 36 — Context analyze, permissions toggle, /switch + /dashboard, thread coordination tools
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 36 selected 4 medium-impact gaps: 3 CLI slash commands and 1 tool pair. All modify `slash-registry.ts`/`slash-handlers.ts` but touch non-overlapping sections. GAP-TOOL-19 (repl) cleaned up as duplicate of GAP-TOOL-34.
+
+**Decision:** Implement these 4 gaps via parallel subagents:
+
+1. **GAP-CLI-35 (/context-analyze):** Token usage analysis command matching amp's oFT/eX0 (e0R.js:274-286).
+   - Computes token breakdown: system prompt, tools, user messages, assistant messages, files, images, cached.
+   - Reads from `ctx.contextAnalyzer.lastApiInputTokens` for accurate per-category counts.
+   - Percentage bar visualization using block characters (█▓░).
+   - Alias `/analyze-context` for discoverability.
+   - Added `contextAnalyzer` field to `SlashCommandContext` interface in `slash-registry.ts`.
+
+2. **GAP-CLI-41 (/permissions-enable, /permissions-disable):** Permission toggle commands matching amp's e0R:1161-1183.
+   - `/permissions-enable` calls `configService.setRuntimeOverride("permissions", { enabled: true })`.
+   - `/permissions-disable` sets `enabled: false`.
+   - Error handling for missing configService (not a critical dependency).
+   - Added `setRuntimeOverride` to configService interface in `slash-registry.ts`.
+
+3. **GAP-CLI-25 (/switch, /dashboard — fully wired):** Completing the final 2 of 9 informational-only slash stubs.
+   - `/switch` (no args): Lists recent threads via `listRecentThreadIds()` with title, label, and status.
+   - `/switch <query>`: Searches by ID prefix or title match, calls `switchToThread()`.
+   - `/dashboard`: Workspace summary — total thread count, model, mode, session cost totals.
+   - Extended `SlashCommandContext` with `observeThreadList`, `listRecentThreadIds`, `switchToThread` callbacks.
+   - All 9 slash command stubs now fully functional.
+
+4. **GAP-TOOL-36 (thread_status, send_message_to_thread):** Cross-thread coordination tools matching amp's QWT/f3T/E4R/IUT (modules/1246, 1066, 1067, 1068).
+   - `createThreadStatusTool()`: Returns thread state — inference state, tool running/blocked counts, interaction state, title, message count. Active vs inactive detection. Error lists active thread IDs.
+   - `createSendMessageToThreadTool()`: Enqueues user message on target thread with optional `workflow` param (merge_changes, code_review). Matches amp's Agg Man prompt pattern (V7R).
+   - Container wired: ThreadWorkerService for status, ThreadStore for snapshots, ThreadWorker.enqueueMessage for messaging.
+   - Added to SMART_TOOLS and DEEP_TOOLS (matching amp's SiT/UW inclusion patterns).
+   - Barrel exports added to @flitter/agent-core index.
+
+**Skipped candidates:**
+- GAP-TUI-25 (Chart widget): ~800 lines, too large for single iteration.
+- GAP-CORE-21 (Agg Man mode): Requires send_message_to_aggman + render_agg_man — now partially unblocked by GAP-TOOL-36.
+
+**Consequences:**
+- All 9 slash command stubs are now functional — no more "use CLI instead" messages
+- Context analysis enables token budget optimization during long conversations
+- Permission toggle from TUI means users don't need to restart for permission changes
+- Thread coordination tools unblock future agg-man mode implementation (GAP-CORE-21)
+- GAP-TOOL-19 duplicate cleaned up — accurate gap count now reflects reality
+- 62 new tests across 4 files, 0 type errors

@@ -202,6 +202,15 @@ export { ShellCommandTool } from "./tools/builtin/shell-command";
 export { createSkillTool } from "./tools/builtin/skill-tool";
 export { createTaskTool } from "./tools/builtin/task";
 export { createTaskListTool, TaskStore } from "./tools/builtin/task-list";
+export type {
+  SendMessageToThreadCallbacks,
+  ThreadStatusCallbacks,
+  ThreadStatusInfo,
+} from "./tools/builtin/thread-coordination";
+export {
+  createSendMessageToThreadTool,
+  createThreadStatusTool,
+} from "./tools/builtin/thread-coordination";
 export type { TodoItem } from "./tools/builtin/todo-write";
 export { getTodosFromThread, TodoReadTool, TodoWriteTool } from "./tools/builtin/todo-write";
 export { createUndoEditTool } from "./tools/builtin/undo-edit";

@@ -289,7 +289,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
     // After the content-block loop, check for usage on assistant messages
     // 逆向: x8R._buildAssistantMessageWidget appends token usage summary
     if (msg.role === "assistant") {
-      const rawUsage = (msg as Record<string, unknown>).usage as
+      const rawUsage = (msg as unknown as Record<string, unknown>).usage as
         | { inputTokens: number; outputTokens: number }
         | undefined;
       if (rawUsage && pendingItems.length > 0) {

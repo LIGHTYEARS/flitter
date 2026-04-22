@@ -10,7 +10,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6301 pass / 1 fail (pre-existing: unhandled error in interactive.ts source reading), 332 测试文件. Bugfix session: +12 tests (7 RenderParagraph newline, 3 resolveModel, 1 ApprovalWidget feedback, 1 status-bar-tokens) |
+| 测试覆盖 | 🟡 | 6337 pass / 1 fail (pre-existing: container integration inference roundtrip), 341 测试文件. UI chrome gap session: +6 test files, +15 tests (chrome-layout, input-field-border, bottom-status-line, welcome-screen-mount, conversation-layout, status-data-wiring) |
 | 技术债务 | 🟢 | 0 真实 TODO，0 FIXME/HACK，极度干净（grep.ts/todo-write.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
@@ -26,14 +26,14 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 |----|---------|-----|------|------|------|
 | @flitter/tui | 81 | 1 | ✓ | 0 | 0 |
 | @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 57 | 2 | ✓ | 0 | 0 |
+| @flitter/cli | 74 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 17 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 11 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **332** | **3** | **6301** | **0** | **0** |
+| **总计** | **341** | **3** | **6337** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 
@@ -55,6 +55,12 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 | Bug | 位置 | 严重度 | 状态 |
 |-----|------|--------|------|
 | 无已知 Bug | — | — | — |
+
+### 待清理项
+
+| 项目 | 位置 | 说明 |
+|------|------|------|
+| StatusBar 类未使用 | `packages/cli/src/widgets/status-bar.ts` | StatusBar 数据已迁移到 InputField border overlays (Gap B/F)。StatusBar 类保留但不再挂载，可考虑删除或改为纯函数。 |
 
 ---
 

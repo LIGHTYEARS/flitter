@@ -6,11 +6,11 @@
  * - initState() 订阅 threadWorker.events$
  * - dispose() 取消两个订阅
  * - threadStore 变化触发重建
- * - build() 返回 Column 布局 (Expanded > Scrollable > ConversationView + StatusBar + InputField)
+ * - build() 返回 Column 布局 (Expanded > Scrollable > ConversationView + BottomStatusLine + InputField)
  * - inference:start / inference:error / turn:complete 事件更新状态
  */
 import assert from "node:assert/strict";
-import { describe, it, beforeEach } from "node:test";
+import { beforeEach, describe, it } from "node:test";
 
 // ─── 简单 Mock 工具 ─────────────────────────────────────────
 
@@ -126,9 +126,7 @@ describe("ThreadStateWidget", () => {
   });
 
   it("createState() 返回 ThreadStateWidgetState 实例", async () => {
-    const { ThreadStateWidget, ThreadStateWidgetState } = await import(
-      "./thread-state-widget.js"
-    );
+    const { ThreadStateWidget, ThreadStateWidgetState } = await import("./thread-state-widget.js");
 
     const store = createMockThreadStore("t1", { id: "t1", v: 0, messages: [], relationships: [] });
     const worker = createMockThreadWorker();
@@ -171,7 +169,9 @@ describe("ThreadStateWidget", () => {
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
     // Mock setState to be a no-op
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     assert.equal(observedId, "t1");
@@ -204,7 +204,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     assert.ok(eventSubscribed, "should subscribe to threadWorker.events$");
@@ -231,7 +233,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     // dispose should not throw
@@ -303,7 +307,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     // Emit inference:start event
@@ -334,7 +340,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     const testError = new Error("test error");
@@ -365,7 +373,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     // Set up some state first
@@ -401,7 +411,9 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     const tree = state.build({} as any);
@@ -432,14 +444,14 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     const tree = state.build({} as any);
     const children = (tree as any).children || (tree as any).config?.children || [];
-    const hasExpanded = children.some(
-      (c: any) => c.constructor.name === "Expanded",
-    );
+    const hasExpanded = children.some((c: any) => c.constructor.name === "Expanded");
     assert.ok(hasExpanded, "Column should contain an Expanded child");
   });
 
@@ -464,18 +476,18 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     const tree = state.build({} as any);
     const children = (tree as any).children || (tree as any).config?.children || [];
-    const hasInputField = children.some(
-      (c: any) => c.constructor.name === "InputField",
-    );
+    const hasInputField = children.some((c: any) => c.constructor.name === "InputField");
     assert.ok(hasInputField, "Column should contain an InputField child");
   });
 
-  it("build() Column 包含 StatusBar 子节点", async () => {
+  it("build() Column 包含 BottomStatusLine 子节点 (StatusBar 已移除)", async () => {
     const { ThreadStateWidget } = await import("./thread-state-widget.js");
 
     const store = createMockThreadStore("t1", {
@@ -498,14 +510,19 @@ describe("ThreadStateWidget", () => {
     const state = widget.createState();
     (state as any)._widget = widget;
     Object.defineProperty(state, "widget", { get: () => widget });
-    (state as any).setState = (fn?: () => void) => { if (fn) fn(); };
+    (state as any).setState = (fn?: () => void) => {
+      if (fn) fn();
+    };
     state.initState();
 
     const tree = state.build({} as any);
     const children = (tree as any).children || (tree as any).config?.children || [];
-    const hasStatusBar = children.some(
-      (c: any) => c.constructor.name === "StatusBar",
+    // StatusBar removed (Gap A/F) — now uses BottomStatusLine instead
+    const hasBottomStatusLine = children.some(
+      (c: any) => c.constructor.name === "BottomStatusLine",
     );
-    assert.ok(hasStatusBar, "Column should contain a StatusBar child");
+    assert.ok(hasBottomStatusLine, "Column should contain a BottomStatusLine child");
+    const hasStatusBar = children.some((c: any) => c.constructor.name === "StatusBar");
+    assert.ok(!hasStatusBar, "Column should NOT contain a standalone StatusBar");
   });
 });

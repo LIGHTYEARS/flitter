@@ -4,7 +4,7 @@
  * 验证:
  * - ConversationView.build() 返回 Column 包含消息 Widget 列表
  * - 用户消息使用 "You: " 前缀 + primary 色 (#7aa2f7) bold
- * - 助手消息使用 "Assistant: " 前缀 + accent 色 (#bb9af7) bold
+ * - 助手消息无前缀 (逆向: amp 无助手角色前缀)
  * - 系统消息使用 "System: " 前缀 + secondary 色 (#9ece6a) bold
  * - 消息内容通过 MarkdownParser + MarkdownRenderer 渲染
  * - 空消息列表显示 "No messages yet. Type below to begin."
@@ -193,16 +193,17 @@ describe("ConversationView.build", () => {
     assert.ok(hasYouPrefix, 'Should render "You: " in primary color bold');
   });
 
-  it('渲染助手消息 "Assistant: " 前缀 (accent #bb9af7 bold)', () => {
+  it('渲染助手消息 — 无 "Assistant: " 前缀 (逆向: amp 无助手前缀)', () => {
     const messages: Message[] = [{ role: "assistant", content: "Hi there!" }];
     const { state } = mountConversationView({ messages });
     const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
+    // 逆向: amp has NO assistant prefix — only user messages get ┃ border
     const hasAssistantPrefix = richTexts.some((rt: RichText) =>
       hasStyledSpan(rt.text, "Assistant: ", { bold: true, r: 0xbb, g: 0x9a, b: 0xf7 }),
     );
-    assert.ok(hasAssistantPrefix, 'Should render "Assistant: " in accent color bold');
+    assert.ok(!hasAssistantPrefix, 'Should NOT render "Assistant: " prefix (amp has none)');
   });
 
   it('渲染系统消息 "System: " 前缀 (secondary #9ece6a bold)', () => {

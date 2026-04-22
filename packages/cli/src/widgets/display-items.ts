@@ -32,6 +32,8 @@ export interface MessageItem {
   images?: number;
   /** Token usage for this assistant message (逆向: NJT feature flag) */
   usage?: { inputTokens: number; outputTokens: number };
+  /** Whether this user message was interrupted (逆向: S$ widget — R.interrupted → e.warning border) */
+  interrupted?: boolean;
 }
 
 /**
@@ -114,11 +116,16 @@ export interface ActivityGroupItem {
  *
  * 逆向: Rd class (chunk-006.js:16846-17009) — ThinkingBlock widget.
  * Collapsed shows "✓ Thinking ▶", expanded shows full text with "▼".
+ * 逆向: fJT.build() — isCancelled → warning color; isStreaming → accent + spinner; else → success + ✓
  */
 export interface ThinkingItem {
   type: "thinking";
   text: string;
   isExpanded: boolean;
+  /** Whether this thinking block is currently streaming (逆向: fJT isComplete = !isStreaming) */
+  isStreaming?: boolean;
+  /** Whether this thinking block was cancelled mid-stream (逆向: fJT isCancelled → warning color) */
+  isCancelled?: boolean;
 }
 
 // ─── Tool classification ─────────────────────────────
@@ -295,6 +302,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             text: joined,
             ...(msg.state?.type === "streaming" ? { isStreaming: true } : {}),
             ...(imageCount > 0 ? { images: imageCount } : {}),
+            ...((msg as Record<string, unknown>).interrupted === true ? { interrupted: true } : {}),
           });
         }
       }
@@ -317,6 +325,22 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       }
     }
     flushTextParts();
+
+    // 逆向: x8R._buildThinkingBlock — only the last thinking block gets streaming/cancelled flags
+    const msgState = msg.state?.type;
+    if (msgState === "streaming" || msgState === "cancelled") {
+      for (let j = pendingItems.length - 1; j >= 0; j--) {
+        if (pendingItems[j].type === "thinking") {
+          const thinkingItem = pendingItems[j] as ThinkingItem;
+          if (msgState === "streaming") {
+            thinkingItem.isStreaming = true;
+          } else {
+            thinkingItem.isCancelled = true;
+          }
+          break;
+        }
+      }
+    }
 
     if (pendingItems.length > 0) {
       flushActivityBuffer();

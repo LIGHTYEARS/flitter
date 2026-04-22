@@ -361,3 +361,30 @@ describe("transformThreadToDisplayItems — info role", () => {
     expect(msg.text).toContain("git status");
   });
 });
+
+describe("transformThreadToDisplayItems — interrupted messages", () => {
+  it("passes interrupted flag from raw user message", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [{ type: "text", text: "Hello" }],
+        interrupted: true,
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages as any);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe("message");
+    expect((items[0] as any).interrupted).toBe(true);
+  });
+
+  it("does not set interrupted when false or missing", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [{ type: "text", text: "Hello" }],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect((items[0] as any).interrupted).toBeUndefined();
+  });
+});

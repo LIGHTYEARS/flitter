@@ -138,6 +138,11 @@ const ERROR_COLOR_LOCAL = ERROR_COLOR;
  * 逆向: $R.app.toolCancelled */
 const CANCELLED_COLOR = MUTED_TEXT_COLOR;
 
+/** warning 色 (#e0af68) -- interrupted user message border
+ * 逆向: S$ widget — R.interrupted switches border from e.success (green)
+ * to e.warning (amber). misc_utils.js:9037 `let l = R.interrupted ? e.warning : e.success;` */
+const WARNING_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+
 // ════════════════════════════════════════════════════
 //  角色配置映射
 // ════════════════════════════════════════════════════
@@ -570,9 +575,20 @@ export class ConversationViewState extends State<ConversationView> {
     }
     allSpans.push(...contentSpans);
 
+    if (item.interrupted) {
+      allSpans.push(
+        new TextSpan({
+          text: " (interrupted)",
+          style: new TextStyle({ foreground: WARNING_COLOR, italic: true }),
+        }),
+      );
+    }
+
     const content = new RichText({
       text: new TextSpan({ children: allSpans }),
     });
+
+    const borderColor = item.interrupted ? WARNING_COLOR : SECONDARY_COLOR;
 
     return new Container({
       decoration: new BoxDecoration({
@@ -580,7 +596,7 @@ export class ConversationViewState extends State<ConversationView> {
           undefined, // top
           undefined, // right
           undefined, // bottom
-          new BorderSide(SECONDARY_COLOR, 2, "solid"), // left: success green, 2-wide
+          new BorderSide(borderColor, 2, "solid"), // left: warning amber when interrupted, success green otherwise
         ),
       }),
       padding: EdgeInsets.only({ left: 1 }),

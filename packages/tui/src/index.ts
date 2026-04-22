@@ -28,6 +28,8 @@ export { ClipBox, RenderClipBox } from "./widgets/clip-box.js";
 export { Column } from "./widgets/column.js";
 export { Container, ContainerElement, ContainerRenderObject } from "./widgets/container.js";
 export { DialogBox, RenderDialogBox } from "./widgets/dialog-box.js";
+export type { DisclosureConfig } from "./widgets/disclosure.js";
+export { Disclosure } from "./widgets/disclosure.js";
 export { EdgeInsets } from "./widgets/edge-insets.js";
 export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";

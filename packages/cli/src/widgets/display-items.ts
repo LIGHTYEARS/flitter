@@ -521,6 +521,23 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           args: { detail },
           error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
         });
+      } else if (block.name === "Task") {
+        // 逆向: yx0 Task branch — render as Subagent with description detail
+        // 逆向: ai() in 2167_unknown_Ex0.js:9-11 — iterates property names to find detail string
+        flushActivityBuffer();
+        const description =
+          typeof block.input?.description === "string"
+            ? block.input.description
+            : JSON.stringify(block.input ?? {});
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "Subagent",
+          kind: "generic",
+          status,
+          args: { detail: description },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
       } else {
         // 逆向: yx0 fallback at end of if/else chain
         flushActivityBuffer();

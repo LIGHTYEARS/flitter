@@ -89,3 +89,32 @@ describe("specialized tool rendering", () => {
     expect(tool.args).toHaveProperty("detail");
   });
 });
+
+describe("Task tool rendering", () => {
+  it("emits Task tool with kind generic and name Subagent", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-task",
+            name: "Task",
+            input: { description: "Search for login bugs" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-task",
+            run: { status: "done", result: "Found 3 bugs" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "tool") as ToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.kind).toBe("generic");
+    expect(tool.toolName).toBe("Subagent");
+    expect(tool.args).toHaveProperty("detail");
+  });
+});

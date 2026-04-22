@@ -456,6 +456,71 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           status,
           path: typeof block.input?.file_path === "string" ? block.input.file_path : undefined,
         });
+      } else if (block.name === "web_search") {
+        // 逆向: yx0 web_search branch — w1T(_) extracts query (or objective)
+        flushActivityBuffer();
+        const query =
+          typeof block.input?.query === "string"
+            ? block.input.query
+            : typeof block.input?.objective === "string"
+              ? block.input.objective
+              : "";
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "Web Search",
+          kind: "generic",
+          status,
+          args: { detail: query },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (block.name === "read_web_page") {
+        // 逆向: yx0 read_web_page branch — D1T(_) extracts URL
+        flushActivityBuffer();
+        const url = typeof block.input?.url === "string" ? block.input.url.trim() : "";
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "read_web_page",
+          kind: "generic",
+          status,
+          args: { detail: url },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (block.name === "mermaid") {
+        // 逆向: yx0 mermaid branch
+        flushActivityBuffer();
+        const code = typeof block.input?.code === "string" ? block.input.code : "";
+        const truncated = code.length > 60 ? code.slice(0, 60) + "..." : code;
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "Mermaid",
+          kind: "generic",
+          status,
+          args: { detail: truncated },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (block.name === "task_list") {
+        // 逆向: yx0 task_list branch
+        flushActivityBuffer();
+        const action = typeof block.input?.action === "string" ? block.input.action.trim() : "";
+        const title = typeof block.input?.title === "string" ? block.input.title.trim() : "";
+        const detail =
+          action && title
+            ? `Task list: ${action} "${title}"`
+            : action
+              ? `Task list: ${action}`
+              : "Task list";
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "task_list",
+          kind: "generic",
+          status,
+          args: { detail },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
       } else {
         // 逆向: yx0 fallback at end of if/else chain
         flushActivityBuffer();

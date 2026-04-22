@@ -1194,6 +1194,12 @@ function _getToolDetail(tool: ToolItem): string | null {
     case "read":
     case "search":
     case "generic": {
+      if (tool.args && typeof tool.args.detail === "string") {
+        const detail = tool.args.detail;
+        return detail.length > MAX_DETAIL_LENGTH
+          ? detail.slice(0, MAX_DETAIL_LENGTH) + "..."
+          : detail;
+      }
       if (!tool.args || Object.keys(tool.args).length === 0) return null;
       const summary = JSON.stringify(tool.args);
       return summary.length > MAX_DETAIL_LENGTH

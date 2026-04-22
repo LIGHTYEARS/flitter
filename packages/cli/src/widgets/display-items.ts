@@ -51,6 +51,7 @@ export interface ToolItem {
     | "done"
     | "error"
     | "cancelled"
+    | "cancellation-requested"
     | "rejected-by-user"
     | "in-progress"
     | "blocked-on-user"
@@ -78,7 +79,14 @@ export interface ActivityAction {
   kind: "read" | "search" | "list";
   toolName: string;
   toolUseId: string;
-  status: "done" | "error" | "cancelled" | "in-progress" | "blocked-on-user" | "queued";
+  status:
+    | "done"
+    | "error"
+    | "cancelled"
+    | "cancellation-requested"
+    | "in-progress"
+    | "blocked-on-user"
+    | "queued";
   /** File path for Read, pattern/glob for search tools
    * 逆向: B9R (misc_utils.js:7776) R.input.path, W9R (misc_utils.js:8088) R.input.pattern */
   path?: string;

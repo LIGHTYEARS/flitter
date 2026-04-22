@@ -646,7 +646,7 @@ export class ConversationViewState extends State<ConversationView> {
       const cmdLines = command.split("\n");
       const firstLine = cmdLines[0] || "";
       const cmdStyle = new TextStyle({ bold: true });
-      if (tool.status === "cancelled") {
+      if (tool.status === "cancelled" || tool.status === "cancellation-requested") {
         spans.push(
           new TextSpan({
             text: firstLine,
@@ -672,7 +672,7 @@ export class ConversationViewState extends State<ConversationView> {
             style: new TextStyle({ dim: true, italic: true }),
           }),
         );
-      } else if (tool.status === "cancelled") {
+      } else if (tool.status === "cancelled" || tool.status === "cancellation-requested") {
         spans.push(
           new TextSpan({
             text: " (cancelled)",
@@ -1084,6 +1084,7 @@ function _getStatusIcon(status: ToolItem["status"]): string {
     case "error":
       return "\u2717"; // ✗
     case "cancelled":
+    case "cancellation-requested":
     case "rejected-by-user":
       return "\u2298"; // ⊘
     case "blocked-on-user":
@@ -1113,6 +1114,7 @@ function _getStatusColor(status: ToolItem["status"]): Color {
     case "in-progress":
       return TOOL_COLOR;
     case "cancelled":
+    case "cancellation-requested":
     case "rejected-by-user":
       return CANCELLED_COLOR;
     case "blocked-on-user":
@@ -1168,6 +1170,7 @@ function _getActionStatusIcon(status: ActivityAction["status"]): string {
     case "error":
       return "\u2717"; // ✗
     case "cancelled":
+    case "cancellation-requested":
       return "\u2298"; // ⊘
     case "blocked-on-user":
       return "?";
@@ -1191,6 +1194,7 @@ function _getActionStatusColor(status: ActivityAction["status"]): Color {
     case "in-progress":
       return TOOL_COLOR;
     case "cancelled":
+    case "cancellation-requested":
       return CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":

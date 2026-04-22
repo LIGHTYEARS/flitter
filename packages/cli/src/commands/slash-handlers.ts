@@ -14,7 +14,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { MODEL_REGISTRY } from "@flitter/llm";
@@ -1059,6 +1059,301 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       ctx.showMessage(
         `Multiple parent threads found:\n${parentIds.map((id) => `  ${id}`).join("\n")}\n\n` +
           "Use /switch <thread-id> to navigate to a specific parent.",
+      );
+    },
+  });
+
+  // ─── Clipboard Commands (CLI-39) ────────────────────────
+  // 逆向: e0R:341-372 (id: "url", verb: "copy URL")
+  // Amp uses d9.instance.tuiInstance.clipboard.writeText(a) with try/catch.
+  // Flitter: calls ctx.writeClipboard (injected by caller), falls back to error msg.
+
+  // /copy-url -- copy thread URL to clipboard
+  // 逆向: e0R:341-373
+  registry.register({
+    name: "copy-url",
+    aliases: ["copy-thread-url"],
+    description: "Copy thread URL to clipboard",
+    execute: async (_args, ctx) => {
+      // 逆向: e0R:346 — $P(new URL(R.ampURL), R.thread.id).toString()
+      // Amp appends the thread ID as a path segment to the base URL.
+      const base = ctx.appBaseUrl ?? "https://app.ampcode.com/thread";
+      const url = `${base.replace(/\/$/, "")}/${ctx.threadId}`;
+      try {
+        if (ctx.writeClipboard) {
+          const ok = await ctx.writeClipboard(url);
+          if (ok) {
+            ctx.showMessage(`Thread URL: ${url}\n(Copied to clipboard)`);
+          } else {
+            ctx.showMessage(`Thread URL: ${url}\n(Could not copy to clipboard)`);
+          }
+        } else {
+          ctx.showMessage(`Thread URL: ${url}\n(Clipboard not available)`);
+        }
+      } catch (err) {
+        // 逆向: e0R:365-371 — catch logs error, returns Error with URL
+        ctx.showMessage(
+          `Thread URL: ${url}\n(Could not copy to clipboard: ${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+    },
+  });
+
+  // /copy-id -- copy thread ID to clipboard
+  // 逆向: e0R:374-405
+  registry.register({
+    name: "copy-id",
+    aliases: ["copy-thread-id"],
+    description: "Copy thread ID to clipboard",
+    execute: async (_args, ctx) => {
+      const threadId = ctx.threadId;
+      try {
+        if (ctx.writeClipboard) {
+          const ok = await ctx.writeClipboard(threadId);
+          if (ok) {
+            ctx.showMessage(`Thread ID: ${threadId}\n(Copied to clipboard)`);
+          } else {
+            ctx.showMessage(`Thread ID: ${threadId}\n(Could not copy to clipboard)`);
+          }
+        } else {
+          ctx.showMessage(`Thread ID: ${threadId}\n(Clipboard not available)`);
+        }
+      } catch (err) {
+        ctx.showMessage(
+          `Thread ID: ${threadId}\n(Could not copy to clipboard: ${err instanceof Error ? err.message : String(err)})`,
+        );
+      }
+    },
+  });
+
+  // /copy-markdown -- copy thread as markdown to clipboard
+  // 逆向: e0R:447-467 (id: "markdown", verb: "copy markdown")
+  // Amp calls KN(R.thread) which builds: title + all messages from compaction point.
+  // pxR(message) formats each message as "**User**\n\ntext\n\n" or "**Assistant**\n\ntext"
+  // Flitter: join assistant text blocks with newlines (simplified KN equivalent).
+  registry.register({
+    name: "copy-markdown",
+    aliases: ["copy-md"],
+    description: "Copy thread as markdown to clipboard",
+    execute: async (_args, ctx) => {
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot?.messages || snapshot.messages.length === 0) {
+        ctx.showMessage("Cannot copy markdown from an empty thread.");
+        return;
+      }
+
+      // 逆向: KN() builds title + per-message markdown via pxR()
+      // pxR formats: "**User**\n\n{text}" or "**Assistant**\n\n{text}"
+      const parts: string[] = [];
+      if (snapshot.title) {
+        parts.push(`# ${snapshot.title}`);
+      }
+      for (const msg of snapshot.messages) {
+        const roleLabel = msg.role === "user" ? "**User**" : "**Assistant**";
+        const textParts: string[] = [];
+        for (const block of msg.content) {
+          if (block.type === "text" && block.text) {
+            textParts.push(block.text);
+          }
+        }
+        if (textParts.length > 0) {
+          parts.push(`${roleLabel}\n\n${textParts.join("\n")}`);
+        }
+      }
+      const markdown = parts.join("\n\n");
+
+      try {
+        if (ctx.writeClipboard) {
+          const ok = await ctx.writeClipboard(markdown);
+          if (ok) {
+            ctx.showMessage(`Thread markdown copied to clipboard (${markdown.length} chars).`);
+          } else {
+            ctx.showMessage(
+              `Thread markdown (${markdown.length} chars) — could not copy to clipboard.`,
+            );
+          }
+        } else {
+          ctx.showMessage(`Thread markdown (${markdown.length} chars) — clipboard not available.`);
+        }
+      } catch (err) {
+        ctx.showMessage(
+          `Failed to copy markdown to clipboard: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+  });
+
+  // ─── AGENTS.md Commands (CLI-36) ───────────────────────
+  // 逆向: e0R:1105-1139
+
+  // /agents-md-generate -- generate AGENTS.md via LLM
+  // 逆向: e0R:1105-1119 (id: "generate-agent-file")
+  // Amp sends the qWT prompt via activeThreadHandle.sendMessage().
+  // Flitter: use ctx.submitMessage (same role — inject user message to trigger LLM).
+  // 逆向: chunk-005.js:111979 — qWT = "Please analyze this codebase and create an AGENTS.md file..."
+  registry.register({
+    name: "agents-md-generate",
+    aliases: ["generate-agents-md"],
+    description: "Generate an AGENTS.md file for this codebase",
+    execute: async (_args, ctx) => {
+      // 逆向: qWT prompt (chunk-005.js:111979-111985)
+      const prompt =
+        "Please analyze this codebase and create an AGENTS.md file containing:\n" +
+        "1. Build/lint/test commands - especially for running a single test\n" +
+        "2. Architecture and codebase structure information, including important subprojects, internal APIs, databases, etc.\n" +
+        "3. Code style guidelines, including imports, conventions, formatting, types, naming conventions, error handling, etc.\n\n" +
+        "The file you create will be given to agentic coding tools (such as yourself) that operate in this repository. Make it about 20 lines long.\n\n" +
+        "If there are Cursor rules (in .cursor/rules/ or .cursorrules), Claude rules (CLAUDE.md), Windsurf rules (.windsurfrules), Cline rules (.clinerules), Goose rules (.goosehints), or Copilot rules (in .github/copilot-instructions.md), make sure to include them. Also, first check if there is an existing AGENTS.md or AGENT.md file, and if so, update it instead of overwriting it.";
+
+      if (ctx.submitMessage) {
+        ctx.submitMessage(prompt);
+        ctx.showMessage("Generating AGENTS.md — analyzing codebase...");
+      } else {
+        ctx.showMessage(
+          "AGENTS.md generation requires an active LLM session.\n" +
+            "(submitMessage not available in this context.)",
+        );
+      }
+    },
+  });
+
+  // /agents-md-list -- list AGENTS.md guidance files in use
+  // 逆向: e0R:1120-1139 (id: "agent-files")
+  // Amp calls R.getGuidanceFiles(signal) which searches the project for AGENTS.md files.
+  // Flitter: walk cwd recursively to find AGENTS.md / .agents.md files (max depth 8).
+  registry.register({
+    name: "agents-md-list",
+    aliases: ["list-agents-md", "agent-files"],
+    description: "List AGENTS.md guidance files found in the project",
+    execute: async (_args, ctx) => {
+      const cwd = process.cwd();
+
+      // Recursive directory walk limited to depth 8, skipping node_modules/.git
+      // 逆向: amp uses getGuidanceFiles() which traverses workspace roots
+      function findAgentFilesSync(dir: string, depth: number): string[] {
+        if (depth > 8) return [];
+        let results: string[] = [];
+        let entries: string[];
+        try {
+          entries = readdirSync(dir) as string[];
+        } catch {
+          return [];
+        }
+        for (const entry of entries) {
+          // Skip heavy directories
+          if (
+            entry === "node_modules" ||
+            entry === ".git" ||
+            entry === ".next" ||
+            entry.startsWith(".cache")
+          )
+            continue;
+          const fullPath = path.join(dir, entry);
+          if (entry === "AGENTS.md" || entry === ".agents.md" || entry === "AGENT.md") {
+            results.push(fullPath);
+          } else {
+            // Recurse into subdirectories only
+            try {
+              const stat = statSync(fullPath);
+              if (stat.isDirectory()) {
+                results = results.concat(findAgentFilesSync(fullPath, depth + 1));
+              }
+            } catch {
+              // skip unreadable entries
+            }
+          }
+        }
+        return results;
+      }
+
+      let files: string[];
+      try {
+        files = findAgentFilesSync(cwd, 0);
+      } catch {
+        files = [];
+      }
+
+      if (files.length === 0) {
+        // 逆向: e0R:1128 — "No guidance files are currently in use for this thread."
+        ctx.showMessage(
+          "No AGENTS.md guidance files found in this project.\n" +
+            "Use /agents-md-generate to create one.",
+        );
+        return;
+      }
+
+      // 逆向: e0R:1130-1134 — format as "Agent File(s) (N):\n  • <path> (type)"
+      const count = files.length;
+      const label = count === 1 ? "Agent File" : "Agent Files";
+      const lines = files.map((f) => {
+        // Show relative path for readability
+        const rel = path.relative(cwd, f);
+        return `  \u2022 ${rel}`;
+      });
+      ctx.showMessage(`${label} (${count}):\n\n${lines.join("\n")}`);
+    },
+  });
+
+  // ─── MCP Commands (CLI-42) ─────────────────────────────
+  // 逆向: e0R:1321-1351
+
+  // /mcp-reload -- reload all MCP servers
+  // 逆向: e0R:1321-1327 (id: "mcp-reload", verb: "reload")
+  // Amp: R.mcpService.restartServers(), R.showStatusMessage("Reloading MCP servers...")
+  registry.register({
+    name: "mcp-reload",
+    aliases: ["mcp-restart"],
+    description: "Reload all MCP servers",
+    execute: async (_args, ctx) => {
+      if (!ctx.mcpServerManager) {
+        ctx.showMessage(
+          "MCP server manager not available in this session.\n" +
+            "Use 'flitter mcp doctor' to diagnose MCP connections.",
+        );
+        return;
+      }
+      // 逆向: e0R:1326 — R.mcpService.restartServers()
+      ctx.mcpServerManager.restartServers();
+      ctx.showMessage("Reloading MCP servers...");
+    },
+  });
+
+  // /mcp-status -- show MCP server connection status
+  // 逆向: e0R:1345-1351 (id: "mcp-status", verb: "status")
+  // Amp: R.showMCPStatusModal() — shows a modal with server statuses.
+  // Flitter: format as text summary via showMessage.
+  registry.register({
+    name: "mcp-status",
+    description: "Show MCP server connection status",
+    execute: async (_args, ctx) => {
+      if (!ctx.mcpServerManager) {
+        ctx.showMessage(
+          "MCP server manager not available in this session.\n" +
+            "Use 'flitter mcp list' for server configuration.",
+        );
+        return;
+      }
+      const servers = ctx.mcpServerManager.getServers();
+      if (servers.length === 0) {
+        ctx.showMessage("No MCP servers configured.\nUse 'flitter mcp add' to configure a server.");
+        return;
+      }
+      const lines = servers.map((s) => {
+        const statusIcon =
+          s.status === "connected"
+            ? "+"
+            : s.status === "connecting"
+              ? "~"
+              : s.status === "error"
+                ? "!"
+                : "-";
+        const toolInfo = s.toolCount !== undefined ? ` (${s.toolCount} tools)` : "";
+        const errorInfo = s.error ? ` — ${s.error}` : "";
+        return `  [${statusIcon}] ${s.name}  ${s.status}${toolInfo}${errorInfo}`;
+      });
+      const connected = servers.filter((s) => s.status === "connected").length;
+      ctx.showMessage(
+        `MCP Servers (${connected}/${servers.length} connected):\n${lines.join("\n")}`,
       );
     },
   });

@@ -1095,3 +1095,41 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Thread navigation enables back/forward/parent switching in multi-thread workflows
 - Skills discoverable and invokable from slash commands
 - 68 new tests across 3 files, 0 type errors
+
+## ADR-034: Iteration 34 — Clipboard commands, agents-md, MCP reload/status, SelectionArea double/triple-click
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 34 closes 4 gaps: 3 CLI command groups (CLI-39, CLI-36, CLI-42) and 1 TUI interaction (TUI-28). The CLI commands are high-completeness-signal slash commands using the established pattern. SelectionArea double/triple-click is the highest-impact missing TUI interaction.
+
+**Decisions:**
+
+1. **GAP-CLI-39 (Clipboard commands):** Three commands matching amp's e0R.js:341-467:
+   - `/copy-url` constructs URL from `ctx.appBaseUrl + "/" + ctx.threadId` (matching amp's `$P(new URL(ampURL), thread.id)` pattern).
+   - `/copy-markdown` converts thread messages to markdown with `**User**`/`**Assistant**` role headers. Simplified from amp's full `KN()` (which handles tools, images, etc.) — text content only for now.
+   - Added `writeClipboard` and `appBaseUrl` to `SlashCommandContext`. Graceful fallback messaging when clipboard unavailable.
+
+2. **GAP-CLI-36 (agents-md generate/list):** Two commands matching amp's e0R.js:1105-1139:
+   - `/agents-md-generate` sends amp's exact `qWT` prompt string (from chunk-005.js:111979) via `submitMessage`. The prompt asks the LLM to analyze the codebase and generate an AGENTS.md.
+   - `/agents-md-list` recursively walks the project tree (max depth 8, skipping node_modules/.git/.next) to discover AGENTS.md/.agents.md/AGENT.md files. Formats as bullet list matching amp's output.
+
+3. **GAP-CLI-42 (MCP reload/status):** Two commands matching amp's e0R.js:1321-1351:
+   - `/mcp-reload` calls `mcpServerManager.restartServers()` — single method call matching amp exactly.
+   - `/mcp-status` formats server list with status icons (+/-/~/!), tool counts, and error details. Text-based output (not a full modal) — deferred overlay approach until flitter has modal widget support.
+   - Added `mcpServerManager` to `SlashCommandContext`.
+
+4. **GAP-TUI-28 (SelectionArea double/triple-click + auto-scroll):** Full state machine matching amp's b1T (actions_intents.js:241-628):
+   - Click count tracking: `recordClick(x, y, timeMs)` with 500ms timeout, position reset, capped at 3.
+   - `isWordBoundaryChar()` matches amp's `lx0` (whitespace) and `Ax0` (punctuation) character sets exactly.
+   - `selectWordAt()` uses `getWordBoundariesAt()` which collapses on boundary chars (matching amp behavior where clicking on punctuation selects nothing).
+   - `selectLineAt()` selects from line start to next line start (or end of text).
+   - Word-drag: `beginWordDrag`/`updateWordDrag`/`endWordDrag` with `_wordDragBaseRange` and `_mergeWordRanges()` for natural word-level drag selection.
+   - Auto-scroll: `setAutoScrollConfig()`/`updateAutoScroll(mouseY)`/`stopAutoScroll()` with interval timer for edge-proximity scrolling during drag.
+   - `dispose()` clears all timers (double-click, triple-click, auto-scroll, copy-highlight).
+
+**Consequences:**
+- 7 new slash commands bringing total to ~34 functional commands
+- Thread content now copyable (URL, ID, markdown) — key workflow commands
+- MCP server management from TUI without restarting flitter
+- Double-click word select / triple-click line select — fundamental text interaction
+- 88 new tests across 2 files, 0 type errors

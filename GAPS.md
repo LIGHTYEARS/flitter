@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 33)
+> **Last updated:** 2026-04-22 (iteration 34)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -97,6 +97,7 @@
 | GAP-TUI-21 | TUI | Table widget | Closed (iteration 32) |
 | GAP-TUI-22 | TUI | CompositedTransformFollower/Target | Closed (iteration 32) |
 | GAP-TUI-26 | TUI | TextField missing props | Closed (iteration 33) |
+| GAP-TUI-28 | TUI | SelectionArea double/triple-click | Closed (iteration 34) |
 
 ---
 
@@ -121,13 +122,13 @@
 | GAP-CLI-33 | `--log-level` / `--log-file` flags | **Closed (iteration 26)** — `--log-level <level>` and `--log-file <path>` flags in program.ts. Early argv scan in main.ts (supports `=` syntax). `setLogOutput()` in logger.ts redirects global log output. Matches amp's RF0 (modules/2004_unknown_RF0.js). Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. 2 new tests. |
 | GAP-CLI-34 | `--remote` flag | Server-side async agent execution (`-r` alongside `-x/--execute`). Requires server infrastructure. |
 | GAP-CLI-35 | `context: analyze` slash command | Token usage analysis overlay (amp requires Claude Opus 4.6 / GPT-5.4). No flitter equivalent. |
-| GAP-CLI-36 | `agents-md: generate/list` commands | Generate AGENTS.md from codebase analysis; list active AGENTS.md files. Missing from command palette/slash. |
+| GAP-CLI-36 | `agents-md: generate/list` commands | **Closed (iteration 34)** — `/agents-md-generate` sends amp's exact `qWT` prompt via `submitMessage`. `/agents-md-list` recursively discovers AGENTS.md/.agents.md/AGENT.md files (max depth 8, skips node_modules/.git). Matches amp's e0R.js:1105-1139. 28 new tests (shared file). |
 | GAP-CLI-37 | `skill: invoke` from TUI | **Closed (iteration 33)** — `/skill-invoke` slash command (aliases: `invoke-skill`, `use-skill`). No args → lists skills from `skillService.scan()`. With args → case-insensitive name match, invokes via `submitMessage("/skill <name>")`. Matches amp's `skill-invoke` customFlow at e0R.js:1797-1860 (simplified: text-based vs overlay picker). 11 new tests. |
 | GAP-CLI-38 | Thread navigation (prev/next/parent) | **Closed (iteration 33)** — `ThreadNavigationHistory` class with back/forward stacks matching amp's SrT (modules/2633:30-121). `recordNavigation()` pushes to back + clears forward. `navigateBack()`/`navigateForward()` pop/push between stacks. Three slash commands: `/back` (aliases: prev, previous), `/forward` (alias: next), `/parent` (filters relationships where role=parent). SlashCommandContext extended with navigation callbacks. 17 new tests. |
-| GAP-CLI-39 | Clipboard commands | Amp: `copy URL`, `copy ID`, `copy markdown`, `copy selection`, `paste image`. Flitter has none of these. |
+| GAP-CLI-39 | Clipboard commands | **Closed (iteration 34)** — `/copy-url` (constructs thread URL from appBaseUrl + threadId), `/copy-id` (writes threadId), `/copy-markdown` (converts thread messages to markdown with role headers + char count). All use `ctx.writeClipboard` with graceful fallback. Matches amp's e0R.js:341-467. |
 | GAP-CLI-40 | `/remove-label` | **Closed (iteration 26)** — `/remove-label` slash command filters target label from `snapshot.labels` array and updates thread via `setCachedThread`. Alias `/unlabel`. Matches amp's e0R:725-822 (simplified: local labels vs amp's server API). 6 new tests. |
 | GAP-CLI-41 | `permissions: enable/disable` toggle | Re-enable permissions after `--dangerously-allow-all`, or toggle it from TUI. |
-| GAP-CLI-42 | `mcp: status` / `mcp: reload` | MCP status modal and reload from TUI. Flitter's `/mcp` only shows help text. |
+| GAP-CLI-42 | `mcp: status` / `mcp: reload` | **Closed (iteration 34)** — `/mcp-reload` calls `mcpServerManager.restartServers()` with status message. `/mcp-status` formats server list with status icons (+/-/~/!), tool counts, error details. `mcpServerManager` added to `SlashCommandContext`. Matches amp's e0R.js:1321-1351. |
 | GAP-CLI-43 | `toolbox: list` | **Closed (iteration 26)** — `/toolbox` slash command lists discovered toolbox scripts with status icons (+/!/~). `ToolboxService` exposed on `ServiceContainer`. `SlashCommandContext.toolboxService` interface added. Alias `/toolbox-list`. Matches amp's e0R:1353-1362. 4 new tests. |
 | GAP-CLI-44 | `review` check runner | Amp's review has `--check-scope`, `--check-filter`, `--checks-only`, `--summary-only`. An integrated check runner subsystem. Flitter review has no check support. |
 
@@ -156,7 +157,7 @@
 | GAP-TUI-08 | ~~**IntrinsicHeight widget**~~ | **Closed (iteration 21)** |
 | GAP-TUI-10 | ~~**Overlay background fix**~~ | **Closed (iteration 21)** |
 | GAP-TUI-27 | **ForceDim InheritedWidget** | **Closed (iteration 25)** — `ForceDimWidget` InheritedWidget subclass with `maybeOf(ctx)`/`shouldForceDim(ctx)` static helpers matching amp's `CA` (misc_utils.js:91-114). `ContainerElement` overrides `mount()`/`performRebuild()` to read inherited dim state. 16 new tests. |
-| GAP-TUI-28 | **SelectionArea: double/triple-click, auto-scroll** | Amp: double-click selects word (500ms drag timer), triple-click selects line/paragraph, auto-scroll during drag, cursor shape changes, auto-copy with highlight flash. Flitter: basic drag only, immediate copy, no double/triple-click, no auto-scroll. |
+| GAP-TUI-28 | **SelectionArea: double/triple-click, auto-scroll** | **Closed (iteration 34)** — `recordClick()` tracks click count with 500ms timeout + position reset (capped at 3). Double-click: `selectWordAt()` with `isWordBoundaryChar()` matching amp's lx0/Ax0 sets. Triple-click: `selectLineAt()`. Word-drag: `beginWordDrag`/`updateWordDrag`/`endWordDrag` with base range merging. Auto-scroll: `setAutoScrollConfig`/`updateAutoScroll`/`stopAutoScroll` with interval timer. `dispose()` clears all timers. Matches amp's b1T (actions_intents.js:241-628). 60 new tests. |
 | GAP-TUI-29 | **Scrollable: `position: "bottom"` + pixel-mouse step** | **Closed (iteration 29)** — Added `position: "top" | "bottom"` prop to `Scrollable`/`ScrollViewport`/`RenderScrollable`. Bottom-stick: `_configureController()` sets `followMode` from position; `_bottomAnchorOffset` pushes short content to viewport bottom in paint; `ScrollController.followMode` gains setter. Scroll step detection was added in iteration 28. Matches amp's I3/v1T (chunk-006:4094-4220, 5896-5897). 4 new tests. |
 | GAP-TUI-30 | **Idle / focus tracking** | **Closed (iteration 29)** — `initFocusTracking(tui)` and `initIdleTracking(tui, idleMs)` in `terminal-tracking.ts`. Module-level globals for focused state and last-active timestamp. `getTerminalFocused()` / `getIsIdle()` exported. TuiController gains `onFocus`/`offFocus` + focus reporting (`DECSET ?1004`). Matches amp's FNR/GNR/dX/T5T (modules/1253_unknown_iUR.js:1-19). 10 new tests. |
 | GAP-TUI-31 | **Pixel-mouse support** | Amp detects `pixelMouse` + `pixelDimensions` via DECRQSS `?1016`, enables sub-character hit-testing. Not in flitter. |

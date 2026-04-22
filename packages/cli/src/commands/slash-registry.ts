@@ -131,6 +131,36 @@ export interface SlashCommandContext {
    * Used by /parent to jump to the parent thread.
    */
   switchToThread?: (threadId: string) => Promise<void>;
+
+  /**
+   * Write text to the system clipboard.
+   * 逆向: d9.instance.tuiInstance.clipboard.writeText(a) (e0R:348)
+   * Used by /copy-url, /copy-id, /copy-markdown.
+   * Returns true on success, false on failure.
+   */
+  writeClipboard?: (text: string) => Promise<boolean>;
+
+  /**
+   * Base URL used to construct thread URLs.
+   * 逆向: R.ampURL (e0R:346) — amp uses $P(new URL(R.ampURL), R.thread.id)
+   * If absent, /copy-url falls back to showing the raw thread ID.
+   */
+  appBaseUrl?: string;
+
+  /**
+   * MCP server manager for /mcp-reload and /mcp-status.
+   * 逆向: R.mcpService.restartServers() (e0R:1326)
+   * 逆向: R.showMCPStatusModal() (e0R:1350) — Flitter uses text output instead of modal
+   */
+  mcpServerManager?: {
+    restartServers(): void;
+    getServers(): Array<{
+      name: string;
+      status: "connected" | "connecting" | "disconnected" | "error";
+      toolCount?: number;
+      error?: string;
+    }>;
+  };
 }
 
 /**

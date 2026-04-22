@@ -1,7 +1,7 @@
 // packages/cli/src/widgets/__tests__/display-items.test.ts
 
 import { describe, expect, it } from "bun:test";
-import { type ToolItem, transformThreadToDisplayItems } from "../display-items";
+import { type MessageItem, type ToolItem, transformThreadToDisplayItems } from "../display-items";
 
 describe("transformThreadToDisplayItems", () => {
   it("transforms a simple user+assistant exchange into message items", () => {
@@ -301,5 +301,28 @@ describe("transformThreadToDisplayItems", () => {
       status: "in-progress",
       command: "sleep 10",
     });
+  });
+});
+
+describe("transformThreadToDisplayItems — info role", () => {
+  it("extracts manual_bash_invocation from info messages", () => {
+    const messages = [
+      {
+        role: "info" as const,
+        content: [
+          {
+            type: "manual_bash_invocation",
+            args: { cmd: "git status" },
+            hidden: false,
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe("message");
+    const msg = items[0] as MessageItem;
+    expect(msg.role).toBe("system");
+    expect(msg.text).toContain("git status");
   });
 });

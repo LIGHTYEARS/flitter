@@ -203,6 +203,29 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       continue;
     }
 
+    // 逆向: ux0 — info role messages with manual_bash_invocation
+    // Rendered as "$ cmd" or "$$ cmd" (hidden) in the system message style
+    if (msg.role === "info") {
+      if (typeof msg.content !== "string") {
+        for (const block of msg.content) {
+          if (block.type === "manual_bash_invocation" && block.args) {
+            const cmd = ((block as Record<string, unknown>).args as Record<string, unknown>)
+              .cmd as string;
+            const hidden = block.hidden === true;
+            if (cmd) {
+              flushActivityBuffer();
+              items.push({
+                type: "message",
+                role: "system",
+                text: `${hidden ? "$$" : "$"} ${cmd}`,
+              });
+            }
+          }
+        }
+      }
+      continue;
+    }
+
     // Extract text blocks and thinking blocks as items
     // 逆向: gB() in chunk-005.js:2089-2127 — iterates content blocks,
     // accumulates text into markdown items, emits ThinkingItem for type==="thinking"

@@ -1,6 +1,7 @@
 // packages/cli/src/widgets/__tests__/display-items.test.ts
+
 import { describe, expect, it } from "bun:test";
-import { transformThreadToDisplayItems } from "../display-items";
+import { type ToolItem, transformThreadToDisplayItems } from "../display-items";
 
 describe("transformThreadToDisplayItems", () => {
   it("transforms a simple user+assistant exchange into message items", () => {
@@ -226,7 +227,7 @@ describe("transformThreadToDisplayItems", () => {
     expect(items).toHaveLength(0);
   });
 
-  it("skips edit tools that are not done (W4 guard)", () => {
+  it("shows in-progress edit tools without diff (W4 guard removed)", () => {
     const messages = [
       {
         role: "assistant" as const,
@@ -243,8 +244,37 @@ describe("transformThreadToDisplayItems", () => {
       },
     ];
     const items = transformThreadToDisplayItems(messages);
-    // Edit with no result (in-progress) should be skipped per amp's W4 guard
-    expect(items).toHaveLength(0);
+    // Edit with no result (in-progress) should now be visible (no longer silently dropped)
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      type: "tool",
+      kind: "edit",
+      status: "in-progress",
+      path: "/tmp/a.ts",
+    });
+    expect((items[0] as ToolItem).diff).toBeUndefined();
+  });
+
+  it("emits edit tool items with in-progress status (no diff)", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tu-1",
+            name: "Edit",
+            input: { file_path: "src/app.ts", old_string: "a", new_string: "b" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const toolItem = items.find((i) => i.type === "tool");
+    expect(toolItem).toBeDefined();
+    expect((toolItem as ToolItem).status).toBe("in-progress");
+    expect((toolItem as ToolItem).kind).toBe("edit");
+    expect((toolItem as ToolItem).diff).toBeUndefined();
   });
 
   it("handles in-progress tool uses without results", () => {

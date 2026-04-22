@@ -1037,34 +1037,39 @@ export class ConversationViewState extends State<ConversationView> {
 /**
  * Get status icon for a tool status.
  *
- * 逆向: xW() function (2820_unknown_xW.js)
+ * 逆向: sE0() function (chunk-004.js:21126)
  * - done → "✓" (\u2713)
- * - error → "✕" (\u2715)
- * - in-progress → "⟳" (fallback; callers use BrailleSpinner.toBraille() for live animation)
- * - cancelled/rejected → "⊘"
+ * - error → "✗" (\u2717)
+ * - cancelled/rejected → "⊘" (\u2298)
+ * - blocked-on-user → "?"
+ * - in-progress/queued → "⋯" (\u22EF)
  */
 function _getStatusIcon(status: ToolItem["status"]): string {
   switch (status) {
     case "done":
       return "\u2713"; // ✓
     case "error":
-      return "\u2715"; // ✕
-    case "in-progress":
-      return "\u27F3"; // ⟳
+      return "\u2717"; // ✗
     case "cancelled":
     case "rejected-by-user":
       return "\u2298"; // ⊘
+    case "blocked-on-user":
+      return "?";
+    case "in-progress":
+    case "queued":
+      return "\u22EF"; // ⋯
   }
 }
 
 /**
  * Get status color for a tool status.
  *
- * 逆向: qr() function (2821_unknown_qr.js)
+ * 逆向: oE0() function (chunk-004.js:21143)
  * - done → toolSuccess (SUCCESS_COLOR)
  * - error → toolError (ERROR_COLOR_LOCAL)
  * - in-progress → toolRunning (TOOL_COLOR)
  * - cancelled/rejected → toolCancelled (CANCELLED_COLOR)
+ * - queued/blocked-on-user → waiting (TOOL_COLOR)
  */
 function _getStatusColor(status: ToolItem["status"]): Color {
   switch (status) {
@@ -1077,6 +1082,9 @@ function _getStatusColor(status: ToolItem["status"]): Color {
     case "cancelled":
     case "rejected-by-user":
       return CANCELLED_COLOR;
+    case "blocked-on-user":
+    case "queued":
+      return TOOL_COLOR; // waiting color
   }
 }
 
@@ -1117,24 +1125,29 @@ function _getToolDetail(tool: ToolItem): string | null {
 /**
  * Get status icon for an ActivityAction status.
  *
- * Uses same icon set as tool status but with the reduced status set
- * (ActivityAction only has done/error/cancelled/in-progress).
+ * Uses same icon set as tool status (逆向: sE0, chunk-004.js:21126).
+ * ActivityAction extends to include blocked-on-user and queued.
  */
 function _getActionStatusIcon(status: ActivityAction["status"]): string {
   switch (status) {
     case "done":
       return "\u2713"; // ✓
     case "error":
-      return "\u2715"; // ✕
-    case "in-progress":
-      return "\u27F3"; // ⟳
+      return "\u2717"; // ✗
     case "cancelled":
       return "\u2298"; // ⊘
+    case "blocked-on-user":
+      return "?";
+    case "in-progress":
+    case "queued":
+      return "\u22EF"; // ⋯
   }
 }
 
 /**
  * Get status color for an ActivityAction status.
+ *
+ * 逆向: oE0() function (chunk-004.js:21143)
  */
 function _getActionStatusColor(status: ActivityAction["status"]): Color {
   switch (status) {
@@ -1146,5 +1159,8 @@ function _getActionStatusColor(status: ActivityAction["status"]): Color {
       return TOOL_COLOR;
     case "cancelled":
       return CANCELLED_COLOR;
+    case "blocked-on-user":
+    case "queued":
+      return TOOL_COLOR; // waiting color
   }
 }

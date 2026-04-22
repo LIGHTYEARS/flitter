@@ -43,7 +43,14 @@ export interface ToolItem {
   toolUseId: string;
   toolName: string;
   kind: ToolKind;
-  status: "done" | "error" | "cancelled" | "rejected-by-user" | "in-progress";
+  status:
+    | "done"
+    | "error"
+    | "cancelled"
+    | "rejected-by-user"
+    | "in-progress"
+    | "blocked-on-user"
+    | "queued";
   // bash-specific (逆向: yx0 Bash branch)
   command?: string;
   output?: string;
@@ -67,7 +74,7 @@ export interface ActivityAction {
   kind: "read" | "search" | "list";
   toolName: string;
   toolUseId: string;
-  status: "done" | "error" | "cancelled" | "in-progress";
+  status: "done" | "error" | "cancelled" | "in-progress" | "blocked-on-user" | "queued";
 }
 
 /**
@@ -277,13 +284,14 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
         });
       } else if (EDIT_TOOLS.has(block.name)) {
-        // 逆向: yx0 `(p === "edit_file")` and `(p === "undo_edit")` branches
-        // 逆向: W4(m.status) guard — amp skips edit items unless status is "done"
-        if (status !== "done") continue;
+        // 逆向: yx0 edit_file branch
+        // Previously skipped non-done edits. Now show them without diff.
         flushActivityBuffer();
-        // 逆向: amp chunk-004.js:7793-7803 — diff field on edit tool result
+        // 逆向: amp chunk-004.js:7793-7803 — diff field on edit tool result (only when done)
         const diffText =
-          typeof block.input?.old_string === "string" && typeof block.input?.new_string === "string"
+          status === "done" &&
+          typeof block.input?.old_string === "string" &&
+          typeof block.input?.new_string === "string"
             ? generateSimpleDiff(
                 block.input.old_string as string,
                 block.input.new_string as string,
@@ -332,7 +340,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
 
   // Final flush (逆向: yx0 `l()` call after main loop, line 449)
   flushActivityBuffer();
-  return items;
+  return deduplicateEdits(items);
 }
 
 /**
@@ -354,6 +362,76 @@ function buildActivitySummary(actions: ActivityAction[]): string {
   if (counts.search) parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`);
   if (counts.list) parts.push(`${counts.list} list${counts.list > 1 ? "s" : ""}`);
   return parts.join(", ") || "activity";
+}
+
+// ─── Edit deduplication (Px0) ───────────────────────
+
+/**
+ * Merge consecutive edit/create-file tool items targeting the same file path.
+ *
+ * 逆向: Px0() in modules/2155_unknown_Px0.js
+ *
+ * Three merge cases:
+ * 1. edit + edit (same path): diffs concatenated, status from newer
+ * 2. create-file + create-file (same path): newer replaces older
+ * 3. create-file + edit (same path): merged into single edit
+ */
+export function deduplicateEdits(items: DisplayItem[]): DisplayItem[] {
+  if (items.length <= 1) return items;
+
+  const result: DisplayItem[] = [items[0]];
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = result[result.length - 1];
+    const curr = items[i];
+
+    // Only merge consecutive tool items (逆向: Px0 `e.type === "tool" && a.type === "tool"` guard)
+    if (prev.type !== "tool" || curr.type !== "tool") {
+      result.push(curr);
+      continue;
+    }
+
+    // Must have same path and both be file-related (逆向: t.path === r.path check)
+    const prevPath = prev.path;
+    const currPath = curr.path;
+    if (!prevPath || !currPath || prevPath !== currPath) {
+      result.push(curr);
+      continue;
+    }
+
+    // Case 1: edit + edit (逆向: Px0 lines 9-31)
+    if (prev.kind === "edit" && curr.kind === "edit") {
+      result[result.length - 1] = {
+        ...prev,
+        toolUseId: curr.toolUseId,
+        status: curr.status === "error" ? "error" : curr.status,
+        diff: prev.diff && curr.diff ? `${prev.diff}\n${curr.diff}` : (curr.diff ?? prev.diff),
+        error: curr.error ?? prev.error,
+      };
+      continue;
+    }
+
+    // Case 2: create-file + create-file (逆向: Px0 lines 32-44)
+    if (prev.kind === "create-file" && curr.kind === "create-file") {
+      result[result.length - 1] = { ...curr, toolUseId: prev.toolUseId };
+      continue;
+    }
+
+    // Case 3: create-file + edit (逆向: Px0 lines 45-67)
+    if (prev.kind === "create-file" && curr.kind === "edit") {
+      result[result.length - 1] = {
+        ...curr,
+        toolUseId: prev.toolUseId,
+        kind: "edit",
+        diff: curr.diff,
+      };
+      continue;
+    }
+
+    result.push(curr);
+  }
+
+  return result;
 }
 
 // ─── Streaming projection ───────────────────────────

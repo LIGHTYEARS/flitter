@@ -282,7 +282,10 @@ export class InputFieldState extends State<InputField> {
     const bottomRight = this.widget.config.bottomRightLabel ?? "";
     const bottomLeftStr = bottomLeft ? `${bottomLeft}\u2500` : "";
     const bottomRightStr = bottomRight ? `\u2500${bottomRight}` : "";
-    const bottomFillLen = Math.max(0, borderInnerWidth - bottomLeftStr.length - bottomRightStr.length);
+    const bottomFillLen = Math.max(
+      0,
+      borderInnerWidth - bottomLeftStr.length - bottomRightStr.length,
+    );
     const bottomBorder = `\u2570\u2500${bottomLeftStr}${"\u2500".repeat(bottomFillLen)}${bottomRightStr}\u2500\u256F`;
 
     return new Column({

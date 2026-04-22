@@ -30,7 +30,9 @@ import { resolveModel } from "@flitter/llm";
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Column,
+  EdgeInsets,
   Expanded,
+  Padding,
   Positioned,
   Scrollable,
   ScrollController,
@@ -528,18 +530,22 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
 
     // 逆向: jetbrains_wizard.js:4961-5006
     //   isTranscriptEmpty() ? brT (welcome screen) : G8R (conversation view)
+    // 逆向: f8R.build() (interactive_widgets.js:2721) — uR padding: left:2, right:2, bottom:1
     const conversationArea =
       displayItems.length === 0
         ? new WelcomeScreen({ productName: "Flitter" })
-        : new Scrollable({
-            controller: this._scrollController,
-            viewportBuilder: () =>
-              new ConversationView({
-                items: displayItems,
-                inferenceState:
-                  this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
-                error: this._error,
-              }),
+        : new Padding({
+            padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
+            child: new Scrollable({
+              controller: this._scrollController,
+              viewportBuilder: () =>
+                new ConversationView({
+                  items: displayItems,
+                  inferenceState:
+                    this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+                  error: this._error,
+                }),
+            }),
           });
 
     // 逆向: NQT (chunk-006.js:11009-11020) — Stack([child, Positioned(top:0, left:0, right:0, child: toastColumn)])

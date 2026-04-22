@@ -32,7 +32,6 @@ import {
   Container,
   EdgeInsets,
   Expanded,
-  GestureDetector,
   MarkdownParser,
   MarkdownRenderer,
   RichText,
@@ -146,7 +145,8 @@ const CANCELLED_COLOR = MUTED_TEXT_COLOR;
 /** 角色 -> {前缀, 颜色} 映射 */
 const ROLE_CONFIG: Record<string, { prefix: string; color: Color }> = {
   user: { prefix: "You: ", color: PRIMARY_COLOR },
-  assistant: { prefix: "Assistant: ", color: ACCENT_COLOR },
+  // 逆向: amp has NO assistant role prefix — only user messages get ┃ border
+  assistant: { prefix: "", color: ACCENT_COLOR },
   system: { prefix: "System: ", color: SECONDARY_COLOR },
 };
 
@@ -234,12 +234,6 @@ export class ConversationViewState extends State<ConversationView> {
    * 逆向: fJT._localExpanded + _thinkingBlockStates Map (chunk-006.js:16872, 28475)
    */
   private _expandedThinking: Set<number> = new Set();
-
-  /**
-   * Set of item indices for expanded activity groups.
-   * 逆向: n8R — stateController.denseViewItemStates local expand/collapse state
-   */
-  private _expandedActivityGroups: Set<number> = new Set();
 
   /**
    * ScrollController for conversation auto-scroll (followMode: true).
@@ -490,7 +484,14 @@ export class ConversationViewState extends State<ConversationView> {
       ? this._renderer.renderStreaming(ast)
       : this._renderer.render(ast);
 
-    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" })];
+    const children: TextSpan[] = [];
+
+    // Only add role prefix if non-empty
+    // 逆向: amp has NO assistant prefix — only user messages get ┃ border
+    if (roleConfig.prefix) {
+      children.push(roleSpan, new TextSpan({ text: "\n" }));
+    }
+
     if (item.images && item.images > 0) {
       children.push(...this._buildImageLabels(item.images));
     }
@@ -777,126 +778,25 @@ export class ConversationViewState extends State<ConversationView> {
   }
 
   /**
-   * Build an ActivityGroupItem widget — renders activity group with optional tree lines.
+   * Build an ActivityGroupItem widget — renders each action individually.
    *
-   * Matches amp's Y1T pattern (actions_intents.js 1839-1872) for simple groups:
-   *   {spinner|✓} {summary(toolName color)}
-   *
-   * B3: When actions are present, renders each action with tree-line box-drawing:
-   *   ├── {statusIcon} {toolName} {detail}
-   *   ╰── {statusIcon} {toolName} {detail}
-   *
-   * When isSubagent, shows "Subagent {label}" header.
-   *
-   * 逆向: Y1T build() line 1846-1853 (summary row),
-   *        chunk-006.js:28457-28786 (subagent nested rendering via uR padding),
-   *        tree decorators ├── and ╰──
+   * 逆向: x3/B9R/W9R (misc_utils.js:6280-8127) — each tool rendered individually
+   * as "{icon} {toolName} {path/detail}" rather than a grouped summary.
+   * B9R (Read) shows R.input.path, W9R (Grep) shows R.input.pattern.
    *
    * @param group - ActivityGroupItem from DisplayItem[]
-   * @param itemIndex - Index in items array, used for expand/collapse state tracking
-   * @returns Activity group Widget
+   * @param _itemIndex - Index in items array (unused here — no collapse in individual mode)
+   * @returns Column of individual tool-action rows
    */
-  private _buildActivityGroupWidget(group: ActivityGroupItem, itemIndex?: number): Widget {
-    const hasActions = !!(group.actions && group.actions.length > 0);
-    const isExpanded = itemIndex !== undefined && this._expandedActivityGroups.has(itemIndex);
-
-    // Header line: spinner/checkmark + label
-    const headerSpans: TextSpan[] = [];
-
-    if (group.hasInProgress) {
-      headerSpans.push(
-        new TextSpan({
-          text: `${this._spinner.toBraille()} `,
-          style: new TextStyle({ foreground: TOOL_COLOR }),
-        }),
-      );
-    } else {
-      headerSpans.push(
-        new TextSpan({
-          text: "\u2713 ",
-          style: new TextStyle({ foreground: SUCCESS_COLOR }),
-        }),
-      );
-    }
-
-    // B3: Subagent header — 逆向: chunk-006.js:28457 qv class
-    if (group.isSubagent) {
-      const label = group.subagentLabel ?? "Subagent";
-      headerSpans.push(
-        new TextSpan({
-          text: `Subagent ${label}`,
-          style: new TextStyle({ foreground: TOOL_COLOR }),
-        }),
-      );
-    } else {
-      // Summary text
-      headerSpans.push(
-        new TextSpan({
-          text: group.summary,
-          style: new TextStyle({ foreground: DIM_COLOR }),
-        }),
-      );
-    }
-
-    // Add expand/collapse indicator for groups with actions
-    // 逆向: n8R — stateController.denseViewItemStates local expand/collapse state
-    if (hasActions) {
-      headerSpans.push(
-        new TextSpan({
-          text: isExpanded ? " \u25BC" : " \u25B6", // ▼ or ▶
-          style: new TextStyle({ foreground: DIM_COLOR }),
-        }),
-      );
-    }
-
-    // Wrap header in GestureDetector for click-to-toggle
-    // 逆向: n8R — click toggles denseViewItemState expand/collapse
-    const headerRow = new GestureDetector({
-      onTap:
-        hasActions && itemIndex !== undefined
-          ? () => {
-              this.setState(() => {
-                if (this._expandedActivityGroups.has(itemIndex)) {
-                  this._expandedActivityGroups.delete(itemIndex);
-                } else {
-                  this._expandedActivityGroups.add(itemIndex);
-                }
-              });
-            }
-          : undefined,
-      child: new RichText({
-        text: new TextSpan({ children: headerSpans }),
-      }),
-    });
-
-    // B3: If actions exist and expanded, render tree lines — 逆向: chunk-006.js:28586-28606
-    //   uR padding left:2, nested Jb (Column) with tool widgets
-    //   Tree decorators: ├── for non-last, ╰── for last
-    if (!isExpanded || !hasActions) {
-      return headerRow;
-    }
-
-    const INDENT = "    "; // 4 spaces indent for nested actions
+  private _buildActivityGroupWidget(group: ActivityGroupItem, _itemIndex?: number): Widget {
     const actionWidgets: Widget[] = [];
 
-    for (let i = 0; i < group.actions!.length; i++) {
-      const action = group.actions![i];
-      const isLast = i === group.actions!.length - 1;
-      const treeChar = isLast ? "\u2570\u2500\u2500" : "\u251C\u2500\u2500"; // ╰── or ├──
+    for (const action of group.actions) {
+      const spans: TextSpan[] = [];
 
-      const actionSpans: TextSpan[] = [];
-
-      // Tree connector
-      actionSpans.push(
-        new TextSpan({
-          text: `${INDENT}${treeChar} `,
-          style: new TextStyle({ foreground: DIM_COLOR }),
-        }),
-      );
-
-      // Status icon for action
+      // Status icon
       if (action.status === "in-progress") {
-        actionSpans.push(
+        spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
             style: new TextStyle({ foreground: TOOL_COLOR }),
@@ -905,7 +805,7 @@ export class ConversationViewState extends State<ConversationView> {
       } else {
         const icon = _getActionStatusIcon(action.status);
         const color = _getActionStatusColor(action.status);
-        actionSpans.push(
+        spans.push(
           new TextSpan({
             text: `${icon} `,
             style: new TextStyle({ foreground: color }),
@@ -913,23 +813,36 @@ export class ConversationViewState extends State<ConversationView> {
         );
       }
 
-      // Tool name
-      actionSpans.push(
+      // Tool name (bold)
+      spans.push(
         new TextSpan({
           text: action.toolName,
-          style: new TextStyle({ foreground: TOOL_COLOR }),
+          style: new TextStyle({ foreground: TOOL_COLOR, bold: true }),
         }),
       );
 
+      // File path / detail
+      // 逆向: B9R R.input.path (misc_utils.js:7789), W9R R.input.pattern (misc_utils.js:8107)
+      const toolDetail = action.path || action.detail;
+      if (toolDetail) {
+        spans.push(
+          new TextSpan({
+            text: ` ${toolDetail}`,
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
+          }),
+        );
+      }
+
       actionWidgets.push(
         new RichText({
-          text: new TextSpan({ children: actionSpans }),
+          text: new TextSpan({ children: spans }),
         }),
       );
     }
 
     return new Column({
-      children: [headerRow, ...actionWidgets],
+      mainAxisSize: "min",
+      children: actionWidgets,
     });
   }
 

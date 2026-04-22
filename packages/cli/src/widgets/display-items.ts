@@ -79,6 +79,11 @@ export interface ActivityAction {
   toolName: string;
   toolUseId: string;
   status: "done" | "error" | "cancelled" | "in-progress" | "blocked-on-user" | "queued";
+  /** File path for Read, pattern/glob for search tools
+   * 逆向: B9R (misc_utils.js:7776) R.input.path, W9R (misc_utils.js:8088) R.input.pattern */
+  path?: string;
+  /** Additional detail (pattern for search, range for read) */
+  detail?: string;
 }
 
 /**
@@ -308,12 +313,27 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       // Classify the tool (逆向: yx0 if/else chain)
       if (ACTIVITY_TOOLS[block.name]) {
         // 逆向: yx0 `c()` calls for Read, Grep, Glob, file_tree, etc.
+        // 逆向: B9R (misc_utils.js:7776) R.input.path, W9R (misc_utils.js:8088) R.input.pattern
+        const toolPath =
+          typeof block.input?.file_path === "string"
+            ? (block.input.file_path as string)
+            : typeof block.input?.path === "string"
+              ? (block.input.path as string)
+              : undefined;
+        const toolDetail =
+          typeof block.input?.pattern === "string"
+            ? (block.input.pattern as string)
+            : typeof block.input?.glob === "string"
+              ? (block.input.glob as string)
+              : undefined;
         activityBuffer.push({
           kind: ACTIVITY_TOOLS[block.name],
           toolName: block.name,
           toolUseId: block.id,
           status:
             status === "rejected-by-user" ? "cancelled" : (status as ActivityAction["status"]),
+          path: toolPath,
+          detail: toolDetail,
         });
       } else if (BASH_TOOLS.has(block.name)) {
         // 逆向: yx0 `(p === "Bash" || p === "shell_command")` branch

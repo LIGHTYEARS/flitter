@@ -304,6 +304,41 @@ describe("transformThreadToDisplayItems", () => {
   });
 });
 
+describe("transformThreadToDisplayItems — image blocks", () => {
+  it("extracts image blocks into MessageItem.images array", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "image", source: { type: "base64", data: "abc123" } },
+          { type: "text", text: "What is this?" },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe("message");
+    const msg = items[0] as { type: "message"; images?: number };
+    expect(msg.images).toBe(1);
+  });
+
+  it("counts multiple image blocks", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [
+          { type: "image", source: { type: "base64", data: "a" } },
+          { type: "image", source: { type: "base64", data: "b" } },
+          { type: "text", text: "Compare these" },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const msg = items[0] as { type: "message"; images?: number };
+    expect(msg.images).toBe(2);
+  });
+});
+
 describe("transformThreadToDisplayItems — info role", () => {
   it("extracts manual_bash_invocation from info messages", () => {
     const messages = [

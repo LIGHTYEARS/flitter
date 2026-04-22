@@ -28,6 +28,8 @@ export interface MessageItem {
   text: string;
   /** Whether this message is currently streaming (逆向: msg.state?.type === "streaming") */
   isStreaming?: boolean;
+  /** Number of image content blocks in this message (逆向: _8R image rendering) */
+  images?: number;
 }
 
 /**
@@ -231,6 +233,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
     // accumulates text into markdown items, emits ThinkingItem for type==="thinking"
     const textParts: string[] = [];
     const pendingItems: DisplayItem[] = [];
+    let imageCount = 0;
 
     const flushTextParts = () => {
       if (textParts.length === 0) return;
@@ -247,6 +250,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             role: msg.role,
             text: joined,
             ...(msg.state?.type === "streaming" ? { isStreaming: true } : {}),
+            ...(imageCount > 0 ? { images: imageCount } : {}),
           });
         }
       }
@@ -264,6 +268,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           text: block.thinking as string,
           isExpanded: false,
         });
+      } else if (block.type === "image") {
+        imageCount++;
       }
     }
     flushTextParts();

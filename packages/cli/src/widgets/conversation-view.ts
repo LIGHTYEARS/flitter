@@ -490,7 +490,11 @@ export class ConversationViewState extends State<ConversationView> {
       ? this._renderer.renderStreaming(ast)
       : this._renderer.render(ast);
 
-    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans];
+    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" })];
+    if (item.images && item.images > 0) {
+      children.push(...this._buildImageLabels(item.images));
+    }
+    children.push(...contentSpans);
 
     // 逆向: x8R — append block cursor █ in accent color for streaming messages
     if (item.isStreaming) {
@@ -510,6 +514,29 @@ export class ConversationViewState extends State<ConversationView> {
   }
 
   /**
+   * Build [image N] label spans for image content blocks.
+   * 逆向: _8R (1953_unknown__8R.js:23-27) — underlined italic labels
+   */
+  private _buildImageLabels(count: number): TextSpan[] {
+    const spans: TextSpan[] = [];
+    for (let i = 0; i < count; i++) {
+      if (i > 0) spans.push(new TextSpan({ text: " " }));
+      spans.push(
+        new TextSpan({
+          text: `[image ${i + 1}]`,
+          style: new TextStyle({
+            underline: true,
+            foreground: MUTED_TEXT_COLOR,
+            italic: true,
+          }),
+        }),
+      );
+    }
+    spans.push(new TextSpan({ text: "\n" }));
+    return spans;
+  }
+
+  /**
    * Build a user message with left border decoration.
    *
    * 逆向: S$ widget (chunk-006.js:31134-31143)
@@ -521,8 +548,15 @@ export class ConversationViewState extends State<ConversationView> {
     const ast = this._parser.parse(item.text);
     const contentSpans = this._renderer.render(ast);
 
+    // Prepend image labels if images exist
+    const allSpans: TextSpan[] = [];
+    if (item.images && item.images > 0) {
+      allSpans.push(...this._buildImageLabels(item.images));
+    }
+    allSpans.push(...contentSpans);
+
     const content = new RichText({
-      text: new TextSpan({ children: contentSpans }),
+      text: new TextSpan({ children: allSpans }),
     });
 
     return new Container({

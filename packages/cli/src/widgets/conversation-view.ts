@@ -443,6 +443,11 @@ export class ConversationViewState extends State<ConversationView> {
    * Build a MessageItem widget (DisplayItem path).
    *
    * Same as legacy _buildMessageWidget but reads `text` instead of `content`.
+   * When item.isStreaming is true, uses renderStreaming() to strip trailing empty
+   * paragraphs and appends a block cursor character.
+   *
+   * 逆向: amp-cli-reversed/modules/1959_unknown_x8R.js — uses renderStreaming() for
+   * streaming messages, renders trailing cursor block █ in accent color.
    *
    * @param item - MessageItem from DisplayItem[]
    * @returns Message Widget
@@ -462,11 +467,26 @@ export class ConversationViewState extends State<ConversationView> {
     });
 
     const ast = this._parser.parse(item.text);
-    const contentSpans = this._renderer.render(ast);
+    // 逆向: x8R — use renderStreaming() for streaming messages (strips trailing empty paragraphs)
+    const contentSpans = item.isStreaming
+      ? this._renderer.renderStreaming(ast)
+      : this._renderer.render(ast);
+
+    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans];
+
+    // 逆向: x8R — append block cursor █ in accent color for streaming messages
+    if (item.isStreaming) {
+      children.push(
+        new TextSpan({
+          text: "\u2588", // █ block cursor
+          style: new TextStyle({ foreground: ACCENT_COLOR }),
+        }),
+      );
+    }
 
     return new RichText({
       text: new TextSpan({
-        children: [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans],
+        children,
       }),
     });
   }

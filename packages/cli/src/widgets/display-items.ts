@@ -26,6 +26,8 @@ export interface MessageItem {
   type: "message";
   role: "user" | "assistant" | "system";
   text: string;
+  /** Whether this message is currently streaming (逆向: msg.state?.type === "streaming") */
+  isStreaming?: boolean;
 }
 
 /**
@@ -127,7 +129,7 @@ const HIDDEN_TOOLS = new Set(["thread_status"]);
 
 // ─── Raw message types ───────────────────────────────
 
-interface RawContentBlock {
+export interface RawContentBlock {
   type: string;
   text?: string;
   thinking?: string;
@@ -138,12 +140,6 @@ interface RawContentBlock {
   toolUseID?: string;
   run?: { status: string; result?: unknown; error?: { message: string; errorCode?: string } };
   [key: string]: unknown;
-}
-
-interface RawMessage {
-  role: "user" | "assistant" | "system" | "info";
-  content: string | RawContentBlock[];
-  state?: { type: string };
 }
 
 // ─── Transformer ─────────────────────────────────────
@@ -216,7 +212,12 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
         const contentArr = msg.content as RawContentBlock[];
         const hasToolResults = contentArr.some((b) => b.type === "tool_result");
         if (!hasToolResults || joined.trim()) {
-          pendingItems.push({ type: "message", role: msg.role, text: joined });
+          pendingItems.push({
+            type: "message",
+            role: msg.role,
+            text: joined,
+            ...(msg.state?.type === "streaming" ? { isStreaming: true } : {}),
+          });
         }
       }
       textParts.length = 0;
@@ -353,4 +354,40 @@ function buildActivitySummary(actions: ActivityAction[]): string {
   if (counts.search) parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`);
   if (counts.list) parts.push(`${counts.list} list${counts.list > 1 ? "s" : ""}`);
   return parts.join(", ") || "activity";
+}
+
+// ─── Streaming projection ───────────────────────────
+
+/**
+ * The exported RawMessage shape used by projectStreamingMessage.
+ * Internal alias exposed for use in thread-state-widget.ts.
+ */
+export interface RawMessage {
+  role: "user" | "assistant" | "system" | "info";
+  content: string | RawContentBlock[];
+  state?: { type: string };
+}
+
+/**
+ * Project a synthetic assistant message from streaming content blocks.
+ *
+ * 逆向: Wp0() in modules/0374_unknown_Wp0.js
+ *   function Wp0(streamingMessageId, streamingBlocks, messageCount, parentToolUseId) {
+ *     if (!streamingMessageId || streamingBlocks.length === 0) return null;
+ *     return { role: "assistant", content: streamingBlocks,
+ *              state: { type: "streaming" }, ... };
+ *   }
+ *
+ * Returns null if there are no streaming blocks or no active streaming message.
+ */
+export function projectStreamingMessage(
+  streamingBlocks: RawContentBlock[],
+  streamingMessageId: string | null,
+): RawMessage | null {
+  if (!streamingMessageId || streamingBlocks.length === 0) return null;
+  return {
+    role: "assistant",
+    content: streamingBlocks,
+    state: { type: "streaming" },
+  };
 }

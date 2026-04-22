@@ -49,7 +49,7 @@ import type { ApprovalRequest } from "./approval-widget.js";
 import { ApprovalWidget } from "./approval-widget.js";
 import { ConversationView } from "./conversation-view.js";
 import type { DisplayItem } from "./display-items.js";
-import { transformThreadToDisplayItems } from "./display-items.js";
+import { projectStreamingMessage, transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
 import { StatusBar } from "./status-bar.js";
@@ -171,6 +171,22 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** Whether the model has started streaming tokens */
   private _hasStartedStreaming = false;
 
+  /** Accumulated streaming content blocks (逆向: deltaState.streamingBlocks) */
+  private _streamingBlocks: Array<{
+    type: string;
+    text?: string;
+    thinking?: string;
+    [key: string]: unknown;
+  }> = [];
+
+  /** Active streaming message ID (逆向: deltaState.streamingMessageId) */
+  private _streamingMessageId: string | null = null;
+
+  /** Last thread snapshot for rebuilding items on streaming deltas */
+  private _lastSnapshot: {
+    messages?: Array<{ role: string; content: unknown; state?: unknown }>;
+  } | null = null;
+
   /** 推理错误 */
   private _error: Error | null = null;
 
@@ -260,11 +276,25 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         const snap = snapshot as {
           messages?: Array<{ role: string; content: unknown; state?: unknown }>;
         };
+        this._lastSnapshot = snap;
         this.setState(() => {
           // 逆向: yx0() pipeline — transform raw thread messages into DisplayItems
           this._items = transformThreadToDisplayItems(
             (snap.messages ?? []) as Parameters<typeof transformThreadToDisplayItems>[0],
           );
+          // 逆向: ttT.emitThread() — append projected streaming message
+          if (this._streamingBlocks.length > 0 && this._streamingMessageId) {
+            const projected = projectStreamingMessage(
+              this._streamingBlocks as Parameters<typeof projectStreamingMessage>[0],
+              this._streamingMessageId,
+            );
+            if (projected) {
+              const projectedItems = transformThreadToDisplayItems([projected] as Parameters<
+                typeof transformThreadToDisplayItems
+              >[0]);
+              this._items = [...this._items, ...projectedItems];
+            }
+          }
         });
         // 自动滚动到底部 (新消息到达时)
         if (this._scrollController.followMode) {
@@ -292,14 +322,41 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
             this._hasStartedStreaming = false;
           });
           break;
-        case "inference:delta":
-          // First token arrived — switch from "Waiting for response" to "Streaming"
-          if (!this._hasStartedStreaming) {
-            this.setState(() => {
-              this._hasStartedStreaming = true;
-            });
+        case "inference:delta": {
+          const delta = ev as {
+            type: string;
+            blockType?: string;
+            text?: string;
+            thinking?: string;
+            messageId?: string;
+            blockIndex?: number;
+          };
+          // 逆向: qp0(R, this.deltaState) in ttT — accumulate streaming blocks
+          if (delta.messageId && !this._streamingMessageId) {
+            this._streamingMessageId = delta.messageId;
           }
+          if (delta.blockType === "text" || (!delta.blockType && delta.text)) {
+            const lastBlock = this._streamingBlocks[this._streamingBlocks.length - 1];
+            if (lastBlock?.type === "text") {
+              lastBlock.text = (lastBlock.text ?? "") + (delta.text ?? "");
+            } else {
+              this._streamingBlocks.push({ type: "text", text: delta.text ?? "" });
+            }
+          } else if (delta.blockType === "thinking") {
+            const lastBlock = this._streamingBlocks[this._streamingBlocks.length - 1];
+            if (lastBlock?.type === "thinking") {
+              lastBlock.thinking = (lastBlock.thinking ?? "") + (delta.thinking ?? "");
+            } else {
+              this._streamingBlocks.push({ type: "thinking", thinking: delta.thinking ?? "" });
+            }
+          }
+          this.setState(() => {
+            this._hasStartedStreaming = true;
+            // Rebuild items with streaming projection appended
+            this._rebuildItems();
+          });
           break;
+        }
         case "inference:complete": {
           this.setState(() => {
             this._inferenceState = "idle";
@@ -307,6 +364,9 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               this._totalInputTokens += ev.usage.inputTokens;
               this._totalOutputTokens += ev.usage.outputTokens;
             }
+            // Clear streaming accumulation — completed messages come via thread snapshot
+            this._streamingBlocks = [];
+            this._streamingMessageId = null;
           });
           break;
         }
@@ -320,6 +380,9 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           this.setState(() => {
             this._inferenceState = "idle";
             this._error = null;
+            // Clear streaming accumulation
+            this._streamingBlocks = [];
+            this._streamingMessageId = null;
           });
           break;
         case "tool:start":
@@ -368,6 +431,33 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           break;
       }
     });
+  }
+
+  /**
+   * Rebuild display items from the last thread snapshot, appending any active
+   * streaming projection. Called from the inference:delta handler so the UI
+   * updates on every token arrival.
+   *
+   * 逆向: ttT.emitThread() — calls Wp0() and appends the synthetic streaming
+   * message to the messages array before emitting to subscribers.
+   */
+  private _rebuildItems(): void {
+    if (!this._lastSnapshot) return;
+    this._items = transformThreadToDisplayItems(
+      (this._lastSnapshot.messages ?? []) as Parameters<typeof transformThreadToDisplayItems>[0],
+    );
+    if (this._streamingBlocks.length > 0 && this._streamingMessageId) {
+      const projected = projectStreamingMessage(
+        this._streamingBlocks as Parameters<typeof projectStreamingMessage>[0],
+        this._streamingMessageId,
+      );
+      if (projected) {
+        const projectedItems = transformThreadToDisplayItems([projected] as Parameters<
+          typeof transformThreadToDisplayItems
+        >[0]);
+        this._items = [...this._items, ...projectedItems];
+      }
+    }
   }
 
   /**

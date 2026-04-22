@@ -42,6 +42,7 @@ import type { Subscription } from "@flitter/util";
 
 import type { ApprovalRequest } from "./approval-widget.js";
 import { ApprovalWidget } from "./approval-widget.js";
+import { BottomStatusLine } from "./bottom-status-line.js";
 import { ConversationView } from "./conversation-view.js";
 import type { DisplayItem } from "./display-items.js";
 import { projectStreamingMessage, transformThreadToDisplayItems } from "./display-items.js";
@@ -561,6 +562,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               },
             })
           : new InputField({ onSubmit, promptHistory: this._promptHistory }),
+        // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
+        new BottomStatusLine({
+          inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+          hasStartedStreaming: this._hasStartedStreaming,
+          runningToolCount: this._runningToolCount,
+          waitingForApproval: this._waitingForApproval,
+        }),
       ],
     });
   }

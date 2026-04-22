@@ -30,6 +30,8 @@ export interface MessageItem {
   isStreaming?: boolean;
   /** Number of image content blocks in this message (逆向: _8R image rendering) */
   images?: number;
+  /** Token usage for this assistant message (逆向: NJT feature flag) */
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 /**
@@ -277,6 +279,20 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
     if (pendingItems.length > 0) {
       flushActivityBuffer();
       items.push(...pendingItems);
+    }
+
+    // After the content-block loop, check for usage on assistant messages
+    // 逆向: x8R._buildAssistantMessageWidget appends token usage summary
+    if (msg.role === "assistant") {
+      const rawUsage = (msg as Record<string, unknown>).usage as
+        | { inputTokens: number; outputTokens: number }
+        | undefined;
+      if (rawUsage && pendingItems.length > 0) {
+        const lastItem = pendingItems[pendingItems.length - 1];
+        if (lastItem.type === "message" && lastItem.role === "assistant") {
+          lastItem.usage = rawUsage;
+        }
+      }
     }
 
     // Process tool_use blocks (逆向: yx0 main classification switch)

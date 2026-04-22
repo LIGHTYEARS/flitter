@@ -506,11 +506,25 @@ export class ConversationViewState extends State<ConversationView> {
       );
     }
 
-    return new RichText({
+    const messageWidget = new RichText({
       text: new TextSpan({
         children,
       }),
     });
+
+    // Token usage display (逆向: NJT feature flag)
+    if (item.role === "assistant" && item.usage) {
+      const usageText = `─ ${item.usage.inputTokens} input · ${item.usage.outputTokens} output`;
+      const usageWidget = new RichText({
+        text: new TextSpan({
+          text: usageText,
+          style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
+        }),
+      });
+      return new Column({ children: [messageWidget, usageWidget] });
+    }
+
+    return messageWidget;
   }
 
   /**

@@ -388,3 +388,24 @@ describe("transformThreadToDisplayItems — interrupted messages", () => {
     expect((items[0] as any).interrupted).toBeUndefined();
   });
 });
+
+describe("transformThreadToDisplayItems — discoveredGuidanceFiles", () => {
+  it("passes discoveredGuidanceFiles from raw user message", () => {
+    const messages = [
+      {
+        role: "user" as const,
+        content: [{ type: "text", text: "Hello" }],
+        discoveredGuidanceFiles: [
+          { uri: "/project/CLAUDE.md", lineCount: 42 },
+          { uri: "/project/.claude/settings.json", lineCount: 15 },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages as any);
+    expect(items).toHaveLength(1);
+    const msg = items[0] as any;
+    expect(msg.discoveredGuidanceFiles).toHaveLength(2);
+    expect(msg.discoveredGuidanceFiles[0].uri).toBe("/project/CLAUDE.md");
+    expect(msg.discoveredGuidanceFiles[0].lineCount).toBe(42);
+  });
+});

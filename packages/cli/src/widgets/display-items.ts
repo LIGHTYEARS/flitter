@@ -34,6 +34,8 @@ export interface MessageItem {
   usage?: { inputTokens: number; outputTokens: number };
   /** Whether this user message was interrupted (逆向: S$ widget — R.interrupted → e.warning border) */
   interrupted?: boolean;
+  /** Guidance files discovered for this user message (逆向: b8R widget) */
+  discoveredGuidanceFiles?: Array<{ uri: string; lineCount: number }>;
 }
 
 /**
@@ -303,6 +305,12 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             ...(msg.state?.type === "streaming" ? { isStreaming: true } : {}),
             ...(imageCount > 0 ? { images: imageCount } : {}),
             ...((msg as Record<string, unknown>).interrupted === true ? { interrupted: true } : {}),
+            ...(Array.isArray((msg as Record<string, unknown>).discoveredGuidanceFiles)
+              ? {
+                  discoveredGuidanceFiles: (msg as Record<string, unknown>)
+                    .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>,
+                }
+              : {}),
           });
         }
       }

@@ -591,7 +591,7 @@ export class ConversationViewState extends State<ConversationView> {
 
     const borderColor = item.interrupted ? WARNING_COLOR : SECONDARY_COLOR;
 
-    return new Container({
+    const borderWidget = new Container({
       decoration: new BoxDecoration({
         border: new Border(
           undefined, // top
@@ -603,6 +603,24 @@ export class ConversationViewState extends State<ConversationView> {
       padding: EdgeInsets.only({ left: 1 }),
       child: content,
     });
+
+    // 逆向: b8R — render discovered guidance files below user message
+    if (item.discoveredGuidanceFiles && item.discoveredGuidanceFiles.length > 0) {
+      const guidanceWidgets: Widget[] = item.discoveredGuidanceFiles.map((file) => {
+        const basename = file.uri.split("/").pop() ?? file.uri;
+        return new RichText({
+          text: new TextSpan({
+            text: `Loaded ${basename} (${file.lineCount} lines)`,
+            style: new TextStyle({ foreground: SUCCESS_COLOR, dim: true }),
+          }),
+        });
+      });
+      return new Column({
+        children: [borderWidget, ...guidanceWidgets],
+      });
+    }
+
+    return borderWidget;
   }
 
   /**

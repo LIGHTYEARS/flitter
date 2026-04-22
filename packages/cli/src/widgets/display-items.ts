@@ -249,7 +249,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             if (toolRun) {
               // 逆向: yx0 manualBashInvocation → bash ToolItem with output/exitCode/error
               flushActivityBuffer();
-              const msgId = (msg as Record<string, unknown>).messageId ?? "info";
+              const msgId = (msg as unknown as Record<string, unknown>).messageId ?? "info";
               items.push({
                 type: "tool",
                 toolUseId: `manual-bash:${msgId}:${blockIdx}`,
@@ -304,10 +304,12 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             text: joined,
             ...(msg.state?.type === "streaming" ? { isStreaming: true } : {}),
             ...(imageCount > 0 ? { images: imageCount } : {}),
-            ...((msg as Record<string, unknown>).interrupted === true ? { interrupted: true } : {}),
-            ...(Array.isArray((msg as Record<string, unknown>).discoveredGuidanceFiles)
+            ...((msg as unknown as Record<string, unknown>).interrupted === true
+              ? { interrupted: true }
+              : {}),
+            ...(Array.isArray((msg as unknown as Record<string, unknown>).discoveredGuidanceFiles)
               ? {
-                  discoveredGuidanceFiles: (msg as Record<string, unknown>)
+                  discoveredGuidanceFiles: (msg as unknown as Record<string, unknown>)
                     .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>,
                 }
               : {}),

@@ -23,10 +23,16 @@
 
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
+  Border,
+  BorderSide,
+  BoxDecoration,
   BrailleSpinner,
   Color,
   Column,
+  Container,
+  EdgeInsets,
   Expanded,
+  GestureDetector,
   MarkdownParser,
   MarkdownRenderer,
   RichText,
@@ -230,6 +236,12 @@ export class ConversationViewState extends State<ConversationView> {
   private _expandedThinking: Set<number> = new Set();
 
   /**
+   * Set of item indices for expanded activity groups.
+   * 逆向: n8R — stateController.denseViewItemStates local expand/collapse state
+   */
+  private _expandedActivityGroups: Set<number> = new Set();
+
+  /**
    * ScrollController for conversation auto-scroll (followMode: true).
    * 逆向: amp conversation auto-scrolls to bottom
    */
@@ -367,7 +379,7 @@ export class ConversationViewState extends State<ConversationView> {
           children.push(this._buildToolWidget(item));
           break;
         case "activity-group":
-          children.push(this._buildActivityGroupWidget(item));
+          children.push(this._buildActivityGroupWidget(item, i));
           break;
         case "thinking":
           children.push(this._buildThinkingWidget(item, i));
@@ -453,6 +465,12 @@ export class ConversationViewState extends State<ConversationView> {
    * @returns Message Widget
    */
   private _buildMessageItemWidget(item: MessageItem): Widget {
+    // 逆向: S$ widget — user messages get left border, not role prefix
+    if (item.role === "user") {
+      return this._buildUserMessageWidget(item);
+    }
+
+    // Assistant/system messages keep the role prefix + markdown
     const roleConfig = ROLE_CONFIG[item.role] ?? {
       prefix: `${item.role}: `,
       color: MUTED_TEXT_COLOR,
@@ -488,6 +506,36 @@ export class ConversationViewState extends State<ConversationView> {
       text: new TextSpan({
         children,
       }),
+    });
+  }
+
+  /**
+   * Build a user message with left border decoration.
+   *
+   * 逆向: S$ widget (chunk-006.js:31134-31143)
+   *   decoration: { border: new h9(void 0, void 0, void 0, new e9(r, 2, "solid")) }
+   *   padding: TR.only({ left: 1 })
+   *   Color: e.success for normal, e.warning for interrupted
+   */
+  private _buildUserMessageWidget(item: MessageItem): Widget {
+    const ast = this._parser.parse(item.text);
+    const contentSpans = this._renderer.render(ast);
+
+    const content = new RichText({
+      text: new TextSpan({ children: contentSpans }),
+    });
+
+    return new Container({
+      decoration: new BoxDecoration({
+        border: new Border(
+          undefined, // top
+          undefined, // right
+          undefined, // bottom
+          new BorderSide(SECONDARY_COLOR, 2, "solid"), // left: success green, 2-wide
+        ),
+      }),
+      padding: EdgeInsets.only({ left: 1 }),
+      child: content,
     });
   }
 
@@ -697,9 +745,13 @@ export class ConversationViewState extends State<ConversationView> {
    *        tree decorators ├── and ╰──
    *
    * @param group - ActivityGroupItem from DisplayItem[]
+   * @param itemIndex - Index in items array, used for expand/collapse state tracking
    * @returns Activity group Widget
    */
-  private _buildActivityGroupWidget(group: ActivityGroupItem): Widget {
+  private _buildActivityGroupWidget(group: ActivityGroupItem, itemIndex?: number): Widget {
+    const hasActions = !!(group.actions && group.actions.length > 0);
+    const isExpanded = itemIndex !== undefined && this._expandedActivityGroups.has(itemIndex);
+
     // Header line: spinner/checkmark + label
     const headerSpans: TextSpan[] = [];
 
@@ -722,17 +774,10 @@ export class ConversationViewState extends State<ConversationView> {
     // B3: Subagent header — 逆向: chunk-006.js:28457 qv class
     if (group.isSubagent) {
       const label = group.subagentLabel ?? "Subagent";
-      const expandIndicator = group.actions && group.actions.length > 0 ? " \u25BC" : " \u25B6";
       headerSpans.push(
         new TextSpan({
           text: `Subagent ${label}`,
           style: new TextStyle({ foreground: TOOL_COLOR }),
-        }),
-      );
-      headerSpans.push(
-        new TextSpan({
-          text: expandIndicator,
-          style: new TextStyle({ foreground: DIM_COLOR }),
         }),
       );
     } else {
@@ -745,23 +790,50 @@ export class ConversationViewState extends State<ConversationView> {
       );
     }
 
-    const headerRow = new RichText({
-      text: new TextSpan({ children: headerSpans }),
+    // Add expand/collapse indicator for groups with actions
+    // 逆向: n8R — stateController.denseViewItemStates local expand/collapse state
+    if (hasActions) {
+      headerSpans.push(
+        new TextSpan({
+          text: isExpanded ? " \u25BC" : " \u25B6", // ▼ or ▶
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      );
+    }
+
+    // Wrap header in GestureDetector for click-to-toggle
+    // 逆向: n8R — click toggles denseViewItemState expand/collapse
+    const headerRow = new GestureDetector({
+      onTap:
+        hasActions && itemIndex !== undefined
+          ? () => {
+              this.setState(() => {
+                if (this._expandedActivityGroups.has(itemIndex)) {
+                  this._expandedActivityGroups.delete(itemIndex);
+                } else {
+                  this._expandedActivityGroups.add(itemIndex);
+                }
+              });
+            }
+          : undefined,
+      child: new RichText({
+        text: new TextSpan({ children: headerSpans }),
+      }),
     });
 
-    // B3: If actions exist, render tree lines — 逆向: chunk-006.js:28586-28606
+    // B3: If actions exist and expanded, render tree lines — 逆向: chunk-006.js:28586-28606
     //   uR padding left:2, nested Jb (Column) with tool widgets
     //   Tree decorators: ├── for non-last, ╰── for last
-    if (!group.actions || group.actions.length === 0) {
+    if (!isExpanded || !hasActions) {
       return headerRow;
     }
 
     const INDENT = "    "; // 4 spaces indent for nested actions
     const actionWidgets: Widget[] = [];
 
-    for (let i = 0; i < group.actions.length; i++) {
-      const action = group.actions[i];
-      const isLast = i === group.actions.length - 1;
+    for (let i = 0; i < group.actions!.length; i++) {
+      const action = group.actions![i];
+      const isLast = i === group.actions!.length - 1;
       const treeChar = isLast ? "\u2570\u2500\u2500" : "\u251C\u2500\u2500"; // ╰── or ├──
 
       const actionSpans: TextSpan[] = [];

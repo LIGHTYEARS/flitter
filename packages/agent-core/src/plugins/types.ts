@@ -208,6 +208,33 @@ export interface PluginInfo {
   status: PluginStatus;
   /** Set of events this plugin has registered for */
   registeredEvents: Set<string>;
+  /** Tools registered by this plugin (optional, included in getPluginInfos) */
+  registeredTools?: RegisteredTool[];
+  /** Commands registered by this plugin (optional, included in getPluginInfos) */
+  registeredCommands?: RegisteredCommand[];
+}
+
+/**
+ * A tool registered by a plugin.
+ * 逆向: chunk-002.js:26856-26863 (getRegisteredTools return shape)
+ */
+export interface RegisteredTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  pluginName: string;
+}
+
+/**
+ * A command registered by a plugin.
+ * 逆向: chunk-002.js:26886-26897 (getRegisteredCommands return shape)
+ */
+export interface RegisteredCommand {
+  id: string;
+  category: string;
+  title: string;
+  description?: string;
+  pluginName: string;
 }
 
 // ─── Plugin Host Configuration ──────────────────────────

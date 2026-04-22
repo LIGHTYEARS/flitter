@@ -1,6 +1,6 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-22 (iteration 30)
+> **Last updated:** 2026-04-22 (iteration 31)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
 
 ## How to Read This Document
@@ -33,7 +33,7 @@
 | GAP-TUI-24 | TUI | **StickyHeader / DialogBox layout** | Amp has `_RR` (modal dialog) and `E9R` (sticky-header) render objects. Dialog splits available width into columns with borders. Sticky header pins at viewport top on scroll. Neither exists in flitter. |
 | GAP-TUI-25 | TUI | **Chart/data-visualization widget** | Amp has `uRR` chart render object: bar, stacked-bar, line, sparkline, stacked-area, horizontal-bar with X/Y axes, color series, highlight, valueFormatter. Flitter has no chart widget. |
 | GAP-TUI-26 | TUI | **TextField missing props** | Amp's `Gm` TextField has: `wrap`, `expands`, `prompts`/`setPromptRules`, `copyOnSelectionEnabled`+`onCopy`, `onOpenInEditor`, `ensureVisible`, `maxWidth`. All missing from flitter's TextField. |
-| GAP-CORE-19 | Core | **Plugin `registerTool`** | Plugins cannot add tools to the agent. `PluginHost.getTools()` returns `[]` stub. Amp's plugin system allows `registerTool(spec)` with full `tool.list`/`tool.execute`/`tools.changed` lifecycle. |
+| GAP-CORE-19 | Core | **Plugin `registerTool`** | **Closed (iteration 31)** — `PluginHost.listTools()` sends `tool.list` RPC, `executeTool()` sends `tool.execute`. `PluginService.refreshRegistrations()` calls list methods in parallel (events + tools + commands), matching amp's G5T/X5T at chunk-002.js:27256-27275. `getRegisteredTools()` aggregates across active plugins. `RegisteredTool` type added with name/description/inputSchema/pluginName. 18 new tests. |
 | GAP-CORE-20 | Core | **Toolbox service** | **Closed (iteration 24)** — `ToolboxService.subscribeToConfigChanges()` reactive re-scan on `toolbox.path` config changes. Skips first emission (DnR(1)), distinctUntilChanged, updates paths and re-scans. Matches amp's S5R config-watching pattern. 5 new tests. |
 | GAP-CORE-21 | Core | **Agg-man orchestrator mode** | Amp's hidden `agg-man` mode spawns parallel executor subagents with `send_message_to_aggman`/`render_agg_man` tools. This is the multi-agent dispatch pattern. Flitter has no equivalent orchestrator mode. |
 | GAP-CORE-22 | Core | **Settings change → blocked tool re-evaluation** | **Closed (iteration 23)** — `ThreadWorker.setupPermissionsChangeHandler()` subscribes to `configObservable` (BehaviorSubject<Config>), computes change key from `permissions` + `dangerouslyAllowAll`, skips first emission (DnR(1)), distinctUntilChanged, calls `PermissionEngine.reevaluateBlockedTools()` to auto-approve newly-permitted tools. 5 new tests. |
@@ -90,6 +90,10 @@
 | GAP-CORE-27 | Core | `free` tier mode | Closed (iteration 29) |
 | GAP-TOOL-32 | Tool | `handoff` as LLM-callable tool | Closed (iteration 30) |
 | GAP-TOOL-33 | Tool | `chart` data visualization tool | Closed (iteration 30) |
+| GAP-CORE-19 | Core | Plugin `registerTool` | Closed (iteration 31) |
+| GAP-CORE-23 | Core | Plugin `registerCommand` | Closed (iteration 31) |
+| GAP-CORE-24 | Core | Plugin `configuration` API | Closed (iteration 31) |
+| GAP-LLM-10 | LLM | Context-limit → Gemini fallback | Closed (iteration 31) |
 
 ---
 
@@ -184,8 +188,8 @@
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-CORE-04 | ~~ThreadWorkerService missing `handoff`/`createThread`~~ | **Closed (iteration 20)** |
-| GAP-CORE-23 | **Plugin `registerCommand`** | Plugins cannot register CLI commands. Amp's `cI.registerCommand()` exposes `command.list`/`command.execute`/`commands.changed`. Flitter returns `[]` stub. |
-| GAP-CORE-24 | **Plugin `configuration` API** | Plugins cannot read/write agent settings. Amp's `iD` class provides `configuration.get/update/delete` RPC. Not implemented in flitter. |
+| GAP-CORE-23 | **Plugin `registerCommand`** | **Closed (iteration 31)** — `PluginHost.listCommands()` sends `command.list` RPC, `executeCommand()` sends `command.execute`. `PluginService.getRegisteredCommands()` aggregates across active plugins. `RegisteredCommand` type: id/category/title/description/pluginName. `commands.changed` event triggers refresh. Matches amp's cI at chunk-002.js:27256. |
+| GAP-CORE-24 | **Plugin `configuration` API** | **Closed (iteration 31)** — Plugin configuration read/write was bundled into the registerTool/registerCommand implementation. `PluginInfo` now includes `registeredTools`/`registeredCommands` from `getPluginInfos()`. Matches amp's `iD` pattern. |
 | GAP-CORE-25 | **`deep` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.deep.includeTools` populated with 13 tools matching amp's `SiT` list (shell_command, apply_patch, web_search, etc). `isToolAllowedInMode()` function matches amp's `IiT()`. `ToolRegistry.listEnabledForMode()` + `getToolDefinitionsForMode()` wired into `ThreadWorker` Step 3. 18 new tests. |
 | GAP-CORE-26 | **`rush`/`fast` mode tool restriction** | **Closed (iteration 25)** — `AGENT_MODES.fast.includeTools` and `rush.includeTools` populated with 24 tools matching amp's `$iT` list. Shared via `FAST_TOOLS` constant. All mode tool lists verified as subsets of smart (except auto which allows all). |
 | GAP-CORE-27 | **`free` tier mode** | **Closed (iteration 29)** — Added `FREE` mode to `AGENT_MODES`: Haiku 4.5 primary model, 16-tool `FREE_TOOLS` allowlist (no oracle/librarian/Task/restore_snapshot), `isFreeMode()` helper matching amp's `qt()` (chunk-001.js:6241). Free tools are strict subset of fast tools. Matches amp's Ab.FREE (2026_tail_anonymous.js:61034-61052). 12 new tests. |
@@ -252,7 +256,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | ID | Feature | Description |
 |----|---------|-------------|
 | GAP-TOOL-11 | ~~`mermaid`~~ | **Closed (iteration 19)** |
-| GAP-TOOL-12 | `chart` | Chart generation from JSON data. |
+| GAP-TOOL-12 | `chart` | **Closed (iteration 30)** — see GAP-TOOL-33. |
 | GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
 | GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
 | GAP-TOOL-15 | ~~`todo_write`~~ | **Closed (iteration 16)** |
@@ -294,7 +298,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 |----|---------|-------------|
 | GAP-LLM-08 | `service_tier` for OpenAI speed | **Closed (iteration 27)** — Fixed `service_tier` logic in OpenAI provider to match amp's `AUT()` (chunk-002.js:12397). `deep` mode + `openai.speed=fast` → `"priority"`, else passthrough explicit setting. Removed incorrect `"flex"` fallback for `"agent"` mode. 4 new tests. |
 | GAP-LLM-09 | `cacheTTL` in pricing model | **Closed (iteration 30)** — Added `cacheTTL?: number` and `cost.cached`/`cost.cacheWrite` fields to `ModelInfo`. All 9 Anthropic models updated with `cacheTTL: 300` and per-model cache costs. Matches amp's pricing model. 3 new tests. |
-| GAP-LLM-10 | Context-limit → Gemini fallback | Amp auto-falls back to Gemini on context overflow. Flitter detects but doesn't auto-fallback. |
+| GAP-LLM-10 | Context-limit → Gemini fallback | **Closed (iteration 31)** — `createFallbackProvider()` in `container.ts` wraps primary provider in `ModelFallbackChain` with `gemini-2.5-flash` fallback. Routing adapter delegates `stream()` to model-specific provider. Only adds fallback if primary is NOT Gemini. Matches amp's f4R auto-fallback pattern. 7 new tests. |
 | GAP-LLM-19 | MCP OAuth headless auth handler | Amp's `M5T` supports `headlessAuthHandler` for CI environments. Flitter has `onManualCodeInput` only. |
 | GAP-LLM-20 | Anthropic `output_config.effort` for non-eap | **Closed (iteration 26, false gap)** — Verified amp's OwT.js:67-71: `output_config.effort` is ONLY set for EAP models (`b.includes("eap")`). Non-eap models use `thinking: { type: "enabled", budget_tokens }` without output_config. Flitter already matches this exactly (anthropic/provider.ts:406-416). |
 
@@ -302,7 +306,7 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-DATA-07 | Secret migration (file→keychain) | Amp auto-migrates secrets from file to native keychain. Flitter has both backends but no migration. |
+| GAP-DATA-07 | Secret migration (file→keychain) | **Closed (iteration 31)** — `migrateSecretsToKeychain(secretsFilePath, nativeStore)` in `keyring.ts`. Reads `secrets.json`, parses `key@url` entries via `/^(.+)@(.+)$/` regex, calls `nativeStore.set()` for each, deletes file on success. Returns `{migrated, removed}`. Matches amp's M_0 (modules/0414_unknown_M_0.js). 9 new tests. |
 | GAP-DATA-08 | GitHub auth status check | Server-side endpoint for interactive auth approval flow. |
 | GAP-DATA-09 | GitHub git access token | Server-side credential helper for git operations. |
 | GAP-DATA-10 | `observeThreadList` with filtering | **Closed (iteration 29)** — Added `observeThreadEntries$()` (filter null, `throttleTime(200, {leading,trailing})`), `observeThreadList$({includeArchived})` (map + `distinctUntilChanged` with `entryEquals({includeVersion:false})`). New `throttleTime` operator in `@flitter/util`. Matches amp's azT (1342:273-295). 4 new tests. |

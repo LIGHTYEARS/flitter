@@ -33,6 +33,8 @@ export type {
   PluginToolCallEvent,
   PluginToolResultEvent,
   PluginToolResultOverride,
+  RegisteredCommand,
+  RegisteredTool,
 } from "./types";
 // ─── Constants ────────────────────────────────────────────
 export {

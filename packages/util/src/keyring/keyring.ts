@@ -206,3 +206,80 @@ export async function createSecretStore(options: {
   const filePath = path.join(options.secretsDir, "secrets.json");
   return new FileSecretStore(filePath);
 }
+
+// ---------------------------------------------------------------------------
+// Secret migration: file → native keychain
+// ---------------------------------------------------------------------------
+
+/**
+ * Migrate secrets from file storage to native keychain.
+ *
+ * Reads secrets.json, iterates all entries, calls nativeStore.set() for each,
+ * then deletes the file when at least one key was migrated.
+ *
+ * 逆向: modules/0414_unknown_M_0.js (M_0 function)
+ *   - Reads secrets file, returns early if missing or empty (lines 4, 7)
+ *   - Parses each key with /^(.+)@(.+)$/ regex (line 12)
+ *   - Checks typeof value === "string" before processing (line 11)
+ *   - Checks both capture groups are truthy: A && l (line 15)
+ *   - Calls R.set(key, value, url) for each entry (line 16)
+ *   - On success: fs.rm(file) when migrated.length > 0 (line 23)
+ *   - On individual set failure: amp throws (lines 17-19)
+ *   - On fs.rm failure: amp throws (lines 28-30)
+ *
+ * Divergence from amp: this function returns a result object instead of
+ * throwing, to give callers control over error handling. Corrupt JSON is
+ * handled gracefully (returns empty) rather than throwing.
+ */
+export async function migrateSecretsToKeychain(
+  secretsFilePath: string,
+  nativeStore: SecretStore,
+): Promise<{ migrated: string[]; removed: boolean }> {
+  // 逆向: line 4 — guard: if file doesn't exist, nothing to migrate
+  if (!fs.existsSync(secretsFilePath)) {
+    return { migrated: [], removed: false };
+  }
+
+  // 逆向: lines 5-6 — read and parse the secrets file
+  let data: Record<string, unknown>;
+  try {
+    const content = await fs.promises.readFile(secretsFilePath, "utf-8");
+    data = JSON.parse(content);
+  } catch {
+    return { migrated: [], removed: false };
+  }
+
+  // 逆向: line 7 — return early if no keys
+  const entries = Object.entries(data);
+  if (entries.length === 0) {
+    return { migrated: [], removed: false };
+  }
+
+  // Parse and migrate each entry
+  // 逆向: line 12 — /^(.+)@(.+)$/ regex splits composed key
+  const KEY_REGEX = /^(.+)@(.+)$/;
+  const migrated: string[] = [];
+
+  for (const [composedKey, value] of entries) {
+    // 逆向: line 11 — typeof value === "string" check
+    if (typeof value !== "string") continue;
+
+    const match = composedKey.match(KEY_REGEX);
+    if (!match) continue; // skip malformed keys
+
+    const [, key, url] = match;
+    // 逆向: line 15 — both capture groups must be truthy
+    if (!key || !url) continue;
+
+    await nativeStore.set(key, value, url);
+    migrated.push(composedKey);
+  }
+
+  // 逆向: line 23 — delete the file when at least one key was migrated
+  if (migrated.length > 0) {
+    await fs.promises.rm(secretsFilePath);
+    return { migrated, removed: true };
+  }
+
+  return { migrated, removed: false };
+}

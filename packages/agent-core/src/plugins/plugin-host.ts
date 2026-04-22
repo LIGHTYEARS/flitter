@@ -33,6 +33,8 @@ import type {
   PluginToolCallEvent,
   PluginToolResultEvent,
   PluginToolResultOverride,
+  RegisteredCommand,
+  RegisteredTool,
 } from "./types";
 import {
   MAX_AUTO_RESTARTS,
@@ -498,6 +500,42 @@ export class PluginHost {
     const result = await this.sendRequest("events.list");
     if (Array.isArray(result)) return result;
     return [];
+  }
+
+  /**
+   * List tools registered by this plugin.
+   * 逆向: $aT.listTools (chunk-002.js:27019-27025)
+   */
+  async listTools(): Promise<RegisteredTool[]> {
+    const result = await this.sendRequest("tool.list");
+    if (Array.isArray(result)) return result as RegisteredTool[];
+    return [];
+  }
+
+  /**
+   * List commands registered by this plugin.
+   * 逆向: $aT.listCommands (chunk-002.js:27005-27010)
+   */
+  async listCommands(): Promise<RegisteredCommand[]> {
+    const result = await this.sendRequest("command.list");
+    if (Array.isArray(result)) return result as RegisteredCommand[];
+    return [];
+  }
+
+  /**
+   * Execute a tool registered by this plugin.
+   * 逆向: $aT.executeTool (chunk-002.js:27026-27031)
+   */
+  async executeTool(name: string, input: unknown): Promise<unknown> {
+    return this.sendRequest("tool.execute", { name, input });
+  }
+
+  /**
+   * Execute a command registered by this plugin.
+   * 逆向: $aT.executeCommand (chunk-002.js:27012-27017)
+   */
+  async executeCommand(name: string, opts?: { threadID?: string }): Promise<void> {
+    await this.sendRequest("command.execute", { name, threadID: opts?.threadID });
   }
 
   // ─── Dispose ────────────────────────────────────────────

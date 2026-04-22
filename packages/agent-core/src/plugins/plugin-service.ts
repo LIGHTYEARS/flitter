@@ -38,6 +38,8 @@ import type {
   PluginToolCallEvent,
   PluginToolResultEvent,
   PluginToolResultOverride,
+  RegisteredCommand,
+  RegisteredTool,
 } from "./types";
 import { GLOBAL_PLUGIN_DIR, WORKSPACE_PLUGIN_DIR } from "./types";
 
@@ -52,6 +54,10 @@ interface PluginRecord {
   host: PluginHost;
   status: PluginStatus;
   registeredEvents: Set<string>;
+  /** 逆向: chunk-002.js:27180 (registeredTools in puT) */
+  registeredTools: Map<string, RegisteredTool>;
+  /** 逆向: chunk-002.js:27179 (registeredCommands in puT) */
+  registeredCommands: Map<string, RegisteredCommand>;
 }
 
 /**
@@ -228,6 +234,8 @@ export class PluginService {
       host: null!,
       status: "loading",
       registeredEvents: new Set(),
+      registeredTools: new Map(),
+      registeredCommands: new Map(),
     };
 
     record.host = new PluginHost(file, {
@@ -243,14 +251,20 @@ export class PluginService {
   }
 
   /**
-   * Refresh a plugin's registered events.
-   * 逆向: chunk-002.js:27256-27275 (u function)
+   * Refresh a plugin's registered events, tools, and commands.
+   * 逆向: chunk-002.js:27256-27275 (u function — parallel refresh of all three)
    */
   private async refreshRegistrations(record: PluginRecord): Promise<void> {
     if (record.status !== "active" && record.status !== "loading") return;
     try {
-      const events = await record.host.listRegisteredEvents();
+      const [events, tools, commands] = await Promise.all([
+        record.host.listRegisteredEvents(),
+        record.host.listTools(),
+        record.host.listCommands(),
+      ]);
       record.registeredEvents = new Set(events);
+      record.registeredTools = new Map(tools.map((t) => [t.name, t]));
+      record.registeredCommands = new Map(commands.map((c) => [c.id, c]));
     } catch (err) {
       log.debug("Failed to refresh plugin registrations", {
         uri: record.uri,
@@ -261,7 +275,7 @@ export class PluginService {
 
   /**
    * Handle state change from a plugin host.
-   * 逆向: chunk-002.js:27245-27255 (y function)
+   * 逆向: chunk-002.js:27245-27255 (y function) + chunk-002.js:27240-27243 (b function — clearing)
    */
   private handlePluginStateChange(
     record: PluginRecord,
@@ -270,9 +284,13 @@ export class PluginService {
     if (state.type === "restarting") {
       record.status = "loading";
       record.registeredEvents = new Set();
+      record.registeredCommands = new Map();
+      record.registeredTools = new Map();
     } else if (state.type === "failed") {
       record.status = "error";
       record.registeredEvents = new Set();
+      record.registeredCommands = new Map();
+      record.registeredTools = new Map();
     } else if (state.type === "ready") {
       record.status = "active";
       // Refresh registrations asynchronously
@@ -464,14 +482,68 @@ export class PluginService {
 
   /**
    * Get information about all loaded plugins.
-   * 逆向: chunk-002.js:27351-27361 (v function)
+   * 逆向: chunk-002.js:27351-27358 (v function — includes registeredCommands/registeredTools)
    */
   getPluginInfos(): PluginInfo[] {
     return this.plugins.map((p) => ({
       uri: p.uri,
       status: p.status,
       registeredEvents: new Set(p.registeredEvents),
+      registeredTools: [...p.registeredTools.values()],
+      registeredCommands: [...p.registeredCommands.values()],
     }));
+  }
+
+  /**
+   * Get all tools registered across all active plugins.
+   * 逆向: chunk-002.js:27729-27732 (N function)
+   */
+  getRegisteredTools(): RegisteredTool[] {
+    const tools: RegisteredTool[] = [];
+    for (const p of this.plugins) {
+      if (p.status === "active") {
+        tools.push(...p.registeredTools.values());
+      }
+    }
+    return tools;
+  }
+
+  /**
+   * Get all commands registered across all active plugins.
+   * 逆向: chunk-002.js:27719-27722 (tT function)
+   */
+  getRegisteredCommands(): RegisteredCommand[] {
+    const commands: RegisteredCommand[] = [];
+    for (const p of this.plugins) {
+      if (p.status === "active") {
+        commands.push(...p.registeredCommands.values());
+      }
+    }
+    return commands;
+  }
+
+  /**
+   * Execute a tool registered by a specific plugin.
+   * 逆向: chunk-002.js:27734-27737 (q function)
+   */
+  async executeTool(pluginUri: string, toolName: string, input: unknown): Promise<unknown> {
+    const record = this.plugins.find((p) => p.uri === pluginUri && p.status === "active");
+    if (!record) throw new Error(`Plugin not found or not active: ${pluginUri}`);
+    return record.host.executeTool(toolName, input);
+  }
+
+  /**
+   * Execute a command registered by a specific plugin.
+   * 逆向: chunk-002.js:27724-27728 (lT function)
+   */
+  async executeCommand(
+    pluginUri: string,
+    commandId: string,
+    opts?: { threadID?: string },
+  ): Promise<void> {
+    const record = this.plugins.find((p) => p.uri === pluginUri && p.status === "active");
+    if (!record) throw new Error(`Plugin not found or not active: ${pluginUri}`);
+    await record.host.executeCommand(commandId, opts);
   }
 
   /**

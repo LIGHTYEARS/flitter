@@ -78,8 +78,13 @@ import type {
   ThreadPersistence,
   ThreadStore,
 } from "@flitter/data";
-import type { MCPServerManager, ModelInfo, ProviderName } from "@flitter/llm";
-import { getProviderForModel, registerModel } from "@flitter/llm";
+import type { LLMProvider, MCPServerManager, ModelInfo, ProviderName } from "@flitter/llm";
+import {
+  getProviderForModel,
+  ModelFallbackChain,
+  registerModel,
+  resolveProvider,
+} from "@flitter/llm";
 import { type Message, resolveModelName, type ThreadSnapshot } from "@flitter/schemas";
 import { BehaviorSubject, createLogger } from "@flitter/util";
 // Direct imports to avoid worktree symlink resolution issues with new files
@@ -100,6 +105,55 @@ import {
 import { syncMCPToolsToRegistry } from "./mcp-bridge";
 
 const log = createLogger("container");
+
+/**
+ * Gemini context-overflow fallback model.
+ * 逆向: amp-cli-reversed/chunk-005.js:106075
+ *   eP = ya("GEMINI3_FLASH_PREVIEW") — maps to "gemini-3-flash-preview"
+ *   Used in modules/1063_unknown_f4R.js:33-39 when totalInputTokens >= maxInputTokens
+ */
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
+
+/**
+ * Create a provider wrapped with ModelFallbackChain for context-overflow resilience.
+ *
+ * 逆向: amp-cli-reversed/modules/1063_unknown_f4R.js:33-39
+ *   When totalInputTokens >= contextWindow - maxOutputTokens, amp falls back
+ *   to eP (GEMINI3_FLASH_PREVIEW) which has a 1M token context window.
+ *
+ * The routing provider delegates to getProviderForModel() so that each model
+ * in the fallback chain uses the correct provider backend (e.g., Anthropic for
+ * Claude, Gemini for gemini-*).
+ *
+ * @param primaryModel - The user's configured primary model
+ * @returns LLMProvider-compatible object with fallback chain
+ */
+function createFallbackProvider(primaryModel: string): LLMProvider {
+  // Build model list: primary + Gemini fallback (unless primary is already Gemini)
+  const primaryProvider = resolveProvider(primaryModel);
+  const models =
+    primaryProvider === "gemini"
+      ? [primaryModel] // No redundant Gemini fallback
+      : [primaryModel, GEMINI_FALLBACK_MODEL];
+
+  // Routing provider: delegates to the correct backend per model name
+  const routingProvider: LLMProvider = {
+    name: "routing" as ProviderName,
+    stream: (params) => getProviderForModel(params.model).stream(params),
+  };
+
+  const chain = new ModelFallbackChain({
+    models,
+    provider: routingProvider,
+    maxRetriesPerModel: 2,
+  });
+
+  // Wrap ModelFallbackChain as LLMProvider (ThreadWorker only calls .stream())
+  return {
+    name: routingProvider.name,
+    stream: (params) => chain.stream(params),
+  };
+}
 
 // ── 公共类型 ────────────────────────────────────────────
 
@@ -879,7 +933,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             }),
           provider:
             workerOpts?.provider ??
-            getProviderForModel(resolveModelName(configService.get().settings)),
+            createFallbackProvider(resolveModelName(configService.get().settings)),
           toolOrchestrator: threadOrchestrator,
           buildSystemPrompt:
             workerOpts?.buildSystemPrompt ??

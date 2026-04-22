@@ -994,3 +994,35 @@ Iteration 28 targets 6 gaps (5 full closures + 1 partial), prioritizing self-con
 - Skills can be installed directly from GitHub URLs
 - Cache-aware cost tracking enables accurate billing for Anthropic prompt caching
 - 33 new tests, 0 type errors
+
+## ADR-031: Iteration 31 — Plugin registerTool/registerCommand, secret migration, Gemini fallback wiring
+
+**Date:** 2026-04-22
+**Status:** Accepted
+**Context:** Iteration 31 targets 5 gaps: 3 plugin extensibility (CORE-19, CORE-23, CORE-24), 1 data migration (DATA-07), and 1 LLM resilience (LLM-10). Plugin extensibility is the highest-value remaining core gap — without it, plugins can subscribe to events but cannot add tools or commands. Secret migration and Gemini fallback are self-contained and complement the main work.
+
+**Decisions:**
+
+1. **GAP-CORE-19+23+24 (Plugin registerTool/registerCommand/configuration):** Three-layer implementation matching amp's G5T/X5T architecture:
+   - **Types layer:** New `RegisteredTool` (name/description/inputSchema/pluginName) and `RegisteredCommand` (id/category/title/description/pluginName) interfaces in `types.ts`. `PluginInfo` extended with optional arrays.
+   - **Host layer:** `PluginHost` gains 4 RPC methods: `listTools()` → `tool.list`, `listCommands()` → `command.list`, `executeTool(name, input)` → `tool.execute`, `executeCommand(name, opts)` → `command.execute`.
+   - **Service layer:** `PluginService.refreshRegistrations()` now calls all 3 list methods in parallel (events + tools + commands), matching amp's `u()` at chunk-002.js:27256-27275. `PluginRecord` stores `Map<string, RegisteredTool>` and `Map<string, RegisteredCommand>`. Aggregation methods `getRegisteredTools()`/`getRegisteredCommands()` filter to active plugins only. `handlePluginStateChange()` clears Maps on restart/failure.
+   - Decision: Bundled CORE-24 (configuration API) into the same implementation since `PluginInfo` already carries the full plugin state through `getPluginInfos()`. The full `iD`-style `configuration.get/update/delete` RPC is deferred — the current implementation exposes registration data, not arbitrary config read/write.
+
+2. **GAP-DATA-07 (Secret migration):** `migrateSecretsToKeychain(secretsFilePath, nativeStore)` in `keyring.ts`. Implementation choices:
+   - Key parsing uses `/^(.+)@(.+)$/` greedy regex matching amp's M_0 (modules/0414). The greedy `.+` is intentional — keys can contain `@` (e.g., email@domain@url), so the LAST `@` splits key from URL.
+   - Malformed keys (no `@`) are silently skipped, not errors — matches amp's defensive pattern.
+   - File deletion only happens when ALL parseable keys migrate successfully. If only malformed keys exist, file is NOT deleted.
+   - Returns `{migrated: string[], removed: boolean}` for caller diagnostics.
+
+3. **GAP-LLM-10 (Gemini fallback wiring):** `ModelFallbackChain` already existed (iteration 4) but was only tested, never wired into the runtime. Design choices:
+   - `createFallbackProvider()` helper in `container.ts` creates a routing adapter: `stream: (params) => getProviderForModel(params.model).stream(params)`. This solves the problem that `ModelFallbackChain` takes a single `LLMProvider` but needs to route Claude→Anthropic and Gemini→Google.
+   - Fallback model is `gemini-2.5-flash` (constant `GEMINI_FALLBACK_MODEL`).
+   - Guard: only adds fallback if primary model is NOT already Gemini — prevents circular fallback.
+   - Wired into `createThreadWorker()` so every thread worker gets fallback behavior automatically.
+
+**Consequences:**
+- Plugins can now register tools and commands that are discoverable by the agent
+- Secret migration enables seamless file→keychain upgrade path
+- Context overflow automatically falls back to Gemini instead of failing
+- 34 new tests across 3 files, 0 type errors

@@ -515,6 +515,7 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           status,
           path: summary,
           files,
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
         });
       } else if (EDIT_TOOLS.has(block.name)) {
         // 逆向: yx0 edit_file branch

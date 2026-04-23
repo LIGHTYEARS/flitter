@@ -215,6 +215,7 @@ export {
 export type { TodoItem } from "./tools/builtin/todo-write";
 export { getTodosFromThread, TodoReadTool, TodoWriteTool } from "./tools/builtin/todo-write";
 export { createUndoEditTool } from "./tools/builtin/undo-edit";
+export { createWalkthroughDiagramTool, createWalkthroughTool } from "./tools/builtin/walkthrough";
 export { WebSearchTool } from "./tools/builtin/web-search";
 export { WriteTool } from "./tools/builtin/write";
 // ─── Tools — EarliestNonDisabledTool ─────────────────────

@@ -55,6 +55,8 @@ import {
   createTaskTool,
   createThreadStatusTool,
   createUndoEditTool,
+  createWalkthroughDiagramTool,
+  createWalkthroughTool,
   executePostHook,
   executePreHook,
   FileChangeTracker,
@@ -664,6 +666,10 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createFinderTool(subAgentManager));
     toolRegistry.register(createCodeReviewTool(subAgentManager));
     toolRegistry.register(createCodeTourTool(subAgentManager));
+    // 逆向: modules/2026_tail_anonymous.js:143379 (kXR — walkthrough spec)
+    // 逆向: modules/2026_tail_anonymous.js:143433 ($XR — walkthrough_diagram spec)
+    toolRegistry.register(createWalkthroughTool(subAgentManager));
+    toolRegistry.register(createWalkthroughDiagramTool());
     // 逆向: 2026_tail_anonymous.js:142702 (DVR — oracle tool spec)
     toolRegistry.register(createOracleTool(subAgentManager));
     // 逆向: 2026_tail_anonymous.js:141818 (IKR — librarian tool spec)
@@ -755,7 +761,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     };
     toolRegistry.register(createReplTool(replInferenceFn));
     log.info(
-      "finder, code_review, code_tour, oracle, librarian, look_at, mermaid, and repl tools registered",
+      "finder, code_review, code_tour, walkthrough, walkthrough_diagram, oracle, librarian, look_at, mermaid, and repl tools registered",
     );
 
     log.info("Service container initialized successfully.");

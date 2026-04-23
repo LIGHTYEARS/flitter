@@ -163,8 +163,8 @@ const DEEP_TOOLS = [
 ];
 
 // 逆向: chunk-005.js:67177 — HW = ["code_tour","code_review","walkthrough","walkthrough_diagram"]
-// code_tour is deferred (loaded via skill tool) in smart and large modes.
-const SMART_DEFERRED = ["code_review", "code_tour"];
+// code_tour, walkthrough, walkthrough_diagram are deferred (loaded via skill) in smart and large modes.
+const SMART_DEFERRED = ["code_review", "code_tour", "walkthrough", "walkthrough_diagram"];
 const DEEP_DEFERRED = ["code_review"];
 
 /**

@@ -73,6 +73,18 @@ export interface ToolItem {
   error?: string;
   /** Unified diff text for edit/create-file results (逆向: amp chunk-004.js:7793-7803) */
   diff?: string;
+  /**
+   * Per-file diff data for apply_patch results.
+   * 逆向: f50() (1928_unknown_g50.js) extracts result.files from toolRun when status=done.
+   * 逆向: $9R (misc_utils.js:6962) renders each file with path, +additions, -deletions, and diff.
+   */
+  files?: Array<{
+    path: string;
+    type: "add" | "update" | "delete" | "move";
+    additions: number;
+    deletions: number;
+    diff?: string;
+  }>;
 }
 
 /**
@@ -135,8 +147,8 @@ export interface ThinkingItem {
 /** Tools that get their own full row with command+output (逆向: yx0 Bash/shell_command branch) */
 const BASH_TOOLS = new Set(["Bash", "shell_command"]);
 
-/** Tools that get their own full row with file path (逆向: yx0 edit_file/apply_patch/undo_edit) */
-const EDIT_TOOLS = new Set(["Edit", "edit_file", "apply_patch", "undo_edit"]);
+/** Tools that get their own full row with file path (逆向: yx0 edit_file/undo_edit) */
+const EDIT_TOOLS = new Set(["Edit", "edit_file", "undo_edit"]);
 
 /** Tools that get their own full row with file path (逆向: yx0 create_file branch) */
 const CREATE_TOOLS = new Set(["Write", "create_file"]);
@@ -437,6 +449,42 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           command: typeof block.input?.command === "string" ? block.input.command : undefined,
           output: typeof result?.run?.result === "string" ? result.run.result : undefined,
           error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (block.name === "apply_patch") {
+        // 逆向: $9R (misc_utils.js:6962) — Apply Patch widget renders per-file diff blocks
+        // 逆向: f50() (1928_unknown_g50.js) — extracts result.files when status=done and files array present
+        //   f50: T?.status === "done" && typeof T.result === "object" && "files" in T.result && Array.isArray(T.result.files)
+        flushActivityBuffer();
+        const applyRun = result?.run;
+        const applyResult =
+          applyRun?.status === "done" &&
+          typeof applyRun.result === "object" &&
+          applyRun.result !== null &&
+          "files" in (applyRun.result as Record<string, unknown>) &&
+          Array.isArray((applyRun.result as Record<string, unknown>).files)
+            ? (applyRun.result as Record<string, unknown>)
+            : undefined;
+        const fileEntries = applyResult?.files as Array<Record<string, unknown>> | undefined;
+        const summary =
+          typeof applyResult?.summary === "string" ? (applyResult.summary as string) : undefined;
+        // Map each file entry to our typed shape (逆向: $9R iterates h.files with .additions/.deletions/.diff)
+        const files = fileEntries?.map((f) => ({
+          path: typeof f.path === "string" ? f.path : "",
+          type: (["add", "update", "delete", "move"].includes(f.type as string)
+            ? f.type
+            : "update") as "add" | "update" | "delete" | "move",
+          additions: typeof f.additions === "number" ? (f.additions as number) : 0,
+          deletions: typeof f.deletions === "number" ? (f.deletions as number) : 0,
+          diff: typeof f.diff === "string" ? (f.diff as string) : undefined,
+        }));
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: block.name,
+          kind: "edit",
+          status,
+          path: summary,
+          files,
         });
       } else if (EDIT_TOOLS.has(block.name)) {
         // 逆向: yx0 edit_file branch

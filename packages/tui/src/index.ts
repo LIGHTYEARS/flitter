@@ -35,6 +35,7 @@ export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";
 export { ForceDimWidget } from "./widgets/force-dim.js";
 export { GestureDetector } from "./widgets/gesture-detector.js";
+export { ImageWidget, RenderImage } from "./widgets/image-widget.js";
 export { IntrinsicHeight, RenderIntrinsicHeight } from "./widgets/intrinsic-height.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
 export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
@@ -46,6 +47,21 @@ export type { OverlapCrossAxisAlignment } from "./widgets/overlap-column.js";
 export { OverlapColumn, RenderOverlapColumn } from "./widgets/overlap-column.js";
 export { Padding } from "./widgets/padding.js";
 export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
+export type {
+  ImageWidgetProps,
+  KittyTransmitOpts,
+  PlaceholderCell,
+} from "./widgets/render-image.js";
+export {
+  allocateImageId,
+  buildPlaceholderGrid,
+  CHUNK_SIZE,
+  DIACRITICS,
+  encodeKittyGraphicsDelete,
+  encodeKittyGraphicsTransmit,
+  PLACEHOLDER_BASE,
+  wrapForTmux,
+} from "./widgets/render-image.js";
 export { RichText } from "./widgets/rich-text.js";
 export { Row } from "./widgets/row.js";
 export type { RenderScrollbarProps, ScrollbarProps, ScrollInfo } from "./widgets/scrollbar.js";

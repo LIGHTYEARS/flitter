@@ -60,9 +60,9 @@ const SHOCKWAVE_SPEED = 30; // mXT
 /** 冲击波环半宽 */
 const SHOCKWAVE_HALF_WIDTH = 3; // iP
 
-/** 默认主色 (#003700) — 逆向: chunk-005.js:67169-67172 tCT */
-const DEFAULT_PRIMARY = { r: 0, g: 55, b: 0 };
-/** 默认辅色 (#00ff88) — 逆向: chunk-005.js:67173-67176 rCT */
+/** 默认主色 (#003714) — 逆向: chunk-005.js:67187-67199 SMART uiHints.primaryColor */
+const DEFAULT_PRIMARY = { r: 0, g: 55, b: 20 };
+/** 默认辅色 (#00ff88) — 逆向: chunk-005.js:67187-67199 SMART uiHints.secondaryColor */
 const DEFAULT_SECONDARY = { r: 0, g: 255, b: 136 };
 
 // ════════════════════════════════════════════════════

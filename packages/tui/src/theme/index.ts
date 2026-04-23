@@ -20,3 +20,9 @@ export {
 } from "./builtin-themes.js";
 export type { ColorPalette, SyntaxHighlightColors } from "./palette.js";
 export { ThemeRegistry } from "./theme-registry.js";
+export type { ParsedTheme, RgbColor } from "./toml-theme-loader.js";
+export {
+  hexToRgb,
+  parsedThemeToThemeSpec,
+  scanThemeDirectory,
+} from "./toml-theme-loader.js";

@@ -28,7 +28,7 @@
 import { SessionCostTracker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { runApp } from "@flitter/tui";
+import { parsedThemeToThemeSpec, runApp, scanThemeDirectory } from "@flitter/tui";
 import { createBuiltinCommands } from "../commands/slash-handlers.js";
 import type { SlashCommandContext } from "../commands/slash-registry.js";
 import { SlashCommandRegistry } from "../commands/slash-registry.js";
@@ -37,6 +37,7 @@ import { resolveSystemPromptText } from "../util/system-prompt.js";
 import { AppWidget } from "../widgets/app-widget.js";
 import { parseCommandInput } from "../widgets/command-detection.js";
 import type { ThemeData } from "../widgets/theme-controller.js";
+import { ThemeController } from "../widgets/theme-controller.js";
 import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
 import { ToastManager } from "../widgets/toast-manager.js";
 
@@ -236,6 +237,19 @@ export async function launchInteractiveMode(
   // 逆向: amp has reactive theme subscription that rebuilds widget tree on config change.
   //   Amp's themeController listens to configService changes and calls setState() to
   //   rebuild with new palette. We subscribe to config changes and update themeData.
+
+  // Load custom TOML themes from ~/.config/flitter/themes/ and register them.
+  // 逆向: s70() + qD0() at chunk-004.js:30057-30087, 29509-29524
+  //   amp calls s70() in _70() before resolving the active theme name.
+  //   s70 scans the themes dir, o70 parses each colors.toml, qD0 registers in drT map.
+  {
+    const customThemes = scanThemeDirectory();
+    for (const parsed of customThemes) {
+      ThemeController.registry.registerCustom(parsedThemeToThemeSpec(parsed));
+    }
+    log.info("Custom themes loaded", { count: customThemes.length });
+  }
+
   const config = container.configService.get();
   const themeName =
     ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";

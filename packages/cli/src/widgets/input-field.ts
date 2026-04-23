@@ -266,7 +266,7 @@ export class InputFieldState extends State<InputField> {
     }
 
     // Fixed 3-row height (逆向: YrT maxHeight, text_rendering.js:2395)
-    const borderInnerWidth = this.widget.config.width ?? terminalWidth - 2;
+    const borderInnerWidth = this.widget.config.width ?? terminalWidth - 4;
 
     // Top border with overlay labels
     // 逆向: Rt._buildOverlayWidgets (jetbrains_wizard.js:32-175)

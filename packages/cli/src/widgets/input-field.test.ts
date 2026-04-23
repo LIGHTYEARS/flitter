@@ -21,16 +21,9 @@
  */
 
 import assert from "node:assert/strict";
-import { describe, it, afterEach } from "node:test";
-import { InputField, InputFieldState, type InputFieldConfig } from "./input-field.js";
-import {
-  StatefulWidget,
-  FocusManager,
-  RichText,
-  Column,
-  TextSpan,
-} from "@flitter/tui";
-import type { KeyEvent } from "@flitter/tui";
+import { afterEach, describe, it } from "node:test";
+import { Column, FocusManager, RichText, StatefulWidget, type TextSpan } from "@flitter/tui";
+import { InputField, type InputFieldConfig, InputFieldState } from "./input-field.js";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -123,7 +116,9 @@ describe("InputField", () => {
   afterEach(() => {
     try {
       FocusManager.instance.dispose();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
 
   it("继承 StatefulWidget", () => {
@@ -153,7 +148,9 @@ describe("InputField visual fidelity", () => {
   afterEach(() => {
     try {
       FocusManager.instance.dispose();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
 
   it("build() 返回包含 box-drawing 边框字符的 Widget 树", () => {
@@ -174,7 +171,7 @@ describe("InputField visual fidelity", () => {
     state.dispose();
   });
 
-  it("空文本时显示 \"Type a message...\" 占位符", () => {
+  it('空文本时显示 "Type a message..." 占位符', () => {
     const { state } = mountInputField({ onSubmit: () => {} });
     const built = state.build({} as any);
     const allText = extractAllText(built);
@@ -212,10 +209,7 @@ describe("InputField visual fidelity", () => {
     const built = state.build({} as any);
     const allText = extractAllText(built);
 
-    assert.ok(
-      allText.includes("hello"),
-      `Should contain "hello", got: ${allText.slice(0, 200)}`,
-    );
+    assert.ok(allText.includes("hello"), `Should contain "hello", got: ${allText.slice(0, 200)}`);
 
     state.dispose();
   });
@@ -256,16 +250,14 @@ describe("InputField visual fidelity", () => {
     const richTexts = collectRichTexts(built);
 
     // 检查 border 线条使用 primary 色
-    const hasPrimaryBorder = richTexts.some((rt: any) =>
-      hasColorInSpan(rt.text, 0x7a, 0xa2, 0xf7),
-    );
+    const hasPrimaryBorder = richTexts.some((rt: any) => hasColorInSpan(rt.text, 0x7a, 0xa2, 0xf7));
     assert.ok(hasPrimaryBorder, "Focused border should use primary color #7aa2f7");
 
     state.dispose();
   });
 
   it("非聚焦时边框使用 border 色 (#3b4261)", () => {
-    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    const { state } = mountInputField({ onSubmit: () => {} });
 
     // 模拟失焦
     const focusNode = (state as any)._focusNode;
@@ -275,9 +267,7 @@ describe("InputField visual fidelity", () => {
     const richTexts = collectRichTexts(built);
 
     // 检查 border 线条使用 border 色
-    const hasBorderColor = richTexts.some((rt: any) =>
-      hasColorInSpan(rt.text, 0x3b, 0x42, 0x61),
-    );
+    const hasBorderColor = richTexts.some((rt: any) => hasColorInSpan(rt.text, 0x3b, 0x42, 0x61));
     assert.ok(hasBorderColor, "Unfocused border should use border color #3b4261");
 
     state.dispose();
@@ -304,9 +294,11 @@ describe("InputField visual fidelity", () => {
     }
 
     // 验证: Enter 提交应包含换行
-    const onSubmit = (text: string) => {};
+    const _onSubmit = (_text: string) => {};
     let submittedText = "";
-    const submitFn = (text: string) => { submittedText = text; };
+    const submitFn = (text: string) => {
+      submittedText = text;
+    };
     (state as any)._widget = new InputField({ onSubmit: submitFn });
     fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: NO_MODS });
     assert.ok(
@@ -353,7 +345,9 @@ describe("InputField key handling", () => {
   afterEach(() => {
     try {
       FocusManager.instance.dispose();
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
 
   it("普通字符输入 -> insertText", () => {
@@ -361,9 +355,13 @@ describe("InputField key handling", () => {
     fm.handleKeyEvent({ type: "key", key: "h", modifiers: NO_MODS });
     fm.handleKeyEvent({ type: "key", key: "i", modifiers: NO_MODS });
 
-    const onSubmit = (text: string) => {};
+    const _onSubmit = (_text: string) => {};
     let submitted = "";
-    (state as any)._widget = new InputField({ onSubmit: (t: string) => { submitted = t; } });
+    (state as any)._widget = new InputField({
+      onSubmit: (t: string) => {
+        submitted = t;
+      },
+    });
     fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: NO_MODS });
     assert.equal(submitted, "hi");
 
@@ -378,7 +376,11 @@ describe("InputField key handling", () => {
     fm.handleKeyEvent({ type: "key", key: "Backspace", modifiers: NO_MODS });
 
     let submitted = "";
-    (state as any)._widget = new InputField({ onSubmit: (t: string) => { submitted = t; } });
+    (state as any)._widget = new InputField({
+      onSubmit: (t: string) => {
+        submitted = t;
+      },
+    });
     fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: NO_MODS });
     assert.equal(submitted, "ab");
 
@@ -387,7 +389,11 @@ describe("InputField key handling", () => {
 
   it("Enter 触发 onSubmit 回调", () => {
     let submitted = "";
-    const { state, fm } = mountInputField({ onSubmit: (t) => { submitted = t; } });
+    const { state, fm } = mountInputField({
+      onSubmit: (t) => {
+        submitted = t;
+      },
+    });
     for (const ch of "hello") {
       fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
     }
@@ -399,7 +405,11 @@ describe("InputField key handling", () => {
 
   it("Enter 后文本清空", () => {
     let callCount = 0;
-    const { state, fm } = mountInputField({ onSubmit: () => { callCount++; } });
+    const { state, fm } = mountInputField({
+      onSubmit: () => {
+        callCount++;
+      },
+    });
     for (const ch of "hello") {
       fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
     }
@@ -413,7 +423,11 @@ describe("InputField key handling", () => {
 
   it("空文本 Enter 不触发 onSubmit", () => {
     let called = false;
-    const { state, fm } = mountInputField({ onSubmit: () => { called = true; } });
+    const { state, fm } = mountInputField({
+      onSubmit: () => {
+        called = true;
+      },
+    });
     fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: NO_MODS });
     assert.equal(called, false);
 
@@ -439,5 +453,62 @@ describe("InputField key handling", () => {
     const nodes = fm.findAllFocusableNodes();
     const hasInputNode = nodes.some((n: any) => n.debugLabel === "InputField");
     assert.equal(hasInputNode, false);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  InputField 边框宽度测试
+//  逆向: amp-cli-reversed layout_widgets.js:1652 — box width = T.maxWidth (exact terminal width)
+// ════════════════════════════════════════════════════
+
+describe("border width calculation", () => {
+  afterEach(() => {
+    try {
+      FocusManager.instance.dispose();
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("top border string length equals terminal width when width is provided", () => {
+    const terminalWidth = 244;
+    const { state } = mountInputField({
+      onSubmit: () => {},
+      width: terminalWidth - 4, // borderInnerWidth
+    });
+    const tree = state.build({} as any);
+    assert.ok(tree instanceof Column);
+    const children = (tree as any).children;
+    assert.ok(children.length >= 3);
+    const topBorderWidget = children[0];
+    assert.ok(topBorderWidget instanceof RichText);
+    const topBorderText = topBorderWidget.text.toPlainText();
+    assert.equal(
+      topBorderText.length,
+      terminalWidth,
+      `Top border should be exactly ${terminalWidth} chars, got ${topBorderText.length}`,
+    );
+    const bottomBorderWidget = children[2];
+    assert.ok(bottomBorderWidget instanceof RichText);
+    const bottomBorderText = bottomBorderWidget.text.toPlainText();
+    assert.equal(
+      bottomBorderText.length,
+      terminalWidth,
+      `Bottom border should be exactly ${terminalWidth} chars, got ${bottomBorderText.length}`,
+    );
+  });
+
+  it("border is exactly 80 chars at default terminal width", () => {
+    const { state } = mountInputField({
+      onSubmit: () => {},
+    });
+    const tree = state.build({} as any);
+    const children = (tree as any).children;
+    const topBorderText = children[0].text.toPlainText();
+    assert.equal(
+      topBorderText.length,
+      80,
+      `Default border should be 80 chars, got ${topBorderText.length}`,
+    );
   });
 });

@@ -100,8 +100,10 @@ describe("InputField adaptive width", () => {
 
     const topBorderMatch = allText.match(/\u256D(\u2500+)\u256E/);
     expect(topBorderMatch).not.toBeNull();
-    // inner dashes: 1 (leading) + topFillLen (78) + 1 (trailing) = 80
-    expect(topBorderMatch![1].length).toBe(80);
+    // borderInnerWidth = terminalWidth(80) - 4 = 76; topFillLen = 76
+    // inner dashes: 1 (leading ─) + topFillLen (76) + 1 (trailing ─) = 78
+    // total topBorder = ╭(1) + ─(1) + fill(76) + ─(1) + ╮(1) = 80 chars (= terminalWidth)
+    expect(topBorderMatch![1].length).toBe(78);
 
     state.dispose();
   });

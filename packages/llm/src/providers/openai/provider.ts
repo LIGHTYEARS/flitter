@@ -2,6 +2,7 @@
  * @flitter/llm — OpenAI Responses API Provider
  *
  * 实现 LLMProvider 接口，使用 openai SDK 调用 OpenAI Responses API。
+ * 支持 `openai.useChatCompletions` 配置项，当为 true 时回退到 Chat Completions API。
  *
  * @example
  * ```ts
@@ -16,6 +17,9 @@ import type { LLMProvider } from "../../provider";
 import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
+import { mergeWithDefaults } from "../openai-compat/compat";
+import type { CompatStreamChunk } from "../openai-compat/transformer";
+import { CompatToolTransformer, CompatTransformer } from "../openai-compat/transformer";
 import type { OpenAISSEEvent } from "./transformer";
 import { OpenAIToolTransformer, OpenAITransformer } from "./transformer";
 
@@ -25,10 +29,26 @@ export class OpenAIProvider implements LLMProvider {
   readonly name = "openai" as const;
   private readonly _transformer = new OpenAITransformer();
   private readonly _toolTransformer = new OpenAIToolTransformer();
+  // 逆向: amp chunk-002.js:13633-13659 — openai-compat providers use CompatTransformer
+  // Reuse CompatTransformer for chat completions fallback path
+  private readonly _compatTransformer: CompatTransformer;
+  private readonly _compatToolTransformer = new CompatToolTransformer();
   private readonly _injectedClient?: OpenAI;
 
   constructor(client?: OpenAI) {
     this._injectedClient = client;
+    // Chat completions mode: use developer role (OpenAI supports it) + OpenAI thinking format
+    this._compatTransformer = new CompatTransformer(
+      mergeWithDefaults({
+        supportsDeveloperRole: true,
+        supportsStore: false,
+        supportsReasoningEffort: false,
+        supportsUsageInStreaming: true,
+        maxTokensField: "max_completion_tokens",
+        supportsStrictMode: true,
+        thinkingFormat: "openai",
+      }),
+    );
   }
 
   async *stream(params: StreamParams): AsyncGenerator<StreamDelta> {
@@ -59,6 +79,17 @@ export class OpenAIProvider implements LLMProvider {
         // 逆向: amp disables SDK-level retries — RetryScheduler + ModelFallbackChain handle retries
         maxRetries: 0,
       });
+
+    // Check for chat completions fallback
+    // 逆向: amp chunk-002.js:13633-13659 (r4R) — the xAI provider uses chat.completions
+    // with { model, messages, tools, stream: true, stream_options: { include_usage: true } }
+    // Flitter provides this same escape hatch for OpenAI via openai.useChatCompletions
+    const useChatCompletions = config.settings["openai.useChatCompletions"] === true;
+
+    if (useChatCompletions) {
+      yield* this._streamChatCompletions(client, params);
+      return;
+    }
 
     // Get model info
     const modelInfo = MODEL_REGISTRY[model];
@@ -109,6 +140,115 @@ export class OpenAIProvider implements LLMProvider {
       if (err instanceof OpenAI.APIError) {
         const status = err.status ?? 500;
         // 逆向: _9.js:275-283 (shouldRetry) — 408, 409, 429, >=500
+        throw new ProviderError(
+          status,
+          "openai",
+          status === 408 || status === 409 || status === 429 || status >= 500,
+          err.message,
+        );
+      }
+      throw err;
+    }
+  }
+
+  // ─── Chat Completions fallback ─────────────────────────
+
+  /**
+   * Chat Completions streaming path for `openai.useChatCompletions: true`.
+   *
+   * 逆向: amp chunk-002.js:12560-12693 (SO + $k) — delta accumulation + output conversion.
+   * amp chunk-002.js:13633-13659 (r4R) — xAI/compat provider uses identical request shape.
+   *
+   * Field mapping (Responses API → Chat Completions):
+   *   input             → messages
+   *   max_output_tokens → max_completion_tokens
+   *   tools[].{type,name,description,parameters} → tools[].{type,function:{name,description,parameters}}
+   *   stream_options    → { include_usage: true } (not { include_obfuscation: false })
+   */
+  private async *_streamChatCompletions(
+    client: OpenAI,
+    params: StreamParams,
+  ): AsyncGenerator<StreamDelta> {
+    const {
+      model,
+      messages,
+      systemPrompt,
+      tools,
+      config,
+      reasoningEffort,
+      threadId,
+      requestId,
+      sessionId,
+    } = params;
+
+    const modelInfo = MODEL_REGISTRY[model];
+    const maxOutputTokens = modelInfo?.maxOutputTokens ?? 16_384;
+
+    // Convert messages using CompatTransformer (Chat Completions format)
+    const chatMessages = this._compatTransformer.toProviderMessages(messages, systemPrompt);
+
+    // Convert tools — Chat Completions wraps in { type:"function", function:{...} }
+    // 逆向: amp chunk-002.js:12401-12413 (pUT) — { type:"function", function:{ name, description, parameters } }
+    const chatTools =
+      tools.length > 0 ? this._compatToolTransformer.toProviderTools(tools) : undefined;
+
+    // Build Chat Completions request body
+    // 逆向: amp chunk-002.js:13633-13659 (r4R):
+    //   { model, messages, tools, stream: true, stream_options: { include_usage: true } }
+    const body: Record<string, unknown> = {
+      model,
+      messages: chatMessages,
+      stream: true,
+      max_completion_tokens: maxOutputTokens,
+      stream_options: { include_usage: true },
+    };
+
+    if (chatTools && chatTools.length > 0) {
+      body.tools = chatTools;
+    }
+
+    // Temperature for non-reasoning models
+    const temperature = config.settings["openai.temperature"];
+    if (temperature !== undefined) {
+      body.temperature = temperature;
+    } else if (!(modelInfo?.supportsThinking ?? false)) {
+      body.temperature = 0.1;
+    }
+
+    // Reasoning effort if supported
+    if (reasoningEffort) {
+      body.reasoning_effort = reasoningEffort;
+    }
+
+    // Prompt cache key
+    const cacheKey = config.settings["openai.promptCacheKey"] ?? threadId;
+    if (cacheKey) {
+      body.prompt_cache_key = cacheKey;
+    }
+
+    // Per-request telemetry headers
+    const requestHeaders: Record<string, string> = {};
+    if (requestId) requestHeaders["x-request-id"] = requestId;
+    if (sessionId) requestHeaders["x-session-id"] = sessionId;
+
+    const state = new TransformState();
+
+    try {
+      const stream = await client.chat.completions.create(
+        body as unknown as Parameters<typeof client.chat.completions.create>[0],
+        Object.keys(requestHeaders).length > 0 ? { headers: requestHeaders } : undefined,
+      );
+
+      for await (const chunk of withStreamIdleTimeout(stream as AsyncIterable<unknown>)) {
+        const delta = this._compatTransformer.fromProviderDelta(
+          chunk as CompatStreamChunk,
+          state,
+        );
+        yield delta;
+      }
+    } catch (err: unknown) {
+      if (err instanceof OpenAI.APIError) {
+        const status = err.status ?? 500;
         throw new ProviderError(
           status,
           "openai",

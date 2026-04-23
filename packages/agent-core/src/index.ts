@@ -177,6 +177,7 @@ export type {
 export { ApplyPatchTool } from "./tools/builtin/apply-patch";
 export { BashTool } from "./tools/builtin/bash";
 export { createCodeReviewTool } from "./tools/builtin/code-review";
+export { createCodeTourTool } from "./tools/builtin/code-tour";
 export { createDeleteFileTool } from "./tools/builtin/delete-file";
 export { EditTool } from "./tools/builtin/edit";
 export { createFindThreadTool } from "./tools/builtin/find-thread";

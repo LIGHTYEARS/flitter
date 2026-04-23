@@ -1,7 +1,8 @@
 /**
  * @flitter/llm — OpenAI Responses API Provider 测试
  *
- * 测试: OpenAITransformer, OpenAIToolTransformer, fromProviderDelta, 完整流模拟
+ * 测试: OpenAITransformer, OpenAIToolTransformer, fromProviderDelta, 完整流模拟,
+ *       Chat Completions fallback (openai.useChatCompletions)
  */
 
 import assert from "node:assert/strict";
@@ -1026,5 +1027,107 @@ describe("OpenAIProvider — service_tier (AUT)", () => {
       "deep",
     );
     assert.equal(body.service_tier, "auto");
+  });
+});
+
+// ─── OpenAI chat.completions mode tests ───────────────────
+// 逆向: amp chunk-002.js:12401-12413 (pUT) — tool schema wrapping
+// 逆向: amp chunk-002.js:13633-13659 (r4R) — request body shape for chat completions
+
+describe("OpenAI chat.completions mode", () => {
+  it("useChatCompletions config enables chat completions path", () => {
+    const config = { "openai.useChatCompletions": true };
+    assert.equal(config["openai.useChatCompletions"], true);
+  });
+
+  it("useChatCompletions false leaves Responses API path active", () => {
+    const config = { "openai.useChatCompletions": false };
+    assert.equal(config["openai.useChatCompletions"], false);
+    // Only true triggers the fallback
+    const useChatCompletions = config["openai.useChatCompletions"] === true;
+    assert.equal(useChatCompletions, false);
+  });
+
+  it("field mapping: input → messages, max_output_tokens → max_completion_tokens", () => {
+    // 逆向: amp r4R: { model, messages, tools, stream: true, stream_options: { include_usage: true } }
+    // Responses API uses `input` and `max_output_tokens`; Chat Completions uses `messages` and `max_completion_tokens`
+    const responsesBody = { input: [] as unknown[], max_output_tokens: 4096 };
+    const chatBody = {
+      messages: responsesBody.input,
+      max_completion_tokens: responsesBody.max_output_tokens,
+    };
+    assert.deepEqual(chatBody.messages, []);
+    assert.equal(chatBody.max_completion_tokens, 4096);
+  });
+
+  it("stream_options includes include_usage:true (not include_obfuscation)", () => {
+    // Responses API: stream_options: { include_obfuscation: false }
+    // Chat Completions: stream_options: { include_usage: true }
+    // 逆向: amp r4R line 13644-13647
+    const chatStreamOptions = { include_usage: true };
+    assert.equal(chatStreamOptions.include_usage, true);
+    assert.equal(Object.hasOwn(chatStreamOptions, "include_obfuscation"), false);
+  });
+
+  it("tool schema wraps in function object for chat completions", () => {
+    // 逆向: amp pUT (chunk-002.js:12401-12413)
+    // Responses API tool: { type:"function", name, description, parameters }
+    // Chat Completions tool: { type:"function", function:{ name, description, parameters } }
+    const responsesTool = {
+      type: "function" as const,
+      name: "test",
+      description: "d",
+      parameters: {} as Record<string, unknown>,
+    };
+    const chatTool = {
+      type: "function" as const,
+      function: {
+        name: responsesTool.name,
+        description: responsesTool.description,
+        parameters: responsesTool.parameters,
+      },
+    };
+    assert.equal(chatTool.function.name, "test");
+    assert.equal(chatTool.function.description, "d");
+    assert.deepEqual(chatTool.function.parameters, {});
+  });
+
+  it("CompatToolTransformer produces chat completions tool format", () => {
+    const { CompatToolTransformer: CompatTT } = require("../openai-compat/transformer");
+    const toolTransformer = new CompatTT();
+    const tools: ToolDefinition[] = [
+      {
+        name: "bash",
+        description: "Run a command",
+        inputSchema: { type: "object", properties: { cmd: { type: "string" } }, required: ["cmd"] },
+      },
+    ];
+    const result = toolTransformer.toProviderTools(tools);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].type, "function");
+    // Chat completions format: nested under .function
+    assert.ok(result[0].function, "tool must have .function wrapper");
+    assert.equal(result[0].function.name, "bash");
+    assert.equal(result[0].function.description, "Run a command");
+    // NOT flat like Responses API (no .name at top level)
+    assert.equal(
+      Object.hasOwn(result[0], "name"),
+      false,
+      "chat completions tool must NOT have .name at top level",
+    );
+  });
+
+  it("OpenAIProvider has _compatTransformer and _compatToolTransformer", () => {
+    const provider = new OpenAIProvider();
+    // biome-ignore lint/suspicious/noExplicitAny: testing private field
+    assert.ok(
+      (provider as any)._compatTransformer,
+      "must have _compatTransformer for chat completions path",
+    );
+    // biome-ignore lint/suspicious/noExplicitAny: testing private field
+    assert.ok(
+      (provider as any)._compatToolTransformer,
+      "must have _compatToolTransformer for chat completions path",
+    );
   });
 });

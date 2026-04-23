@@ -38,6 +38,7 @@ import {
   buildSystemPrompt as assembleSystemPrompt,
   collectContextBlocks,
   createCodeReviewTool,
+  createCodeTourTool,
   createDeleteFileTool,
   createFinderTool,
   createFindThreadTool,
@@ -657,10 +658,12 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     toolRegistry.register(createTaskListTool());
     log.info("task_list tool registered");
 
-    // Register finder and code_review tools (depends on SubAgentManager)
+    // Register finder, code_review, and code_tour tools (depends on SubAgentManager)
     // 逆向: chunk-005.js:71165 (qe.finder), chunk-005.js:146498 (OzT — code_review)
+    // 逆向: modules/2026_tail_anonymous.js:140405 (I2R — code_tour spec)
     toolRegistry.register(createFinderTool(subAgentManager));
     toolRegistry.register(createCodeReviewTool(subAgentManager));
+    toolRegistry.register(createCodeTourTool(subAgentManager));
     // 逆向: 2026_tail_anonymous.js:142702 (DVR — oracle tool spec)
     toolRegistry.register(createOracleTool(subAgentManager));
     // 逆向: 2026_tail_anonymous.js:141818 (IKR — librarian tool spec)
@@ -751,7 +754,9 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
       };
     };
     toolRegistry.register(createReplTool(replInferenceFn));
-    log.info("finder, code_review, oracle, librarian, look_at, mermaid, and repl tools registered");
+    log.info(
+      "finder, code_review, code_tour, oracle, librarian, look_at, mermaid, and repl tools registered",
+    );
 
     log.info("Service container initialized successfully.");
 
@@ -795,20 +800,25 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
           updateThread: async (event: ToolThreadEvent) => {
             // 逆向: amp's BfR "tool:data" case calls xwT() which finds or creates
             // a user message after the assistant message, then upserts a tool_result
-            // content block. Flitter simplifies: on "completed", append a new user
-            // message with the tool_result block so the LLM sees it on the next
-            // recursive runInference().
+            // content block. Fields must match display-items.ts RawContentBlock:
+            //   toolUseID (camelCase), run.status, run.result, run.error
             if (event.status === "completed" && event.result) {
               const snapshot = threadStore.getThreadSnapshot(threadId);
               if (!snapshot) return;
+              const isError = event.result.status === "error";
               const toolResultMessage = {
                 role: "user" as const,
                 content: [
                   {
                     type: "tool_result" as const,
-                    tool_use_id: event.toolUseId,
-                    content: event.result.content ?? "",
-                    is_error: event.result.status === "error",
+                    toolUseID: event.toolUseId,
+                    run: {
+                      status: isError ? "error" : "done",
+                      result: event.result.content ?? "",
+                      ...(isError
+                        ? { error: { message: event.result.content ?? "Unknown error" } }
+                        : {}),
+                    },
                   },
                 ],
               };

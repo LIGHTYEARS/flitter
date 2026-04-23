@@ -1020,7 +1020,11 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     const hasContent = item.text.trim().length > 0;
-    if (hasContent) {
+
+    // 逆向: fJT.build() chunk-006.js:16910-16915 — chevron only when hasContent.
+    // For streaming blocks, content is always visible (no toggle needed), so skip chevron.
+    const isClickable = hasContent && !item.isStreaming;
+    if (isClickable) {
       spans.push(new TextSpan({ text: " " }));
       spans.push(
         new TextSpan({
@@ -1034,14 +1038,35 @@ export class ConversationViewState extends State<ConversationView> {
       text: new TextSpan({ children: spans }),
     });
 
-    if (isExpanded && hasContent) {
+    // 逆向: fJT.build() chunk-006.js:17009-17019 — wrap header in G0 (GestureDetector) only when `c`
+    // (hasContent). Click toggles _localExpanded via _handleHeaderClick.
+    // Streaming blocks are never clickable — content always shown.
+    const header = isClickable
+      ? new GestureDetector({
+          onTap: () => {
+            this.setState(() => {
+              if (this._expandedThinking.has(itemIndex)) {
+                this._expandedThinking.delete(itemIndex);
+              } else {
+                this._expandedThinking.add(itemIndex);
+              }
+            });
+          },
+          child: headerRow,
+        })
+      : headerRow;
+
+    // 逆向: fJT.build() chunk-006.js:16964-16965 — `if (this.isComplete && !this.expanded) return;`
+    // Streaming blocks always show content; complete blocks show content only when expanded.
+    const showContent = hasContent && (item.isStreaming || isExpanded);
+    if (showContent) {
       const indentedText = item.text
         .split("\n")
         .map((line) => `  ${line}`)
         .join("\n");
       return new Column({
         children: [
-          headerRow,
+          header,
           new RichText({
             text: new TextSpan({
               text: indentedText,
@@ -1052,7 +1077,7 @@ export class ConversationViewState extends State<ConversationView> {
       });
     }
 
-    return headerRow;
+    return header;
   }
 
   // ════════════════════════════════════════════════════

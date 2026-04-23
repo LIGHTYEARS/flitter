@@ -789,6 +789,63 @@ export class ConversationViewState extends State<ConversationView> {
       columnChildren.push(buildDiffWidget(tool.diff));
     }
 
+    // 逆向: $9R (misc_utils.js:6962-7075) — apply_patch per-file diff rendering
+    //   Renders summary header "N files M changes +A -D" then per-file rows with path +adds -dels
+    //   Each file may have a diff block rendered below its path row.
+    if (tool.kind === "edit" && tool.files?.length) {
+      const totalAdditions = tool.files.reduce((sum, f) => sum + f.additions, 0);
+      const totalDeletions = tool.files.reduce((sum, f) => sum + f.deletions, 0);
+      const totalChanges = totalAdditions + totalDeletions;
+      const fileCount = tool.files.length;
+
+      // Summary header: "N file(s) M change(s) +A -D" (逆向: $9R lines 6985-6995)
+      const summarySpans: TextSpan[] = [
+        new TextSpan({
+          text: `  ${fileCount} ${fileCount === 1 ? "file" : "files"} ${totalChanges} ${totalChanges === 1 ? "change" : "changes"}`,
+          style: new TextStyle({ foreground: DIM_COLOR }),
+        }),
+      ];
+      if (totalAdditions > 0) {
+        summarySpans.push(
+          new TextSpan({
+            text: ` +${totalAdditions}`,
+            style: new TextStyle({ foreground: SUCCESS_COLOR }),
+          }),
+        );
+      }
+      if (totalDeletions > 0) {
+        summarySpans.push(
+          new TextSpan({
+            text: ` -${totalDeletions}`,
+            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+          }),
+        );
+      }
+      columnChildren.push(new RichText({ text: new TextSpan({ children: summarySpans }) }));
+
+      // Per-file rows (逆向: $9R lines 6999-7046 — path + +adds -dels + optional diff)
+      for (const file of tool.files) {
+        const fileSpans: TextSpan[] = [
+          new TextSpan({
+            text: `  ${file.path}`,
+            style: new TextStyle({ foreground: DIM_COLOR }),
+          }),
+          new TextSpan({
+            text: ` +${file.additions}`,
+            style: new TextStyle({ foreground: SUCCESS_COLOR }),
+          }),
+          new TextSpan({
+            text: ` -${file.deletions}`,
+            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+          }),
+        ];
+        columnChildren.push(new RichText({ text: new TextSpan({ children: fileSpans }) }));
+        if (file.diff) {
+          columnChildren.push(buildDiffWidget(file.diff));
+        }
+      }
+    }
+
     // B1: Bash output display — 逆向: chunk-006.js:30059
     //   on(a.result.output, isComplete, colors) renders output below command
     if (isBash && tool.output && tool.status !== "rejected-by-user") {

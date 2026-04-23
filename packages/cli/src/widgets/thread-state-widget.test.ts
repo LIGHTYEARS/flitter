@@ -525,4 +525,140 @@ describe("ThreadStateWidget", () => {
     const hasStatusBar = children.some((c: any) => c.constructor.name === "StatusBar");
     assert.ok(!hasStatusBar, "Column should NOT contain a standalone StatusBar");
   });
+
+  describe("_buildTopRightLabel", () => {
+    it("includes skill count when skillCount is provided", async () => {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const store = createMockThreadStore("t1", {
+        id: "t1",
+        v: 0,
+        messages: [],
+        relationships: [],
+      });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+        modeName: "smart",
+        skillCount: 77,
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      state.initState();
+
+      // 逆向: jetbrains_wizard.js:5884 — `${mode}──!─${count}─skills`
+      const label = (state as any)._buildTopRightLabel();
+      assert.equal(label, "smart\u2500\u2500!\u250077\u2500skills");
+    });
+
+    it("returns only mode name when skillCount is undefined", async () => {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const store = createMockThreadStore("t1", {
+        id: "t1",
+        v: 0,
+        messages: [],
+        relationships: [],
+      });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+        modeName: "deep",
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      state.initState();
+
+      const label = (state as any)._buildTopRightLabel();
+      assert.equal(label, "deep");
+    });
+  });
+
+  describe("_buildTopLeftLabel", () => {
+    it("returns empty string when no tokens have been consumed", async () => {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const store = createMockThreadStore("t1", {
+        id: "t1",
+        v: 0,
+        messages: [],
+        relationships: [],
+      });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+        modelName: "claude-sonnet-4-20250514",
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      state.initState();
+
+      // 逆向: jetbrains_wizard.js:6072 — guard: !l.isThreadEmpty()
+      // totalUsed === 0 means no tokens consumed → welcome screen → return ""
+      const label = (state as any)._buildTopLeftLabel();
+      assert.equal(label, "");
+    });
+
+    it("returns token percentage when tokens have been consumed", async () => {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const store = createMockThreadStore("t1", {
+        id: "t1",
+        v: 0,
+        messages: [],
+        relationships: [],
+      });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+        modelName: "claude-sonnet-4-20250514",
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      state.initState();
+
+      // Simulate token usage: 15000 input + 5000 output = 20000 total
+      (state as any)._totalInputTokens = 15000;
+      (state as any)._totalOutputTokens = 5000;
+
+      const label = (state as any)._buildTopLeftLabel();
+      assert.ok(label.includes("% of"), `Expected token percentage label, got: "${label}"`);
+    });
+  });
 });

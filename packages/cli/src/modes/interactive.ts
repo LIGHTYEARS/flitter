@@ -439,7 +439,7 @@ export async function launchInteractiveMode(
           gitBranch,
           modeName: (context.agentMode as string | undefined) ?? "smart",
           // biome-ignore lint/suspicious/noExplicitAny: skillService type varies by container version
-          skillCount: (container.skillService as any)?.listSkills?.()?.length as number | undefined,
+          skillCount: (container.skillService as any)?.list?.()?.length as number | undefined,
         }),
       }),
       {

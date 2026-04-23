@@ -479,6 +479,8 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   private _buildTopLeftLabel(): string {
     const maxTokens = resolveModel(this.widget.config.modelName ?? "")?.contextWindow ?? 200000;
     const totalUsed = this._totalInputTokens + this._totalOutputTokens;
+    // 逆向: jetbrains_wizard.js:6072 — guard: !l.isThreadEmpty()
+    if (totalUsed === 0) return "";
     if (maxTokens <= 0) return "";
     const pct = Math.round((totalUsed / maxTokens) * 100);
     const maxStr = maxTokens >= 1000 ? `${Math.round(maxTokens / 1000)}k` : `${maxTokens}`;
@@ -602,6 +604,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               topLeftLabel: this._buildTopLeftLabel(),
               topRightLabel: this._buildTopRightLabel(),
               bottomRightLabel: this._buildBottomRightLabel(),
+              placeholder: "",
             }),
         // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
         new BottomStatusLine({

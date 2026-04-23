@@ -3,17 +3,19 @@
  *
  * Validates:
  * - WelcomeScreen extends StatelessWidget
- * - build() returns a Column with centered orb ASCII art rows
+ * - build() returns a Center with an animated orb + help text
  * - Default productName is "Flitter"
  * - Custom productName replaces the default in the welcome text
  * - Help text lines are present in the widget tree
+ * - AnimatedOrb is used instead of static ASCII art
  *
  * @module
  */
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Column, RichText, Row, StatelessWidget } from "@flitter/tui";
+import { Center, Column, RichText, Row, SizedBox, StatelessWidget } from "@flitter/tui";
+import { AnimatedOrb } from "./animated-orb.js";
 import { WelcomeScreen } from "./welcome-screen.js";
 
 // ════════════════════════════════════════════════════
@@ -60,16 +62,16 @@ describe("WelcomeScreen", () => {
     assert.equal(widget.config.productName, "MyApp");
   });
 
-  it("build() returns a Column (vertically centered layout)", () => {
+  it("build() returns a Center (fills parent and centers content)", () => {
     const widget = new WelcomeScreen();
     const built = widget.build({} as any);
-    assert.ok(built instanceof Column, "Top-level widget should be a Column");
+    assert.ok(built instanceof Center, "Top-level widget should be a Center");
   });
 
-  it("build() uses mainAxisAlignment: center for vertical centering", () => {
+  it("build() Center wraps a Row containing orb and text", () => {
     const widget = new WelcomeScreen();
-    const built = widget.build({} as any) as Column;
-    assert.equal(built.mainAxisAlignment, "center");
+    const built = widget.build({} as any) as any;
+    assert.ok(built.child instanceof Row, "Center's child should be a Row");
   });
 
   it('build() includes "Welcome to Flitter" by default', () => {
@@ -104,58 +106,63 @@ describe("WelcomeScreen", () => {
     assert.ok(hasTabHint, `Expected "Tab/Shift+Tab" in ${JSON.stringify(texts)}`);
   });
 
-  it("build() contains ASCII art orb characters", () => {
+  it("build() uses AnimatedOrb instead of static ASCII art", () => {
     const widget = new WelcomeScreen();
-    const built = widget.build({} as any);
-    const texts = extractPlainTexts(built);
-    // The orb art should contain density characters like * + = - : .
-    const hasOrbChars = texts.some((t) => t.includes("***") || t.includes("+++"));
-    assert.ok(hasOrbChars, `Expected ASCII art orb characters in output`);
-  });
-
-  it("build() produces a single centered Row containing orb and text columns", () => {
-    const widget = new WelcomeScreen();
-    const built = widget.build({} as any) as Column;
-    assert.equal(built.children.length, 1, "Should have exactly 1 child (the Row)");
-    assert.ok(built.children[0] instanceof Row, "Child should be a Row");
+    const built = widget.build({} as any) as any;
+    const row = built.child;
+    assert.ok(row instanceof Row, "Center's child should be a Row");
+    const firstChild = row.children[0];
+    assert.ok(firstChild instanceof AnimatedOrb, "First Row child should be AnimatedOrb");
   });
 
   describe("layout structure", () => {
-    it("has outer Column > single Row > [orbColumn, gap, textColumn] structure", () => {
+    it("has Center > Row > [AnimatedOrb, SizedBox(gap), SizedBox(textColumn)] structure", () => {
       const widget = new WelcomeScreen({ productName: "Flitter" });
       const tree = widget.build({} as any);
 
-      // Outer: Column with mainAxisAlignment: "center"
-      assert.ok(tree instanceof Column, "Root should be Column");
-      const outerColumn = tree as any;
-      assert.equal(outerColumn.mainAxisAlignment, "center");
+      // Outer: Center (RenderPositionedBox fills parent, centers child)
+      assert.ok(tree instanceof Center, "Root should be Center");
 
       // Single child: Row with mainAxisSize: "min"
-      const outerChildren = outerColumn.children;
-      assert.equal(outerChildren.length, 1, "Outer Column should have exactly 1 child (the Row)");
-      const mainRow = outerChildren[0];
-      assert.ok(mainRow instanceof Row, "Single child should be Row");
+      const mainRow = (tree as any).child;
+      assert.ok(mainRow instanceof Row, "Center's child should be Row");
       assert.equal((mainRow as any).mainAxisSize, "min");
 
-      // Row children: [Column(orb), SizedBox, Column(text)]
+      // Row children: [AnimatedOrb, SizedBox(gap), SizedBox(textColumn)]
       const rowChildren = (mainRow as any).children;
-      assert.equal(rowChildren.length, 3, "Row should have 3 children: orbColumn, gap, textColumn");
-      assert.ok(rowChildren[0] instanceof Column, "First child should be Column (orb lines)");
-      assert.ok(rowChildren[2] instanceof Column, "Third child should be Column (help texts)");
+      assert.equal(rowChildren.length, 3, "Row should have 3 children: orb, gap, textColumn");
+      assert.ok(rowChildren[0] instanceof AnimatedOrb, "First child should be AnimatedOrb");
+      assert.ok(rowChildren[1] instanceof SizedBox, "Second child should be SizedBox (gap)");
+      assert.ok(
+        rowChildren[2] instanceof SizedBox,
+        "Third child should be SizedBox (text wrapper)",
+      );
     });
 
-    it("orb column has all 17 orb lines left-aligned", () => {
-      const widget = new WelcomeScreen({ productName: "Flitter" });
+    it("AnimatedOrb has default 40x40 dimensions", () => {
+      const widget = new WelcomeScreen();
       const tree = widget.build({} as any);
-      const mainRow = (tree as any).children[0];
-      const orbColumn = (mainRow as any).children[0];
-      const orbChildren = orbColumn.children;
-      assert.equal(orbChildren.length, 17, "Orb column should have 17 lines");
-      assert.equal(
-        orbColumn.crossAxisAlignment ?? "start",
-        "start",
-        "Orb column should left-align its children",
-      );
+      const mainRow = (tree as any).child;
+      const orb = mainRow.children[0] as AnimatedOrb;
+      assert.equal(orb.width, 40, "Orb width should be 40");
+      assert.equal(orb.height, 40, "Orb height should be 40");
+    });
+
+    it("gap between orb and text is 2 columns wide", () => {
+      const widget = new WelcomeScreen();
+      const tree = widget.build({} as any);
+      const mainRow = (tree as any).child;
+      const gap = mainRow.children[1] as SizedBox;
+      assert.equal((gap as any).width, 2, "Gap should be 2 columns wide");
+    });
+
+    it("text column is wrapped in SizedBox(width: 50)", () => {
+      const widget = new WelcomeScreen();
+      const tree = widget.build({} as any);
+      const mainRow = (tree as any).child;
+      const textWrapper = mainRow.children[2] as SizedBox;
+      assert.equal((textWrapper as any).width, 50, "Text wrapper should be 50 columns wide");
+      assert.ok((textWrapper as any).child instanceof Column, "SizedBox should wrap a Column");
     });
   });
 });

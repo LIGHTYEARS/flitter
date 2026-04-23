@@ -1,12 +1,12 @@
 /**
  * WelcomeScreen — 欢迎页面 StatelessWidget。
  *
- * 居中显示 ASCII art 光球 + 帮助信息。
- * 光球使用 `. : - = + *` 梯度密度字符绘制，
+ * 居中显示动画光球 + 帮助信息。
+ * 光球使用 2D Open-Simplex Noise 驱动字符密度动画，
  * 右侧显示产品名称和快捷键提示。
  *
  * 逆向参考: chunk-006.js:15297-15313 — welcome screen widget
- *           chunk-006.js:14921-15001 — animated orb (此处使用静态 ASCII art)
+ *           chunk-005.js:164932-165212 — animated orb (uXT/yXT/SH)
  *           modules/1472_tui_components/misc_utils.js:2720-2868 — welcome screen build()
  *
  * @example
@@ -21,6 +21,7 @@
 
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
+  Center,
   Color,
   Column,
   RichText,
@@ -30,6 +31,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import { AnimatedOrb } from "./animated-orb.js";
 
 // ════════════════════════════════════════════════════
 //  WelcomeScreenConfig 接口
@@ -49,9 +51,6 @@ export interface WelcomeScreenConfig {
 //  颜色常量 — Tokyo Night 调色板
 // ════════════════════════════════════════════════════
 
-/** mutedText 色 (#565f89) — 光球 ASCII art 字符色 */
-const MUTED_TEXT_COLOR = Color.rgb(0x56, 0x5f, 0x89);
-
 /** foreground 色 (#a9b1d6) — 欢迎标题文本色 */
 const FOREGROUND_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
 
@@ -65,39 +64,13 @@ const KEYBIND_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
 const COMMAND_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
 
 // ════════════════════════════════════════════════════
-//  ASCII art 光球数据
+//  光球尺寸 — 逆向: chunk-005.js:26479 X4=40, Y4=40
 // ════════════════════════════════════════════════════
 
-/**
- * 逆向: tmux-capture/screens/amp/welcome/plain-63x244.golden
- *
- * 从 golden 文件中提取的静态 ASCII art 光球。
- * 使用 `. : - = + *` 梯度密度字符从外到内递增亮度。
- * 在非动画终端模式下，amp 回退到此静态 RichText。
- *
- * 逆向: chunk-006.js:15309-15313 — 非动画时用 RichText("Welcome to Amp")
- *       modules/1472_tui_components/misc_utils.js:2840-2860 — orb widget 或 SizedBox
- *       我们使用从 golden 截图提取的静态 ASCII art。
- */
-const ORB_LINES: string[] = [
-  "       .......",
-  "  .....:::..........  ",
-  "..::::::::::::::.......  ",
-  "..:::-----------::::......  ",
-  "..::--=========----::::......  ",
-  "..::--===++++++===---::::......  ",
-  "..:--==++++++++++==---:::.......  ",
-  ".::--==++******+++==--::::.......  ",
-  ".::--=+++*******++==---:::.......  ",
-  "..:--==++*******+++==--:::.......  ",
-  "..::--=+++******+++==--:::.......  ",
-  " ..::-==+++****+++==---:::......  ",
-  "  ..::-===+++++++===--:::......  ",
-  "   ..::--====+=====---:::....  ",
-  "    ...::----===----:::....  ",
-  "       ..::::----::::....  ",
-  "          ............  ",
-];
+/** 光球宽度 (字符列数) */
+const ORB_WIDTH = 40;
+/** 光球高度 (字符行数) */
+const ORB_HEIGHT = 40;
 
 // ════════════════════════════════════════════════════
 //  WelcomeScreen Widget
@@ -106,12 +79,12 @@ const ORB_LINES: string[] = [
 /**
  * WelcomeScreen — 欢迎页面 StatelessWidget。
  *
- * 居中显示 ASCII art 光球和帮助提示文本。
+ * 居中显示动画光球和帮助提示文本。
  * 光球位于左侧，帮助文本位于右侧特定行。
  *
  * 逆向: modules/1472_tui_components/misc_utils.js:2861-2868
- * - amp 使用 Row(mainAxisAlignment: "center", children: [orb, SizedBox(w:2), textColumn])
- * - 我们使用静态 ASCII art 替代动画 orb
+ * - amp: Center(Row([orb(40×40), SizedBox(w:2), SizedBox(w:50, textColumn)]))
+ * - AnimatedOrb 自行管理 30fps 定时器
  */
 export class WelcomeScreen extends StatelessWidget {
   /** Widget 配置 */
@@ -141,9 +114,12 @@ export class WelcomeScreen extends StatelessWidget {
    * ```
    *
    * 布局:
-   *   Column(mainAxisAlignment: "center")
-   *     └── for each ORB_LINES row:
-   *           Row(children: [orbChars, gap, helpText?])
+   *   Center
+   *     └── Row(mainAxisSize: "min")
+   *           ├── AnimatedOrb(40×40)
+   *           ├── SizedBox(w:2)
+   *           └── SizedBox(w:50)
+   *                 └── Column(help texts)
    *
    * @param _context - 构建上下文
    * @returns Widget 树
@@ -152,29 +128,20 @@ export class WelcomeScreen extends StatelessWidget {
     const productName = this.config.productName ?? "Flitter";
 
     // 逆向: misc_utils.js:2694-2710 — 文本样式
-    const orbStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR });
     const titleStyle = new TextStyle({ foreground: FOREGROUND_COLOR });
     const helpKeyStyle = new TextStyle({ foreground: KEYBIND_COLOR });
     const helpWordStyle = new TextStyle({ foreground: COMMAND_COLOR });
     const dimStyle = new TextStyle({ foreground: SECONDARY_COLOR });
 
-    // ── Orb column: all orb lines left-aligned in their own Column ──
-    // This ensures the orb is a coherent block — no per-line centering jitter
-    const orbWidgets: Widget[] = ORB_LINES.map(
-      (line) =>
-        new RichText({
-          text: new TextSpan({ text: line, style: orbStyle }),
-        }),
-    );
-    const orbColumn = new Column({
-      mainAxisSize: "min",
-      crossAxisAlignment: "start",
-      children: orbWidgets,
+    // ── Animated orb (40×40) — 逆向: misc_utils.js:2840-2860 ──
+    const orb = new AnimatedOrb({
+      width: ORB_WIDTH,
+      height: ORB_HEIGHT,
     });
 
-    // ── Help text column: positioned to align with specific orb lines ──
+    // ── Help text column — 逆向: misc_utils.js:2720-2831 ──
     // SizedBox spacers skip rows where no help text appears
-    // Help texts at orb lines 4, 7, 10, 11
+    // Help texts positioned to align with specific orb rows
     const helpChildren: Widget[] = [];
 
     // Lines 0-3: empty (4 rows of spacing)
@@ -229,26 +196,27 @@ export class WelcomeScreen extends StatelessWidget {
       }),
     );
 
-    const textColumn = new Column({
-      mainAxisSize: "min",
-      crossAxisAlignment: "start",
-      children: helpChildren,
+    // 逆向: misc_utils.js:2832-2838 — text column in SizedBox(w:50)
+    const textColumn = new SizedBox({
+      width: 50,
+      child: new Column({
+        mainAxisSize: "min",
+        crossAxisAlignment: "start",
+        children: helpChildren,
+      }),
     });
 
     // 逆向: misc_utils.js:2861-2868
-    // Row([orb, SizedBox(w:6), textColumn]) centered as a single unit
+    // Row([orb(40×40), SizedBox(w:2), textColumn(w:50)])
     const mainRow = new Row({
       mainAxisAlignment: "center",
-      crossAxisAlignment: "start",
+      crossAxisAlignment: "center",
       mainAxisSize: "min",
-      children: [orbColumn, new SizedBox({ width: 6 }), textColumn],
+      children: [orb, new SizedBox({ width: 2 }), textColumn],
     });
 
-    // 逆向: misc_utils.js:2861 — outer Column with vertical centering
-    return new Column({
-      mainAxisAlignment: "center",
-      crossAxisAlignment: "center",
-      children: [mainRow],
-    });
+    // 逆向: misc_utils.js:2861 — N0.child(...) = Center wrapping the Row
+    // Center (RenderPositionedBox) 填满父约束后居中子节点。
+    return new Center({ child: mainRow });
   }
 }

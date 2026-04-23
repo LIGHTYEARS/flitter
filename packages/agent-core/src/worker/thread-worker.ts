@@ -650,7 +650,7 @@ export class ThreadWorker {
         lastDelta = delta;
 
         // 更新 ThreadStore 中的 assistant 消息
-        this.updateAssistantContent(delta.content);
+        this.updateAssistantContent(delta.content, delta.state);
 
         // 发出 delta 事件
         this.events$.next({ type: "inference:delta", delta });
@@ -1383,8 +1383,12 @@ export class ThreadWorker {
 
   /**
    * 更新 assistant 消息内容 (累积模式)
+   * 逆向: amp 在 stream 结束时 state 从 streaming → complete，此处同步更新 state
    */
-  private updateAssistantContent(content: unknown[]): void {
+  private updateAssistantContent(
+    content: unknown[],
+    state?: { type: string; stopReason?: string },
+  ): void {
     const snapshot = this.opts.getThreadSnapshot();
     const messages = [...snapshot.messages];
     const last = messages[messages.length - 1];
@@ -1392,13 +1396,17 @@ export class ThreadWorker {
     if (last && last.role === "assistant") {
       // 更新已有 assistant 消息
       (last as Message & { role: "assistant" }).content = content as AssistantContentBlock[];
+      // 同步 state (streaming → complete 转换)
+      if (state) {
+        (last as Record<string, unknown>).state = state;
+      }
     } else {
       // 追加新 assistant 消息
       (messages as unknown[]).push({
         role: "assistant",
         content: content as AssistantContentBlock[],
         messageId: snapshot.nextMessageId ?? messages.length,
-        state: { type: "streaming" },
+        state: state ?? { type: "streaming" },
       });
     }
 

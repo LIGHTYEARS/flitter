@@ -101,6 +101,55 @@ export interface TerminalCapabilities {
   /** xtversion 响应字符串，null 表示未检测到 */
   xtversion: string | null;
   /**
+   * Kitty graphics protocol support.
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:16
+   *   kittyGraphics: this.detectKittyGraphicsFromEnv()
+   *   processKittyGraphics(): sets true unless isTerm2()
+   */
+  kittyGraphics: boolean;
+  /**
+   * SGR pixel mouse tracking support (DEC Private Mode 1016).
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:8
+   *   pixelMouse: !1 (set via processDecrqss when ?1016 enabled)
+   */
+  pixelMouse: boolean;
+  /**
+   * Terminal pixel dimensions.
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:9
+   *   pixelDimensions: !1 (boolean in amp)
+   *   We use a richer type to store the actual dimensions for downstream use.
+   *   null = not available, object = pixel width/height detected.
+   */
+  pixelDimensions: { width: number; height: number } | null;
+  /**
+   * OSC 52 clipboard support.
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:15
+   *   osc52: !1 (set via processXtversion or processXtgettcap)
+   *   Enabled for: ghostty, kitty, wezterm, foot, alacritty, iterm2, tmux
+   */
+  osc52: boolean;
+  /**
+   * Terminal background luminance.
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:17
+   *   background: "unknown" — updated via processOsc11 using luma formula:
+   *   luma = 0.299*r + 0.587*g + 0.114*b; dark if luma < 128
+   *
+   * Amp uses "unknown" as initial value; we default to "dark" for safety.
+   */
+  background: "dark" | "light";
+  /**
+   * Kitty explicit cell width support.
+   *
+   * 逆向: amp modules/2109_unknown_dY.js:19
+   *   kittyExplicitWidth: !1 (set via processCursorPositionReport when kittyWidthQuerySent)
+   */
+  kittyExplicitWidth: boolean;
+  /**
    * 是否支持光标形状控制 (DECSCUSR).
    *
    * 逆向: amp modules/2109_unknown_dY.js:263-265
@@ -924,6 +973,12 @@ export class TuiController {
       kittyKeyboard: detectKittyKeyboardSupport(),
       colorPaletteNotifications: false,
       xtversion: null,
+      kittyGraphics: false,
+      pixelMouse: false,
+      pixelDimensions: null,
+      osc52: false,
+      background: "dark",
+      kittyExplicitWidth: false,
       supportsCursorShape: detectCursorShapeSupport(),
       colorDepth: detectColorDepth(),
       animationSupport: detectAnimationSupport(),

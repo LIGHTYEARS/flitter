@@ -31,7 +31,7 @@
 // ─── Types ──────────────────────────────────────────────
 
 /** Agent mode identifier */
-export type AgentMode = "smart" | "fast" | "deep" | "auto" | "rush" | "large" | "free";
+export type AgentMode = "smart" | "fast" | "deep" | "auto" | "rush" | "large" | "free" | "agg-man";
 
 /** Agent mode specification */
 export interface AgentModeSpec {
@@ -62,6 +62,23 @@ export interface AgentModeSpec {
    * 逆向: Ab.SMART.deferredTools = HW = ["code_tour","code_review","walkthrough","walkthrough_diagram"]
    */
   deferredTools: string[];
+  /**
+   * Whether this mode is visible in the mode picker.
+   * 逆向: Ab.AGG.visible = false (chunk-005.js:67249)
+   *   Most modes have visible: true; agg-man and future internal modes are hidden.
+   */
+  visible?: boolean;
+  /**
+   * UI display hints for color and animation.
+   * 逆向: Ab.AGG.uiHints = { primaryColor: {r:26,g:0,b:77}, secondaryColor: {r:102,g:153,b:255} }
+   *   (chunk-005.js:67250-67260)
+   */
+  uiHints?: {
+    primaryColor?: { r: number; g: number; b: number };
+    secondaryColor?: { r: number; g: number; b: number };
+    labelAnimation?: string;
+    fasterAnimation?: boolean;
+  };
 }
 
 // ─── Tool Lists per Mode ────────────────────────────────
@@ -166,6 +183,45 @@ const DEEP_TOOLS = [
 // code_tour, walkthrough, walkthrough_diagram are deferred (loaded via skill) in smart and large modes.
 const SMART_DEFERRED = ["code_review", "code_tour", "walkthrough", "walkthrough_diagram"];
 const DEEP_DEFERRED = ["code_review"];
+
+/**
+ * Agg-man orchestrator tool list.
+ *
+ * 逆向: chunk-005.js:67177 — jiT (agg-man tools)
+ *   jiT = ["find_thread", "read_thread", "web_search", "read_web_page",
+ *          "docs_list", "docs_read", "docs_write",
+ *          "render_agg_man", "create_project",
+ *          "create_thread", "archive_thread", "unarchive_thread",
+ *          "send_message_to_thread",
+ *          "slack_write", "slack_read",
+ *          "github_repo_ci_status",
+ *          "read_github", "search_github",
+ *          "commit_search", "list_directory_github", "list_repositories",
+ *          "glob_github", "diff"]
+ *
+ * Navigation-only — no Bash, Read, Edit, Write, Grep, Glob, shell_command, apply_patch, etc.
+ * Maps amp tool names: create_file→Write, edit_file→Edit, glob→Glob excluded.
+ */
+const AGGMAN_TOOLS = [
+  "find_thread",
+  "read_thread",
+  "web_search",
+  "read_web_page",
+  "render_agg_man",
+  "create_project",
+  "create_thread",
+  "archive_thread",
+  "unarchive_thread",
+  "send_message_to_thread",
+  "github_repo_ci_status",
+  "read_github",
+  "search_github",
+  "commit_search",
+  "list_directory_github",
+  "list_repositories",
+  "glob_github",
+  "diff",
+];
 
 /**
  * Free tier tool list.
@@ -276,6 +332,25 @@ export const AGENT_MODES: Record<AgentMode, AgentModeSpec> = {
     includeTools: FREE_TOOLS,
     deferredTools: [],
   },
+  // 逆向: Ab.AGG (chunk-005.js:67243-67261)
+  //   key: "agg-man", displayName: "Agg", visible: false
+  //   includeTools: jiT = navigation-only (no Bash/Read/Edit/Write/etc.)
+  //   primaryModel: CLAUDE_OPUS_4_6
+  //   uiHints: { primaryColor: {r:26,g:0,b:77}, secondaryColor: {r:102,g:153,b:255} }
+  // L0T = Ab.AGG.key = "agg-man" (chunk-005.js:67333)
+  "agg-man": {
+    key: "agg-man",
+    displayName: "Agg",
+    description: "Navigate work across projects, threads, and context",
+    primaryModel: "claude-opus-4-6",
+    includeTools: AGGMAN_TOOLS,
+    deferredTools: [],
+    visible: false,
+    uiHints: {
+      primaryColor: { r: 26, g: 0, b: 77 },
+      secondaryColor: { r: 102, g: 153, b: 255 },
+    },
+  },
 };
 
 // ─── Helpers ────────────────────────────────────────────
@@ -329,7 +404,8 @@ export function isValidAgentMode(value: string): value is AgentMode {
     value === "auto" ||
     value === "rush" ||
     value === "large" ||
-    value === "free"
+    value === "free" ||
+    value === "agg-man"
   );
 }
 

@@ -4,6 +4,7 @@
  * Barrel export for mode definitions, reasoning effort resolution,
  * and mode-related helpers.
  */
+
 export type { AgentMode, AgentModeSpec } from "./agent-modes";
 export {
   AGENT_MODES,
@@ -14,5 +15,6 @@ export {
   isToolAllowedInMode,
   isValidAgentMode,
 } from "./agent-modes";
+export { buildAggmanSystemPrompt } from "./aggman-prompt";
 export type { ReasoningEffort } from "./reasoning-effort";
 export { inferProviderFromModel, resolveReasoningEffort } from "./reasoning-effort";

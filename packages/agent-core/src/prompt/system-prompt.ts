@@ -5,6 +5,8 @@
  * Reverse-engineered from: LO (buildSystemPrompt, tool-execution-engine.js 591-816)
  */
 import type { SystemPromptBlock, ToolDefinition } from "@flitter/llm";
+import type { AgentMode } from "../modes/agent-modes";
+import { buildAggmanSystemPrompt } from "../modes/aggman-prompt";
 
 // ─── Base Role Prompt ───────────────────────────────────
 
@@ -61,6 +63,13 @@ export interface BuildSystemPromptOptions {
   contextBlocks: SystemPromptBlock[];
   /** Whether this is a sub-agent */
   isSubAgent?: boolean;
+  /**
+   * Active agent mode. When set to "agg-man", the aggman system prompt
+   * is used instead of the standard BASE_ROLE_PROMPT, and context blocks
+   * are skipped (匹配 amp: y !== "aggman" guard on fwR in chunk-002.js:20586).
+   * 逆向: chunk-002.js:20536-20538 — case "aggman": u = V7R(); break;
+   */
+  agentMode?: AgentMode;
 }
 
 // ─── Main ───────────────────────────────────────────────
@@ -70,21 +79,28 @@ export interface BuildSystemPromptOptions {
  * Reverse: LO (buildSystemPrompt, tool-execution-engine.js 591-816)
  *
  * Assembly order:
- * 1. Base role prompt (hardcoded)
+ * 1. Base role prompt (hardcoded) — OR aggman prompt when mode === "agg-man"
  * 2. Tool instructions block (formatted tool list)
- * 3. Context blocks (environment / guidance / skills / repo)
+ * 3. Context blocks (environment / guidance / skills / repo) — skipped for agg-man
  * 4. Sub-agent modifier (if isSubAgent=true)
  *
  * Returns multiple SystemPromptBlock segments to allow
  * per-segment cache_control at the LLM provider level.
+ *
+ * 逆向: chunk-002.js:20536-20598 — mode-based prompt selection and cache_control
+ *   - agg-man: u = V7R(), skips fwR context blocks (P = xwR instead)
+ *   - cache_control: { type: "ephemeral", ttl: "1h" } on first block
  */
 export function buildSystemPrompt(opts: BuildSystemPromptOptions): SystemPromptBlock[] {
   const blocks: SystemPromptBlock[] = [];
+  const isAggman = opts.agentMode === "agg-man";
 
-  // 1. Base role prompt
+  // 1. Base role prompt — agg-man uses its own orchestrator prompt
+  // 逆向: chunk-002.js:20536-20537 — case "aggman": u = V7R()
+  const rolePromptText = isAggman ? buildAggmanSystemPrompt() : BASE_ROLE_PROMPT;
   blocks.push({
     type: "text",
-    text: BASE_ROLE_PROMPT,
+    text: rolePromptText,
     cache_control: { type: "ephemeral", ttl: "300s" },
   });
 
@@ -92,8 +108,11 @@ export function buildSystemPrompt(opts: BuildSystemPromptOptions): SystemPromptB
   const toolBlock = buildToolInstructionsBlock(opts.toolDefinitions);
   if (toolBlock) blocks.push(toolBlock);
 
-  // 3. Context blocks
-  blocks.push(...opts.contextBlocks);
+  // 3. Context blocks — skipped for agg-man (uses platform state instead)
+  // 逆向: chunk-002.js:20586 — if (y !== "aggman") P = (await fwR(...)).blocks; else P = xwR(...)
+  if (!isAggman) {
+    blocks.push(...opts.contextBlocks);
+  }
 
   // 4. Sub-agent modifier
   if (opts.isSubAgent) {

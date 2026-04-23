@@ -32,9 +32,9 @@ function makeSettings(overrides: Partial<Settings> = {}): Settings {
 // ─── AGENT_MODES ────────────────────────────────────────
 
 describe("AGENT_MODES", () => {
-  test("has exactly 7 modes: smart, fast, deep, auto, rush, large, free", () => {
+  test("has exactly 8 modes: smart, fast, deep, auto, rush, large, free, agg-man", () => {
     const keys = Object.keys(AGENT_MODES).sort();
-    expect(keys).toEqual(["auto", "deep", "fast", "free", "large", "rush", "smart"]);
+    expect(keys).toEqual(["agg-man", "auto", "deep", "fast", "free", "large", "rush", "smart"]);
   });
 
   test("each mode has required fields", () => {
@@ -90,6 +90,11 @@ describe("getModelForMode", () => {
   test("returns claude-haiku-4-5-20251001 for free", () => {
     expect(getModelForMode("free")).toBe("claude-haiku-4-5-20251001");
   });
+
+  // 逆向: Ab.AGG (chunk-005.js:67243-67261) — CLAUDE_OPUS_4_6
+  test("returns claude-opus-4-6 for agg-man", () => {
+    expect(getModelForMode("agg-man")).toBe("claude-opus-4-6");
+  });
 });
 
 // ─── isDeepReasoningMode ────────────────────────────────
@@ -123,6 +128,7 @@ describe("isValidAgentMode", () => {
     expect(isValidAgentMode("rush")).toBe(true);
     expect(isValidAgentMode("large")).toBe(true);
     expect(isValidAgentMode("free")).toBe(true);
+    expect(isValidAgentMode("agg-man")).toBe(true);
   });
 
   test("returns false for invalid strings", () => {
@@ -306,6 +312,74 @@ describe("isFreeMode", () => {
     expect(isFreeMode("fast")).toBe(false);
     expect(isFreeMode("deep")).toBe(false);
     expect(isFreeMode("auto")).toBe(false);
+  });
+});
+
+// ─── agg-man mode ─────────────────────────────────────
+
+describe("agg-man mode", () => {
+  // 逆向: Ab.AGG (chunk-005.js:67243-67261)
+  test("AGENT_MODES has agg-man entry", () => {
+    expect(AGENT_MODES["agg-man"]).toBeDefined();
+    expect(AGENT_MODES["agg-man"].displayName).toBe("Agg");
+  });
+
+  test("agg-man description matches amp reference", () => {
+    expect(AGENT_MODES["agg-man"].description).toBe(
+      "Navigate work across projects, threads, and context",
+    );
+  });
+
+  test("agg-man is not visible in mode picker", () => {
+    // 逆向: Ab.AGG.visible = false (chunk-005.js:67249)
+    expect(AGENT_MODES["agg-man"].visible).toBe(false);
+  });
+
+  test("agg-man has correct uiHints", () => {
+    // 逆向: Ab.AGG.uiHints (chunk-005.js:67250-67260)
+    expect(AGENT_MODES["agg-man"].uiHints?.primaryColor).toEqual({ r: 26, g: 0, b: 77 });
+    expect(AGENT_MODES["agg-man"].uiHints?.secondaryColor).toEqual({ r: 102, g: 153, b: 255 });
+  });
+
+  test("agg-man mode allows navigation tools", () => {
+    // 逆向: jiT includes find_thread, read_thread, web_search (chunk-005.js:67177)
+    expect(isToolAllowedInMode("find_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("web_search", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("read_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("github_repo_ci_status", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("create_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("archive_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("unarchive_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("send_message_to_thread", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("render_agg_man", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("create_project", "agg-man")).toBe(true);
+    expect(isToolAllowedInMode("diff", "agg-man")).toBe(true);
+  });
+
+  test("agg-man mode blocks execution tools", () => {
+    // 逆向: jiT does NOT include Bash, Read, Edit, Write, Grep, Glob, shell_command, apply_patch
+    expect(isToolAllowedInMode("Bash", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Read", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Edit", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Write", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Grep", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Glob", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("shell_command", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("apply_patch", "agg-man")).toBe(false);
+    expect(isToolAllowedInMode("Task", "agg-man")).toBe(false);
+  });
+
+  test("agg-man uses claude-opus-4-6", () => {
+    // 逆向: Ab.AGG.primaryModel = ya("CLAUDE_OPUS_4_6") (chunk-005.js:67247)
+    expect(AGENT_MODES["agg-man"].primaryModel).toBe("claude-opus-4-6");
+  });
+
+  test("agg-man has no deferred tools", () => {
+    expect(AGENT_MODES["agg-man"].deferredTools).toEqual([]);
+  });
+
+  test("agg-man MCP tools still pass through", () => {
+    expect(isToolAllowedInMode("mcp__server__tool", "agg-man")).toBe(true);
   });
 });
 

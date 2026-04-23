@@ -94,7 +94,7 @@ describe("GlowNoise", () => {
 describe("RenderOrbSphere", () => {
   it("reports correct intrinsic sizes", () => {
     const glow = new GlowNoise(42);
-    const bg = Color.rgb(0x1a, 0x1b, 0x26);
+    const bg = Color.default();
     const ro = new RenderOrbSphere(
       40,
       40,

@@ -515,7 +515,8 @@ export class RenderOrbSphere extends RenderBox {
         const screenX = offsetX + col;
         if (screenX < 0 || screenX >= screenW) continue;
 
-        const style = new TextStyle({ foreground: fg, background: this._backgroundColor });
+        // 逆向: amp SH.paint sets bg = colorScheme.background = LT.none() → transparent
+        const style = new TextStyle({ foreground: fg });
         screen.setCell(screenX, screenY, new Cell(ch, style));
       }
     }
@@ -641,7 +642,8 @@ export class AnimatedOrb extends StatefulWidget {
     this.glow = config?.glow;
     this.primaryColor = config?.primaryColor ?? DEFAULT_PRIMARY;
     this.secondaryColor = config?.secondaryColor ?? DEFAULT_SECONDARY;
-    this.backgroundColor = config?.backgroundColor ?? Color.rgb(0x1a, 0x1b, 0x26);
+    // 逆向: amp colorScheme.background = LT.none() (transparent / terminal default)
+    this.backgroundColor = config?.backgroundColor ?? Color.default();
     this.colorMode = config?.colorMode ?? "intensity";
   }
 

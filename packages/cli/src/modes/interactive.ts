@@ -251,8 +251,15 @@ export async function launchInteractiveMode(
   }
 
   const config = container.configService.get();
-  const themeName =
-    ((config.settings as Record<string, unknown>)["terminal.theme"] as string) ?? "terminal";
+  // Detect whether the user has explicitly set a theme (non-default value).
+  // 逆向: amp chunk-004.js:30208 — `r.settings["terminal.theme"] ?? "terminal"`
+  //   When the user has not configured a theme, the value is undefined/"terminal".
+  //   We track whether an explicit theme was set so auto-detection can override "terminal".
+  const configuredTheme = (config.settings as Record<string, unknown>)["terminal.theme"] as
+    | string
+    | undefined;
+  const userExplicitTheme = configuredTheme !== undefined && configuredTheme !== "terminal";
+  const themeName = configuredTheme ?? "terminal";
   let themeData: ThemeData = resolveThemeData(themeName);
 
   // Resolve CWD and git branch for InputField border overlays
@@ -332,6 +339,9 @@ export async function launchInteractiveMode(
   //   that rebuilds the widget tree on theme change. When terminal.theme changes,
   //   amp resolves the new palette from ThemeRegistry and calls setState to trigger rebuild.
   let themeChangeCleanup: (() => void) | undefined;
+  // Note: hot-reload subscriber captures `appWidgetRef` to update the live widget.
+  // We initialize it below after appWidget is constructed.
+  const appWidgetRef: { current: AppWidget | null } = { current: null };
   try {
     const configObs = container.configService.observe?.();
     if (configObs) {
@@ -339,12 +349,15 @@ export async function launchInteractiveMode(
         const newThemeName =
           ((newConfig.settings as Record<string, unknown>)["terminal.theme"] as string) ??
           "terminal";
-        if (newThemeName !== themeData.name) {
-          log.info("Theme changed", { from: themeData.name, to: newThemeName });
-          themeData = resolveThemeData(newThemeName);
-          // The AppWidget receives themeData; when it's rebuilt the ThemeController
-          // InheritedWidget.updateShouldNotify() detects the reference change and
-          // triggers dependent widget rebuilds.
+        const currentName = appWidgetRef.current?.config.themeData.name ?? themeData.name;
+        if (newThemeName !== currentName) {
+          log.info("Theme changed", { from: currentName, to: newThemeName });
+          const newThemeData = resolveThemeData(newThemeName);
+          themeData = newThemeData;
+          // Update the live AppWidget so ThemeController.updateShouldNotify detects the change.
+          if (appWidgetRef.current) {
+            appWidgetRef.current.config.themeData = newThemeData;
+          }
         }
       });
       themeChangeCleanup = () => sub.unsubscribe();
@@ -360,110 +373,120 @@ export async function launchInteractiveMode(
 
   // 4-5. 组装真实 Widget 树并启动 runApp
   // ThreadStateWidget 拥有完整布局 (ConversationView + StatusBar + InputField)
-  try {
-    await runApp(
-      new AppWidget({
-        themeData,
-        configService: container.configService,
-        child: new ThreadStateWidget({
-          threadStore: container.threadStore,
-          threadWorker: worker,
-          threadId,
-          onSubmit: (text: string) => {
-            // Intercept slash commands before sending to LLM
-            // 逆向: amp intercepts "/" prefix in editor submit action (e0R.execute)
-            const parsed = parseCommandInput(text);
-            if (parsed) {
-              const ctx: SlashCommandContext = {
-                threadId,
-                threadStore: container.threadStore,
-                threadWorker: worker,
-                configService: container.configService,
-                showMessage: (msg: string) => {
-                  // Append as a system message in the thread for display
-                  const snapshot = container.threadStore.getThreadSnapshot(threadId);
-                  if (snapshot) {
-                    container.threadStore.setCachedThread({
-                      ...snapshot,
-                      messages: [
-                        ...snapshot.messages,
-                        {
-                          role: "assistant",
-                          content: [{ type: "text", text: msg }],
-                          state: { type: "complete" },
-                        },
-                      ],
-                      // biome-ignore lint/suspicious/noExplicitAny: state field not in schema
-                    } as any);
-                  }
-                },
-                clearInput: () => {
-                  // InputField clears on submit automatically
-                },
-                costTracker,
-                toolboxService: container.toolboxService,
-                skillService: container.skillService,
-                compactThread: async () => {
-                  const snapshot = container.threadStore.getThreadSnapshot(threadId);
-                  if (!snapshot) {
-                    return {
-                      compacted: false,
-                      thread: { messages: [] } as unknown as ThreadSnapshot,
-                      tokensBefore: 0,
-                      tokensAfter: 0,
-                    };
-                  }
-                  const result = await container.contextManager.checkAndCompact(snapshot);
-                  if (result.compacted) {
-                    container.threadStore.setCachedThread(result.thread, { scheduleUpload: true });
-                  }
-                  return result;
-                },
-              };
-              slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {
-                log.info("Slash command error", { error: err });
-              });
-              return;
-            }
-
-            // Not a slash command: send to LLM
-            // 将用户消息追加到线程快照 (per KD-47)
-            const snapshot = container.threadStore.getThreadSnapshot(threadId);
-            if (snapshot) {
-              container.threadStore.setCachedThread(
-                {
+  // Build the AppWidget before runApp; onCapabilitiesReady may mutate themeData before mount.
+  const appWidget = new AppWidget({
+    themeData,
+    configService: container.configService,
+    child: new ThreadStateWidget({
+      threadStore: container.threadStore,
+      threadWorker: worker,
+      threadId,
+      onSubmit: (text: string) => {
+        // Intercept slash commands before sending to LLM
+        // 逆向: amp intercepts "/" prefix in editor submit action (e0R.execute)
+        const parsed = parseCommandInput(text);
+        if (parsed) {
+          const ctx: SlashCommandContext = {
+            threadId,
+            threadStore: container.threadStore,
+            threadWorker: worker,
+            configService: container.configService,
+            showMessage: (msg: string) => {
+              // Append as a system message in the thread for display
+              const snapshot = container.threadStore.getThreadSnapshot(threadId);
+              if (snapshot) {
+                container.threadStore.setCachedThread({
                   ...snapshot,
                   messages: [
                     ...snapshot.messages,
-                    { role: "user", content: [{ type: "text", text }] },
+                    {
+                      role: "assistant",
+                      content: [{ type: "text", text: msg }],
+                      state: { type: "complete" },
+                    },
                   ],
-                } as ThreadSnapshot,
-                { scheduleUpload: true },
-              );
-            }
-            // 触发推理循环
-            worker.runInference();
-          },
-          modelName:
-            ((config.settings as Record<string, unknown>)["llm.model"] as string) ??
-            "claude-sonnet-4-20250514",
-          tokenCount: 0,
-          toastManager,
-          cwdDisplay,
-          gitBranch,
-          modeName: (context.agentMode as string | undefined) ?? "smart",
-          // biome-ignore lint/suspicious/noExplicitAny: skillService type varies by container version
-          skillCount: (container.skillService as any)?.list?.()?.length as number | undefined,
-        }),
-      }),
-      {
-        onRootElementMounted: (rootElement) => {
-          // 将根元素绑定到容器，供后续逻辑使用
-          log.info("Root element mounted");
-          (container as unknown as Record<string, unknown>)._rootElement = rootElement;
-        },
+                  // biome-ignore lint/suspicious/noExplicitAny: state field not in schema
+                } as any);
+              }
+            },
+            clearInput: () => {
+              // InputField clears on submit automatically
+            },
+            costTracker,
+            toolboxService: container.toolboxService,
+            skillService: container.skillService,
+            compactThread: async () => {
+              const snapshot = container.threadStore.getThreadSnapshot(threadId);
+              if (!snapshot) {
+                return {
+                  compacted: false,
+                  thread: { messages: [] } as unknown as ThreadSnapshot,
+                  tokensBefore: 0,
+                  tokensAfter: 0,
+                };
+              }
+              const result = await container.contextManager.checkAndCompact(snapshot);
+              if (result.compacted) {
+                container.threadStore.setCachedThread(result.thread, { scheduleUpload: true });
+              }
+              return result;
+            },
+          };
+          slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {
+            log.info("Slash command error", { error: err });
+          });
+          return;
+        }
+
+        // Not a slash command: send to LLM
+        // 将用户消息追加到线程快照 (per KD-47)
+        const snapshot = container.threadStore.getThreadSnapshot(threadId);
+        if (snapshot) {
+          container.threadStore.setCachedThread(
+            {
+              ...snapshot,
+              messages: [...snapshot.messages, { role: "user", content: [{ type: "text", text }] }],
+            } as ThreadSnapshot,
+            { scheduleUpload: true },
+          );
+        }
+        // 触发推理循环
+        worker.runInference();
       },
-    );
+      modelName:
+        ((config.settings as Record<string, unknown>)["llm.model"] as string) ??
+        "claude-sonnet-4-20250514",
+      tokenCount: 0,
+      toastManager,
+      cwdDisplay,
+      gitBranch,
+      modeName: (context.agentMode as string | undefined) ?? "smart",
+      // biome-ignore lint/suspicious/noExplicitAny: skillService type varies by container version
+      skillCount: (container.skillService as any)?.list?.()?.length as number | undefined,
+    }),
+  });
+  // Wire appWidget into the hot-reload ref so config changes can update it.
+  appWidgetRef.current = appWidget;
+  try {
+    await runApp(appWidget, {
+      onCapabilitiesReady: (capabilities) => {
+        // Auto-select light/dark theme based on terminal background luminance,
+        // but only if the user has NOT explicitly configured a theme.
+        // 逆向: amp uses IH() (background luminance) within theme rendering at
+        //   chunk-004.js:9088 and chunk-003.js:22076. Flitter extends this by
+        //   using the luminance to select an appropriate built-in theme variant
+        //   when no explicit theme is configured.
+        if (!userExplicitTheme && capabilities.background === "light") {
+          log.info("Auto-selecting light theme based on terminal background luminance");
+          appWidget.config.themeData = resolveThemeData("light");
+        }
+      },
+      onRootElementMounted: (rootElement) => {
+        // 将根元素绑定到容器，供后续逻辑使用
+        log.info("Root element mounted");
+        (container as unknown as Record<string, unknown>)._rootElement = rootElement;
+      },
+    });
   } finally {
     // 6. 清理
     log.info("TUI exited, cleaning up...");

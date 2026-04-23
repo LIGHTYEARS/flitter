@@ -35,6 +35,7 @@ export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";
 export { ForceDimWidget } from "./widgets/force-dim.js";
 export { GestureDetector } from "./widgets/gesture-detector.js";
+export type { ImageWidgetProps } from "./widgets/image-widget.js";
 export { ImageWidget, RenderImage } from "./widgets/image-widget.js";
 export { IntrinsicHeight, RenderIntrinsicHeight } from "./widgets/intrinsic-height.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
@@ -48,7 +49,6 @@ export { OverlapColumn, RenderOverlapColumn } from "./widgets/overlap-column.js"
 export { Padding } from "./widgets/padding.js";
 export { ProgressBar, ProgressBarRenderObject } from "./widgets/progress-bar.js";
 export type {
-  ImageWidgetProps,
   KittyTransmitOpts,
   PlaceholderCell,
 } from "./widgets/render-image.js";

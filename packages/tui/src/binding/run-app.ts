@@ -16,6 +16,7 @@
  */
 
 import type { Element, Widget } from "../tree/element.js";
+import type { TerminalCapabilities } from "../tui/tui-controller.js";
 import { WidgetsBinding } from "./widgets-binding.js";
 
 /**
@@ -31,6 +32,20 @@ export interface RunAppOptions {
    * @param element - 挂载后的根 Element
    */
   onRootElementMounted?: (element: Element) => void;
+
+  /**
+   * 终端能力检测完成后、Widget 树挂载前的回调。
+   *
+   * 在 binding.runApp 中 waitForCapabilities() 完成后、rootElement.mount() 前调用。
+   * 供外部根据终端能力（如背景亮度）动态调整配置（如主题选择）。
+   *
+   * 逆向: amp uses IH() (background luminance global) after capability detection
+   *   to influence theme rendering. This callback exposes the same information
+   *   before the widget tree is built, enabling flitter's theme auto-selection.
+   *
+   * @param capabilities - 已检测到的终端能力
+   */
+  onCapabilitiesReady?: (capabilities: TerminalCapabilities) => void;
 }
 
 /**
@@ -66,5 +81,5 @@ export async function runApp(widget: Widget, options?: RunAppOptions): Promise<v
   if (options?.onRootElementMounted) {
     binding.setRootElementMountedCallback(options.onRootElementMounted);
   }
-  await binding.runApp(widget);
+  await binding.runApp(widget, { onCapabilitiesReady: options?.onCapabilitiesReady });
 }

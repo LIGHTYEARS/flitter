@@ -29,6 +29,7 @@ import type { Element, Widget } from "../tree/element.js";
 import { FrameScheduler } from "../tree/frame-scheduler.js";
 import { PipelineOwner } from "../tree/pipeline-owner.js";
 import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
+import type { TerminalCapabilities } from "../tui/tui-controller.js";
 import { TuiController } from "../tui/tui-controller.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
 import { MediaQuery, MediaQueryData } from "../widgets/media-query.js";
@@ -233,7 +234,10 @@ export class WidgetsBinding {
    * await binding.runApp(myRootWidget);
    * ```
    */
-  async runApp(widget: Widget): Promise<void> {
+  async runApp(
+    widget: Widget,
+    opts?: { onCapabilitiesReady?: (capabilities: TerminalCapabilities) => void },
+  ): Promise<void> {
     if (this.isRunning) throw Error("App is already running");
     try {
       this.isRunning = true;
@@ -248,6 +252,18 @@ export class WidgetsBinding {
         const screen = this.tui.getScreen();
         screen.setDefaultColors(rgbColors.fg, rgbColors.bg);
         screen.setIndexRgbMapping(rgbColors.indices);
+      }
+
+      // Fire onCapabilitiesReady before mounting the widget tree.
+      // 逆向: amp's XVT(this.capabilities.background) at chunk-004.js:4404
+      //   updates the global background luminance (IH()) before rendering.
+      //   We expose this as a callback so callers (e.g. interactive.ts) can
+      //   adjust theme selection based on detected terminal background.
+      if (opts?.onCapabilitiesReady) {
+        const caps = this.tui.getCapabilities();
+        if (caps) {
+          opts.onCapabilitiesReady(caps);
+        }
       }
 
       const wrapper = this.createMediaQueryWrapper(widget);
@@ -626,6 +642,12 @@ export class WidgetsBinding {
       kittyKeyboard: false,
       colorPaletteNotifications: false,
       xtversion: null,
+      kittyGraphics: false,
+      pixelMouse: false,
+      pixelDimensions: null,
+      osc52: false,
+      background: "dark" as const,
+      kittyExplicitWidth: false,
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,
@@ -663,6 +685,12 @@ export class WidgetsBinding {
       kittyKeyboard: false,
       colorPaletteNotifications: false,
       xtversion: null,
+      kittyGraphics: false,
+      pixelMouse: false,
+      pixelDimensions: null,
+      osc52: false,
+      background: "dark" as const,
+      kittyExplicitWidth: false,
       supportsCursorShape: false,
       colorDepth: "truecolor" as ColorDepth,
       animationSupport: "fast" as const,

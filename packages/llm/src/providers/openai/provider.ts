@@ -240,10 +240,7 @@ export class OpenAIProvider implements LLMProvider {
       );
 
       for await (const chunk of withStreamIdleTimeout(stream as AsyncIterable<unknown>)) {
-        const delta = this._compatTransformer.fromProviderDelta(
-          chunk as CompatStreamChunk,
-          state,
-        );
+        const delta = this._compatTransformer.fromProviderDelta(chunk as CompatStreamChunk, state);
         yield delta;
       }
     } catch (err: unknown) {

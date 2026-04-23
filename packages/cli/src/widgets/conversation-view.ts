@@ -35,6 +35,7 @@ import {
   GestureDetector,
   MarkdownParser,
   MarkdownRenderer,
+  RenderChart,
   RichText,
   Row,
   Scrollable,
@@ -104,45 +105,54 @@ export interface ConversationViewConfig {
 //  颜色常量 (来自 ThemeData / Tokyo Night 调色板)
 // ════════════════════════════════════════════════════
 
-/** primary 色 (#7aa2f7) -- 用户角色指示器 */
-const PRIMARY_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+/** primary 色 — 用户角色指示器
+ * 逆向: yS.default() → LT.cyan = userMessage */
+const PRIMARY_COLOR = Color.indexed(6);
 
-/** accent 色 (#bb9af7) -- 助手角色指示器 */
-const ACCENT_COLOR = Color.rgb(0xbb, 0x9a, 0xf7);
+/** accent 色 — 助手角色指示器
+ * 逆向: yS.default() → LT.magenta */
+const ACCENT_COLOR = Color.indexed(5);
 
-/** secondary 色 (#9ece6a) -- 系统角色指示器 */
-const SECONDARY_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
+/** secondary 色 — 系统角色指示器 / user message border
+ * 逆向: yS.default() → LT.green = success */
+const SECONDARY_COLOR = Color.indexed(2);
 
-/** error 色 (#f7768e) -- 错误文本 */
-const ERROR_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
+/** error 色 — 错误文本
+ * 逆向: yS.default() → LT.red = toolError */
+const ERROR_COLOR = Color.indexed(1);
 
-/** mutedText 色 (#565f89) -- 占位符、次要信息 */
-const MUTED_TEXT_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** mutedText 色 — 占位符、次要信息 (terminal default + dim)
+ * 逆向: yS.default() → LT.default() + dim:true */
+const MUTED_TEXT_COLOR = Color.default();
 
-/** tool 色 (#e0af68) -- 工具名称/工具运行指示器
- * 逆向: $R.app.toolRunning / toolName (Tokyo Night warning color) */
-const TOOL_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+/** tool name 色 — 工具名称 (bold, terminal default)
+ * 逆向: yS.default() → LT.default() = toolName */
+const TOOL_NAME_COLOR = Color.default();
 
-/** dim 色 -- 工具参数等次要信息 (same as MUTED_TEXT_COLOR)
- * 逆向: R.colors.mutedForeground */
-const DIM_COLOR = MUTED_TEXT_COLOR;
+/** tool running 色 — 工具运行中 spinner/状态
+ * 逆向: yS.default() → LT.blue = toolRunning */
+const TOOL_RUNNING_COLOR = Color.indexed(4);
 
-/** success 色 (#9ece6a) -- 工具完成 (same as SECONDARY_COLOR)
- * 逆向: $R.app.toolSuccess */
+/** dim 色 — 工具参数等次要信息
+ * 逆向: R.colors.mutedForeground → terminal default + dim */
+const DIM_COLOR = Color.default();
+
+/** success 色 — 工具完成
+ * 逆向: $R.app.toolSuccess → LT.green */
 const SUCCESS_COLOR = SECONDARY_COLOR;
 
-/** error 色 (#f7768e) -- 工具错误 (same as ERROR_COLOR)
- * 逆向: $R.app.toolError */
+/** error 色 — 工具错误 (same as ERROR_COLOR)
+ * 逆向: $R.app.toolError → LT.red */
 const ERROR_COLOR_LOCAL = ERROR_COLOR;
 
-/** cancelled 色 -- 工具取消/拒绝 (same as MUTED_TEXT_COLOR)
- * 逆向: $R.app.toolCancelled */
-const CANCELLED_COLOR = MUTED_TEXT_COLOR;
+/** cancelled 色 — 工具取消/拒绝
+ * 逆向: $R.app.toolCancelled → LT.yellow */
+const CANCELLED_COLOR = Color.indexed(3);
 
-/** warning 色 (#e0af68) -- interrupted user message border
+/** warning 色 — interrupted user message border
  * 逆向: S$ widget — R.interrupted switches border from e.success (green)
  * to e.warning (amber). misc_utils.js:9037 `let l = R.interrupted ? e.warning : e.success;` */
-const WARNING_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+const WARNING_COLOR = Color.indexed(3);
 
 // ════════════════════════════════════════════════════
 //  角色配置映射
@@ -420,7 +430,7 @@ export class ConversationViewState extends State<ConversationView> {
         new RichText({
           text: new TextSpan({
             text: "No messages yet. Type below to begin.",
-            style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
           }),
         }),
       );
@@ -432,7 +442,7 @@ export class ConversationViewState extends State<ConversationView> {
         new RichText({
           text: new TextSpan({
             text: "...",
-            style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
           }),
         }),
       );
@@ -571,6 +581,7 @@ export class ConversationViewState extends State<ConversationView> {
             underline: true,
             foreground: MUTED_TEXT_COLOR,
             italic: true,
+            dim: true,
           }),
         }),
       );
@@ -661,7 +672,7 @@ export class ConversationViewState extends State<ConversationView> {
    * Status colors match amp's qr() function (2821_unknown_qr.js):
    * - done → toolSuccess (SUCCESS_COLOR)
    * - error → toolError (ERROR_COLOR_LOCAL)
-   * - in-progress → toolRunning (TOOL_COLOR)
+   * - in-progress → toolRunning (TOOL_RUNNING_COLOR)
    * - cancelled/rejected → toolCancelled (CANCELLED_COLOR)
    *
    * @param tool - ToolItem from DisplayItem[]
@@ -683,7 +694,7 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_COLOR }),
+            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
           }),
         );
       } else {
@@ -743,7 +754,7 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_COLOR }),
+            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
           }),
         );
       } else {
@@ -761,7 +772,7 @@ export class ConversationViewState extends State<ConversationView> {
       spans.push(
         new TextSpan({
           text: tool.toolName,
-          style: new TextStyle({ bold: true, foreground: TOOL_COLOR }),
+          style: new TextStyle({ bold: true, foreground: TOOL_NAME_COLOR }),
         }),
       );
 
@@ -772,7 +783,7 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: detail,
-            style: new TextStyle({ foreground: DIM_COLOR }),
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
           }),
         );
       }
@@ -802,7 +813,7 @@ export class ConversationViewState extends State<ConversationView> {
       const summarySpans: TextSpan[] = [
         new TextSpan({
           text: `  ${fileCount} ${fileCount === 1 ? "file" : "files"} ${totalChanges} ${totalChanges === 1 ? "change" : "changes"}`,
-          style: new TextStyle({ foreground: DIM_COLOR }),
+          style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
         }),
       ];
       if (totalAdditions > 0) {
@@ -828,7 +839,7 @@ export class ConversationViewState extends State<ConversationView> {
         const fileSpans: TextSpan[] = [
           new TextSpan({
             text: `  ${file.path}`,
-            style: new TextStyle({ foreground: DIM_COLOR }),
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
           }),
           new TextSpan({
             text: ` +${file.additions}`,
@@ -859,7 +870,7 @@ export class ConversationViewState extends State<ConversationView> {
         new RichText({
           text: new TextSpan({
             text: `  ${outputText.split("\n").join("\n  ")}`,
-            style: new TextStyle({ foreground: DIM_COLOR }),
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
           }),
         }),
       );
@@ -869,7 +880,7 @@ export class ConversationViewState extends State<ConversationView> {
           new RichText({
             text: new TextSpan({
               text: `  \u25BC Show more (${outputLines.length - MAX_VISIBLE_LINES} more lines)`,
-              style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+              style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
             }),
           }),
         );
@@ -886,6 +897,24 @@ export class ConversationViewState extends State<ConversationView> {
           }),
         }),
       );
+    }
+
+    // Chart rendering — 逆向: c8R/s8R (chunk-006.js:30792-30904)
+    //   When chart tool result has parsed ChartData, render it using RenderChart.renderToLines().
+    //   Width defaults to 80 columns (reasonable terminal default); height auto-computed by RenderChart.
+    if (tool.chartData) {
+      const CHART_WIDTH = 80;
+      const chartRenderer = new RenderChart(tool.chartData);
+      const chartLines = chartRenderer.renderToLines(CHART_WIDTH);
+      if (chartLines.length > 0) {
+        columnChildren.push(
+          new RichText({
+            text: new TextSpan({
+              text: chartLines.join("\n"),
+            }),
+          }),
+        );
+      }
     }
 
     return columnChildren.length === 1 ? mainRow : new Column({ children: columnChildren });
@@ -921,7 +950,7 @@ export class ConversationViewState extends State<ConversationView> {
       headerSpans.push(
         new TextSpan({
           text: `${this._spinner.toBraille()} `,
-          style: new TextStyle({ foreground: TOOL_COLOR }),
+          style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
         }),
       );
     } else {
@@ -937,7 +966,7 @@ export class ConversationViewState extends State<ConversationView> {
     headerSpans.push(
       new TextSpan({
         text: group.summary,
-        style: new TextStyle({ foreground: DIM_COLOR }),
+        style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
       }),
     );
 
@@ -946,7 +975,7 @@ export class ConversationViewState extends State<ConversationView> {
       headerSpans.push(
         new TextSpan({
           text: isExpanded ? " \u25BC" : " \u25B6",
-          style: new TextStyle({ foreground: DIM_COLOR }),
+          style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
         }),
       );
     }
@@ -979,7 +1008,7 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_COLOR }),
+            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
           }),
         );
       } else {
@@ -996,7 +1025,7 @@ export class ConversationViewState extends State<ConversationView> {
       spans.push(
         new TextSpan({
           text: action.toolName,
-          style: new TextStyle({ foreground: TOOL_COLOR, bold: true }),
+          style: new TextStyle({ foreground: TOOL_NAME_COLOR, bold: true }),
         }),
       );
 
@@ -1063,7 +1092,7 @@ export class ConversationViewState extends State<ConversationView> {
     spans.push(
       new TextSpan({
         text: "Thinking",
-        style: new TextStyle({ foreground: labelColor }),
+        style: new TextStyle({ foreground: labelColor, dim: !item.isCancelled }),
       }),
     );
 
@@ -1086,7 +1115,7 @@ export class ConversationViewState extends State<ConversationView> {
       spans.push(
         new TextSpan({
           text: isExpanded ? "\u25BC" : "\u25B6",
-          style: new TextStyle({ foreground: DIM_COLOR }),
+          style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
         }),
       );
     }
@@ -1127,7 +1156,7 @@ export class ConversationViewState extends State<ConversationView> {
           new RichText({
             text: new TextSpan({
               text: indentedText,
-              style: new TextStyle({ foreground: DIM_COLOR, italic: true }),
+              style: new TextStyle({ foreground: DIM_COLOR, italic: true, dim: true }),
             }),
           }),
         ],
@@ -1158,7 +1187,7 @@ export class ConversationViewState extends State<ConversationView> {
           new RichText({
             text: new TextSpan({
               text: "No messages yet. Type below to begin.",
-              style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+              style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
             }),
           }),
         ],
@@ -1184,7 +1213,7 @@ export class ConversationViewState extends State<ConversationView> {
         new RichText({
           text: new TextSpan({
             text: "...",
-            style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
           }),
         }),
       );
@@ -1257,6 +1286,7 @@ export class ConversationViewState extends State<ConversationView> {
     });
     const mutedStyle = new TextStyle({
       foreground: MUTED_TEXT_COLOR,
+      dim: true,
     });
 
     return new RichText({
@@ -1314,9 +1344,9 @@ function _getStatusIcon(status: ToolItem["status"]): string {
  * 逆向: oE0() function (chunk-004.js:21143)
  * - done → toolSuccess (SUCCESS_COLOR)
  * - error → toolError (ERROR_COLOR_LOCAL)
- * - in-progress → toolRunning (TOOL_COLOR)
+ * - in-progress → toolRunning (TOOL_RUNNING_COLOR)
  * - cancelled/rejected → toolCancelled (CANCELLED_COLOR)
- * - queued/blocked-on-user → waiting (TOOL_COLOR)
+ * - queued/blocked-on-user → waiting (TOOL_RUNNING_COLOR)
  */
 function _getStatusColor(status: ToolItem["status"]): Color {
   switch (status) {
@@ -1325,14 +1355,14 @@ function _getStatusColor(status: ToolItem["status"]): Color {
     case "error":
       return ERROR_COLOR_LOCAL;
     case "in-progress":
-      return TOOL_COLOR;
+      return TOOL_RUNNING_COLOR;
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
       return CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":
-      return TOOL_COLOR; // waiting color
+      return TOOL_RUNNING_COLOR; // waiting color
   }
 }
 
@@ -1412,13 +1442,13 @@ function _getActionStatusColor(status: ActivityAction["status"]): Color {
     case "error":
       return ERROR_COLOR_LOCAL;
     case "in-progress":
-      return TOOL_COLOR;
+      return TOOL_RUNNING_COLOR;
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
       return CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":
-      return TOOL_COLOR; // waiting color
+      return TOOL_RUNNING_COLOR; // waiting color
   }
 }

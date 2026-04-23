@@ -16,6 +16,7 @@
  * 逆向: yx0 + ux0 (2154_Subagent_yx0.js, 2153_unknown_ux0.js)
  */
 
+import type { ChartData } from "@flitter/tui";
 import { classifyBashCommand } from "../util/bash-classifier.js";
 import { generateSimpleDiff } from "./diff-widget.js";
 
@@ -72,6 +73,8 @@ export interface ToolItem {
   // generic fallback
   args?: Record<string, unknown>;
   error?: string;
+  /** Parsed chart data for "chart" tool results (逆向: c8R / s8R chart widget) */
+  chartData?: ChartData;
   /** Unified diff text for edit/create-file results (逆向: amp chunk-004.js:7793-7803) */
   diff?: string;
   /**
@@ -702,9 +705,112 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
           });
         }
-      } else {
-        // 逆向: yx0 fallback at end of if/else chain
+      } else if (block.name === "chart") {
+        // 逆向: c8R / s8R (chunk-006.js:30792-30904) — chart tool widget.
+        //   Reads toolRun.result.data (or toolUse.input.data) as JSON string.
+        //   Reads toolUse.input.{chartType, xColumn, yColumns, title, stacked, horizontal, ...}
+        //   to build ChartData via v50() (1931_unknown_v50.js).
+        //   Falls through to generic display (name + cmd detail) when no result yet.
         flushActivityBuffer();
+        const chartInput = block.input as Record<string, unknown> | undefined;
+        const chartRun = result?.run;
+        const chartResultData =
+          typeof (chartRun?.result as Record<string, unknown> | undefined)?.data === "string"
+            ? ((chartRun!.result as Record<string, unknown>).data as string)
+            : typeof chartInput?.data === "string"
+              ? chartInput.data
+              : undefined;
+
+        // Build ChartData from parsed JSON (逆向: v50 pipeline)
+        let parsedChartData: ChartData | undefined;
+        if (chartResultData && status === "done") {
+          try {
+            const rawData = JSON.parse(chartResultData);
+            if (!Array.isArray(rawData)) {
+              throw new Error("Expected JSON array");
+            }
+            const chartTypeRaw =
+              typeof chartInput?.chartType === "string" ? chartInput.chartType : "bar";
+            const xColumn = typeof chartInput?.xColumn === "string" ? chartInput.xColumn : "";
+            const yColumns = Array.isArray(chartInput?.yColumns)
+              ? (chartInput.yColumns as string[])
+              : [];
+            const stacked = typeof chartInput?.stacked === "boolean" ? chartInput.stacked : false;
+            const horizontal =
+              typeof chartInput?.horizontal === "boolean" ? chartInput.horizontal : false;
+
+            // Map chartType + flags to our ChartData.chartType (逆向: v50 lines 20-22)
+            let chartType: ChartData["chartType"];
+            if (chartTypeRaw === "bar") {
+              if (horizontal) chartType = "horizontal-bar";
+              else if (stacked && yColumns.length > 1) chartType = "stacked-bar";
+              else chartType = "bar";
+            } else if (chartTypeRaw === "area") {
+              chartType = stacked ? "stacked-area" : "line";
+            } else {
+              chartType = "line";
+            }
+
+            // Build series (逆向: v50 lines 59-88 — per-yColumn series)
+            const MAX_POINTS = 100;
+            const series = yColumns.map((yCol) => {
+              const values: number[] = [];
+              const xLabelsForSeries: string[] = [];
+              for (const row of rawData as Record<string, unknown>[]) {
+                if (typeof row !== "object" || row === null) continue;
+                const xVal = row[xColumn];
+                const yVal = row[yCol];
+                if (xVal === undefined || yVal === undefined) continue;
+                const num = Number(yVal);
+                if (!Number.isFinite(num)) continue;
+                values.push(num);
+                xLabelsForSeries.push(String(xVal));
+                if (values.length >= MAX_POINTS) break;
+              }
+              return {
+                label: yColumns.length > 1 ? yCol : "default",
+                values,
+                _xLabels: xLabelsForSeries,
+              };
+            });
+
+            const xLabels = series[0]?._xLabels ?? [];
+            const cleanSeries = series.map(({ _xLabels: _unused, ...rest }) => rest);
+
+            parsedChartData = {
+              chartType,
+              series: cleanSeries,
+              xLabels,
+              title: typeof chartInput?.title === "string" ? chartInput.title : undefined,
+              xAxisLabel:
+                typeof chartInput?.xAxisLabel === "string"
+                  ? chartInput.xAxisLabel
+                  : xColumn || undefined,
+              yAxisLabel:
+                typeof chartInput?.yAxisLabel === "string"
+                  ? chartInput.yAxisLabel
+                  : yColumns[0] || undefined,
+            };
+          } catch {
+            // Parse failure — fall back to generic display (no chart rendered)
+          }
+        }
+
+        const cmdDetail = typeof chartInput?.cmd === "string" ? chartInput.cmd : undefined;
+        const titleDetail = typeof chartInput?.title === "string" ? chartInput.title : undefined;
+        const detail = titleDetail ?? cmdDetail ?? "chart";
+
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: "chart",
+          kind: "generic",
+          status,
+          args: { detail },
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+          ...(parsedChartData ? { chartData: parsedChartData } : {}),
+        });
+      } else {
         items.push({
           type: "tool",
           toolUseId: block.id,

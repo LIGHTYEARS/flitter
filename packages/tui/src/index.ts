@@ -9,6 +9,8 @@ export * from "./gestures/index.js";
 export * from "./markdown/index.js";
 export * from "./overlay/index.js";
 export * from "./perf/index.js";
+export type { ChartData, ChartSeries } from "./render-object/render-chart.js";
+export { RenderChart } from "./render-object/render-chart.js";
 export * from "./screen/index.js";
 export * from "./scroll/index.js";
 export * from "./selection/index.js";

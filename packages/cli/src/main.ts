@@ -862,6 +862,11 @@ export async function main(opts?: MainOptions): Promise<void> {
       } else if (ctx.executeMode) {
         await runExecuteMode(c, ctx);
       } else {
+        // 逆向: i$T ide flag (chunk-006.js:38220-38226)
+        // IDE connection is enabled by default; --no-ide disables it.
+        if (ctx.ide) {
+          log.debug("cli", "IDE connection enabled (no IDE client implemented yet)");
+        }
         await launchInteractiveMode(c, { ...ctx });
       }
     });

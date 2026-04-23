@@ -140,6 +140,17 @@ export interface CliContext {
    * (TUI: enabled, execute: disabled)
    */
   notifications?: boolean;
+  /**
+   * Enable IDE connection (--ide / --no-ide).
+   *
+   * 逆向: i$T ide flag (chunk-006.js:38220-38226)
+   *        amp: name "ide", long "ide", type "flag", default true
+   *        "When enabled, Amp automatically includes your open IDE's file and text selection
+   *        with every message."
+   *
+   * Default: true (IDE connection enabled)
+   */
+  ide: boolean;
 }
 
 /**
@@ -229,5 +240,7 @@ export function resolveCliContext(program: Command): CliContext {
     // Explicit --notifications/--no-notifications overrides default.
     // Default: enabled in TUI mode, disabled in execute mode.
     notifications: opts.notifications !== undefined ? Boolean(opts.notifications) : undefined,
+    // 逆向: i$T ide flag (chunk-006.js:38220-38226) — default true
+    ide: opts.ide !== undefined ? Boolean(opts.ide) : true,
   };
 }

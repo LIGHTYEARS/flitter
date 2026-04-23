@@ -219,4 +219,27 @@ describe("createProgram", () => {
       assert.deepEqual(program.args, ["hello", "world"]);
     });
   });
+
+  // ─── --ide / --no-ide 标志 ────────────────────────────────
+  // 逆向: i$T ide flag (chunk-006.js:38220-38226) — default true
+
+  describe("--ide flag", () => {
+    it("program accepts --ide flag", () => {
+      const program = createProgram("1.0.0");
+      program.parse(["--ide"], { from: "user" });
+      assert.equal(program.opts().ide, true);
+    });
+
+    it("program accepts --no-ide flag", () => {
+      const program = createProgram("1.0.0");
+      program.parse(["--no-ide"], { from: "user" });
+      assert.equal(program.opts().ide, false);
+    });
+
+    it("--ide defaults to true", () => {
+      const program = createProgram("1.0.0");
+      program.parse([], { from: "user" });
+      assert.equal(program.opts().ide, true);
+    });
+  });
 });

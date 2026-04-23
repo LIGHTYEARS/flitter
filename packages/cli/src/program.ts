@@ -100,6 +100,13 @@ export function createProgram(version: string): Command {
       "Enable sound/system notifications (default: enabled in TUI, disabled in execute mode)",
     )
     .option("--no-notifications", "Disable sound/system notifications")
+    // ── 逆向: i$T ide flag (chunk-006.js:38220-38226) ──
+    // amp: name "ide", long "ide", type "flag", default true
+    // description: T => T ? "Enable IDE connection (default). When enabled, Amp automatically
+    //   includes your open IDE's file and text selection with every message."
+    //   : "Disable IDE connection"
+    .option("--ide", "Enable IDE connection (auto-includes open file and selection)", true)
+    .option("--no-ide", "Disable IDE connection")
     // 默认动作: 无子命令时根据模式判定进入 interactive 或 execute 模式
     // 必须注册 action 否则 Commander 在有子命令时默认输出 help 并退出
     .action(() => {

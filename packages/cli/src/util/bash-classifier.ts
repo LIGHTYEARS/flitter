@@ -122,7 +122,7 @@ function extractProgram(tokens: string[]): string | undefined {
  * Returns the args (everything after the program token).
  * 逆向: IzR uses qb(e) to get args from the parsed command node.
  */
-function extractArgs(tokens: string[], program: string): string[] {
+function extractArgs(tokens: string[]): string[] {
   // Find the program token index (skipping env assignments)
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
@@ -216,7 +216,7 @@ export function classifyBashCommand(command: string): BashClassification {
   if (!program) return { isWriteLike: false };
 
   // 5. Extract args
-  const args = extractArgs(tokens, program);
+  const args = extractArgs(tokens);
 
   // 6. Apply write-like predicate
   //    逆向: yzT at 1405_unknown_yzT.js

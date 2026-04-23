@@ -338,7 +338,6 @@ export class RenderOrbSphere extends RenderBox {
   private _glow: GlowNoise;
   private _shockwaves: Shockwave[];
   private _palette: Color[];
-  private _backgroundColor: Color;
   private _colorMode: "intensity" | "vertical";
 
   constructor(
@@ -349,7 +348,7 @@ export class RenderOrbSphere extends RenderBox {
     shockwaves: Shockwave[],
     primary: RGBColor,
     secondary: RGBColor,
-    backgroundColor: Color,
+    _backgroundColor: Color,
     colorMode: "intensity" | "vertical" = "intensity",
   ) {
     super();
@@ -359,7 +358,6 @@ export class RenderOrbSphere extends RenderBox {
     this._glow = glow;
     this._shockwaves = shockwaves;
     this._palette = buildPalette(primary, secondary);
-    this._backgroundColor = backgroundColor;
     this._colorMode = colorMode;
   }
 
@@ -371,7 +369,7 @@ export class RenderOrbSphere extends RenderBox {
     shockwaves: Shockwave[],
     primary: RGBColor,
     secondary: RGBColor,
-    backgroundColor: Color,
+    _backgroundColor: Color,
     colorMode: "intensity" | "vertical" = "intensity",
   ): void {
     let needsLayout = false;
@@ -384,7 +382,6 @@ export class RenderOrbSphere extends RenderBox {
     this._glow = glow;
     this._shockwaves = shockwaves;
     this._palette = buildPalette(primary, secondary);
-    this._backgroundColor = backgroundColor;
     this._colorMode = colorMode;
     if (needsLayout) this.markNeedsLayout();
     this.markNeedsPaint();

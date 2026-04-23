@@ -239,7 +239,7 @@ export class WelcomeScreen extends StatelessWidget {
     // Row([orb, SizedBox(w:6), textColumn]) centered as a single unit
     const mainRow = new Row({
       mainAxisAlignment: "center",
-      crossAxisAlignment: "center",
+      crossAxisAlignment: "start",
       mainAxisSize: "min",
       children: [orbColumn, new SizedBox({ width: 6 }), textColumn],
     });

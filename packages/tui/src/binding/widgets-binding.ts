@@ -129,6 +129,15 @@ export class WidgetsBinding {
   /** 退出 Promise 的 resolve 函数 */
   private exitResolve: (() => void) | null = null;
 
+  /**
+   * 双按 Ctrl+C 退出状态。
+   *
+   * 逆向: exitHintTimer (UtT) in chunk-006.js:15510 — 1000ms 超时
+   *   第一次 Ctrl+C → 激活提示; 第二次 Ctrl+C (1s 内) → stop()
+   */
+  private _exitHintActive = false;
+  private _exitHintTimeout: ReturnType<typeof setTimeout> | null = null;
+
   /** 当前 MediaQuery Widget 引用，用于 resize 时更新 */
   private currentMediaQueryData: MediaQueryData | null = null;
 
@@ -537,15 +546,52 @@ export class WidgetsBinding {
    *
    * 逆向: d9.handleGlobalKeyEvent
    *
+   * - Ctrl+C → 双按退出 (逆向: UtT exitHintTimer, 1000ms)
    * - Ctrl+Z → handleSuspend (终端暂停)
    *
    * @param event - 键盘事件
    */
   private handleGlobalKeyEvent(event: KeyEvent): void {
+    // Ctrl+C → 双按退出 (逆向: onExitPressed in chunk-006.js:15619)
+    if (event.key === "c" && event.modifiers.ctrl) {
+      if (this._exitHintActive) {
+        // 第二次 Ctrl+C: 清除提示并退出
+        this.clearExitHint();
+        this.stop();
+      } else {
+        // 第一次 Ctrl+C: 激活 1s 提示窗口
+        this._exitHintActive = true;
+        if (this._exitHintTimeout) clearTimeout(this._exitHintTimeout);
+        this._exitHintTimeout = setTimeout(() => {
+          this._exitHintActive = false;
+          this._exitHintTimeout = null;
+        }, 1000);
+      }
+      return;
+    }
+
     // Ctrl+Z → 暂停终端
     if (event.key === "z" && event.modifiers.ctrl) {
       this.tui.handleSuspend();
     }
+  }
+
+  /**
+   * 退出提示是否激活 (供 Widget 层显示 "Ctrl+C again to exit")。
+   */
+  get exitHintActive(): boolean {
+    return this._exitHintActive;
+  }
+
+  /**
+   * 清除退出提示状态。
+   */
+  private clearExitHint(): void {
+    if (this._exitHintTimeout) {
+      clearTimeout(this._exitHintTimeout);
+      this._exitHintTimeout = null;
+    }
+    this._exitHintActive = false;
   }
 
   // ════════════════════════════════════════════════════
@@ -795,6 +841,7 @@ export class WidgetsBinding {
     this.keyInterceptors = [];
     this.currentMediaQueryData = null;
     this.pendingResizeEvent = null;
+    this.clearExitHint();
     this.isRunning = false;
 
     // 终端清理

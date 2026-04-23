@@ -169,6 +169,13 @@ export async function main(opts?: MainOptions): Promise<void> {
     disposing = true;
     log.info("Signal received, shutting down...");
     process.exitCode = 130; // Standard SIGINT exit code
+    // 通知 TUI 停止 (如果正在运行), 使 runApp().waitForExit() resolve
+    try {
+      const { WidgetsBinding } = await import("@flitter/tui");
+      WidgetsBinding.instance.stop();
+    } catch {
+      // WidgetsBinding 未初始化或 TUI 未启动 — 忽略
+    }
   };
 
   if (!signalHandlersInstalled) {

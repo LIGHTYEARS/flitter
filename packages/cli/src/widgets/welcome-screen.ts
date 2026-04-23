@@ -99,23 +99,6 @@ const ORB_LINES: string[] = [
   "          ............  ",
 ];
 
-/**
- * 帮助文本行在光球中的对齐位置。
- *
- * 逆向: golden 文件中帮助文本出现在 orb 的特定行旁边。
- * 格式: [orbLineIndex, text]
- * - 行 4 (0-indexed): "Welcome to {productName}"
- * - 行 7: "Ctrl+O for help"
- * - 行 10: "Use Tab/Shift+Tab to navigate to previous"
- * - 行 11: "messages to edit or restore to a previous state"
- */
-const HELP_TEXT_LINES: Array<{ line: number; text: string; isTitle?: boolean }> = [
-  { line: 4, text: "Welcome to {productName}", isTitle: true },
-  { line: 7, text: "Ctrl+O for help" },
-  { line: 10, text: "Use Tab/Shift+Tab to navigate to previous" },
-  { line: 11, text: "messages to edit or restore to a previous state" },
-];
-
 // ════════════════════════════════════════════════════
 //  WelcomeScreen Widget
 // ════════════════════════════════════════════════════
@@ -175,78 +158,97 @@ export class WelcomeScreen extends StatelessWidget {
     const helpWordStyle = new TextStyle({ foreground: COMMAND_COLOR });
     const dimStyle = new TextStyle({ foreground: SECONDARY_COLOR });
 
-    // 构建帮助文本映射: orbLineIndex -> Widget
-    const helpWidgetMap = new Map<number, Widget>();
-    for (const item of HELP_TEXT_LINES) {
-      const text = item.text.replace("{productName}", productName);
-      if (item.isTitle) {
-        // 逆向: chunk-006.js:15310 — "Welcome to Amp" 使用 foreground 色
-        helpWidgetMap.set(
-          item.line,
-          new RichText({
-            text: new TextSpan({ text, style: titleStyle }),
-          }),
-        );
-      } else if (text.startsWith("Ctrl+O")) {
-        // 逆向: misc_utils.js:2812-2818 — "Ctrl+O" 用 keybind 色, "for" 用 dim, "help" 用 command 色
-        helpWidgetMap.set(
-          item.line,
-          new RichText({
-            text: new TextSpan({
-              children: [
-                new TextSpan({ text: "Ctrl+O", style: helpKeyStyle }),
-                new TextSpan({ text: " for ", style: dimStyle }),
-                new TextSpan({ text: "help", style: helpWordStyle }),
-              ],
-            }),
-          }),
-        );
-      } else {
-        // 帮助文本使用 secondary 色
-        helpWidgetMap.set(
-          item.line,
-          new RichText({
-            text: new TextSpan({ text, style: dimStyle }),
-          }),
-        );
-      }
-    }
-
-    // 逆向: misc_utils.js:2861-2868 — Row([orb, SizedBox(w:2), textColumn])
-    // 我们用逐行 Row 来对齐 orb 行和帮助文本行
-    const rows: Widget[] = [];
-    for (let i = 0; i < ORB_LINES.length; i++) {
-      const orbText = ORB_LINES[i];
-      const helpWidget = helpWidgetMap.get(i);
-
-      const rowChildren: Widget[] = [
-        // ASCII art 光球行
+    // ── Orb column: all orb lines left-aligned in their own Column ──
+    // This ensures the orb is a coherent block — no per-line centering jitter
+    const orbWidgets: Widget[] = ORB_LINES.map(
+      (line) =>
         new RichText({
-          text: new TextSpan({ text: orbText, style: orbStyle }),
+          text: new TextSpan({ text: line, style: orbStyle }),
         }),
-      ];
+    );
+    const orbColumn = new Column({
+      mainAxisSize: "min",
+      crossAxisAlignment: "start",
+      children: orbWidgets,
+    });
 
-      if (helpWidget) {
-        // 逆向: misc_utils.js:2865 — SizedBox(width: 2) 间距
-        rowChildren.push(new SizedBox({ width: 6 }));
-        rowChildren.push(helpWidget);
-      }
+    // ── Help text column: positioned to align with specific orb lines ──
+    // SizedBox spacers skip rows where no help text appears
+    // Help texts at orb lines 4, 7, 10, 11
+    const helpChildren: Widget[] = [];
 
-      rows.push(
-        new Row({
-          mainAxisSize: "min",
-          crossAxisAlignment: "center",
-          children: rowChildren,
+    // Lines 0-3: empty (4 rows of spacing)
+    helpChildren.push(new SizedBox({ height: 4 }));
+
+    // Line 4: "Welcome to {productName}"
+    helpChildren.push(
+      new RichText({
+        text: new TextSpan({
+          text: `Welcome to ${productName}`,
+          style: titleStyle,
         }),
-      );
-    }
+      }),
+    );
 
-    // 逆向: misc_utils.js:2861 — 外层 Row with center alignment
-    // 整体用 Column 垂直居中
+    // Lines 5-6: empty (2 rows)
+    helpChildren.push(new SizedBox({ height: 2 }));
+
+    // Line 7: "Ctrl+O for help"
+    helpChildren.push(
+      new RichText({
+        text: new TextSpan({
+          children: [
+            new TextSpan({ text: "Ctrl+O", style: helpKeyStyle }),
+            new TextSpan({ text: " for ", style: dimStyle }),
+            new TextSpan({ text: "help", style: helpWordStyle }),
+          ],
+        }),
+      }),
+    );
+
+    // Lines 8-9: empty (2 rows)
+    helpChildren.push(new SizedBox({ height: 2 }));
+
+    // Line 10: "Use Tab/Shift+Tab to navigate to previous"
+    helpChildren.push(
+      new RichText({
+        text: new TextSpan({
+          text: "Use Tab/Shift+Tab to navigate to previous",
+          style: dimStyle,
+        }),
+      }),
+    );
+
+    // Line 11: "messages to edit or restore to a previous state"
+    helpChildren.push(
+      new RichText({
+        text: new TextSpan({
+          text: "messages to edit or restore to a previous state",
+          style: dimStyle,
+        }),
+      }),
+    );
+
+    const textColumn = new Column({
+      mainAxisSize: "min",
+      crossAxisAlignment: "start",
+      children: helpChildren,
+    });
+
+    // 逆向: misc_utils.js:2861-2868
+    // Row([orb, SizedBox(w:6), textColumn]) centered as a single unit
+    const mainRow = new Row({
+      mainAxisAlignment: "center",
+      crossAxisAlignment: "center",
+      mainAxisSize: "min",
+      children: [orbColumn, new SizedBox({ width: 6 }), textColumn],
+    });
+
+    // 逆向: misc_utils.js:2861 — outer Column with vertical centering
     return new Column({
       mainAxisAlignment: "center",
       crossAxisAlignment: "center",
-      children: rows,
+      children: [mainRow],
     });
   }
 }

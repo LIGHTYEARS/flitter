@@ -13,31 +13,12 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { WelcomeScreen, type WelcomeScreenConfig } from "./welcome-screen.js";
-import { StatelessWidget, RichText, Row, Column } from "@flitter/tui";
+import { Column, RichText, Row, StatelessWidget } from "@flitter/tui";
+import { WelcomeScreen } from "./welcome-screen.js";
 
 // ════════════════════════════════════════════════════
 //  Helpers
 // ════════════════════════════════════════════════════
-
-/**
- * Recursively collect all RichText nodes in the widget tree.
- */
-function collectRichTexts(widget: any): any[] {
-  const results: any[] = [];
-  if (widget instanceof RichText) {
-    results.push(widget);
-  }
-  if (widget.children) {
-    for (const child of widget.children) {
-      results.push(...collectRichTexts(child));
-    }
-  }
-  if (widget.child) {
-    results.push(...collectRichTexts(widget.child));
-  }
-  return results;
-}
 
 /**
  * Recursively extract all plain text content from a widget tree.
@@ -132,11 +113,49 @@ describe("WelcomeScreen", () => {
     assert.ok(hasOrbChars, `Expected ASCII art orb characters in output`);
   });
 
-  it("build() produces multiple Row children (one per orb line)", () => {
+  it("build() produces a single centered Row containing orb and text columns", () => {
     const widget = new WelcomeScreen();
     const built = widget.build({} as any) as Column;
-    // Each ORB_LINE becomes a Row
-    assert.ok(built.children.length >= 17, `Expected at least 17 rows, got ${built.children.length}`);
-    assert.ok(built.children[0] instanceof Row, "Each child should be a Row");
+    assert.equal(built.children.length, 1, "Should have exactly 1 child (the Row)");
+    assert.ok(built.children[0] instanceof Row, "Child should be a Row");
+  });
+
+  describe("layout structure", () => {
+    it("has outer Column > single Row > [orbColumn, gap, textColumn] structure", () => {
+      const widget = new WelcomeScreen({ productName: "Flitter" });
+      const tree = widget.build({} as any);
+
+      // Outer: Column with mainAxisAlignment: "center"
+      assert.ok(tree instanceof Column, "Root should be Column");
+      const outerColumn = tree as any;
+      assert.equal(outerColumn.mainAxisAlignment, "center");
+
+      // Single child: Row with mainAxisSize: "min"
+      const outerChildren = outerColumn.children;
+      assert.equal(outerChildren.length, 1, "Outer Column should have exactly 1 child (the Row)");
+      const mainRow = outerChildren[0];
+      assert.ok(mainRow instanceof Row, "Single child should be Row");
+      assert.equal((mainRow as any).mainAxisSize, "min");
+
+      // Row children: [Column(orb), SizedBox, Column(text)]
+      const rowChildren = (mainRow as any).children;
+      assert.equal(rowChildren.length, 3, "Row should have 3 children: orbColumn, gap, textColumn");
+      assert.ok(rowChildren[0] instanceof Column, "First child should be Column (orb lines)");
+      assert.ok(rowChildren[2] instanceof Column, "Third child should be Column (help texts)");
+    });
+
+    it("orb column has all 17 orb lines left-aligned", () => {
+      const widget = new WelcomeScreen({ productName: "Flitter" });
+      const tree = widget.build({} as any);
+      const mainRow = (tree as any).children[0];
+      const orbColumn = (mainRow as any).children[0];
+      const orbChildren = orbColumn.children;
+      assert.equal(orbChildren.length, 17, "Orb column should have 17 lines");
+      assert.equal(
+        orbColumn.crossAxisAlignment ?? "start",
+        "start",
+        "Orb column should left-align its children",
+      );
+    });
   });
 });

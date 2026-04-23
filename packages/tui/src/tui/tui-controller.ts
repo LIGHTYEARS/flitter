@@ -57,6 +57,7 @@ import type {
   FocusEvent as TermFocusEvent,
   MouseEvent as TermMouseEvent,
 } from "../vt/types.js";
+import { QueryParser } from "./query-parser.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 import { createTtyInput, createTtyOutput } from "./tty-input.js";
 
@@ -308,8 +309,10 @@ export class TuiController {
   /** 能力检测超时计时器 */
   private capabilityTimeout: ReturnType<typeof setTimeout> | null = null;
   /** 能力检测 resolve 回调 */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: assigned in waitForCapabilities, will be used when query-response probing is implemented
   private capabilityResolve: (() => void) | null = null;
+
+  /** QueryParser for terminal capability probing. 逆向: XXT.queryParser in 2112_unknown_XXT.js:9 */
+  private _queryParser: QueryParser | null = null;
 
   /** 缓存的终端尺寸（amp: this.terminalSize） */
   private terminalSize: TerminalSize = { width: 80, height: 24 };
@@ -488,6 +491,7 @@ export class TuiController {
 
     this.parser = null;
     this.capabilities = null;
+    this._queryParser = null;
     this.initialized = false;
   }
 
@@ -735,10 +739,100 @@ export class TuiController {
   // ════════════════════════════════════════════════════
 
   /**
+   * Start terminal capability detection by sending VT query sequences.
+   *
+   * 逆向: XXT.startCapabilityDetection in 2112_unknown_XXT.js:384-410
+   *
+   * - Apple Terminal: skip all queries (canRgb: false defaults applied immediately)
+   * - JetBrains: skip kitty graphics query
+   * - tmux: wrap sequences in DCS passthrough
+   * - 2s timeout: finishInitialization() via capabilityTimeout
+   */
+  startCapabilityDetection(): void {
+    if (!this.ttyInput?.stdin || !isTtyStream(this.ttyInput.stdin)) {
+      // Not a real TTY — resolve immediately with defaults
+      if (this.capabilityResolve) {
+        this.capabilities ??= this.defaultCapabilities();
+        this.capabilityResolve();
+        this.capabilityResolve = null;
+      }
+      return;
+    }
+
+    // 逆向: XXT.js:389 — Apple_Terminal returns early without sending queries
+    if (process.env.TERM_PROGRAM === "Apple_Terminal") {
+      this.capabilities = {
+        ...this.defaultCapabilities(),
+        // Apple Terminal doesn't support RGB color queries
+        background: "dark",
+      };
+      for (const handler of this.capabilityHandlers) {
+        handler({ capabilities: this.capabilities });
+      }
+      if (this.capabilityResolve) {
+        this.capabilityResolve();
+        this.capabilityResolve = null;
+      }
+      return;
+    }
+
+    this._queryParser = new QueryParser();
+
+    const isJetBrains = process.env.TERMINAL_EMULATOR?.includes("JetBrains") ?? false;
+    const isAppleTerminal = process.env.TERM_PROGRAM === "Apple_Terminal";
+    const isTmux = !!process.env.TMUX;
+
+    const sequence = this._queryParser.buildQuerySequence({ isJetBrains, isAppleTerminal, isTmux });
+    if (sequence) {
+      this.ttyOutput?.stream.write(sequence);
+    }
+
+    // 逆向: XXT.js:407-409 — 2s timeout triggers finishInitialization
+    this.capabilityTimeout = setTimeout(() => {
+      if (!this.capabilities && this._queryParser) {
+        this._finishCapabilityDetection();
+      }
+    }, 2000);
+  }
+
+  /**
+   * Finish capability detection — merge probed capabilities over heuristic defaults.
+   *
+   * 逆向: XXT.finishInitialization in 2112_unknown_XXT.js:411-433
+   *
+   * @private
+   */
+  private _finishCapabilityDetection(): void {
+    if (this.capabilities) return; // already resolved
+    const probed = this._queryParser?.getCapabilities() ?? {};
+    const defaults = this.defaultCapabilities();
+    // Merge: probed values override heuristic defaults
+    this.capabilities = { ...defaults, ...probed } as TerminalCapabilities;
+    if (this.capabilityTimeout) {
+      clearTimeout(this.capabilityTimeout);
+      this.capabilityTimeout = null;
+    }
+    for (const handler of this.capabilityHandlers) {
+      handler({ capabilities: this.capabilities });
+    }
+    if (this.capabilityResolve) {
+      TuiController.log.info("Terminal capabilities detected:", this.capabilities);
+      this.capabilityResolve();
+      this.capabilityResolve = null;
+    }
+  }
+
+  /**
    * 等待终端能力检测完成。
    *
    * 如果已有能力信息则立即返回。否则等待 timeout 毫秒后
    * 使用默认能力 resolve。
+   *
+   * 逆向: XXT.waitForCapabilities in 2112_unknown_XXT.js:156-161
+   *   if (!this.initialized) throw Error
+   *   if (this.capabilities) return this.capabilities
+   *   if (!this.capabilityPromise) throw Error
+   *   return this.capabilityPromise
    *
    * @param timeout - 超时毫秒数
    */
@@ -749,12 +843,30 @@ export class TuiController {
         return;
       }
       this.capabilityResolve = resolve;
-      this.capabilityTimeout = setTimeout(() => {
-        this.capabilities ??= this.defaultCapabilities();
-        this.capabilityTimeout = null;
-        resolve();
-      }, timeout);
+      // If startCapabilityDetection() hasn't set a timeout yet, set a fallback here
+      if (!this.capabilityTimeout) {
+        this.capabilityTimeout = setTimeout(() => {
+          if (!this.capabilities) {
+            if (this._queryParser) {
+              this._finishCapabilityDetection();
+            } else {
+              this.capabilities ??= this.defaultCapabilities();
+            }
+            this.capabilityTimeout = null;
+          }
+          resolve();
+        }, timeout);
+      }
     });
+  }
+
+  /**
+   * Public getter for the QueryParser instance.
+   *
+   * 逆向: XXT.getQueryParser in 2112_unknown_XXT.js:153-155
+   */
+  get queryParser(): QueryParser | null {
+    return this._queryParser;
   }
 
   // ════════════════════════════════════════════════════
@@ -918,6 +1030,7 @@ export class TuiController {
       }
       this.parser = null;
       this.capabilities = null;
+      this._queryParser = null;
       this.initialized = false;
     } catch {}
   }

@@ -488,3 +488,24 @@ export class QueryParser {
     return process.env.TERM_PROGRAM === "iTerm.app";
   }
 }
+
+/**
+ * Parse an OSC color response string of the form "rgba:HHHH/HHHH/HHHH" or "rgb:HH/HH/HH"
+ * into a { r, g, b } object with values in the range [0, 255].
+ *
+ * 逆向: dY.js processOsc11 inner lambda:
+ *   `l / (2 ** o - 1) * 255`  where o = hexStr.length * 4
+ *
+ * @param data - Raw OSC color string (without the leading index prefix)
+ * @returns Parsed RGB color, or null if the format is unrecognized
+ */
+export function parseOscColorResponse(data: string): { r: number; g: number; b: number } | null {
+  const match = data.match(/rgba?:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i);
+  if (!match) return null;
+  const parse = (hex: string) => {
+    const val = parseInt(hex, 16);
+    const bits = hex.length * 4;
+    return Math.round((val / (2 ** bits - 1)) * 255);
+  };
+  return { r: parse(match[1]), g: parse(match[2]), b: parse(match[3]) };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { QueryParser } from "./query-parser";
+import { parseOscColorResponse, QueryParser } from "./query-parser";
 
 describe("TerminalCapabilities new fields", () => {
   test("defaultCapabilities includes probing fields with defaults", () => {
@@ -88,5 +88,21 @@ describe("QueryParser", () => {
     const promise = qp.waitForCompletion(5000);
     qp.processDeviceAttributes();
     await promise; // should resolve without timeout
+  });
+});
+
+describe("parseOscColorResponse", () => {
+  test("parses rgb:HH/HH/HH format", () => {
+    const result = parseOscColorResponse("rgb:ff/00/80");
+    expect(result).toEqual({ r: 255, g: 0, b: 128 });
+  });
+
+  test("parses rgba:HHHH/HHHH/HHHH format", () => {
+    const result = parseOscColorResponse("rgba:ffff/0000/8080");
+    expect(result).toEqual({ r: 255, g: 0, b: 128 });
+  });
+
+  test("returns null for invalid format", () => {
+    expect(parseOscColorResponse("invalid")).toBeNull();
   });
 });

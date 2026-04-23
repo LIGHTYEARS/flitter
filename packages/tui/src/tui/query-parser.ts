@@ -16,6 +16,7 @@
  */
 
 import type { RgbColor } from "../screen/screen.js";
+import { wrapForTmux } from "../widgets/render-image.js";
 import type { TerminalCapabilities } from "./tui-controller.js";
 
 // ════════════════════════════════════════════════════
@@ -42,18 +43,6 @@ export interface BuildQueryOpts {
 // ════════════════════════════════════════════════════
 //  Helpers
 // ════════════════════════════════════════════════════
-
-/**
- * Wrap a VT sequence in a DCS tmux passthrough string.
- *
- * 逆向: FP() in amp-cli-reversed/modules/0512_unknown_Ku0.js:1-4
- *   `\x1bPtmux;${T.replace(/\x1b/g, "\x1b\x1b")}\x1b\\`
- *
- * Each ESC in the inner sequence must be doubled so tmux doesn't interpret it.
- */
-function wrapTmux(seq: string): string {
-  return `\x1bPtmux;${seq.replace(/\x1b/g, "\x1b\x1b")}\x1b\\`;
-}
 
 /**
  * Convert a hex color component string (of any hex length) to a 0-255 byte.
@@ -131,7 +120,7 @@ export class QueryParser {
       return "";
     }
 
-    const wrap = (seq: string): string => (opts.isTmux ? wrapTmux(seq) : seq);
+    const wrap = (seq: string): string => (opts.isTmux ? wrapForTmux(seq, true) : seq);
 
     // 逆向: Sk0 array order from data_structures.js
     // Note: we omit the "Query Kitty explicit width support" entry (index 0)

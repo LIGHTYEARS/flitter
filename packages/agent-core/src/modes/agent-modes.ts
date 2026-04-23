@@ -397,16 +397,7 @@ export function isDeepReasoningMode(mode: AgentMode): boolean {
  * @returns true if value is a valid AgentMode
  */
 export function isValidAgentMode(value: string): value is AgentMode {
-  return (
-    value === "smart" ||
-    value === "fast" ||
-    value === "deep" ||
-    value === "auto" ||
-    value === "rush" ||
-    value === "large" ||
-    value === "free" ||
-    value === "agg-man"
-  );
+  return value in AGENT_MODES;
 }
 
 /**

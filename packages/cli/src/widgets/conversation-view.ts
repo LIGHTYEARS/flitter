@@ -901,9 +901,9 @@ export class ConversationViewState extends State<ConversationView> {
 
     // Chart rendering — 逆向: c8R/s8R (chunk-006.js:30792-30904)
     //   When chart tool result has parsed ChartData, render it using RenderChart.renderToLines().
-    //   Width defaults to 80 columns (reasonable terminal default); height auto-computed by RenderChart.
+    //   Width defaults to 80 columns; ideally should come from layout constraints.
     if (tool.chartData) {
-      const CHART_WIDTH = 80;
+      const CHART_WIDTH = Math.min(process.stdout.columns || 80, 120);
       const chartRenderer = new RenderChart(tool.chartData);
       const chartLines = chartRenderer.renderToLines(CHART_WIDTH);
       if (chartLines.length > 0) {

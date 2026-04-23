@@ -29,24 +29,12 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { Color } from "../screen/color.js";
+import type { RgbColor } from "../screen/screen.js";
 import type { ThemeSpec } from "./builtin-themes.js";
 import type { ColorPalette } from "./palette.js";
 
-// ════════════════════════════════════════════════════
-//  RgbColor — plain RGB triple for parsed intermediates
-// ════════════════════════════════════════════════════
-
-/**
- * Plain RGB color triple produced by the TOML loader.
- *
- * Used as the intermediate representation before conversion to flitter's
- * Color class. Matches the structure from amp's YJT / hexToRgb utility.
- */
-export interface RgbColor {
-  r: number;
-  g: number;
-  b: number;
-}
+// Re-export so consumers of toml-theme-loader can use RgbColor without a second import
+export type { RgbColor } from "../screen/screen.js";
 
 // ════════════════════════════════════════════════════
 //  ParsedTheme — structured representation of a loaded theme file
@@ -380,19 +368,6 @@ function toColor(rgb: RgbColor): Color {
 }
 
 /**
- * Apply an alpha multiplier to a Color by returning the same Color.
- *
- * Flitter's Color class does not support alpha, so alpha-derived fallbacks
- * are represented as-is. This mirrors amp's TL() which creates a new color
- * with an alpha property — we accept the limitation and use the base color.
- *
- * 逆向: TL(T, R) at chunk-004.js:30130-30135
- */
-function withAlpha(color: Color, _alpha: number): Color {
-  return color; // alpha not supported in flitter Color
-}
-
-/**
  * Build a ColorPalette from a ParsedTheme.
  *
  * Derives optional fields using the same fallback strategy as amp's A70():
@@ -417,8 +392,8 @@ function buildPaletteFromParsed(theme: ParsedTheme): ColorPalette {
   const primary = toColor(c.primary);
   const warning = toColor(c.warning);
 
-  const mutedForeground = ui.mutedForeground ? toColor(ui.mutedForeground) : withAlpha(fg, 0.6);
-  const border = ui.border ? toColor(ui.border) : withAlpha(fg, 0.4);
+  const mutedForeground = ui.mutedForeground ? toColor(ui.mutedForeground) : fg; // amp: fg@0.6 alpha, not supported
+  const border = ui.border ? toColor(ui.border) : fg; // amp: fg@0.4 alpha, not supported
 
   return {
     background: toColor(c.background),
@@ -426,7 +401,7 @@ function buildPaletteFromParsed(theme: ParsedTheme): ColorPalette {
     cursor: ui.cursor ? toColor(ui.cursor) : fg,
     mutedForeground,
     border,
-    selection: ui.selection ? toColor(ui.selection) : withAlpha(border, 0.3),
+    selection: ui.selection ? toColor(ui.selection) : border, // amp: border@0.3 alpha
     primary,
     secondary: c.secondary ? toColor(c.secondary) : primary,
     accent: c.accent ? toColor(c.accent) : primary,
@@ -439,7 +414,7 @@ function buildPaletteFromParsed(theme: ParsedTheme): ColorPalette {
       : warning,
     tableBorder: (ui as ParsedTheme["ui"] & { tableBorder?: RgbColor }).tableBorder
       ? toColor((ui as ParsedTheme["ui"] & { tableBorder?: RgbColor }).tableBorder!)
-      : withAlpha(border, 0.4),
+      : border, // amp: border@0.4 alpha
     isLight: theme.mode === "light",
     syntaxHighlight: {
       keyword: syntax.keyword ? toColor(syntax.keyword) : primary,
@@ -536,7 +511,6 @@ export function scanThemeDirectory(themesDir?: string): ParsedTheme[] {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const tomlPath = path.join(dir, entry.name, "colors.toml");
-    if (!fs.existsSync(tomlPath)) continue;
 
     try {
       const text = fs.readFileSync(tomlPath, "utf-8");

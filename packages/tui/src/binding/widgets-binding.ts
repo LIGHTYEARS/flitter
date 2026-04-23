@@ -243,6 +243,7 @@ export class WidgetsBinding {
       this.isRunning = true;
       this.tui.init();
       this.tui.enterAltScreen();
+      this.tui.startCapabilityDetection();
       await this.tui.waitForCapabilities(1000);
 
       // Apply RGB color palette queried from the terminal to the Screen buffer.

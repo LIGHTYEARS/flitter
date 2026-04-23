@@ -293,10 +293,11 @@ describe("RenderFlex -- MainAxisAlignment", () => {
       { box: c2 },
     ]);
     flex.layout(BoxConstraints.tight(100, 50));
-    // 剩余空间 = 100 - 20 = 80，间距 = 80 / 3 ≈ 26.67，起始偏移 = 26.67
-    const gap = 80 / 3;
-    assert.ok(Math.abs(c1.offset.x - gap) < 0.01);
-    assert.ok(Math.abs(c2.offset.x - (gap + 10 + gap)) < 0.01);
+    // 剩余空间 = 100 - 20 = 80，间距 = 80 / 3 ≈ 26.67
+    // 逆向: O9.setOffset rounds to integer via offset setter
+    // c1: round(26.67) = 27, c2: round(63.33) = 63
+    assert.strictEqual(c1.offset.x, 27);
+    assert.strictEqual(c2.offset.x, 63);
   });
 });
 

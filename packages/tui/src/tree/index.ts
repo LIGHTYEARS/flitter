@@ -15,3 +15,7 @@ export * from "./stateful-widget.js";
 export * from "./stateless-widget.js";
 export * from "./types.js";
 export * from "./widget.js";
+// Explicit value re-exports: element.ts has `export type { Widget, Key }`
+// which shadows the class exports from widget.ts when both use `export *`.
+// This ensures consumers can `extends Widget` via the barrel import.
+export { GlobalKey, Key, Widget } from "./widget.js";

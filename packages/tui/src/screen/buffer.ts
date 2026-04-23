@@ -65,13 +65,16 @@ export class ScreenBuffer {
    * 读取指定位置的单元格。
    *
    * x 为列索引，y 为行索引。越界时返回 {@link Cell.EMPTY}。
+   * NaN/Infinity 坐标或尺寸也返回 EMPTY（NaN 会绕过比较运算符）。
    *
    * @param x - 列索引
    * @param y - 行索引
    * @returns 对应位置的 Cell，越界时返回 Cell.EMPTY
    */
   getCell(x: number, y: number): Cell {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+    // NaN 绕过所有比较运算符（NaN < 0 === false, NaN >= width === false），
+    // 必须在比较前显式拦截。
+    if (!(x >= 0 && x < this.width && y >= 0 && y < this.height)) {
       return Cell.EMPTY;
     }
     return this.cells[y][x];
@@ -80,14 +83,14 @@ export class ScreenBuffer {
   /**
    * 设置指定位置的单元格。
    *
-   * 越界时静默忽略。
+   * 越界时静默忽略。NaN/Infinity 坐标静默忽略。
    *
    * @param x - 列索引
    * @param y - 行索引
    * @param cell - 要设置的单元格
    */
   setCell(x: number, y: number, cell: Cell): void {
-    if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+    if (!(x >= 0 && x < this.width && y >= 0 && y < this.height)) {
       return;
     }
     this.cells[y][x] = cell;

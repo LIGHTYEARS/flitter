@@ -106,10 +106,15 @@ export abstract class RenderBox extends RenderObject {
   /**
    * 设置相对于父节点的偏移量。
    *
+   * 逆向: O9.setOffset — 非有限值默认为 0，结果 Math.round()
+   *
    * @param value - 新的偏移位置
    */
   set offset(value: Position) {
-    this._offset = value;
+    this._offset = {
+      x: Number.isFinite(value.x) ? Math.round(value.x) : 0,
+      y: Number.isFinite(value.y) ? Math.round(value.y) : 0,
+    };
   }
 
   /**

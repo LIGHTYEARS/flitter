@@ -241,6 +241,15 @@ export class WidgetsBinding {
       this.tui.enterAltScreen();
       await this.tui.waitForCapabilities(1000);
 
+      // Apply RGB color palette queried from the terminal to the Screen buffer.
+      // 逆向: amp modules/0489_unknown_pY.js setDefaultColors + setIndexRgbMapping
+      const rgbColors = this.tui.queryParser?.getRgbColors();
+      if (rgbColors) {
+        const screen = this.tui.getScreen();
+        screen.setDefaultColors(rgbColors.fg, rgbColors.bg);
+        screen.setIndexRgbMapping(rgbColors.indices);
+      }
+
       const wrapper = this.createMediaQueryWrapper(widget);
       this.rootElement = wrapper.createElement();
       this.rootElement.mount();

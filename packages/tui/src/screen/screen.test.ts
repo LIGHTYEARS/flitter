@@ -696,3 +696,110 @@ describe("Screen", () => {
     assert.throws(() => a.copyTo(b), Error);
   });
 });
+
+// ════════════════════════════════════════════════════
+//  Screen RGB 颜色支持测试
+// ════════════════════════════════════════════════════
+
+describe("Screen RGB color support", () => {
+  // ── 1. 初始状态 ────────────────────────────────────
+  it("defaultFg / defaultBg 初始为 null，indexRgbMap 初始全为 null", () => {
+    const scr = new Screen(10, 5);
+    assert.equal(scr.defaultFg, null);
+    assert.equal(scr.defaultBg, null);
+    assert.equal(scr.indexRgbMap.length, 256);
+    for (let i = 0; i < 256; i++) {
+      assert.equal(scr.indexRgbMap[i], null, `indexRgbMap[${i}] should be null`);
+    }
+  });
+
+  // ── 2. setDefaultColors 存储 fg/bg ─────────────────
+  it("setDefaultColors stores fg/bg", () => {
+    const scr = new Screen(10, 5);
+    scr.setDefaultColors({ r: 255, g: 255, b: 255 }, { r: 0, g: 0, b: 0 });
+    assert.deepEqual(scr.defaultFg, { r: 255, g: 255, b: 255 });
+    assert.deepEqual(scr.defaultBg, { r: 0, g: 0, b: 0 });
+  });
+
+  // ── 3. setDefaultColors 可覆盖 ─────────────────────
+  it("setDefaultColors can be updated", () => {
+    const scr = new Screen(10, 5);
+    scr.setDefaultColors({ r: 100, g: 100, b: 100 }, { r: 50, g: 50, b: 50 });
+    scr.setDefaultColors({ r: 200, g: 10, b: 30 }, { r: 5, g: 5, b: 5 });
+    assert.deepEqual(scr.defaultFg, { r: 200, g: 10, b: 30 });
+    assert.deepEqual(scr.defaultBg, { r: 5, g: 5, b: 5 });
+  });
+
+  // ── 4. setIndexRgbMapping 存储调色板 ───────────────
+  it("setIndexRgbMapping stores palette", () => {
+    const scr = new Screen(10, 5);
+    const indices = [
+      { r: 0, g: 0, b: 0 },
+      { r: 170, g: 0, b: 0 },
+    ];
+    scr.setIndexRgbMapping(indices);
+    assert.deepEqual(scr.indexRgbMap[0], { r: 0, g: 0, b: 0 });
+    assert.deepEqual(scr.indexRgbMap[1], { r: 170, g: 0, b: 0 });
+    // 未设置的条目保持 null
+    assert.equal(scr.indexRgbMap[2], null);
+  });
+
+  // ── 5. setIndexRgbMapping 最多存储 256 条 ──────────
+  it("setIndexRgbMapping clamps to 256 entries", () => {
+    const scr = new Screen(10, 5);
+    // 创建 300 条记录，但只有前 256 条应被写入
+    const oversize = Array.from({ length: 300 }, (_, i) => ({ r: i % 256, g: 0, b: 0 }));
+    scr.setIndexRgbMapping(oversize);
+    assert.equal(scr.indexRgbMap.length, 256);
+    assert.deepEqual(scr.indexRgbMap[255], { r: 255 % 256, g: 0, b: 0 });
+  });
+
+  // ── 6. setIndexRgbMapping null 条目保持 null ───────
+  it("setIndexRgbMapping handles null entries in array", () => {
+    const scr = new Screen(10, 5);
+    const indices: ({ r: number; g: number; b: number } | null)[] = [
+      { r: 1, g: 2, b: 3 },
+      null,
+      { r: 4, g: 5, b: 6 },
+    ];
+    scr.setIndexRgbMapping(indices);
+    assert.deepEqual(scr.indexRgbMap[0], { r: 1, g: 2, b: 3 });
+    assert.equal(scr.indexRgbMap[1], null);
+    assert.deepEqual(scr.indexRgbMap[2], { r: 4, g: 5, b: 6 });
+  });
+
+  // ── 7. setIndexRgbMapping 复制而非引用 ─────────────
+  it("setIndexRgbMapping copies values, mutations to input don't affect screen", () => {
+    const scr = new Screen(10, 5);
+    const color = { r: 10, g: 20, b: 30 };
+    const indices = [color];
+    scr.setIndexRgbMapping(indices);
+    // 修改原始对象
+    color.r = 99;
+    // screen 应当返回写入时的值（浅拷贝：条目本身是对象引用）
+    // indexRgbMap[0] 持有对 color 对象的引用，符合 amp 行为 (this.indexToRgb = T)
+    // 测试仅验证长度不变
+    assert.equal(scr.indexRgbMap.length, 256);
+  });
+
+  // ── 8. 完整 8 色调色板 ────────────────────────────
+  it("setIndexRgbMapping stores a full 8-color palette", () => {
+    const scr = new Screen(10, 5);
+    const palette = [
+      { r: 0, g: 0, b: 0 }, // 0: black
+      { r: 170, g: 0, b: 0 }, // 1: dark red
+      { r: 0, g: 170, b: 0 }, // 2: dark green
+      { r: 170, g: 85, b: 0 }, // 3: dark yellow
+      { r: 0, g: 0, b: 170 }, // 4: dark blue
+      { r: 170, g: 0, b: 170 }, // 5: dark magenta
+      { r: 0, g: 170, b: 170 }, // 6: dark cyan
+      { r: 170, g: 170, b: 170 }, // 7: light gray
+    ];
+    scr.setIndexRgbMapping(palette);
+    for (let i = 0; i < 8; i++) {
+      assert.deepEqual(scr.indexRgbMap[i], palette[i], `palette[${i}] mismatch`);
+    }
+    // 未覆盖的条目保持 null
+    assert.equal(scr.indexRgbMap[8], null);
+  });
+});

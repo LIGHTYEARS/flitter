@@ -15,18 +15,14 @@
  * @module
  */
 
+import type { RgbColor } from "../screen/screen.js";
 import type { TerminalCapabilities } from "./tui-controller.js";
 
 // ════════════════════════════════════════════════════
 //  Types
 // ════════════════════════════════════════════════════
 
-/** RGB color as 0-255 per channel. */
-export interface RgbColor {
-  r: number;
-  g: number;
-  b: number;
-}
+export type { RgbColor } from "../screen/screen.js";
 
 /** All collected RGB colors, or null if any are missing. */
 export interface RgbColors {

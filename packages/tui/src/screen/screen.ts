@@ -29,6 +29,13 @@ import { Cell } from "./cell.js";
 import type { Color } from "./color.js";
 import { TextStyle } from "./text-style.js";
 
+/** RGB color triplet (0-255 per channel). */
+export interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
 /**
  * 脏区域描述：一行中发生变化的单元格集合。
  */
@@ -76,6 +83,30 @@ export class Screen {
    * 5=blinking bar, 6=steady bar
    */
   cursorShape: number;
+
+  /**
+   * Terminal default foreground RGB color, or null if unknown.
+   *
+   * 逆向: amp modules/0489_unknown_pY.js:6
+   *   defaultFg = LT.default();
+   */
+  defaultFg: RgbColor | null = null;
+
+  /**
+   * Terminal default background RGB color, or null if unknown.
+   *
+   * 逆向: amp modules/0489_unknown_pY.js:7
+   *   defaultBg = LT.default();
+   */
+  defaultBg: RgbColor | null = null;
+
+  /**
+   * Palette index → RGB mapping for the 256-color table.
+   *
+   * 逆向: amp modules/0489_unknown_pY.js:5
+   *   indexToRgb = [];
+   */
+  indexRgbMap: (RgbColor | null)[] = new Array(256).fill(null);
 
   /** @internal 包含脏单元格的行索引集合 */
   private dirtyRows: Set<number>;
@@ -222,6 +253,40 @@ export class Screen {
   clear(): void {
     this.back.clear();
     this.needsFullRefresh = true;
+  }
+
+  /**
+   * Store the terminal's default foreground and background RGB colors.
+   *
+   * 逆向: amp modules/0489_unknown_pY.js:11-13
+   *   setDefaultColors(T, R) { this.defaultBg = T; this.defaultFg = R; }
+   *
+   * Note: amp's parameter order is (bg, fg) per the reference, but we expose
+   * a clearer (fg, bg) API to match the QueryParser RgbColors structure.
+   *
+   * @param fg - Terminal default foreground color
+   * @param bg - Terminal default background color
+   */
+  setDefaultColors(fg: RgbColor, bg: RgbColor): void {
+    this.defaultFg = fg;
+    this.defaultBg = bg;
+  }
+
+  /**
+   * Copy up to 256 palette index → RGB entries into the screen's color table.
+   *
+   * 逆向: amp modules/0489_unknown_pY.js:14-16
+   *   setIndexRgbMapping(T) { this.indexToRgb = T; }
+   *
+   * We copy (rather than assign) so callers can't mutate the internal array.
+   *
+   * @param indices - Array of RGB colors indexed by palette index (max 256)
+   */
+  setIndexRgbMapping(indices: (RgbColor | null)[]): void {
+    const limit = Math.min(indices.length, 256);
+    for (let i = 0; i < limit; i++) {
+      this.indexRgbMap[i] = indices[i] ?? null;
+    }
   }
 
   /**

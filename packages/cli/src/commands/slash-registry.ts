@@ -175,6 +175,14 @@ export interface SlashCommandContext {
   writeClipboard?: (text: string) => Promise<boolean>;
 
   /**
+   * Open a URL in the default browser.
+   * 逆向: Wb() in chunk-002.js:24072 — darwin→open, win32→start "", default→xdg-open
+   * Used by /open-in-browser.
+   * Returns a promise that resolves when the browser is launched.
+   */
+  openUrl?: (url: string) => Promise<void>;
+
+  /**
    * Base URL used to construct thread URLs.
    * 逆向: R.ampURL (e0R:346) — amp uses $P(new URL(R.ampURL), R.thread.id)
    * If absent, /copy-url falls back to showing the raw thread ID.

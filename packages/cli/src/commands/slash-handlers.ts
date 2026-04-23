@@ -30,6 +30,16 @@ import type {
 // ─── Helpers for /switch and /dashboard ─────────────────
 
 /**
+ * Build the shareable thread URL from context.
+ *
+ * 逆向: e0R:346 — $P(new URL(R.ampURL), R.thread.id).toString()
+ */
+function buildThreadUrl(ctx: SlashCommandContext): string {
+  const base = ctx.appBaseUrl ?? "https://app.ampcode.com/thread";
+  return `${base.replace(/\/$/, "")}/${ctx.threadId}`;
+}
+
+/**
  * Get the thread list from context, using observeThreadList if available,
  * falling back to listRecentThreadIds + getThreadSnapshot.
  *
@@ -1322,9 +1332,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     description: "Copy thread URL to clipboard",
     execute: async (_args, ctx) => {
       // 逆向: e0R:346 — $P(new URL(R.ampURL), R.thread.id).toString()
-      // Amp appends the thread ID as a path segment to the base URL.
-      const base = ctx.appBaseUrl ?? "https://app.ampcode.com/thread";
-      const url = `${base.replace(/\/$/, "")}/${ctx.threadId}`;
+      const url = buildThreadUrl(ctx);
       try {
         if (ctx.writeClipboard) {
           const ok = await ctx.writeClipboard(url);
@@ -1345,8 +1353,42 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     },
   });
 
-  // /copy-id -- copy thread ID to clipboard
-  // 逆向: e0R:374-405
+  // /open-in-browser -- open thread URL in the default browser
+  // 逆向: e0R:298-311 (id: "browser", noun: "thread", verb: "open in browser")
+  // Amp: $P(new URL(a), R.id).toString() → je(context, url) (Wb cross-platform opener)
+  // Wb (chunk-002.js:24072): darwin→open, win32→start "", default→xdg-open
+  // isShown: isThreadEmpty → "Cannot use thread: open in browser from an empty thread"
+  registry.register({
+    name: "open-in-browser",
+    aliases: ["open-browser", "browser"],
+    description: "Open thread URL in the default browser",
+    execute: async (_args, ctx) => {
+      const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+      if (!snapshot?.messages || snapshot.messages.length === 0) {
+        // 逆向: e0R:311 — isShown guard for empty thread
+        ctx.showMessage("Cannot use thread: open in browser from an empty thread.");
+        return;
+      }
+      // 逆向: e0R:307-309 — $P(new URL(a), R.id).toString()
+      const url = buildThreadUrl(ctx);
+      if (!ctx.openUrl) {
+        ctx.showMessage(`Thread URL: ${url}\n(Browser opener not available — open manually.)`);
+        return;
+      }
+      try {
+        await ctx.openUrl(url);
+        ctx.showMessage(`Opened in browser: ${url}`);
+      } catch (err) {
+        // 逆向: Wb catch — J.error("Failed to open browser", ...) re-throws
+        ctx.showMessage(
+          `Failed to open browser: ${err instanceof Error ? err.message : String(err)}\n` +
+            `URL: ${url}`,
+        );
+      }
+    },
+  });
+
+  // /copy-id -- copy thread ID to clipboard  // 逆向: e0R:374-405
   registry.register({
     name: "copy-id",
     aliases: ["copy-thread-id"],

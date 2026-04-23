@@ -104,3 +104,10 @@ export { MODEL_REGISTRY, ProviderError, registerModel, TransformState } from "./
 export { calculateCost } from "./utils/calculate-cost";
 export { isContextOverflow } from "./utils/overflow";
 export { sanitizeSurrogates } from "./utils/sanitize-unicode";
+export {
+  buildTelemetryHeaders,
+  DEFAULT_FEATURE,
+  HEADER_X_AMP_FEATURE,
+  HEADER_X_AMP_MODE,
+  HEADER_X_AMP_THREAD_ID,
+} from "./utils/telemetry-headers";

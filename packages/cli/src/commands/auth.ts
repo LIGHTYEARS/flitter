@@ -176,7 +176,13 @@ export async function handleLogout(deps: AuthCommandDeps, _context: CliContext):
   process.stderr.write("Logged out. All credentials have been removed.\n");
 }
 
-async function defaultOpenBrowser(url: string): Promise<void> {
+/**
+ * Open a URL in the default system browser.
+ *
+ * 逆向: Wb() in chunk-002.js:24072
+ *   darwin: open, win32: cmd /c start "" url, default: xdg-open
+ */
+export async function defaultOpenBrowser(url: string): Promise<void> {
   const { execFile } = await import("node:child_process");
   const cmd =
     process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";

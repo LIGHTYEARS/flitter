@@ -76,6 +76,16 @@ export interface StreamParams {
   requestId?: string;
   /** Session ID for request grouping */
   sessionId?: string;
+  /**
+   * Feature identifier for telemetry headers.
+   *
+   * Maps to x-amp-feature header sent to API providers.
+   * Defaults to "amp.chat" when not specified, matching amp's default.
+   *
+   * 逆向: amp-cli-reversed/chunk-001.js:7088 — yc = "x-amp-feature"
+   * 逆向: amp-cli-reversed/chunk-002.js:1902 — [yc]: "amp.chat" default
+   */
+  feature?: string;
 }
 
 // ─── StreamDelta (统一输出) ──────────────────────────────

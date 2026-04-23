@@ -457,3 +457,101 @@ describe("detectScrollStep", () => {
     assert.equal(fn(), 3);
   });
 });
+
+// ════════════════════════════════════════════════════
+//  OSC 9;4 Progress Bar Constants
+//  逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157632
+//    ku0 = Pn + "]9;4;3" + Pn + "\\"   (indeterminate)
+//    ZVT = Pn + "]9;4;0" + Pn + "\\"   (off)
+//    xu0 = Pn + "]9;4;4" + Pn + "\\"   (paused)
+// ════════════════════════════════════════════════════
+
+import {
+  PROGRESS_BAR_INDETERMINATE,
+  PROGRESS_BAR_OFF,
+  PROGRESS_BAR_PAUSED,
+} from "../screen/ansi-renderer.js";
+
+describe("OSC 9;4 progress bar constants", () => {
+  it("PROGRESS_BAR_OFF = ESC ]9;4;0 ESC \\", () => {
+    assert.equal(PROGRESS_BAR_OFF, "\x1b]9;4;0\x1b\\");
+  });
+
+  it("PROGRESS_BAR_INDETERMINATE = ESC ]9;4;3 ESC \\", () => {
+    assert.equal(PROGRESS_BAR_INDETERMINATE, "\x1b]9;4;3\x1b\\");
+  });
+
+  it("PROGRESS_BAR_PAUSED = ESC ]9;4;4 ESC \\", () => {
+    assert.equal(PROGRESS_BAR_PAUSED, "\x1b]9;4;4\x1b\\");
+  });
+
+  it("each constant has distinct value", () => {
+    assert.notEqual(PROGRESS_BAR_OFF, PROGRESS_BAR_INDETERMINATE);
+    assert.notEqual(PROGRESS_BAR_OFF, PROGRESS_BAR_PAUSED);
+    assert.notEqual(PROGRESS_BAR_INDETERMINATE, PROGRESS_BAR_PAUSED);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  AnsiRenderer progress bar methods
+//  逆向: amp 0510_unknown_ktT.js:117-125
+// ════════════════════════════════════════════════════
+
+import { AnsiRenderer } from "../screen/ansi-renderer.js";
+
+describe("AnsiRenderer — progress bar methods", () => {
+  it("setProgressBarOff() returns PROGRESS_BAR_OFF constant", () => {
+    const renderer = new AnsiRenderer();
+    assert.equal(renderer.setProgressBarOff(), PROGRESS_BAR_OFF);
+    assert.equal(renderer.setProgressBarOff(), "\x1b]9;4;0\x1b\\");
+  });
+
+  it("setProgressBarIndeterminate() returns PROGRESS_BAR_INDETERMINATE constant", () => {
+    const renderer = new AnsiRenderer();
+    assert.equal(renderer.setProgressBarIndeterminate(), PROGRESS_BAR_INDETERMINATE);
+    assert.equal(renderer.setProgressBarIndeterminate(), "\x1b]9;4;3\x1b\\");
+  });
+
+  it("setProgressBarPaused() returns PROGRESS_BAR_PAUSED constant", () => {
+    const renderer = new AnsiRenderer();
+    assert.equal(renderer.setProgressBarPaused(), PROGRESS_BAR_PAUSED);
+    assert.equal(renderer.setProgressBarPaused(), "\x1b]9;4;4\x1b\\");
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  TuiController.setProgressBar() — public API
+//  逆向: amp 2112_unknown_XXT.js:304
+//    deinit() and suspend() send setProgressBarOff() when
+//    capabilities.xtversion starts with "ghostty"
+// ════════════════════════════════════════════════════
+
+describe("TuiController — setProgressBar", () => {
+  it("is a no-op before init (does not throw)", async () => {
+    // No TERM_PROGRAM=ghostty so no write expected
+    const ctrl = new TuiController();
+    assert.doesNotThrow(() => ctrl.setProgressBar("off"));
+    assert.doesNotThrow(() => ctrl.setProgressBar("indeterminate"));
+    assert.doesNotThrow(() => ctrl.setProgressBar("paused"));
+  });
+
+  it("is a no-op after init on non-supporting terminals (no throw)", async () => {
+    // In test env (no TERM_PROGRAM=ghostty/WezTerm and no xtversion),
+    // setProgressBar should be a graceful no-op.
+    await withController((ctrl) => {
+      ctrl.init();
+      assert.doesNotThrow(() => ctrl.setProgressBar("off"));
+      assert.doesNotThrow(() => ctrl.setProgressBar("indeterminate"));
+      assert.doesNotThrow(() => ctrl.setProgressBar("paused"));
+    });
+  });
+
+  it("deinit does not throw even when capabilities not yet resolved", async () => {
+    // Verify that deinit/restoreTerminalSync does not crash even when
+    // capabilities is null (capability detection may not have run).
+    const ctrl = new TuiController();
+    ctrl.init();
+    // Do NOT call waitForCapabilities — capabilities may still be null.
+    await ctrl.deinit(); // must not throw
+  });
+});

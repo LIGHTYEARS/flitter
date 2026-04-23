@@ -19,18 +19,15 @@ function makeContext(overrides?: Partial<SlashCommandContext>): SlashCommandCont
       }),
       setCachedThread: mock(() => {}),
       deleteThread: mock(() => {}),
-      // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     threadWorker: {
       runInference: mock(async () => {}),
       cancelInference: mock(() => {}),
-      // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     configService: {
       get: () => ({
         settings: { "internal.model": "claude-sonnet-4-20250514" },
       }),
-      // biome-ignore lint/suspicious/noExplicitAny: test mock
     } as any,
     showMessage: mock(() => {}),
     clearInput: mock(() => {}),
@@ -827,7 +824,6 @@ describe("createBuiltinCommands", () => {
         setCachedThread: mock(() => {}),
         deleteThread: mock(() => {}),
         observeThreadList: () => [],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("switch", "", ctx);
@@ -859,7 +855,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: now - 3600000,
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("switch", "", ctx);
@@ -888,7 +883,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       switchToThread: switchMock,
     });
@@ -923,7 +917,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       switchToThread: switchMock,
     });
@@ -955,7 +948,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       switchToThread: switchMock,
     });
@@ -986,7 +978,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("switch", "Bug fix", ctx);
@@ -1012,7 +1003,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("switch", "nonexistent-id", ctx);
@@ -1037,7 +1027,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("switch", "thread-aaa-111", ctx);
@@ -1061,7 +1050,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       // No switchToThread — fallback path
     });
@@ -1091,7 +1079,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: Date.now(),
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       switchToThread: switchMock,
     });
@@ -1122,7 +1109,6 @@ describe("createBuiltinCommands", () => {
         setCachedThread: mock(() => {}),
         deleteThread: mock(() => {}),
         listRecentThreadIds: (_max: number) => ["thread-fallback"],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       switchToThread: switchMock,
     });
@@ -1182,7 +1168,6 @@ describe("createBuiltinCommands", () => {
           if (!opts?.includeArchived) return all.filter((t) => !t.archived);
           return all;
         },
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("dashboard", "", ctx);
@@ -1211,7 +1196,6 @@ describe("createBuiltinCommands", () => {
         setCachedThread: mock(() => {}),
         deleteThread: mock(() => {}),
         observeThreadList: () => [],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("dashboard", "", ctx);
@@ -1236,7 +1220,6 @@ describe("createBuiltinCommands", () => {
         setCachedThread: mock(() => {}),
         deleteThread: mock(() => {}),
         observeThreadList: () => [],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
       costTracker: {
         getTotals: () => ({
@@ -1287,7 +1270,6 @@ describe("createBuiltinCommands", () => {
             userLastInteractedAt: now - 7200000,
           },
         ],
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
       } as any,
     });
     await registry.dispatch("dashboard", "", ctx);
@@ -1296,5 +1278,110 @@ describe("createBuiltinCommands", () => {
     expect(message).toContain("First thread");
     expect(message).toContain("Second thread");
     expect(message).toContain("Third thread");
+  });
+
+  // ── GAP-CLI-49: /open-in-browser ────────────────────────
+  // 逆向: e0R:298-311 (id: "browser", noun: "thread", verb: "open in browser")
+  // Amp: isShown guard for empty thread; execute calls Wb(context, url)
+
+  it("registers /open-in-browser and aliases", () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    expect(registry.has("open-in-browser")).toBe(true);
+    expect(registry.has("open-browser")).toBe(true);
+    expect(registry.has("browser")).toBe(true);
+  });
+
+  it("/open-in-browser on empty thread shows guard error", async () => {
+    // 逆向: e0R:311 — isShown: isThreadEmpty → "Cannot use thread: open in browser from an empty thread"
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({
+      threadStore: {
+        getThreadSnapshot: () => ({
+          id: "test-thread",
+          v: 1,
+          title: null,
+          messages: [],
+          relationships: [],
+        }),
+        setCachedThread: mock(() => {}),
+        deleteThread: mock(() => {}),
+      } as any,
+    });
+    await registry.dispatch("open-in-browser", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("empty thread");
+  });
+
+  it("/open-in-browser calls openUrl with correct URL", async () => {
+    // 逆向: e0R:307-309 — $P(new URL(a), R.id).toString()
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const openUrlMock = mock(async (_url: string) => {});
+    const ctx = makeContext({
+      appBaseUrl: "https://app.ampcode.com/thread",
+      openUrl: openUrlMock,
+    });
+    await registry.dispatch("open-in-browser", "", ctx);
+    expect(openUrlMock).toHaveBeenCalledTimes(1);
+    const calledUrl = openUrlMock.mock.calls[0][0] as string;
+    expect(calledUrl).toBe("https://app.ampcode.com/thread/test-thread");
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Opened in browser");
+    expect(message).toContain("test-thread");
+  });
+
+  it("/open-in-browser uses default base URL when appBaseUrl absent", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const openUrlMock = mock(async (_url: string) => {});
+    const ctx = makeContext({ openUrl: openUrlMock });
+    // appBaseUrl is undefined — should fall back to ampcode.com
+    await registry.dispatch("open-in-browser", "", ctx);
+    const calledUrl = openUrlMock.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("test-thread");
+    expect(calledUrl).toContain("https://");
+  });
+
+  it("/open-in-browser without openUrl shows URL and fallback message", async () => {
+    // When openUrl is not wired, show the URL so the user can open it manually
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const ctx = makeContext({ appBaseUrl: "https://app.ampcode.com/thread" });
+    // no openUrl provided
+    await registry.dispatch("open-in-browser", "", ctx);
+    expect(ctx.showMessage).toHaveBeenCalledTimes(1);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("https://app.ampcode.com/thread/test-thread");
+    expect(message).toContain("open manually");
+  });
+
+  it("/open-in-browser shows error when openUrl rejects", async () => {
+    // 逆向: Wb catch — J.error("Failed to open browser", ...) re-throws
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const openUrlMock = mock(async (_url: string) => {
+      throw new Error("xdg-open not found");
+    });
+    const ctx = makeContext({
+      appBaseUrl: "https://app.ampcode.com/thread",
+      openUrl: openUrlMock,
+    });
+    await registry.dispatch("open-in-browser", "", ctx);
+    const message = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0][0] as string;
+    expect(message).toContain("Failed to open browser");
+    expect(message).toContain("xdg-open not found");
+    expect(message).toContain("test-thread");
+  });
+
+  it("/browser alias opens in browser", async () => {
+    const registry = new SlashCommandRegistry();
+    createBuiltinCommands(registry);
+    const openUrlMock = mock(async (_url: string) => {});
+    const ctx = makeContext({ openUrl: openUrlMock });
+    const dispatched = await registry.dispatch("browser", "", ctx);
+    expect(dispatched).toBe(true);
+    expect(openUrlMock).toHaveBeenCalledTimes(1);
   });
 });

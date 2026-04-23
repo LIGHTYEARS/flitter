@@ -953,3 +953,123 @@ describe("Error handling — missing API key", () => {
     );
   });
 });
+
+// ─── Telemetry Header Injection 测试 ──────────────────────
+//
+// Verifies that each provider forwards the amp-style telemetry headers
+// (x-amp-feature, x-amp-thread-id, x-amp-mode) on every API request.
+//
+// 逆向: amp-cli-reversed/chunk-001.js:7088-7091 — header constant definitions
+// 逆向: amp-cli-reversed/chunk-001.js:5955-5960 (Vs) — Vs(threadMeta) → thread headers
+// 逆向: amp-cli-reversed/chunk-002.js:1902 — [yc]: "amp.chat" default feature
+
+describe("Telemetry headers — Anthropic provider", () => {
+  it("passes x-amp-feature, x-amp-thread-id, x-amp-mode to messages.stream()", async () => {
+    let capturedOpts: unknown;
+    const client = {
+      messages: {
+        stream(_body: unknown, opts?: unknown) {
+          capturedOpts = opts;
+          return asyncIter(fixtures.anthropicSimpleText);
+        },
+      },
+    };
+
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
+    await collectDeltas(
+      provider.stream({
+        model: "claude-sonnet-4-20250514",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+        threadId: "thread-telem-001",
+        agentMode: "smart",
+        feature: "amp.chat",
+      }),
+    );
+
+    const opts = capturedOpts as Record<string, unknown>;
+    const headers = opts?.headers as Record<string, string>;
+    assert.ok(headers, "headers must be passed to messages.stream()");
+    assert.equal(headers["x-amp-feature"], "amp.chat");
+    assert.equal(headers["x-amp-thread-id"], "thread-telem-001");
+    assert.equal(headers["x-amp-mode"], "smart");
+  });
+
+  it("uses default x-amp-feature='amp.chat' when feature not provided", async () => {
+    let capturedOpts: unknown;
+    const client = {
+      messages: {
+        stream(_body: unknown, opts?: unknown) {
+          capturedOpts = opts;
+          return asyncIter(fixtures.anthropicSimpleText);
+        },
+      },
+    };
+
+    const provider = new AnthropicProvider(
+      client as ConstructorParameters<typeof AnthropicProvider>[0],
+    );
+    await collectDeltas(
+      provider.stream({
+        model: "claude-sonnet-4-20250514",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+        // no feature, threadId, or agentMode
+      }),
+    );
+
+    const opts = capturedOpts as Record<string, unknown>;
+    const headers = opts?.headers as Record<string, string>;
+    assert.ok(headers, "headers must be passed even without telemetry params");
+    assert.equal(headers["x-amp-feature"], "amp.chat");
+  });
+});
+
+describe("Telemetry headers — OpenAI-Compat provider", () => {
+  it("passes x-amp-feature, x-amp-thread-id, x-amp-mode to chat.completions.create()", async () => {
+    let capturedOpts: unknown;
+    const client = {
+      chat: {
+        completions: {
+          async create(_body: unknown, opts?: unknown) {
+            capturedOpts = opts;
+            return asyncIter([fixtures.compatSimpleText[0]!]);
+          },
+        },
+      },
+    };
+
+    const provider = new OpenAICompatProvider({
+      name: "xai",
+      client: client as ConstructorParameters<typeof OpenAICompatProvider>[0]["client"],
+    });
+    await collectDeltas(
+      provider.stream({
+        model: "grok-3",
+        messages: [],
+        systemPrompt: [],
+        tools: [],
+        config: fixtures.testConfig,
+        signal: AbortSignal.timeout(5000),
+        threadId: "thread-compat-42",
+        agentMode: "deep",
+        feature: "amp.chat",
+      }),
+    );
+
+    const opts = capturedOpts as Record<string, unknown>;
+    const headers = opts?.headers as Record<string, string>;
+    assert.ok(headers, "headers must be passed to chat.completions.create()");
+    assert.equal(headers["x-amp-feature"], "amp.chat");
+    assert.equal(headers["x-amp-thread-id"], "thread-compat-42");
+    assert.equal(headers["x-amp-mode"], "deep");
+  });
+});

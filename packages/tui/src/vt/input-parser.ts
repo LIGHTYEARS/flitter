@@ -31,6 +31,8 @@
 
 import { logger } from "../debug/logger.js";
 import type {
+  CursorPositionEvent,
+  InbandResizeEvent,
   InputEvent,
   KeyEvent,
   Modifiers,
@@ -235,13 +237,6 @@ export class InputParser {
    * 逆向: amp escapeTimeout = null (chunk-005.js:163013)
    */
   private escapeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Whether we have a pending standalone ESC that hasn't resolved yet.
-   *
-   * 逆向: amp pendingEscape (chunk-005.js:163088)
-   */
-  private pendingEscape = false;
 
   /**
    * Timeout in ms to wait before treating ESC as standalone.
@@ -575,6 +570,50 @@ export class InputParser {
       case "O":
         // 焦点失去
         this.emit({ type: "focus", focused: false } as TermFocusEvent);
+        break;
+
+      case "t":
+        // In-band resize notification (DEC mode ?2048)
+        //
+        // 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:449-470
+        //   handleInbandResize(T) — params[0]=48 check, T.width, T.height, T.pixelWidth, T.pixelHeight
+        //
+        // Response format: ESC [ 48 ; rows ; cols ; pixelH ; pixelW t
+        // params[0] must be 48 (identifies this as an in-band resize, not another CSI t variant)
+        // params[1] = rows, params[2] = cols, params[3] = pixelH, params[4] = pixelW
+        if (params.length >= 3 && params[0].value === 48) {
+          const rows = params[1].value;
+          const cols = params[2].value;
+          const pixelHeight = params.length >= 4 ? params[3].value : 0;
+          const pixelWidth = params.length >= 5 ? params[4].value : 0;
+          if (cols > 0 && rows > 0) {
+            this.emit({
+              type: "inband_resize",
+              width: cols,
+              height: rows,
+              pixelWidth,
+              pixelHeight,
+            } as InbandResizeEvent);
+          }
+        }
+        break;
+
+      case "R":
+        // Cursor Position Report (CPR) — response to CSI 6 n
+        //
+        // 逆向: amp 2112_unknown_XXT.js:66-67
+        //   parser.onCursorPositionReport(T => queryParser.processCursorPositionReport(T.row, T.col))
+        //
+        // Response format: ESC [ row ; col R
+        // Used by kitty explicit width probe: sends test char + CPR request;
+        // if col===2, terminal supports OSC 66 explicit width.
+        if (params.length >= 2) {
+          this.emit({
+            type: "cursor_position",
+            row: params[0].value,
+            col: params[1].value,
+          } as CursorPositionEvent);
+        }
         break;
 
       default:

@@ -278,8 +278,14 @@ export async function handleThreadsArchive(
  * Valid user-facing visibility levels.
  * 逆向: urT() in modules/2513_unknown_urT.js validates against these levels.
  */
-const VALID_VISIBILITY_LEVELS = ["private", "unlisted", "public", "workspace", "group"] as const;
-type UserVisibilityLevel = (typeof VALID_VISIBILITY_LEVELS)[number];
+export const VALID_VISIBILITY_LEVELS = [
+  "private",
+  "unlisted",
+  "public",
+  "workspace",
+  "group",
+] as const;
+export type UserVisibilityLevel = (typeof VALID_VISIBILITY_LEVELS)[number];
 
 /**
  * Map user-facing visibility level to thread metadata object.

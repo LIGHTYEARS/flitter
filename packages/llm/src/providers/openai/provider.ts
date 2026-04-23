@@ -17,6 +17,7 @@ import type { LLMProvider } from "../../provider";
 import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
+import { buildTelemetryHeaders } from "../../utils/telemetry-headers";
 import { mergeWithDefaults } from "../openai-compat/compat";
 import type { CompatStreamChunk } from "../openai-compat/transformer";
 import { CompatToolTransformer, CompatTransformer } from "../openai-compat/transformer";
@@ -63,6 +64,7 @@ export class OpenAIProvider implements LLMProvider {
       agentMode,
       requestId,
       sessionId,
+      feature,
     } = params;
 
     // Get API key
@@ -113,8 +115,11 @@ export class OpenAIProvider implements LLMProvider {
 
     // Build per-request telemetry headers
     // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
-    // Flitter extension: also send x-request-id / x-session-id as outgoing headers
-    const requestHeaders: Record<string, string> = {};
+    // 逆向: amp-cli-reversed/chunk-001.js:7088-7091 — x-amp-feature, x-amp-thread-id, x-amp-mode constants
+    // 逆向: amp-cli-reversed/chunk-001.js:5955-5960 (Vs) — thread meta → header assembly
+    const requestHeaders: Record<string, string> = {
+      ...buildTelemetryHeaders({ feature, threadId, agentMode }),
+    };
     if (requestId) requestHeaders["x-request-id"] = requestId;
     if (sessionId) requestHeaders["x-session-id"] = sessionId;
 
@@ -179,6 +184,8 @@ export class OpenAIProvider implements LLMProvider {
       threadId,
       requestId,
       sessionId,
+      agentMode,
+      feature,
     } = params;
 
     const modelInfo = MODEL_REGISTRY[model];
@@ -227,7 +234,10 @@ export class OpenAIProvider implements LLMProvider {
     }
 
     // Per-request telemetry headers
-    const requestHeaders: Record<string, string> = {};
+    // 逆向: amp-cli-reversed/chunk-001.js:7088-7091 — x-amp-feature, x-amp-thread-id, x-amp-mode
+    const requestHeaders: Record<string, string> = {
+      ...buildTelemetryHeaders({ feature, threadId, agentMode }),
+    };
     if (requestId) requestHeaders["x-request-id"] = requestId;
     if (sessionId) requestHeaders["x-session-id"] = sessionId;
 

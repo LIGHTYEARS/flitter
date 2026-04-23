@@ -35,6 +35,7 @@ import { createContainer, type SecretStorage, type ServiceContainer } from "@fli
 import { createLogger, setLogLevel, setLogOutput } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
+import { handleInstall } from "./commands/install";
 import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
 import {
   handleMcpApprove,
@@ -354,6 +355,23 @@ export async function main(opts?: MainOptions): Promise<void> {
         await handleUpdate({ configService: c.configService }, ctx, {
           targetVersion: cmdOpts?.targetVersion as string | undefined,
         });
+      });
+    }
+
+    // install 命令 (hidden) — 逆向: 0473_unknown__m0.js, 0437_unknown_gb0.js
+    // 安装 ripgrep 到 $FLITTER_HOME/bin (or ~/.config/flitter/bin)
+    const installCmd = program.commands.find((c) => c.name() === "install");
+    if (installCmd) {
+      installCmd.action(async (cmdOpts: Record<string, unknown>) => {
+        await handleInstall(
+          {},
+          {
+            force: cmdOpts?.force as boolean | undefined,
+            verbose: cmdOpts?.verbose as boolean | undefined,
+          },
+        );
+        // 逆向: 0473_unknown__m0.js:3 — amp calls process.exit() after install
+        process.exit(process.exitCode ?? 0);
       });
     }
 

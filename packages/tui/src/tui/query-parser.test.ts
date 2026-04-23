@@ -83,11 +83,101 @@ describe("QueryParser", () => {
     expect(qp.getCapabilities().osc52).toBe(true);
   });
 
+  test("processDeviceAttributes forces emojiWidth=true for JetBrains", () => {
+    // Temporarily set env to JetBrains
+    const original = process.env.TERMINAL_EMULATOR;
+    process.env.TERMINAL_EMULATOR = "JetBrains-foo";
+    try {
+      const qp = new QueryParser();
+      qp.processDeviceAttributes();
+      expect(qp.getCapabilities().emojiWidth).toBe(true);
+    } finally {
+      if (original === undefined) delete process.env.TERMINAL_EMULATOR;
+      else process.env.TERMINAL_EMULATOR = original;
+    }
+  });
+
+  test("processDeviceAttributes forces emojiWidth=true inside tmux", () => {
+    const original = process.env.TMUX;
+    process.env.TMUX = "/tmp/tmux-1000/default,12345,0";
+    try {
+      const qp = new QueryParser();
+      qp.processDeviceAttributes();
+      expect(qp.getCapabilities().emojiWidth).toBe(true);
+    } finally {
+      if (original === undefined) delete process.env.TMUX;
+      else process.env.TMUX = original;
+    }
+  });
+
+  test("processDeviceAttributes does not force emojiWidth for generic terminal", () => {
+    // Make sure neither JetBrains nor tmux env vars are set
+    const origJB = process.env.TERMINAL_EMULATOR;
+    const origTmux = process.env.TMUX;
+    delete process.env.TERMINAL_EMULATOR;
+    delete process.env.TMUX;
+    try {
+      const qp = new QueryParser();
+      qp.processDeviceAttributes();
+      expect(qp.getCapabilities().emojiWidth).toBe(false);
+    } finally {
+      if (origJB !== undefined) process.env.TERMINAL_EMULATOR = origJB;
+      if (origTmux !== undefined) process.env.TMUX = origTmux;
+    }
+  });
+
+  test("DECRQSS ?2027 with value '1' or '2' sets emojiWidth=true", () => {
+    const qp1 = new QueryParser();
+    qp1.processDecrqss("?2027", "1");
+    expect(qp1.getCapabilities().emojiWidth).toBe(true);
+
+    const qp2 = new QueryParser();
+    qp2.processDecrqss("?2027", "2");
+    expect(qp2.getCapabilities().emojiWidth).toBe(true);
+
+    const qp3 = new QueryParser();
+    qp3.processDecrqss("?2027", "0");
+    expect(qp3.getCapabilities().emojiWidth).toBe(false);
+  });
+
   test("processDeviceAttributes resolves waitForCompletion", async () => {
     const qp = new QueryParser();
     const promise = qp.waitForCompletion(5000);
     qp.processDeviceAttributes();
     await promise; // should resolve without timeout
+  });
+
+  // ── Kitty explicit width detection (GAP-TUI-34) ──
+
+  test("markKittyWidthQuerySent + CPR row=1 col=2 sets kittyExplicitWidth=true", () => {
+    const qp = new QueryParser();
+    qp.markKittyWidthQuerySent();
+    qp.processCursorPositionReport(1, 2);
+    expect(qp.getCapabilities().kittyExplicitWidth).toBe(true);
+  });
+
+  test("CPR with col !== 2 does not set kittyExplicitWidth", () => {
+    const qp = new QueryParser();
+    qp.markKittyWidthQuerySent();
+    qp.processCursorPositionReport(1, 3);
+    expect(qp.getCapabilities().kittyExplicitWidth).toBe(false);
+  });
+
+  test("CPR without markKittyWidthQuerySent is ignored", () => {
+    const qp = new QueryParser();
+    // Not calling markKittyWidthQuerySent
+    qp.processCursorPositionReport(1, 2);
+    expect(qp.getCapabilities().kittyExplicitWidth).toBe(false);
+  });
+
+  test("second CPR after first is processed is ignored", () => {
+    const qp = new QueryParser();
+    qp.markKittyWidthQuerySent();
+    qp.processCursorPositionReport(1, 2); // sets kittyExplicitWidth = true
+    expect(qp.getCapabilities().kittyExplicitWidth).toBe(true);
+    // kittyWidthQuerySent is now false — second call should be no-op
+    qp.processCursorPositionReport(1, 5);
+    expect(qp.getCapabilities().kittyExplicitWidth).toBe(true); // unchanged
   });
 });
 

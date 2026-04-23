@@ -36,14 +36,24 @@ import {
   ALT_SCREEN_ON,
   AnsiRenderer,
   type ColorDepth,
+  EMOJI_WIDTH_OFF,
+  EMOJI_WIDTH_ON,
   FOCUS_OFF,
   FOCUS_ON,
+  IN_BAND_RESIZE_OFF,
+  IN_BAND_RESIZE_ON,
   KITTY_KEYBOARD_OFF,
   KITTY_KEYBOARD_ON,
+  MODIFY_OTHER_KEYS_OFF,
+  MODIFY_OTHER_KEYS_ON,
+  MODIFY_OTHER_KEYS_ON_MODE2,
   MOUSE_OFF,
   MOUSE_ON,
   PASTE_OFF,
   PASTE_ON,
+  PROGRESS_BAR_INDETERMINATE,
+  PROGRESS_BAR_OFF,
+  PROGRESS_BAR_PAUSED,
   SET_CURSOR_SHAPE,
   SHOW_CURSOR,
   SYNC_END,
@@ -52,6 +62,7 @@ import {
 import { Screen } from "../screen/screen.js";
 import { InputParser } from "../vt/input-parser.js";
 import type {
+  InbandResizeEvent,
   KeyEvent,
   PasteEvent,
   FocusEvent as TermFocusEvent,
@@ -388,6 +399,19 @@ export class TuiController {
           case "focus":
             for (const handler of this.focusHandlers) handler(event);
             break;
+          case "inband_resize":
+            // In-band resize notification from DEC mode ?2048
+            // 逆向: amp 2112_unknown_XXT.js:449-470 — handleInbandResize()
+            this.handleInbandResize(event);
+            break;
+          case "cursor_position":
+            // Cursor Position Report (CPR) — route to query parser for kitty width detection
+            // 逆向: amp 2112_unknown_XXT.js:66-67
+            //   parser.onCursorPositionReport(T => queryParser.processCursorPositionReport(T.row, T.col))
+            if (this._queryParser && this.initialized) {
+              this._queryParser.processCursorPositionReport(event.row, event.col);
+            }
+            break;
           default:
             // resize 等其他事件暂不通过 InputParser 分发
             break;
@@ -429,6 +453,11 @@ export class TuiController {
       this.enableBracketedPaste();
       this.enableKittyKeyboard();
       this.enableFocusReporting();
+      // Enable in-band resize notification (DEC mode ?2048)
+      // 逆向: amp 2112_unknown_XXT.js:431 — enableInBandResize() called unconditionally
+      //   in finishInitialization() after capability detection.
+      // Amp also enables it unconditionally at init/resume (without capability gate).
+      this.enableInBandResize();
     } catch (error) {
       this.deinit();
       throw error;
@@ -493,6 +522,58 @@ export class TuiController {
     this.capabilities = null;
     this._queryParser = null;
     this.initialized = false;
+  }
+
+  /**
+   * Set the OS-level progress bar state (Ghostty/WezTerm/ConEmu).
+   *
+   * 逆向: amp 2112_unknown_XXT.js:304 — deinit() and suspend() both send
+   *   this.renderer.setProgressBarOff() when xtversion starts with "ghostty".
+   *
+   * Amp gates cleanup on capabilities?.xtversion?.startsWith("ghostty").
+   * Flitter also includes WezTerm (TERM_PROGRAM="WezTerm") which supports
+   * OSC 9;4 identically.
+   *
+   * Calling setProgressBar("indeterminate") during a long-running operation
+   * (e.g., LLM streaming) shows a spinning indicator in the OS taskbar /
+   * dock / terminal tab bar on supported terminals.
+   *
+   * This method is a no-op if the terminal does not support OSC 9;4.
+   *
+   * @param state - "off" | "indeterminate" | "paused"
+   */
+  setProgressBar(state: "off" | "indeterminate" | "paused"): void {
+    if (!this.initialized) return;
+    if (!this._supportsProgressBar()) return;
+    const seq =
+      state === "off"
+        ? PROGRESS_BAR_OFF
+        : state === "indeterminate"
+          ? PROGRESS_BAR_INDETERMINATE
+          : PROGRESS_BAR_PAUSED;
+    try {
+      process.stdout.write(seq);
+    } catch {
+      // Output stream may be closed
+    }
+  }
+
+  /**
+   * Returns true when the connected terminal supports OSC 9;4 progress bars.
+   *
+   * 逆向: amp gates cleanup on capabilities?.xtversion?.startsWith("ghostty").
+   * We also include WezTerm (TERM_PROGRAM="WezTerm") as it supports the same protocol.
+   *
+   * @private
+   */
+  private _supportsProgressBar(): boolean {
+    // xtversion-based check (matches amp exactly)
+    if (this.capabilities?.xtversion?.startsWith("ghostty")) return true;
+    if (this.capabilities?.xtversion?.startsWith("WezTerm")) return true;
+    // Heuristic fallback: TERM_PROGRAM env (pre-capability-detection safe path)
+    if (process.env.TERM_PROGRAM === "ghostty") return true;
+    if (process.env.TERM_PROGRAM === "WezTerm") return true;
+    return false;
   }
 
   // ════════════════════════════════════════════════════
@@ -782,6 +863,17 @@ export class TuiController {
     const isAppleTerminal = process.env.TERM_PROGRAM === "Apple_Terminal";
     const isTmux = !!process.env.TMUX;
 
+    // 逆向: Sk0[0] — "Query Kitty explicit width support" (data_structures.js:1-3)
+    // Sent BEFORE the main query burst. Enters alt screen, writes a space with OSC 66 w=1,
+    // requests cursor position (CPR), then exits alt screen. The CPR response tells us
+    // if the terminal honored the explicit width directive.
+    // 逆向: XXT.js:405 — markKittyWidthQuerySent() called after writing this sequence
+    const kittyWidthProbe = "\x1b[?1049h\x1b[H\x1b]66;w=1; \x1b\\\x1b[6n\x1b[?1049l";
+    if (!isAppleTerminal) {
+      this.ttyOutput?.stream.write(kittyWidthProbe);
+      this._queryParser.markKittyWidthQuerySent();
+    }
+
     const sequence = this._queryParser.buildQuerySequence({ isJetBrains, isAppleTerminal, isTmux });
     if (sequence) {
       this.ttyOutput?.stream.write(sequence);
@@ -820,6 +912,10 @@ export class TuiController {
       this.capabilityResolve();
       this.capabilityResolve = null;
     }
+    // 逆向: XXT.js:429 — if (capabilities.emojiWidth) this.enableEmojiWidth()
+    this.enableEmojiWidth();
+    // 逆向: XXT.js:431 — this.enableModifyOtherKeys() — unconditional, no capability gate
+    this.enableModifyOtherKeys();
   }
 
   /**
@@ -962,6 +1058,112 @@ export class TuiController {
   }
 
   /**
+   * 启用带内尺寸通知 (DEC Private Mode 2048)。
+   *
+   * 逆向: amp-cli-reversed/modules/0510_unknown_ktT.js:90-92
+   *   enableInBandResize() { return nu0; }  (nu0 = t9 + "?2048h")
+   *
+   * 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:313, 431
+   *   resume():               this.enableInBandResize()  — unconditional
+   *   finishInitialization(): this.enableInBandResize()  — unconditional
+   *
+   * Amp enables this unconditionally (no capability gate) at both init and resume.
+   * The terminal silently ignores it if it doesn't support ?2048.
+   *
+   * @private
+   */
+  private enableInBandResize(): void {
+    this.ttyOutput?.stream.write(IN_BAND_RESIZE_ON);
+  }
+
+  /**
+   * 处理带内尺寸变化通知。
+   *
+   * 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:449-470
+   *   handleInbandResize(T) {
+   *     this.terminalSize = { width: T.width, height: T.height };
+   *     if (this.queryParser && T.pixelWidth && T.pixelHeight) {
+   *       // Update pixel mouse converter if pixel data changed
+   *     }
+   *     this.screen.resize(T.width, T.height);
+   *     setImmediate(() => {
+   *       for (let R of this.resizeHandlers) R(T);
+   *     });
+   *   }
+   *
+   * CSI response: `ESC [ 48 ; rows ; cols ; pixelH ; pixelW t`
+   * Fired by the terminal on window resize when DEC mode ?2048 is active.
+   * More reliable than SIGWINCH since it arrives in-band with the input stream.
+   * Falls back to SIGWINCH on terminals that don't support ?2048.
+   *
+   * @param event - InbandResizeEvent from InputParser
+   * @private
+   */
+  private handleInbandResize(event: InbandResizeEvent): void {
+    TuiController.log.debug("handleInbandResize", {
+      width: event.width,
+      height: event.height,
+      pixelWidth: event.pixelWidth,
+      pixelHeight: event.pixelHeight,
+    });
+
+    this.terminalSize = { width: event.width, height: event.height };
+    this.screen.resize(event.width, event.height);
+
+    const size = this.terminalSize;
+    setImmediate(() => {
+      for (const handler of this.resizeHandlers) {
+        try {
+          handler(size);
+        } catch (err) {
+          TuiController.log.error("Error in resize handler:", err);
+        }
+      }
+    });
+  }
+
+  /**
+   * 启用 Emoji 宽度模式 (DEC Private Mode 2027)。
+   *
+   * 逆向: XXT.js:273-277 — enableEmojiWidth()
+   *   if (this.initialized) process.stdout.write(this.renderer.enableEmojiWidth())
+   *
+   * 逆向: XXT.js:429 — finishInitialization: if (capabilities.emojiWidth) this.enableEmojiWidth()
+   * 逆向: XXT.js:311 — resume: if (capabilities?.emojiWidth) this.enableEmojiWidth()
+   *
+   * @private
+   */
+  private enableEmojiWidth(): void {
+    if (this.capabilities?.emojiWidth) {
+      this.ttyOutput?.stream.write(EMOJI_WIDTH_ON);
+    }
+  }
+
+  /**
+   * 启用 modifyOtherKeys 扩展键消歧模式。
+   *
+   * 逆向: XXT.enableModifyOtherKeys() in 2112_unknown_XXT.js:241-243
+   *   process.stdout.write(this.renderer.enableModifyOtherKeys())
+   *
+   * 逆向: finishInitialization 2112_unknown_XXT.js:431
+   *   this.enableModifyOtherKeys()  — always called unconditionally
+   * 逆向: resume() 2112_unknown_XXT.js:313
+   *   this.enableModifyOtherKeys()  — always called unconditionally
+   *
+   * 逆向: sy0.js:195-201 — tmux path sends mode 2 (ty0 = "\x1b[>4;2m")
+   * instead of mode 1 because tmux doesn't proxy kitty keyboard queries.
+   * Non-tmux path: mode 1 (_u0 = t9 + ">4;1m" = "\x1b[>4;1m").
+   *
+   * Always enabled unconditionally (no capability gate needed).
+   *
+   * @private
+   */
+  private enableModifyOtherKeys(): void {
+    const isTmux = !!process.env.TMUX;
+    this.ttyOutput?.stream.write(isTmux ? MODIFY_OTHER_KEYS_ON_MODE2 : MODIFY_OTHER_KEYS_ON);
+  }
+
+  /**
    * 同步恢复终端状态（ANSI 序列写入）。
    *
    * 逆向: XXT.deinit (sync part) in clipboard-and-input.js:600-607
@@ -976,9 +1178,20 @@ export class TuiController {
     seq += MOUSE_OFF;
     seq += PASTE_OFF;
     seq += FOCUS_OFF;
+    // Disable in-band resize notification
+    // 逆向: amp 2112_unknown_XXT.js:303 — suspend() sends disableInBandResize() unconditionally
+    seq += IN_BAND_RESIZE_OFF;
     // Disable kitty keyboard if it was enabled
     if (this.capabilities?.kittyKeyboard) {
       seq += KITTY_KEYBOARD_OFF;
+    }
+    // Disable modifyOtherKeys — always enabled unconditionally, always disabled on cleanup
+    // 逆向: XXT.js:303 — suspend() includes disableModifyOtherKeys() in cleanup sequence
+    seq += MODIFY_OTHER_KEYS_OFF;
+    // Disable emoji width mode if it was enabled
+    // 逆向: XXT.js:303 — suspend() includes disableEmojiWidth() in cleanup sequence
+    if (this.capabilities?.emojiWidth) {
+      seq += EMOJI_WIDTH_OFF;
     }
     // Reset cursor shape to default before showing cursor
     // 逆向: amp XXT deinit/suspend: this.renderer.setCursorShape(0) + showCursor()
@@ -986,6 +1199,14 @@ export class TuiController {
       seq += SET_CURSOR_SHAPE(0);
     }
     seq += SHOW_CURSOR;
+    // Send progress bar off for terminals that support OSC 9;4.
+    // 逆向: amp 2112_unknown_XXT.js:304 — deinit() and suspend() both send
+    //   this.renderer.setProgressBarOff() when capabilities.xtversion starts with "ghostty".
+    // We extend to WezTerm (supports same protocol) and add an env-var heuristic
+    // so cleanup works even if capability detection hasn't completed.
+    if (this._supportsProgressBar()) {
+      seq += PROGRESS_BAR_OFF;
+    }
     if (this.inAltScreen) {
       seq += ALT_SCREEN_OFF;
       this.inAltScreen = false;
@@ -1067,8 +1288,12 @@ export class TuiController {
     this.enterAltScreen();
     this.enableMouse();
     this.enableBracketedPaste();
+    // 逆向: XXT.js:311 — if (capabilities?.emojiWidth) this.enableEmojiWidth()
+    this.enableEmojiWidth();
     this.enableKittyKeyboard();
     this.enableFocusReporting();
+    // 逆向: amp 2112_unknown_XXT.js:313 — enableInBandResize() called unconditionally on resume
+    this.enableInBandResize();
     this.screen.needsFullRefresh = true;
     this.suspended = false;
   }

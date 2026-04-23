@@ -17,6 +17,7 @@ import { describe, it } from "node:test";
 
 import { InputParser } from "./input-parser.js";
 import type {
+  InbandResizeEvent,
   InputEvent,
   KeyEvent,
   Modifiers,
@@ -871,5 +872,100 @@ describe("集成测试", () => {
 
     // No Escape event should have been emitted
     assert.equal(events.length, 0, "reset() prevents Escape emission");
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  In-band Resize (DEC mode ?2048)
+// ════════════════════════════════════════════════════
+
+/** 断言事件为 InbandResizeEvent 并返回 */
+function assertInbandResizeEvent(event: InputEvent): InbandResizeEvent {
+  assert.equal(event.type, "inband_resize", `expected inband_resize event but got ${event.type}`);
+  return event as InbandResizeEvent;
+}
+
+describe("带内尺寸通知 (DEC mode ?2048)", () => {
+  // ── 55. Full in-band resize: ESC [ 48 ; rows ; cols ; pixelH ; pixelW t ───
+  it("55. CSI 48;50;220;1250;2640 t → InbandResizeEvent with pixel dims", () => {
+    // ESC [ 48 ; 50 ; 220 ; 1250 ; 2640 t
+    // params[0]=48 (marker), params[1]=50 (rows), params[2]=220 (cols),
+    // params[3]=1250 (pixelH), params[4]=2640 (pixelW)
+    const events = feedStr("\x1b[48;50;220;1250;2640t");
+    assert.equal(events.length, 1);
+    const resize = assertInbandResizeEvent(events[0]);
+    assert.equal(resize.width, 220, "width should be cols");
+    assert.equal(resize.height, 50, "height should be rows");
+    assert.equal(resize.pixelWidth, 2640, "pixelWidth from param[4]");
+    assert.equal(resize.pixelHeight, 1250, "pixelHeight from param[3]");
+  });
+
+  // ── 56. Minimal in-band resize (3 params, no pixel data) ──────────────────
+  it("56. CSI 48;24;80 t → InbandResizeEvent, pixelWidth/Height=0", () => {
+    // 3-param form: params[0]=48, params[1]=24 (rows), params[2]=80 (cols)
+    const events = feedStr("\x1b[48;24;80t");
+    assert.equal(events.length, 1);
+    const resize = assertInbandResizeEvent(events[0]);
+    assert.equal(resize.width, 80);
+    assert.equal(resize.height, 24);
+    assert.equal(resize.pixelWidth, 0, "pixelWidth defaults to 0");
+    assert.equal(resize.pixelHeight, 0, "pixelHeight defaults to 0");
+  });
+
+  // ── 57. CSI t with params[0] != 48 → no event ────────────────────────────
+  it("57. CSI 4;50;220t (params[0]≠48) → no event", () => {
+    // params[0]=4 → not an in-band resize notification
+    const events = feedStr("\x1b[4;50;220t");
+    assert.equal(events.length, 0, "non-48 CSI t should produce no event");
+  });
+
+  // ── 58. CSI t with only 2 params → no event (needs at least 3) ───────────
+  it("58. CSI 48;24t (only 2 params) → no event", () => {
+    const events = feedStr("\x1b[48;24t");
+    assert.equal(events.length, 0, "fewer than 3 params should produce no event");
+  });
+
+  // ── 59. CSI 48;0;80t (rows=0) → no event (invalid dimension) ─────────────
+  it("59. CSI 48;0;80t (rows=0) → no event", () => {
+    const events = feedStr("\x1b[48;0;80t");
+    assert.equal(events.length, 0, "zero rows should be rejected");
+  });
+
+  // ── 60. CSI 48;24;0t (cols=0) → no event (invalid dimension) ─────────────
+  it("60. CSI 48;24;0t (cols=0) → no event", () => {
+    const events = feedStr("\x1b[48;24;0t");
+    assert.equal(events.length, 0, "zero cols should be rejected");
+  });
+
+  // ── 61. In-band resize does not interfere with subsequent key events ───────
+  it("61. in-band resize followed by key 'a' produces resize + key events", () => {
+    // ESC[48;30;100t + 'a'
+    const events = feedStr("\x1b[48;30;100ta");
+    assert.equal(events.length, 2);
+    const resize = assertInbandResizeEvent(events[0]);
+    assert.equal(resize.width, 100);
+    assert.equal(resize.height, 30);
+    const key = assertKeyEvent(events[1]);
+    assert.equal(key.key, "a");
+  });
+
+  // ── 62. handleVtEvent directly with CSI t params[0]=48 ────────────────────
+  it("62. handleVtEvent directly — CSI t with 5 params", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 48 }, { value: 40 }, { value: 160 }, { value: 1000 }, { value: 2000 }],
+        intermediates: "",
+        private_marker: "",
+        final: "t",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const resize = assertInbandResizeEvent(events[0]);
+    assert.equal(resize.width, 160);
+    assert.equal(resize.height, 40);
+    assert.equal(resize.pixelWidth, 2000);
+    assert.equal(resize.pixelHeight, 1000);
   });
 });

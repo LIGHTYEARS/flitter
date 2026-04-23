@@ -156,6 +156,67 @@ export const FOCUS_ON = `${CSI}?1004h`;
 export const FOCUS_OFF = `${CSI}?1004l`;
 
 /**
+ * modifyOtherKeys — Enhanced key disambiguation (XTerm private mode >4).
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157631
+ *   _u0 = t9 + ">4;1m"  (enable mode 1, non-tmux)
+ *   bu0 = t9 + ">4;0m"  (disable)
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:20282
+ *   ty0 = "\x1B[>4;2m"  (tmux mode 2 — press-only extended keys)
+ *
+ * Mode 1: Enabled for non-tmux terminals. Disambiguates keys like Ctrl+letter,
+ *         Alt+letter, and other modifier combinations that would otherwise be
+ *         ambiguous (e.g., Ctrl+M vs Enter, Ctrl+I vs Tab).
+ *
+ * Mode 2: Enabled for tmux sessions. Tmux does not proxy kitty keyboard
+ *         query/event-type support, so mode 2 provides press-only extended
+ *         keys as a safe fallback.
+ *
+ * Always enabled unconditionally after finishCapabilityDetection and on resume.
+ * Only disabled on deinit/suspend.
+ */
+export const MODIFY_OTHER_KEYS_ON = `${CSI}>4;1m`;
+export const MODIFY_OTHER_KEYS_ON_MODE2 = `${CSI}>4;2m`;
+export const MODIFY_OTHER_KEYS_OFF = `${CSI}>4;0m`;
+
+/**
+ * In-band resize notification (DEC Private Mode 2048).
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157630
+ *   nu0 = t9 + "?2048h"  (enable)
+ *   lu0 = t9 + "?2048l"  (disable)
+ *
+ * 逆向: amp-cli-reversed/modules/0510_unknown_ktT.js:90-95
+ *   enableInBandResize() { return nu0; }
+ *   disableInBandResize() { return lu0; }
+ *
+ * When enabled, the terminal sends an in-band CSI response whenever the
+ * terminal is resized: `ESC [ 48 ; rows ; cols ; pixelH ; pixelW t`
+ * (final char "t", params[0]=48). Amp enables this unconditionally at
+ * init/resume and disables it at deinit/suspend.
+ */
+export const IN_BAND_RESIZE_ON = `${CSI}?2048h`;
+export const IN_BAND_RESIZE_OFF = `${CSI}?2048l`;
+
+/**
+ * Emoji width mode (Unicode variant selector, DEC Private Mode 2027)
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157630
+ *   su0 = t9 + "?2027h"  (enable emoji width)
+ *   ou0 = t9 + "?2027l"  (disable emoji width)
+ *
+ * 逆向: amp-cli-reversed/modules/0510_unknown_ktT.js:84-88
+ *   enableEmojiWidth()  { return su0; }
+ *   disableEmojiWidth() { return ou0; }
+ *
+ * When enabled, the terminal uses Unicode standard emoji width rules
+ * (emoji are rendered as double-width). Required for correct emoji
+ * alignment in terminals that support it.
+ */
+export const EMOJI_WIDTH_ON = `${CSI}?2027h`;
+export const EMOJI_WIDTH_OFF = `${CSI}?2027l`;
+
+/**
  * OSC 8 超链接序列
  *
  * 逆向: amp G.hyperlink — wraps text with OSC 8 start/end sequences.
@@ -167,6 +228,29 @@ export const FOCUS_OFF = `${CSI}?1004l`;
  */
 export const OSC8_START = (url: string): string => `${ESC}]8;;${url}${ESC}\\`;
 export const OSC8_END = `${ESC}]8;;${ESC}\\`;
+
+/**
+ * OSC 9;4 — Ghostty/ConEmu/WezTerm progress bar sequences.
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157632
+ *   ku0 = Pn + "]9;4;3" + Pn + "\\"   (indeterminate)
+ *   ZVT = Pn + "]9;4;0" + Pn + "\\"   (off)
+ *   xu0 = Pn + "]9;4;4" + Pn + "\\"   (paused)
+ *
+ * where Pn = "\x1b" (ESC). OSC is ESC ] and ST is ESC \\.
+ *
+ * Supported terminals: Ghostty, WezTerm, ConEmu, Hyper.
+ *
+ * State values:
+ *   0 = off (hide progress indicator)
+ *   3 = indeterminate (spinning/pulsing — no percentage)
+ *   4 = paused (stopped, not complete)
+ * Note: value 1 (normal with percentage) also exists in the spec but
+ * amp only uses 0/3/4; we match amp's subset.
+ */
+export const PROGRESS_BAR_OFF = `${ESC}]9;4;0${ESC}\\`;
+export const PROGRESS_BAR_INDETERMINATE = `${ESC}]9;4;3${ESC}\\`;
+export const PROGRESS_BAR_PAUSED = `${ESC}]9;4;4${ESC}\\`;
 
 // ── AnsiRenderer ──────────────────────────────────────
 
@@ -208,6 +292,40 @@ export class AnsiRenderer {
   getColorDepth(): ColorDepth {
     return this.colorDepth;
   }
+
+  /**
+   * Return OSC 9;4;3 — indeterminate progress bar.
+   *
+   * 逆向: amp 0510_unknown_ktT.js:117-125
+   *   setProgressBarIndeterminate() { return ku0; }
+   *   ku0 = Pn + "]9;4;3" + Pn + "\\"
+   */
+  setProgressBarIndeterminate(): string {
+    return PROGRESS_BAR_INDETERMINATE;
+  }
+
+  /**
+   * Return OSC 9;4;0 — hide / turn off progress bar.
+   *
+   * 逆向: amp 0510_unknown_ktT.js:117-125
+   *   setProgressBarOff() { return ZVT; }
+   *   ZVT = Pn + "]9;4;0" + Pn + "\\"
+   */
+  setProgressBarOff(): string {
+    return PROGRESS_BAR_OFF;
+  }
+
+  /**
+   * Return OSC 9;4;4 — paused progress bar.
+   *
+   * 逆向: amp 0510_unknown_ktT.js:117-125
+   *   setProgressBarPaused() { return xu0; }
+   *   xu0 = Pn + "]9;4;4" + Pn + "\\"
+   */
+  setProgressBarPaused(): string {
+    return PROGRESS_BAR_PAUSED;
+  }
+
   /**
    * 从 Screen 生成差分 ANSI 输出。
    *

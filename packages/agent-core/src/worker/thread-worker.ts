@@ -631,6 +631,7 @@ export class ThreadWorker {
       // ─── Step 4: 构建 StreamParams ─────────────
       const messages = this.opts.getMessages();
       const resolvedModel = resolveModelName(config.settings);
+      const snapshot = this.opts.getThreadSnapshot();
       const streamParams: StreamParams = {
         model: resolvedModel,
         messages,
@@ -638,6 +639,10 @@ export class ThreadWorker {
         tools: toolDefs,
         config,
         signal,
+        // 逆向: amp-cli-reversed/chunk-001.js:5955-5960 (Vs) — thread meta → x-amp-thread-id, x-amp-mode
+        // 逆向: amp-cli-reversed/chunk-001.js:7088-7091 — x-amp-feature = "x-amp-feature"
+        threadId: snapshot.id,
+        agentMode: this.opts.agentMode,
       };
 
       // ─── Step 5: 流式推理 ──────────────────────

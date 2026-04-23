@@ -72,6 +72,9 @@ export class QueryParser {
   /** True once processDeviceAttributes() has been called (DA1 sentinel received). */
   private _complete = false;
 
+  /** True while waiting for CPR response from kitty width probe. */
+  private _kittyWidthQuerySent = false;
+
   /** Resolvers waiting for completion. */
   private _completionResolvers: Array<() => void> = [];
 
@@ -176,9 +179,18 @@ export class QueryParser {
    * Handle DA1 (Primary Device Attributes) response — this is the sentinel.
    *
    * 逆向: dY.js processDeviceAttributes:43-45
+   *   if (this.checkPixelDimensions(), this.detectJetBrains() || this.detectTmux())
+   *     this.capabilities.emojiWidth = true
    *   complete = true; return true (triggers finishInitialization in XXT)
+   *
+   * JetBrains and tmux both propagate emoji width from the outer terminal,
+   * so we force emojiWidth=true when detected regardless of DECRQSS response.
    */
   processDeviceAttributes(): boolean {
+    // 逆向: dY.js:44 — detectJetBrains() || detectTmux() → emojiWidth = true
+    if (this._isJetBrains() || this._isTmux()) {
+      this._capabilities.emojiWidth = true;
+    }
     this._complete = true;
     this._finish();
     return true;
@@ -265,6 +277,44 @@ export class QueryParser {
    */
   processKittyKeyboard(): boolean {
     this._capabilities.kittyKeyboard = true;
+    return false;
+  }
+
+  /**
+   * Mark that the kitty explicit width probe has been sent.
+   *
+   * Called immediately after writing the probe sequence
+   * `\x1b[?1049h\x1b[H\x1b]66;w=1; \x1b\\\x1b[6n\x1b[?1049l`
+   *
+   * 逆向: dY.js:69-71
+   *   markKittyWidthQuerySent() { this.kittyWidthQuerySent = true }
+   */
+  markKittyWidthQuerySent(): void {
+    this._kittyWidthQuerySent = true;
+  }
+
+  /**
+   * Handle Cursor Position Report (CPR) response.
+   *
+   * When the kitty width probe was sent, a CPR response with row=1, col=2
+   * means the terminal honored the OSC 66 explicit width (the space char
+   * advanced one column). Any other col means OSC 66 was ignored.
+   *
+   * 逆向: dY.js:62-67
+   *   processCursorPositionReport(T, R) {
+   *     if (this.kittyWidthQuerySent) {
+   *       if (T === 1 && R === 2) this.capabilities.kittyExplicitWidth = true;
+   *       this.kittyWidthQuerySent = false;
+   *     }
+   *   }
+   */
+  processCursorPositionReport(row: number, col: number): boolean {
+    if (this._kittyWidthQuerySent) {
+      if (row === 1 && col === 2) {
+        this._capabilities.kittyExplicitWidth = true;
+      }
+      this._kittyWidthQuerySent = false;
+    }
     return false;
   }
 
@@ -471,6 +521,26 @@ export class QueryParser {
       return true;
     }
     return process.env.TERM_PROGRAM === "iTerm.app";
+  }
+
+  /**
+   * Check whether the terminal is JetBrains.
+   *
+   * 逆向: dY.js detectJetBrains:276-278
+   *   return process.env.TERMINAL_EMULATOR?.includes("JetBrains") ?? false
+   */
+  private _isJetBrains(): boolean {
+    return process.env.TERMINAL_EMULATOR?.includes("JetBrains") ?? false;
+  }
+
+  /**
+   * Check whether running inside tmux.
+   *
+   * 逆向: dY.js detectTmux:282-284
+   *   return !!process.env.TMUX
+   */
+  private _isTmux(): boolean {
+    return !!process.env.TMUX;
   }
 }
 

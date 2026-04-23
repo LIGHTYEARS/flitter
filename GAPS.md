@@ -1,8 +1,10 @@
 # Flitter vs Amp — Gap Analysis
 
-> **Last updated:** 2026-04-23 (iteration 38 — top-10 gap closure)
+> **Last updated:** 2026-04-24 (iteration 40 — 10-gap terminal protocol & CLI closure)
 > **Method:** 5-agent parallel deep analysis of `amp-cli-reversed/` modules (chunks 001–006 + 2860 module files) against `packages/` source. Agents covered: TUI framework, tools & agent-core, LLM providers, CLI commands, data & config. Cross-referenced with existing plan docs.
-> **Iteration 38:** Closed 10 gaps via subagent-driven development: TUI-18 (QueryParser), TUI-19 (RGB colors), TUI-05 (luminance), TUI-01 (Kitty image), TUI-20 (clipboard image), TUI-25 (chart widget), CORE-21 (agg-man mode), TOOL-35 (code_tour/walkthrough), LLM-18 (OpenAI chat.completions), TUI-16 (TOML themes), CLI-32 (--ide flag).
+> **Iteration 38:** Closed 11 gaps via subagent-driven development: TUI-18 (QueryParser), TUI-19 (RGB colors), TUI-05 (luminance), TUI-01 (Kitty image), TUI-20 (clipboard image), TUI-25 (chart widget), CORE-21 (agg-man mode), TOOL-35 (code_tour/walkthrough), LLM-18 (OpenAI chat.completions), TUI-16 (TOML themes), CLI-32 (--ide flag).
+> **Iteration 39:** Statistics audit — marked 5 Low-severity duplicate gaps as closed (TOOL-13/14→TOOL-35, TOOL-21→TOOL-32, TOOL-23→TOOL-36, CLI-14→CLI-34). Updated summary counts from 73→33 open.
+> **Iteration 40:** Closed 10 gaps: CLI-13 (--visibility), CLI-20 (install), CLI-49 (/open-in-browser), TUI-11 (emoji width ?2027), TUI-12 (in-band resize ?2048), TUI-13 (modifyOtherKeys), TUI-15 (Ghostty progress bar), TUI-32 (OSC 52 per-terminal), TUI-34 (kitty explicit width), LLM-05 (telemetry headers).
 
 ## How to Read This Document
 
@@ -184,7 +186,7 @@
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-LLM-05 | Request-level telemetry headers | Amp sends `x-amp-feature`, `x-amp-thread-id`, `x-amp-mode` etc. via proxy server. These are proxy-specific — direct API impact is nil. Low priority for self-hosted. |
+| GAP-LLM-05 | Request-level telemetry headers | **Closed (iteration 40)** — `buildTelemetryHeaders()` in `packages/llm/src/utils/telemetry-headers.ts` assembles `x-amp-feature` (default "amp.chat"), `x-amp-thread-id`, `x-amp-mode`. All 4 providers (Anthropic, OpenAI, OpenAI-compat, Gemini) merge headers into SDK requests. `feature?: string` added to StreamParams. ThreadWorker wires `threadId` and `agentMode`. Matches amp's Vs/VET/FlR (chunk-001.js:7088-7091). 14 new tests. |
 | GAP-LLM-13 | **14+ models missing from MODEL_REGISTRY** | **Closed (iteration 23)** — Added 15 models: `zai-glm-4.7` (Cerebras), 6 Fireworks models (qwen3-coder-480b, kimi-k2, qwen3-235b, glm-4p6, glm-5, minimax-m2p5), Baseten `moonshotai/Kimi-K2.5`, 5 OpenRouter models (sonoma-sky-alpha, z-ai/glm-4.6, moonshotai/kimi-k2-0905, qwen/qwen3-coder, qwen/qwen3-235b-a22b-2507), Gemini `gemini-3-pro-image-preview`. 6 new tests. |
 | GAP-LLM-14 | **OpenRouter compat config missing flags** | **Closed (iteration 23)** — Added `supportsStore: false` and `supportsUsageInStreaming: false` to OpenRouter preset in `compat.ts`. Matches amp's minimal request body. 5 new tests. |
 | GAP-LLM-15 | **MCP OAuth cross-process locking** | **Closed (iteration 35)** — `acquireOAuthLock()`/`releaseOAuthLock()`/`readOAuthLock()`/`isLockStale()` in `packages/llm/src/oauth/lock.ts`. Atomic `fs.link()` from temp→lock file (POSIX advisory locking). Stale detection: 5-min timeout + dead PID check via `process.kill(pid, 0)`. Race-condition handling on EEXIST with recursive retry. Constants match amp: STALE_LOCK_TIMEOUT_MS=300000, LOCK_POLL_INTERVAL_MS=2000. Matches amp's dj/ED/yL/zW (chunk-001.js:7624-7769). 21 new tests. |
@@ -253,20 +255,20 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 | GAP-CLI-10 | ~~`threads continue --last`~~ | **Closed (iteration 15)** |
 | GAP-CLI-11 | ~~`threads --include-archived`~~ | **Closed (iteration 16)** |
 | GAP-CLI-12 | ~~`threads archive --unarchive`~~ | **Closed (iteration 17)** |
-| GAP-CLI-13 | `--visibility` (top-level) | Thread creation visibility flag. |
-| GAP-CLI-14 | `--remote` flag | Server-side async agent execution. Requires server infrastructure. |
+| GAP-CLI-13 | `--visibility` (top-level) | **Closed (iteration 40)** — `--visibility <visibility>` flag added at root program level in program.ts. Validated via `VALID_VISIBILITY_LEVELS`, applied via `visibilityToMeta()` + `updateThreadMeta()` in both execute.ts and interactive.ts. Matches amp's Yz0:4536 + urT validation. |
+| GAP-CLI-14 | ~~`--remote` flag~~ | **Closed (duplicate of GAP-CLI-34)** — Same feature, tracked under Medium. |
 | GAP-CLI-15 | ~~`--notifications`~~ | **Closed (duplicate of GAP-CLI-31, iteration 29)** — `--notifications`/`--no-notifications` implemented at program.ts:98-102. |
 | GAP-CLI-16 | ~~`--settings-file <path>`~~ | **Closed (duplicate of GAP-CLI-30, iteration 24)** — Amp internal debug option, not public CLI. Handled by `--api-key`, `--model`, `--system-prompt`. |
 | GAP-CLI-17 | ~~`--log-level` / `--log-file`~~ | **Closed (duplicate of GAP-CLI-33, iteration 26)** — Implemented at program.ts:54-56. Env fallbacks: `FLITTER_LOG_LEVEL`, `FLITTER_LOG_FILE`. |
 | GAP-CLI-18 | `mcp oauth status` | OAuth status check for MCP servers. |
 | GAP-CLI-19 | ~~`threads` aliases~~ | **Closed (iteration 16)** |
-| GAP-CLI-20 | `install` (hidden) | Install ripgrep to `$AMP_HOME/bin`. |
+| GAP-CLI-20 | `install` (hidden) | **Closed (iteration 40)** — Hidden `flitter install` command with `--force`/`--verbose` flags. Downloads ripgrep from GCS CDN with SHA-256 checksum validation, atomic rename install to `$FLITTER_HOME/bin`. Platform triple detection for all 12 platform variants. Matches amp's gb0/kb0/KHR/XHR. 12 new tests. |
 | GAP-CLI-21 | ~~`--jetbrains` / `--ide` flags~~ | **Merged into GAP-CLI-32.** Duplicate entry — same feature. |
 | GAP-CLI-45 | `-x` vs `-e` for `--execute` | **Closed (iteration 27)** — Changed short form from `-e` to `-x` matching amp's Yz0:605. Updated program.ts and test. |
 | GAP-CLI-46 | `-m` short for `--mode` | **Closed (iteration 27)** — Added `-m` short form to `--mode` in program.ts. 2 new tests. |
 | GAP-CLI-47 | `threads new --visibility` | **Closed (iteration 27)** — Added `--visibility` to `threads new` in program.ts. `handleThreadsNew` applies visibility via `visibilityToMeta()` + `updateThreadMeta()` with `setVisibility()` fallback. 3 new tests. |
 | GAP-CLI-48 | `send-queued-message` command | TUI command to immediately send already-queued message. Different from `/queue`. |
-| GAP-CLI-49 | `thread: open in browser` | Open thread URL in default browser from TUI. |
+| GAP-CLI-49 | `thread: open in browser` | **Closed (iteration 40)** — `/open-in-browser` slash command (aliases: `open-browser`, `browser`) with empty-thread guard matching amp's e0R:311. URL construction via `buildThreadUrl()` shared with `/copy-url`. `defaultOpenBrowser()` extracted from auth.ts (darwin→open, win32→cmd /c start, default→xdg-open). `openUrl` callback wired in interactive.ts. 6 new tests. |
 | GAP-CLI-50 | `share with support` | Share thread with Amp/support team for debugging. Server-dependent. |
 | GAP-CLI-51 | `thread: mention` | Insert thread mention into prompt from TUI. |
 | GAP-CLI-52 | `threads visibility` enterprise default | Amp defaults thread visibility to `"enterprise"` for enterprise accounts (`O4R` chunk-002.js:14326). Flitter has no enterprise visibility level. |
@@ -279,17 +281,17 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 |----|---------|-------------|
 | GAP-TOOL-11 | ~~`mermaid`~~ | **Closed (iteration 19)** |
 | GAP-TOOL-12 | `chart` | **Closed (iteration 30)** — see GAP-TOOL-33. |
-| GAP-TOOL-13 | `walkthrough` / `walkthrough_diagram` | Guided code walkthroughs. |
-| GAP-TOOL-14 | `code_tour` | Guided code tour sub-agent. |
+| GAP-TOOL-13 | ~~`walkthrough` / `walkthrough_diagram`~~ | **Closed (duplicate of GAP-TOOL-35, iteration 38)** — See TOOL-35. |
+| GAP-TOOL-14 | ~~`code_tour`~~ | **Closed (duplicate of GAP-TOOL-35, iteration 38)** — See TOOL-35. |
 | GAP-TOOL-15 | ~~`todo_write`~~ | **Closed (iteration 16)** |
 | GAP-TOOL-16 | ~~`format_file`~~ | **Closed (iteration 15)** |
 | GAP-TOOL-17 | ~~`look_at`~~ | **Closed (duplicate of GAP-TOOL-27, iteration 18)** — Fully implemented in `look-at.ts`. Multimodal file analysis via Gemini, not IDE-specific navigation. Original description was inaccurate. |
 | GAP-TOOL-18 | `painter` | AI image generation via Gemini Pro Image. |
 | GAP-TOOL-19 | `repl` | **Closed (iteration 36, duplicate of GAP-TOOL-34)** — Duplicate entry. See GAP-TOOL-34 (closed iteration 35). |
 | GAP-TOOL-20 | `docs_list/read/write` | Documentation management (server-side). |
-| GAP-TOOL-21 | `handoff` | Transfer conversation to another thread. Server-dependent. |
+| GAP-TOOL-21 | ~~`handoff`~~ | **Closed (duplicate of GAP-TOOL-32, iteration 30)** — See TOOL-32. |
 | GAP-TOOL-22 | Thread lifecycle tools | `create_thread`, `archive_thread`, `unarchive_thread`. Server-dependent. |
-| GAP-TOOL-23 | Inter-thread messaging | `send_message_to_thread`, `send_message_to_aggman`. Server-dependent. |
+| GAP-TOOL-23 | ~~Inter-thread messaging~~ | **Closed (duplicate of GAP-TOOL-36, iteration 36)** — `send_message_to_thread` implemented. `send_message_to_aggman` is part of agg-man mode (CORE-21). |
 | GAP-TOOL-24 | Slack tools | `slack_write`, `slack_read`. Server-dependent. |
 | GAP-TOOL-25 | ~~`github_repo_ci_status`~~ | **Closed (iteration 17)** |
 | GAP-TOOL-26 | Bitbucket Enterprise tools | 7 enterprise Bitbucket integration tools. |
@@ -300,15 +302,15 @@ Features present in flitter that amp does not have. Not gaps — documented for 
 
 | ID | Feature | Description |
 |----|---------|-------------|
-| GAP-TUI-11 | Emoji width mode (`?2027`) | Detected but not enabled. |
-| GAP-TUI-12 | In-band resize | Amp uses in-band resize notification; flitter uses SIGWINCH only. |
-| GAP-TUI-13 | `modifyOtherKeys` | Enhanced key disambiguation mode. |
-| GAP-TUI-15 | Ghostty progress bar | Terminal-specific progress integration. |
+| GAP-TUI-11 | Emoji width mode (`?2027`) | **Closed (iteration 40)** — `EMOJI_WIDTH_ON`/`OFF` constants (`\x1b[?2027h`/`l`). `_finishCapabilityDetection()` sends ON when `capabilities.emojiWidth` is true. `handleResume()` re-enables. `restoreTerminalSync()` sends OFF. `processDeviceAttributes()` forces emojiWidth=true for JetBrains/tmux. Matches amp's XXT.js:303/311/429. 5 new tests. |
+| GAP-TUI-12 | In-band resize | **Closed (iteration 40)** — `IN_BAND_RESIZE_ON`/`OFF` constants (DEC mode ?2048). CSI parser handles `case "t"` with params[0]=48 for `InbandResizeEvent`. Enabled unconditionally at init/resume, disabled at deinit. `handleInbandResize()` updates terminalSize + screen.resize() + dispatches via setImmediate. SIGWINCH kept as fallback. Matches amp's XXT.js:449-470. 8 new tests. |
+| GAP-TUI-13 | `modifyOtherKeys` | **Closed (iteration 40)** — `MODIFY_OTHER_KEYS_ON` (`\x1b[>4;1m`), `ON_MODE2` (`>4;2m` for tmux), `OFF` (`>4;0m`). Enabled unconditionally after capability detection and on resume. Tmux detected via `process.env.TMUX` → uses mode 2. Disabled in `restoreTerminalSync()`. Matches amp's XXT.js:241-245/303/313/431. |
+| GAP-TUI-15 | Ghostty progress bar | **Closed (iteration 40)** — `PROGRESS_BAR_OFF`/`INDETERMINATE`/`PAUSED` constants (OSC 9;4;0/3/4). `setProgressBar(state)` public method on TuiController. Gated on `capabilities.xtversion` starting with "ghostty"/"WezTerm" with `TERM_PROGRAM` env fallback. Cleared in `restoreTerminalSync()`. Matches amp's ktT:117-125 and XXT:94/304. 10 new tests. |
 | GAP-TUI-16 | Custom theme TOML loading | **Closed (iteration 38)** — `toml-theme-loader.ts` with `parseThemeToml()` (minimal TOML parser, required+optional color fields, BT.601 luminance auto-detect), `scanThemeDirectory()` (XDG_CONFIG_HOME / ~/.config/flitter/themes/*/colors.toml), `parsedThemeToThemeSpec()` bridge. Wired into `launchInteractiveMode()` startup. Matches amp's c70/s70/o70/n70/A70. |
 | GAP-TUI-17 | Diff viewer as full widget | **Closed (iteration 22)** — Verified functional parity with amp's `cE0`. |
-| GAP-TUI-32 | OSC 52 per-terminal opt-in | Amp tracks `osc52` capability per terminal (ghostty/kitty/wezterm/foot/alacritty/iterm2/tmux). Flitter always uses OSC 52 as fallback without terminal-specific check. |
+| GAP-TUI-32 | OSC 52 per-terminal opt-in | **Closed (iteration 40)** — `osc52: boolean` capability (default false). XTVERSION string match against allowlist [ghostty, kitty, wezterm, foot, alacritty, iterm2, tmux]. XTGETTCAP hex `4d73` (Ms) response detection. Clipboard class `setCapabilities()` gates OSC 52 writes; tmux `set-clipboard` check (on/external/unknown allowed). OSC 52 is first path when capable, not fallback. Matches amp's dY/eA classes. 26 new tests. |
 | GAP-TUI-33 | `WidgetsBinding.on()` raw event API | **Closed (iteration 27)** — `on(type, cb): () => void` method added to `WidgetsBinding` for "key"/"mouse"/"paste" events with auto-unsubscribe. `eventCallbacks` structure matches amp's d9 (tui-render-pipeline.js:16-17, 255-261). Callbacks dispatched before interceptors. 5 new tests. |
-| GAP-TUI-34 | Kitty explicit width detection | Amp probes terminal for explicit width override via cursor position report. Not in flitter. |
+| GAP-TUI-34 | Kitty explicit width detection | **Closed (iteration 40)** — Probe sequence `\x1b[?1049h\x1b[H\x1b]66;w=1; \x1b\\\x1b[6n\x1b[?1049l` sent before main query burst. `markKittyWidthQuerySent()` + `processCursorPositionReport(row, col)` on QueryParser — row=1 col=2 means OSC 66 explicit width honored. CSI `case "R"` added to input parser for CPR response routing. `CursorPositionEvent` type added. Matches amp's dY.js:62-71 and Sk0[0]. 4 new tests. |
 | GAP-TUI-35 | Animation support detection | **Closed (iteration 26)** — `animationSupport: "fast" | "slow" | "disabled"` added to `TerminalCapabilities`. `detectAnimationSupport()` matches amp's dY.js:266-272: NO_ANIMATION/NO_ANIMATIONS env → disabled, Emacs/SSH → disabled, JetBrains → slow, else fast. Exported for direct testing. 12 new tests. |
 | GAP-TUI-36 | Underline support detection | **Closed (iteration 27)** — `underlineSupport: "none" | "standard"` added to `TerminalCapabilities`. `detectUnderlineSupport()` checks `TERMINAL_EMULATOR` for JetBrains (matching amp's dY.js:20 `ji()`). Exported for testing. 6 new tests. |
 | GAP-TUI-37 | Mouse hover throttling | **Closed (iteration 28)** — Documented that amp's 16ms throttle lives in `SelectionAreaState._handleMouseHover()` (per-component), not in MouseManager. MouseManager dispatches all hover events; consumers throttle locally. Comment added for future SelectionArea implementation. |
@@ -541,6 +543,19 @@ These were previously identified as gaps but are now implemented in flitter.
 - **GAP-CLI-32** (completed): --ide / --no-ide flag — default true, stored in CliContext, debug log on enable.
 - 11 gaps closed, ~200+ new tests.
 
+### Iteration 40 — Terminal protocol, CLI, LLM telemetry (10 gaps closed)
+- **GAP-CLI-13** (completed): `--visibility` top-level flag — added at root program level, wired into both execute and interactive modes via `visibilityToMeta()` + `updateThreadMeta()`. Matches amp's Yz0:4536.
+- **GAP-CLI-20** (completed): Hidden `install` command — downloads ripgrep from GCS CDN with SHA-256 checksum validation, atomic rename install, 12 platform triples. Matches amp's gb0/kb0/KHR/XHR. 12 new tests.
+- **GAP-CLI-49** (completed): `/open-in-browser` slash command — empty-thread guard, `buildThreadUrl()` shared helper, `defaultOpenBrowser()` extracted from auth.ts. Matches amp's e0R:298-311. 6 new tests.
+- **GAP-TUI-11** (completed): Emoji width mode (?2027) — `EMOJI_WIDTH_ON`/`OFF` sent after capability detection, on resume, and in cleanup. JetBrains/tmux force-enable. Matches amp's XXT:303/311/429. 5 new tests.
+- **GAP-TUI-12** (completed): In-band resize (?2048) — CSI `case "t"` params[0]=48 for `InbandResizeEvent`. Enabled unconditionally, SIGWINCH kept as fallback. Matches amp's XXT:449-470. 8 new tests.
+- **GAP-TUI-13** (completed): modifyOtherKeys — `\x1b[>4;1m` (mode 1) / `>4;2m` (tmux mode 2) / `>4;0m` (off). Always enabled unconditionally, disabled in cleanup. Matches amp's XXT:241-245.
+- **GAP-TUI-15** (completed): Ghostty progress bar — OSC 9;4 constants (off/indeterminate/paused). `setProgressBar()` public method gated on Ghostty/WezTerm xtversion. Cleanup in restoreTerminalSync. Matches amp's ktT:117-125. 10 new tests.
+- **GAP-TUI-32** (completed): OSC 52 per-terminal opt-in — `osc52` capability via XTVERSION allowlist + XTGETTCAP Ms. Clipboard gated on capability, tmux `set-clipboard` check. OSC 52 as first path when capable. Matches amp's dY/eA. 26 new tests.
+- **GAP-TUI-34** (completed): Kitty explicit width detection — probe sequence with OSC 66 w=1 + CPR. `markKittyWidthQuerySent()` + `processCursorPositionReport()`. `CursorPositionEvent` type + CSI `case "R"` parser. Matches amp's dY:62-71 and Sk0[0]. 4 new tests.
+- **GAP-LLM-05** (completed): Request-level telemetry headers — `buildTelemetryHeaders()` assembles x-amp-feature/thread-id/mode. All 4 providers merge headers. ThreadWorker wires threadId + agentMode. Matches amp's Vs/VET/FlR. 14 new tests.
+- 10 gaps closed, ~85+ new tests.
+
 ---
 
 ## Summary Statistics
@@ -548,11 +563,11 @@ These were previously identified as gaps but are now implemented in flitter.
 | Severity | Count |
 |----------|-------|
 | Critical | 0 |
-| High | 8 |
-| Medium | 23 |
-| Low | 42 |
-| **Total open gaps** | **73** |
-| Closed gaps | 164+ |
+| High | 1 |
+| Medium | 3 |
+| Low | 19 |
+| **Total open gaps** | **23** |
+| Closed gaps | 210+ |
 
 ### Cross-Cutting Themes
 
@@ -566,13 +581,13 @@ These were previously identified as gaps but are now implemented in flitter.
 
 5. **Review command architecture**: ~~Flitter's review is single-turn inference with a hardcoded prompt.~~ **Closed (CLI-44 iteration 35).** Full check runner subsystem with parallel subagent execution.
 
-6. **TUI widget library**: ~~Table (TUI-21), CompositedTransformFollower (TUI-22), Offstage (TUI-23), StickyHeader/DialogBox (TUI-24), Chart (TUI-25) are all missing.~~ All closed except **Chart (TUI-25)** — the only remaining High TUI widget gap.
+6. **TUI widget library**: ~~Table (TUI-21), CompositedTransformFollower (TUI-22), Offstage (TUI-23), StickyHeader/DialogBox (TUI-24), Chart (TUI-25) are all missing.~~ **All closed (iterations 24-38).** No remaining High TUI widget gaps.
 
 7. **Server infrastructure**: The self-hosted sync server is implemented. Remaining DATA gaps: ~~invalidateThreadListCache~~ **(closed, dup of DATA-21)**, labels to remote (DATA-11). DTW/live-sync (DATA-18) is a fundamentally different architecture.
 
-8. **Terminal protocol activation**: Synchronized output (TUI-03) and kitty keyboard (TUI-04) are activated. Remaining: emoji width, in-band resize, modifyOtherKeys, pixel-mouse, per-terminal OSC 52.
+8. **Terminal protocol activation**: Synchronized output (TUI-03) and kitty keyboard (TUI-04) are activated. ~~Remaining: emoji width, in-band resize, modifyOtherKeys, pixel-mouse, per-terminal OSC 52.~~ **Mostly closed (iteration 40).** Emoji width (TUI-11), in-band resize (TUI-12), modifyOtherKeys (TUI-13), OSC 52 per-terminal (TUI-32), kitty explicit width (TUI-34), Ghostty progress bar (TUI-15) all closed. Remaining: pixel-mouse (TUI-31).
 
-9. **Model/provider freshness**: ~~MODEL_REGISTRY needs ~14 more models (LLM-13). OpenRouter needs config fixes (LLM-14). MCP transport needs built-in fallback (LLM-12).~~ **All three closed (iterations 23-24).** Remaining LLM gaps: OpenAI API divergence (LLM-18), OAuth headless (LLM-19), telemetry headers (LLM-05).
+9. **Model/provider freshness**: ~~MODEL_REGISTRY needs ~14 more models (LLM-13). OpenRouter needs config fixes (LLM-14). MCP transport needs built-in fallback (LLM-12).~~ **All three closed (iterations 23-24).** ~~Remaining LLM gaps: OpenAI API divergence (LLM-18), OAuth headless (LLM-19), telemetry headers (LLM-05).~~ LLM-18 closed (iteration 38). LLM-05 closed (iteration 40). Remaining: OAuth headless (LLM-19).
 
 10. **Slash command completeness**: ~~27 of 29 slash commands functional.~~ **All slash stubs now functional (iteration 36).** Remaining CLI gaps are new commands/flags not yet started (CLI-48/49/51, mcp oauth status).
 

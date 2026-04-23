@@ -359,6 +359,36 @@ export interface ResizeEvent {
 }
 
 /**
+ * In-band resize event (DEC mode ?2048).
+ *
+ * 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:449-470
+ *   handleInbandResize(T) — T.width, T.height, T.pixelWidth, T.pixelHeight
+ *
+ * Response CSI: `ESC [ 48 ; rows ; cols ; pixelH ; pixelW t`
+ * (final char "t", params[0]=48, params[1]=rows, params[2]=cols,
+ *  params[3]=pixelH, params[4]=pixelW)
+ *
+ * @example
+ * ```ts
+ * const evt: InbandResizeEvent = {
+ *   type: "inband_resize",
+ *   width: 220, height: 50, pixelWidth: 2640, pixelHeight: 1250
+ * };
+ * ```
+ */
+export interface InbandResizeEvent {
+  type: "inband_resize";
+  /** Terminal width in columns */
+  width: number;
+  /** Terminal height in rows */
+  height: number;
+  /** Terminal width in pixels (0 if not provided) */
+  pixelWidth: number;
+  /** Terminal height in pixels (0 if not provided) */
+  pixelHeight: number;
+}
+
+/**
  * 面向 Widget 层的语义化输入事件联合类型。
  *
  * 可通过 `type` 字段进行判别（discriminated union）。
@@ -367,16 +397,42 @@ export interface ResizeEvent {
  * ```ts
  * function onInput(evt: InputEvent) {
  *   switch (evt.type) {
- *     case "key":    console.log(evt.key);     break;
- *     case "mouse":  console.log(evt.x, evt.y); break;
- *     case "paste":  console.log(evt.text);    break;
- *     case "focus":  console.log(evt.focused); break;
- *     case "resize": console.log(evt.cols);    break;
+ *     case "key":           console.log(evt.key);     break;
+ *     case "mouse":         console.log(evt.x, evt.y); break;
+ *     case "paste":         console.log(evt.text);    break;
+ *     case "focus":         console.log(evt.focused); break;
+ *     case "resize":        console.log(evt.cols);    break;
+ *     case "inband_resize": console.log(evt.width, evt.height); break;
  *   }
  * }
  * ```
  */
-export type InputEvent = KeyEvent | MouseEvent | PasteEvent | FocusEvent | ResizeEvent;
+/**
+ * Cursor position report event — response to CPR (ESC [ 6 n).
+ *
+ * 逆向: amp 2112_unknown_XXT.js:66-67
+ *   parser.onCursorPositionReport(T => queryParser.processCursorPositionReport(T.row, T.col))
+ *
+ * Used to detect kitty explicit width support: the probe sends a test character
+ * wrapped in OSC 66 w=1, then requests cursor position. If col === 2, the terminal
+ * honored the explicit width.
+ */
+export interface CursorPositionEvent {
+  type: "cursor_position";
+  /** 1-based row from the CPR response */
+  row: number;
+  /** 1-based column from the CPR response */
+  col: number;
+}
+
+export type InputEvent =
+  | KeyEvent
+  | MouseEvent
+  | PasteEvent
+  | FocusEvent
+  | ResizeEvent
+  | InbandResizeEvent
+  | CursorPositionEvent;
 
 // ════════════════════════════════════════════════════
 //  辅助工具

@@ -17,6 +17,7 @@ import type { CountTokensParams, CountTokensResult, LLMProvider } from "../../pr
 import { withStreamIdleTimeout } from "../../stream-idle-timeout";
 import type { StreamDelta, StreamParams } from "../../types";
 import { MODEL_REGISTRY, ProviderError, TransformState } from "../../types";
+import { buildTelemetryHeaders } from "../../utils/telemetry-headers";
 import type { GeminiStreamChunk } from "./transformer";
 import { GeminiToolTransformer, GeminiTransformer } from "./transformer";
 
@@ -70,6 +71,9 @@ export class GeminiProvider implements LLMProvider {
       reasoningEffort,
       requestId,
       sessionId,
+      threadId,
+      agentMode,
+      feature,
     } = params;
 
     // Get API key
@@ -97,8 +101,12 @@ export class GeminiProvider implements LLMProvider {
 
     // Build per-request telemetry headers
     // 逆向: amp-cli-reversed/chunk-002.js:11472,12133 — x-request-id captured from response for correlation
-    // Flitter extension: also send x-request-id / x-session-id as outgoing headers via httpOptions
-    const requestHeaders: Record<string, string> = {};
+    // 逆向: amp-cli-reversed/chunk-001.js:7088-7091 — x-amp-feature, x-amp-thread-id, x-amp-mode constants
+    // 逆向: amp-cli-reversed/chunk-001.js:5955-5960 (Vs) — thread meta → header assembly
+    // Injected into Gemini requests via httpOptions.headers
+    const requestHeaders: Record<string, string> = {
+      ...buildTelemetryHeaders({ feature, threadId, agentMode }),
+    };
     if (requestId) requestHeaders["x-request-id"] = requestId;
     if (sessionId) requestHeaders["x-session-id"] = sessionId;
 

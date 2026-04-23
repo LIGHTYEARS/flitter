@@ -18,6 +18,8 @@ import {
   CUF,
   CUP,
   CUU,
+  EMOJI_WIDTH_OFF,
+  EMOJI_WIDTH_ON,
   HIDE_CURSOR,
   MOUSE_OFF,
   MOUSE_ON,
@@ -68,6 +70,11 @@ describe("ANSI 常量", () => {
   it("PASTE_ON/OFF 格式正确", () => {
     assert.equal(PASTE_ON, `${CSI}?2004h`);
     assert.equal(PASTE_OFF, `${CSI}?2004l`);
+  });
+
+  it("EMOJI_WIDTH_ON/OFF match DEC Private Mode 2027", () => {
+    assert.equal(EMOJI_WIDTH_ON, `${CSI}?2027h`);
+    assert.equal(EMOJI_WIDTH_OFF, `${CSI}?2027l`);
   });
 
   it("CLEAR_SCREEN / CLEAR_LINE 格式正确", () => {

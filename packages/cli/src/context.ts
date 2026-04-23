@@ -151,6 +151,15 @@ export interface CliContext {
    * Default: true (IDE connection enabled)
    */
   ide: boolean;
+  /**
+   * Thread visibility for new thread creation (--visibility).
+   *
+   * 逆向: Yz0 line 4536 — amp adds --visibility at root program level.
+   *        urT(R, k) in chunk-005.js:5301 validates against DC0(k) allowed levels.
+   *        Applied via updateThreadMeta(id, MA(visibility)) after thread creation.
+   *        Valid values: private, unlisted, public, workspace, group
+   */
+  visibility?: string;
 }
 
 /**
@@ -242,5 +251,8 @@ export function resolveCliContext(program: Command): CliContext {
     notifications: opts.notifications !== undefined ? Boolean(opts.notifications) : undefined,
     // 逆向: i$T ide flag (chunk-006.js:38220-38226) — default true
     ide: opts.ide !== undefined ? Boolean(opts.ide) : true,
+    // 逆向: Yz0 line 4536 — --visibility at root level, validated and applied on thread creation
+    // urT(R, k) validates against DC0(k) levels; flitter stores raw string, validates at use site.
+    visibility: opts.visibility as string | undefined,
   };
 }

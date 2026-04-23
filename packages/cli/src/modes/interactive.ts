@@ -28,10 +28,16 @@
 import { SessionCostTracker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { parsedThemeToThemeSpec, runApp, scanThemeDirectory } from "@flitter/tui";
+import { Clipboard, parsedThemeToThemeSpec, runApp, scanThemeDirectory } from "@flitter/tui";
+import { defaultOpenBrowser } from "../commands/auth.js";
 import { createBuiltinCommands } from "../commands/slash-handlers.js";
 import type { SlashCommandContext } from "../commands/slash-registry.js";
 import { SlashCommandRegistry } from "../commands/slash-registry.js";
+import {
+  type UserVisibilityLevel,
+  VALID_VISIBILITY_LEVELS,
+  visibilityToMeta,
+} from "../commands/threads.js";
 import type { CliContext } from "../context.js";
 import { resolveSystemPromptText } from "../util/system-prompt.js";
 import { AppWidget } from "../widgets/app-widget.js";
@@ -271,6 +277,36 @@ export async function launchInteractiveMode(
   const threadId = await resolveThread(container, context);
   log.info("Thread resolved", { threadId });
 
+  // Apply --visibility to newly created threads.
+  // 逆向: chunk-005.js:5952 — `if (a) await e.threadService.updateThreadMeta(h, MA(a))`
+  //   amp calls updateThreadMeta immediately after OS(h, "interactive") for new threads.
+  //   Only applied when creating a new thread (not resuming an existing one).
+  if (context.visibility && !context.threadId && !context.continueThread) {
+    const level = context.visibility.toLowerCase();
+    if (VALID_VISIBILITY_LEVELS.includes(level as UserVisibilityLevel)) {
+      const meta = visibilityToMeta(level as UserVisibilityLevel);
+      try {
+        await container.threadStore.updateThreadMeta(threadId, meta);
+        log.info("Applied visibility to new thread", { threadId, visibility: level });
+      } catch {
+        // Remote unavailable — fall back to local setVisibility
+        (
+          container.threadStore as typeof container.threadStore & {
+            setVisibility?: (id: string, v: unknown) => void;
+          }
+        ).setVisibility?.(threadId, meta.visibility);
+        log.info("Applied visibility locally (remote unavailable)", {
+          threadId,
+          visibility: level,
+        });
+      }
+    } else {
+      process.stderr.write(
+        `Warning: Invalid visibility "${context.visibility}". Must be one of: ${VALID_VISIBILITY_LEVELS.join(", ")}\n`,
+      );
+    }
+  }
+
   // 3. 创建 ThreadWorker
   // 逆向: R3R() system prompt override (1983_unknown_R3R.js:1-4)
   // If --system-prompt is set, resolve as file path or raw text and override buildSystemPrompt.
@@ -371,6 +407,12 @@ export async function launchInteractiveMode(
   const slashRegistry = new SlashCommandRegistry();
   createBuiltinCommands(slashRegistry);
 
+  // Clipboard instance shared between slash commands and selection.
+  // setCapabilities() is called in onCapabilitiesReady to enable OSC 52
+  // on supported terminals (ghostty, kitty, wezterm, foot, alacritty, iterm2, tmux).
+  // 逆向: eA (KXT) in chunk-004.js:3713 — setCapabilities() called from XXT.finishInitialization
+  const clipboard = new Clipboard();
+
   // 4-5. 组装真实 Widget 树并启动 runApp
   // ThreadStateWidget 拥有完整布局 (ConversationView + StatusBar + InputField)
   // Build the AppWidget before runApp; onCapabilitiesReady may mutate themeData before mount.
@@ -431,6 +473,12 @@ export async function launchInteractiveMode(
               }
               return result;
             },
+            // /open-in-browser: open a URL in the default browser
+            // 逆向: Wb() (chunk-002.js:24072) — darwin→open, win32→start "", default→xdg-open
+            openUrl: defaultOpenBrowser,
+            // Clipboard write for slash commands (/copy-url, /copy-id, /copy-markdown)
+            // 逆向: d9.instance.tuiInstance.clipboard.writeText(a) in e0R (amp slash handlers)
+            writeClipboard: (text: string) => clipboard.writeText(text),
           };
           slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {
             log.info("Slash command error", { error: err });
@@ -480,6 +528,12 @@ export async function launchInteractiveMode(
           log.info("Auto-selecting light theme based on terminal background luminance");
           appWidget.config.themeData = resolveThemeData("light");
         }
+        // Wire OSC 52 capability into clipboard.
+        // 逆向: eA.setCapabilities(T) called from XXT.finishInitialization (chunk-004.js:3719)
+        //   Enables OSC 52 writes for known terminals (ghostty, kitty, wezterm, etc.)
+        //   and triggers tmux set-clipboard detection when running inside tmux.
+        clipboard.setCapabilities(capabilities);
+        log.info("Clipboard capabilities set", { osc52: capabilities.osc52 });
       },
       onRootElementMounted: (rootElement) => {
         // 将根元素绑定到容器，供后续逻辑使用

@@ -83,6 +83,12 @@ export function createProgram(version: string): Command {
     .option("--stats", "Output JSON with result and token usage data (implies --execute)")
     // ── 逆向: Yz0 --archive (line 617-618) ──
     .option("--archive", "Archive the thread after execute finishes")
+    // ── 逆向: Yz0 line 4536 — amp adds --visibility at root program level ──
+    // urT(R, k) in chunk-005.js:5301 validates against DC0(k) allowed levels.
+    .option(
+      "--visibility <visibility>",
+      "Set thread visibility (private, unlisted, public, workspace, group)",
+    )
     // ── 逆向: Yz0 -l/--label repeatable (line 619-622) ──
     .option("-l, --label <label>", "Add label(s) to thread (repeatable)", collect, [])
     // ── CLI flag forwarding (Gap #7-12) ──
@@ -406,6 +412,38 @@ export function createProgram(version: string): Command {
     .option("--bun", "Create a Bun/TypeScript tool (default)", false)
     .option("--bash", "Create a Bash shell script tool", false)
     .option("--zsh", "Create a Zsh shell script tool", false);
+
+  // ─── Install (hidden) ────────────────────────────────────
+
+  // 逆向: 0473_unknown__m0.js:2-7 — amp registers `install` as a hidden command
+  //   new Command("install")
+  //     .description("Install required tools like ripgrep to $AMP_HOME/bin")
+  //     .option("--force", ...)
+  //     .option("--verbose", ...)
+  //     .action(async e => { await gb0(e.force, e.verbose, version); process.exit(); })
+  //   program.addCommand(R, { hidden: true })
+  program
+    .command("install")
+    .description("Install required tools (ripgrep) to $FLITTER_HOME/bin")
+    .option("--force", "Force reinstallation even if already installed")
+    .option("--verbose", "Show installation progress and results")
+    .addHelpText("after", "\nThis is an internal command used by the install script.")
+    // Commander marks command as hidden via .addCommand(cmd, { hidden: true }).
+    // The easiest equivalent when using .command() is to mark _hidden directly.
+    // We call .command("install") and then hide via the program.commands array after
+    // createProgram returns — but to do it inline we use the hidden flag pattern:
+    // program.addCommand(installCmd, { hidden: true })
+    // Here we add a .hook to set _hidden after the fact.
+    .hook("preAction", () => {});
+
+  // Mark the install command hidden (equivalent to addCommand(..., { hidden: true }))
+  {
+    const installCmd = program.commands.find((c) => c.name() === "install");
+    if (installCmd) {
+      // @ts-expect-error — Commander's _hidden is internal but stable across versions
+      installCmd._hidden = true;
+    }
+  }
 
   // ─── Skills 管理 ─────────────────────────────────────────
   // 逆向: amp-cli-reversed/chunk-004.js:23716 (g40 — `skill` command group)

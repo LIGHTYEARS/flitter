@@ -38,6 +38,11 @@ import type { AgentEvent } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { Message, ThreadMessage, ThreadSnapshot } from "@flitter/schemas";
 import type { Subscription } from "@flitter/util";
+import {
+  type UserVisibilityLevel,
+  VALID_VISIBILITY_LEVELS,
+  visibilityToMeta,
+} from "../commands/threads";
 import type { CliContext } from "../context";
 import { resolveSystemPromptText } from "../util/system-prompt";
 
@@ -177,6 +182,38 @@ export async function runExecuteMode(
   }
 
   const threadId = crypto.randomUUID();
+
+  // Apply --visibility to the newly created thread.
+  // 逆向: chunk-005.js:5314 — visibility: v ?? void 0 passed to createThread factory;
+  //   amp applies updateThreadMeta(id, MA(v)) after thread creation in both execute and
+  //   interactive modes. In execute mode we apply it before running inference.
+  if (context.visibility) {
+    const level = context.visibility.toLowerCase();
+    if (VALID_VISIBILITY_LEVELS.includes(level as UserVisibilityLevel)) {
+      const meta = visibilityToMeta(level as UserVisibilityLevel);
+      // Initialize thread snapshot so updateThreadMeta has a snapshot to modify
+      container.threadStore.setCachedThread({
+        id: threadId,
+        v: 0,
+        messages: [],
+        relationships: [],
+      } as unknown as ThreadSnapshot);
+      try {
+        await container.threadStore.updateThreadMeta(threadId, meta);
+      } catch {
+        // Remote unavailable — fall back to local setVisibility
+        (
+          container.threadStore as typeof container.threadStore & {
+            setVisibility?: (id: string, v: unknown) => void;
+          }
+        ).setVisibility?.(threadId, meta.visibility);
+      }
+    } else {
+      stderr.write(
+        `Warning: Invalid visibility "${context.visibility}". Must be one of: ${VALID_VISIBILITY_LEVELS.join(", ")}\n`,
+      );
+    }
+  }
 
   // Build user message and inject into worker via getMessages
   const messages: Message[] = [

@@ -16,6 +16,7 @@
  * 逆向: yx0 + ux0 (2154_Subagent_yx0.js, 2153_unknown_ux0.js)
  */
 
+import { classifyBashCommand } from "../util/bash-classifier.js";
 import { generateSimpleDiff } from "./diff-widget.js";
 
 // ─── Display Item Types ─────────────────────────────
@@ -90,9 +91,12 @@ export interface ToolItem {
 /**
  * A single action within an activity group.
  * 逆向: the `c()` accumulator items in yx0 — {kind, title, ...}
+ * 逆向: Vw() (chunk-004.js:8765) returns {kind: "explore"} for Bash/unknown tools
+ * 逆向: Ux0 (2171_unknown_Ux0.js) and Hx0 (2172_unknown_Hx0.js) use "thinking"
+ * 逆向: qx0 (2174_unknown_qx0.js) uses both "thinking" and "explore"
  */
 export interface ActivityAction {
-  kind: "read" | "search" | "list";
+  kind: "read" | "search" | "list" | "explore" | "thinking";
   toolName: string;
   toolUseId: string;
   status:
@@ -100,6 +104,7 @@ export interface ActivityAction {
     | "error"
     | "cancelled"
     | "cancellation-requested"
+    | "rejected-by-user"
     | "in-progress"
     | "blocked-on-user"
     | "queued";
@@ -438,18 +443,43 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           detail: toolDetail,
         });
       } else if (BASH_TOOLS.has(block.name)) {
-        // 逆向: yx0 `(p === "Bash" || p === "shell_command")` branch
+        // 逆向: yx0 `(p === "Bash" || p === "shell_command")` branch (chunk-004.js:7752-7787)
+        // 逆向: WO(P) → IzR → yzT to detect sed/perl write-like commands
+        // 逆向: only sed and perl are promoted to kind:"edit"; other write-like programs stay bash
+        //       (chunk-004.js:7756: k.isWriteLike && (k.program === "sed" || k.program === "perl"))
+        const cmd = typeof block.input?.command === "string" ? block.input.command : undefined;
+        const classification = cmd ? classifyBashCommand(cmd) : undefined;
+
         flushActivityBuffer();
-        items.push({
-          type: "tool",
-          toolUseId: block.id,
-          toolName: block.name,
-          kind: "bash",
-          status,
-          command: typeof block.input?.command === "string" ? block.input.command : undefined,
-          output: typeof result?.run?.result === "string" ? result.run.result : undefined,
-          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
-        });
+        if (
+          classification?.isWriteLike &&
+          (classification.program === "sed" || classification.program === "perl")
+        ) {
+          // Promote sed/perl write-like commands to kind:"edit"
+          // 逆向: chunk-004.js:7758-7765
+          items.push({
+            type: "tool",
+            toolUseId: block.id,
+            toolName: block.name,
+            kind: "edit",
+            status,
+            // 逆向: path: k.path ?? P — fall back to raw command if $zR couldn't extract a path
+            path: classification.path ?? cmd,
+            command: cmd,
+            error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+          });
+        } else {
+          items.push({
+            type: "tool",
+            toolUseId: block.id,
+            toolName: block.name,
+            kind: "bash",
+            status,
+            command: cmd,
+            output: typeof result?.run?.result === "string" ? result.run.result : undefined,
+            error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+          });
+        }
       } else if (block.name === "apply_patch") {
         // 逆向: $9R (misc_utils.js:6962) — Apply Patch widget renders per-file diff blocks
         // 逆向: f50() (1928_unknown_g50.js) — extracts result.files when status=done and files array present
@@ -590,22 +620,87 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           args: { detail },
           error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
         });
+      } else if (block.name === "finder") {
+        // 逆向: chunk-004.js:7878 — p === "finder" → Ux0(m, query) builder
+        // finder is a specialized sub-agent for codebase search
+        flushActivityBuffer();
+        const { actions: finderActions, summary: finderSummary } = buildSpecializedActivityGroup(
+          "finder",
+          block,
+          result,
+          status,
+        );
+        items.push({
+          type: "activity-group",
+          actions: finderActions,
+          summary: finderSummary,
+          hasInProgress: status === "in-progress" || status === "queued",
+        });
+      } else if (block.name === "code_review") {
+        // 逆向: chunk-004.js:7969 — p === "code_review" → qx0(m, input) builder
+        flushActivityBuffer();
+        const { actions: reviewActions, summary: reviewSummary } = buildSpecializedActivityGroup(
+          "code_review",
+          block,
+          result,
+          status,
+        );
+        items.push({
+          type: "activity-group",
+          actions: reviewActions,
+          summary: reviewSummary,
+          hasInProgress: status === "in-progress" || status === "queued",
+        });
+      } else if (block.name === "code_tour") {
+        // 逆向: chunk-004.js:7981 — p === "code_tour" → Hx0(m, input) builder
+        flushActivityBuffer();
+        const { actions: tourActions, summary: tourSummary } = buildSpecializedActivityGroup(
+          "code_tour",
+          block,
+          result,
+          status,
+        );
+        items.push({
+          type: "activity-group",
+          actions: tourActions,
+          summary: tourSummary,
+          hasInProgress: status === "in-progress" || status === "queued",
+        });
       } else if (block.name === "Task") {
         // 逆向: yx0 Task branch — render as Subagent with description detail
         // Uses extractDetail (逆向: ai()) to find the best detail string
+        // Extended: detect mode input for finder/code_review/code_tour specialized builders
+        // 逆向: yx0 activity-group dispatch (chunk-004.js:7878-7991)
         flushActivityBuffer();
-        const detail =
-          extractDetail(block.input as Record<string, unknown>) ??
-          JSON.stringify(block.input ?? {});
-        items.push({
-          type: "tool",
-          toolUseId: block.id,
-          toolName: "Subagent",
-          kind: "generic",
-          status,
-          args: { detail },
-          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
-        });
+        const mode = typeof block.input?.mode === "string" ? block.input.mode : undefined;
+
+        if (mode === "finder" || mode === "code_review" || mode === "code_tour") {
+          const { actions: modeActions, summary: modeSummary } = buildSpecializedActivityGroup(
+            mode,
+            block,
+            result,
+            status,
+          );
+          items.push({
+            type: "activity-group",
+            actions: modeActions,
+            summary: modeSummary,
+            hasInProgress: status === "in-progress" || status === "queued",
+          });
+        } else {
+          const detail =
+            extractDetail(block.input as Record<string, unknown>) ??
+            JSON.stringify(block.input ?? {});
+          items.push({
+            type: "tool",
+            toolUseId: block.id,
+            toolName: "Subagent",
+            kind: "generic",
+            status,
+            args: { detail },
+            error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+          });
+        }
       } else {
         // 逆向: yx0 fallback at end of if/else chain
         flushActivityBuffer();
@@ -627,12 +722,112 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
   return deduplicateEdits(items);
 }
 
+// ─── Specialized activity group builders ──────────────
+
+/**
+ * Build actions and summary for specialized sub-agent tools.
+ *
+ * Handles finder, code_review, and code_tour — each maps to a dedicated
+ * amp builder function that interprets progress data and constructs
+ * typed ActivityAction items.
+ *
+ * 逆向: Ux0() (2171_unknown_Ux0.js) — finder builder
+ * 逆向: qx0() (2174_unknown_qx0.js) — code_review builder
+ * 逆向: Hx0() (2172_unknown_Hx0.js) — code_tour builder
+ * 逆向: dispatch at chunk-004.js:7878-7991
+ *
+ * Note: amp uses FtT(m) to extract progress.tool_uses from the tool run,
+ * which we do not have access to in the current display pipeline (we only
+ * have the tool_use block and the result status). We match the fallback
+ * behaviors of each builder when no progress data is available.
+ */
+function buildSpecializedActivityGroup(
+  mode: "finder" | "code_review" | "code_tour",
+  block: RawContentBlock,
+  result: RawContentBlock | undefined,
+  status: ToolItem["status"],
+): { actions: ActivityAction[]; summary: string } {
+  const seen = new Set<string>();
+  const actions: ActivityAction[] = [];
+
+  /** Deduplicated push (逆向: t() closure in qx0/Hx0 — dedup by `${kind}:${title}`) */
+  const push = (kind: ActivityAction["kind"], detail: string) => {
+    const key = `${kind}:${detail}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    actions.push({
+      kind,
+      toolName: block.name ?? "",
+      toolUseId: block.id ?? "",
+      status,
+      detail,
+    });
+  };
+
+  if (mode === "finder") {
+    // 逆向: Ux0() — when FtT returns empty, push fallback "Search codebase: ${query}"
+    // We have no progress data here so always use the fallback path.
+    const query = typeof block.input?.query === "string" ? block.input.query.trim() : undefined;
+    push("explore", query ? `Search codebase: ${query}` : "Search codebase");
+    if (status === "done") push("explore", "Search complete");
+    const summary = query ? `finder: ${query}` : "finder";
+    return { actions, summary };
+  }
+
+  if (mode === "code_review") {
+    // 逆向: qx0() — status-based fallback when no progress actions
+    const thoroughness =
+      typeof block.input?.thoroughness === "string" ? block.input.thoroughness : undefined;
+    const summaryLabel = thoroughness === "quick" ? "quick code review" : "code review";
+
+    if (status === "queued") {
+      push("thinking", "Code review queued");
+    } else if (status === "done") {
+      push("explore", "Code review complete");
+    } else if (status === "error") {
+      const errMsg = result?.run?.status === "error" ? result?.run?.error?.message : undefined;
+      push("explore", errMsg ? `Code review failed: ${errMsg}` : "Code review failed");
+    }
+
+    // 逆向: qx0() final fallback — if a.length === 0 push default thinking action
+    if (actions.length === 0) {
+      push("thinking", status === "queued" ? "Code review queued" : "Reviewing code changes...");
+    }
+
+    return { actions, summary: summaryLabel };
+  }
+
+  if (mode === "code_tour") {
+    // 逆向: Hx0() — status-based fallback when no progress actions
+    if (status === "done") {
+      push("explore", "Code tour complete");
+    } else if (status === "error") {
+      const errMsg = result?.run?.status === "error" ? result?.run?.error?.message : undefined;
+      push("explore", errMsg ? `Code tour failed: ${errMsg}` : "Code tour failed");
+    }
+
+    // 逆向: Hx0() final fallback — if a.length === 0 push default thinking action
+    if (actions.length === 0) {
+      push("thinking", status === "queued" ? "Code tour queued" : "Generating code tour...");
+    }
+
+    // 逆向: Hx0() — r = focus.trim(); summary: `code tour: ${r}` or "code tour"
+    const focus = typeof block.input?.focus === "string" ? block.input.focus.trim() : undefined;
+    const summary = focus ? `code tour: ${focus}` : "code tour";
+    return { actions, summary };
+  }
+
+  // Should never reach here given typed parameter, but TS needs exhaustive return
+  return { actions, summary: mode };
+}
+
 /**
  * Build a summary string for an activity group.
  *
  * 逆向: cfT() in 2177_unknown_cfT.js
  * Produces strings like "1 read, 2 searches" with proper pluralization.
  * amp iterates [read, search, web, explore, list] in order with custom plural forms.
+ * "explore" uses plural "explorations" (逆向: cfT — "exploration" entry).
  */
 function buildActivitySummary(actions: ActivityAction[]): string {
   const counts: Record<string, number> = {};
@@ -642,8 +837,10 @@ function buildActivitySummary(actions: ActivityAction[]): string {
   const parts: string[] = [];
   // 逆向: cfT iterates kinds in fixed order: read, search, web, explore, list
   // "search" uses custom plural "searches" (not "searchs")
+  // "explore" uses "exploration"/"explorations" (逆向: cfT entry ["explore", "exploration", void 0])
   if (counts.read) parts.push(`${counts.read} read${counts.read > 1 ? "s" : ""}`);
   if (counts.search) parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`);
+  if (counts.explore) parts.push(`${counts.explore} exploration${counts.explore > 1 ? "s" : ""}`);
   if (counts.list) parts.push(`${counts.list} list${counts.list > 1 ? "s" : ""}`);
   return parts.join(", ") || "activity";
 }

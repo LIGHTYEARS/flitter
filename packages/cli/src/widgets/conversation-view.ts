@@ -1323,7 +1323,7 @@ function _getToolDetail(tool: ToolItem): string | null {
  * Get status icon for an ActivityAction status.
  *
  * Uses same icon set as tool status (逆向: sE0, chunk-004.js:21126).
- * ActivityAction extends to include blocked-on-user and queued.
+ * ActivityAction extends to include blocked-on-user, queued, and rejected-by-user.
  */
 function _getActionStatusIcon(status: ActivityAction["status"]): string {
   switch (status) {
@@ -1333,6 +1333,7 @@ function _getActionStatusIcon(status: ActivityAction["status"]): string {
       return "\u2717"; // ✗
     case "cancelled":
     case "cancellation-requested":
+    case "rejected-by-user":
       return "\u2298"; // ⊘
     case "blocked-on-user":
       return "?";
@@ -1357,6 +1358,7 @@ function _getActionStatusColor(status: ActivityAction["status"]): Color {
       return TOOL_COLOR;
     case "cancelled":
     case "cancellation-requested":
+    case "rejected-by-user":
       return CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":

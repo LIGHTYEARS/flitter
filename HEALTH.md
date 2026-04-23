@@ -1,6 +1,6 @@
 # HEALTH — 项目健康度 Overview
 
-> 最后更新: 2026-04-23 | 更新者: claude-opus-4-6
+> 最后更新: 2026-04-23 | 更新者: claude-sonnet-4-6
 
 Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widget 框架。本文件是项目当前状态的活快照，由 AI 在每次 session 中维护。静态架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 

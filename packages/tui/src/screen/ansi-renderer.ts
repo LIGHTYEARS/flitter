@@ -108,10 +108,23 @@ export const ALT_SCREEN_ON = `${CSI}?1049h`;
 /** 禁用备用屏幕缓冲区 */
 export const ALT_SCREEN_OFF = `${CSI}?1049l`;
 
-/** 启用鼠标追踪 (Button + Any + SGR 模式) */
-export const MOUSE_ON = `${CSI}?1000h${CSI}?1003h${CSI}?1006h`;
-/** 禁用鼠标追踪 */
-export const MOUSE_OFF = `${CSI}?1000l${CSI}?1003l${CSI}?1006l`;
+/**
+ * 启用鼠标追踪 — matches amp sequence exactly
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157630
+ *   ru0 = t9 + "?1002h" + t9 + "?1003h" + t9 + "?1004h" + t9 + "?1006h"
+ *
+ *   ?1002h — Button-event tracking (reports press, release, and drag)
+ *   ?1003h — Any-event tracking (reports all mouse motion, not just drag)
+ *   ?1004h — Focus tracking (reports FocusIn / FocusOut events)
+ *   ?1006h — SGR extended coordinates (supports columns/rows > 223)
+ */
+export const MOUSE_ON = `${CSI}?1002h${CSI}?1003h${CSI}?1004h${CSI}?1006h`;
+/**
+ * 禁用鼠标追踪 — mirrors MOUSE_ON
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157630
+ *   hu0 = t9 + "?1002l" + t9 + "?1003l" + t9 + "?1004l" + t9 + "?1006l"
+ */
+export const MOUSE_OFF = `${CSI}?1002l${CSI}?1003l${CSI}?1004l${CSI}?1006l`;
 
 /** 启用 Bracketed Paste 模式 */
 export const PASTE_ON = `${CSI}?2004h`;

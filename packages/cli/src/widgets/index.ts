@@ -19,6 +19,11 @@
  * @module
  */
 
+export {
+  type AppTheme,
+  AppThemeController,
+  createDefaultAppTheme,
+} from "./app-theme-controller.js";
 export { AppWidget, type AppWidgetConfig, AppWidgetState } from "./app-widget.js";
 export {
   type ApprovalRequest,

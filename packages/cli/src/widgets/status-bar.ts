@@ -171,17 +171,20 @@ export interface StatusBarConfig {
 //  颜色常量
 // ════════════════════════════════════════════════════
 
-/** mutedText 色 (#565f89) */
-const MUTED_TEXT_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** mutedText 色 — terminal default + dim
+ * 逆向: T.mutedForeground → default + dim */
+const MUTED_TEXT_COLOR = Color.default();
 
-/** surface 色 (#1a1b26) -- 状态栏背景 */
-const _SURFACE_COLOR = Color.rgb(0x1a, 0x1b, 0x26);
+/** surface 色 — 状态栏背景 (unused with terminal colors) */
+const _SURFACE_COLOR = Color.default();
 
-/** Warning color (#e0af68) -- Tokyo Night warning/amber */
-const WARNING_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+/** Warning color — indexed yellow
+ * 逆向: T.warning → LT.yellow (indexed 3) */
+const WARNING_COLOR = Color.indexed(3);
 
-/** Danger color (#f7768e) -- Tokyo Night error/danger red */
-const DANGER_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
+/** Danger color — indexed red
+ * 逆向: T.destructive → LT.red (indexed 1) */
+const DANGER_COLOR = Color.indexed(1);
 
 // ════════════════════════════════════════════════════
 //  Helpers: formatTokenCount, formatCostUSD
@@ -244,8 +247,8 @@ export class StatusBar extends StatelessWidget {
       gitBranch,
     } = this.config;
 
-    const mutedStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR });
-    const borderStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR });
+    const mutedStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true });
+    const borderStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true });
 
     // ── Derive status message from state machine ──
     const statusMessage = deriveStatusMessage(state);
@@ -363,6 +366,6 @@ export class StatusBar extends StatelessWidget {
       if (ratio >= CONTEXT_DANGER) return new TextStyle({ foreground: DANGER_COLOR, bold: true });
       if (ratio >= CONTEXT_WARNING) return new TextStyle({ foreground: WARNING_COLOR });
     }
-    return new TextStyle({ foreground: MUTED_TEXT_COLOR });
+    return new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true });
   }
 }

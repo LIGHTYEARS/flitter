@@ -137,7 +137,9 @@ export interface ActivityGroupItem {
  * A thinking block from the assistant's reasoning.
  *
  * 逆向: Rd class (chunk-006.js:16846-17009) — ThinkingBlock widget.
- * Collapsed shows "✓ Thinking ▶", expanded shows full text with "▼".
+ * Default-collapsed at all times (including streaming). Shows "✓ Thinking ▶"
+ * or spinner + "Thinking ▶" when streaming. Click to expand shows full text with "▼".
+ * Divergence from amp: amp shows streaming content always; we default-collapse for cleaner UI.
  * 逆向: fJT.build() — isCancelled → warning color; isStreaming → accent + spinner; else → success + ✓
  */
 export interface ThinkingItem {
@@ -357,14 +359,38 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
     flushTextParts();
 
     // 逆向: x8R._buildThinkingBlock — only the last thinking block gets streaming/cancelled flags
+    // Divergence from amp: we only mark thinking as streaming if no text block follows it.
+    // When content is [thinking, text], thinking has finished — only text is still streaming.
+    // Amp marks thinking as streaming even when text follows (because it shows content expanded),
+    // but we default-collapse thinking, so a spinning header with finished content is misleading.
     const msgState = msg.state?.type;
     if (msgState === "streaming" || msgState === "cancelled") {
+      // Find the index of the last thinking block in msg.content
+      const contentArr = msg.content as RawContentBlock[];
+      let lastThinkingContentIdx = -1;
+      for (let k = contentArr.length - 1; k >= 0; k--) {
+        if (contentArr[k].type === "thinking") {
+          lastThinkingContentIdx = k;
+          break;
+        }
+      }
+
+      // Check if any non-thinking content block follows the last thinking block
+      const hasContentAfterThinking =
+        lastThinkingContentIdx >= 0 &&
+        contentArr
+          .slice(lastThinkingContentIdx + 1)
+          .some(
+            (b) =>
+              (b.type === "text" && b.text && b.text.trim().length > 0) || b.type === "tool_use",
+          );
+
       for (let j = pendingItems.length - 1; j >= 0; j--) {
         if (pendingItems[j].type === "thinking") {
           const thinkingItem = pendingItems[j] as ThinkingItem;
-          if (msgState === "streaming") {
+          if (msgState === "streaming" && !hasContentAfterThinking) {
             thinkingItem.isStreaming = true;
-          } else {
+          } else if (msgState === "cancelled") {
             thinkingItem.isCancelled = true;
           }
           break;

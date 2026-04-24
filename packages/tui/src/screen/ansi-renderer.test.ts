@@ -58,12 +58,14 @@ describe("ANSI 常量", () => {
     assert.equal(ALT_SCREEN_OFF, `${CSI}?1049l`);
   });
 
-  it("MOUSE_ON/OFF 包含三种模式", () => {
-    assert.ok(MOUSE_ON.includes("?1000h"));
-    assert.ok(MOUSE_ON.includes("?1003h"));
-    assert.ok(MOUSE_ON.includes("?1006h"));
-    assert.ok(MOUSE_OFF.includes("?1000l"));
+  it("MOUSE_ON/OFF 包含四种模式 (matching amp)", () => {
+    assert.ok(MOUSE_ON.includes("?1002h")); // button-event tracking
+    assert.ok(MOUSE_ON.includes("?1003h")); // any-event tracking
+    assert.ok(MOUSE_ON.includes("?1004h")); // focus tracking
+    assert.ok(MOUSE_ON.includes("?1006h")); // SGR extended
+    assert.ok(MOUSE_OFF.includes("?1002l"));
     assert.ok(MOUSE_OFF.includes("?1003l"));
+    assert.ok(MOUSE_OFF.includes("?1004l"));
     assert.ok(MOUSE_OFF.includes("?1006l"));
   });
 

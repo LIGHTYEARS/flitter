@@ -107,7 +107,7 @@ function _spanContainsText(span: TextSpan, target: string): boolean {
 function hasStyledSpan(
   span: TextSpan,
   text: string,
-  options: { bold?: boolean; r?: number; g?: number; b?: number },
+  options: { bold?: boolean; r?: number; g?: number; b?: number; indexed?: number },
 ): boolean {
   let found = false;
   span.visitTextSpan((s) => {
@@ -123,7 +123,10 @@ function hasStyledSpan(
     if (options.bold !== undefined) {
       matches = matches && style.bold === options.bold;
     }
-    if (options.r !== undefined && style.foreground) {
+    if (options.indexed !== undefined && style.foreground) {
+      matches =
+        matches && style.foreground.kind === "index" && style.foreground.index === options.indexed;
+    } else if (options.r !== undefined && style.foreground) {
       matches =
         matches &&
         style.foreground.kind === "rgb" &&
@@ -181,16 +184,16 @@ describe("ConversationView.build", () => {
     assert.ok(built instanceof Column, "Should return a Column widget");
   });
 
-  it('渲染用户消息 "You: " 前缀 (primary #7aa2f7 bold)', () => {
+  it('渲染用户消息 "You: " 前缀 (cyan indexed(6) bold)', () => {
     const messages: Message[] = [{ role: "user", content: "Hello world" }];
     const { state } = mountConversationView({ messages });
     const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
     const hasYouPrefix = richTexts.some((rt: RichText) =>
-      hasStyledSpan(rt.text, "You: ", { bold: true, r: 0x7a, g: 0xa2, b: 0xf7 }),
+      hasStyledSpan(rt.text, "You: ", { bold: true, indexed: 6 }),
     );
-    assert.ok(hasYouPrefix, 'Should render "You: " in primary color bold');
+    assert.ok(hasYouPrefix, 'Should render "You: " in cyan indexed(6) bold');
   });
 
   it('渲染助手消息 — 无 "Assistant: " 前缀 (逆向: amp 无助手前缀)', () => {
@@ -201,21 +204,21 @@ describe("ConversationView.build", () => {
     const richTexts = collectRichTexts(built);
     // 逆向: amp has NO assistant prefix — only user messages get ┃ border
     const hasAssistantPrefix = richTexts.some((rt: RichText) =>
-      hasStyledSpan(rt.text, "Assistant: ", { bold: true, r: 0xbb, g: 0x9a, b: 0xf7 }),
+      hasStyledSpan(rt.text, "Assistant: ", { bold: true, indexed: 5 }),
     );
     assert.ok(!hasAssistantPrefix, 'Should NOT render "Assistant: " prefix (amp has none)');
   });
 
-  it('渲染系统消息 "System: " 前缀 (secondary #9ece6a bold)', () => {
+  it('渲染系统消息 "System: " 前缀 (green indexed(2) bold)', () => {
     const messages: Message[] = [{ role: "system", content: "System prompt" }];
     const { state } = mountConversationView({ messages });
     const built = state.build({} as unknown as BuildContext);
 
     const richTexts = collectRichTexts(built);
     const hasSystemPrefix = richTexts.some((rt: RichText) =>
-      hasStyledSpan(rt.text, "System: ", { bold: true, r: 0x9e, g: 0xce, b: 0x6a }),
+      hasStyledSpan(rt.text, "System: ", { bold: true, indexed: 2 }),
     );
-    assert.ok(hasSystemPrefix, 'Should render "System: " in secondary color bold');
+    assert.ok(hasSystemPrefix, 'Should render "System: " in green indexed(2) bold');
   });
 
   it("消息内容通过 MarkdownParser + MarkdownRenderer 渲染", () => {
@@ -237,7 +240,7 @@ describe("ConversationView.build", () => {
     assert.ok(allText.includes("No messages yet"), `Expected "No messages yet" in: ${allText}`);
   });
 
-  it('错误消息使用 error 色 (#f7768e) bold "Error:" 前缀', () => {
+  it('错误消息使用 error 色 (red indexed(1)) bold "Error:" 前缀', () => {
     const { state } = mountConversationView({
       messages: [{ role: "user", content: "test" }],
       error: new Error("Something went wrong"),
@@ -246,9 +249,9 @@ describe("ConversationView.build", () => {
 
     const richTexts = collectRichTexts(built);
     const hasErrorPrefix = richTexts.some((rt: RichText) =>
-      hasStyledSpan(rt.text, "Error:", { bold: true, r: 0xf7, g: 0x76, b: 0x8e }),
+      hasStyledSpan(rt.text, "Error:", { bold: true, indexed: 1 }),
     );
-    assert.ok(hasErrorPrefix, 'Should render "Error:" in error color bold');
+    assert.ok(hasErrorPrefix, 'Should render "Error:" in red indexed(1) bold');
   });
 
   it("错误消息包含重试提示文本", () => {

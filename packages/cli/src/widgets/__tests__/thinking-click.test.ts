@@ -55,10 +55,9 @@ describe("_buildThinkingWidget click-to-expand", () => {
     expect(hasWidgetType(widget, "GestureDetector")).toBe(true);
   });
 
-  it("streaming thinking — NO GestureDetector (content always visible)", () => {
-    // 逆向: fJT.build() — streaming blocks always show content; no click handler
-    // amp line 16964: `if (this.isComplete && !this.expanded) return;`
-    // means streaming blocks never hide content, no reason to wrap in clickable
+  it("streaming thinking — HAS GestureDetector (clickable for expand/collapse)", () => {
+    // Divergence from amp: streaming blocks are also collapsible.
+    // Amp always shows streaming content, but we default-collapse for cleaner UI.
     const item: ThinkingItem = {
       type: "thinking",
       text: "Still thinking...",
@@ -66,7 +65,7 @@ describe("_buildThinkingWidget click-to-expand", () => {
       isCancelled: false,
     };
     const widget = buildThinkingWidget(item, 0);
-    expect(hasWidgetType(widget, "GestureDetector")).toBe(false);
+    expect(hasWidgetType(widget, "GestureDetector")).toBe(true);
   });
 
   it("complete thinking with empty content — NO GestureDetector", () => {
@@ -96,9 +95,9 @@ describe("_buildThinkingWidget click-to-expand", () => {
     expect(hasWidgetType(widget, "GestureDetector")).toBe(true);
   });
 
-  it("streaming thinking always shows content (Column with content visible)", () => {
-    // 逆向: fJT.build() line 16964-16965:
-    //   `if (this.isComplete && !this.expanded) return;` — streaming ALWAYS shows content
+  it("streaming thinking defaults to collapsed (GestureDetector header only)", () => {
+    // Divergence from amp: streaming blocks are collapsed by default.
+    // User must click to expand and see streaming content.
     const item: ThinkingItem = {
       type: "thinking",
       text: "Streaming thought content here.",
@@ -106,8 +105,8 @@ describe("_buildThinkingWidget click-to-expand", () => {
       isCancelled: false,
     };
     const widget = buildThinkingWidget(item, 0);
-    // Should be a Column (header + content), not just a single RichText
-    expect((widget as { constructor: { name: string } }).constructor.name).toBe("Column");
+    // Should be a GestureDetector (collapsed header), not a Column with content
+    expect((widget as { constructor: { name: string } }).constructor.name).toBe("GestureDetector");
   });
 
   it("complete unexpanded thinking hides content (only header row)", () => {

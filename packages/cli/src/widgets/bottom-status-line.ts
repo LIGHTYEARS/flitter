@@ -25,6 +25,7 @@ import {
   StatefulWidget,
   TextSpan,
   TextStyle,
+  WidgetsBinding,
 } from "@flitter/tui";
 
 // ── Wave spinner frames (逆向: uIT, data_structures.js:76) ──
@@ -33,10 +34,11 @@ const WAVE_INTERVAL_MS = 200;
 
 // ── Colors ──
 // 逆向: PIT() uses T.colors.primary; wE0() uses T.colors.foreground dim:true
-// 逆向: UE0() uses a.app.keybind for "Esc"
-const PRIMARY_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
-const MUTED_COLOR = Color.rgb(0x56, 0x5f, 0x89);
-const KEYBIND_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+// 逆向: UE0() uses a.app.keybind (= T.primary) for "Esc"
+// In amp, spinner AND keybind share the same primary token.
+// Status text uses foreground + dim:true (terminal default dimmed).
+const PRIMARY_COLOR = Color.indexed(4); // blue — spinner & keybind
+const MUTED_COLOR = Color.default(); // terminal default (used with dim:true)
 
 /**
  * Map inference state to status text.
@@ -92,14 +94,27 @@ export class BottomStatusLine extends StatefulWidget {
 class _BottomStatusLineState extends State<BottomStatusLine> {
   private _frameIndex = 0;
   private _timer: ReturnType<typeof setInterval> | null = null;
+  /** Unsubscribe from WidgetsBinding.onExitHintChanged */
+  private _exitHintUnsub: (() => void) | null = null;
 
   initState(): void {
     super.initState();
     this._startAnimation();
+    // 逆向: In amp, uhT.setState() is called when isConfirmingExit toggles (chunk-006.js:34288).
+    // Here we subscribe to WidgetsBinding's exit hint changes to trigger a rebuild.
+    this._exitHintUnsub = WidgetsBinding.instance.onExitHintChanged(() => {
+      this.setState(() => {
+        // no-op — just trigger rebuild so build() re-reads exitHintActive
+      });
+    });
   }
 
   dispose(): void {
     this._stopAnimation();
+    if (this._exitHintUnsub) {
+      this._exitHintUnsub();
+      this._exitHintUnsub = null;
+    }
     super.dispose();
   }
 
@@ -148,32 +163,65 @@ class _BottomStatusLineState extends State<BottomStatusLine> {
       waitingForApproval,
     );
 
+    // 逆向: getUIHint() in chunk-006.js:34643-34648
+    // When isConfirmingExit is true, show "Ctrl+C" (keybind color) + " again to exit" (dim).
+    // This takes priority over idle state but is shown alongside active status.
+    const exitHintActive = WidgetsBinding.instance.exitHintActive;
+
     // 逆向: IZT.build() returns XT({width:0, height:0}) when nothing to show
-    if (!statusText) {
+    if (!statusText && !exitHintActive) {
       return new SizedBox({ height: 1, width: 0 });
     }
+
+    const children: TextSpan[] = [];
 
     // 逆向: PIT() — push xZT spinner + SizedBox.horizontal(1) spacer
     // 逆向: wE0() — push Text(statusText, foreground dim:true)
     // 逆向: UE0(HtT/WtT) — push "Esc" + " to cancel" hint with keybind color
-    const spinnerChar = WAVE_FRAMES[this._frameIndex];
-    const children: TextSpan[] = [
-      new TextSpan({
-        text: `${spinnerChar} `,
-        style: new TextStyle({ foreground: PRIMARY_COLOR }),
-      }),
-      new TextSpan({
-        text: statusText,
-        style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
-      }),
-    ];
-
-    if (!waitingForApproval) {
+    if (statusText) {
+      const spinnerChar = WAVE_FRAMES[this._frameIndex];
       children.push(
-        new TextSpan({ text: " ", style: new TextStyle({ foreground: MUTED_COLOR }) }),
-        new TextSpan({ text: "Esc", style: new TextStyle({ foreground: KEYBIND_COLOR }) }),
         new TextSpan({
-          text: " to cancel",
+          text: `${spinnerChar} `,
+          style: new TextStyle({ foreground: PRIMARY_COLOR }),
+        }),
+        new TextSpan({
+          text: statusText,
+          style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
+        }),
+      );
+
+      if (!waitingForApproval && !exitHintActive) {
+        children.push(
+          new TextSpan({ text: " ", style: new TextStyle({ foreground: MUTED_COLOR, dim: true }) }),
+          new TextSpan({ text: "Esc", style: new TextStyle({ foreground: PRIMARY_COLOR }) }),
+          new TextSpan({
+            text: " to cancel",
+            style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
+          }),
+        );
+      }
+    }
+
+    // 逆向: getUIHint() chunk-006.js:34643-34648 — exit confirmation hint
+    // In amp, uiHint is shown after the status line with a spacer (line 19255-19258).
+    if (exitHintActive) {
+      if (statusText) {
+        // Add spacer between status and hint (逆向: y3.horizontal(2) at line 19255)
+        children.push(
+          new TextSpan({
+            text: "  ",
+            style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
+          }),
+        );
+      }
+      children.push(
+        new TextSpan({
+          text: "Ctrl+C",
+          style: new TextStyle({ foreground: PRIMARY_COLOR }),
+        }),
+        new TextSpan({
+          text: " again to exit",
           style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
         }),
       );

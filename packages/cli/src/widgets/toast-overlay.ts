@@ -64,9 +64,9 @@ export interface ToastOverlayConfig {
  * - info -> falls through to success color in amp; we use blue
  */
 const TOAST_COLORS: Record<ToastType, Color> = {
-  success: Color.rgb(0x9e, 0xce, 0x6a), // Tokyo Night green (toolSuccess)
-  error: Color.rgb(0xf7, 0x76, 0x8e), // Tokyo Night red (toolError)
-  info: Color.rgb(0x7a, 0xa2, 0xf7), // Tokyo Night blue
+  success: Color.indexed(2), // green (toolSuccess) → LT.green
+  error: Color.indexed(1), // red (toolError) → LT.red
+  info: Color.indexed(4), // blue → LT.blue
 };
 
 /**
@@ -84,7 +84,7 @@ const TOAST_ICONS: Record<ToastType, string> = {
 };
 
 /** Foreground text color for toast message body. */
-const TEXT_COLOR = Color.rgb(0xa9, 0xb1, 0xd6); // Tokyo Night foreground
+const TEXT_COLOR = Color.default(); // terminal default foreground
 
 // ════════════════════════════════════════════════════
 //  ToastOverlay Widget

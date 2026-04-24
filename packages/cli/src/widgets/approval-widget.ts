@@ -31,7 +31,7 @@
  * @module
  */
 
-import type { BuildContext, KeyEventResult } from "@flitter/tui";
+import type { BuildContext, Element, KeyEventResult } from "@flitter/tui";
 import {
   Border,
   BorderSide,
@@ -49,6 +49,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import { type AppTheme, AppThemeController } from "./app-theme-controller.js";
 
 // ════════════════════════════════════════════════════
 //  Types
@@ -112,45 +113,44 @@ export interface ApprovalWidgetConfig {
 /**
  * Warning border color (yellow).
  *
- * 逆向: b0R.build -> borderColor = colorScheme.warning
- * In amp's Tokyo Night theme, warning maps to this amber/yellow.
+ * 逆向: b0R.build -> borderColor = colorScheme.warning → LT.yellow (indexed 3)
  */
-const WARNING_COLOR = Color.rgb(0xe0, 0xaf, 0x68);
+const WARNING_COLOR = Color.indexed(3);
 
 /**
  * Primary/selected option color.
  *
- * 逆向: b0R.build -> colorScheme.primary (blue)
+ * 逆向: b0R.build -> colorScheme.primary → LT.blue (indexed 4)
  */
-const PRIMARY_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+const PRIMARY_COLOR = Color.indexed(4);
 
 /**
  * Secondary/muted hint text color.
  *
- * 逆向: b0R.build -> colorScheme.secondary (dim gray)
+ * 逆向: b0R.build -> colorScheme.secondary → default + dim
  */
-const SECONDARY_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+const SECONDARY_COLOR = Color.default();
 
 /**
  * Standard foreground text color.
  *
- * 逆向: b0R.build -> colorScheme.foreground
+ * 逆向: b0R.build -> colorScheme.foreground → terminal default
  */
-const FOREGROUND_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
+const FOREGROUND_COLOR = Color.default();
 
 /**
  * Success/approve green.
  *
- * 逆向: b0R.buildHeader -> colorScheme.success
+ * 逆向: b0R.buildHeader -> colorScheme.success → LT.green (indexed 2)
  */
-const SUCCESS_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
+const SUCCESS_COLOR = Color.indexed(2);
 
 /**
  * Destructive/deny red.
  *
- * 逆向: p0R.buildFeedbackInput -> colorScheme.destructive
+ * 逆向: p0R.buildFeedbackInput -> colorScheme.destructive → LT.red (indexed 1)
  */
-const DENY_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
+const DENY_COLOR = Color.indexed(1);
 
 // ════════════════════════════════════════════════════
 //  ApprovalWidget
@@ -514,9 +514,18 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
   build(_context: BuildContext) {
     const { request } = this.widget.config;
 
+    // 逆向: $R.of(T).app — access AppTheme from context for semantic colors
+    // Use try/catch because build() may receive a mock BuildContext in tests
+    let appTheme: AppTheme | null = null;
+    try {
+      appTheme = AppThemeController.maybeOf(_context as unknown as Element);
+    } catch {
+      // No AppThemeController in ancestor tree — fall back to hardcoded colors
+    }
+
     // ── Feedback mode ──
     if (this._feedbackActive) {
-      return this._buildFeedbackInput();
+      return this._buildFeedbackInput(appTheme);
     }
 
     // ── Header section ──
@@ -624,7 +633,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
         new RichText({
           text: new TextSpan({
             text: `(Matches ${request.permissionRule})`,
-            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
           }),
         }),
       );
@@ -637,7 +646,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
         new RichText({
           text: new TextSpan({
             text: `(${request.reason})`,
-            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
           }),
         }),
       );
@@ -654,9 +663,16 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
    *        "› [text input placeholder]"
    *        "Enter send  •  Esc cancel"
    *
+   * 逆向: actions_intents.js:4060-4074 — a.keybind used for keyboard shortcut labels
+   *
    * Since @flitter/tui has no TextField, we simulate with a text cursor display.
+   *
+   * @param appTheme - Optional AppTheme for semantic keybind colors
    */
-  private _buildFeedbackInput() {
+  private _buildFeedbackInput(appTheme: AppTheme | null) {
+    // 逆向: actions_intents.js:4072-4073 — a.keybind for keyboard labels
+    const keybindColor = appTheme?.keybind ?? PRIMARY_COLOR;
+
     // Header line: "✗ Denied — tell Amp what to do instead"
     // 逆向: chunk-006.js:22752-22763
     const headerLine = new RichText({
@@ -672,7 +688,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
           }),
           new TextSpan({
             text: " \u2014 ",
-            style: new TextStyle({ foreground: SECONDARY_COLOR }),
+            style: new TextStyle({ foreground: SECONDARY_COLOR, dim: true }),
           }),
           new TextSpan({
             text: "tell what to do instead",
@@ -701,20 +717,22 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
             text: inputText,
             style: new TextStyle({
               foreground: this._feedbackText.length > 0 ? FOREGROUND_COLOR : SECONDARY_COLOR,
+              dim: this._feedbackText.length === 0,
             }),
           }),
         }),
       ],
     });
 
-    // Footer hint
+    // Footer hint — keybind labels use appTheme.keybind
     // 逆向: chunk-006.js:22781-22795
+    // 逆向: actions_intents.js:4072-4073 — a.keybind for "Enter" and "Esc" labels
     const footerLine = new RichText({
       text: new TextSpan({
         children: [
           new TextSpan({
             text: "Enter",
-            style: new TextStyle({ foreground: PRIMARY_COLOR }),
+            style: new TextStyle({ foreground: keybindColor }),
           }),
           new TextSpan({
             text: " send",
@@ -726,7 +744,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
           }),
           new TextSpan({
             text: "Esc",
-            style: new TextStyle({ foreground: PRIMARY_COLOR }),
+            style: new TextStyle({ foreground: keybindColor }),
           }),
           new TextSpan({
             text: " cancel",
@@ -822,6 +840,7 @@ export class ApprovalWidgetState extends State<ApprovalWidget> {
         text: radioChar,
         style: new TextStyle({
           foreground: isSelected ? PRIMARY_COLOR : SECONDARY_COLOR,
+          dim: !isSelected,
         }),
       }),
     });

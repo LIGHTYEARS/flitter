@@ -16,22 +16,23 @@
  */
 
 import { Color, RichText, TextSpan, TextStyle } from "@flitter/tui";
+import type { AppTheme } from "./app-theme-controller.js";
 
 // ════════════════════════════════════════════════════
-//  Colors (Tokyo Night theme, matching amp)
+//  Colors (terminal-indexed, matching amp's theme tokens)
 // ════════════════════════════════════════════════════
 
 /**
- * Diff line colors matching amp's Tokyo Night theme.
+ * Diff line colors matching amp's theme tokens.
  * 逆向: chunk-004.js:29563-29566
- * - diffAdded: T.success (#9ece6a)
- * - diffRemoved: T.destructive (#f7768e)
- * - diffContext: T.mutedForeground (#565f89)
+ * - diffAdded: T.success → LT.green (indexed 2)
+ * - diffRemoved: T.destructive → LT.red (indexed 1)
+ * - diffContext: T.mutedForeground → default + dim
  */
-const DIFF_ADDED_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
-const DIFF_REMOVED_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
-const DIFF_CONTEXT_COLOR = Color.rgb(0x56, 0x5f, 0x89);
-const DIFF_META_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+const DIFF_ADDED_COLOR = Color.indexed(2);
+const DIFF_REMOVED_COLOR = Color.indexed(1);
+const DIFF_CONTEXT_COLOR = Color.default();
+const DIFF_META_COLOR = Color.default();
 
 // ════════════════════════════════════════════════════
 //  Types
@@ -207,16 +208,27 @@ function _computeHunks(oldLines: string[], newLines: string[]): { hunks: _Hunk[]
  * 逆向: cE0(T, R) (chunk-004.js:21105-21125)
  * Returns a RichText widget with color-coded spans for each diff line.
  *
+ * When an {@link AppTheme} is provided, uses semantic diff colors from the
+ * theme (diffAdded, diffRemoved, diffChanged, diffContext). Falls back to
+ * hardcoded indexed colors when no theme is available.
+ *
+ * 逆向: chunk-004.js:21113 `color: R.app.diffAdded`
+ * 逆向: chunk-004.js:21115 `color: R.app.diffRemoved`
+ *
  * This is a function (not a StatefulWidget) because the diff is immutable
  * once rendered — no state transitions needed.
+ *
+ * @param diffText - Unified diff text
+ * @param appTheme - Optional AppTheme for semantic colors
  */
-export function buildDiffWidget(diffText: string): RichText {
+export function buildDiffWidget(diffText: string, appTheme?: AppTheme): RichText {
   const lines = parseDiffLines(diffText);
   if (lines.length === 0) {
+    const contextColor = appTheme?.diffContext ?? DIFF_CONTEXT_COLOR;
     return new RichText({
       text: new TextSpan({
         text: "(no changes)",
-        style: new TextStyle({ foreground: DIFF_CONTEXT_COLOR }),
+        style: new TextStyle({ foreground: contextColor, dim: true }),
       }),
     });
   }
@@ -231,7 +243,7 @@ export function buildDiffWidget(diffText: string): RichText {
       spans.push(new TextSpan({ text: "\n" }));
     }
 
-    const color = _getLineColor(line.type);
+    const color = _getLineColor(line.type, appTheme);
     const dim = line.type === "context" || line.type === "meta";
 
     spans.push(
@@ -247,14 +259,24 @@ export function buildDiffWidget(diffText: string): RichText {
   });
 }
 
-function _getLineColor(type: DiffLineType): Color {
+/**
+ * Get the color for a diff line type.
+ *
+ * When an AppTheme is provided, uses semantic colors:
+ * 逆向: chunk-004.js:21113 — R.app.diffAdded
+ * 逆向: chunk-004.js:21115 — R.app.diffRemoved
+ *
+ * @param type - Diff line type
+ * @param appTheme - Optional AppTheme for semantic colors
+ */
+function _getLineColor(type: DiffLineType, appTheme?: AppTheme): Color {
   switch (type) {
     case "added":
-      return DIFF_ADDED_COLOR;
+      return appTheme?.diffAdded ?? DIFF_ADDED_COLOR;
     case "removed":
-      return DIFF_REMOVED_COLOR;
+      return appTheme?.diffRemoved ?? DIFF_REMOVED_COLOR;
     case "context":
-      return DIFF_CONTEXT_COLOR;
+      return appTheme?.diffContext ?? DIFF_CONTEXT_COLOR;
     case "meta":
       return DIFF_META_COLOR;
   }

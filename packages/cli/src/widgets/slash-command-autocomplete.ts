@@ -48,20 +48,23 @@ import {
 import type { FlitterCommandPaletteProvider } from "./command-palette-provider.js";
 
 // ════════════════════════════════════════════════════
-//  颜色常量 (Tokyo Night 调色板)
+//  颜色常量 (terminal-indexed, matching amp)
 // ════════════════════════════════════════════════════
 
-/** primary 色 (#7aa2f7) — 选中项 */
-const PRIMARY_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+/** primary 色 — 选中项
+ * 逆向: T.primary → LT.blue (indexed 4) */
+const PRIMARY_COLOR = Color.indexed(4);
 
-/** foreground 色 (#c0caf5) — 普通文本 */
-const FG_COLOR = Color.rgb(0xc0, 0xca, 0xf5);
+/** foreground 色 — 普通文本
+ * 逆向: T.foreground → terminal default */
+const FG_COLOR = Color.default();
 
-/** mutedText 色 (#565f89) — 分类/描述 */
-const MUTED_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** mutedText 色 — 分类/描述
+ * 逆向: T.mutedForeground → default + dim */
+const MUTED_COLOR = Color.default();
 
-/** surface 色 (#1a1b26) — 选中背景 */
-const _SURFACE_COLOR = Color.rgb(0x1a, 0x1b, 0x26);
+/** surface 色 — 选中背景 (not used with terminal colors) */
+const _SURFACE_COLOR = Color.default();
 
 // ════════════════════════════════════════════════════
 //  SlashCommandAutocompleteConfig
@@ -107,9 +110,6 @@ export class SlashCommandAutocomplete {
 
   /** @internal 弹出层状态 */
   private _overlayState: OverlayState | null;
-
-  /** @internal 锚点链接 */
-  private _layerLink: LayerLink | null;
 
   /** @internal 是否已释放 */
   private _disposed: boolean = false;
@@ -288,7 +288,7 @@ class SlashCommandOverlayWidget extends StatelessWidget {
 
     const normalStyle = new TextStyle({ foreground: FG_COLOR });
     const selectedStyle = new TextStyle({ foreground: PRIMARY_COLOR });
-    const categoryStyle = new TextStyle({ foreground: MUTED_COLOR });
+    const categoryStyle = new TextStyle({ foreground: MUTED_COLOR, dim: true });
 
     if (options.length === 0) {
       return new RichText({

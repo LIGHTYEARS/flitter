@@ -25,6 +25,11 @@
 
 import type { BuildContext, Widget } from "@flitter/tui";
 import { State, StatefulWidget } from "@flitter/tui";
+import {
+  type AppTheme,
+  AppThemeController,
+  createDefaultAppTheme,
+} from "./app-theme-controller.js";
 import { ConfigProvider } from "./config-provider.js";
 import { ThemeController, type ThemeData } from "./theme-controller.js";
 
@@ -36,12 +41,15 @@ import { ThemeController, type ThemeData } from "./theme-controller.js";
  * AppWidget 配置。
  *
  * @property themeData - 主题数据，传递给 ThemeController
+ * @property appTheme - 应用语义色主题，传递给 AppThemeController（可选，默认 dark）
  * @property configService - 配置服务引用，传递给 ConfigProvider
  * @property child - 子 Widget (通常是 ThreadStateWidget)
  */
 export interface AppWidgetConfig {
   /** 主题数据 */
   themeData: ThemeData;
+  /** 应用语义色主题（可选，defaults to dark） */
+  appTheme?: AppTheme;
   /** 配置服务引用 (实际类型为 @flitter/data ConfigService) */
   configService: unknown;
   /** 子 Widget */
@@ -57,8 +65,9 @@ export interface AppWidgetConfig {
  *
  * 组件树结构:
  *   ThemeController (主题注入)
- *     └── ConfigProvider (配置注入)
- *         └── child (通常是 ThreadStateWidget)
+ *     └── AppThemeController (应用语义色注入)
+ *         └── ConfigProvider (配置注入)
+ *             └── child (通常是 ThreadStateWidget)
  *
  * 逆向: QJT (html-sanitizer-repl.js ~900)
  */
@@ -93,26 +102,32 @@ export class AppWidget extends StatefulWidget {
 /**
  * AppWidget 的状态管理。
  *
- * 负责构建 ThemeController -> ConfigProvider -> child 的嵌套 Widget 树。
+ * 负责构建 ThemeController -> AppThemeController -> ConfigProvider -> child 的嵌套 Widget 树。
  * 后续可扩展 initState/dispose 以管理应用级生命周期。
  *
  * 逆向: wR 基类 (tui-widget-framework.js 1784-1813)
+ * 逆向: modules/2179_unknown_yS.js — yS (AppTheme) injected alongside base theme
  */
 export class AppWidgetState extends State<AppWidget> {
   /**
    * 构建子 Widget 树。
    *
-   * 返回 ThemeController -> ConfigProvider -> child 的嵌套结构。
+   * 返回 ThemeController -> AppThemeController -> ConfigProvider -> child 的嵌套结构。
    *
    * @param _context - 构建上下文
    * @returns ThemeController 根节点
    */
   build(_context: BuildContext): Widget {
+    const appTheme = this.widget.config.appTheme ?? createDefaultAppTheme("dark");
+
     return new ThemeController({
       data: this.widget.config.themeData,
-      child: new ConfigProvider({
-        configService: this.widget.config.configService,
-        child: this.widget.config.child,
+      child: new AppThemeController({
+        theme: appTheme,
+        child: new ConfigProvider({
+          configService: this.widget.config.configService,
+          child: this.widget.config.child,
+        }),
       }),
     });
   }

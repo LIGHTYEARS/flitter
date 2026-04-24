@@ -98,18 +98,18 @@ export interface ShellCommandResult {
 // ════════════════════════════════════════════════════
 
 /**
- * Shell 模式边框颜色 — primary (#7aa2f7)。
+ * Shell 模式边框颜色 — primary (blue)。
  *
- * 逆向: shellMode = T.primary (chunk-004.js:29558)
+ * 逆向: shellMode = T.primary → LT.blue (indexed 4)
  */
-export const SHELL_MODE_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+export const SHELL_MODE_COLOR = Color.indexed(4);
 
 /**
- * 隐藏 Shell 模式边框颜色 — mutedForeground (#565f89)。
+ * 隐藏 Shell 模式边框颜色 — mutedForeground。
  *
- * 逆向: shellModeHidden = T.mutedForeground (chunk-004.js:29559)
+ * 逆向: shellModeHidden = T.mutedForeground → default (dim handled at usage site)
  */
-export const SHELL_MODE_HIDDEN_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+export const SHELL_MODE_HIDDEN_COLOR = Color.default();
 
 // ════════════════════════════════════════════════════
 //  检测函数

@@ -139,6 +139,9 @@ export class WidgetsBinding {
   private _exitHintActive = false;
   private _exitHintTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  /** Listeners notified when exitHintActive changes (逆向: setState in uhT.onExitPressed) */
+  private _exitHintListeners: Set<() => void> = new Set();
+
   /** 当前 MediaQuery Widget 引用，用于 resize 时更新 */
   private currentMediaQueryData: MediaQueryData | null = null;
 
@@ -587,12 +590,22 @@ export class WidgetsBinding {
       } else {
         // 第一次 Ctrl+C: 激活 1s 提示窗口
         this._exitHintActive = true;
+        this._notifyExitHintListeners();
         if (this._exitHintTimeout) clearTimeout(this._exitHintTimeout);
         this._exitHintTimeout = setTimeout(() => {
           this._exitHintActive = false;
           this._exitHintTimeout = null;
+          this._notifyExitHintListeners();
         }, 1000);
       }
+      return;
+    }
+
+    // Ctrl+L → 刷新屏幕 (逆向: d9.handleGlobalKeyEvent, shortcut: x0.ctrl("l"))
+    // 逆向: chunk-004.js:35444-35448 — markForRefresh() + requestFrame()
+    if (event.key === "l" && event.modifiers.ctrl) {
+      this.tui.getScreen().needsFullRefresh = true;
+      this.frameScheduler.requestFrame();
       return;
     }
 
@@ -607,6 +620,27 @@ export class WidgetsBinding {
    */
   get exitHintActive(): boolean {
     return this._exitHintActive;
+  }
+
+  /**
+   * Register a listener for exitHintActive state changes.
+   *
+   * 逆向: In amp, uhT.setState() triggers rebuilds when isConfirmingExit changes.
+   * Flitter's WidgetsBinding is not a widget, so we expose a listener pattern
+   * so that widgets (e.g. BottomStatusLine) can subscribe and call their own setState().
+   *
+   * @returns unsubscribe function
+   */
+  onExitHintChanged(listener: () => void): () => void {
+    this._exitHintListeners.add(listener);
+    return () => {
+      this._exitHintListeners.delete(listener);
+    };
+  }
+
+  /** Notify all exit hint listeners. */
+  private _notifyExitHintListeners(): void {
+    for (const listener of this._exitHintListeners) listener();
   }
 
   /**

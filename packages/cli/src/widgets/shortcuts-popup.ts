@@ -45,14 +45,16 @@ import {
 } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
-//  颜色常量 (Tokyo Night 调色板)
+//  颜色常量 (terminal-indexed, matching amp)
 // ════════════════════════════════════════════════════
 
-/** foreground 色 (#c0caf5) — 快捷键文字 */
-const FG_COLOR = Color.rgb(0xc0, 0xca, 0xf5);
+/** foreground 色 — 快捷键文字
+ * 逆向: T.foreground → terminal default */
+const FG_COLOR = Color.default();
 
-/** mutedText 色 (#565f89) — 描述文字 */
-const MUTED_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** mutedText 色 — 描述文字
+ * 逆向: T.mutedForeground → terminal default + dim */
+const MUTED_COLOR = Color.default();
 
 // ════════════════════════════════════════════════════
 //  快捷键数据
@@ -127,7 +129,7 @@ export class ShortcutsPopup extends StatelessWidget {
    */
   build(_context: BuildContext): Widget {
     const keyStyle = new TextStyle({ foreground: FG_COLOR });
-    const descStyle = new TextStyle({ foreground: MUTED_COLOR });
+    const descStyle = new TextStyle({ foreground: MUTED_COLOR, dim: true });
 
     const rows: Widget[] = SHORTCUT_ROWS.map((row) => {
       return new Row({

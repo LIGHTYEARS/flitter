@@ -61,7 +61,7 @@ echo "$SCREEN" | grep -q "Count: 0" && { echo "FAIL: Stale content"; exit 1; }
 
 ## SGR 鼠标事件注入
 
-Flitter 启用三层鼠标协议：`?1000h`（基础）、`?1003h`（any-event motion）、`?1006h`（SGR 扩展坐标）。
+Flitter 启用四层鼠标协议（匹配 amp）：`?1002h`（button-event tracking）、`?1003h`（any-event motion）、`?1004h`（focus tracking）、`?1006h`（SGR 扩展坐标）。
 因此输入也必须使用 **SGR 格式**。
 
 ### 编码格式

@@ -639,11 +639,15 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
   // /refresh -- refresh screen
   // 逆向: e0R:1518-1526 (id: "refresh", noun: "screen", verb: "refresh")
+  // 逆向: d9.instance.tuiInstance.getScreen().markForRefresh(), k8.instance.requestFrame()
   registry.register({
     name: "refresh",
     description: "Refresh the screen display",
-    execute: async (_args, ctx) => {
-      ctx.showMessage("Screen refresh requested.");
+    execute: async (_args, _ctx) => {
+      const { WidgetsBinding } = await import("@flitter/tui");
+      const binding = WidgetsBinding.instance;
+      binding.tui.getScreen().needsFullRefresh = true;
+      binding.frameScheduler.requestFrame();
     },
   });
 

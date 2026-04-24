@@ -66,4 +66,36 @@ describe("thinking block streaming/cancelled state", () => {
     expect(thinking.isStreaming).toBeFalsy();
     expect(thinking.isCancelled).toBeFalsy();
   });
+
+  it("does not mark thinking as streaming when text block follows (thinking finished)", () => {
+    // When content is [thinking, text] and message is streaming, the text block is
+    // still generating but thinking has already finished — spinner should stop.
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          { type: "thinking", thinking: "Let me think about this..." },
+          { type: "text", text: "Here is my answer so far" },
+        ],
+        state: { type: "streaming" },
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const thinking = items.find((i) => i.type === "thinking") as ThinkingItem;
+    expect(thinking.isStreaming).toBeFalsy();
+  });
+
+  it("marks thinking as streaming when it is the last content block", () => {
+    // When content is [thinking] only (no text yet), thinking is still streaming.
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [{ type: "thinking", thinking: "Still thinking..." }],
+        state: { type: "streaming" },
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const thinking = items.find((i) => i.type === "thinking") as ThinkingItem;
+    expect(thinking.isStreaming).toBe(true);
+  });
 });

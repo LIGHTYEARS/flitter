@@ -31,13 +31,12 @@ import type { BuildContext, Element, KeyEvent, PasteEvent, Widget } from "@flitt
 import {
   Color,
   Column,
-  EdgeInsets,
   FocusManager,
   FocusNode,
   type KeyEventResult,
   MediaQuery,
-  Padding,
   RichText,
+  Row,
   SizedBox,
   State,
   StatefulWidget,
@@ -51,20 +50,27 @@ import { detectShellCommand, getShellModeBorderColor } from "./command-detection
 //  颜色常量
 // ════════════════════════════════════════════════════
 
-/** primary 色 (#7aa2f7) -- 聚焦边框 */
-const PRIMARY_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+/**
+ * 输入框边框色 — 逆向: k8R.build() → e.selectedMessage → colorScheme border fallback
+ *
+ * amp 的 golden capture 显示输入框边框使用终端默认前景色 (无 ESC 着色),
+ * 不区分聚焦/非聚焦状态。
+ */
+const INPUT_BORDER_COLOR = Color.default();
 
-/** border 色 (#3b4261) -- 非聚焦边框 */
-const BORDER_COLOR = Color.rgb(0x3b, 0x42, 0x61);
+/** mutedText 色 — 占位符
+ * 逆向: T.mutedForeground → default + dim */
+const MUTED_TEXT_COLOR = Color.default();
 
-/** mutedText 色 (#565f89) -- 占位符 */
-const MUTED_TEXT_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** text 色 — 输入文本
+ * 逆向: T.foreground → terminal default */
+const TEXT_COLOR = Color.default();
 
-/** text 色 (#a9b1d6) -- 输入文本 */
-const TEXT_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
-
-/** background 色 (#16161e) -- 光标反色前景 */
-const BG_COLOR = Color.rgb(0x16, 0x16, 0x1e);
+/** background 色 — 光标反色前景
+ * 逆向: cursor uses inverse video. We use indexed 0 (black) for the
+ * cursor character foreground so it contrasts against the default bg.
+ * This is the closest terminal-native approach without an 'inverse' SGR attr. */
+const BG_COLOR = Color.indexed(0);
 
 /** 默认边框宽度 (80 列终端 - 2 列边框字符) */
 const DEFAULT_BORDER_INNER_WIDTH = 78;
@@ -93,6 +99,13 @@ export interface InputFieldConfig {
   topRightLabel?: string;
   bottomLeftLabel?: string;
   bottomRightLabel?: string;
+  /**
+   * Enter 提交行为切换 (逆向: submitKey / actions_intents.js:1011-1031)
+   *
+   * - true (default): Enter 提交, Shift+Enter 插入换行
+   * - false: Enter 插入换行, Ctrl+Enter 或 Meta+Enter 提交
+   */
+  enterSubmitsMessage?: boolean;
 }
 
 // ════════════════════════════════════════════════════
@@ -208,7 +221,6 @@ export class InputFieldState extends State<InputField> {
   build(_context: BuildContext): Widget {
     const text = this._controller.text;
     const isEmpty = !text;
-    const isFocused = this._focusNode.hasFocus;
 
     // 逆向: amp uses I9.sizeOf(T).width for dynamic border sizing
     // MediaQuery.sizeOf requires Element, BuildContext is Element at runtime
@@ -219,14 +231,14 @@ export class InputFieldState extends State<InputField> {
       // MediaQuery not in ancestor tree (e.g., unit tests) — use default
     }
 
-    // 边框颜色: shell 模式使用 shellMode/shellModeHidden 色, 否则 primary/border
+    // 边框颜色: shell 模式使用 shellMode/shellModeHidden 色, 否则使用默认边框色
     // 逆向: k8R.build() (chunk-006.js:31497) — currentShellModeStatus ? MN0(R, status) : e.selectedMessage
     const shellResult = detectShellCommand(text);
     let borderColor: Color;
     if (shellResult) {
       borderColor = getShellModeBorderColor(shellResult.visibility);
     } else {
-      borderColor = isFocused ? PRIMARY_COLOR : BORDER_COLOR;
+      borderColor = INPUT_BORDER_COLOR;
     }
     const borderStyle = new TextStyle({ foreground: borderColor });
 
@@ -238,7 +250,7 @@ export class InputFieldState extends State<InputField> {
       contentWidget = new RichText({
         text: new TextSpan({
           text: placeholder,
-          style: new TextStyle({ foreground: MUTED_TEXT_COLOR }),
+          style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
         }),
       });
     } else {
@@ -295,20 +307,58 @@ export class InputFieldState extends State<InputField> {
         new RichText({
           text: new TextSpan({ text: topBorder, style: borderStyle }),
         }),
-        // 内容区 (带 1 列左右 padding)
-        new Padding({
-          padding: EdgeInsets.symmetric({ horizontal: 1 }),
-          child: new SizedBox({
-            height: 3,
-            child: contentWidget,
-          }),
-        }),
+        // 内容区: │ content │ (3 行, 左右各 │ 边框)
+        // 逆向: amp SR._paintGridBorders 自动绘制 │ 侧边框
+        ...this._buildContentRows(contentWidget, borderInnerWidth, borderStyle),
         // 底部边框: ╰──...──╯
         new RichText({
           text: new TextSpan({ text: bottomBorder, style: borderStyle }),
         }),
       ],
     });
+  }
+
+  /**
+   * 构建带 │ 侧边框的内容行。
+   *
+   * 生成 3 行 (固定高度):
+   *   │ {content padded to innerWidth} │
+   *   │ {空白 padded to innerWidth}    │
+   *   │ {空白 padded to innerWidth}    │
+   *
+   * 逆向: amp SR._paintGridBorders 自动在 BoxDecoration border 区域绘制 │
+   */
+  private _buildContentRows(
+    contentWidget: Widget,
+    innerWidth: number,
+    borderStyle: TextStyle,
+  ): Widget[] {
+    const SIDE = "\u2502"; // │
+    const rows: Widget[] = [];
+
+    // Row 1: │ {content} │
+    rows.push(
+      new Row({
+        mainAxisSize: "min",
+        children: [
+          new RichText({ text: new TextSpan({ text: `${SIDE} `, style: borderStyle }) }),
+          new SizedBox({ width: innerWidth, child: contentWidget }),
+          new RichText({ text: new TextSpan({ text: ` ${SIDE}`, style: borderStyle }) }),
+        ],
+      }),
+    );
+
+    // Rows 2-3: │ {blank} │
+    const blankFill = " ".repeat(innerWidth);
+    for (let i = 0; i < 2; i++) {
+      rows.push(
+        new RichText({
+          text: new TextSpan({ text: `${SIDE} ${blankFill} ${SIDE}`, style: borderStyle }),
+        }),
+      );
+    }
+
+    return rows;
   }
 
   // ──────────────────────────────────────────────
@@ -318,46 +368,285 @@ export class InputFieldState extends State<InputField> {
   /**
    * 处理键盘事件。
    *
-   * - Shift+Enter: 插入换行 (多行模式)
-   * - Enter (无 Shift): 触发 onSubmit 回调 (文本非空时)
-   * - Backspace: 向前删除一个字符
-   * - 普通字符 (非 Ctrl/Meta): 插入文本
+   * 逆向: actions_intents.js:1008-1150 — TextField key handler
+   *
+   * Enter/Submit 行为由 enterSubmitsMessage 配置控制:
+   * - enterSubmitsMessage=true (default): Enter 提交, Shift+Enter 插入换行
+   * - enterSubmitsMessage=false: Enter 插入换行, Ctrl+Enter / Meta+Enter 提交
+   *
+   * Emacs-style Ctrl keybindings (逆向: actions_intents.js:1054-1091):
+   * - Ctrl+A/E: 行首/行尾  Ctrl+U/K: 删除到行首/行尾
+   * - Ctrl+F/B: 右移/左移  Ctrl+D/H: 向后删除/向前删除
+   * - Ctrl+W: 删词左  Ctrl+Y: yank  Ctrl+N/P: 下/上移  Ctrl+J: 换行
+   *
+   * Alt/Meta word-level navigation (逆向: actions_intents.js:1092-1127):
+   * - Alt+Left/Alt+B: 词左移  Alt+Right/Alt+F: 词右移
+   * - Alt+D: 删词右  Alt+Backspace: 删词左
+   * - Meta+Left: 行首  Meta+Right: 行尾
    *
    * @param event - 键盘事件
    * @returns 处理结果
    */
   private _handleKeyEvent(event: KeyEvent): KeyEventResult {
-    // Shift+Enter: 插入换行
-    if (event.key === "Enter" && event.modifiers.shift) {
-      this._controller.insertText("\n");
-      this._markDirty();
-      return "handled";
-    }
+    const m = this._controller;
+    const enterSubmits = this.widget.config.enterSubmitsMessage ?? true;
 
-    // Enter (无 Shift): 提交
-    if (event.key === "Enter" && !event.modifiers.shift) {
-      const text = this._controller.text;
-      if (text.trim()) {
-        this._controller.text = "";
-        this.widget.config.onSubmit(text);
+    // ── Enter / Submit handling ──
+    // 逆向: actions_intents.js:1011-1039
+    if (event.key === "Enter") {
+      if (enterSubmits) {
+        // Ctrl+Enter or Meta+Enter also submit in this mode
+        if (event.modifiers.ctrl || event.modifiers.meta) {
+          return this._submitText();
+        }
+        // Shift+Enter: insert newline
+        if (event.modifiers.shift) {
+          m.insertText("\n");
+          this._markDirty();
+          return "handled";
+        }
+        // Bare Enter: submit
+        return this._submitText();
+      } else {
+        // enterSubmitsMessage=false: Ctrl+Enter or Meta+Enter submits
+        if (event.modifiers.ctrl || event.modifiers.meta) {
+          return this._submitText();
+        }
+        // Shift+Enter or bare Enter: insert newline
+        m.insertText("\n");
+        this._markDirty();
+        return "handled";
       }
-      return "handled";
     }
 
+    // ── Backspace ──
+    // 逆向: actions_intents.js:1040-1049
     if (event.key === "Backspace") {
-      this._controller.deleteText();
+      if (event.modifiers.alt) {
+        m.deleteWordLeft();
+      } else {
+        m.deleteSelectedOrText(1);
+      }
       this._markDirty();
       return "handled";
     }
 
-    // 普通可打印字符 (单字符，无 ctrl/meta 修饰)
+    // ── Delete ──
+    // 逆向: actions_intents.js:1050-1052
+    if (event.key === "Delete") {
+      if (m.hasSelection) {
+        m.deleteSelectedText();
+      } else {
+        m.deleteForward(1);
+      }
+      this._markDirty();
+      return "handled";
+    }
+
+    // ── Tab / Escape: pass through ──
+    if (event.key === "Tab" || event.key === "Escape") {
+      return "ignored";
+    }
+
+    // ── Ctrl keybindings ──
+    // 逆向: actions_intents.js:1054-1091
+    if (event.modifiers.ctrl) {
+      const shift = event.modifiers.shift;
+      if (event.key === "a") {
+        // Ctrl+A: multiline → line start, single line → document start
+        // InputField always supports multiline text (\n), so use moveCursorToLineStart
+        m.moveCursorToLineStart({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "e") {
+        // Ctrl+E: multiline → line end, single line → document end
+        m.moveCursorToLineEnd({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "u") {
+        m.deleteToLineStart();
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "k") {
+        m.deleteToLineEnd();
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "f") {
+        m.moveCursorRight({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "b") {
+        m.moveCursorLeft({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "n") {
+        // Ctrl+N: move down (with amp edge-case logic)
+        // 逆向: actions_intents.js:1065-1078
+        const line = m.cursorLine;
+        const lineCount = m.lineCount;
+        if (line === lineCount - 1) {
+          // On last line: if not at end, move to line end; else ignored
+          const gs = m.graphemes;
+          // Find end of current line (count graphemes until newline or end)
+          let lineEnd = m.cursorPosition;
+          while (lineEnd < gs.length && gs[lineEnd] !== "\n") lineEnd++;
+          if (m.cursorPosition === lineEnd) {
+            return "ignored";
+          } else {
+            m.moveCursorToLineEnd({ extend: shift });
+            this._markDirty();
+            return "handled";
+          }
+        } else {
+          const oldPos = m.cursorPosition;
+          m.moveCursorDown({ extend: shift });
+          if (m.cursorPosition === oldPos) return "ignored";
+          this._markDirty();
+          return "handled";
+        }
+      } else if (event.key === "p") {
+        // Ctrl+P: move up (with amp edge-case logic)
+        // 逆向: actions_intents.js:1079-1089
+        const line = m.cursorLine;
+        if (line === 0) {
+          const oldPos = m.cursorPosition;
+          m.moveCursorToLineStart({ extend: shift });
+          if (m.cursorPosition === oldPos) return "ignored";
+          this._markDirty();
+          return "handled";
+        } else {
+          const oldPos = m.cursorPosition;
+          m.moveCursorUp({ extend: shift });
+          if (m.cursorPosition === oldPos) return "ignored";
+          this._markDirty();
+          return "handled";
+        }
+      } else if (event.key === "d") {
+        m.deleteForward(1);
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "h") {
+        m.deleteText(1);
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "ArrowLeft") {
+        // Ctrl+ArrowLeft: word boundary left (逆向: actions_intents.js:1090)
+        m.moveCursorWordBoundary("left", { extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "ArrowRight") {
+        // Ctrl+ArrowRight: word boundary right (逆向: actions_intents.js:1090)
+        m.moveCursorWordBoundary("right", { extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "w") {
+        m.deleteWordLeft();
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "y") {
+        m.yankText();
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "j") {
+        // Ctrl+J: insert newline (multiline only)
+        m.insertText("\n");
+        this._markDirty();
+        return "handled";
+      }
+      // Unrecognized Ctrl combo — fall through to "ignored"
+    } else if (event.modifiers.alt || event.modifiers.meta) {
+      // ── Alt/Meta keybindings ──
+      // 逆向: actions_intents.js:1092-1127
+      const shift = event.modifiers.shift;
+
+      // Meta+Arrow: line start/end (逆向: actions_intents.js:1093-1098)
+      if (event.modifiers.meta && event.key === "ArrowLeft") {
+        m.moveCursorToLineStart({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.modifiers.meta && event.key === "ArrowRight") {
+        m.moveCursorToLineEnd({ extend: shift });
+        this._markDirty();
+        return "handled";
+      }
+
+      // Alt+Arrow or Alt+B/F: word boundary movement (逆向: actions_intents.js:1120-1122)
+      const isWordLeft = event.key === "ArrowLeft" || event.key.toLowerCase() === "b";
+      const isWordRight = event.key === "ArrowRight" || event.key.toLowerCase() === "f";
+      if (isWordLeft || isWordRight) {
+        m.moveCursorWordBoundary(isWordLeft ? "left" : "right", { extend: shift });
+        this._markDirty();
+        return "handled";
+      }
+
+      // Alt+D: delete word right (逆向: actions_intents.js:1123-1127)
+      if (event.key.toLowerCase() === "d") {
+        const lenBefore = m.text.length;
+        m.deleteWordRight();
+        if (m.text.length < lenBefore) {
+          this._markDirty();
+          return "handled";
+        }
+        return "ignored";
+      }
+
+      // Alt+Backspace: delete word left (逆向: actions_intents.js:1045)
+      if (event.key === "Backspace") {
+        m.deleteWordLeft();
+        this._markDirty();
+        return "handled";
+      }
+    } else {
+      // ── Arrow keys (no modifiers or shift only) ──
+      // 逆向: actions_intents.js:1128-1150
+      const shift = event.modifiers.shift;
+      if (event.key === "ArrowLeft") {
+        m.moveCursorLeft({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "ArrowRight") {
+        m.moveCursorRight({ extend: shift });
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "ArrowUp") {
+        const oldPos = m.cursorPosition;
+        m.moveCursorUp({ extend: shift });
+        if (m.cursorPosition === oldPos) return "ignored";
+        this._markDirty();
+        return "handled";
+      } else if (event.key === "ArrowDown") {
+        const oldPos = m.cursorPosition;
+        m.moveCursorDown({ extend: shift });
+        if (m.cursorPosition === oldPos) return "ignored";
+        this._markDirty();
+        return "handled";
+      }
+    }
+
+    // ── 普通可打印字符 (单字符，无 ctrl/meta 修饰) ──
     if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
-      this._controller.insertText(event.key);
+      m.insertText(event.key);
       this._markDirty();
       return "handled";
     }
 
     return "ignored";
+  }
+
+  /**
+   * 提交文本内容。
+   *
+   * 清空输入框并触发 onSubmit 回调（仅在文本非空时）。
+   *
+   * @returns 处理结果
+   */
+  private _submitText(): KeyEventResult {
+    const text = this._controller.text;
+    if (text.trim()) {
+      this._controller.text = "";
+      this.widget.config.onSubmit(text);
+    }
+    return "handled";
   }
 
   /**

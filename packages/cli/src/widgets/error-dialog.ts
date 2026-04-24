@@ -64,25 +64,23 @@ export interface ErrorDialogConfig {
 /**
  * Error border/title color.
  *
- * 逆向: j0R.build -> borderColor: R.destructive (colorScheme.destructive)
- * In Tokyo Night theme, destructive maps to the error red.
+ * 逆向: j0R.build -> borderColor: R.destructive → LT.red (indexed 1)
  */
-const ERROR_COLOR = Color.rgb(0xf7, 0x76, 0x8e);
+const ERROR_COLOR = Color.indexed(1);
 
 /**
  * Muted text for the dismissal hint.
  *
- * 逆向: WQT.build -> t = R.mutedForeground
- * Used for "Escape to close" hint in the io dialog.
+ * 逆向: WQT.build -> t = R.mutedForeground → default + dim
  */
-const MUTED_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+const MUTED_COLOR = Color.default();
 
 /**
  * Body/description text color.
  *
- * 逆向: Standard foreground from Tokyo Night theme.
+ * 逆向: Standard foreground → terminal default.
  */
-const TEXT_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
+const TEXT_COLOR = Color.default();
 
 // ════════════════════════════════════════════════════
 //  ErrorDialog Widget
@@ -196,7 +194,7 @@ class ErrorDialogState extends State<ErrorDialog> {
       new RichText({
         text: new TextSpan({
           text: "Press Esc or Enter to dismiss",
-          style: new TextStyle({ foreground: MUTED_COLOR }),
+          style: new TextStyle({ foreground: MUTED_COLOR, dim: true }),
         }),
       }),
     ];

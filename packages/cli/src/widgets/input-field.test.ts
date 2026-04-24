@@ -95,12 +95,28 @@ function collectRichTexts(widget: any): any[] {
 /**
  * 检查 TextSpan 树中是否包含指定 RGB 前景色。
  */
-function hasColorInSpan(span: TextSpan, r: number, g: number, b: number): boolean {
+function _hasColorInSpan(span: TextSpan, r: number, g: number, b: number): boolean {
   let found = false;
   span.visitTextSpan((s) => {
     if (found) return false;
     const fg = s.style?.foreground;
     if (fg && fg.kind === "rgb" && fg.r === r && fg.g === g && fg.b === b) {
+      found = true;
+    }
+    return true;
+  });
+  return found;
+}
+
+/**
+ * 检查 TextSpan 树中是否包含 Color.default() 前景色 (kind === "default")。
+ */
+function hasDefaultColorInSpan(span: TextSpan): boolean {
+  let found = false;
+  span.visitTextSpan((s) => {
+    if (found) return false;
+    const fg = s.style?.foreground;
+    if (fg && fg.kind === "default") {
       found = true;
     }
     return true;
@@ -184,16 +200,25 @@ describe("InputField visual fidelity", () => {
     state.dispose();
   });
 
-  it("占位符使用 mutedText 色 (#565f89)", () => {
+  it("占位符使用 dim 样式 (terminal default + dim)", () => {
     const { state } = mountInputField({ onSubmit: () => {} });
     const built = state.build({} as any);
     const richTexts = collectRichTexts(built);
 
-    // 查找包含 placeholder 且颜色为 #565f89 的 RichText
-    const hasMutedPlaceholder = richTexts.some((rt: any) =>
-      hasColorInSpan(rt.text, 0x56, 0x5f, 0x89),
-    );
-    assert.ok(hasMutedPlaceholder, "Placeholder should use mutedText color #565f89");
+    // 查找包含 placeholder 文本且 dim 为 true 的 RichText
+    let hasDimPlaceholder = false;
+    for (const rt of richTexts) {
+      rt.text.visitTextSpan((s: any) => {
+        if (hasDimPlaceholder) return false;
+        if (s.text?.includes("Type a message") && s.style?.dim === true) {
+          hasDimPlaceholder = true;
+          return false;
+        }
+        return true;
+      });
+      if (hasDimPlaceholder) break;
+    }
+    assert.ok(hasDimPlaceholder, "Placeholder should use dim style");
 
     state.dispose();
   });
@@ -226,10 +251,12 @@ describe("InputField visual fidelity", () => {
     const richTexts = collectRichTexts(built);
 
     // 查找包含 background 颜色的 span (inverse video 效果)
+    // Cursor uses background = Color.default() (terminal fg as bg)
+    // and foreground = Color.indexed(0) (black) for contrast
     let hasInverseSpan = false;
     for (const rt of richTexts) {
       rt.text.visitTextSpan((s: TextSpan) => {
-        if (s.style?.background && s.style.background.kind === "rgb") {
+        if (s.style?.foreground && s.style.foreground.kind === "index") {
           hasInverseSpan = true;
           return false;
         }
@@ -243,32 +270,14 @@ describe("InputField visual fidelity", () => {
     state.dispose();
   });
 
-  it("聚焦时边框使用 primary 色 (#7aa2f7)", () => {
+  it("边框使用终端默认前景色 (逆向: amp golden capture)", () => {
     const { state } = mountInputField({ onSubmit: () => {} });
-    // InputField 默认请求焦点
     const built = state.build({} as any);
     const richTexts = collectRichTexts(built);
 
-    // 检查 border 线条使用 primary 色
-    const hasPrimaryBorder = richTexts.some((rt: any) => hasColorInSpan(rt.text, 0x7a, 0xa2, 0xf7));
-    assert.ok(hasPrimaryBorder, "Focused border should use primary color #7aa2f7");
-
-    state.dispose();
-  });
-
-  it("非聚焦时边框使用 border 色 (#3b4261)", () => {
-    const { state } = mountInputField({ onSubmit: () => {} });
-
-    // 模拟失焦
-    const focusNode = (state as any)._focusNode;
-    focusNode.unfocus();
-
-    const built = state.build({} as any);
-    const richTexts = collectRichTexts(built);
-
-    // 检查 border 线条使用 border 色
-    const hasBorderColor = richTexts.some((rt: any) => hasColorInSpan(rt.text, 0x3b, 0x42, 0x61));
-    assert.ok(hasBorderColor, "Unfocused border should use border color #3b4261");
+    // 检查 border 线条使用 Color.default() (终端默认前景色)
+    const hasDefaultBorder = richTexts.some((rt: any) => hasDefaultColorInSpan(rt.text));
+    assert.ok(hasDefaultBorder, "Border should use terminal default foreground color");
 
     state.dispose();
   });

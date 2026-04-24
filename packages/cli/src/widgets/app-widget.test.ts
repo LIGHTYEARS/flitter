@@ -4,7 +4,8 @@
  * 验证:
  * - AppWidget.createState 返回 AppWidgetState
  * - AppWidgetState.build 返回 ThemeController 根节点
- * - ThemeController child 为 ConfigProvider
+ * - ThemeController child 为 AppThemeController
+ * - AppThemeController child 为 ConfigProvider
  * - ConfigProvider child 为 config.child
  * - ThreadStateWidget.createState 返回 ThreadStateWidgetState
  * - ThreadStateWidgetState.build 返回 config.child
@@ -14,8 +15,10 @@
  * @module
  */
 
-import { describe, expect, it, mock } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import { Column, State, StatefulWidget } from "@flitter/tui";
+import { AppThemeController } from "./app-theme-controller.js";
 import { AppWidget, AppWidgetState } from "./app-widget.js";
 import { ConfigProvider } from "./config-provider.js";
 import { ThemeController, type ThemeData } from "./theme-controller.js";
@@ -66,7 +69,7 @@ describe("AppWidget", () => {
       configService: {},
       child,
     });
-    expect(widget).toBeInstanceOf(StatefulWidget);
+    assert.ok(widget instanceof StatefulWidget);
   });
 
   it("createState 返回 AppWidgetState", () => {
@@ -77,7 +80,7 @@ describe("AppWidget", () => {
       child,
     });
     const state = widget.createState();
-    expect(state).toBeInstanceOf(AppWidgetState);
+    assert.ok(state instanceof AppWidgetState);
   });
 
   it("build 返回 ThemeController 根节点", () => {
@@ -92,10 +95,10 @@ describe("AppWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never);
-    expect(built).toBeInstanceOf(ThemeController);
+    assert.ok(built instanceof ThemeController);
   });
 
-  it("ThemeController child 为 ConfigProvider", () => {
+  it("ThemeController child 为 AppThemeController", () => {
     const child = new StubWidget();
     const themeData = createThemeData();
     const configService = { key: "value" };
@@ -106,8 +109,22 @@ describe("AppWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never) as ThemeController;
-    // ThemeController 的 child 应该是 ConfigProvider
-    expect((built as unknown as { child: unknown }).child).toBeInstanceOf(ConfigProvider);
+    assert.ok((built as unknown as { child: unknown }).child instanceof AppThemeController);
+  });
+
+  it("AppThemeController child 为 ConfigProvider", () => {
+    const child = new StubWidget();
+    const themeData = createThemeData();
+    const configService = { key: "value" };
+    const widget = new AppWidget({ themeData, configService, child });
+    const state = widget.createState() as AppWidgetState;
+
+    (state as unknown as { _widget: typeof widget })._widget = widget;
+    (state as unknown as { _mounted: boolean })._mounted = true;
+
+    const built = state.build({} as never) as ThemeController;
+    const appThemeCtrl = (built as unknown as { child: unknown }).child as AppThemeController;
+    assert.ok((appThemeCtrl as unknown as { child: unknown }).child instanceof ConfigProvider);
   });
 
   it("ConfigProvider child 为 config.child", () => {
@@ -121,8 +138,9 @@ describe("AppWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never) as ThemeController;
-    const configProvider = (built as unknown as { child: unknown }).child as ConfigProvider;
-    expect((configProvider as unknown as { child: unknown }).child).toBe(child);
+    const appThemeCtrl = (built as unknown as { child: unknown }).child as AppThemeController;
+    const configProvider = (appThemeCtrl as unknown as { child: unknown }).child as ConfigProvider;
+    assert.equal((configProvider as unknown as { child: unknown }).child, child);
   });
 });
 
@@ -138,7 +156,7 @@ describe("ThreadStateWidget", () => {
       threadId: "test",
       onSubmit: () => {},
     });
-    expect(widget).toBeInstanceOf(StatefulWidget);
+    assert.ok(widget instanceof StatefulWidget);
   });
 
   it("createState 返回 ThreadStateWidgetState", () => {
@@ -149,7 +167,7 @@ describe("ThreadStateWidget", () => {
       onSubmit: () => {},
     });
     const state = widget.createState();
-    expect(state).toBeInstanceOf(ThreadStateWidgetState);
+    assert.ok(state instanceof ThreadStateWidgetState);
   });
 
   it("build 返回 Column 布局", () => {
@@ -165,7 +183,7 @@ describe("ThreadStateWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never);
-    expect(built).toBeInstanceOf(Column);
+    assert.ok(built instanceof Column);
   });
 });
 
@@ -183,7 +201,10 @@ describe("State 公共行为", () => {
     });
     const state = widget.createState() as AppWidgetState;
 
-    const markNeedsRebuild = mock(() => {});
+    let rebuildCount = 0;
+    const markNeedsRebuild = () => {
+      rebuildCount++;
+    };
     (state as unknown as { _widget: typeof widget })._widget = widget;
     (state as unknown as { _mounted: boolean })._mounted = true;
     (state as unknown as { _element: unknown })._element = { markNeedsRebuild };
@@ -193,8 +214,8 @@ describe("State 公共行为", () => {
       called = true;
     });
 
-    expect(called).toBe(true);
-    expect(markNeedsRebuild).toHaveBeenCalledTimes(1);
+    assert.ok(called);
+    assert.equal(rebuildCount, 1);
   });
 
   it("setState 在 unmounted 时抛出 Error", () => {
@@ -207,6 +228,6 @@ describe("State 公共行为", () => {
     const state = widget.createState() as AppWidgetState;
 
     // _mounted 默认是 false
-    expect(() => state.setState()).toThrow();
+    assert.throws(() => state.setState());
   });
 });

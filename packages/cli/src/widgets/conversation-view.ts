@@ -21,7 +21,7 @@
  * @module
  */
 
-import type { BuildContext, Widget } from "@flitter/tui";
+import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
   Border,
   BorderSide,
@@ -48,6 +48,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import { type AppTheme, AppThemeController } from "./app-theme-controller.js";
 import { buildDiffWidget } from "./diff-widget.js";
 import type {
   ActivityAction,
@@ -374,9 +375,18 @@ export class ConversationViewState extends State<ConversationView> {
   build(_context: BuildContext): Widget {
     const { items, messages, inferenceState, error } = this.widget.config;
 
+    // 逆向: $R.of(T).app — access AppTheme from context for semantic colors
+    // Use try/catch because build() may receive a mock BuildContext in tests
+    let appTheme: AppTheme | null = null;
+    try {
+      appTheme = AppThemeController.maybeOf(_context as unknown as Element);
+    } catch {
+      // No AppThemeController in ancestor tree — fall back to hardcoded colors
+    }
+
     // Prefer items (new DisplayItem path) over legacy messages
     if (items && items.length > 0) {
-      return this._buildFromItems(items, inferenceState, error);
+      return this._buildFromItems(items, inferenceState, error, appTheme);
     }
 
     // Legacy path: iterate messages array
@@ -392,11 +402,17 @@ export class ConversationViewState extends State<ConversationView> {
    *
    * Dispatches each item to its type-specific renderer.
    * 逆向: yx0 main loop produces items, then the conversation view iterates them.
+   *
+   * @param items - Display items
+   * @param inferenceState - Current inference state
+   * @param error - Latest error, if any
+   * @param appTheme - Optional AppTheme for semantic colors
    */
   private _buildFromItems(
     items: DisplayItem[],
     inferenceState?: "idle" | "running",
     error?: Error | null,
+    appTheme?: AppTheme | null,
   ): Widget {
     const children: Widget[] = [];
 
@@ -405,13 +421,13 @@ export class ConversationViewState extends State<ConversationView> {
 
       switch (item.type) {
         case "message":
-          children.push(this._buildMessageItemWidget(item));
+          children.push(this._buildMessageItemWidget(item, appTheme));
           break;
         case "tool":
-          children.push(this._buildToolWidget(item));
+          children.push(this._buildToolWidget(item, appTheme));
           break;
         case "activity-group":
-          children.push(this._buildActivityGroupWidget(item, i));
+          children.push(this._buildActivityGroupWidget(item, i, appTheme));
           break;
         case "thinking":
           children.push(this._buildThinkingWidget(item, i));
@@ -492,27 +508,39 @@ export class ConversationViewState extends State<ConversationView> {
    *
    * 逆向: amp-cli-reversed/modules/1959_unknown_x8R.js — uses renderStreaming() for
    * streaming messages, renders trailing cursor block █ in accent color.
+   * 逆向: chunk-005.js:2956 — a.app.userMessage for user role color
+   * 逆向: chunk-006.js:11759 — R.app.assistantMessage for assistant markdown style
    *
    * @param item - MessageItem from DisplayItem[]
+   * @param appTheme - Optional AppTheme for semantic message colors
    * @returns Message Widget
    */
-  private _buildMessageItemWidget(item: MessageItem): Widget {
+  private _buildMessageItemWidget(item: MessageItem, appTheme?: AppTheme | null): Widget {
     // 逆向: S$ widget — user messages get left border, not role prefix
     if (item.role === "user") {
-      return this._buildUserMessageWidget(item);
+      return this._buildUserMessageWidget(item, appTheme);
     }
 
     // Assistant/system messages keep the role prefix + markdown
+    // 逆向: chunk-005.js:2956 — a.app.userMessage; chunk-006.js:11759 — R.app.assistantMessage
     const roleConfig = ROLE_CONFIG[item.role] ?? {
       prefix: `${item.role}: `,
       color: MUTED_TEXT_COLOR,
     };
 
+    // Use AppTheme colors when available
+    const roleColor =
+      item.role === "assistant"
+        ? (appTheme?.assistantMessage ?? roleConfig.color)
+        : item.role === "system"
+          ? (appTheme?.systemMessage ?? roleConfig.color)
+          : roleConfig.color;
+
     const roleSpan = new TextSpan({
       text: roleConfig.prefix,
       style: new TextStyle({
         bold: true,
-        foreground: roleConfig.color,
+        foreground: roleColor,
       }),
     });
 
@@ -597,8 +625,12 @@ export class ConversationViewState extends State<ConversationView> {
    *   decoration: { border: new h9(void 0, void 0, void 0, new e9(r, 2, "solid")) }
    *   padding: TR.only({ left: 1 })
    *   Color: e.success for normal, e.warning for interrupted
+   * 逆向: chunk-005.js:2956 — a.app.userMessage for user message color
+   *
+   * @param item - User MessageItem
+   * @param appTheme - Optional AppTheme for semantic message colors
    */
-  private _buildUserMessageWidget(item: MessageItem): Widget {
+  private _buildUserMessageWidget(item: MessageItem, _appTheme?: AppTheme | null): Widget {
     const ast = this._parser.parse(item.text);
     const contentSpans = this._renderer.render(ast);
 
@@ -675,12 +707,23 @@ export class ConversationViewState extends State<ConversationView> {
    * - in-progress → toolRunning (TOOL_RUNNING_COLOR)
    * - cancelled/rejected → toolCancelled (CANCELLED_COLOR)
    *
+   * 逆向: oE0(T, R) (chunk-004.js:21143) — R.app.toolSuccess/toolError/toolCancelled/toolRunning
+   * 逆向: chunk-006.js:6179 — R.app.toolRunning for spinner
+   * 逆向: chunk-006.js:6184 — R.app.toolName for tool name
+   *
    * @param tool - ToolItem from DisplayItem[]
+   * @param appTheme - Optional AppTheme for semantic colors
    * @returns Tool row Widget
    */
-  private _buildToolWidget(tool: ToolItem): Widget {
+  private _buildToolWidget(tool: ToolItem, appTheme?: AppTheme | null): Widget {
     const isInProgress = tool.status === "in-progress";
     const isBash = tool.kind === "bash";
+
+    // Resolve semantic colors from AppTheme with fallbacks
+    const toolRunningColor = appTheme?.toolRunning ?? TOOL_RUNNING_COLOR;
+    const toolNameColor = appTheme?.toolName ?? TOOL_NAME_COLOR;
+    const toolErrorColor = appTheme?.toolError ?? ERROR_COLOR_LOCAL;
+    const toolSuccessColor = appTheme?.toolSuccess ?? SUCCESS_COLOR;
 
     // 逆向: G9R.build() (chunk-006.js:30002-30064) — F9R/G9R buildShellCommandTool
     const spans: TextSpan[] = [];
@@ -694,13 +737,15 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
+            style: new TextStyle({ foreground: toolRunningColor }),
           }),
         );
       } else {
         const hasNonZeroExit =
           tool.status === "done" && typeof tool.exitCode === "number" && tool.exitCode !== 0;
-        const statusColor = hasNonZeroExit ? ERROR_COLOR_LOCAL : _getStatusColor(tool.status);
+        const statusColor = hasNonZeroExit
+          ? toolErrorColor
+          : _getStatusColor(tool.status, appTheme);
         spans.push(
           new TextSpan({
             text: "$ ",
@@ -754,12 +799,12 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
+            style: new TextStyle({ foreground: toolRunningColor }),
           }),
         );
       } else {
         const icon = _getStatusIcon(tool.status);
-        const iconColor = _getStatusColor(tool.status);
+        const iconColor = _getStatusColor(tool.status, appTheme);
         spans.push(
           new TextSpan({
             text: `${icon} `,
@@ -769,10 +814,11 @@ export class ConversationViewState extends State<ConversationView> {
       }
 
       // Tool name (bold, tool color)
+      // 逆向: chunk-006.js:6184 — R.app.toolName
       spans.push(
         new TextSpan({
           text: tool.toolName,
-          style: new TextStyle({ bold: true, foreground: TOOL_NAME_COLOR }),
+          style: new TextStyle({ bold: true, foreground: toolNameColor }),
         }),
       );
 
@@ -797,7 +843,7 @@ export class ConversationViewState extends State<ConversationView> {
 
     // 逆向: chunk-004.js:21064-21067 — edit branch renders diff via cE0(T.diff, R)
     if ((tool.kind === "edit" || tool.kind === "create-file") && tool.diff) {
-      columnChildren.push(buildDiffWidget(tool.diff));
+      columnChildren.push(buildDiffWidget(tool.diff, appTheme ?? undefined));
     }
 
     // 逆向: $9R (misc_utils.js:6962-7075) — apply_patch per-file diff rendering
@@ -820,7 +866,7 @@ export class ConversationViewState extends State<ConversationView> {
         summarySpans.push(
           new TextSpan({
             text: ` +${totalAdditions}`,
-            style: new TextStyle({ foreground: SUCCESS_COLOR }),
+            style: new TextStyle({ foreground: toolSuccessColor }),
           }),
         );
       }
@@ -828,7 +874,7 @@ export class ConversationViewState extends State<ConversationView> {
         summarySpans.push(
           new TextSpan({
             text: ` -${totalDeletions}`,
-            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+            style: new TextStyle({ foreground: toolErrorColor }),
           }),
         );
       }
@@ -843,16 +889,16 @@ export class ConversationViewState extends State<ConversationView> {
           }),
           new TextSpan({
             text: ` +${file.additions}`,
-            style: new TextStyle({ foreground: SUCCESS_COLOR }),
+            style: new TextStyle({ foreground: toolSuccessColor }),
           }),
           new TextSpan({
             text: ` -${file.deletions}`,
-            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+            style: new TextStyle({ foreground: toolErrorColor }),
           }),
         ];
         columnChildren.push(new RichText({ text: new TextSpan({ children: fileSpans }) }));
         if (file.diff) {
-          columnChildren.push(buildDiffWidget(file.diff));
+          columnChildren.push(buildDiffWidget(file.diff, appTheme ?? undefined));
         }
       }
     }
@@ -888,12 +934,13 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     // Error message in red — 逆向: chunk-006.js:30056-30058
+    // 逆向: R.app.toolError for error messages
     if (tool.error) {
       columnChildren.push(
         new RichText({
           text: new TextSpan({
             text: `  Error: ${tool.error}`,
-            style: new TextStyle({ foreground: ERROR_COLOR_LOCAL }),
+            style: new TextStyle({ foreground: toolErrorColor }),
           }),
         }),
       );
@@ -928,12 +975,26 @@ export class ConversationViewState extends State<ConversationView> {
    * default expanded = !completed (i.e., in-progress groups start expanded).
    * _closeDenseActivityGroupsOnBoundary auto-collapses completed groups.
    *
+   * 逆向: chunk-006.js:6179 — R.app.toolRunning for spinner
+   * 逆向: chunk-006.js:6181 — R.app.toolSuccess for checkmark
+   * 逆向: chunk-006.js:6184 — R.app.toolName for summary text
+   *
    * @param group - ActivityGroupItem from DisplayItem[]
    * @param itemIndex - Index in items array, used to key collapse state
+   * @param appTheme - Optional AppTheme for semantic colors
    * @returns Header widget (collapsed) or Column with header + rows (expanded)
    */
-  private _buildActivityGroupWidget(group: ActivityGroupItem, itemIndex?: number): Widget {
+  private _buildActivityGroupWidget(
+    group: ActivityGroupItem,
+    itemIndex?: number,
+    appTheme?: AppTheme | null,
+  ): Widget {
     const hasActions = group.actions.length > 0;
+
+    // Resolve semantic colors from AppTheme with fallbacks
+    const toolRunningColor = appTheme?.toolRunning ?? TOOL_RUNNING_COLOR;
+    const toolSuccessColor = appTheme?.toolSuccess ?? SUCCESS_COLOR;
+    const toolNameColor = appTheme?.toolName ?? TOOL_NAME_COLOR;
 
     // 逆向: denseViewItemStates.get(id) ?? !completed — default expanded when in-progress
     const defaultExpanded = group.hasInProgress;
@@ -946,23 +1007,25 @@ export class ConversationViewState extends State<ConversationView> {
     const headerSpans: TextSpan[] = [];
 
     // Status icon for the group
+    // 逆向: chunk-006.js:6178-6181 — R.app.toolRunning / R.app.toolSuccess
     if (group.hasInProgress) {
       headerSpans.push(
         new TextSpan({
           text: `${this._spinner.toBraille()} `,
-          style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
+          style: new TextStyle({ foreground: toolRunningColor }),
         }),
       );
     } else {
       headerSpans.push(
         new TextSpan({
           text: "\u2713 ",
-          style: new TextStyle({ foreground: SUCCESS_COLOR }),
+          style: new TextStyle({ foreground: toolSuccessColor }),
         }),
       );
     }
 
     // Summary text
+    // 逆向: chunk-006.js:6183-6185 — R.app.toolName
     headerSpans.push(
       new TextSpan({
         text: group.summary,
@@ -1008,12 +1071,12 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(
           new TextSpan({
             text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: TOOL_RUNNING_COLOR }),
+            style: new TextStyle({ foreground: toolRunningColor }),
           }),
         );
       } else {
         const icon = _getActionStatusIcon(action.status);
-        const color = _getActionStatusColor(action.status);
+        const color = _getActionStatusColor(action.status, appTheme);
         spans.push(
           new TextSpan({
             text: `${icon} `,
@@ -1025,7 +1088,7 @@ export class ConversationViewState extends State<ConversationView> {
       spans.push(
         new TextSpan({
           text: action.toolName,
-          style: new TextStyle({ foreground: TOOL_NAME_COLOR, bold: true }),
+          style: new TextStyle({ foreground: toolNameColor, bold: true }),
         }),
       );
 
@@ -1107,9 +1170,10 @@ export class ConversationViewState extends State<ConversationView> {
 
     const hasContent = item.text.trim().length > 0;
 
-    // 逆向: fJT.build() chunk-006.js:16910-16915 — chevron only when hasContent.
-    // For streaming blocks, content is always visible (no toggle needed), so skip chevron.
-    const isClickable = hasContent && !item.isStreaming;
+    // Chevron shown when hasContent — streaming blocks are also collapsible.
+    // Divergence from amp: amp always shows streaming content (fJT.build() line 16964),
+    // but we default-collapse thinking blocks at all times for a cleaner UI.
+    const isClickable = hasContent;
     if (isClickable) {
       spans.push(new TextSpan({ text: " " }));
       spans.push(
@@ -1126,7 +1190,7 @@ export class ConversationViewState extends State<ConversationView> {
 
     // 逆向: fJT.build() chunk-006.js:17009-17019 — wrap header in G0 (GestureDetector) only when `c`
     // (hasContent). Click toggles _localExpanded via _handleHeaderClick.
-    // Streaming blocks are never clickable — content always shown.
+    // Divergence from amp: streaming blocks are also clickable for expand/collapse.
     const header = isClickable
       ? new GestureDetector({
           onTap: () => {
@@ -1142,9 +1206,10 @@ export class ConversationViewState extends State<ConversationView> {
         })
       : headerRow;
 
-    // 逆向: fJT.build() chunk-006.js:16964-16965 — `if (this.isComplete && !this.expanded) return;`
-    // Streaming blocks always show content; complete blocks show content only when expanded.
-    const showContent = hasContent && (item.isStreaming || isExpanded);
+    // Divergence from amp: thinking blocks default-collapsed even during streaming.
+    // Amp's fJT.build() always shows streaming content (line 16964-16965),
+    // but we only show content when the user explicitly expands.
+    const showContent = hasContent && isExpanded;
     if (showContent) {
       const indentedText = item.text
         .split("\n")
@@ -1341,28 +1406,31 @@ function _getStatusIcon(status: ToolItem["status"]): string {
 /**
  * Get status color for a tool status.
  *
- * 逆向: oE0() function (chunk-004.js:21143)
- * - done → toolSuccess (SUCCESS_COLOR)
- * - error → toolError (ERROR_COLOR_LOCAL)
- * - in-progress → toolRunning (TOOL_RUNNING_COLOR)
- * - cancelled/rejected → toolCancelled (CANCELLED_COLOR)
- * - queued/blocked-on-user → waiting (TOOL_RUNNING_COLOR)
+ * 逆向: oE0(T, R) function (chunk-004.js:21143)
+ * - done → R.app.toolSuccess
+ * - error → R.app.toolError
+ * - in-progress → R.app.toolRunning
+ * - cancelled/rejected → R.app.toolCancelled
+ * - queued/blocked-on-user → R.app.waiting (toolRunning fallback)
+ *
+ * @param status - Tool status
+ * @param appTheme - Optional AppTheme for semantic colors
  */
-function _getStatusColor(status: ToolItem["status"]): Color {
+function _getStatusColor(status: ToolItem["status"], appTheme?: AppTheme | null): Color {
   switch (status) {
     case "done":
-      return SUCCESS_COLOR;
+      return appTheme?.toolSuccess ?? SUCCESS_COLOR;
     case "error":
-      return ERROR_COLOR_LOCAL;
+      return appTheme?.toolError ?? ERROR_COLOR_LOCAL;
     case "in-progress":
-      return TOOL_RUNNING_COLOR;
+      return appTheme?.toolRunning ?? TOOL_RUNNING_COLOR;
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
-      return CANCELLED_COLOR;
+      return appTheme?.toolCancelled ?? CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":
-      return TOOL_RUNNING_COLOR; // waiting color
+      return appTheme?.waiting ?? TOOL_RUNNING_COLOR; // waiting color
   }
 }
 
@@ -1433,22 +1501,28 @@ function _getActionStatusIcon(status: ActivityAction["status"]): string {
 /**
  * Get status color for an ActivityAction status.
  *
- * 逆向: oE0() function (chunk-004.js:21143)
+ * 逆向: oE0(T, R) function (chunk-004.js:21143) — same mapping as tool status
+ *
+ * @param status - Activity action status
+ * @param appTheme - Optional AppTheme for semantic colors
  */
-function _getActionStatusColor(status: ActivityAction["status"]): Color {
+function _getActionStatusColor(
+  status: ActivityAction["status"],
+  appTheme?: AppTheme | null,
+): Color {
   switch (status) {
     case "done":
-      return SUCCESS_COLOR;
+      return appTheme?.toolSuccess ?? SUCCESS_COLOR;
     case "error":
-      return ERROR_COLOR_LOCAL;
+      return appTheme?.toolError ?? ERROR_COLOR_LOCAL;
     case "in-progress":
-      return TOOL_RUNNING_COLOR;
+      return appTheme?.toolRunning ?? TOOL_RUNNING_COLOR;
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
-      return CANCELLED_COLOR;
+      return appTheme?.toolCancelled ?? CANCELLED_COLOR;
     case "blocked-on-user":
     case "queued":
-      return TOOL_RUNNING_COLOR; // waiting color
+      return appTheme?.waiting ?? TOOL_RUNNING_COLOR; // waiting color
   }
 }

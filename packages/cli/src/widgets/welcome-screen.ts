@@ -48,20 +48,21 @@ export interface WelcomeScreenConfig {
 }
 
 // ════════════════════════════════════════════════════
-//  颜色常量 — Tokyo Night 调色板
+//  颜色常量 — 逆向: chunk-004.js Vk.default(), chunk-005.js LT.*
+//  amp 使用 terminal-indexed colors (38;5;N) 而非硬编码 RGB
 // ════════════════════════════════════════════════════
 
-/** foreground 色 (#a9b1d6) — 欢迎标题文本色 */
-const FOREGROUND_COLOR = Color.rgb(0xa9, 0xb1, 0xd6);
+/** foreground 色 — 逆向: Vk.default().foreground = LT.default() → 终端默认前景 */
+const FOREGROUND_COLOR = Color.default();
 
-/** secondary 色 (#565f89) — 帮助文本色 */
-const SECONDARY_COLOR = Color.rgb(0x56, 0x5f, 0x89);
+/** secondary 色 — 逆向: Vk.default().secondary = LT.cyan = { type:"index", value:6 } */
+const SECONDARY_COLOR = Color.indexed(6);
 
-/** keybind 色 (#7aa2f7) — 快捷键文本色 */
-const KEYBIND_COLOR = Color.rgb(0x7a, 0xa2, 0xf7);
+/** keybind 色 — 逆向: a.keybind = LT.blue = { type:"index", value:4 } */
+const KEYBIND_COLOR = Color.indexed(4);
 
-/** command 色 (#9ece6a) — 命令文本色 */
-const COMMAND_COLOR = Color.rgb(0x9e, 0xce, 0x6a);
+/** command 色 — 逆向: a.command = LT.yellow = { type:"index", value:3 } */
+const COMMAND_COLOR = Color.indexed(3);
 
 // ════════════════════════════════════════════════════
 //  光球尺寸 — 逆向: chunk-005.js:26479 X4=40, Y4=40
@@ -131,6 +132,8 @@ export class WelcomeScreen extends StatelessWidget {
     const titleStyle = new TextStyle({ foreground: FOREGROUND_COLOR });
     const helpKeyStyle = new TextStyle({ foreground: KEYBIND_COLOR });
     const helpWordStyle = new TextStyle({ foreground: COMMAND_COLOR });
+    /** " for " 分隔符 — 逆向: R.foreground + dim:true */
+    const dimFgStyle = new TextStyle({ foreground: FOREGROUND_COLOR, dim: true });
     const dimStyle = new TextStyle({ foreground: SECONDARY_COLOR });
 
     // ── Animated orb (40×40) — 逆向: misc_utils.js:2840-2860 ──
@@ -166,7 +169,7 @@ export class WelcomeScreen extends StatelessWidget {
         text: new TextSpan({
           children: [
             new TextSpan({ text: "Ctrl+O", style: helpKeyStyle }),
-            new TextSpan({ text: " for ", style: dimStyle }),
+            new TextSpan({ text: " for ", style: dimFgStyle }),
             new TextSpan({ text: "help", style: helpWordStyle }),
           ],
         }),

@@ -4,13 +4,14 @@
  * Validates:
  * - StatusBar inherits StatelessWidget
  * - build() renders model name, token count, and status message
- * - Uses mutedText color (#565f89) for normal text
+ * - Uses dim style for normal text
  * - Uses warning/danger colors for context threshold messages
  *
  * @module
  */
 
-import { describe, expect, it } from "bun:test";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
 import type { BuildContext } from "@flitter/tui";
 import { Column, RichText, Row, StatelessWidget } from "@flitter/tui";
 import { StatusBar, type StatusBarConfig, type StatusBarState } from "./status-bar.js";
@@ -24,7 +25,7 @@ interface WidgetNode {
   children?: WidgetNode[];
   child?: WidgetNode;
   text?: {
-    style?: { foreground?: { kind: string; r: number; g: number; b: number } };
+    style?: { foreground?: { kind: string; index?: number }; dim?: boolean };
     toPlainText(): string;
   };
 }
@@ -92,14 +93,14 @@ describe("StatusBar", () => {
 
   it("inherits StatelessWidget", () => {
     const bar = new StatusBar(defaultConfig);
-    expect(bar).toBeInstanceOf(StatelessWidget);
+    assert.ok(bar instanceof StatelessWidget);
   });
 
   it("stores config.state properties", () => {
     const bar = new StatusBar(defaultConfig);
-    expect(bar.config.state.modelName).toBe("claude-3.5-sonnet");
-    expect(bar.config.state.tokenUsage.inputTokens).toBe(1000);
-    expect(bar.config.state.tokenUsage.outputTokens).toBe(234);
+    assert.equal(bar.config.state.modelName, "claude-3.5-sonnet");
+    assert.equal(bar.config.state.tokenUsage.inputTokens, 1000);
+    assert.equal(bar.config.state.tokenUsage.outputTokens, 234);
   });
 
   it("build() renders model name text", () => {
@@ -107,7 +108,7 @@ describe("StatusBar", () => {
     const built = bar.build({} as unknown as BuildContext);
     const texts = extractPlainTexts(built as unknown as WidgetNode);
     const hasModelName = texts.some((t) => t.includes("claude-3.5-sonnet"));
-    expect(hasModelName).toBe(true);
+    assert.ok(hasModelName, "Should contain model name");
   });
 
   it("build() renders total token count (input + output)", () => {
@@ -116,33 +117,31 @@ describe("StatusBar", () => {
     const texts = extractPlainTexts(built as unknown as WidgetNode);
     // 1000 + 234 = 1234
     const hasTokenCount = texts.some((t) => t.includes("1234 tokens"));
-    expect(hasTokenCount).toBe(true);
+    assert.ok(hasTokenCount, "Should contain token count");
   });
 
-  it("uses mutedText color (#565f89) for model name text", () => {
+  it("uses dim style for model name text", () => {
     const bar = new StatusBar(defaultConfig);
     const built = bar.build({} as unknown as BuildContext);
     const richTexts = collectRichTexts(built as unknown as WidgetNode);
-    expect(richTexts.length).toBeGreaterThan(0);
+    assert.ok(richTexts.length > 0, "Should have RichText nodes");
 
-    const hasMutedColor = richTexts.some((rt) => {
-      const style = (rt as unknown as WidgetNode).text?.style;
-      if (!style) return false;
-      const fg = style.foreground;
-      return fg && fg.kind === "rgb" && fg.r === 0x56 && fg.g === 0x5f && fg.b === 0x89;
+    const hasDimStyle = richTexts.some((rt) => {
+      const node = rt as unknown as WidgetNode;
+      return node.text?.style?.dim === true;
     });
-    expect(hasMutedColor).toBe(true);
+    assert.ok(hasDimStyle, "Should use dim style for muted text");
   });
 
   it("build() returns Column > 3 Row structure (bordered layout)", () => {
     const bar = new StatusBar(defaultConfig);
     const built = bar.build({} as unknown as BuildContext);
-    expect(built).toBeInstanceOf(Column);
+    assert.ok(built instanceof Column);
     const col = built as unknown as WidgetNode;
-    expect(col.children).toBeDefined();
-    expect(col.children!.length).toBe(3);
+    assert.ok(col.children);
+    assert.equal(col.children!.length, 3);
     for (const row of col.children!) {
-      expect(row).toBeInstanceOf(Row);
+      assert.ok(row instanceof Row);
     }
   });
 
@@ -154,15 +153,13 @@ describe("StatusBar", () => {
     const built = bar.build({} as unknown as BuildContext);
     const texts = extractPlainTexts(built as unknown as WidgetNode);
     const hasStatus = texts.some((t) => t.includes("Streaming response..."));
-    expect(hasStatus).toBe(true);
+    assert.ok(hasStatus, "Should render streaming status");
   });
 
   it("does not render center status text when idle with low usage", () => {
     const bar = new StatusBar(defaultConfig);
     const built = bar.build({} as unknown as BuildContext);
     const texts = extractPlainTexts(built as unknown as WidgetNode);
-    // With bordered layout, there are border characters + model name + token count
-    // but no status message text like "Streaming..." or "Waiting..."
     const hasStatusMessage = texts.some(
       (t) =>
         t.includes("Streaming") ||
@@ -172,10 +169,10 @@ describe("StatusBar", () => {
         t.includes("Cancelled") ||
         t.includes("context"),
     );
-    expect(hasStatusMessage).toBe(false);
+    assert.equal(hasStatusMessage, false, "Should not render status text when idle");
   });
 
-  it("uses danger color for context near full message", () => {
+  it("uses danger color (indexed red) for context near full message", () => {
     const config: StatusBarConfig = {
       state: makeState({
         tokenUsage: { inputTokens: 9500, outputTokens: 50, maxInputTokens: 10000 },
@@ -185,13 +182,11 @@ describe("StatusBar", () => {
     const built = bar.build({} as unknown as BuildContext);
     const richTexts = collectRichTexts(built as unknown as WidgetNode);
 
-    // Find the status message RichText with danger color
     const hasDangerColor = richTexts.some((rt) => {
-      const style = (rt as unknown as WidgetNode).text?.style;
-      if (!style) return false;
-      const fg = style.foreground;
-      return fg && fg.kind === "rgb" && fg.r === 0xf7 && fg.g === 0x76 && fg.b === 0x8e;
+      const node = rt as unknown as WidgetNode;
+      const fg = node.text?.style?.foreground;
+      return fg && fg.kind === "index" && fg.index === 1;
     });
-    expect(hasDangerColor).toBe(true);
+    assert.ok(hasDangerColor, "Should use danger color (indexed 1 = red) for near-full context");
   });
 });

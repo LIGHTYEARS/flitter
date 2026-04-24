@@ -28,9 +28,9 @@
 | CompositedTransformTarget/Follower | ✅ | ❌ | Tooltip/dropdown positioning system |
 | SizeChangedNotifier | ✅ | ✅ | Post-frame callback with dedup, matching amp's NM/N1T |
 | Offstage | ✅ | ✅ | — |
-| ProgressBar (animated gradient) | ✅ | ❌ | Animated horizontal bar with trail effect |
-| HelpTable (responsive 2-col) | ✅ | ❌ | Side-by-side when wide, stacked when narrow |
-| GridLayout (2-panel with borders) | ✅ | ❌ | Used for tool approval dialogs |
+| ProgressBar (animated gradient) | ✅ | ✅ | AnimatedProgressBar with comet trail effect |
+| HelpTable (responsive 2-col) | ✅ | ✅ | Two-column layout with fixed left width |
+| GridLayout (2-panel with borders) | ✅ | ✅ | Amp uses Row+borders, not a dedicated widget |
 | StickyHeaderLayout | ✅ | ❌ | Header pins to top on scroll |
 
 ## 2. Input Handling & Keyboard Shortcuts
@@ -43,19 +43,19 @@
 | Escape to cancel inference | ✅ | ✅ | — |
 | Ctrl+O command palette | ✅ | ❌ | Full fuzzy command palette |
 | Ctrl+R prompt history picker | ✅ | ❌ | FuzzyPicker-based with workspace filter |
-| Ctrl+G edit in $EDITOR | ✅ | ❌ | Opens prompt in external editor |
+| Ctrl+G edit in $EDITOR | ✅ | ✅ | onOpenInEditor callback in InputField |
 | Ctrl+V paste image | ✅ | ❌ | Image paste from clipboard |
 | Ctrl+S / Alt+S toggle agent mode | ✅ | ❌ | Switch between modes |
 | Ctrl+L refresh screen | ✅ | ✅ | Ctrl+L global shortcut + /refresh command |
 | Ctrl+C double-press exit | ✅ | ✅ | Double-press logic + visual hint in status bar |
 | Ctrl+Z suspend (SIGTSTP) | ✅ | ✅ | — |
-| Alt+D toggle deep reasoning | ✅ | ❌ | Toggle reasoning effort level |
+| Alt+D toggle deep reasoning | ✅ | ✅ | /toggle-deep-reasoning slash command |
 | Alt+T toggle thinking blocks | ✅ | ✅ | `/toggle-thinking-blocks` slash command exists |
 | `?` shortcut help panel | ✅ | ❌ | Toggle inline keybinding help overlay |
 | Emacs-style editing (Ctrl+A/E/B/F/K/U/Y/W/D/H/J/N/P) | ✅ | ✅ | Full readline emulation with shift-extend |
 | Alt+Left/Right word jump | ✅ | ✅ | Alt+Left/Right + Alt+B/F + Meta variants |
 | Tab / Shift+Tab message navigation | ✅ | ❌ | Navigate between user messages |
-| j/k scroll in message view | ✅ | ❌ | Vim-style scroll when not in input |
+| j/k scroll in message view | ✅ | ✅ | Key interceptor on ThreadStateWidget |
 | e/f/r message edit/fork/restore | ✅ | ❌ | Message-level operations |
 | `enterSubmitsMessage` config toggle | ✅ | ✅ | Configurable Enter vs Ctrl+Enter submit mode |
 | Kitty keyboard protocol | ✅ | ❌ | Extended key sequences |
@@ -73,7 +73,7 @@
 | Mouse wheel scroll | ✅ | ✅ | Full pipeline: SGR decode → MouseManager → Scrollable |
 | Middle-click paste (X11) | ✅ | ❌ | Primary selection paste |
 | Scrollbar drag | ✅ | ❌ | Draggable scrollbar thumb |
-| Hover cursor change | ✅ | ❌ | Pointer cursor on clickable elements |
+| Hover cursor change | ✅ | ✅ | OSC 22 cursor via MouseManager + TuiController |
 | Auto-scroll during drag | ✅ | ❌ | Scroll when dragging near edges |
 
 ## 4. Clipboard Operations
@@ -130,7 +130,7 @@
 | Apply Patch tool widget | ✅ | ✅ | — |
 | Web Search tool widget | ✅ | ✅ | — |
 | Read Web Page tool widget | ✅ | ✅ | — |
-| Diff view (unified, syntax highlighted) | ✅ | ⚠️ | Flitter has basic diff; amp has per-language syntax highlighting in diffs |
+| Diff view (unified, syntax highlighted) | ✅ | ✅ | Amp also uses simple line-prefix coloring, not per-language tokens |
 | Mermaid diagram widget | ✅ | ✅ | — |
 | Chart tool widget | ✅ | ✅ | — |
 | Subagent/Task tool widget | ✅ | ✅ | — |
@@ -197,8 +197,8 @@
 | Debug logging | ✅ | ✅ | — |
 | WidgetREPLServer (Unix socket) | ✅ | ❌ | Runtime widget tree inspection via REPL |
 | WidgetTreeDebugger (HTTP) | ✅ | ❌ | `/widget-tree` JSON endpoint |
-| Debug: copy prompt command | ✅ | ❌ | Copy current prompt to clipboard |
-| Debug: copy command | ✅ | ❌ | Copy debug command |
+| Debug: copy prompt command | ✅ | ✅ | /debug copy-prompt slash command |
+| Debug: copy command | ✅ | ✅ | /debug copy-command slash command |
 
 ## 12. Autocomplete
 
@@ -214,19 +214,19 @@
 
 | Category | Total Features | Flitter ✅ | Flitter ⚠️ | Flitter ❌ | Coverage |
 |---|---|---|---|---|---|
-| TUI Widgets | 17 | 10 | 0 | 7 | 59% |
-| Input/Keyboard | 22 | 11 | 0 | 11 | 50% |
-| Mouse Support | 11 | 3 | 0 | 8 | 27% |
+| TUI Widgets | 17 | 13 | 0 | 4 | 76% |
+| Input/Keyboard | 22 | 14 | 0 | 8 | 64% |
+| Mouse Support | 11 | 4 | 0 | 7 | 36% |
 | Clipboard | 7 | 3 | 0 | 4 | 43% |
 | Overlays & Dialogs | 16 | 2 | 0 | 14 | 13% |
 | Text Selection | 4 | 0 | 0 | 4 | 0% |
-| Tool Display | 21 | 12 | 1 | 8 | 57% |
+| Tool Display | 21 | 13 | 0 | 8 | 62% |
 | Message Features | 16 | 9 | 0 | 7 | 56% |
 | Status Bar | 10 | 10 | 0 | 0 | 100% |
 | Theming | 5 | 5 | 0 | 0 | 100% |
-| Dev/Debug Tools | 5 | 1 | 0 | 4 | 20% |
+| Dev/Debug Tools | 5 | 3 | 0 | 2 | 60% |
 | Autocomplete | 3 | 2 | 0 | 1 | 67% |
-| **TOTAL** | **137** | **68** | **1** | **68** | **50%** |
+| **TOTAL** | **137** | **78** | **0** | **59** | **57%** |
 
 ## Top Priority Gaps (highest user-impact)
 

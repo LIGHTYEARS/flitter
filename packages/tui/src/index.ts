@@ -19,6 +19,11 @@ export * from "./tree/index.js";
 export * from "./tui/index.js";
 export * from "./vt/index.js";
 export { Align, RenderPositionedBox } from "./widgets/align.js";
+export type { AnimatedProgressBarArgs } from "./widgets/animated-progress-bar.js";
+export {
+  AnimatedProgressBar,
+  AnimatedProgressBarRenderObject,
+} from "./widgets/animated-progress-bar.js";
 // New TUI widgets
 export { Badge } from "./widgets/badge.js";
 export { Border } from "./widgets/border.js";
@@ -37,6 +42,8 @@ export { Expanded, Flexible } from "./widgets/flexible.js";
 export { Focus, FocusState } from "./widgets/focus.js";
 export { ForceDimWidget } from "./widgets/force-dim.js";
 export { GestureDetector } from "./widgets/gesture-detector.js";
+export type { HelpTableRow } from "./widgets/help-table.js";
+export { HelpTable } from "./widgets/help-table.js";
 export type { ImageWidgetProps } from "./widgets/image-widget.js";
 export { ImageWidget, RenderImage } from "./widgets/image-widget.js";
 export { IntrinsicHeight, RenderIntrinsicHeight } from "./widgets/intrinsic-height.js";

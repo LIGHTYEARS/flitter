@@ -106,6 +106,13 @@ export interface InputFieldConfig {
    * - false: Enter 插入换行, Ctrl+Enter 或 Meta+Enter 提交
    */
   enterSubmitsMessage?: boolean;
+  /**
+   * Ctrl+G: open current text in $EDITOR (逆向: actions_intents.js:1054-1058)
+   *
+   * Called with the current input text. The callback is responsible for
+   * spawning the editor and writing the result back via setText().
+   */
+  onOpenInEditor?: (text: string) => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -451,6 +458,13 @@ export class InputFieldState extends State<InputField> {
     // ── Ctrl keybindings ──
     // 逆向: actions_intents.js:1054-1091
     if (event.modifiers.ctrl) {
+      // Ctrl+G: open in editor (逆向: actions_intents.js:1054-1058)
+      if (event.key === "g") {
+        if (this.widget.config.onOpenInEditor) {
+          this.widget.config.onOpenInEditor(m.text);
+        }
+        return "handled";
+      }
       const shift = event.modifiers.shift;
       if (event.key === "a") {
         // Ctrl+A: multiline → line start, single line → document start

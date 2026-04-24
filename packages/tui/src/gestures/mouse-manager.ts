@@ -79,8 +79,7 @@ export class MouseManager {
   /** 命中测试的根渲染对象 */
   private _rootRenderObject: RenderObject | null = null;
 
-  /** TuiController 引用，用于获取 Screen 进行坐标转换 */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: stored for future coordinate conversion use
+  /** TuiController 引用，用于获取 Screen 进行坐标转换和设置鼠标光标 */
   private _tui: TuiController | null = null;
 
   /** 最近一次命中测试的目标列表，用于 hover 状态追踪 */
@@ -91,6 +90,15 @@ export class MouseManager {
 
   /** 当前处于 hover 状态的 RenderMouseRegion 集合 */
   private _hoveredRegions = new Set<RenderMouseRegion>();
+
+  /**
+   * 当前鼠标光标样式缓存。
+   *
+   * 逆向: ha._currentCursor (2026_tail_anonymous.js:158206)
+   *
+   * 仅在值变化时写 OSC 22 到终端，避免重复写入。
+   */
+  private _currentCursor = "default";
 
   /**
    * _handleMove 用于避免 GC 的临时集合 (scratch sets)。
@@ -623,6 +631,43 @@ export class MouseManager {
     // Step 7: 用当前集合替换 _hoveredRegions
     this._hoveredRegions.clear();
     for (const region of currentRegions) this._hoveredRegions.add(region);
+
+    // Step 8: 更新鼠标光标
+    // 逆向: ha._handleMove (2026_tail_anonymous.js:158601-158602) — _updateCursor(e) called after updating _hoveredRegions
+    this._updateCursor(targets);
+  }
+
+  /**
+   * 更新终端鼠标光标形状。
+   *
+   * 逆向: ha._updateCursor (2026_tail_anonymous.js:158604-158617)
+   *
+   * 算法:
+   * 1. 如果没有 TuiController 引用，直接返回
+   * 2. 遍历 mouseTargets，按 depth 递增顺序查找最深的非 null cursor
+   * 3. 当 depth 不再递增时 break（depth-based cutoff，与 amp 一致）
+   * 4. 如果 cursor 与缓存的 _currentCursor 不同，更新缓存并写 OSC 22
+   */
+  private _updateCursor(
+    targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }>,
+  ): void {
+    // 逆向: if (!this._vaxis) return;
+    if (!this._tui) return;
+
+    let cursor = "default";
+    let lastDepth = -1;
+
+    for (const { target } of targets) {
+      const d = target.depth;
+      if (d <= lastDepth) break;
+      if (target.cursor !== null) cursor = target.cursor;
+      lastDepth = d;
+    }
+
+    if (cursor !== this._currentCursor) {
+      this._currentCursor = cursor;
+      this._tui.setMouseCursor(cursor);
+    }
   }
 
   /**
@@ -707,6 +752,13 @@ export class MouseManager {
     this._hoveredRegions.clear();
     this._dragTargets = [];
     this._lastHoverTargets = [];
+    // 逆向: ha.clearHoverState (2026_tail_anonymous.js:158644-158646)
+    // if (this._vaxis && this._currentCursor !== B3.DEFAULT)
+    //   this._currentCursor = B3.DEFAULT, this._vaxis.setMouseCursor(B3.DEFAULT)
+    if (this._tui && this._currentCursor !== "default") {
+      this._currentCursor = "default";
+      this._tui.setMouseCursor("default");
+    }
   }
 
   /**

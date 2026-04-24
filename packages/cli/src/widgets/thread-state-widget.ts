@@ -32,6 +32,7 @@ import {
   Column,
   EdgeInsets,
   Expanded,
+  FocusManager,
   Padding,
   Positioned,
   Scrollable,
@@ -39,6 +40,7 @@ import {
   Stack,
   State,
   StatefulWidget,
+  WidgetsBinding,
 } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
 
@@ -105,6 +107,9 @@ export interface ThreadStateWidgetConfig {
   /** Number of available skills
    * 逆向: chunk-006.js:37867 */
   skillCount?: number;
+  /** Ctrl+G: open current input in $EDITOR (逆向: actions_intents.js:1054-1058)
+   * Called with the current input text. */
+  onOpenInEditor?: (text: string) => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -237,6 +242,17 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** 滚动控制器 */
   private _scrollController: ScrollController;
 
+  /**
+   * Unsubscribe function for the j/k scroll key interceptor.
+   *
+   * 逆向: amp-cli-reversed/modules/1472_tui_components/interactive_widgets.js:2755-2756
+   *   `x0.key("j")` → XQ (scrollDown), `x0.key("k")` → YQ (scrollUp)
+   *   In amp these are Shortcuts on the conversation widget that fire only in browse mode
+   *   (selectedUserMessageOrdinal !== null). In flitter we use a key interceptor that
+   *   fires only when the InputField is NOT focused.
+   */
+  private _scrollKeyInterceptorUnsub: (() => void) | null = null;
+
   constructor() {
     super();
     this._scrollController = new ScrollController();
@@ -275,6 +291,27 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   initState(): void {
     super.initState();
     const { threadStore, threadWorker, threadId } = this.widget.config;
+
+    // Register j/k scroll key interceptor.
+    // 逆向: amp interactive_widgets.js:2471-2477, 2755-2756
+    //   handleScrollDown: this._controller?.scrollDown(1)
+    //   handleScrollUp:   this._controller?.scrollUp(1)
+    //   x0.key("j") → scrollDown, x0.key("k") → scrollUp
+    //   In amp, these only fire when selectedUserMessageOrdinal !== null (browse mode).
+    //   In flitter, we check that the InputField is NOT focused (equivalent to browse mode).
+    this._scrollKeyInterceptorUnsub = WidgetsBinding.instance.addKeyInterceptor((event) => {
+      if (event.modifiers.ctrl || event.modifiers.alt || event.modifiers.meta) return false;
+      if (event.key !== "j" && event.key !== "k") return false;
+      // Only scroll when InputField is not focused (browse mode)
+      const primaryFocus = FocusManager.instance.primaryFocus;
+      if (primaryFocus?.debugLabel === "InputField") return false;
+      if (event.key === "j") {
+        this._scrollController.scrollDown(1);
+      } else {
+        this._scrollController.scrollUp(1);
+      }
+      return true;
+    });
 
     // 订阅线程快照变化 (per D-10)
     const thread$ = threadStore.observeThread(threadId);
@@ -464,6 +501,8 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    * 销毁 ScrollController。
    */
   dispose(): void {
+    this._scrollKeyInterceptorUnsub?.();
+    this._scrollKeyInterceptorUnsub = null;
     this._threadSub?.unsubscribe();
     this._threadSub = null;
     this._eventSub?.unsubscribe();

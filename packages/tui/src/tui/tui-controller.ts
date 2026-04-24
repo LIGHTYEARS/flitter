@@ -525,6 +525,34 @@ export class TuiController {
   }
 
   /**
+   * Set the terminal mouse cursor shape via OSC 22.
+   *
+   * 逆向: chunk-004.js:4208-4211 — setMouseCursor(T) { process.stdout.write(`\x1b]22;${T}\x07`) }
+   *
+   * Supported cursor values: "default", "pointer", "text", "wait"
+   * Terminals that don't understand OSC 22 silently ignore the sequence.
+   *
+   * @param cursor - Cursor shape name (e.g. "default", "pointer", "text")
+   */
+  setMouseCursor(cursor: string): void {
+    const seq = `\x1b]22;${cursor}\x07`;
+    try {
+      process.stdout.write(seq);
+    } catch {
+      // Output stream may be closed
+    }
+  }
+
+  /**
+   * Reset the terminal mouse cursor to the default shape.
+   *
+   * 逆向: chunk-004.js:4212-4214 — resetMouseCursor() { this.setMouseCursor(B3.DEFAULT) }
+   */
+  resetMouseCursor(): void {
+    this.setMouseCursor("default");
+  }
+
+  /**
    * Set the OS-level progress bar state (Ghostty/WezTerm/ConEmu).
    *
    * 逆向: amp 2112_unknown_XXT.js:304 — deinit() and suspend() both send

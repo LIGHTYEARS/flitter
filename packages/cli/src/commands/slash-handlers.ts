@@ -4,14 +4,15 @@
  * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:192-1560
  * (registerCommands with all built-in commands)
  *
- * Flitter implements 32 slash commands matching amp's command palette.
+ * Flitter implements 33 slash commands matching amp's command palette.
  * Original 6: /help, /clear, /compact, /cost, /model, /status
- * Added 26: /new, /switch, /dashboard, /delete, /archive, /mode,
+ * Added 27: /new, /switch, /dashboard, /delete, /archive, /mode,
  *           /settings, /theme, /mcp, /tasks, /quit, /rename,
  *           /visibility, /refresh, /editor, /history, /label,
  *           /permissions, /permissions-enable, /permissions-disable,
  *           /plugins, /handoff, /queue, /dequeue,
- *           /toggle-thinking-blocks, /context-analyze
+ *           /toggle-thinking-blocks, /context-analyze, /debug,
+ *           /toggle-deep-reasoning
  */
 
 import { spawnSync } from "node:child_process";
@@ -1823,6 +1824,190 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       }
 
       ctx.showMessage(lines.join("\n"));
+    },
+  });
+
+  // ─── Deep Reasoning Commands ───────────────────────
+  // 逆向: jetbrains_wizard.js:3659-3675
+  //   getNextDeepReasoningEffort(T): "medium" → "high" → "xhigh" → "medium"
+  //   toggleDeepReasoningEffort(): cycles effort, persists via configService,
+  //     shows statusMessage(`Deep reasoning effort: ${R}`)
+  //   applyDeepReasoningEffort(T): sets this.deepReasoningEffort, calls
+  //     Ms("agent.deepReasoningEffort", T) (runtime override)
+  //   commitDeepReasoningEffort(T): calls configService.updateSettings(
+  //     "agent.deepReasoningEffort", T, "global")
+
+  registry.register({
+    name: "toggle-deep-reasoning",
+    aliases: ["deep-reasoning", "deep-effort"],
+    description: "Toggle deep reasoning effort (medium → high → xhigh)",
+    execute: async (_args, ctx) => {
+      const config = ctx.configService.get();
+
+      // Read current effort from settings
+      // 逆向: jetbrains_wizard.js:2406 — deepReasoningEffort defaults to "high"
+      // 逆向: jetbrains_wizard.js:4231 — O2(r.settings) reads initial value
+      const currentEffort =
+        (config.settings["agent.deepReasoningEffort"] as string | undefined) ?? "medium";
+
+      // Cycle: medium → high → xhigh → medium
+      // 逆向: jetbrains_wizard.js:3659-3661 — getNextDeepReasoningEffort
+      let nextEffort: string;
+      if (currentEffort === "medium") {
+        nextEffort = "high";
+      } else if (currentEffort === "high") {
+        nextEffort = "xhigh";
+      } else {
+        nextEffort = "medium";
+      }
+
+      // Persist via configService
+      // 逆向: jetbrains_wizard.js:3653 — configService.updateSettings(
+      //   "agent.deepReasoningEffort", T, "global")
+      if (ctx.configService.updateSettings) {
+        ctx.configService.updateSettings("global", "agent.deepReasoningEffort", nextEffort);
+      }
+
+      // Also apply runtime override if available (immediate effect without restart)
+      // 逆向: jetbrains_wizard.js:3648 — Ms("agent.deepReasoningEffort", T)
+      if (ctx.configService.setRuntimeOverride) {
+        ctx.configService.setRuntimeOverride("agent.deepReasoningEffort", nextEffort);
+      }
+
+      // 逆向: jetbrains_wizard.js:3672 — showStatusMessage(`Deep reasoning effort: ${R}`)
+      ctx.showMessage(`Deep reasoning effort: ${nextEffort}`);
+    },
+  });
+
+  // ─── Debug Commands ────────────────────────────────
+  // 逆向: e0R:1648-1678
+
+  // /debug -- debug subcommands (copy-prompt, copy-command)
+  // 逆向: e0R:1648-1653 (id: "debug-copy-prompt", verb: "copy prompt")
+  // 逆向: e0R:1655-1678 (id: "debug-copy-command", verb: "copy command")
+  // 逆向: 2776_unknown_VU0.js — VU0(T) builds Markdown via NU0(RhT(T)),
+  //        calls clipboard.writeText(a), shows "Copied Markdown debug prompt to clipboard"
+  // 逆向: 2768_unknown_NU0.js — NU0() builds: title, thread URL, DTW commands, CLI logs, diagnostics
+  // 逆向: 2772_unknown_RhT.js — RhT() extracts thread/runtime state
+  // 逆向: 2777_unknown_YU0.js — XU0 validates label+command, YU0 copies command text
+  //
+  // Flitter simplification: no DTW/Cloudflare links; builds thread info + conversation content.
+  registry.register({
+    name: "debug",
+    description: "Debug commands (copy-prompt, copy-command)",
+    execute: async (args, ctx) => {
+      const subcmd = args.trim();
+
+      // ── /debug copy-prompt ──
+      // 逆向: VU0 → NU0(RhT(T)) builds Markdown, clipboard.writeText, shows toast
+      if (subcmd === "copy-prompt" || subcmd === "copy prompt") {
+        const snapshot = ctx.threadStore.getThreadSnapshot(ctx.threadId);
+        const config = ctx.configService.get();
+        const modelId = (config.settings["internal.model"] as string) ?? "unknown";
+
+        // Build Markdown debug prompt (simplified NU0 equivalent)
+        // 逆向: NU0 builds: # Debug Instructions, ## Quick Links (thread URL),
+        //        ## DTW Commands, ## CLI Logs (log file, PID), ## Diagnostics (ThT)
+        // 逆向: ThT builds: thread ID/title/URL/created/mode, runtime info, view state
+        const parts: string[] = [];
+        parts.push("# Debug Prompt");
+        parts.push("");
+        parts.push("## Thread Info");
+        parts.push(`- Thread ID: \`${ctx.threadId}\``);
+        if (snapshot?.title) {
+          parts.push(`- Title: ${snapshot.title}`);
+        }
+        parts.push(`- Model: \`${modelId}\``);
+        parts.push(`- Messages: ${snapshot?.messages?.length ?? 0}`);
+        parts.push(`- PID: \`${process.pid}\``);
+        parts.push("");
+
+        // Serialize conversation messages
+        // 逆向: NU0 includes diagnostics (ThT); Flitter includes actual conversation
+        // content which is more useful for debugging in a CLI context.
+        if (snapshot?.messages && snapshot.messages.length > 0) {
+          parts.push("## Conversation");
+          parts.push("");
+          for (const msg of snapshot.messages) {
+            const roleLabel = msg.role === "user" ? "**User**" : "**Assistant**";
+            const textParts: string[] = [];
+            for (const block of msg.content) {
+              if (block.type === "text" && block.text) {
+                textParts.push(block.text);
+              } else if (block.type === "tool_use") {
+                textParts.push(`[tool_use: ${block.name}]`);
+              } else if (block.type === "tool_result") {
+                textParts.push("[tool_result]");
+              }
+            }
+            if (textParts.length > 0) {
+              parts.push(`${roleLabel}\n\n${textParts.join("\n")}`);
+              parts.push("");
+            }
+          }
+        }
+
+        const markdown = parts.join("\n");
+
+        // 逆向: VU0:6 — clipboard.writeText(a); on success show "Copied ..."
+        // 逆向: VU0:14 — on failure, show the markdown content for manual copy
+        try {
+          if (ctx.writeClipboard) {
+            const ok = await ctx.writeClipboard(markdown);
+            if (ok) {
+              ctx.showMessage("Copied Markdown debug prompt to clipboard.");
+              return;
+            }
+          }
+          // Fallback: show the markdown directly
+          ctx.showMessage("Clipboard copy failed. Select and copy manually.\n\n" + markdown);
+        } catch {
+          ctx.showMessage("Clipboard copy failed. Select and copy manually.\n\n" + markdown);
+        }
+        return;
+      }
+
+      // ── /debug copy-command ──
+      // 逆向: 2777_unknown_YU0.js:4-12 — XU0 validates label+command, YU0 copies R.command
+      // 逆向: clipboard.writeText(R.command), showToast(`Copied: ${R.label}`, "success")
+      // Flitter simplification: takes command text directly as argument (no picker).
+      if (subcmd.startsWith("copy-command") || subcmd.startsWith("copy command")) {
+        // Extract the command text after "copy-command " or "copy command "
+        let commandText = "";
+        if (subcmd.startsWith("copy-command ")) {
+          commandText = subcmd.slice("copy-command ".length).trim();
+        } else if (subcmd.startsWith("copy command ")) {
+          commandText = subcmd.slice("copy command ".length).trim();
+        }
+
+        // 逆向: XU0:1-2 — validates that label and command exist; returns Error if missing
+        if (!commandText) {
+          ctx.showMessage("Usage: /debug copy-command <command text>");
+          return;
+        }
+
+        // 逆向: YU0:7 — clipboard.writeText(R.command), showToast on success
+        try {
+          if (ctx.writeClipboard) {
+            const ok = await ctx.writeClipboard(commandText);
+            if (ok) {
+              ctx.showMessage("Copied command to clipboard.");
+              return;
+            }
+          }
+          ctx.showMessage(`Could not copy to clipboard. Command:\n${commandText}`);
+        } catch {
+          ctx.showMessage(`Could not copy to clipboard. Command:\n${commandText}`);
+        }
+        return;
+      }
+
+      // Unknown /debug subcommand — show usage
+      ctx.showMessage(
+        "Debug commands:\n" +
+          "  /debug copy-prompt    — Copy Markdown debug prompt to clipboard\n" +
+          "  /debug copy-command   — Copy a command to clipboard",
+      );
     },
   });
 }

@@ -45,6 +45,10 @@ import {
   TextStyle,
 } from "@flitter/tui";
 import { detectShellCommand, getShellModeBorderColor } from "./command-detection.js";
+import {
+  detectDoubleAtTrigger,
+  insertThreadMention as insertThreadMentionUtil,
+} from "./file-autocomplete.js";
 
 // ════════════════════════════════════════════════════
 //  颜色常量
@@ -120,6 +124,23 @@ export interface InputFieldConfig {
    * cycling through visible agent modes using round-robin logic.
    */
   onToggleAgentMode?: () => void;
+  /**
+   * `@@` thread-mention trigger (逆向: actions_intents.js:2326 — onDoubleAtTrigger)
+   *
+   * Fired when the user types a second `@` immediately after a word-boundary `@`
+   * (i.e. the cursor is right after `@@`).  The app-level code is responsible
+   * for displaying a thread picker; once a thread is selected it should call
+   * `InputFieldState.insertThreadMention(threadId)` on the state instance.
+   *
+   * Amp reference:
+   *   `if (e.query === "@" && this.props.onDoubleAtTrigger)`
+   *   `  return this.props.onDoubleAtTrigger(this.props.controller), [];`
+   *
+   * Note: the `@@` sequence stays in the text while the picker is open so the
+   * app can remove it via `insertThreadMention` (which calls `handleDoubleAtTrigger`
+   * logic from jetbrains_wizard.js:3142-3201).
+   */
+  onThreadMentionTrigger?: () => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -656,6 +677,23 @@ export class InputFieldState extends State<InputField> {
     if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
       m.insertText(event.key);
       this._markDirty();
+
+      // ── @@ thread-mention trigger ──
+      // 逆向: actions_intents.js:2326
+      //   `if (e.query === "@" && this.props.onDoubleAtTrigger)`
+      //   `  return this.props.onDoubleAtTrigger(this.props.controller), [];`
+      //
+      // After inserting the character, check whether the cursor is now right
+      // after a `@@` sequence at a word boundary.  If so, fire the trigger
+      // callback — the app layer can then show a thread picker and later call
+      // insertThreadMention() on this state to commit the selection.
+      if (event.key === "@" && this.widget.config.onThreadMentionTrigger) {
+        const triggered = detectDoubleAtTrigger(m.text, m.cursorPosition);
+        if (triggered !== -1) {
+          this.widget.config.onThreadMentionTrigger();
+        }
+      }
+
       return "handled";
     }
 
@@ -676,6 +714,25 @@ export class InputFieldState extends State<InputField> {
       this.widget.config.onSubmit(text);
     }
     return "handled";
+  }
+
+  /**
+   * Insert a thread mention into the input, replacing the `@@` trigger.
+   *
+   * Finds the last `@@` before the cursor and replaces it with `@<threadId>`,
+   * appending a trailing space when the cursor is at the end of text.
+   * If no `@@` is found, falls back to inserting `@<threadId> ` at cursor.
+   *
+   * 逆向: jetbrains_wizard.js:3188-3201 — insertThreadMention
+   *
+   * @param threadId - Thread identifier to insert
+   */
+  insertThreadMention(threadId: string): void {
+    const m = this._controller;
+    const result = insertThreadMentionUtil(m.text, m.cursorPosition, threadId);
+    m.text = result.text;
+    m.cursorPosition = result.cursorPosition;
+    this._markDirty();
   }
 
   /**

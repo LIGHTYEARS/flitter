@@ -38,7 +38,6 @@ function makeCtx(overrides: Partial<SlashCommandContext> = {}): Ctx {
             { role: "assistant", content: [{ type: "text", text: "hi there" }] },
           ],
           relationships: [],
-          // biome-ignore lint/suspicious/noExplicitAny: test snapshot
         }) as any,
       setCachedThread: () => {},
       deleteThread: () => {},
@@ -95,7 +94,8 @@ describe("/copy-url", () => {
       `URL should use appBaseUrl: ${written[0]}`,
     );
     assert.ok(
-      ctx.messages[0]!.includes("Copied to clipboard"),
+      ctx.messages[0]!.toLowerCase().includes("copied") &&
+        ctx.messages[0]!.toLowerCase().includes("clipboard"),
       `Expected confirmation: ${ctx.messages[0]}`,
     );
   });
@@ -153,7 +153,8 @@ describe("/copy-id", () => {
     assert.equal(written.length, 1);
     assert.equal(written[0], "test-thread-id", "Should write the exact thread ID");
     assert.ok(
-      ctx.messages[0]!.includes("Copied to clipboard"),
+      ctx.messages[0]!.toLowerCase().includes("copied") &&
+        ctx.messages[0]!.toLowerCase().includes("clipboard"),
       `Expected confirmation: ${ctx.messages[0]}`,
     );
   });
@@ -207,8 +208,8 @@ describe("/copy-markdown", () => {
       written[0]!.includes("hi there"),
       `Markdown should include assistant message: ${written[0]}`,
     );
-    assert.ok(written[0]!.includes("**User**"), `Markdown should include role headers`);
-    assert.ok(written[0]!.includes("**Assistant**"), `Markdown should include assistant header`);
+    assert.ok(written[0]!.includes("## User"), `Markdown should include role headers`);
+    assert.ok(written[0]!.includes("## Assistant"), `Markdown should include assistant header`);
   });
 
   it("includes thread title when present", async () => {
@@ -229,7 +230,7 @@ describe("/copy-markdown", () => {
     );
   });
 
-  it("shows character count in confirmation", async () => {
+  it("shows confirmation message on success", async () => {
     const registry = makeRegistry();
     const ctx = makeCtx({
       writeClipboard: async () => true,
@@ -238,8 +239,8 @@ describe("/copy-markdown", () => {
     await registry.dispatch("copy-markdown", "", ctx);
 
     assert.ok(
-      ctx.messages[0]!.includes("chars"),
-      `Confirmation should show character count: ${ctx.messages[0]}`,
+      ctx.messages[0]!.toLowerCase().includes("copied"),
+      `Confirmation should show success: ${ctx.messages[0]}`,
     );
   });
 
@@ -247,7 +248,6 @@ describe("/copy-markdown", () => {
     const registry = makeRegistry();
     const ctx = makeCtx({
       threadStore: {
-        // biome-ignore lint/suspicious/noExplicitAny: test mock
         getThreadSnapshot: () => ({ id: "t", v: 1, messages: [], relationships: [] }) as any,
         setCachedThread: () => {},
         deleteThread: () => {},

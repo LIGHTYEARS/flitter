@@ -81,6 +81,89 @@ export function detectAtMention(text: string, cursorPosition: number): AtMention
   return { triggerIndex: atIndex, query };
 }
 
+/**
+ * Detect whether the cursor is immediately after a `@@` thread-mention trigger.
+ *
+ * Returns the index of the first `@` of the `@@` pair, or -1 if not triggered.
+ *
+ * Amp logic (1472_tui_components/actions_intents.js:2326):
+ *   `if (e.query === "@" && this.props.onDoubleAtTrigger) …`
+ *
+ * The ef detector (2481_unknown_ef.js) works by:
+ *   1. findWordStart: scan backwards until whitespace / `([{` / start of text
+ *   2. Check that the char at wordStart is `@`
+ *   3. query = text[wordStart+1 .. cursor]
+ *   4. If query === "@", the user has typed `@@` → fire onDoubleAtTrigger
+ *
+ * Word-boundary chars (from amp ef.findWordStart): /[\s([{]/
+ *
+ * 逆向: ef().detect() — query === "@" means cursor is at position after `@@`
+ */
+export function detectDoubleAtTrigger(text: string, cursorPosition: number): number {
+  if (cursorPosition < 2) return -1;
+
+  // Mimic amp's ef.findWordStart: scan backwards for whitespace / ([{ / start
+  let wordStart = cursorPosition;
+  for (let i = cursorPosition - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (!ch || /[\s([{]/.test(ch)) {
+      wordStart = i + 1;
+      break;
+    }
+    if (i === 0) {
+      wordStart = 0;
+    }
+  }
+
+  // The word must start with @
+  if (text[wordStart] !== "@") return -1;
+
+  // Query = text between trigger @ (exclusive) and cursor
+  const query = text.slice(wordStart + 1, cursorPosition);
+
+  // If query is exactly "@", the user has typed @@
+  if (query !== "@") return -1;
+
+  return wordStart;
+}
+
+/**
+ * Insert a thread mention into a text/cursor pair.
+ *
+ * Finds the last `@@` before the cursor and replaces it with `@<threadId>`,
+ * appending a trailing space only when the cursor is at the end of text.
+ * If no `@@` is found before the cursor, falls back to inserting `@<threadId> `
+ * at the cursor position.
+ *
+ * 逆向: jetbrains_wizard.js:3188-3201 — insertThreadMention
+ *
+ * @param text         Current text
+ * @param cursorPos    Current cursor position
+ * @param threadId     Thread identifier to insert
+ * @returns            { text, cursorPosition } after insertion
+ */
+export function insertThreadMention(
+  text: string,
+  cursorPos: number,
+  threadId: string,
+): { text: string; cursorPosition: number } {
+  const beforeCursor = text.slice(0, cursorPos);
+  const doubleAtIndex = beforeCursor.lastIndexOf("@@");
+
+  if (doubleAtIndex !== -1) {
+    const after = text.slice(cursorPos);
+    const atEnd = after.length === 0;
+    const replacement = `@${threadId}${atEnd ? " " : ""}`;
+    const newText = text.slice(0, doubleAtIndex) + replacement + after;
+    const newCursor = doubleAtIndex + replacement.length;
+    return { text: newText, cursorPosition: newCursor };
+  }
+
+  // Fallback: no @@ found — insert at cursor
+  const newText = text.slice(0, cursorPos) + `@${threadId} ` + text.slice(cursorPos);
+  return { text: newText, cursorPosition: cursorPos + threadId.length + 2 };
+}
+
 // ════════════════════════════════════════════════════
 //  FileAutocompleteConfig
 // ════════════════════════════════════════════════════

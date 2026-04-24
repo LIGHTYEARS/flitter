@@ -52,6 +52,7 @@ import type { DisplayItem } from "./display-items.js";
 import { projectStreamingMessage, transformThreadToDisplayItems } from "./display-items.js";
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
+import { ShortcutsPopup } from "./shortcuts-popup.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
 import { WelcomeScreen } from "./welcome-screen.js";
@@ -402,6 +403,18 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    */
   private _showThinkingBlocks = true;
 
+  /**
+   * Whether the shortcuts help panel (ShortcutsPopup / U8R) is currently shown.
+   *
+   * Toggled by pressing `?` when the input field is empty.
+   * Dismissed by any subsequent key press (except Escape, which also dismisses).
+   *
+   * 逆向: chunk-006.js:34295 — `isShowingShortcutsHelp = false`
+   * 逆向: chunk-006.js:36288-36308 — toggle on `?` when empty, dismiss on any key
+   * 逆向: chunk-006.js:37662-37664 — `topWidget: isShowingShortcutsHelp ? new U8R(...) : void 0`
+   */
+  private _isShowingShortcutsHelp = false;
+
   /** 滚动控制器 */
   private _scrollController: ScrollController;
 
@@ -522,6 +535,29 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
           this._exitSelectionMode();
         });
         return true;
+      }
+
+      // ── ? key — shortcuts help panel ────────────────────────────────────
+      // 逆向: chunk-006.js:36288-36308
+      //   When `?` pressed and input is empty and input is focused and no other
+      //   overlay is open → toggle isShowingShortcutsHelp.
+      //   When isShowingShortcutsHelp is true and any key fires → dismiss.
+      //   Escape while showing help → dismiss and consume the event.
+      if (event.key === "?") {
+        if (inputFocused) {
+          this.setState(() => {
+            this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
+          });
+          return true;
+        }
+      }
+      if (this._isShowingShortcutsHelp) {
+        this.setState(() => {
+          this._isShowingShortcutsHelp = false;
+        });
+        // Escape consumed; other keys pass through so they take effect
+        if (event.key === "Escape") return true;
+        return false;
       }
 
       // ── j/k scroll ───────────────────────────────────────────────────────
@@ -847,6 +883,12 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     return new Column({
       children: [
         mainContent,
+        // Shortcuts help panel — shown above the input field when `?` was pressed.
+        // 逆向: chunk-006.js:37662-37664
+        //   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
+        //   U8R is the shortcuts help table, rendered above the input area.
+        //   In flitter, ShortcutsPopup is the equivalent of amp's U8R.
+        ...(this._isShowingShortcutsHelp ? [new ShortcutsPopup()] : []),
         // 输入框 or 审批对话框
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows
         // A0R (confirmation widget) instead of input when approval is pending
@@ -867,7 +909,11 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               topLeftLabel: this._buildTopLeftLabel(),
               topRightLabel: this._buildTopRightLabel(),
               bottomRightLabel: this._buildBottomRightLabel(),
-              placeholder: "",
+              // 逆向: chunk-006.js:34746-34751
+              //   When input is empty and shortcuts help is not shown → show "? for shortcuts" hint.
+              //   The hint uses keybind color for "?" and dim foreground for " for shortcuts".
+              //   In flitter, placeholder is a plain string — the InputField shows it when empty.
+              placeholder: this._isShowingShortcutsHelp ? "" : "? for shortcuts",
             }),
         // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
         new BottomStatusLine({

@@ -1342,7 +1342,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         if (ctx.writeClipboard) {
           const ok = await ctx.writeClipboard(url);
           if (ok) {
-            ctx.showMessage(`Thread URL: ${url}\n(Copied to clipboard)`);
+            ctx.showMessage("Copied thread URL to clipboard");
           } else {
             ctx.showMessage(`Thread URL: ${url}\n(Could not copy to clipboard)`);
           }
@@ -1404,7 +1404,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         if (ctx.writeClipboard) {
           const ok = await ctx.writeClipboard(threadId);
           if (ok) {
-            ctx.showMessage(`Thread ID: ${threadId}\n(Copied to clipboard)`);
+            ctx.showMessage("Copied thread ID to clipboard");
           } else {
             ctx.showMessage(`Thread ID: ${threadId}\n(Could not copy to clipboard)`);
           }
@@ -1436,13 +1436,13 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       }
 
       // 逆向: KN() builds title + per-message markdown via pxR()
-      // pxR formats: "**User**\n\n{text}" or "**Assistant**\n\n{text}"
+      // Task spec: "## User\n\n<content>\n\n" / "## Assistant\n\n<content>\n\n"
       const parts: string[] = [];
       if (snapshot.title) {
         parts.push(`# ${snapshot.title}`);
       }
       for (const msg of snapshot.messages) {
-        const roleLabel = msg.role === "user" ? "**User**" : "**Assistant**";
+        const roleLabel = msg.role === "user" ? "## User" : "## Assistant";
         const textParts: string[] = [];
         for (const block of msg.content) {
           if (block.type === "text" && block.text) {
@@ -1450,7 +1450,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
           }
         }
         if (textParts.length > 0) {
-          parts.push(`${roleLabel}\n\n${textParts.join("\n")}`);
+          parts.push(`${roleLabel}\n\n${textParts.join("\n")}\n\n`);
         }
       }
       const markdown = parts.join("\n\n");
@@ -1459,7 +1459,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         if (ctx.writeClipboard) {
           const ok = await ctx.writeClipboard(markdown);
           if (ok) {
-            ctx.showMessage(`Thread markdown copied to clipboard (${markdown.length} chars).`);
+            ctx.showMessage("Copied thread as markdown to clipboard");
           } else {
             ctx.showMessage(
               `Thread markdown (${markdown.length} chars) — could not copy to clipboard.`,

@@ -521,3 +521,185 @@ describe("border width calculation", () => {
     );
   });
 });
+
+// ════════════════════════════════════════════════════
+//  InputField @@ thread-mention trigger tests
+//  逆向: actions_intents.js:2326 — onDoubleAtTrigger
+//        jetbrains_wizard.js:3188-3201 — insertThreadMention
+// ════════════════════════════════════════════════════
+
+describe("InputField @@ thread-mention trigger", () => {
+  afterEach(() => {
+    try {
+      FocusManager.instance.dispose();
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("fires onThreadMentionTrigger when user types @@", () => {
+    let triggered = false;
+    const { state, fm } = mountInputField({
+      onSubmit: () => {},
+      onThreadMentionTrigger: () => {
+        triggered = true;
+      },
+    });
+
+    // Type first @
+    fm.handleKeyEvent({ type: "key", key: "@", modifiers: NO_MODS });
+    assert.equal(triggered, false, "Should NOT trigger after single @");
+
+    // Type second @ → triggers
+    fm.handleKeyEvent({ type: "key", key: "@", modifiers: NO_MODS });
+    assert.equal(triggered, true, "Should trigger after @@");
+
+    state.dispose();
+  });
+
+  it("does NOT fire onThreadMentionTrigger for a single @", () => {
+    let triggered = false;
+    const { state, fm } = mountInputField({
+      onSubmit: () => {},
+      onThreadMentionTrigger: () => {
+        triggered = true;
+      },
+    });
+
+    fm.handleKeyEvent({ type: "key", key: "@", modifiers: NO_MODS });
+    assert.equal(triggered, false);
+
+    state.dispose();
+  });
+
+  it("does NOT fire when @@ is in middle of word (no word boundary)", () => {
+    let triggered = false;
+    const { state, fm } = mountInputField({
+      onSubmit: () => {},
+      onThreadMentionTrigger: () => {
+        triggered = true;
+      },
+    });
+
+    // Type "abc@@" — the first @ has no word boundary before it
+    for (const ch of "abc@@") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+    assert.equal(triggered, false, "Should not trigger when @@ not at word boundary");
+
+    state.dispose();
+  });
+
+  it("fires onThreadMentionTrigger when @@ appears after a space", () => {
+    let triggered = false;
+    const { state, fm } = mountInputField({
+      onSubmit: () => {},
+      onThreadMentionTrigger: () => {
+        triggered = true;
+      },
+    });
+
+    // Type "hello @@"
+    for (const ch of "hello @@") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+    assert.equal(triggered, true, "Should trigger when @@ is after a space");
+
+    state.dispose();
+  });
+
+  it("does not fire when onThreadMentionTrigger is not provided", () => {
+    // Should not throw — callback is optional
+    const { state, fm } = mountInputField({
+      onSubmit: () => {},
+      // no onThreadMentionTrigger
+    });
+
+    assert.doesNotThrow(() => {
+      for (const ch of "@@") {
+        fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+      }
+    });
+
+    state.dispose();
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  InputFieldState.insertThreadMention
+//  逆向: jetbrains_wizard.js:3188-3201
+// ════════════════════════════════════════════════════
+
+describe("InputFieldState.insertThreadMention", () => {
+  afterEach(() => {
+    try {
+      FocusManager.instance.dispose();
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("replaces @@ with @threadId and trailing space at end of text", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+
+    // Type "@@"
+    for (const ch of "@@") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+
+    state.insertThreadMention("my-thread");
+
+    assert.equal(
+      (state as any)._controller.text,
+      "@my-thread ",
+      "Should replace @@ with @threadId and trailing space",
+    );
+    assert.equal(
+      (state as any)._controller.cursorPosition,
+      11,
+      "Cursor should be after inserted text",
+    );
+
+    state.dispose();
+  });
+
+  it("replaces @@ in middle of input text", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+
+    // Type "before @@ after" — but we need cursor at @@ position
+    // Type "before @@", then type " after"
+    for (const ch of "before @@") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+    // Now insert " after" via direct controller manipulation
+    const m = (state as any)._controller;
+    m.insertText(" after");
+
+    // Move cursor back to right after @@: "before @@" is 9 chars
+    m.cursorPosition = 9;
+
+    state.insertThreadMention("tid");
+
+    // "before @@" → "before @tid" (no trailing space because " after" follows)
+    assert.equal((state as any)._controller.text, "before @tid after");
+
+    state.dispose();
+  });
+
+  it("falls back to inserting @threadId at cursor when no @@ in text", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+
+    for (const ch of "hello") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+
+    state.insertThreadMention("t1");
+
+    assert.ok(
+      (state as any)._controller.text.includes("@t1 "),
+      "Should fall back to inserting @t1  at cursor",
+    );
+
+    state.dispose();
+  });
+});

@@ -856,4 +856,119 @@ describe("ThreadStateWidget", () => {
       assert.equal((state as any)._selectedMessageOrdinal, null);
     });
   });
+
+  // ─── Shortcuts Help Panel ────────────────────────────────────────────────────
+  // 逆向: chunk-006.js:34295 — isShowingShortcutsHelp = false
+  // 逆向: chunk-006.js:36288-36308 — toggle on ? when focused, dismiss on any key
+  // 逆向: chunk-006.js:37662-37664 — topWidget: isShowingShortcutsHelp ? new U8R(...) : void 0
+
+  describe("shortcuts help panel", () => {
+    /** Helper: create a state in a headless-friendly environment */
+    async function createState() {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const store = createMockThreadStore("t1", {
+        id: "t1",
+        v: 0,
+        messages: [],
+        relationships: [],
+      });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      (state as any)._scrollController = {
+        followMode: true,
+        offset: 0,
+        maxScrollExtent: 0,
+        jumpTo: () => {},
+        scrollToBottom: () => {},
+        scrollDown: () => {},
+        scrollUp: () => {},
+        dispose: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      };
+      state.initState();
+      return state;
+    }
+
+    it("_isShowingShortcutsHelp defaults to false", async () => {
+      const state = await createState();
+      assert.equal((state as any)._isShowingShortcutsHelp, false);
+    });
+
+    it("build() includes ShortcutsPopup when _isShowingShortcutsHelp is true", async () => {
+      const { ShortcutsPopup } = await import("./shortcuts-popup.js");
+      const state = await createState();
+
+      // Set help panel flag directly
+      (state as any)._isShowingShortcutsHelp = true;
+
+      const tree = state.build({} as any);
+      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
+      assert.ok(hasShortcutsPopup, "Column should contain a ShortcutsPopup when help is shown");
+    });
+
+    it("build() excludes ShortcutsPopup when _isShowingShortcutsHelp is false", async () => {
+      const { ShortcutsPopup } = await import("./shortcuts-popup.js");
+      const state = await createState();
+
+      (state as any)._isShowingShortcutsHelp = false;
+
+      const tree = state.build({} as any);
+      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
+      assert.ok(
+        !hasShortcutsPopup,
+        "Column should NOT contain a ShortcutsPopup when help is hidden",
+      );
+    });
+
+    it("InputField placeholder shows '? for shortcuts' when help is not shown", async () => {
+      const { InputField } = await import("./input-field.js");
+      const state = await createState();
+
+      (state as any)._isShowingShortcutsHelp = false;
+
+      const tree = state.build({} as any);
+      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const inputField = children.find((c: any) => c instanceof InputField) as any;
+      assert.ok(inputField, "Should have an InputField child");
+      assert.equal(
+        inputField.config.placeholder,
+        "? for shortcuts",
+        "Placeholder should be '? for shortcuts' when help is not shown",
+      );
+    });
+
+    it("InputField placeholder is empty string when help is shown", async () => {
+      const { InputField } = await import("./input-field.js");
+      const state = await createState();
+
+      (state as any)._isShowingShortcutsHelp = true;
+
+      const tree = state.build({} as any);
+      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const inputField = children.find((c: any) => c instanceof InputField) as any;
+      assert.ok(inputField, "Should have an InputField child");
+      assert.equal(
+        inputField.config.placeholder,
+        "",
+        "Placeholder should be empty when shortcuts help panel is visible",
+      );
+    });
+  });
 });

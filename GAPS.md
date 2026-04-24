@@ -51,7 +51,7 @@
 | Ctrl+Z suspend (SIGTSTP) | ✅ | ✅ | — |
 | Alt+D toggle deep reasoning | ✅ | ✅ | /toggle-deep-reasoning slash command |
 | Alt+T toggle thinking blocks | ✅ | ✅ | `/toggle-thinking-blocks` slash command exists |
-| `?` shortcut help panel | ✅ | ❌ | Toggle inline keybinding help overlay |
+| `?` shortcut help panel | ✅ | ✅ | HelpTable + ? key toggle in ThreadStateWidget |
 | Emacs-style editing (Ctrl+A/E/B/F/K/U/Y/W/D/H/J/N/P) | ✅ | ✅ | Full readline emulation with shift-extend |
 | Alt+Left/Right word jump | ✅ | ✅ | Alt+Left/Right + Alt+B/F + Meta variants |
 | Tab / Shift+Tab message navigation | ✅ | ✅ | Selection mode with scroll-to-message and border highlight |
@@ -86,7 +86,7 @@
 | Copy-on-select | ✅ | ❌ | Auto-copy after mouse selection |
 | Platform fallbacks (pbcopy, xclip, wl-copy) | ✅ | ✅ | OSC 52 → pbcopy → wl-copy → xclip → WSL fallback chain |
 | Image paste (macOS/Wayland/X11/WSL) | ✅ | ❌ | Multi-platform image paste |
-| Copy thread URL/ID/markdown | ✅ | ❌ | Thread content clipboard ops |
+| Copy thread URL/ID/markdown | ✅ | ✅ | /copy-url, /copy-id, /copy-markdown slash commands |
 
 ## 5. Overlays & Dialogs
 
@@ -135,13 +135,13 @@
 | Chart tool widget | ✅ | ✅ | — |
 | Subagent/Task tool widget | ✅ | ✅ | — |
 | Oracle tool widget | ✅ | ✅ | Shared subagent renderer with ExpandableToolHeader |
-| Librarian tool widgets (5 variants) | ✅ | ❌ | Search, read, glob, list, commit-search, diff |
+| Librarian tool widgets (5 variants) | ✅ | ✅ | LibrarianToolWidget + LibrarianSubToolWidget (7 variants) |
 | REPL tool widget | ✅ | ✅ | Flat RichText with spinner/status prefix |
-| Painter tool widget | ✅ | ❌ | Render/paint tool output |
-| LookAt tool widget | ✅ | ❌ | Image viewing tool display |
+| Painter tool widget | ✅ | ✅ | ExpandableToolHeader with image entries |
+| LookAt tool widget | ✅ | ✅ | ExpandableToolHeader with path + compare files |
 | Handoff tool widget | ✅ | ✅ | Bordered box with blinking bullet and thread link |
-| Toolbox tool widget | ✅ | ❌ | Custom toolbox invocations |
-| Toolbox list widget | ✅ | ❌ | All toolboxes with status indicators |
+| Toolbox tool widget | ✅ | ✅ | Flat RichText with spinner, args, exit code |
+| Toolbox list widget | ✅ | ✅ | Summary + per-toolbox/tool status indicators |
 | ExpandableToolHeader | ✅ | ✅ | Reusable component with chevron, status icons, spinner animation |
 
 ## 8. Message Features
@@ -159,11 +159,11 @@
 | Message restore (r key) | ✅ | ❌ | Restore to previous state |
 | Edit confirmation with affected files | ✅ | ❌ | Shows what files will be affected |
 | ForceDim for old messages during restore | ✅ | ❌ | Dims messages after restore point |
-| Guidance file display | ✅ | ❌ | Shows related guidance files |
+| Guidance file display | ✅ | ✅ | GuidanceFileDisplay with CWD-relative paths |
 | Thread reference widget (V2) | ✅ | ❌ | Cross-thread navigation links |
 | `$`/`$$` shell command prefix detection | ✅ | ✅ | — |
 | `@` file mention | ✅ | ✅ | — |
-| `@@` thread mention | ✅ | ❌ | Cross-thread references |
+| `@@` thread mention | ✅ | ✅ | @@ detection with thread mention insertion |
 
 ## 9. Status Bar & Chrome
 
@@ -206,7 +206,7 @@
 |---|---|---|---|
 | Slash command autocomplete (`/`) | ✅ | ✅ | — |
 | File mention autocomplete (`@`) | ✅ | ✅ | — |
-| Thread mention autocomplete (`@@`) | ✅ | ❌ | Cross-thread reference autocomplete |
+| Thread mention autocomplete (`@@`) | ✅ | ✅ | @@ detection + onThreadMentionTrigger + insertThreadMention |
 
 ---
 
@@ -215,23 +215,23 @@
 | Category | Total Features | Flitter ✅ | Flitter ⚠️ | Flitter ❌ | Coverage |
 |---|---|---|---|---|---|
 | TUI Widgets | 17 | 14 | 0 | 3 | 82% |
-| Input/Keyboard | 22 | 17 | 0 | 5 | 77% |
+| Input/Keyboard | 22 | 18 | 0 | 4 | 82% |
 | Mouse Support | 11 | 5 | 0 | 6 | 45% |
-| Clipboard | 7 | 3 | 0 | 4 | 43% |
+| Clipboard | 7 | 4 | 0 | 3 | 57% |
 | Overlays & Dialogs | 16 | 2 | 0 | 14 | 13% |
 | Text Selection | 4 | 0 | 0 | 4 | 0% |
-| Tool Display | 21 | 16 | 0 | 5 | 76% |
-| Message Features | 16 | 9 | 0 | 7 | 56% |
+| Tool Display | 21 | 21 | 0 | 0 | 100% |
+| Message Features | 16 | 11 | 0 | 5 | 69% |
 | Status Bar | 10 | 10 | 0 | 0 | 100% |
 | Theming | 5 | 5 | 0 | 0 | 100% |
 | Dev/Debug Tools | 5 | 5 | 0 | 0 | 100% |
-| Autocomplete | 3 | 2 | 0 | 1 | 67% |
-| **TOTAL** | **137** | **88** | **0** | **49** | **64%** |
+| Autocomplete | 3 | 3 | 0 | 0 | 100% |
+| **TOTAL** | **137** | **98** | **0** | **39** | **72%** |
 
 ## Top Priority Gaps (highest user-impact)
 
 1. **Overlays & Dialogs** (13%) — Command palette (Ctrl+O), prompt history picker (Ctrl+R), modal stack still missing
 2. **Text Selection** (0%) — No text selection system at all
-3. **Clipboard** (43%) — Missing copy selection, copy-on-select, image paste
-4. **Mouse support** (45%) — Click+drag selection, double/triple-click, middle-click paste still missing
-5. **Message Features** (56%) — Missing message edit/fork/restore, guidance files, thread references
+3. **Mouse support** (45%) — Click+drag selection, double/triple-click, middle-click paste still missing
+4. **Clipboard** (57%) — Missing copy selection, copy-on-select, image paste
+5. **Message Features** (69%) — Missing message edit/fork/restore, thread reference widget

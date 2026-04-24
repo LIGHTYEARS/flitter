@@ -66,6 +66,12 @@ export {
 } from "./expandable-tool-header.js";
 export { FileAutocomplete, type FileAutocompleteConfig } from "./file-autocomplete.js";
 export {
+  cwdRelativePath,
+  GuidanceFileDisplay,
+  type GuidanceFileDisplayConfig,
+  type GuidanceFileEntry,
+} from "./guidance-file-display.js";
+export {
   type HandoffStatus,
   HandoffToolWidget,
   type HandoffToolWidgetConfig,
@@ -76,6 +82,13 @@ export {
   type InputFieldConfig,
   InputFieldState,
 } from "./input-field.js";
+export {
+  LibrarianSubToolWidget,
+  type LibrarianSubToolWidgetConfig,
+  LibrarianToolWidget,
+  type LibrarianToolWidgetConfig,
+  type LibrarianVariant,
+} from "./librarian-tool-widget.js";
 export {
   OracleToolWidget,
   type OracleToolWidgetConfig,
@@ -104,4 +117,18 @@ export {
   type ThreadStateWidgetConfig,
   ThreadStateWidgetState,
 } from "./thread-state-widget.js";
+export {
+  type ToolboxEntry,
+  ToolboxListWidget,
+  type ToolboxListWidgetConfig,
+  type ToolEntry,
+  type ToolStatus as ToolboxRegistrationStatus,
+} from "./toolbox-list-widget.js";
+export {
+  type ToolboxToolProgress,
+  type ToolboxToolStatus,
+  ToolboxToolWidget,
+  type ToolboxToolWidgetConfig,
+  ToolboxToolWidgetState,
+} from "./toolbox-tool-widget.js";
 export { WelcomeScreen } from "./welcome-screen.js";

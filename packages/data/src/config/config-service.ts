@@ -16,6 +16,7 @@ import {
   type SecretStore,
   type Settings,
   SettingsSchema,
+  setDisplayPathEnvInfo,
 } from "@flitter/schemas";
 import {
   BehaviorSubject,
@@ -186,9 +187,26 @@ export class ConfigService implements IConfigService {
     // SecretStore 的具体实现由外部注入
   }
 
-  /** 显示路径环境信息 (CLI display) */
+  /**
+   * Initialize the global display path env info.
+   *
+   * 逆向: amp-cli-reversed/chunk-002.js:25145-25153
+   *   A = a.pipe(JR(o => ({
+   *     workspaceFolders: o ? [d0(o)] : null,
+   *     isWindows: JS().os === "windows",
+   *     homeDir: process.env.HOME ? d0(zR.file(process.env.HOME)) : void 0,
+   *   })))
+   *   l = A.subscribe(o => { AET(o); })
+   *
+   * In flitter's simpler model (not an Observable), we call setDisplayPathEnvInfo
+   * once with the current workspace root and home directory.
+   */
   displayPathEnvInfo(): void {
-    // 由 CLI 层实现
+    setDisplayPathEnvInfo({
+      workspaceFolders: this._workspaceRoot ? [this._workspaceRoot] : null,
+      isWindows: process.platform === "win32",
+      homeDir: this.homeDir || undefined,
+    });
   }
 
   /** 从文件加载并合并配置

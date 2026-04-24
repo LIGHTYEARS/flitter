@@ -225,6 +225,59 @@ export function resolveModelName(settings: Record<string, unknown>): string {
   return rawModel;
 }
 
+/**
+ * Environment info needed for path display (replacing home dir with ~, etc.)
+ *
+ * 逆向: amp-cli-reversed/chunk-002.js:25145-25150
+ *   A = a.pipe(JR(o => ({
+ *     workspaceFolders: o ? [d0(o)] : null,
+ *     isWindows: JS().os === "windows",
+ *     homeDir: ...,
+ *   })))
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:4983-5011
+ *   KnR (displayPath) destructures { workspaceFolders, isWindows, homeDir } from this info.
+ */
+export interface DisplayPathEnvInfo {
+  /** Workspace folder URIs (or null if no workspace) */
+  workspaceFolders: string[] | null;
+  /** Whether the platform is Windows (affects path separator) */
+  isWindows: boolean;
+  /** Home directory path (used to replace with ~) */
+  homeDir: string | undefined;
+}
+
+/**
+ * Module-level storage for display path env info.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:5015-5021
+ *   AET(T) sets the global, VnR() reads it (throws if unset).
+ */
+let _displayPathEnvInfo: DisplayPathEnvInfo | null = null;
+
+/**
+ * Store the display path env info for later use by displayPath() and related functions.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:5015-5017  — AET(T) { gD = T; }
+ */
+export function setDisplayPathEnvInfo(info: DisplayPathEnvInfo): DisplayPathEnvInfo | null {
+  const prev = _displayPathEnvInfo;
+  _displayPathEnvInfo = info;
+  return prev;
+}
+
+/**
+ * Retrieve the display path env info. Throws if not initialized.
+ *
+ * 逆向: amp-cli-reversed/chunk-001.js:5019-5022  — VnR() { if (gD) return gD; throw ... }
+ */
+export function getDisplayPathEnvInfo(): DisplayPathEnvInfo {
+  if (_displayPathEnvInfo) return _displayPathEnvInfo;
+  throw new Error(
+    "must call setDisplayPathEnvInfo before calling displayPath() and related functions",
+  );
+}
+
 export interface ConfigService {
   get(): Config;
   updateSettings(scope: ConfigScope, key: string, value: unknown): void;
@@ -237,6 +290,13 @@ export interface ConfigService {
   readonly workspaceRoot: string;
   readonly homeDir: string;
   readonly userConfigDir: string;
+  /**
+   * Initialize the global display path env info.
+   * Must be called once at startup before any path display.
+   *
+   * 逆向: amp-cli-reversed/chunk-002.js:25151-25153
+   *   l = A.subscribe(o => { AET(o); })
+   */
   displayPathEnvInfo(): void;
   getLatest(): Promise<Config>;
   unsubscribe(): void;

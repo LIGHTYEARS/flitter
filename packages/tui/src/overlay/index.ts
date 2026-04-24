@@ -12,3 +12,4 @@ export * from "./overlay.js";
 export * from "./overlay-entry.js";
 export * from "./popup-overlay.js";
 export * from "./prompt-dialog.js";
+export * from "./spinner-overlay.js";

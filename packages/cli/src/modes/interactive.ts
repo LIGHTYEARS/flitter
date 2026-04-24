@@ -28,7 +28,13 @@
 import { SessionCostTracker } from "@flitter/agent-core";
 import type { ServiceContainer } from "@flitter/flitter";
 import type { ThreadSnapshot } from "@flitter/schemas";
-import { Clipboard, parsedThemeToThemeSpec, runApp, scanThemeDirectory } from "@flitter/tui";
+import {
+  Clipboard,
+  parsedThemeToThemeSpec,
+  runApp,
+  scanThemeDirectory,
+  WidgetsBinding,
+} from "@flitter/tui";
 import { defaultOpenBrowser } from "../commands/auth.js";
 import { createBuiltinCommands } from "../commands/slash-handlers.js";
 import type { SlashCommandContext } from "../commands/slash-registry.js";
@@ -515,6 +521,14 @@ export async function launchInteractiveMode(
   });
   // Wire appWidget into the hot-reload ref so config changes can update it.
   appWidgetRef.current = appWidget;
+
+  // Wire hyperlink click → browser open.
+  // 逆向: je(T, url) in chunk-004.js:20890 — Wb() cross-platform opener
+  //   In amp, hyperlink widgets have onClick: () => je(T, url).
+  //   In flitter, Cell.url holds the OSC 8 hyperlink; WidgetsBinding checks
+  //   the screen buffer on click and calls this opener.
+  WidgetsBinding.instance.setOpenUrl(defaultOpenBrowser);
+
   try {
     await runApp(appWidget, {
       onCapabilitiesReady: (capabilities) => {

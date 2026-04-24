@@ -19,6 +19,7 @@
 
 import { Color } from "../screen/color.js";
 import { TextStyle } from "../screen/text-style.js";
+import type { SyntaxHighlightColors } from "../theme/palette.js";
 import { TextSpan } from "../widgets/text-span.js";
 
 /**
@@ -267,4 +268,33 @@ export class SyntaxHighlighter {
 
     return tokens;
   }
+}
+
+/**
+ * Convert {@link SyntaxHighlightColors} (Color-valued fields from AppTheme)
+ * into a full {@link SyntaxTheme} (TextStyle-valued fields for the highlighter).
+ *
+ * SyntaxHighlightColors has 8 Color fields; SyntaxTheme has 10 TextStyle fields.
+ * The two extra fields (`punctuation`, `plain`) get empty TextStyle defaults,
+ * matching {@link SyntaxHighlighter.defaultTheme}.
+ *
+ * 逆向: chunk-006.js:11773 — R.app.syntaxHighlight passed as color source
+ * 逆向: Sv() uses syntaxHighlight colors to create styled text spans
+ *
+ * @param colors - SyntaxHighlightColors from AppTheme.syntaxHighlight
+ * @returns SyntaxTheme suitable for SyntaxHighlighter / MarkdownRenderer
+ */
+export function syntaxColorsToTheme(colors: SyntaxHighlightColors): SyntaxTheme {
+  return {
+    keyword: new TextStyle({ foreground: colors.keyword }),
+    string: new TextStyle({ foreground: colors.string }),
+    number: new TextStyle({ foreground: colors.number }),
+    comment: new TextStyle({ foreground: colors.comment, dim: true }),
+    function: new TextStyle({ foreground: colors.function }),
+    variable: new TextStyle({ foreground: colors.variable }),
+    type: new TextStyle({ foreground: colors.type }),
+    operator: new TextStyle({ foreground: colors.operator }),
+    punctuation: new TextStyle({}),
+    plain: new TextStyle({}),
+  };
 }

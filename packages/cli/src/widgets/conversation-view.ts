@@ -45,6 +45,8 @@ import {
   SizedBox,
   State,
   StatefulWidget,
+  SyntaxHighlighter,
+  syntaxColorsToTheme,
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
@@ -272,7 +274,19 @@ export class ConversationViewState extends State<ConversationView> {
   initState(): void {
     super.initState();
     this._parser = new MarkdownParser();
-    this._renderer = new MarkdownRenderer();
+    // 逆向: chunk-006.js:11773 — R.app.syntaxHighlight wired into markdown renderer
+    // Read AppTheme to pass syntax highlight colors; fall back to default theme
+    let syntaxTheme: ReturnType<typeof SyntaxHighlighter.defaultTheme>;
+    try {
+      const appTheme = AppThemeController.maybeOf(this.context as unknown as Element);
+      syntaxTheme = appTheme
+        ? syntaxColorsToTheme(appTheme.syntaxHighlight)
+        : SyntaxHighlighter.defaultTheme();
+    } catch {
+      // No AppThemeController in ancestor tree — fall back to default theme
+      syntaxTheme = SyntaxHighlighter.defaultTheme();
+    }
+    this._renderer = new MarkdownRenderer({ syntaxTheme });
     this._scrollController = new ScrollController();
     // followMode is true by default, which ensures new messages auto-scroll to bottom
 

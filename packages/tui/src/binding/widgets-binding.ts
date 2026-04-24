@@ -146,6 +146,18 @@ export class WidgetsBinding {
   private currentMediaQueryData: MediaQueryData | null = null;
 
   /**
+   * URL opener callback for hyperlink clicks.
+   *
+   * 逆向: je(T, url) in chunk-004.js:20890 — opens URL via Wb() (cross-platform opener)
+   *   Called from onClick handlers when a hyperlink cell is clicked.
+   *   In amp, je() is context-level; here we inject it via the binding singleton.
+   *
+   * Set by the CLI layer (interactive.ts) to wire defaultOpenBrowser.
+   * If null, hyperlink clicks are silently ignored.
+   */
+  private _openUrl: ((url: string) => Promise<void>) | null = null;
+
+  /**
    * 获取 WidgetsBinding 单例实例。
    *
    * 首次访问时自动创建实例。
@@ -180,6 +192,24 @@ export class WidgetsBinding {
       inst.pipelineOwner.dispose();
     }
     WidgetsBinding._instance = undefined;
+  }
+
+  /**
+   * Set the URL opener callback for hyperlink clicks.
+   *
+   * 逆向: je(T, url) in chunk-004.js:20890 — Wb() cross-platform opener
+   *   In amp, je() dispatches to Wb() which uses `open` (macOS), `xdg-open` (Linux),
+   *   or `cmd /c start` (Windows). Flitter injects this via the binding.
+   *
+   * @param fn - Async function that opens a URL in the default browser
+   *
+   * @example
+   * ```ts
+   * WidgetsBinding.instance.setOpenUrl(defaultOpenBrowser);
+   * ```
+   */
+  setOpenUrl(fn: (url: string) => Promise<void>): void {
+    this._openUrl = fn;
   }
 
   /**
@@ -525,6 +555,33 @@ export class WidgetsBinding {
     // 逆向: d9 — recordMouseEvent for FrameStatsOverlay (chunk-004.js:5394)
     this.tui.onMouse((event) => {
       const mouseStart = performance.now();
+
+      // Hyperlink click: open URL when left-clicking a cell with an OSC 8 hyperlink.
+      // 逆向: je(T, url) in chunk-004.js:20890 — called from onClick handlers on
+      //   hyperlink-bearing widgets (e.g., chunk-006.js:33341).
+      //   In amp, hyperlinks are rendered as widgets with onClick: () => je(T, url).
+      //   In flitter, hyperlink data lives on Cell.url in the screen buffer,
+      //   so we check the cell at the click position directly.
+      if (event.action === "press" && event.button === "left" && this._openUrl) {
+        const screen = this.tui.getScreen();
+        const col = event.x;
+        const row = event.y;
+        if (col >= 0 && col < screen.width && row >= 0 && row < screen.height) {
+          const cell = screen.getCell(col, row);
+          if (cell.url) {
+            const url = cell.url;
+            log.debug("hyperlink-click", { col, row, url });
+            this._openUrl(url).catch((err) => {
+              // 逆向: je() catch — J.error("Failed to open link", { uri, error })
+              log.debug("hyperlink-open-failed", {
+                url,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
+          }
+        }
+      }
+
       for (const cb of this.eventCallbacks.mouse) cb(event);
       this.mouseManager.handleMouseEvent(event);
       this.performanceTracker.recordMouseEvent(performance.now() - mouseStart);

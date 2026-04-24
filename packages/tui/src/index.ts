@@ -68,6 +68,8 @@ export { RichText } from "./widgets/rich-text.js";
 export { Row } from "./widgets/row.js";
 export type { RenderScrollbarProps, ScrollbarProps, ScrollInfo } from "./widgets/scrollbar.js";
 export { RenderScrollbar, Scrollbar, ScrollbarRenderWidget } from "./widgets/scrollbar.js";
+export type { SizeChangedNotifierArgs } from "./widgets/size-changed-notifier.js";
+export { RenderSizeChangedNotifier, SizeChangedNotifier } from "./widgets/size-changed-notifier.js";
 export { SizedBox } from "./widgets/sized-box.js";
 export { Spacer } from "./widgets/spacer.js";
 export type { SplitDirection } from "./widgets/split-pane.js";

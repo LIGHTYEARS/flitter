@@ -165,6 +165,9 @@ export interface StatusBarConfig {
   cwdDisplay?: string;
   /** Git branch name */
   gitBranch?: string;
+  /** Whether to show cost display (default true).
+   * 逆向: chunk-005.js:158879 (showCosts config), chunk-006.js:17090 (settings.showCosts ?? true) */
+  showCosts?: boolean;
 }
 
 // ════════════════════════════════════════════════════
@@ -245,6 +248,7 @@ export class StatusBar extends StatelessWidget {
       skillCount,
       cwdDisplay,
       gitBranch,
+      showCosts = true,
     } = this.config;
 
     const mutedStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true });
@@ -267,10 +271,11 @@ export class StatusBar extends StatelessWidget {
 
     // ── Top border left segment: "{percent}% of {max} · ${cost}" ──
     // 逆向: chunk-004.js:24704-24708 (XM), chunk-004.js:24684-24703 (AP)
+    // 逆向: chunk-006.js:17090 (showCosts gating)
     let leftSegment = "";
     if (pct !== null && contextWindowMax != null) {
       leftSegment = `${Math.round(pct)}% of ${formatTokenCount(contextWindowMax)}`;
-      if (estimatedUSD != null) {
+      if (showCosts && estimatedUSD != null) {
         leftSegment += ` \u00B7 ${formatCostUSD(estimatedUSD)}`;
       }
     }

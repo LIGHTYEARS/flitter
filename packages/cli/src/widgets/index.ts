@@ -58,6 +58,12 @@ export {
   type ToolItem,
   transformThreadToDisplayItems,
 } from "./display-items.js";
+export {
+  ExpandableToolHeader,
+  type ExpandableToolHeaderConfig,
+  ExpandableToolHeaderState,
+  type ToolStatus,
+} from "./expandable-tool-header.js";
 export { FileAutocomplete, type FileAutocompleteConfig } from "./file-autocomplete.js";
 export {
   InputField,

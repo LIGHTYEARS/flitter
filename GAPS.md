@@ -21,13 +21,13 @@
 | SizedBox / Spacer | ✅ | ✅ | — |
 | ClipRect | ✅ | ✅ | — |
 | IntrinsicHeight | ✅ | ✅ | — |
-| OverlapColumn | ✅ | ❌ | Stacked children with configurable overlap |
+| OverlapColumn | ✅ | ✅ | — |
 | ListView (virtualized) | ✅ | ❌ | Builder pattern, lazy rendering, kept-alive items |
 | Overlay system (hQ) | ✅ | ❌ | Z-ordered floating overlay entries |
 | OverlayContainer (positioned overlays) | ✅ | ❌ | Top/bottom/left/right overlay positioning |
 | CompositedTransformTarget/Follower | ✅ | ❌ | Tooltip/dropdown positioning system |
-| SizeChangedNotifier | ✅ | ❌ | Callback on layout size change |
-| Offstage | ✅ | ❌ | Hide child while keeping it in tree |
+| SizeChangedNotifier | ✅ | ✅ | Post-frame callback with dedup, matching amp's NM/N1T |
+| Offstage | ✅ | ✅ | — |
 | ProgressBar (animated gradient) | ✅ | ❌ | Animated horizontal bar with trail effect |
 | HelpTable (responsive 2-col) | ✅ | ❌ | Side-by-side when wide, stacked when narrow |
 | GridLayout (2-panel with borders) | ✅ | ❌ | Used for tool approval dialogs |
@@ -65,7 +65,7 @@
 | Feature | Amp | Flitter | Gap Notes |
 |---|---|---|---|
 | SGR mouse mode | ✅ | ✅ | Button-event + any-event + focus + SGR extended |
-| Click on hyperlinks | ✅ | ❌ | Open URLs in browser |
+| Click on hyperlinks | ✅ | ✅ | Cell.url lookup on click → defaultOpenBrowser |
 | Double-click word select | ✅ | ❌ | Word-granularity selection |
 | Triple-click line select | ✅ | ❌ | Full line selection |
 | Click+drag text selection | ✅ | ❌ | Range selection with auto-scroll |
@@ -84,7 +84,7 @@
 | OSC 52 clipboard read | ✅ | ✅ | — |
 | Ctrl+C copy selection | ✅ | ❌ | Copy selected text |
 | Copy-on-select | ✅ | ❌ | Auto-copy after mouse selection |
-| Platform fallbacks (pbcopy, xclip, wl-copy) | ✅ | ❌ | Fallback clipboard access |
+| Platform fallbacks (pbcopy, xclip, wl-copy) | ✅ | ✅ | OSC 52 → pbcopy → wl-copy → xclip → WSL fallback chain |
 | Image paste (macOS/Wayland/X11/WSL) | ✅ | ❌ | Multi-platform image paste |
 | Copy thread URL/ID/markdown | ✅ | ❌ | Thread content clipboard ops |
 
@@ -97,7 +97,7 @@
 | Keybinding Help Sheet (`?`) | ✅ | ❌ | Two-column keybinding overlay |
 | Label Picker | ✅ | ❌ | Thread label management with inline create |
 | Confirmation Dialog (y/n) | ✅ | ✅ | Aligned with amp: inline keybind hints, color injection, Center wrapper |
-| Spinner Overlay | ✅ | ❌ | Centered spinner with escape-to-cancel |
+| Spinner Overlay | ✅ | ✅ | BrailleSpinner + Esc cancel, color injection, amp Ko/HRR aligned |
 | Image Preview modal | ✅ | ❌ | Image viewing with save option |
 | Thread Visibility Selector | ✅ | ❌ | Thread visibility control |
 | MCP Server Trust Dialog | ✅ | ❌ | Trust/always-trust/settings/dismiss |
@@ -142,7 +142,7 @@
 | Handoff tool widget | ✅ | ❌ | Thread handoff with state |
 | Toolbox tool widget | ✅ | ❌ | Custom toolbox invocations |
 | Toolbox list widget | ✅ | ❌ | All toolboxes with status indicators |
-| ExpandableToolHeader | ✅ | ❌ | Collapsible tool sections with toggle |
+| ExpandableToolHeader | ✅ | ✅ | Reusable component with chevron, status icons, spinner animation |
 
 ## 8. Message Features
 
@@ -177,8 +177,8 @@
 | Status message state machine | ✅ | ✅ | — |
 | Bottom status line with wave animation | ✅ | ✅ | — |
 | Toast notifications | ✅ | ✅ | — |
-| ShowCosts inherited toggle | ✅ | ❌ | Toggle cost display visibility |
-| DisplayPathEnvInfo toggle | ✅ | ❌ | Toggle env path info |
+| ShowCosts inherited toggle | ✅ | ✅ | showCosts config prop gates cost display in status bar |
+| DisplayPathEnvInfo toggle | ✅ | ✅ | ConfigService.displayPathEnvInfo() initialized with cwd/homeDir/platform |
 
 ## 10. Theming
 
@@ -188,7 +188,7 @@
 | Multiple built-in themes | ✅ | ✅ | — |
 | Light/dark auto-detection | ✅ | ✅ | — |
 | AppTheme with app-specific colors | ✅ | ✅ | 47-field AppTheme matching amp's yS class, InheritedWidget injection, wired into tool/diff/message widgets |
-| Syntax highlighting color scheme | ✅ | ❌ | Per-language token colors in diffs/code |
+| Syntax highlighting color scheme | ✅ | ✅ | AppTheme.syntaxHighlight → syntaxColorsToTheme → MarkdownRenderer |
 
 ## 11. Developer/Debug Tools
 
@@ -214,24 +214,24 @@
 
 | Category | Total Features | Flitter ✅ | Flitter ⚠️ | Flitter ❌ | Coverage |
 |---|---|---|---|---|---|
-| TUI Widgets | 17 | 7 | 0 | 10 | 41% |
+| TUI Widgets | 17 | 10 | 0 | 7 | 59% |
 | Input/Keyboard | 22 | 11 | 0 | 11 | 50% |
-| Mouse Support | 11 | 2 | 0 | 9 | 18% |
-| Clipboard | 7 | 2 | 0 | 5 | 29% |
-| Overlays & Dialogs | 16 | 1 | 0 | 15 | 6% |
+| Mouse Support | 11 | 3 | 0 | 8 | 27% |
+| Clipboard | 7 | 3 | 0 | 4 | 43% |
+| Overlays & Dialogs | 16 | 2 | 0 | 14 | 13% |
 | Text Selection | 4 | 0 | 0 | 4 | 0% |
-| Tool Display | 21 | 11 | 1 | 9 | 52% |
+| Tool Display | 21 | 12 | 1 | 8 | 57% |
 | Message Features | 16 | 9 | 0 | 7 | 56% |
-| Status Bar | 10 | 8 | 0 | 2 | 80% |
-| Theming | 5 | 4 | 0 | 1 | 80% |
+| Status Bar | 10 | 10 | 0 | 0 | 100% |
+| Theming | 5 | 5 | 0 | 0 | 100% |
 | Dev/Debug Tools | 5 | 1 | 0 | 4 | 20% |
 | Autocomplete | 3 | 2 | 0 | 1 | 67% |
-| **TOTAL** | **137** | **58** | **1** | **78** | **42%** |
+| **TOTAL** | **137** | **68** | **1** | **68** | **50%** |
 
 ## Top Priority Gaps (highest user-impact)
 
-1. **Mouse support** (18%) — Click, selection, drag mostly wired; SGR mode + scroll now working
-2. **Overlays & Dialogs** (6%) — Command palette (Ctrl+O), prompt history picker (Ctrl+R), most modals still missing
-3. **Text Selection** (0%) — No text selection system at all
-4. **Input/Keyboard** (50%) — Emacs editing + word jump done; still missing Ctrl+O/R/G/V/S, message nav, vim scroll
-5. **Clipboard** (29%) — Missing copy/paste beyond basic OSC 52, image paste, platform fallbacks
+1. **Overlays & Dialogs** (13%) — Command palette (Ctrl+O), prompt history picker (Ctrl+R), modal stack still missing
+2. **Text Selection** (0%) — No text selection system at all
+3. **Mouse support** (27%) — Click+drag selection, scrollbar drag, hover cursor still missing
+4. **Input/Keyboard** (50%) — Missing Ctrl+O/R/G/V/S, message nav, vim scroll, kitty protocol
+5. **Clipboard** (43%) — Missing copy selection, copy-on-select, image paste

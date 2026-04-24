@@ -224,6 +224,169 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   private _promptHistory = new PromptHistory();
 
   /**
+   * Whether the user is currently in message-selection (browse) mode.
+   *
+   * 逆向: f8R._stateController.selectedUserMessageOrdinal !== null (chunk-006.js:31810)
+   *   In amp, selection mode is active whenever selectedUserMessageOrdinal is set.
+   *   We model the same with a boolean + nullable ordinal.
+   */
+  private _isInMessageSelectionMode = false;
+
+  /**
+   * Ordinal into the navigable-messages list of the currently selected message.
+   * null means nothing is selected.
+   *
+   * 逆向: f8R._stateController.selectedUserMessageOrdinal (chunk-006.js:31810)
+   */
+  private _selectedMessageOrdinal: number | null = null;
+
+  /**
+   * Compute the list of indices in `_items` that are navigable.
+   * Navigable = user messages + chart tool results.
+   *
+   * 逆向: AhT.navigableItemIndices (chunk-006.js:31616-31630)
+   *   - items[R].type === "message" && (role === "user" || ok(a.message) [info])  → push R
+   *   - items[R].type === "toolResult" && toolUse.name === "chart"                → push R
+   *
+   * @returns Array of indices into `_items`
+   */
+  private get _navigableItemIndices(): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < this._items.length; i++) {
+      const item = this._items[i];
+      if (!item) continue;
+      if (item.type === "message" && item.role === "user") {
+        indices.push(i);
+      } else if (item.type === "tool" && item.toolName === "chart") {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }
+
+  /**
+   * Resolve the current selected item's index in `_items` from the ordinal.
+   * Returns null if not in selection mode or ordinal is out of range.
+   *
+   * 逆向: f8R.getUserMessageIndexFromOrdinal (chunk-006.js:31844)
+   *   `return this.widget.navigableItemIndices[T] ?? null`
+   */
+  private get _selectedItemIndex(): number | null {
+    if (this._selectedMessageOrdinal === null) return null;
+    const nav = this._navigableItemIndices;
+    return nav[this._selectedMessageOrdinal] ?? null;
+  }
+
+  /**
+   * Enter message-selection mode, selecting the last user message.
+   *
+   * 逆向: f8R.didUpdateWidget — !T.isInSelectionMode && this.widget.isInSelectionMode →
+   *   widget.focusNode?.requestFocus(); a = getLatestUserMessageOrdinal(); _selectUserMessageByOrdinal(a)
+   * 逆向: f8R.getLatestUserMessageOrdinal (chunk-006.js:31852)
+   *   `T.length > 0 ? T.length - 1 : null`
+   */
+  private _enterSelectionMode(): void {
+    const nav = this._navigableItemIndices;
+    if (nav.length === 0) return;
+    const lastOrdinal = nav.length - 1;
+    this._isInMessageSelectionMode = true;
+    this._selectedMessageOrdinal = lastOrdinal;
+    this._scrollToSelectedMessage();
+  }
+
+  /**
+   * Exit message-selection mode and scroll back to bottom.
+   *
+   * 逆向: f8R.navigateToUserMessage "down" at bottom → animateToBottom + clearSelectedUserMessage + dismiss
+   * 逆向: f8R.handleEscape → clearSelectedUserMessage + dismiss + animateToBottom
+   */
+  private _exitSelectionMode(): void {
+    this._isInMessageSelectionMode = false;
+    this._selectedMessageOrdinal = null;
+    this._scrollController.followMode = true;
+    this._scrollController.scrollToBottom();
+  }
+
+  /**
+   * Navigate up (to older/higher user message) in selection mode.
+   *
+   * 逆向: f8R._navigateUp (chunk-006.js:31780-31784)
+   *   if (R <= 0) return null;
+   *   if (T === null) return R - 1;   // enter at bottom
+   *   if (T <= 0) return 0;           // already at top — clamp
+   *   return T - 1;
+   *
+   * 逆向: f8R.navigateToUserMessage("up") → _selectUserMessageByOrdinal(e) if not null
+   */
+  private _navigateUp(): void {
+    const count = this._navigableItemIndices.length;
+    if (count === 0) return;
+    let next: number;
+    if (this._selectedMessageOrdinal === null) {
+      next = count - 1;
+    } else if (this._selectedMessageOrdinal <= 0) {
+      next = 0;
+    } else {
+      next = this._selectedMessageOrdinal - 1;
+    }
+    this._selectedMessageOrdinal = next;
+    this._scrollToSelectedMessage();
+  }
+
+  /**
+   * Navigate down (to newer/lower user message) in selection mode.
+   * If already at the last message, exit selection mode.
+   *
+   * 逆向: f8R._navigateDown (chunk-006.js:31786-31792)
+   *   if (R <= 0) return null;
+   *   if (T === null) return null;
+   *   if (T >= R - 1) return null;    // at end → exit selection mode
+   *   return T + 1;
+   *
+   * 逆向: f8R.navigateToUserMessage("down") → if e === null exit mode; else _selectUserMessageByOrdinal(e)
+   */
+  private _navigateDown(): void {
+    const count = this._navigableItemIndices.length;
+    if (count === 0) {
+      this._exitSelectionMode();
+      return;
+    }
+    if (this._selectedMessageOrdinal === null || this._selectedMessageOrdinal >= count - 1) {
+      // At the end → exit selection mode (scroll to bottom)
+      this._exitSelectionMode();
+      return;
+    }
+    this._selectedMessageOrdinal = this._selectedMessageOrdinal + 1;
+    this._scrollToSelectedMessage();
+  }
+
+  /**
+   * Scroll the viewport so the currently selected message is approximately
+   * 25% from the top.
+   *
+   * 逆向: f8R.scrollToMessage (chunk-006.js:32243)
+   *   offsetPercent: 0.25 — message lands 25% from the top of the viewport
+   *   Uses per-item render offset via localToGlobal coordinate transform.
+   *
+   * Flitter approximation: we estimate the message's position from its
+   * ordinal fraction of total content, then bias by -25% of viewport height.
+   * This is imprecise but gives a reasonable visual result without full
+   * layout measurement infrastructure.
+   */
+  private _scrollToSelectedMessage(): void {
+    if (this._selectedMessageOrdinal === null) return;
+    const nav = this._navigableItemIndices;
+    if (nav.length === 0) return;
+    // Disable follow-mode so manual scroll position is preserved
+    this._scrollController.followMode = false;
+    const fraction = nav.length > 1 ? this._selectedMessageOrdinal / (nav.length - 1) : 0;
+    const maxExtent = this._scrollController.maxScrollExtent;
+    // Bias upward by 25% of a nominal 24-row viewport (approx 6 rows)
+    const target = Math.max(0, Math.round(maxExtent * fraction) - 6);
+    this._scrollController.jumpTo(target);
+  }
+
+  /**
    * Whether to show thinking blocks in the message display.
    *
    * When false, content blocks with type "thinking" are filtered out
@@ -292,19 +455,79 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     super.initState();
     const { threadStore, threadWorker, threadId } = this.widget.config;
 
-    // Register j/k scroll key interceptor.
+    // Register key interceptor for:
+    //   - j/k scroll (browse mode, InputField not focused)
+    //   - Tab: enter/navigate selection mode
+    //   - Shift+Tab: navigate down / exit selection mode
+    //   - Escape: exit selection mode
+    //
     // 逆向: amp interactive_widgets.js:2471-2477, 2755-2756
     //   handleScrollDown: this._controller?.scrollDown(1)
     //   handleScrollUp:   this._controller?.scrollUp(1)
     //   x0.key("j") → scrollDown, x0.key("k") → scrollUp
     //   In amp, these only fire when selectedUserMessageOrdinal !== null (browse mode).
     //   In flitter, we check that the InputField is NOT focused (equivalent to browse mode).
+    //
+    // 逆向: amp f8R.build() — Tab → RD() (navigateUserMessageUp), Shift+Tab → aD() (navigateUserMessageDown)
+    //   x0.key("Tab") → new RD(), x0.shift("Tab") → new aD()
+    //   x0.key("Escape") → VQ() → handleEscape
+    //   Tab from InputField enters selection mode; Tab in selection mode → navigate up;
+    //   Shift+Tab in selection mode → navigate down (exit if at end);
+    //   Escape in selection mode → exit.
     this._scrollKeyInterceptorUnsub = WidgetsBinding.instance.addKeyInterceptor((event) => {
       if (event.modifiers.ctrl || event.modifiers.alt || event.modifiers.meta) return false;
+
+      const primaryFocus = FocusManager.instance.primaryFocus;
+      const inputFocused = primaryFocus?.debugLabel === "InputField";
+
+      // ── Tab key ──────────────────────────────────────────────────────────
+      // 逆向: amp — Tab from InputField → enter selection mode (select last message)
+      //            Tab in selection mode → navigate up
+      if (event.key === "Tab" && !event.modifiers.shift) {
+        if (inputFocused) {
+          // Tab from input field: enter message selection mode
+          const nav = this._navigableItemIndices;
+          if (nav.length === 0) return false; // no navigable messages — let Tab through
+          this.setState(() => {
+            this._enterSelectionMode();
+          });
+          return true;
+        }
+        if (this._isInMessageSelectionMode) {
+          // Tab in selection mode: navigate up (to older message)
+          this.setState(() => {
+            this._navigateUp();
+          });
+          return true;
+        }
+        return false;
+      }
+
+      // ── Shift+Tab key ────────────────────────────────────────────────────
+      // 逆向: amp — Shift+Tab in selection mode → navigate down; exit if at last message
+      if (event.key === "Tab" && event.modifiers.shift) {
+        if (this._isInMessageSelectionMode) {
+          this.setState(() => {
+            this._navigateDown();
+          });
+          return true;
+        }
+        return false;
+      }
+
+      // ── Escape key ───────────────────────────────────────────────────────
+      // 逆向: amp handleEscape → if selectedUserMessageOrdinal !== null → clearSelected + dismiss
+      if (event.key === "Escape" && this._isInMessageSelectionMode) {
+        this.setState(() => {
+          this._exitSelectionMode();
+        });
+        return true;
+      }
+
+      // ── j/k scroll ───────────────────────────────────────────────────────
       if (event.key !== "j" && event.key !== "k") return false;
       // Only scroll when InputField is not focused (browse mode)
-      const primaryFocus = FocusManager.instance.primaryFocus;
-      if (primaryFocus?.debugLabel === "InputField") return false;
+      if (inputFocused) return false;
       if (event.key === "j") {
         this._scrollController.scrollDown(1);
       } else {
@@ -598,6 +821,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                   inferenceState:
                     this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
                   error: this._error,
+                  selectedItemIndex: this._selectedItemIndex,
                 }),
             }),
           });

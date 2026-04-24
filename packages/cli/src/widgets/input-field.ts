@@ -113,6 +113,13 @@ export interface InputFieldConfig {
    * spawning the editor and writing the result back via setText().
    */
   onOpenInEditor?: (text: string) => void;
+  /**
+   * Ctrl+S: toggle agent mode (逆向: modules/2785_unknown_e0R.js lines 1053-1063)
+   *
+   * Called when the user presses Ctrl+S. The callback is responsible for
+   * cycling through visible agent modes using round-robin logic.
+   */
+  onToggleAgentMode?: () => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -462,6 +469,14 @@ export class InputFieldState extends State<InputField> {
       if (event.key === "g") {
         if (this.widget.config.onOpenInEditor) {
           this.widget.config.onOpenInEditor(m.text);
+        }
+        return "handled";
+      }
+      // Ctrl+S: toggle agent mode (逆向: modules/2785_unknown_e0R.js lines 1053-1063)
+      // Cycle logic: (findIndex + 1) % visibleModes.length — 2708_unknown_HTR.js:76
+      if (event.key === "s") {
+        if (this.widget.config.onToggleAgentMode) {
+          this.widget.config.onToggleAgentMode();
         }
         return "handled";
       }

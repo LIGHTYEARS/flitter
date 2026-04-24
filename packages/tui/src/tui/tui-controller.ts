@@ -412,6 +412,14 @@ export class TuiController {
               this._queryParser.processCursorPositionReport(event.row, event.col);
             }
             break;
+          case "kitty_keyboard_response":
+            // Kitty keyboard protocol response — terminal confirms support
+            // 逆向: amp csiToKittyKeyboardResponse (2026_tail_anonymous.js:157504-157512)
+            //   emits decrqss_response with request="u" → processDecrqss → kittyKeyboard=true
+            if (this._queryParser) {
+              this._queryParser.processKittyKeyboard();
+            }
+            break;
           default:
             // resize 等其他事件暂不通过 InputParser 分发
             break;

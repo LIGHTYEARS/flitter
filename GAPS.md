@@ -31,7 +31,7 @@
 | ProgressBar (animated gradient) | ✅ | ✅ | AnimatedProgressBar with comet trail effect |
 | HelpTable (responsive 2-col) | ✅ | ✅ | Two-column layout with fixed left width |
 | GridLayout (2-panel with borders) | ✅ | ✅ | Amp uses Row+borders, not a dedicated widget |
-| StickyHeaderLayout | ✅ | ❌ | Header pins to top on scroll |
+| StickyHeaderLayout | ✅ | ✅ | Already implemented in sticky-header.ts |
 
 ## 2. Input Handling & Keyboard Shortcuts
 
@@ -45,7 +45,7 @@
 | Ctrl+R prompt history picker | ✅ | ❌ | FuzzyPicker-based with workspace filter |
 | Ctrl+G edit in $EDITOR | ✅ | ✅ | onOpenInEditor callback in InputField |
 | Ctrl+V paste image | ✅ | ❌ | Image paste from clipboard |
-| Ctrl+S / Alt+S toggle agent mode | ✅ | ❌ | Switch between modes |
+| Ctrl+S / Alt+S toggle agent mode | ✅ | ✅ | onToggleAgentMode callback in InputField |
 | Ctrl+L refresh screen | ✅ | ✅ | Ctrl+L global shortcut + /refresh command |
 | Ctrl+C double-press exit | ✅ | ✅ | Double-press logic + visual hint in status bar |
 | Ctrl+Z suspend (SIGTSTP) | ✅ | ✅ | — |
@@ -54,11 +54,11 @@
 | `?` shortcut help panel | ✅ | ❌ | Toggle inline keybinding help overlay |
 | Emacs-style editing (Ctrl+A/E/B/F/K/U/Y/W/D/H/J/N/P) | ✅ | ✅ | Full readline emulation with shift-extend |
 | Alt+Left/Right word jump | ✅ | ✅ | Alt+Left/Right + Alt+B/F + Meta variants |
-| Tab / Shift+Tab message navigation | ✅ | ❌ | Navigate between user messages |
+| Tab / Shift+Tab message navigation | ✅ | ✅ | Selection mode with scroll-to-message and border highlight |
 | j/k scroll in message view | ✅ | ✅ | Key interceptor on ThreadStateWidget |
 | e/f/r message edit/fork/restore | ✅ | ❌ | Message-level operations |
 | `enterSubmitsMessage` config toggle | ✅ | ✅ | Configurable Enter vs Ctrl+Enter submit mode |
-| Kitty keyboard protocol | ✅ | ❌ | Extended key sequences |
+| Kitty keyboard protocol | ✅ | ✅ | CSI u parsing + flags=7 capability probe |
 
 ## 3. Mouse Support
 
@@ -72,7 +72,7 @@
 | Shift+click extend selection | ✅ | ❌ | Extend existing selection |
 | Mouse wheel scroll | ✅ | ✅ | Full pipeline: SGR decode → MouseManager → Scrollable |
 | Middle-click paste (X11) | ✅ | ❌ | Primary selection paste |
-| Scrollbar drag | ✅ | ❌ | Draggable scrollbar thumb |
+| Scrollbar drag | ✅ | ✅ | Already implemented in scrollbar.ts |
 | Hover cursor change | ✅ | ✅ | OSC 22 cursor via MouseManager + TuiController |
 | Auto-scroll during drag | ✅ | ❌ | Scroll when dragging near edges |
 
@@ -134,12 +134,12 @@
 | Mermaid diagram widget | ✅ | ✅ | — |
 | Chart tool widget | ✅ | ✅ | — |
 | Subagent/Task tool widget | ✅ | ✅ | — |
-| Oracle tool widget | ✅ | ❌ | Oracle subagent results display |
+| Oracle tool widget | ✅ | ✅ | Shared subagent renderer with ExpandableToolHeader |
 | Librarian tool widgets (5 variants) | ✅ | ❌ | Search, read, glob, list, commit-search, diff |
-| REPL tool widget | ✅ | ❌ | REPL invocation display |
+| REPL tool widget | ✅ | ✅ | Flat RichText with spinner/status prefix |
 | Painter tool widget | ✅ | ❌ | Render/paint tool output |
 | LookAt tool widget | ✅ | ❌ | Image viewing tool display |
-| Handoff tool widget | ✅ | ❌ | Thread handoff with state |
+| Handoff tool widget | ✅ | ✅ | Bordered box with blinking bullet and thread link |
 | Toolbox tool widget | ✅ | ❌ | Custom toolbox invocations |
 | Toolbox list widget | ✅ | ❌ | All toolboxes with status indicators |
 | ExpandableToolHeader | ✅ | ✅ | Reusable component with chevron, status icons, spinner animation |
@@ -195,8 +195,8 @@
 | Feature | Amp | Flitter | Gap Notes |
 |---|---|---|---|
 | Debug logging | ✅ | ✅ | — |
-| WidgetREPLServer (Unix socket) | ✅ | ❌ | Runtime widget tree inspection via REPL |
-| WidgetTreeDebugger (HTTP) | ✅ | ❌ | `/widget-tree` JSON endpoint |
+| WidgetREPLServer (Unix socket) | ✅ | ✅ | Unix socket REPL with $ debugger API |
+| WidgetTreeDebugger (HTTP) | ✅ | ✅ | HTTP server with /widget-tree, /focus-tree, /health |
 | Debug: copy prompt command | ✅ | ✅ | /debug copy-prompt slash command |
 | Debug: copy command | ✅ | ✅ | /debug copy-command slash command |
 
@@ -214,24 +214,24 @@
 
 | Category | Total Features | Flitter ✅ | Flitter ⚠️ | Flitter ❌ | Coverage |
 |---|---|---|---|---|---|
-| TUI Widgets | 17 | 13 | 0 | 4 | 76% |
-| Input/Keyboard | 22 | 14 | 0 | 8 | 64% |
-| Mouse Support | 11 | 4 | 0 | 7 | 36% |
+| TUI Widgets | 17 | 14 | 0 | 3 | 82% |
+| Input/Keyboard | 22 | 17 | 0 | 5 | 77% |
+| Mouse Support | 11 | 5 | 0 | 6 | 45% |
 | Clipboard | 7 | 3 | 0 | 4 | 43% |
 | Overlays & Dialogs | 16 | 2 | 0 | 14 | 13% |
 | Text Selection | 4 | 0 | 0 | 4 | 0% |
-| Tool Display | 21 | 13 | 0 | 8 | 62% |
+| Tool Display | 21 | 16 | 0 | 5 | 76% |
 | Message Features | 16 | 9 | 0 | 7 | 56% |
 | Status Bar | 10 | 10 | 0 | 0 | 100% |
 | Theming | 5 | 5 | 0 | 0 | 100% |
-| Dev/Debug Tools | 5 | 3 | 0 | 2 | 60% |
+| Dev/Debug Tools | 5 | 5 | 0 | 0 | 100% |
 | Autocomplete | 3 | 2 | 0 | 1 | 67% |
-| **TOTAL** | **137** | **78** | **0** | **59** | **57%** |
+| **TOTAL** | **137** | **88** | **0** | **49** | **64%** |
 
 ## Top Priority Gaps (highest user-impact)
 
 1. **Overlays & Dialogs** (13%) — Command palette (Ctrl+O), prompt history picker (Ctrl+R), modal stack still missing
 2. **Text Selection** (0%) — No text selection system at all
-3. **Mouse support** (27%) — Click+drag selection, scrollbar drag, hover cursor still missing
-4. **Input/Keyboard** (50%) — Missing Ctrl+O/R/G/V/S, message nav, vim scroll, kitty protocol
-5. **Clipboard** (43%) — Missing copy selection, copy-on-select, image paste
+3. **Clipboard** (43%) — Missing copy selection, copy-on-select, image paste
+4. **Mouse support** (45%) — Click+drag selection, double/triple-click, middle-click paste still missing
+5. **Message Features** (56%) — Missing message edit/fork/restore, guidance files, thread references

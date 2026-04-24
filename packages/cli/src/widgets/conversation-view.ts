@@ -90,6 +90,7 @@ export interface Message {
  * @property inferenceState - 推理状态: "idle" (空闲) | "running" (推理中)
  * @property error - 最近一次推理错误 (null 表示无错误)
  * @property streamingDelta - 流式增量文本 (null 表示无增量)
+ * @property selectedItemIndex - Index in items[] of the currently selected message (for browse mode highlight)
  */
 export interface ConversationViewConfig {
   /** Display items (replaces old messages array) */
@@ -102,6 +103,18 @@ export interface ConversationViewConfig {
   error?: Error | null;
   /** 流式增量文本 */
   streamingDelta?: string | null;
+  /**
+   * Index in items[] of the currently selected (browse-mode) message.
+   *
+   * When set, the corresponding user message widget is rendered with a full
+   * 2-thick solid border using the `selectedMessage` AppTheme color instead of
+   * the normal left-only border.
+   *
+   * 逆向: f8R._stateController.selectedUserMessageOrdinal → S$ widget isSelected prop
+   *   → decoration: { border: new h9(new e9(r, 2, "solid"), ...) } full-border
+   *   vs non-selected: only left border
+   */
+  selectedItemIndex?: number | null;
 }
 
 // ════════════════════════════════════════════════════
@@ -400,7 +413,13 @@ export class ConversationViewState extends State<ConversationView> {
 
     // Prefer items (new DisplayItem path) over legacy messages
     if (items && items.length > 0) {
-      return this._buildFromItems(items, inferenceState, error, appTheme);
+      return this._buildFromItems(
+        items,
+        inferenceState,
+        error,
+        appTheme,
+        this.widget.config.selectedItemIndex ?? null,
+      );
     }
 
     // Legacy path: iterate messages array
@@ -421,12 +440,14 @@ export class ConversationViewState extends State<ConversationView> {
    * @param inferenceState - Current inference state
    * @param error - Latest error, if any
    * @param appTheme - Optional AppTheme for semantic colors
+   * @param selectedItemIndex - Index in items[] of currently selected message (browse mode)
    */
   private _buildFromItems(
     items: DisplayItem[],
     inferenceState?: "idle" | "running",
     error?: Error | null,
     appTheme?: AppTheme | null,
+    selectedItemIndex?: number | null,
   ): Widget {
     const children: Widget[] = [];
 
@@ -435,7 +456,7 @@ export class ConversationViewState extends State<ConversationView> {
 
       switch (item.type) {
         case "message":
-          children.push(this._buildMessageItemWidget(item, appTheme));
+          children.push(this._buildMessageItemWidget(item, appTheme, i === selectedItemIndex));
           break;
         case "tool":
           children.push(this._buildToolWidget(item, appTheme));
@@ -527,12 +548,17 @@ export class ConversationViewState extends State<ConversationView> {
    *
    * @param item - MessageItem from DisplayItem[]
    * @param appTheme - Optional AppTheme for semantic message colors
+   * @param isSelected - Whether this message is currently selected in browse mode
    * @returns Message Widget
    */
-  private _buildMessageItemWidget(item: MessageItem, appTheme?: AppTheme | null): Widget {
+  private _buildMessageItemWidget(
+    item: MessageItem,
+    appTheme?: AppTheme | null,
+    isSelected?: boolean,
+  ): Widget {
     // 逆向: S$ widget — user messages get left border, not role prefix
     if (item.role === "user") {
-      return this._buildUserMessageWidget(item, appTheme);
+      return this._buildUserMessageWidget(item, appTheme, isSelected);
     }
 
     // Assistant/system messages keep the role prefix + markdown
@@ -635,16 +661,31 @@ export class ConversationViewState extends State<ConversationView> {
   /**
    * Build a user message with left border decoration.
    *
-   * 逆向: S$ widget (chunk-006.js:31134-31143)
+   * When `isSelected` is true (browse mode), renders a full 2-thick solid border
+   * using the `selectedMessage` AppTheme color.
+   * When not selected, renders only a left border (normal mode).
+   *
+   * 逆向: S$ widget (chunk-006.js:31134-31143) — non-selected:
    *   decoration: { border: new h9(void 0, void 0, void 0, new e9(r, 2, "solid")) }
    *   padding: TR.only({ left: 1 })
    *   Color: e.success for normal, e.warning for interrupted
+   *
+   * 逆向: S$ widget isSelected=true (chunk-006.js:31130-31133) — selected:
+   *   decoration: { border: new h9(new e9(r, 2, "solid"), new e9(r, 2, "solid"), ...) } full border
+   *   Color: e.selectedMessage (from AppTheme)
+   *   padding: TR.only({ left: 1 })
+   *
    * 逆向: chunk-005.js:2956 — a.app.userMessage for user message color
    *
    * @param item - User MessageItem
    * @param appTheme - Optional AppTheme for semantic message colors
+   * @param isSelected - Whether this message is selected in browse/navigation mode
    */
-  private _buildUserMessageWidget(item: MessageItem, _appTheme?: AppTheme | null): Widget {
+  private _buildUserMessageWidget(
+    item: MessageItem,
+    _appTheme?: AppTheme | null,
+    isSelected?: boolean,
+  ): Widget {
     const ast = this._parser.parse(item.text);
     const contentSpans = this._renderer.render(ast);
 
@@ -668,20 +709,41 @@ export class ConversationViewState extends State<ConversationView> {
       text: new TextSpan({ children: allSpans }),
     });
 
-    const borderColor = item.interrupted ? WARNING_COLOR : SECONDARY_COLOR;
+    let borderWidget: Widget;
 
-    const borderWidget = new Container({
-      decoration: new BoxDecoration({
-        border: new Border(
-          undefined, // top
-          undefined, // right
-          undefined, // bottom
-          new BorderSide(borderColor, 2, "solid"), // left: warning amber when interrupted, success green otherwise
-        ),
-      }),
-      padding: EdgeInsets.only({ left: 1 }),
-      child: content,
-    });
+    if (isSelected) {
+      // 逆向: S$ widget isSelected → full border using selectedMessage color
+      // h9 = Border (top, right, bottom, left), e9 = BorderSide(color, width, style)
+      // All four sides get a 2-wide solid border in selectedMessage color
+      const selectedColor = _appTheme?.selectedMessage ?? Color.green();
+      borderWidget = new Container({
+        decoration: new BoxDecoration({
+          border: new Border(
+            new BorderSide(selectedColor, 2, "solid"), // top
+            new BorderSide(selectedColor, 2, "solid"), // right
+            new BorderSide(selectedColor, 2, "solid"), // bottom
+            new BorderSide(selectedColor, 2, "solid"), // left
+          ),
+        }),
+        padding: EdgeInsets.only({ left: 1 }),
+        child: content,
+      });
+    } else {
+      // Normal (non-selected): left border only
+      const borderColor = item.interrupted ? WARNING_COLOR : SECONDARY_COLOR;
+      borderWidget = new Container({
+        decoration: new BoxDecoration({
+          border: new Border(
+            undefined, // top
+            undefined, // right
+            undefined, // bottom
+            new BorderSide(borderColor, 2, "solid"), // left: warning amber when interrupted, success green otherwise
+          ),
+        }),
+        padding: EdgeInsets.only({ left: 1 }),
+        child: content,
+      });
+    }
 
     // 逆向: b8R — render discovered guidance files below user message
     if (item.discoveredGuidanceFiles && item.discoveredGuidanceFiles.length > 0) {

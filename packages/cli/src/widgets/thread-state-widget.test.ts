@@ -10,7 +10,7 @@
  * - inference:start / inference:error / turn:complete 事件更新状态
  */
 import assert from "node:assert/strict";
-import { beforeEach, describe, it } from "node:test";
+import { describe, it } from "node:test";
 
 // ─── 简单 Mock 工具 ─────────────────────────────────────────
 
@@ -659,6 +659,201 @@ describe("ThreadStateWidget", () => {
 
       const label = (state as any)._buildTopLeftLabel();
       assert.ok(label.includes("% of"), `Expected token percentage label, got: "${label}"`);
+    });
+  });
+
+  // ─── Message Navigation State Machine ─────────────────────────────────────
+  // 逆向: f8R state class (chunk-006.js:31664)
+  //   _navigateUp / _navigateDown / _enterSelectionMode / _exitSelectionMode
+
+  describe("message navigation state machine", () => {
+    /** Helper: create a state with N user messages loaded */
+    async function createStateWithMessages(messageCount: number) {
+      const { ThreadStateWidget } = await import("./thread-state-widget.js");
+
+      const messages = Array.from({ length: messageCount }, (_, i) => ({
+        role: "user",
+        content: [{ type: "text", text: `Message ${i}` }],
+        state: { type: "complete" },
+      }));
+
+      const store = createMockThreadStore("t1", { id: "t1", v: 0, messages, relationships: [] });
+      const worker = createMockThreadWorker();
+
+      const widget = new ThreadStateWidget({
+        threadStore: store,
+        threadWorker: worker,
+        threadId: "t1",
+        onSubmit: () => {},
+      });
+
+      const state = widget.createState();
+      (state as any)._widget = widget;
+      Object.defineProperty(state, "widget", { get: () => widget });
+      (state as any).setState = (fn?: () => void) => {
+        if (fn) fn();
+      };
+      // Stub scroll controller to prevent errors in headless environment
+      (state as any)._scrollController = {
+        followMode: true,
+        offset: 0,
+        maxScrollExtent: 0,
+        jumpTo: () => {},
+        scrollToBottom: () => {},
+        scrollDown: () => {},
+        scrollUp: () => {},
+        dispose: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+      };
+      state.initState();
+
+      // Manually populate _items from transformThreadToDisplayItems
+      // (initState subscribes to threadStore which fires immediately, so _items is already set)
+      return state;
+    }
+
+    it("_navigableItemIndices returns indices of user messages", async () => {
+      const state = await createStateWithMessages(3);
+      const indices = (state as any)._navigableItemIndices as number[];
+      assert.equal(indices.length, 3, "Should have 3 navigable indices");
+    });
+
+    it("_navigableItemIndices returns empty array when no messages", async () => {
+      const state = await createStateWithMessages(0);
+      const indices = (state as any)._navigableItemIndices as number[];
+      assert.equal(indices.length, 0);
+    });
+
+    it("_enterSelectionMode selects the last message", async () => {
+      const state = await createStateWithMessages(3);
+      (state as any)._enterSelectionMode();
+      assert.equal((state as any)._isInMessageSelectionMode, true);
+      assert.equal((state as any)._selectedMessageOrdinal, 2, "Last message ordinal = 2");
+    });
+
+    it("_enterSelectionMode is no-op when no messages", async () => {
+      const state = await createStateWithMessages(0);
+      (state as any)._enterSelectionMode();
+      assert.equal((state as any)._isInMessageSelectionMode, false);
+      assert.equal((state as any)._selectedMessageOrdinal, null);
+    });
+
+    it("_exitSelectionMode clears selection", async () => {
+      const state = await createStateWithMessages(3);
+      (state as any)._enterSelectionMode();
+      assert.equal((state as any)._isInMessageSelectionMode, true);
+
+      (state as any)._exitSelectionMode();
+      assert.equal((state as any)._isInMessageSelectionMode, false);
+      assert.equal((state as any)._selectedMessageOrdinal, null);
+    });
+
+    it("_navigateUp from last message goes to second-to-last", async () => {
+      const state = await createStateWithMessages(4);
+      (state as any)._enterSelectionMode(); // selects ordinal 3
+      assert.equal((state as any)._selectedMessageOrdinal, 3);
+
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 2);
+
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 1);
+
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 0);
+    });
+
+    it("_navigateUp clamps at ordinal 0 (stays at first message)", async () => {
+      // 逆向: f8R._navigateUp — if (T <= 0) return 0
+      const state = await createStateWithMessages(3);
+      (state as any)._selectedMessageOrdinal = 0;
+      (state as any)._isInMessageSelectionMode = true;
+
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 0, "Should stay at 0");
+    });
+
+    it("_navigateDown from last message exits selection mode", async () => {
+      // 逆向: f8R._navigateDown — T >= R-1 → exit selection mode
+      const state = await createStateWithMessages(3);
+      (state as any)._enterSelectionMode(); // selects ordinal 2 (last)
+
+      (state as any)._navigateDown(); // at last → exit
+      assert.equal((state as any)._isInMessageSelectionMode, false);
+      assert.equal((state as any)._selectedMessageOrdinal, null);
+    });
+
+    it("_navigateDown moves to next message when not at last", async () => {
+      const state = await createStateWithMessages(4);
+      (state as any)._selectedMessageOrdinal = 0;
+      (state as any)._isInMessageSelectionMode = true;
+
+      (state as any)._navigateDown();
+      assert.equal((state as any)._selectedMessageOrdinal, 1);
+
+      (state as any)._navigateDown();
+      assert.equal((state as any)._selectedMessageOrdinal, 2);
+    });
+
+    it("_selectedItemIndex returns correct items index for selected ordinal", async () => {
+      const state = await createStateWithMessages(2);
+      const nav = (state as any)._navigableItemIndices as number[];
+      assert.ok(nav.length >= 2, "Need at least 2 navigable items");
+
+      (state as any)._selectedMessageOrdinal = 0;
+      const idx0 = (state as any)._selectedItemIndex;
+      assert.equal(idx0, nav[0]);
+
+      (state as any)._selectedMessageOrdinal = 1;
+      const idx1 = (state as any)._selectedItemIndex;
+      assert.equal(idx1, nav[1]);
+    });
+
+    it("_selectedItemIndex returns null when ordinal is null", async () => {
+      const state = await createStateWithMessages(2);
+      (state as any)._selectedMessageOrdinal = null;
+      assert.equal((state as any)._selectedItemIndex, null);
+    });
+
+    it("full navigation round-trip: enter → navigate up/down → exit", async () => {
+      const state = await createStateWithMessages(3);
+
+      // Enter: selects last (ordinal 2)
+      (state as any)._enterSelectionMode();
+      assert.equal((state as any)._selectedMessageOrdinal, 2);
+      assert.equal((state as any)._isInMessageSelectionMode, true);
+
+      // Tab (up) → ordinal 1
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 1);
+
+      // Tab (up) → ordinal 0
+      (state as any)._navigateUp();
+      assert.equal((state as any)._selectedMessageOrdinal, 0);
+
+      // Shift+Tab (down) → ordinal 1
+      (state as any)._navigateDown();
+      assert.equal((state as any)._selectedMessageOrdinal, 1);
+
+      // Shift+Tab (down) → ordinal 2
+      (state as any)._navigateDown();
+      assert.equal((state as any)._selectedMessageOrdinal, 2);
+
+      // Shift+Tab (down) from last → exit selection mode
+      (state as any)._navigateDown();
+      assert.equal((state as any)._isInMessageSelectionMode, false);
+      assert.equal((state as any)._selectedMessageOrdinal, null);
+    });
+
+    it("Escape clears selection and exits mode", async () => {
+      const state = await createStateWithMessages(3);
+      (state as any)._enterSelectionMode();
+      (state as any)._navigateUp(); // move away from last
+
+      (state as any)._exitSelectionMode();
+      assert.equal((state as any)._isInMessageSelectionMode, false);
+      assert.equal((state as any)._selectedMessageOrdinal, null);
     });
   });
 });

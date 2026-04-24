@@ -425,6 +425,31 @@ export interface CursorPositionEvent {
   col: number;
 }
 
+/**
+ * Kitty keyboard protocol capability response event.
+ *
+ * Emitted when the parser receives `CSI ? flags u` — the terminal's response
+ * to a kitty keyboard protocol query.
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157504-157512
+ *   csiToKittyKeyboardResponse(T) {
+ *     if (T.final === "u" && T.private === "?") {
+ *       return { type: "decrqss_response", request: "u", response: ... };
+ *     }
+ *   }
+ *
+ * @example
+ * ```ts
+ * // Terminal responded to CSI ? u probe — kitty keyboard is supported
+ * const evt: KittyKeyboardResponseEvent = { type: "kitty_keyboard_response", flags: 7 };
+ * ```
+ */
+export interface KittyKeyboardResponseEvent {
+  type: "kitty_keyboard_response";
+  /** The flags value reported by the terminal */
+  flags: number;
+}
+
 export type InputEvent =
   | KeyEvent
   | MouseEvent
@@ -432,7 +457,8 @@ export type InputEvent =
   | FocusEvent
   | ResizeEvent
   | InbandResizeEvent
-  | CursorPositionEvent;
+  | CursorPositionEvent
+  | KittyKeyboardResponseEvent;
 
 // ════════════════════════════════════════════════════
 //  辅助工具

@@ -147,15 +147,17 @@ export const SYNC_END = `${CSI}?2026l`;
 /**
  * Kitty Keyboard Protocol (Progressive Enhancement)
  *
- * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js
- * Amp enables kitty keyboard mode 1 (disambiguate escape codes) at init
- * and pops it at deinit. Mode 1 is safe: unaware applications still work
- * because the terminal only uses enhanced encodings for keys that need it.
+ * 逆向: amp-cli-reversed/modules/0503_unknown_yu0.js:1-7
+ *   pu0(T = {}) — starts with R=5 (bits 0+2), then |=2 if reportEventTypes
+ *   Called as enableKittyKeyboard({ reportEventTypes: true }) → R = 5|2 = 7
+ * 逆向: amp-cli-reversed/modules/0525_unknown_sy0.js:191-193
+ *   e.enableKittyKeyboard({ reportEventTypes: !0 })
  *
- * CSI > flags u — push keyboard mode
- * CSI < u     — pop keyboard mode
+ * Flags = 7 = 1 (disambiguate) | 2 (reportEventTypes) | 4 (bit 2, always on)
+ * CSI > flags u — push keyboard mode (flags=7 to get event types in subparams)
+ * CSI < u       — pop keyboard mode
  */
-export const KITTY_KEYBOARD_ON = `${CSI}>1u`;
+export const KITTY_KEYBOARD_ON = `${CSI}>7u`;
 export const KITTY_KEYBOARD_OFF = `${CSI}<u`;
 
 /**

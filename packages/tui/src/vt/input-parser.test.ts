@@ -20,6 +20,7 @@ import type {
   InbandResizeEvent,
   InputEvent,
   KeyEvent,
+  KittyKeyboardResponseEvent,
   Modifiers,
   PasteEvent,
   FocusEvent as TermFocusEvent,
@@ -967,5 +968,428 @@ describe("带内尺寸通知 (DEC mode ?2048)", () => {
     assert.equal(resize.height, 40);
     assert.equal(resize.pixelWidth, 2000);
     assert.equal(resize.pixelHeight, 1000);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  Kitty Keyboard Protocol (CSI u)
+// ════════════════════════════════════════════════════
+
+/** 断言事件为 KittyKeyboardResponseEvent 并返回 */
+function assertKittyKeyboardResponseEvent(event: InputEvent): KittyKeyboardResponseEvent {
+  assert.equal(
+    event.type,
+    "kitty_keyboard_response",
+    `expected kitty_keyboard_response event but got ${event.type}`,
+  );
+  return event as KittyKeyboardResponseEvent;
+}
+
+describe("Kitty Keyboard Protocol (CSI u)", () => {
+  // ── 63. Basic letter: CSI 97 u → key='a' ─────────────────
+  it("63. CSI 97 u → key='a' (keycode=97=lowercase a)", () => {
+    // 逆向: amp unicodeToKey(97) → String.fromCharCode(97) = 'a'
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assertNoModifiers(key.modifiers);
+  });
+
+  // ── 64. Uppercase letter: CSI 65 u → key='A' ─────────────
+  it("64. CSI 65 u → key='A' (keycode=65=uppercase A)", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 65 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "A");
+    assertNoModifiers(key.modifiers);
+  });
+
+  // ── 65. Special key: Enter (keycode=13) ───────────────────
+  it("65. CSI 13 u → key='Enter'", () => {
+    // 逆向: amp unicodeToKey(13) → 'Enter'
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 13 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Enter");
+  });
+
+  // ── 66. Special key: Tab (keycode=9) ──────────────────────
+  it("66. CSI 9 u → key='Tab'", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 9 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Tab");
+  });
+
+  // ── 67. Special key: Escape (keycode=27) ──────────────────
+  it("67. CSI 27 u → key='Escape'", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 27 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Escape");
+  });
+
+  // ── 68. Special key: Backspace (keycode=127) ──────────────
+  it("68. CSI 127 u → key='Backspace'", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 127 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Backspace");
+  });
+
+  // ── 69. Kitty extended keycode: F1 (57364) ────────────────
+  it("69. CSI 57364 u → key='F1' (kitty extended keycode)", () => {
+    // 逆向: amp IxT[57364] = 'F1' (2026_tail_anonymous.js:156739)
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 57364 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "F1");
+  });
+
+  // ── 70. Kitty extended keycode: ArrowUp (57352) ───────────
+  it("70. CSI 57352 u → key='ArrowUp' (kitty extended keycode)", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 57352 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "ArrowUp");
+  });
+
+  // ── 71. Ctrl+A: CSI 97 ; 5 u ──────────────────────────────
+  it("71. CSI 97;5 u → key='a', ctrl=true (modifier param=5 → Ctrl)", () => {
+    // 逆向: amp parseModifiers(5) → bits=4 → ctrl=true
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 5 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assert.equal(key.modifiers.ctrl, true);
+    assert.equal(key.modifiers.shift, false);
+    assert.equal(key.modifiers.alt, false);
+    assert.equal(key.modifiers.meta, false);
+  });
+
+  // ── 72. Alt+X: CSI 120 ; 3 u ──────────────────────────────
+  it("72. CSI 120;3 u → key='x', alt=true (modifier param=3 → Alt)", () => {
+    // 逆向: amp parseModifiers(3) → bits=2 → alt=true
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 120 }, { value: 3 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "x");
+    assert.equal(key.modifiers.alt, true);
+    assert.equal(key.modifiers.ctrl, false);
+    assert.equal(key.modifiers.shift, false);
+  });
+
+  // ── 73. Shift+Tab: CSI 9 ; 2 u ────────────────────────────
+  it("73. CSI 9;2 u → key='Tab', shift=true (modifier param=2 → Shift)", () => {
+    // 逆向: amp parseModifiers(2) → bits=1 → shift=true
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 9 }, { value: 2 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Tab");
+    assert.equal(key.modifiers.shift, true);
+    assert.equal(key.modifiers.ctrl, false);
+  });
+
+  // ── 74. Ctrl+Shift: CSI 97 ; 6 u ──────────────────────────
+  it("74. CSI 97;6 u → key='a', ctrl=true, shift=true (param=6 → Ctrl+Shift)", () => {
+    // 逆向: amp parseModifiers(6) → bits=5 → ctrl=true, shift=true
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 6 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assert.equal(key.modifiers.ctrl, true);
+    assert.equal(key.modifiers.shift, true);
+  });
+
+  // ── 75. Key release (eventType=3) → no event ──────────────
+  it("75. CSI 97;1:3 u (eventType=3=release) → no key event emitted", () => {
+    // 逆向: amp kittyEventTypeToName(3) = 'release'; csiToKey skips releases
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 1, subparams: [3] }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 0, "key release events should be skipped");
+  });
+
+  // ── 76. Key press (eventType=1) → event emitted ────────────
+  it("76. CSI 97;1:1 u (eventType=1=press) → key event emitted", () => {
+    // 逆向: amp kittyEventTypeToName(1) = 'press'
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 1, subparams: [1] }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+  });
+
+  // ── 77. Key repeat (eventType=2) → event emitted ──────────
+  it("77. CSI 97;1:2 u (eventType=2=repeat) → key event emitted", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 1, subparams: [2] }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+  });
+
+  // ── 78. Kitty keyboard response probe: CSI ? 7 u ──────────
+  it("78. CSI ? 7 u → KittyKeyboardResponseEvent with flags=7", () => {
+    // 逆向: amp csiToKittyKeyboardResponse (2026_tail_anonymous.js:157504-157512)
+    //   T.final === "u" && T.private === "?" → decrqss_response request="u"
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 7 }],
+        intermediates: "",
+        private_marker: "?",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const resp = assertKittyKeyboardResponseEvent(events[0]);
+    assert.equal(resp.flags, 7);
+  });
+
+  // ── 79. Kitty keyboard response probe: CSI ? 1 u ──────────
+  it("79. CSI ? 1 u → KittyKeyboardResponseEvent with flags=1", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 1 }],
+        intermediates: "",
+        private_marker: "?",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const resp = assertKittyKeyboardResponseEvent(events[0]);
+    assert.equal(resp.flags, 1);
+  });
+
+  // ── 80. Kitty keyboard response probe: CSI ? 0 u ──────────
+  it("80. CSI ? u with no params → KittyKeyboardResponseEvent with flags=0", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [],
+        intermediates: "",
+        private_marker: "?",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const resp = assertKittyKeyboardResponseEvent(events[0]);
+    assert.equal(resp.flags, 0);
+  });
+
+  // ── 81. Modifier param=1 → no modifiers ───────────────────
+  it("81. CSI 97;1 u → key='a', no modifiers (param=1 means no mods)", () => {
+    // 逆向: amp parseModifiers(1) → return MODIFIERS_NONE
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 97 }, { value: 1 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assertNoModifiers(key.modifiers);
+  });
+
+  // ── 82. CSI 57375 u → key='F12' ───────────────────────────
+  it("82. CSI 57375 u → key='F12' (kitty extended F12 keycode)", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 57375 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "F12");
+  });
+
+  // ── 83. CSI 32 u → key=' ' (space) ───────────────────────
+  it("83. CSI 32 u → key=' ' (space via unicodeToKey)", () => {
+    const events = handleAndCollect((parser) => {
+      const evt: VtCsiEvent = {
+        type: "csi",
+        params: [{ value: 32 }],
+        intermediates: "",
+        private_marker: "",
+        final: "u",
+      };
+      parser.handleVtEvent(evt);
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, " ");
+  });
+
+  // ── 84. Raw bytes: ESC[97u (kitty 'a' key press) ──────────
+  it("84. Raw bytes ESC[97u → KeyEvent key='a'", () => {
+    const events = feedStr("\x1b[97u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assertNoModifiers(key.modifiers);
+  });
+
+  // ── 85. Raw bytes: ESC[13u → Enter ────────────────────────
+  it("85. Raw bytes ESC[13u → KeyEvent key='Enter'", () => {
+    const events = feedStr("\x1b[13u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Enter");
+  });
+
+  // ── 86. Raw bytes: ESC[97;5u → Ctrl+a ────────────────────
+  it("86. Raw bytes ESC[97;5u → KeyEvent key='a', ctrl=true", () => {
+    const events = feedStr("\x1b[97;5u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assert.equal(key.modifiers.ctrl, true);
   });
 });

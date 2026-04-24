@@ -35,6 +35,7 @@ import type {
   InbandResizeEvent,
   InputEvent,
   KeyEvent,
+  KittyKeyboardResponseEvent,
   Modifiers,
   MouseAction,
   MouseButton,
@@ -128,6 +129,90 @@ const CSI_FINAL_KEY_MAP: Record<string, string> = {
   H: "Home",
   F: "End",
 };
+
+// ════════════════════════════════════════════════════
+//  Kitty 键盘协议辅助
+// ════════════════════════════════════════════════════
+
+/**
+ * Kitty 扩展键码（Unicode 私有区）到键名映射。
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:156722-156829 (IxT)
+ * Kitty protocol assigns keycodes >= 57344 for special keys.
+ * These are used in CSI keycode ; modifiers u sequences.
+ */
+const KITTY_SPECIAL_KEY_MAP: Record<number, string> = {
+  57348: "Insert",
+  57349: "Delete",
+  57350: "ArrowLeft",
+  57351: "ArrowRight",
+  57352: "ArrowUp",
+  57353: "ArrowDown",
+  57354: "PageUp",
+  57355: "PageDown",
+  57356: "Home",
+  57357: "End",
+  57358: "CapsLock",
+  57359: "ScrollLock",
+  57360: "NumLock",
+  57361: "PrintScreen",
+  57362: "Pause",
+  57363: "ContextMenu",
+  57364: "F1",
+  57365: "F2",
+  57366: "F3",
+  57367: "F4",
+  57368: "F5",
+  57369: "F6",
+  57370: "F7",
+  57371: "F8",
+  57372: "F9",
+  57373: "F10",
+  57374: "F11",
+  57375: "F12",
+  57376: "F13",
+  57377: "F14",
+  57378: "F15",
+  57379: "F16",
+  57380: "F17",
+  57381: "F18",
+  57382: "F19",
+  57383: "F20",
+  57384: "F21",
+  57385: "F22",
+  57386: "F23",
+  57387: "F24",
+  57414: "Enter",
+  57441: "ShiftLeft",
+  57442: "ControlLeft",
+  57443: "AltLeft",
+  57444: "MetaLeft",
+};
+
+/**
+ * キー コードを論理キー名に変換する (kitty unicodeToKey 相当).
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157406-157421 (unicodeToKey)
+ */
+function kittyUnicodeToKey(code: number): string | null {
+  if (code === 13) return "Enter";
+  if (code === 9) return "Tab";
+  if (code === 27) return "Escape";
+  if (code === 127) return "Backspace";
+  if (code === 32) return " ";
+  if (code >= 1 && code <= 26) return String.fromCharCode(0x60 + code);
+  const special = KITTY_SPECIAL_KEY_MAP[code];
+  if (special !== undefined) return special;
+  if (code >= 32 && code <= 126) return String.fromCharCode(code);
+  if (code > 126) {
+    try {
+      return String.fromCodePoint(code);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
 
 // ════════════════════════════════════════════════════
 //  SGR 鼠标事件解码
@@ -237,6 +322,12 @@ export class InputParser {
    * 逆向: amp escapeTimeout = null (chunk-005.js:163013)
    */
   private escapeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /** pendingEscape — whether a standalone ESC timeout is active.
+   * 逆向: amp pendingEscape = !1 (chunk-005.js:163015)
+   * Read in handlePrint for Alt+key detection (not yet implemented in flitter). */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: maintained for amp-compat; consumed by Alt+key path (pending impl)
+  private pendingEscape = false;
 
   /**
    * Timeout in ms to wait before treating ESC as standalone.
@@ -532,6 +623,27 @@ export class InputParser {
       return;
     }
 
+    // Kitty keyboard protocol response: CSI ? <flags> u
+    //
+    // 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157504-157512
+    //   csiToKittyKeyboardResponse(T) {
+    //     if (T.final === "u" && T.private === "?") {
+    //       return { type: "decrqss_response", request: "u", ... };
+    //     }
+    //   }
+    //
+    // Terminal sends this in response to a CSI ? u probe sequence,
+    // indicating it supports the kitty keyboard protocol.
+    if (private_marker === "?" && finalChar === "u") {
+      const flags = params.length >= 1 ? params[0].value : 0;
+      log.debug("kitty keyboard response", { flags });
+      this.emit({
+        type: "kitty_keyboard_response",
+        flags,
+      } as KittyKeyboardResponseEvent);
+      return;
+    }
+
     // 非标准私有标记 → 忽略
     if (private_marker !== "") {
       return;
@@ -570,6 +682,19 @@ export class InputParser {
       case "O":
         // 焦点失去
         this.emit({ type: "focus", focused: false } as TermFocusEvent);
+        break;
+
+      case "u":
+        // Kitty Keyboard Protocol (KKP) key event: CSI keycode ; modifiers u
+        //
+        // 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157230-157268 (csiToKey)
+        //   params[0].value = unicode codepoint or special key code
+        //   params[1].value = modifier bits + 1 (standard CSI modifier encoding)
+        //   params[1].subparams?.[0] = event type (1=press, 2=repeat, 3=release)
+        //   params[2] = alternate keycode (for keycodes w/ associated text or ~27 form)
+        //
+        // 逆向: amp unicodeToKey (157406-157421), IxT special keys (156722-156829)
+        this.handleKittyKey(params);
         break;
 
       case "t":
@@ -676,6 +801,53 @@ export class InputParser {
         ? modifierFromCsiParam(params[1].value)
         : { ...MODIFIERS_NONE };
 
+    this.emit(keyEvent(key, modifiers));
+  }
+
+  /**
+   * 处理 Kitty Keyboard Protocol (KKP) 键事件 (CSI keycode ; modifiers u)。
+   *
+   * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157230-157268 (csiToKey)
+   *
+   * Format: CSI keycode ; modifierParam u
+   *   params[0].value = unicode codepoint or kitty extended keycode
+   *   params[1].value = modifier bits + 1 (0/1 = no modifiers)
+   *   params[1].subparams?.[0] = event type (1=press, 2=repeat, 3=release)
+   *
+   * Amp skips key release events (eventType=3) — we do the same.
+   *
+   * @param params - CSI 参数列表
+   */
+  private handleKittyKey(params: VtCsiEvent["params"]): void {
+    if (params.length === 0) return;
+
+    const keycode = params[0].value;
+
+    // Resolve logical key name from keycode
+    // 逆向: amp csiToKey line 157249-157252
+    const key = kittyUnicodeToKey(keycode);
+    if (key === null) return;
+
+    // Resolve modifier state from params[1]
+    // 逆向: amp parseModifiers (157391-157404): param=0/1 → no mods, else bits = param-1
+    let modifiers: Modifiers = { ...MODIFIERS_NONE };
+    if (params.length >= 2 && params[1] !== undefined) {
+      const modParam = params[1].value;
+      if (modParam > 1) {
+        modifiers = modifierFromCsiParam(modParam);
+      }
+
+      // Check event type from subparam: 1=press, 2=repeat, 3=release
+      // 逆向: amp kittyEventTypeToName (157285-157295)
+      //   subparams?.[0] — 1=press, 2=repeat, 3=release
+      const eventType = params[1].subparams?.[0];
+      if (eventType === 3) {
+        // Skip key release events — amp also ignores releases
+        return;
+      }
+    }
+
+    log.debug("kitty key", { keycode, key, modifiers });
     this.emit(keyEvent(key, modifiers));
   }
 

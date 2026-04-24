@@ -66,10 +66,20 @@ export {
 } from "./expandable-tool-header.js";
 export { FileAutocomplete, type FileAutocompleteConfig } from "./file-autocomplete.js";
 export {
+  type HandoffStatus,
+  HandoffToolWidget,
+  type HandoffToolWidgetConfig,
+  HandoffToolWidgetState,
+} from "./handoff-tool-widget.js";
+export {
   InputField,
   type InputFieldConfig,
   InputFieldState,
 } from "./input-field.js";
+export {
+  OracleToolWidget,
+  type OracleToolWidgetConfig,
+} from "./oracle-tool-widget.js";
 export { SHORTCUT_ROWS, ShortcutsPopup } from "./shortcuts-popup.js";
 export { SlashCommandAutocomplete } from "./slash-command-autocomplete.js";
 export {

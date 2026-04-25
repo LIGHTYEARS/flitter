@@ -95,13 +95,13 @@
 | Command Palette (Ctrl+O) | ✅ | ✅ | command-palette.ts + command-palette-provider.ts |
 | Prompt History Picker (Ctrl+R) | ✅ | ✅ | prompt-history.ts with FuzzyPicker |
 | Keybinding Help Sheet (`?`) | ✅ | ✅ | ? key toggle in ThreadStateWidget + ShortcutsPopup (same as amp's U8R) |
-| Label Picker | ✅ | ❌ | Thread label management with inline create |
+| Label Picker | ✅ | ✅ | label-picker.ts — FuzzyPicker with inline create, validation (≤32 chars, /^[a-z0-9][a-z0-9-]*$/), deferred setState for create marker sync |
 | Confirmation Dialog (y/n) | ✅ | ✅ | Aligned with amp: inline keybind hints, color injection, Center wrapper |
 | Spinner Overlay | ✅ | ✅ | BrailleSpinner + Esc cancel, color injection, amp Ko/HRR aligned |
-| Image Preview modal | ✅ | ❌ | Image viewing with save option |
-| Thread Visibility Selector | ✅ | ❌ | Thread visibility control |
+| Image Preview modal | ✅ | ✅ | image-preview-modal.ts — StatefulWidget with save/remove actions, formatMediaType/formatFileSize/extractFilename helpers, Kitty placeholder |
+| Thread Visibility Selector | ✅ | ✅ | thread-visibility-selector.ts — FuzzyPicker with 5 options (private/workspace/group/unlisted/public), current disabled, hasGroups toggle |
 | MCP Server Trust Dialog | ✅ | ✅ | mcp-trust-dialog.ts — t/a/s/Esc key handlers, bordered dialog |
-| Skill List Modal | ✅ | ❌ | Scrollable skill browser with detail pane |
+| Skill List Modal | ✅ | ✅ | skill-list-modal.ts — two-pane modal with groupSkillsByScope (local→global→builtin), j/k nav, detail pane with frontmatter+content |
 | Console Overlay (Alt+C) | ✅ | ✅ | console-overlay.ts — scrollable log viewer with level-specific colors |
 | Context Window / Token Usage View | ✅ | ✅ | context-window-overlay.ts — token/cost/usage display with e/b key toggles |
 | Restore Confirmation | ✅ | ✅ | edit-restore-confirmation.ts — affected files listing + Delete/Cancel |
@@ -218,7 +218,7 @@
 | Input/Keyboard | 22 | 22 | 0 | 0 | 100% |
 | Mouse Support | 11 | 11 | 0 | 0 | 100% |
 | Clipboard | 7 | 7 | 0 | 0 | 100% |
-| Overlays & Dialogs | 16 | 12 | 0 | 4 | 75% |
+| Overlays & Dialogs | 16 | 16 | 0 | 0 | 100% |
 | Text Selection | 4 | 4 | 0 | 0 | 100% |
 | Tool Display | 21 | 21 | 0 | 0 | 100% |
 | Message Features | 16 | 16 | 0 | 0 | 100% |
@@ -226,11 +226,8 @@
 | Theming | 5 | 5 | 0 | 0 | 100% |
 | Dev/Debug Tools | 5 | 5 | 0 | 0 | 100% |
 | Autocomplete | 3 | 3 | 0 | 0 | 100% |
-| **TOTAL** | **137** | **133** | **0** | **4** | **97%** |
+| **TOTAL** | **137** | **137** | **0** | **0** | **100%** |
 
-## Remaining Gaps (4 items)
+## Remaining Gaps (0 items)
 
-1. **Label Picker** — Thread label management with inline create
-2. **Image Preview modal** — Image viewing with save option
-3. **Thread Visibility Selector** — Thread visibility control
-4. **Skill List Modal** — Scrollable skill browser with detail pane
+All 137 features have been implemented. 🎉

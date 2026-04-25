@@ -74,6 +74,12 @@ export {
   transformThreadToDisplayItems,
 } from "./display-items.js";
 export {
+  type EditConfirmationConfig,
+  EditConfirmationWidget,
+  type RestoreConfirmationConfig,
+  RestoreConfirmationWidget,
+} from "./edit-restore-confirmation.js";
+export {
   ExpandableToolHeader,
   type ExpandableToolHeaderConfig,
   ExpandableToolHeaderState,
@@ -93,10 +99,26 @@ export {
   HandoffToolWidgetState,
 } from "./handoff-tool-widget.js";
 export {
+  extractFilename,
+  formatFileSize,
+  formatMediaType,
+  type ImagePreviewConfig,
+  ImagePreviewModal,
+  ImagePreviewModalState,
+} from "./image-preview-modal.js";
+export {
   InputField,
   type InputFieldConfig,
   InputFieldState,
 } from "./input-field.js";
+export {
+  getLabelValidationError,
+  isValidLabelName,
+  type LabelData,
+  LabelPicker,
+  type LabelPickerConfig,
+  LabelPickerState,
+} from "./label-picker.js";
 export {
   LibrarianSubToolWidget,
   type LibrarianSubToolWidgetConfig,
@@ -113,6 +135,16 @@ export {
   type OracleToolWidgetConfig,
 } from "./oracle-tool-widget.js";
 export { SHORTCUT_ROWS, ShortcutsPopup } from "./shortcuts-popup.js";
+export {
+  groupSkillsByScope,
+  type SkillData,
+  type SkillError,
+  type SkillGroup,
+  type SkillListModalConfig,
+  SkillListModalState,
+  SkillListModalWidget,
+  type SkillWarning,
+} from "./skill-list-modal.js";
 export { SlashCommandAutocomplete } from "./slash-command-autocomplete.js";
 export {
   CONTEXT_DANGER,
@@ -142,6 +174,13 @@ export {
   type ThreadStateWidgetConfig,
   ThreadStateWidgetState,
 } from "./thread-state-widget.js";
+export {
+  type ThreadVisibilityConfig,
+  ThreadVisibilitySelector,
+  VISIBILITY_OPTIONS,
+  type VisibilityItem,
+  type VisibilityOption,
+} from "./thread-visibility-selector.js";
 export {
   type ToolboxEntry,
   ToolboxListWidget,

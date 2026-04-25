@@ -197,6 +197,50 @@ export class Clipboard {
     }
   }
 
+  /**
+   * Read X11 primary selection (middle-click paste).
+   *
+   * 逆向: KXT.readPrimarySelection in chunk-004.js:3904-3920
+   *
+   * Algorithm (matches amp):
+   * 1. macOS / win32 → delegate to readText() (no primary selection concept)
+   * 2. OSC 52 primary read (not yet wired — skip)
+   * 3. wl-paste --primary --no-newline
+   * 4. xclip -selection primary -o
+   * 5. Return null if all paths fail
+   *
+   * @returns Primary selection text, or null if unavailable
+   */
+  async readPrimarySelection(): Promise<string | null> {
+    // 逆向: KXT.readPrimarySelection:3904
+    //   let T = wM(); if (T === "darwin" || T === "win32") return this.readText();
+    const platform = this._getPlatform();
+    if (platform === "darwin" || platform === "win32") {
+      const text = await this.readText();
+      return text || null;
+    }
+
+    // 逆向: KXT.readPrimarySelection:3907-3909
+    //   if (this.isOsc52Supported()) { let R = await this.readFromOSC52Primary(); if (R !== null) return R; }
+    // OSC 52 primary read requires VT input stream integration — not yet available
+
+    // 逆向: KXT.readPrimarySelection:3911-3914
+    //   if (await this.commandExists("wl-paste")) { let R = await this.readFromWlPaste("primary"); if (R !== null) return R; }
+    if (await this._commandExists("wl-paste")) {
+      const text = await this._execCommand("wl-paste", ["--no-newline", "--primary"]);
+      if (text) return text;
+    }
+
+    // 逆向: KXT.readPrimarySelection:3915-3918
+    //   if (await this.commandExists("xclip")) { let R = await this.readFromXclip("primary"); if (R !== null) return R; }
+    if (await this._commandExists("xclip")) {
+      const text = await this._execCommand("xclip", ["-selection", "primary", "-o"]);
+      if (text) return text;
+    }
+
+    return null;
+  }
+
   // ════════════════════════════════════════════════════
   //  Capability helpers
   // ════════════════════════════════════════════════════

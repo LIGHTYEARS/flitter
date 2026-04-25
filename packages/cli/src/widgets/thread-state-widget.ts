@@ -111,6 +111,32 @@ export interface ThreadStateWidgetConfig {
   /** Ctrl+G: open current input in $EDITOR (逆向: actions_intents.js:1054-1058)
    * Called with the current input text. */
   onOpenInEditor?: (text: string) => void;
+
+  /**
+   * `e` key: edit selected message.
+   * Called with the selected message ordinal and the message's plain text.
+   *
+   * 逆向: interactive_widgets.js:2479-2487 — handleEditMessage
+   *   `_selectEditingUserMessageByOrdinal(T)` → startEditing(ordinal, text)
+   */
+  onMessageEdit?: (messageOrdinal: number, currentText: string) => void;
+
+  /**
+   * `r` key: restore conversation to the selected message point.
+   * Called with the selected message ordinal (must be > 0).
+   *
+   * 逆向: interactive_widgets.js:2489-2501 — handleRestoreMessage
+   *   Checks ordinal !== null, index !== 0, then shows restore confirmation.
+   */
+  onMessageRestore?: (messageOrdinal: number) => void;
+
+  /**
+   * `f` key: fork is deprecated — shows deprecation modal.
+   *
+   * 逆向: interactive_widgets.js:2546-2548 — handleForkMessage
+   *   "Stick a fork in it, it's done" deprecation modal.
+   */
+  onShowForkDeprecation?: () => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -388,6 +414,34 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
+   * Extract the plain text content of the user message at the given navigable ordinal.
+   *
+   * Looks up the DisplayItem at the ordinal's index in the navigable items list,
+   * then returns its text field (which was already extracted from content blocks
+   * by the display-items pipeline).
+   *
+   * 逆向: interactive_widgets.js:2420-2422 — Tz0(r.message)
+   *   `Tz0` calls `kr(T.content)` which maps text blocks → joins with "\n\n".
+   *   In flitter, `transformThreadToDisplayItems` already extracts text into
+   *   `MessageItem.text`, so we read directly from the DisplayItem.
+   *
+   * 逆向: modules/1602_unknown_pm.js:1-4 — kr(T)
+   *   `T.map(R => R.type === "text" ? R.text : null).filter(R => R !== null).join("\n\n")`
+   *
+   * @param ordinal - Ordinal index into the navigable items list
+   * @returns Plain text string, or "" if the ordinal is invalid or the item has no text
+   */
+  _getMessageTextAtOrdinal(ordinal: number): string {
+    const nav = this._navigableItemIndices;
+    const itemIndex = nav[ordinal];
+    if (itemIndex === undefined) return "";
+    const item = this._items[itemIndex];
+    if (!item) return "";
+    if (item.type === "message" && item.text) return item.text;
+    return "";
+  }
+
+  /**
    * Whether to show thinking blocks in the message display.
    *
    * When false, content blocks with type "thinking" are filtered out
@@ -534,6 +588,65 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         this.setState(() => {
           this._exitSelectionMode();
         });
+        return true;
+      }
+
+      // ── e key — edit selected message ────────────────────────────────
+      // 逆向: interactive_widgets.js:2479-2487 — handleEditMessage
+      //   if selectedUserMessageOrdinal !== null → extract text via Tz0(message),
+      //   call _selectEditingUserMessageByOrdinal(ordinal) which sets up editing mode.
+      //   In flitter, we call the onMessageEdit callback and exit selection mode.
+      // 逆向: interactive_widgets.js:2756 — x0.key("e") → QQ → handleEditMessage
+      if (
+        event.key === "e" &&
+        this._isInMessageSelectionMode &&
+        this._selectedMessageOrdinal !== null
+      ) {
+        const text = this._getMessageTextAtOrdinal(this._selectedMessageOrdinal);
+        const ordinal = this._selectedMessageOrdinal;
+        this.setState(() => {
+          this._exitSelectionMode();
+        });
+        this.widget.config.onMessageEdit?.(ordinal, text);
+        return true;
+      }
+
+      // ── f key — fork (deprecated) ────────────────────────────────────
+      // 逆向: interactive_widgets.js:2546-2548 — handleForkMessage
+      //   if selectedUserMessageOrdinal !== null && onShowForkDeprecation →
+      //   call onShowForkDeprecation(), clearSelectedUserMessage(), dismiss().
+      // 逆向: interactive_widgets.js:2756 — x0.key("f") → JQ → handleForkMessage
+      if (
+        event.key === "f" &&
+        this._isInMessageSelectionMode &&
+        this._selectedMessageOrdinal !== null
+      ) {
+        this.setState(() => {
+          this._exitSelectionMode();
+        });
+        this.widget.config.onShowForkDeprecation?.();
+        return true;
+      }
+
+      // ── r key — restore to selected message ─────────────────────────
+      // 逆向: interactive_widgets.js:2489-2501 — handleRestoreMessage
+      //   if selectedUserMessageOrdinal !== null → get index; if index === 0 → ignore;
+      //   if role === "user" or info → showRestoreConfirmation(message, index).
+      // 逆向: interactive_widgets.js:2757 — x0.key("r") → ZQ → handleRestoreMessage
+      //   Only bound when onMessageRestoreSubmit is set.
+      if (
+        event.key === "r" &&
+        this._isInMessageSelectionMode &&
+        this._selectedMessageOrdinal !== null
+      ) {
+        // Can't restore to the first message (index 0)
+        const itemIndex = this._selectedItemIndex;
+        if (itemIndex === null || itemIndex === 0) return true; // consume but ignore
+        const ordinal = this._selectedMessageOrdinal;
+        this.setState(() => {
+          this._exitSelectionMode();
+        });
+        this.widget.config.onMessageRestore?.(ordinal);
         return true;
       }
 

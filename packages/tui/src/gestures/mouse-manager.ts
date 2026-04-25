@@ -21,9 +21,10 @@
  */
 
 import { logger } from "../debug/logger.js";
+import { Clipboard } from "../selection/clipboard.js";
 import type { RenderObject } from "../tree/render-object.js";
 import type { TuiController } from "../tui/tui-controller.js";
-import type { MouseEvent } from "../vt/types.js";
+import type { MouseEvent, PasteEvent } from "../vt/types.js";
 import type { MouseEvent as WidgetMouseEvent } from "../widgets/mouse-region.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
 import { type HitTestEntry, HitTestResult } from "./hit-test.js";
@@ -180,6 +181,24 @@ export class MouseManager {
    */
   private _globalClickCallbacks = new Set<(info: GlobalClickInfo) => void>();
 
+  /**
+   * 中键粘贴回调集合。
+   *
+   * 逆向: amp handles middle-click paste at widget level (SelectionAreaState._onPointerDown)
+   *   chunk-006.js:4762-4770 — if (_.button === "middle") clipboard.readPrimarySelection().then(…)
+   *
+   * Flitter exposes this at the MouseManager level for simpler wiring.
+   * Callbacks receive a PasteEvent with the primary selection text.
+   */
+  private _middleClickPasteCallbacks = new Set<(event: PasteEvent) => void>();
+
+  /**
+   * Clipboard instance for reading primary selection on middle-click.
+   *
+   * Lazily created on first middle-click if not injected.
+   */
+  private _clipboard: Clipboard | null = null;
+
   // ════════════════════════════════════════════════════
   //  单例
   // ════════════════════════════════════════════════════
@@ -275,6 +294,36 @@ export class MouseManager {
    */
   removeGlobalClickCallback(cb: (info: GlobalClickInfo) => void): void {
     this._globalClickCallbacks.delete(cb);
+  }
+
+  /**
+   * Register a callback for middle-click paste events.
+   *
+   * 逆向: amp wires this at the widget level (SelectionAreaState._onPointerDown)
+   *   chunk-006.js:4762-4770 — if (_.button === "middle") clipboard.readPrimarySelection()
+   *
+   * In Flitter, this is exposed at the MouseManager level.
+   *
+   * @param cb - Callback receiving PasteEvent with primary selection text
+   */
+  addMiddleClickPasteCallback(cb: (event: PasteEvent) => void): void {
+    this._middleClickPasteCallbacks.add(cb);
+  }
+
+  /**
+   * Remove a previously registered middle-click paste callback.
+   */
+  removeMiddleClickPasteCallback(cb: (event: PasteEvent) => void): void {
+    this._middleClickPasteCallbacks.delete(cb);
+  }
+
+  /**
+   * Inject a Clipboard instance for middle-click paste.
+   *
+   * If not set, a default Clipboard will be created on first middle-click.
+   */
+  setClipboard(clipboard: Clipboard): void {
+    this._clipboard = clipboard;
   }
 
   // ════════════════════════════════════════════════════
@@ -392,6 +441,18 @@ export class MouseManager {
   ): void {
     // 逆向: ha._handleClick (2026_tail_anonymous.js:158343-158357)
     const clickCount = this._calculateClickCount(position, raw.button);
+
+    // 逆向: chunk-006.js:4762-4770 — middle-click triggers primary selection paste
+    //   if (_.button === "middle") {
+    //     this.widget.clipboard.readPrimarySelection().then(m => {
+    //       if (m) h({ type: "paste", text: m });
+    //     }).catch(m => { J.debug("Failed to read primary selection for middle-click paste:", m); });
+    //     return;
+    //   }
+    if (raw.button === "middle") {
+      this._handleMiddleClickPaste();
+    }
+
     // 逆向: ha._handleClick — 全局点击回调在目标分发前触发 (2026_tail_anonymous.js:158345-158350)
     for (const cb of this._globalClickCallbacks) {
       cb({ event: raw, globalPosition: position, mouseTargets: targets, clickCount });
@@ -435,6 +496,77 @@ export class MouseManager {
         if (target.opaque) break;
       }
     }
+  }
+
+  /**
+   * Handle middle-click paste: read X11 primary selection and emit paste event.
+   *
+   * 逆向: chunk-006.js:4762-4770 (SelectionAreaState._onPointerDown)
+   *   if (_.button === "middle") {
+   *     this.widget.clipboard.readPrimarySelection().then(m => {
+   *       if (m) h({ type: "paste", text: m });
+   *     }).catch(m => {
+   *       J.debug("Failed to read primary selection for middle-click paste:", m);
+   *     });
+   *     return;
+   *   }
+   *
+   * X11 detection: checks process.env.DISPLAY or process.env.XDG_SESSION_TYPE === "x11"
+   * On non-X11 platforms (except macOS/win32 where clipboard.readPrimarySelection
+   * delegates to readText), this is a no-op.
+   */
+  private _handleMiddleClickPaste(): void {
+    // On non-X11 Linux, no-op. macOS/win32 are handled by Clipboard.readPrimarySelection
+    // which delegates to readText().
+    if (
+      !MouseManager.isX11Available() &&
+      process.platform !== "darwin" &&
+      process.platform !== "win32"
+    ) {
+      log.debug("middle-click paste: no X11 display, skipping");
+      return;
+    }
+
+    if (this._middleClickPasteCallbacks.size === 0) {
+      log.debug("middle-click paste: no callbacks registered, skipping");
+      return;
+    }
+
+    // Lazily create clipboard if not injected
+    if (!this._clipboard) {
+      this._clipboard = new Clipboard();
+    }
+
+    // 逆向: async read + emit pattern from amp
+    this._clipboard
+      .readPrimarySelection()
+      .then((text) => {
+        if (text) {
+          const event: PasteEvent = { type: "paste", text };
+          for (const cb of this._middleClickPasteCallbacks) {
+            cb(event);
+          }
+        }
+      })
+      .catch((err) => {
+        log.debug("Failed to read primary selection for middle-click paste:", err);
+      });
+  }
+
+  /**
+   * Check if X11 display is available.
+   *
+   * Used to determine whether middle-click paste (primary selection) is possible.
+   * Checks both DISPLAY (X11) and XDG_SESSION_TYPE (Wayland, which also supports
+   * primary selection via wl-paste --primary).
+   */
+  static isX11Available(): boolean {
+    return !!(
+      process.env.DISPLAY ||
+      process.env.XDG_SESSION_TYPE === "x11" ||
+      process.env.XDG_SESSION_TYPE === "wayland" ||
+      process.env.WAYLAND_DISPLAY
+    );
   }
 
   /**
@@ -811,6 +943,8 @@ export class MouseManager {
     this._scrollSessionLastEvent = 0;
     this._globalReleaseCallbacks.clear();
     this._globalClickCallbacks.clear();
+    this._middleClickPasteCallbacks.clear();
+    this._clipboard = null;
     MouseManager._instance = null;
   }
 }

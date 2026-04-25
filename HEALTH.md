@@ -1,6 +1,6 @@
 # HEALTH — 项目健康度 Overview
 
-> 最后更新: 2026-04-23 | 更新者: claude-opus-4-6
+> 最后更新: 2026-04-25 | 更新者: claude-opus-4-6
 
 Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widget 框架。本文件是项目当前状态的活快照，由 AI 在每次 session 中维护。静态架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -10,7 +10,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6426 pass / 1 fail (pre-existing: container integration inference roundtrip), 350 测试文件. Phase 3 chat-view alignment: +4 test files, +70 tests (thinking-click, apply-patch-diff, bash-classifier, activity-group-builders) |
+| 测试覆盖 | 🟡 | 6451 pass / 1 fail (pre-existing: container integration inference roundtrip), 351 测试文件. +1 context-window-overlay test file (25 tests) |
 | 技术债务 | 🟢 | 0 真实 TODO，0 FIXME/HACK，极度干净（grep.ts/todo-write.ts JSDoc 示例中的 'TODO' 不计入） |
 | 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
 
@@ -26,14 +26,14 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 |----|---------|-----|------|------|------|
 | @flitter/tui | 92 | 1 | ✓ | 0 | 0 |
 | @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
-| @flitter/cli | 83 | 2 | ✓ | 0 | 0 |
+| @flitter/cli | 84 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
 | @flitter/data | 17 | 0 | ✓ | 0 | 0 |
 | @flitter/util | 11 | 0 | ✓ | 0 | 0 |
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **350** | **3** | **6426** | **0** | **0** |
+| **总计** | **351** | **3** | **6451** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 

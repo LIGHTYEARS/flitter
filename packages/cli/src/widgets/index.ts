@@ -39,11 +39,26 @@ export {
 export { FlitterCommandPaletteProvider } from "./command-palette-provider.js";
 export { ConfigProvider } from "./config-provider.js";
 export {
+  type ConsoleOverlayConfig,
+  ConsoleOverlayState,
+  ConsoleOverlayWidget,
+  formatTimestamp,
+  type LogEntry,
+  stringifyArgs,
+} from "./console-overlay.js";
+export {
   ContextAnalyzer,
   type ContextAnalyzerConfig,
   ContextAnalyzerState,
   type TokenBreakdown,
 } from "./context-analyzer.js";
+export {
+  type ContextWindowData,
+  ContextWindowOverlay,
+  type ContextWindowOverlayConfig,
+  ContextWindowOverlayState,
+  formatCompact,
+} from "./context-window-overlay.js";
 export {
   ConversationView,
   type ConversationViewConfig,
@@ -90,6 +105,10 @@ export {
   type LibrarianVariant,
 } from "./librarian-tool-widget.js";
 export {
+  type McpTrustDialogProps,
+  McpTrustDialogWidget,
+} from "./mcp-trust-dialog.js";
+export {
   OracleToolWidget,
   type OracleToolWidgetConfig,
 } from "./oracle-tool-widget.js";
@@ -112,6 +131,12 @@ export {
   type ThreadPickerEntry,
   ThreadPickerState,
 } from "./thread-picker.js";
+export {
+  type ThreadReferenceProps,
+  type ThreadReferenceType,
+  ThreadReferenceWidget,
+  truncateTitle,
+} from "./thread-reference-widget.js";
 export {
   ThreadStateWidget,
   type ThreadStateWidgetConfig,

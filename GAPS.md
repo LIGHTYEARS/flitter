@@ -1,6 +1,6 @@
 # Flitter vs Amp — Feature Gap Comparison
 
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-04-25
 > **Method:** Parallel agent exploration of `packages/cli/src/` (flitter) and `amp-cli-reversed/` (amp reference), cataloging all widgets, input handling, terminal features, tools, display, and chrome.
 
 ## Legend
@@ -22,10 +22,10 @@
 | ClipRect | ✅ | ✅ | — |
 | IntrinsicHeight | ✅ | ✅ | — |
 | OverlapColumn | ✅ | ✅ | — |
-| ListView (virtualized) | ✅ | ❌ | Builder pattern, lazy rendering, kept-alive items |
-| Overlay system (hQ) | ✅ | ❌ | Z-ordered floating overlay entries |
-| OverlayContainer (positioned overlays) | ✅ | ❌ | Top/bottom/left/right overlay positioning |
-| CompositedTransformTarget/Follower | ✅ | ❌ | Tooltip/dropdown positioning system |
+| ListView (virtualized) | ✅ | ✅ | list-view.ts with builder pattern and lazy rendering |
+| Overlay system (hQ) | ✅ | ✅ | overlay.ts — Z-ordered floating overlay entries |
+| OverlayContainer (positioned overlays) | ✅ | ✅ | overlay-container.ts — Stack+Positioned edge-based overlays |
+| CompositedTransformTarget/Follower | ✅ | ✅ | composited-transform-target.ts + composited-transform-follower.ts + layer-link.ts |
 | SizeChangedNotifier | ✅ | ✅ | Post-frame callback with dedup, matching amp's NM/N1T |
 | Offstage | ✅ | ✅ | — |
 | ProgressBar (animated gradient) | ✅ | ✅ | AnimatedProgressBar with comet trail effect |
@@ -41,10 +41,10 @@
 | Backspace / character insert | ✅ | ✅ | — |
 | Up/Down prompt history | ✅ | ✅ | — |
 | Escape to cancel inference | ✅ | ✅ | — |
-| Ctrl+O command palette | ✅ | ❌ | Full fuzzy command palette |
-| Ctrl+R prompt history picker | ✅ | ❌ | FuzzyPicker-based with workspace filter |
+| Ctrl+O command palette | ✅ | ✅ | command-palette.ts + command-palette-provider.ts |
+| Ctrl+R prompt history picker | ✅ | ✅ | prompt-history.ts with FuzzyPicker-based workspace filter |
 | Ctrl+G edit in $EDITOR | ✅ | ✅ | onOpenInEditor callback in InputField |
-| Ctrl+V paste image | ✅ | ❌ | Image paste from clipboard |
+| Ctrl+V paste image | ✅ | ✅ | clipboard-image.ts + _handlePasteEvent in input-field.ts |
 | Ctrl+S / Alt+S toggle agent mode | ✅ | ✅ | onToggleAgentMode callback in InputField |
 | Ctrl+L refresh screen | ✅ | ✅ | Ctrl+L global shortcut + /refresh command |
 | Ctrl+C double-press exit | ✅ | ✅ | Double-press logic + visual hint in status bar |
@@ -56,7 +56,7 @@
 | Alt+Left/Right word jump | ✅ | ✅ | Alt+Left/Right + Alt+B/F + Meta variants |
 | Tab / Shift+Tab message navigation | ✅ | ✅ | Selection mode with scroll-to-message and border highlight |
 | j/k scroll in message view | ✅ | ✅ | Key interceptor on ThreadStateWidget |
-| e/f/r message edit/fork/restore | ✅ | ❌ | Message-level operations |
+| e/f/r message edit/fork/restore | ✅ | ✅ | e=edit, f=fork-deprecated modal, r=restore; keybindings in ThreadStateWidget |
 | `enterSubmitsMessage` config toggle | ✅ | ✅ | Configurable Enter vs Ctrl+Enter submit mode |
 | Kitty keyboard protocol | ✅ | ✅ | CSI u parsing + flags=7 capability probe |
 
@@ -66,15 +66,15 @@
 |---|---|---|---|
 | SGR mouse mode | ✅ | ✅ | Button-event + any-event + focus + SGR extended |
 | Click on hyperlinks | ✅ | ✅ | Cell.url lookup on click → defaultOpenBrowser |
-| Double-click word select | ✅ | ❌ | Word-granularity selection |
-| Triple-click line select | ✅ | ❌ | Full line selection |
-| Click+drag text selection | ✅ | ❌ | Range selection with auto-scroll |
-| Shift+click extend selection | ✅ | ❌ | Extend existing selection |
+| Double-click word select | ✅ | ✅ | selectWordAt in text-editing-controller.ts + clickCount tracking in mouse-manager.ts |
+| Triple-click line select | ✅ | ✅ | selectLineAt in text-editing-controller.ts + clickCount=3 detection |
+| Click+drag text selection | ✅ | ✅ | selection-area.ts with _isDraggingState + drag anchor tracking |
+| Shift+click extend selection | ✅ | ✅ | text-editing-controller.ts shiftClick/extend logic |
 | Mouse wheel scroll | ✅ | ✅ | Full pipeline: SGR decode → MouseManager → Scrollable |
-| Middle-click paste (X11) | ✅ | ❌ | Primary selection paste |
+| Middle-click paste (X11) | ✅ | ✅ | mouse-manager.ts _handleMiddleClickPaste + clipboard.readPrimarySelection |
 | Scrollbar drag | ✅ | ✅ | Already implemented in scrollbar.ts |
 | Hover cursor change | ✅ | ✅ | OSC 22 cursor via MouseManager + TuiController |
-| Auto-scroll during drag | ✅ | ❌ | Scroll when dragging near edges |
+| Auto-scroll during drag | ✅ | ✅ | selection-area.ts autoScrollConfig with threshold/step/interval |
 
 ## 4. Clipboard Operations
 
@@ -82,41 +82,41 @@
 |---|---|---|---|
 | OSC 52 clipboard write | ✅ | ✅ | — |
 | OSC 52 clipboard read | ✅ | ✅ | — |
-| Ctrl+C copy selection | ✅ | ❌ | Copy selected text |
-| Copy-on-select | ✅ | ❌ | Auto-copy after mouse selection |
+| Ctrl+C copy selection | ✅ | ✅ | selection-area.ts copyToClipboard |
+| Copy-on-select | ✅ | ✅ | selection-area.ts auto-copy on select |
 | Platform fallbacks (pbcopy, xclip, wl-copy) | ✅ | ✅ | OSC 52 → pbcopy → wl-copy → xclip → WSL fallback chain |
-| Image paste (macOS/Wayland/X11/WSL) | ✅ | ❌ | Multi-platform image paste |
+| Image paste (macOS/Wayland/X11/WSL) | ✅ | ✅ | clipboard-image.ts with osascript/wl-paste/xclip/PowerShell |
 | Copy thread URL/ID/markdown | ✅ | ✅ | /copy-url, /copy-id, /copy-markdown slash commands |
 
 ## 5. Overlays & Dialogs
 
 | Feature | Amp | Flitter | Gap Notes |
 |---|---|---|---|
-| Command Palette (Ctrl+O) | ✅ | ❌ | Fuzzy-searchable command list with categories |
-| Prompt History Picker (Ctrl+R) | ✅ | ❌ | FuzzyPicker with workspace filter (Alt+W/Ctrl+T) |
-| Keybinding Help Sheet (`?`) | ✅ | ❌ | Two-column keybinding overlay |
+| Command Palette (Ctrl+O) | ✅ | ✅ | command-palette.ts + command-palette-provider.ts |
+| Prompt History Picker (Ctrl+R) | ✅ | ✅ | prompt-history.ts with FuzzyPicker |
+| Keybinding Help Sheet (`?`) | ✅ | ✅ | ? key toggle in ThreadStateWidget + ShortcutsPopup (same as amp's U8R) |
 | Label Picker | ✅ | ❌ | Thread label management with inline create |
 | Confirmation Dialog (y/n) | ✅ | ✅ | Aligned with amp: inline keybind hints, color injection, Center wrapper |
 | Spinner Overlay | ✅ | ✅ | BrailleSpinner + Esc cancel, color injection, amp Ko/HRR aligned |
 | Image Preview modal | ✅ | ❌ | Image viewing with save option |
 | Thread Visibility Selector | ✅ | ❌ | Thread visibility control |
-| MCP Server Trust Dialog | ✅ | ❌ | Trust/always-trust/settings/dismiss |
+| MCP Server Trust Dialog | ✅ | ✅ | mcp-trust-dialog.ts — t/a/s/Esc key handlers, bordered dialog |
 | Skill List Modal | ✅ | ❌ | Scrollable skill browser with detail pane |
-| Console Overlay (Alt+C) | ✅ | ❌ | Scrollable console log view |
-| Context Window / Token Usage View | ✅ | ❌ | Detailed token breakdown with cost view |
-| Restore Confirmation | ✅ | ❌ | Affected files listing before restore |
-| Edit Confirmation | ✅ | ❌ | Affected files listing before edit |
-| ModalStack (nested modals) | ✅ | ❌ | Push/pop modal system |
-| FuzzyPicker (reusable) | ✅ | ❌ | Core fuzzy search picker component |
+| Console Overlay (Alt+C) | ✅ | ✅ | console-overlay.ts — scrollable log viewer with level-specific colors |
+| Context Window / Token Usage View | ✅ | ✅ | context-window-overlay.ts — token/cost/usage display with e/b key toggles |
+| Restore Confirmation | ✅ | ✅ | edit-restore-confirmation.ts — affected files listing + Delete/Cancel |
+| Edit Confirmation | ✅ | ✅ | edit-restore-confirmation.ts — affected files listing + Confirm/Cancel |
+| ModalStack (nested modals) | ✅ | ✅ | modal-stack.ts — ModalStackController push/pop + ModalStackWidget with Stack |
+| FuzzyPicker (reusable) | ✅ | ✅ | fuzzy-picker.ts (775 lines) with fuzzy-match.ts scoring |
 
 ## 6. Text Selection System
 
 | Feature | Amp | Flitter | Gap Notes |
 |---|---|---|---|
-| SelectionArea widget | ✅ | ❌ | Mouse selection across multiple widgets |
-| Ctrl+A select all | ✅ | ❌ | Select entire conversation |
-| Selection highlighting | ✅ | ❌ | Visual selection feedback |
-| SelectionKeepAliveBoundary | ✅ | ❌ | Preserve selection across viewport |
+| SelectionArea widget | ✅ | ✅ | selection-area.ts (1078 lines) — cross-widget mouse selection |
+| Ctrl+A select all | ✅ | ✅ | selectAll in selection-area.ts |
+| Selection highlighting | ✅ | ✅ | selectionColor in render-text-field.ts + text-field.ts |
+| SelectionKeepAliveBoundary | ✅ | ✅ | selection-keep-alive.ts — preserve selection across viewport |
 
 ## 7. Tool Display Widgets
 
@@ -154,13 +154,13 @@
 | Streaming cursor `█` | ✅ | ✅ | — |
 | Token usage per message | ✅ | ✅ | — |
 | Activity group collapsing | ✅ | ✅ | — |
-| Message edit (e key) | ✅ | ❌ | Edit previous user message |
-| Message fork (f key) | ✅ | ❌ | Fork conversation from message |
-| Message restore (r key) | ✅ | ❌ | Restore to previous state |
-| Edit confirmation with affected files | ✅ | ❌ | Shows what files will be affected |
-| ForceDim for old messages during restore | ✅ | ❌ | Dims messages after restore point |
+| Message edit (e key) | ✅ | ✅ | e key in ThreadStateWidget → onMessageEdit callback |
+| Message fork (f key) | ✅ | ✅ | f key → onShowForkDeprecation (deprecated in amp) |
+| Message restore (r key) | ✅ | ✅ | r key → onMessageRestore callback (guards ordinal > 0) |
+| Edit confirmation with affected files | ✅ | ✅ | EditConfirmationWidget with file list + Enter/Esc |
+| ForceDim for old messages during restore | ✅ | ✅ | force-dim.ts widget |
 | Guidance file display | ✅ | ✅ | GuidanceFileDisplay with CWD-relative paths |
-| Thread reference widget (V2) | ✅ | ❌ | Cross-thread navigation links |
+| Thread reference widget (V2) | ✅ | ✅ | thread-reference-widget.ts — ↳ prefix with fork/handoff/mention labels |
 | `$`/`$$` shell command prefix detection | ✅ | ✅ | — |
 | `@` file mention | ✅ | ✅ | — |
 | `@@` thread mention | ✅ | ✅ | @@ detection with thread mention insertion |
@@ -214,24 +214,23 @@
 
 | Category | Total Features | Flitter ✅ | Flitter ⚠️ | Flitter ❌ | Coverage |
 |---|---|---|---|---|---|
-| TUI Widgets | 17 | 14 | 0 | 3 | 82% |
-| Input/Keyboard | 22 | 18 | 0 | 4 | 82% |
-| Mouse Support | 11 | 5 | 0 | 6 | 45% |
-| Clipboard | 7 | 4 | 0 | 3 | 57% |
-| Overlays & Dialogs | 16 | 2 | 0 | 14 | 13% |
-| Text Selection | 4 | 0 | 0 | 4 | 0% |
+| TUI Widgets | 17 | 17 | 0 | 0 | 100% |
+| Input/Keyboard | 22 | 22 | 0 | 0 | 100% |
+| Mouse Support | 11 | 11 | 0 | 0 | 100% |
+| Clipboard | 7 | 7 | 0 | 0 | 100% |
+| Overlays & Dialogs | 16 | 12 | 0 | 4 | 75% |
+| Text Selection | 4 | 4 | 0 | 0 | 100% |
 | Tool Display | 21 | 21 | 0 | 0 | 100% |
-| Message Features | 16 | 11 | 0 | 5 | 69% |
+| Message Features | 16 | 16 | 0 | 0 | 100% |
 | Status Bar | 10 | 10 | 0 | 0 | 100% |
 | Theming | 5 | 5 | 0 | 0 | 100% |
 | Dev/Debug Tools | 5 | 5 | 0 | 0 | 100% |
 | Autocomplete | 3 | 3 | 0 | 0 | 100% |
-| **TOTAL** | **137** | **98** | **0** | **39** | **72%** |
+| **TOTAL** | **137** | **133** | **0** | **4** | **97%** |
 
-## Top Priority Gaps (highest user-impact)
+## Remaining Gaps (4 items)
 
-1. **Overlays & Dialogs** (13%) — Command palette (Ctrl+O), prompt history picker (Ctrl+R), modal stack still missing
-2. **Text Selection** (0%) — No text selection system at all
-3. **Mouse support** (45%) — Click+drag selection, double/triple-click, middle-click paste still missing
-4. **Clipboard** (57%) — Missing copy selection, copy-on-select, image paste
-5. **Message Features** (69%) — Missing message edit/fork/restore, thread reference widget
+1. **Label Picker** — Thread label management with inline create
+2. **Image Preview modal** — Image viewing with save option
+3. **Thread Visibility Selector** — Thread visibility control
+4. **Skill List Modal** — Scrollable skill browser with detail pane

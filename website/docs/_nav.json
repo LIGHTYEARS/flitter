@@ -1,22 +1,22 @@
 [
   {
-    "text": "指南",
-    "link": "/guide/introduction",
-    "activeMatch": "/guide/"
+    "text": "快速上手",
+    "link": "/quickstart/introduction",
+    "activeMatch": "/quickstart/"
   },
   {
-    "text": "TUI 框架",
-    "link": "/tui/overview",
-    "activeMatch": "/tui/"
+    "text": "教程",
+    "link": "/tutorial/core-concepts/three-tree",
+    "activeMatch": "/tutorial/"
+  },
+  {
+    "text": "参考",
+    "link": "/reference/overview",
+    "activeMatch": "/reference/"
   },
   {
     "text": "架构",
     "link": "/architecture/monorepo",
     "activeMatch": "/architecture/"
-  },
-  {
-    "text": "API",
-    "link": "/api/tui-widgets",
-    "activeMatch": "/api/"
   }
 ]

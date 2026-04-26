@@ -153,4 +153,4 @@ green, magenta, cyan, yellow, blue, red, bright-green, bright-cyan（8 色循环
 
 ---
 
-> 媒体教程详见 [Widget 概览 — 媒体](../../tui/widgets#媒体)。
+> 媒体教程详见 [Widget 参考概览](../../reference/overview)。

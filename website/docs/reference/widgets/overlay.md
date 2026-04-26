@@ -436,4 +436,4 @@ new CompositedTransformFollower({
 
 ---
 
-> 浮层教程详见 [Widget 概览 — 浮层与弹窗](../../tui/widgets#浮层与弹窗)。
+> 浮层教程详见 [Overlay 子系统教程](../../tutorial/subsystems/overlay)。

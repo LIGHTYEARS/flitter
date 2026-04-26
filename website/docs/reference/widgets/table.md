@@ -167,4 +167,4 @@ new StickyHeader({
 
 ---
 
-> 表格教程详见 [Widget 概览 — 表格](../../tui/widgets#表格)。
+> 表格教程详见 [Layout 教程](../../tutorial/subsystems/layout)。

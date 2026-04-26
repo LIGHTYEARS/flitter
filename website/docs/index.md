@@ -10,10 +10,10 @@ hero:
   actions:
     - theme: brand
       text: 快速开始
-      link: /guide/introduction
+      link: /quickstart/introduction
     - theme: alt
       text: TUI 框架
-      link: /tui/overview
+      link: /reference/overview
 
 features:
   - title: 三棵树架构

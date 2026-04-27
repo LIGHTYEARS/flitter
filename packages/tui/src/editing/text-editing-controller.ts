@@ -174,8 +174,16 @@ export class TextEditingController {
   /** Prompt 规则列表 */
   private _promptRules: PromptRule[] = [];
 
-  /** Whether the controller has been disposed */
-  private _disposed: boolean = false;
+  // ── Undo/Redo stacks (no amp reference — new feature for flitter) ──
+
+  /** Undo history stack */
+  private _undoStack: Array<{ text: string; cursorPosition: number }> = [];
+  /** Redo history stack */
+  private _redoStack: Array<{ text: string; cursorPosition: number }> = [];
+  /** Maximum undo history size */
+  private static readonly MAX_UNDO_SIZE = 100;
+  /** Guard flag to prevent nested _pushUndo calls */
+  private _undoGuard: boolean = false;
 
   /**
    * 创建文本编辑控制器
@@ -336,6 +344,7 @@ export class TextEditingController {
    * @param text - 要插入的文本
    */
   insertText(text: string): void {
+    this._pushUndo();
     this._lastKillWasContiguous = false;
     // 有选区时先删除选区 (还原自逆向代码 wc.insertText:1235)
     if (this.hasSelection) this.deleteSelectedText();
@@ -361,6 +370,7 @@ export class TextEditingController {
     if (count <= 0) return;
     const newPos = Math.max(0, this._cursorPosition - count);
     if (this._cursorPosition - newPos > 0) {
+      this._pushUndo();
       const startStr = this._getStringPositionFromGraphemeIndex(newPos);
       const endStr = this._getStringPositionFromGraphemeIndex(this._cursorPosition);
       this._text = this._text.slice(0, startStr) + this._text.slice(endStr);
@@ -385,6 +395,7 @@ export class TextEditingController {
     const gs = this.graphemes;
     const actualCount = Math.min(count, gs.length - this._cursorPosition);
     if (actualCount > 0) {
+      this._pushUndo();
       const startStr = this._getStringPositionFromGraphemeIndex(this._cursorPosition);
       const endStr = this._getStringPositionFromGraphemeIndex(this._cursorPosition + actualCount);
       this._text = this._text.slice(0, startStr) + this._text.slice(endStr);
@@ -641,6 +652,7 @@ export class TextEditingController {
     const target = this._findWordBoundary("left");
     const count = Math.max(0, this._cursorPosition - target);
     if (count > 0) {
+      this._pushUndo();
       const startStr = this._getStringPositionFromGraphemeIndex(target);
       const endStr = this._getStringPositionFromGraphemeIndex(this._cursorPosition);
       const deleted = this._text.slice(startStr, endStr);
@@ -665,6 +677,7 @@ export class TextEditingController {
     const target = this._findWordBoundary("right");
     const count = Math.max(0, target - this._cursorPosition);
     if (count > 0) {
+      this._pushUndo();
       const startStr = this._getStringPositionFromGraphemeIndex(this._cursorPosition);
       const endStr = this._getStringPositionFromGraphemeIndex(target);
       const deleted = this._text.slice(startStr, endStr);
@@ -697,6 +710,7 @@ export class TextEditingController {
     }
     if (lineEnd <= pos) return; // 行尾无内容可删
 
+    this._pushUndo();
     const startStr = this._getStringPositionFromGraphemeIndex(pos);
     const endStr = this._getStringPositionFromGraphemeIndex(lineEnd);
     const deleted = this._text.slice(startStr, endStr);
@@ -734,6 +748,7 @@ export class TextEditingController {
 
     if (lineStart >= pos) return; // 已在行首
 
+    this._pushUndo();
     const startStr = this._getStringPositionFromGraphemeIndex(lineStart);
     const endStr = this._getStringPositionFromGraphemeIndex(pos);
     const deleted = this._text.slice(startStr, endStr);
@@ -759,6 +774,7 @@ export class TextEditingController {
    */
   deleteCurrentLine(): void {
     if (this._text.length === 0) return;
+    this._pushUndo();
     this._collapseSelection();
 
     const gs = this.graphemes;
@@ -823,6 +839,48 @@ export class TextEditingController {
    */
   yankText(): void {
     if (this._killBuffer) this.insertText(this._killBuffer);
+  }
+
+  // ════════════════════════════════════════════════════
+  //  Undo / Redo (no amp reference — new feature)
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 撤销上一次文本修改操作
+   *
+   * 将当前状态推入 redo 栈，从 undo 栈恢复上一个状态。
+   * 空栈时为 no-op。
+   */
+  undo(): void {
+    if (this._undoStack.length === 0) return;
+    this._redoStack.push({ text: this._text, cursorPosition: this._cursorPosition });
+    const prev = this._undoStack.pop()!;
+    this._text = prev.text;
+    this._layoutEngine.updateText(this._text);
+    this._cursorPosition = prev.cursorPosition;
+    this._selectionBase = this._cursorPosition;
+    this._selectionExtent = this._cursorPosition;
+    this._preferredColumn = this._getLayoutColumnFromOffset(this._cursorPosition);
+    this._notifyListeners();
+  }
+
+  /**
+   * 重做上一次被撤销的操作
+   *
+   * 将当前状态推入 undo 栈，从 redo 栈恢复下一个状态。
+   * 空栈时为 no-op。
+   */
+  redo(): void {
+    if (this._redoStack.length === 0) return;
+    this._undoStack.push({ text: this._text, cursorPosition: this._cursorPosition });
+    const next = this._redoStack.pop()!;
+    this._text = next.text;
+    this._layoutEngine.updateText(this._text);
+    this._cursorPosition = next.cursorPosition;
+    this._selectionBase = this._cursorPosition;
+    this._selectionExtent = this._cursorPosition;
+    this._preferredColumn = this._getLayoutColumnFromOffset(this._cursorPosition);
+    this._notifyListeners();
   }
 
   // ════════════════════════════════════════════════════
@@ -1010,9 +1068,32 @@ export class TextEditingController {
   // ════════════════════════════════════════════════════
 
   /**
+   * 保存当前状态到 undo 栈，并清空 redo 栈
+   *
+   * 由各个 mutating 方法在修改前调用。
+   * Uses a guard flag to prevent double-push when one mutating method
+   * (e.g. deleteWordLeft) internally calls another (e.g. deleteText).
+   * The guard is automatically reset after the push so that subsequent
+   * top-level operations can push again.
+   */
+  private _pushUndo(): void {
+    if (this._undoGuard) return;
+    this._undoGuard = true;
+    this._undoStack.push({
+      text: this._text,
+      cursorPosition: this._cursorPosition,
+    });
+    if (this._undoStack.length > TextEditingController.MAX_UNDO_SIZE) {
+      this._undoStack.shift();
+    }
+    this._redoStack.length = 0;
+  }
+
+  /**
    * 通知所有监听器
    */
   private _notifyListeners(): void {
+    this._undoGuard = false;
     for (const fn of this._listeners) {
       fn();
     }

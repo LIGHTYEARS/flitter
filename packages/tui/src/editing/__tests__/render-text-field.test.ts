@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { Color } from "../../screen/color.js";
+import { Screen } from "../../screen/screen.js";
+import { BoxConstraints } from "../../tree/constraints.js";
 import { RenderTextField } from "../render-text-field.js";
 import { TextEditingController } from "../text-editing-controller.js";
 
@@ -89,5 +92,71 @@ describe("RenderTextField layout", () => {
       maxLines: null,
     });
     expect(rf.getMinIntrinsicHeight(80)).toBe(3);
+  });
+});
+
+describe("RenderTextField cursor fallback colors", () => {
+  it("uses concrete (non-default) colors for cursor when no explicit colors are set", () => {
+    // 逆向: L1T.paint passes textColor ?? LT.white, backgroundColor ?? LT.black to _paintSoftwareCursor
+    // (actions_intents.js:1675). When both fg and bg are Color.default(), the manual
+    // fg↔bg swap is a no-op → invisible cursor. This test guards against that regression.
+    const ctrl = new TextEditingController({ text: "hello", width: 20 });
+    ctrl.cursorPosition = 0; // cursor at 'h'
+
+    const rf = new RenderTextField({
+      controller: ctrl,
+      focused: true,
+      enabled: true,
+      readOnly: false,
+      minLines: 1,
+      maxLines: 1,
+      // No cursorColor, no backgroundColor, no textStyle — all default
+    });
+
+    rf.layout(new BoxConstraints({ minWidth: 20, maxWidth: 20, minHeight: 1, maxHeight: 1 }));
+
+    const screen = new Screen(20, 1);
+    rf.paint(screen, 0, 0);
+
+    // Read the cell at cursor position (0, 0)
+    const cursorCell = screen.back.getCell(0, 0);
+    expect(cursorCell.char).toBe("h");
+
+    // Both fg and bg must NOT be "default" — the cursor must be visible
+    expect(cursorCell.style.foreground.kind).not.toBe("default");
+    expect(cursorCell.style.background.kind).not.toBe("default");
+
+    // Specifically: fg should be black (backgroundColor fallback), bg should be white (cursorColor fallback)
+    // This matches amp's behavior: textColor ?? white, backgroundColor ?? black, with reverse
+    expect(cursorCell.style.foreground.kind).toBe("named");
+    expect(cursorCell.style.foreground.index).toBe(0); // black
+    expect(cursorCell.style.background.kind).toBe("named");
+    expect(cursorCell.style.background.index).toBe(7); // white
+  });
+
+  it("uses explicit cursorColor when provided (no fallback needed)", () => {
+    const ctrl = new TextEditingController({ text: "hi", width: 20 });
+    ctrl.cursorPosition = 0;
+
+    const rf = new RenderTextField({
+      controller: ctrl,
+      focused: true,
+      enabled: true,
+      readOnly: false,
+      minLines: 1,
+      maxLines: 1,
+      cursorColor: Color.green(),
+      backgroundColor: Color.blue(),
+    });
+
+    rf.layout(new BoxConstraints({ minWidth: 20, maxWidth: 20, minHeight: 1, maxHeight: 1 }));
+
+    const screen = new Screen(20, 1);
+    rf.paint(screen, 0, 0);
+
+    const cursorCell = screen.back.getCell(0, 0);
+    // fg = backgroundColor (blue), bg = cursorColor (green) — manual reverse
+    expect(cursorCell.style.foreground.index).toBe(Color.blue().index);
+    expect(cursorCell.style.background.index).toBe(Color.green().index);
   });
 });

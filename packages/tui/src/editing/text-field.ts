@@ -113,6 +113,9 @@ class TextFieldState extends State<TextField> {
   private _focusNode!: FocusNode;
   private _ownsFocusNode: boolean = false;
   private _listener!: () => void;
+  /** Focus change listener — triggers rebuild so `focused` prop updates.
+   * 逆向: sP._focusChangeListener (actions_intents.js:819-821) */
+  private _focusChangeListener!: (node: FocusNode) => void;
   /** Ref to the underlying RenderTextField for hit-testing */
   private _renderFieldRef: RenderTextField | null = null;
   // ── New state for GAP-TUI-26 ──
@@ -120,9 +123,6 @@ class TextFieldState extends State<TextField> {
   private _autoCopyTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   /** Copy-highlight timer handle */
   private _copyHighlightTimer: ReturnType<typeof setTimeout> | undefined = undefined;
-
-  /** Whether the copy highlight animation is active */
-  private _copyHighlightActive: boolean = false;
 
   static readonly AUTO_COPY_DELAY_MS = 500;
   static readonly AUTO_COPY_HIGHLIGHT_DURATION_MS = 300;
@@ -167,6 +167,16 @@ class TextFieldState extends State<TextField> {
       this._focusNode = new FocusNode({ debugLabel: "TextField" });
       this._ownsFocusNode = true;
     }
+
+    // 逆向: sP.initState — _focusChangeListener = T => { ... this.setState(() => {}) }
+    // (actions_intents.js:819-821)
+    // Focus change triggers rebuild so `focused` prop on RenderTextField updates,
+    // which controls cursor visibility. Without this, autofocus on FuzzyPicker's
+    // TextField wouldn't show the cursor until the next text-change rebuild.
+    this._focusChangeListener = (_node: FocusNode) => {
+      if (this.mounted) this.setState();
+    };
+    this._focusNode.addListener(this._focusChangeListener);
   }
 
   override didUpdateWidget(oldWidget: TextField): void {
@@ -184,6 +194,7 @@ class TextFieldState extends State<TextField> {
       this._controller.addListener(this._listener);
     }
     if (this.widget.props.focusNode !== oldWidget.props.focusNode) {
+      this._focusNode.removeListener(this._focusChangeListener);
       if (this._ownsFocusNode) this._focusNode.dispose?.();
       if (this.widget.props.focusNode) {
         this._focusNode = this.widget.props.focusNode;
@@ -192,6 +203,7 @@ class TextFieldState extends State<TextField> {
         this._focusNode = new FocusNode({ debugLabel: "TextField" });
         this._ownsFocusNode = true;
       }
+      this._focusNode.addListener(this._focusChangeListener);
     }
     // Update prompt rules when they change
     // 逆向: sP.didUpdateWidget — if (this.widget.prompts !== T.prompts) ... (chunk-006.js:4399)
@@ -204,6 +216,7 @@ class TextFieldState extends State<TextField> {
     this._clearAutoCopyTimer();
     this._clearCopyHighlightTimer();
     this._controller.removeListener(this._listener);
+    this._focusNode.removeListener(this._focusChangeListener);
     if (this._ownsController) this._controller.dispose();
     if (this._ownsFocusNode) this._focusNode.dispose?.();
     super.dispose();

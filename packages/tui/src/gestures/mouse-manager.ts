@@ -27,7 +27,7 @@ import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent, PasteEvent } from "../vt/types.js";
 import type { MouseEvent as WidgetMouseEvent } from "../widgets/mouse-region.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
-import { type HitTestEntry, HitTestResult } from "./hit-test.js";
+import { type HitTestEntry, HitTestResult, type MouseTarget } from "./hit-test.js";
 import {
   createBaseEvent,
   createClickEvent,
@@ -369,7 +369,7 @@ export class MouseManager {
 
     const result = HitTestResult.hitTest(this._rootRenderObject, position);
     this._lastHoverTargets = [...result.hits];
-    const mouseTargets = this._findMouseTargets(result.hits);
+    const mouseTargets = this._findMouseTargets(result.hits, result.mouseTargets);
     log.debug("hitTest", { hits: result.hits.length, mouseTargets: mouseTargets.length });
 
     switch (event.action) {
@@ -411,19 +411,38 @@ export class MouseManager {
   // ════════════════════════════════════════════════════
 
   /**
-   * 从命中条目中筛选出 RenderMouseRegion 实例。
+   * 从命中条目中筛选出鼠标事件目标。
    *
    * 逆向: ha._findMouseTargets (2026_tail_anonymous.js:158451-158458)
+   *
+   * 合并两个来源:
+   * 1. result.hits 中的 RenderMouseRegion 实例（原有路径）
+   * 2. result.mouseTargets 中通过 addMouseTarget 显式注册的目标
+   *    （用于 RenderParagraph 等非 RenderMouseRegion 的可交互渲染对象）
    */
   private _findMouseTargets(
     hits: readonly HitTestEntry[],
+    explicitTargets?: readonly MouseTarget[],
   ): Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> {
     // 逆向: ha._findMouseTargets (2026_tail_anonymous.js:158451-158458)
     const targets: Array<{ target: RenderMouseRegion; localPosition: { x: number; y: number } }> =
       [];
+    const seen = new Set<RenderObject>();
     for (const hit of hits) {
       if (hit.target instanceof RenderMouseRegion) {
         targets.push({ target: hit.target, localPosition: hit.localPosition });
+        seen.add(hit.target);
+      }
+    }
+    // Include explicitly registered mouse targets (e.g., RenderParagraph with onTap spans)
+    if (explicitTargets) {
+      for (const mt of explicitTargets) {
+        if (!seen.has(mt.target) && "handleMouseEvent" in mt.target) {
+          targets.push({
+            target: mt.target as unknown as RenderMouseRegion,
+            localPosition: mt.position,
+          });
+        }
       }
     }
     return targets;

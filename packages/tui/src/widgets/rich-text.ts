@@ -19,8 +19,11 @@
  * @module
  */
 
+import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
 import { TextStyle } from "../screen/text-style.js";
+import type { Selectable, SelectionArea } from "../selection/selection-area.js";
+import { InheritedSelectionArea } from "../selection/selection-area-widget.js";
 import { charWidth, graphemeSegments } from "../text/char-width.js";
 import type { Element, Widget as WidgetInterface } from "../tree/element.js";
 import { RenderBox } from "../tree/render-box.js";
@@ -29,6 +32,7 @@ import type { RenderObjectWidget } from "../tree/render-object-element.js";
 import { RenderObjectElement } from "../tree/render-object-element.js";
 import type { Key } from "../tree/widget.js";
 import { Widget } from "../tree/widget.js";
+import type { MouseEvent } from "./mouse-region.js";
 import type { TextSpan } from "./text-span.js";
 
 // ════════════════════════════════════════════════════
@@ -74,11 +78,13 @@ class LeafRenderObjectElement extends RenderObjectElement {
    * 挂载到元素树。
    *
    * 调用父类 mount 创建渲染对象并插入渲染树。
+   * 逆向: amp t1T.setContext — selectable 时 register 到 SelectionArea
    *
    * @param parent - 父元素
    */
   override mount(parent?: Element): void {
     super.mount(parent);
+    this._tryRegisterSelectable();
     this._dirty = false;
   }
 
@@ -90,6 +96,36 @@ class LeafRenderObjectElement extends RenderObjectElement {
   override update(newWidget: WidgetInterface): void {
     super.update(newWidget);
     this._dirty = false;
+  }
+
+  /**
+   * 从元素树卸载。
+   *
+   * 逆向: amp t1T.detach — unregister from SelectionArea
+   */
+  override unmount(): void {
+    const rp = this._renderObject as RenderParagraph | undefined;
+    if (rp) {
+      rp._unregisterFromSelectionArea();
+    }
+    super.unmount();
+  }
+
+  /**
+   * 尝试将 RenderParagraph 注册到 InheritedSelectionArea。
+   *
+   * 在 mount 后，Element 已在树中，可以 dependOnInheritedWidgetOfExactType。
+   * 逆向: amp t1T.setContext (chunk-006.js:1296-1306)
+   */
+  private _tryRegisterSelectable(): void {
+    const rp = this._renderObject as RenderParagraph | undefined;
+    if (!rp?.selectable) return;
+
+    const inherited = this.dependOnInheritedWidgetOfExactType(InheritedSelectionArea);
+    if (!inherited) return;
+
+    const area = (inherited.widget as InheritedSelectionArea).selectionArea;
+    rp._registerWithSelectionArea(area);
   }
 }
 
@@ -120,6 +156,18 @@ export class RenderParagraph extends RenderBox {
 
   /** 最大显示行数 */
   private _maxLines: number | undefined;
+
+  /** 是否可选中（用于 SelectionArea 集成） */
+  private _selectable = false;
+
+  /** SelectionArea 注册引用 */
+  private _registeredSelectionArea: SelectionArea | null = null;
+
+  /** 可选对象 ID */
+  private _selectableId: string = `para-${Math.random().toString(36).slice(2, 8)}`;
+
+  /** 选中高亮范围 */
+  private _highlightRange: { start: number; end: number } | null = null;
 
   /**
    * 创建段落渲染对象。
@@ -187,6 +235,217 @@ export class RenderParagraph extends RenderBox {
       this._maxLines = value;
       this.markNeedsLayout();
     }
+  }
+
+  /**
+   * 是否可选中。
+   *
+   * 逆向: amp t1T.selectable — 控制是否注册到 SelectionArea
+   */
+  get selectable(): boolean {
+    return this._selectable;
+  }
+  set selectable(value: boolean) {
+    if (this._selectable !== value) {
+      this._selectable = value;
+      // Unregister if becoming non-selectable while attached.
+      // Re-registration when becoming selectable is handled by
+      // LeafRenderObjectElement (Element-side) on next rebuild/mount.
+      if (!value && this._registeredSelectionArea) {
+        this._unregisterFromSelectionArea();
+      }
+    }
+  }
+
+  /** 获取可选对象 ID */
+  get selectableId(): string {
+    return this._selectableId;
+  }
+
+  // ────────────────────────────────────────────────
+  //  命中测试 + 鼠标事件 — 逆向: amp t1T hit-test + onTap dispatch
+  // ────────────────────────────────────────────────
+
+  /**
+   * 检查 TextSpan 树中是否有任何 onTap 回调。
+   */
+  private _hasClickableSpan(span: TextSpan): boolean {
+    if (span.onTap) return true;
+    if (span.children) {
+      for (const child of span.children) {
+        if (this._hasClickableSpan(child)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 根据局部坐标查找对应的 LayoutGlyph。
+   *
+   * @param localX - 相对于本渲染对象的 X 坐标
+   * @param localY - 相对于本渲染对象的 Y 坐标（行号）
+   */
+  private _findGlyphAt(localX: number, localY: number): LayoutGlyph | null {
+    if (localY < 0 || localY >= this._lines.length) return null;
+    const line = this._lines[localY]!;
+    let col = 0;
+    for (const glyph of line) {
+      if (localX >= col && localX < col + glyph.width) return glyph;
+      col += glyph.width;
+    }
+    return null;
+  }
+
+  /**
+   * 根据局部坐标查找字符偏移量（用于 SelectionArea）。
+   *
+   * @returns 从文本开头算起的字符偏移，-1 表示未命中
+   */
+  getOffsetAtPosition(localX: number, localY: number): number {
+    let offset = 0;
+    for (let lineIdx = 0; lineIdx < this._lines.length; lineIdx++) {
+      const line = this._lines[lineIdx]!;
+      if (lineIdx === localY) {
+        let col = 0;
+        for (const glyph of line) {
+          if (localX >= col && localX < col + glyph.width) return offset;
+          col += glyph.width;
+          offset++;
+        }
+        return offset; // past end of line
+      }
+      offset += line.length;
+    }
+    return offset;
+  }
+
+  /**
+   * 命中测试。
+   *
+   * 逆向: amp t1T.hitTest — 有可点击 span 或 selectable 时注册为鼠标目标
+   */
+  override hitTest(
+    result: HitTestResult,
+    position: { x: number; y: number },
+    offsetX = 0,
+    offsetY = 0,
+  ): boolean {
+    const hit = super.hitTest(result, position, offsetX, offsetY);
+    if (hit && (this._hasClickableSpan(this._textSpan) || this._selectable)) {
+      result.addMouseTarget(this, position);
+    }
+    return hit;
+  }
+
+  /**
+   * 处理鼠标事件。
+   *
+   * 逆向: amp t1T — 点击时分派到对应 span 的 onTap 回调
+   */
+  handleMouseEvent(event: MouseEvent): void {
+    if (event.type === "click") {
+      const local = event.localPosition;
+      const glyph = this._findGlyphAt(local.x, local.y);
+      if (glyph?.span?.onTap) {
+        glyph.span.onTap();
+      }
+    }
+  }
+
+  // ────────────────────────────────────────────────
+  //  SelectionArea 集成 — 逆向: amp t1T + Yb (InheritedSelectionArea)
+  // ────────────────────────────────────────────────
+
+  /**
+   * 向 SelectionArea 注册为可选对象。
+   * 由 LeafRenderObjectElement.mount() 在 Element 侧调用。
+   *
+   * 逆向: amp t1T.setContext (chunk-006.js:1296-1306)
+   *
+   * @internal 仅供 LeafRenderObjectElement 使用
+   */
+  _registerWithSelectionArea(area: SelectionArea): void {
+    if (this._registeredSelectionArea === area) return;
+    // Unregister from previous area if any
+    if (this._registeredSelectionArea) {
+      this._registeredSelectionArea.unregister(this._selectableId);
+    }
+    area.register(this._asSelectable());
+    this._registeredSelectionArea = area;
+  }
+
+  /**
+   * 从 SelectionArea 取消注册。
+   * 由 LeafRenderObjectElement.unmount() 调用。
+   *
+   * 逆向: amp t1T.detach (chunk-006.js:1307-1310)
+   *
+   * @internal 仅供 LeafRenderObjectElement 使用
+   */
+  _unregisterFromSelectionArea(): void {
+    if (this._registeredSelectionArea) {
+      this._registeredSelectionArea.unregister(this._selectableId);
+      this._registeredSelectionArea = null;
+    }
+  }
+
+  /**
+   * 创建 Selectable 接口实现。
+   */
+  _asSelectable(): Selectable {
+    return {
+      id: this._selectableId,
+      getText: () => this._textSpan.toPlainText(),
+      getGlobalBounds: () => {
+        const global = this.localToGlobal({ x: 0, y: 0 });
+        return {
+          top: global.y,
+          left: global.x,
+          width: this._size.width,
+          height: this._size.height,
+        };
+      },
+      getOffsetForPosition: (localX: number, localY: number) => {
+        return this.getOffsetAtPosition(localX, localY);
+      },
+      setHighlightRange: (start: number, end: number) => {
+        this._highlightRange = { start, end };
+        this.markNeedsPaint();
+      },
+      clearHighlight: () => {
+        this._highlightRange = null;
+        this.markNeedsPaint();
+      },
+    };
+  }
+
+  /**
+   * 挂载到渲染树。
+   *
+   * 逆向: amp t1T.setContext — 注册由 Element 侧的 mount() 负责
+   */
+  override attach(): void {
+    super.attach();
+    // Registration is done from LeafRenderObjectElement.mount() which has
+    // access to the Element tree for InheritedWidget lookup.
+  }
+
+  /**
+   * 从渲染树移除时取消注册。
+   *
+   * 逆向: amp t1T.detach — unregister from SelectionArea
+   */
+  override detach(): void {
+    this._unregisterFromSelectionArea();
+    super.detach();
+  }
+
+  /**
+   * 释放资源。
+   */
+  override dispose(): void {
+    this._unregisterFromSelectionArea();
+    super.dispose();
   }
 
   /**
@@ -364,6 +623,7 @@ export class RenderParagraph extends RenderBox {
    */
   override performPaint(screen: Screen, offsetX: number, offsetY: number): void {
     const boxWidth = this._size.width;
+    let glyphIndex = 0;
 
     for (let lineIdx = 0; lineIdx < this._lines.length; lineIdx++) {
       const line = this._lines[lineIdx]!;
@@ -383,8 +643,20 @@ export class RenderParagraph extends RenderBox {
 
       let x = offsetX + alignOffset;
       for (const glyph of line) {
-        screen.writeChar(x, y, glyph.grapheme, glyph.style, glyph.width);
+        // 逆向: amp t1T.paint — highlight range swaps fg/bg
+        const isHighlighted =
+          this._highlightRange !== null &&
+          glyphIndex >= this._highlightRange.start &&
+          glyphIndex < this._highlightRange.end;
+        const style = isHighlighted
+          ? glyph.style.copyWith({
+              foreground: glyph.style.background,
+              background: glyph.style.foreground,
+            })
+          : glyph.style;
+        screen.writeChar(x, y, glyph.grapheme, style, glyph.width);
         x += glyph.width;
+        glyphIndex++;
       }
     }
   }
@@ -457,6 +729,8 @@ interface RichTextArgs {
   overflow?: TextOverflow;
   /** 最大显示行数 */
   maxLines?: number;
+  /** 是否可选中（用于 SelectionArea 集成） */
+  selectable?: boolean;
 }
 
 /**
@@ -478,6 +752,9 @@ export class RichText extends Widget implements RenderObjectWidget {
   /** 最大显示行数 */
   readonly maxLines: number | undefined;
 
+  /** 是否可选中 */
+  readonly selectable: boolean;
+
   /** 无子 Widget（叶子节点） */
   readonly child: WidgetInterface | undefined = undefined;
 
@@ -492,6 +769,7 @@ export class RichText extends Widget implements RenderObjectWidget {
     this.textAlign = args.textAlign ?? "left";
     this.overflow = args.overflow ?? "clip";
     this.maxLines = args.maxLines;
+    this.selectable = args.selectable ?? false;
   }
 
   createElement(): Element {
@@ -499,11 +777,13 @@ export class RichText extends Widget implements RenderObjectWidget {
   }
 
   createRenderObject(): RenderObject {
-    return new RenderParagraph(this.text, {
+    const rp = new RenderParagraph(this.text, {
       textAlign: this.textAlign,
       overflow: this.overflow,
       maxLines: this.maxLines,
     });
+    rp.selectable = this.selectable;
+    return rp;
   }
 
   updateRenderObject(renderObject: RenderObject): void {
@@ -512,5 +792,6 @@ export class RichText extends Widget implements RenderObjectWidget {
     rp.textAlign = this.textAlign;
     rp.overflow = this.overflow;
     rp.maxLines = this.maxLines;
+    rp.selectable = this.selectable;
   }
 }

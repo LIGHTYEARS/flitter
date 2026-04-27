@@ -659,4 +659,156 @@ describe("TextEditingController", () => {
       expect(ctrl.cursorPosition).toBeLessThanOrEqual(4);
     });
   });
+
+  // ═══════════════════════════════════════════════════════
+  //  Undo / Redo 测试
+  // ═══════════════════════════════════════════════════════
+
+  describe("Undo / Redo", () => {
+    it("undo() restores previous text and cursor after insertText", () => {
+      const ctrl = new TextEditingController();
+      ctrl.insertText("hello");
+      expect(ctrl.text).toBe("hello");
+      expect(ctrl.cursorPosition).toBe(5);
+
+      ctrl.undo();
+      expect(ctrl.text).toBe("");
+      expect(ctrl.cursorPosition).toBe(0);
+    });
+
+    it("redo() re-applies undone change", () => {
+      const ctrl = new TextEditingController();
+      ctrl.insertText("hello");
+      ctrl.undo();
+      expect(ctrl.text).toBe("");
+
+      ctrl.redo();
+      expect(ctrl.text).toBe("hello");
+      expect(ctrl.cursorPosition).toBe(5);
+    });
+
+    it("undo() on empty stack is a no-op", () => {
+      const ctrl = new TextEditingController({ text: "hello" });
+      ctrl.undo(); // nothing to undo
+      expect(ctrl.text).toBe("hello");
+      expect(ctrl.cursorPosition).toBe(5);
+    });
+
+    it("redo() on empty stack is a no-op", () => {
+      const ctrl = new TextEditingController({ text: "hello" });
+      ctrl.redo(); // nothing to redo
+      expect(ctrl.text).toBe("hello");
+      expect(ctrl.cursorPosition).toBe(5);
+    });
+
+    it("new mutation after undo clears redo stack", () => {
+      const ctrl = new TextEditingController();
+      ctrl.insertText("aaa");
+      ctrl.insertText("bbb");
+      ctrl.undo(); // undo "bbb" insert
+      expect(ctrl.text).toBe("aaa");
+
+      // new mutation should clear redo
+      ctrl.insertText("ccc");
+      expect(ctrl.text).toBe("aaaccc");
+
+      ctrl.redo(); // redo stack is empty now
+      expect(ctrl.text).toBe("aaaccc"); // no change
+    });
+
+    it("stack caps at 100 entries (oldest dropped)", () => {
+      const ctrl = new TextEditingController();
+      // Push 105 entries
+      for (let i = 0; i < 105; i++) {
+        ctrl.insertText(String(i) + " ");
+      }
+      // Undo all 100 possible times
+      for (let i = 0; i < 100; i++) {
+        ctrl.undo();
+      }
+      // After 100 undos we should have some text left (the first ~5 inserts)
+      // The 101st undo should be a no-op
+      const textAfter100Undos = ctrl.text;
+      ctrl.undo();
+      expect(ctrl.text).toBe(textAfter100Undos); // no more undos available
+    });
+
+    it("deleteWordLeft -> undo() restores the deleted word", () => {
+      const ctrl = new TextEditingController({ text: "hello world" });
+      // cursor at end (11)
+      ctrl.deleteWordLeft(); // deletes "world"
+      expect(ctrl.text).toBe("hello ");
+
+      ctrl.undo();
+      expect(ctrl.text).toBe("hello world");
+      expect(ctrl.cursorPosition).toBe(11);
+    });
+
+    it("multiple sequential undos walk back through history", () => {
+      const ctrl = new TextEditingController();
+      ctrl.insertText("a");
+      ctrl.insertText("b");
+      ctrl.insertText("c");
+      expect(ctrl.text).toBe("abc");
+
+      ctrl.undo(); // undo "c"
+      expect(ctrl.text).toBe("ab");
+      ctrl.undo(); // undo "b"
+      expect(ctrl.text).toBe("a");
+      ctrl.undo(); // undo "a"
+      expect(ctrl.text).toBe("");
+    });
+
+    it("yankText is undoable", () => {
+      const ctrl = new TextEditingController({ text: "hello world" });
+      ctrl.deleteWordLeft(); // kill "world", text = "hello "
+      ctrl.yankText(); // yank "world" back, text = "hello world"
+      expect(ctrl.text).toBe("hello world");
+
+      ctrl.undo(); // undo yank
+      expect(ctrl.text).toBe("hello ");
+    });
+
+    it("undo clears selection", () => {
+      const ctrl = new TextEditingController();
+      ctrl.insertText("hello");
+      ctrl.setSelectionRange(0, 5);
+      expect(ctrl.hasSelection).toBe(true);
+
+      ctrl.undo();
+      expect(ctrl.hasSelection).toBe(false);
+    });
+
+    it("deleteText (Backspace) is undoable", () => {
+      const ctrl = new TextEditingController({ text: "abc" });
+      ctrl.deleteText(1); // delete "c"
+      expect(ctrl.text).toBe("ab");
+
+      ctrl.undo();
+      expect(ctrl.text).toBe("abc");
+      expect(ctrl.cursorPosition).toBe(3);
+    });
+
+    it("deleteForward (Delete) is undoable", () => {
+      const ctrl = new TextEditingController({ text: "abc" });
+      ctrl.moveCursorToStart();
+      ctrl.deleteForward(1); // delete "a"
+      expect(ctrl.text).toBe("bc");
+
+      ctrl.undo();
+      expect(ctrl.text).toBe("abc");
+      expect(ctrl.cursorPosition).toBe(0);
+    });
+
+    it("deleteCurrentLine is undoable", () => {
+      const ctrl = new TextEditingController({ text: "hello\nworld\nfoo" });
+      ctrl.moveCursorToStart();
+      ctrl.moveCursorDown(); // line 1
+      ctrl.deleteCurrentLine();
+      expect(ctrl.text.includes("world")).toBe(false);
+
+      ctrl.undo();
+      expect(ctrl.text).toBe("hello\nworld\nfoo");
+    });
+  });
 });

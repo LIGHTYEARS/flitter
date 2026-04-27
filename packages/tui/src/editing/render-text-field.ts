@@ -297,11 +297,17 @@ export class RenderTextField extends RenderBox {
         }
         const cw = charWidth(cursorChar);
 
-        // Reverse-video: swap fg ↔ bg (TextStyle has no .reverse property)
-        // 逆向: L1T._paintSoftwareCursor — { fg: cursorColor, bg: bgColor, reverse: true }
+        // Reverse-video cursor: swap fg ↔ bg with concrete fallbacks.
+        // 逆向: L1T._paintSoftwareCursor (chunk-006.js:5108-5112) uses { fg: cursorColor, bg: bgColor, reverse: !0 }
+        // 逆向: L1T.paint (actions_intents.js:1675) passes textColor ?? LT.white, backgroundColor ?? LT.black
+        // Since TextStyle has no .reverse property, we manually produce the reversed result:
+        //   actual fg = backgroundColor (fallback black) — text on cursor is readable
+        //   actual bg = cursorColor (fallback white) — the cursor block color
+        const cursorBg = cursorFg.kind === "default" ? Color.white() : cursorFg;
+        const cursorFgColor = bgColor.kind === "default" ? Color.black() : bgColor;
         const cursorStyle = new TextStyle({
-          foreground: bgColor,
-          background: cursorFg,
+          foreground: cursorFgColor,
+          background: cursorBg,
         });
         screen.writeChar(cursorScreenX, cursorScreenY, cursorChar, cursorStyle, cw);
         screen.cursorPosition = { x: cursorScreenX, y: cursorScreenY };

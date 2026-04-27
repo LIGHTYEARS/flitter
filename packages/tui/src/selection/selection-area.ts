@@ -205,6 +205,13 @@ export interface Selectable {
   /** 清除高亮 */
   clearHighlight(): void;
   /**
+   * 可选：返回指定局部坐标处的字符偏移。
+   * 用于 SelectionAreaWidget 将鼠标位置映射到文本偏移。
+   *
+   * 逆向: amp t1T.getOffsetForPosition (chunk-006.js:682-716)
+   */
+  getOffsetForPosition?(localX: number, localY: number): number;
+  /**
    * 可选：返回指定偏移处的词边界。
    * 若未实现，SelectionArea 使用内置 `getWordBoundariesAt` 算法。
    *
@@ -345,6 +352,66 @@ export class SelectionArea {
    */
   getSelectableCount(): number {
     return this._selectables.size;
+  }
+
+  /**
+   * 根据全局坐标查找包含该位置的 Selectable 并返回 SelectionPosition。
+   *
+   * 逆向: amp b1T._startDragAtSelectable (chunk-006.js:3538-3539)
+   * — T.globalToLocal(R) → T.hitTestSelection(t) ?? T.nearestCaretPosition(t)
+   *
+   * 遍历已注册的 Selectable，找到全局边界包含 (x,y) 的第一个，
+   * 然后计算局部坐标处的字符偏移。
+   *
+   * @param x - 全局 X 坐标
+   * @param y - 全局 Y 坐标
+   * @returns SelectionPosition 或 null
+   */
+  findSelectableAtPosition(x: number, y: number): SelectionPosition | null {
+    for (const s of this._selectables.values()) {
+      const bounds = s.getGlobalBounds();
+      if (
+        x >= bounds.left &&
+        x < bounds.left + bounds.width &&
+        y >= bounds.top &&
+        y < bounds.top + bounds.height
+      ) {
+        const localX = x - bounds.left;
+        const localY = y - bounds.top;
+        let offset: number;
+        if (typeof s.getOffsetForPosition === "function") {
+          offset = s.getOffsetForPosition(localX, localY);
+        } else {
+          // Fallback: estimate offset from line position
+          // 逆向: amp t1T.nearestCaretPosition — clamp to text length
+          const text = s.getText();
+          const lineWidth = bounds.width > 0 ? bounds.width : 1;
+          const row = Math.floor(localY);
+          const col = Math.floor(localX);
+          offset = Math.min(row * lineWidth + col, text.length);
+        }
+        return { selectableId: s.id, offset };
+      }
+    }
+
+    // Out of bounds — find nearest selectable
+    // 逆向: amp b1T._getOutOfBoundsPosition (chunk-006.js:3703)
+    this._refreshOrderedCache();
+    if (this._orderedCache.length === 0) return null;
+
+    const first = this._orderedCache[0]!;
+    const last = this._orderedCache[this._orderedCache.length - 1]!;
+    const firstBounds = first.getGlobalBounds();
+    const lastBounds = last.getGlobalBounds();
+
+    if (y < firstBounds.top) {
+      return { selectableId: first.id, offset: 0 };
+    }
+    if (y >= lastBounds.top + lastBounds.height) {
+      return { selectableId: last.id, offset: last.getText().length };
+    }
+
+    return null;
   }
 
   /**

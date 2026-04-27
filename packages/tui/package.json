@@ -17,12 +17,15 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "jpeg-js": "^0.4.4",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-gfm-autolink-literal": "^2.0.0",
     "micromark-extension-gfm-strikethrough": "^2.0.0",
     "micromark-extension-gfm-table": "^2.0.0",
     "micromark-extension-gfm-task-list-item": "^2.0.0",
-    "micromark-extension-gfm-autolink-literal": "^2.0.0"
+    "omggif": "^1.0.10",
+    "upng-js": "^2.1.0"
   },
   "devDependencies": {
     "bun-types": "^1.1.0",

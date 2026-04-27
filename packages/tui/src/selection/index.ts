@@ -11,4 +11,5 @@
 export * from "./clipboard.js";
 export * from "./clipboard-image.js";
 export * from "./selection-area.js";
+export * from "./selection-area-widget.js";
 export * from "./selection-keep-alive.js";

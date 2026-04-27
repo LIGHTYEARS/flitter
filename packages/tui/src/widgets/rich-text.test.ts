@@ -11,6 +11,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { HitTestResult } from "../gestures/hit-test.js";
 import { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderParagraph, RichText } from "./rich-text.js";
@@ -254,5 +255,164 @@ describe("RenderParagraph — newline hard breaks (amp Kw alignment)", () => {
     const rp = new RenderParagraph(span);
     // Widest word: "cdef" = 4
     assert.equal(rp.getMinIntrinsicWidth(Infinity), 4);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  RenderParagraph — hitTest + onTap (Gap 5)
+// ════════════════════════════════════════════════════
+
+describe("RenderParagraph — hitTest + onTap (Gap 5)", () => {
+  it("hitTest registers mouse target when span has onTap", () => {
+    let _tapped = false;
+    const span = new TextSpan({
+      text: "Click me",
+      onTap: () => {
+        _tapped = true;
+      },
+    });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    const result = new HitTestResult();
+    const hit = rp.hitTest(result, { x: 2, y: 0 });
+
+    assert.equal(hit, true);
+    assert.ok(result.mouseTargets.length > 0, "should register as mouse target");
+  });
+
+  it("hitTest does NOT register mouse target when no onTap and not selectable", () => {
+    const span = new TextSpan({ text: "Plain text" });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    const result = new HitTestResult();
+    rp.hitTest(result, { x: 2, y: 0 });
+
+    assert.equal(result.mouseTargets.length, 0, "should NOT register as mouse target");
+  });
+
+  it("hitTest registers mouse target when selectable is true", () => {
+    const span = new TextSpan({ text: "Selectable text" });
+    const rp = new RenderParagraph(span);
+    rp.selectable = true;
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    const result = new HitTestResult();
+    rp.hitTest(result, { x: 2, y: 0 });
+
+    assert.ok(result.mouseTargets.length > 0, "should register as mouse target for selectable");
+  });
+
+  it("handleMouseEvent dispatches onTap for clicked span", () => {
+    let tapped = false;
+    const span = new TextSpan({
+      text: "Click",
+      onTap: () => {
+        tapped = true;
+      },
+    });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    rp.handleMouseEvent({
+      type: "click",
+      position: { x: 2, y: 0 },
+      localPosition: { x: 2, y: 0 },
+    });
+
+    assert.equal(tapped, true, "onTap should have been called");
+  });
+
+  it("handleMouseEvent does not crash when no onTap", () => {
+    const span = new TextSpan({ text: "No tap handler" });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    // Should not throw
+    rp.handleMouseEvent({
+      type: "click",
+      position: { x: 2, y: 0 },
+      localPosition: { x: 2, y: 0 },
+    });
+  });
+
+  it("handleMouseEvent dispatches to correct child span in nested tree", () => {
+    let tappedA = false;
+    let tappedB = false;
+    const span = new TextSpan({
+      children: [
+        new TextSpan({
+          text: "AAA",
+          onTap: () => {
+            tappedA = true;
+          },
+        }),
+        new TextSpan({
+          text: "BBB",
+          onTap: () => {
+            tappedB = true;
+          },
+        }),
+      ],
+    });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    // Click at col 0 → should be in "AAA" span
+    rp.handleMouseEvent({
+      type: "click",
+      position: { x: 0, y: 0 },
+      localPosition: { x: 0, y: 0 },
+    });
+    assert.equal(tappedA, true, "onTap for A should fire");
+    assert.equal(tappedB, false, "onTap for B should NOT fire");
+
+    // Click at col 4 → should be in "BBB" span
+    rp.handleMouseEvent({
+      type: "click",
+      position: { x: 4, y: 0 },
+      localPosition: { x: 4, y: 0 },
+    });
+    assert.equal(tappedB, true, "onTap for B should fire");
+  });
+
+  it("_findGlyphAt returns null for out-of-bounds position", () => {
+    const span = new TextSpan({ text: "Hi" });
+    const rp = new RenderParagraph(span);
+    rp.layout(BoxConstraints.tight(20, 1));
+
+    // Click outside → no glyph, no crash
+    rp.handleMouseEvent({
+      type: "click",
+      position: { x: 50, y: 50 },
+      localPosition: { x: 50, y: 50 },
+    });
+    // No assertion needed — just shouldn't crash
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  RichText Widget — selectable prop (Gap 2 prep)
+// ════════════════════════════════════════════════════
+
+describe("RichText Widget — selectable prop", () => {
+  it("creates RenderParagraph with selectable=false by default", () => {
+    const widget = new RichText({ text: new TextSpan({ text: "test" }) });
+    assert.equal(widget.selectable, false);
+  });
+
+  it("creates RenderParagraph with selectable=true when specified", () => {
+    const widget = new RichText({ text: new TextSpan({ text: "test" }), selectable: true });
+    assert.equal(widget.selectable, true);
+  });
+
+  it("updateRenderObject propagates selectable", () => {
+    const rp = new RenderParagraph(new TextSpan({ text: "test" }));
+    assert.equal(rp.selectable, false);
+
+    const widget = new RichText({ text: new TextSpan({ text: "test" }), selectable: true });
+    widget.updateRenderObject(rp);
+    assert.equal(rp.selectable, true);
   });
 });

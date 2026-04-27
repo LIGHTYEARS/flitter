@@ -278,3 +278,86 @@ describe("FocusManager", () => {
     });
   });
 });
+
+// ════════════════════════════════════════════════════
+//  Autofocus queue tests
+// ════════════════════════════════════════════════════
+
+describe("FocusManager autofocus queue", () => {
+  let fm: FocusManager;
+
+  beforeEach(() => {
+    fm = FocusManager.instance;
+  });
+
+  afterEach(() => {
+    fm.dispose();
+  });
+
+  test("scheduleAutofocus + applyPendingAutofocus focuses the node", () => {
+    const node = new FocusNode({ debugLabel: "auto" });
+    fm.registerNode(node);
+    fm.scheduleAutofocus(node);
+
+    expect(fm.primaryFocus).toBeNull();
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBe(node);
+  });
+
+  test("cancelPendingAutofocus prevents autofocus", () => {
+    const node = new FocusNode({ debugLabel: "cancelled" });
+    fm.registerNode(node);
+    fm.scheduleAutofocus(node);
+    fm.cancelPendingAutofocus(node);
+
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBeNull();
+  });
+
+  test("applyPendingAutofocus skips detached nodes", () => {
+    const node = new FocusNode({ debugLabel: "detached" });
+    fm.registerNode(node);
+    fm.scheduleAutofocus(node);
+    fm.unregisterNode(node);
+
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBeNull();
+  });
+
+  test("last-enqueued wins when multiple nodes request autofocus", () => {
+    const first = new FocusNode({ debugLabel: "first" });
+    const second = new FocusNode({ debugLabel: "second" });
+    fm.registerNode(first);
+    fm.registerNode(second);
+    fm.scheduleAutofocus(first);
+    fm.scheduleAutofocus(second);
+
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBe(second);
+  });
+
+  test("applyPendingAutofocus clears the queue", () => {
+    const node = new FocusNode({ debugLabel: "once" });
+    fm.registerNode(node);
+    fm.scheduleAutofocus(node);
+
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBe(node);
+
+    fm.requestFocus(null);
+    fm.applyPendingAutofocus();
+    expect(fm.primaryFocus).toBeNull();
+  });
+
+  test("dispose clears pending autofocus queue", () => {
+    const node = new FocusNode({ debugLabel: "disposed" });
+    fm.registerNode(node);
+    fm.scheduleAutofocus(node);
+
+    fm.dispose();
+    const fm2 = FocusManager.instance;
+    fm2.applyPendingAutofocus();
+    expect(fm2.primaryFocus).toBeNull();
+    fm2.dispose();
+  });
+});

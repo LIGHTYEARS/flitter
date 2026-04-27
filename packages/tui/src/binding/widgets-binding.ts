@@ -512,6 +512,16 @@ export class WidgetsBinding {
     // build: 重建脏元素
     this.frameScheduler.addFrameCallback("build", () => this.buildOwner.buildScopes(), "build", 0);
 
+    // autofocus: build 完成后处理待定的 autofocus 请求
+    // 在 buildScopes (priority 0) 之后、layout 阶段之前执行，
+    // 此时所有 mount/unmount 已完成，不会有帧外微任务竞态。
+    this.frameScheduler.addFrameCallback(
+      "autofocus",
+      () => FocusManager.instance.applyPendingAutofocus(),
+      "build",
+      10,
+    );
+
     // layout: 执行布局
     this.frameScheduler.addFrameCallback(
       "layout",

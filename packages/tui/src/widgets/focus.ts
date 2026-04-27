@@ -152,12 +152,10 @@ export class FocusState extends State<Focus> {
     FocusManager.instance.registerNode(this.effectiveFocusNode, parentNode);
 
     // 逆向: amp EtT line 122-124 — autofocus 排队
+    // 改进: 使用帧内 autofocus 队列替代 queueMicrotask，
+    // 避免微任务与帧调度的竞态条件。
     if (this.widget.autofocus) {
-      queueMicrotask(() => {
-        if (!this._isDisposed) {
-          this.effectiveFocusNode.requestFocus();
-        }
-      });
+      FocusManager.instance.scheduleAutofocus(this.effectiveFocusNode);
     }
   }
 
@@ -165,6 +163,11 @@ export class FocusState extends State<Focus> {
    * 逆向: amp EtT.dispose (actions_intents.js:126-131)
    */
   override dispose(): void {
+    this._isDisposed = true;
+
+    // 取消待处理的 autofocus 请求，防止已卸载节点在后续帧中获得焦点
+    FocusManager.instance.cancelPendingAutofocus(this.effectiveFocusNode);
+
     // 逆向: amp EtT line 127 — 移除 key handler
     if (this.widget.onKey) {
       this.effectiveFocusNode.removeKeyHandler(this.widget.onKey);
@@ -172,9 +175,6 @@ export class FocusState extends State<Focus> {
 
     // 逆向: amp EtT line 128 — 注销节点
     FocusManager.instance.unregisterNode(this.effectiveFocusNode);
-
-    // 标记已销毁
-    this._isDisposed = true;
 
     // 逆向: amp EtT line 128 — 移除 focus listener
     if (this._focusChangeHandler) {

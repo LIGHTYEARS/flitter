@@ -130,14 +130,14 @@ describe("Focus widget", () => {
     assert.equal(keyCalled, true);
   });
 
-  it("autofocus requests focus after mount", async () => {
+  it("autofocus requests focus after mount", () => {
     const child = new LeafWidget();
     const focus = new Focus({ child, autofocus: true });
     const element = focus.createElement();
     element.mount(undefined);
 
-    // Autofocus is queued as microtask
-    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    // Autofocus is queued in FocusManager, flush synchronously
+    FocusManager.instance.applyPendingAutofocus();
 
     const state = (element as unknown as { _state: FocusState })._state;
     assert.equal(state.effectiveFocusNode.hasPrimaryFocus, true);

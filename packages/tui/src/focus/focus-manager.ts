@@ -56,6 +56,9 @@ export class FocusManager {
   /** 焦点历史栈，用于焦点回退 */
   private _primaryFocusStack: FocusNode[] = [];
 
+  /** 待处理的 autofocus 请求队列 */
+  private _pendingAutofocus: FocusNode[] = [];
+
   /**
    * 构造 FocusManager。
    *
@@ -306,6 +309,52 @@ export class FocusManager {
   }
 
   /**
+   * 将节点加入 autofocus 待处理队列。
+   *
+   * 在帧的 build 阶段结束后由 {@link applyPendingAutofocus} 统一处理。
+   * 替代了原来的 queueMicrotask 方案，使 autofocus 完全在帧边界内完成，
+   * 避免微任务与帧调度的竞态条件。
+   *
+   * @param node - 请求 autofocus 的节点
+   */
+  scheduleAutofocus(node: FocusNode): void {
+    this._pendingAutofocus.push(node);
+  }
+
+  /**
+   * 从 autofocus 待处理队列中移除节点。
+   *
+   * 在 FocusState.dispose() 中调用，确保已卸载的节点不会在后续
+   * applyPendingAutofocus 中获得焦点。
+   *
+   * @param node - 要取消 autofocus 的节点
+   */
+  cancelPendingAutofocus(node: FocusNode): void {
+    const idx = this._pendingAutofocus.indexOf(node);
+    if (idx !== -1) this._pendingAutofocus.splice(idx, 1);
+  }
+
+  /**
+   * 处理所有待定的 autofocus 请求。
+   *
+   * 由帧调度器在 build 阶段（buildScopes 之后）调用。此时所有
+   * mount/unmount 已完成，只有仍在树中的节点才会获得焦点。
+   *
+   * 策略: 最后入队的优先（后挂载的覆盖先挂载的），与 Flutter
+   * 中最深层 autofocus 优先的行为一致。
+   */
+  applyPendingAutofocus(): void {
+    const nodes = this._pendingAutofocus.splice(0);
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const node = nodes[i]!;
+      if (node.parent && node.canRequestFocus) {
+        this.requestFocus(node);
+        return;
+      }
+    }
+  }
+
+  /**
    * 销毁管理器，清空全部状态并重置单例。
    *
    * 清除 primaryFocus、焦点历史栈、可聚焦节点缓存，
@@ -321,6 +370,7 @@ export class FocusManager {
     this._primaryFocus = null;
     this._cachedFocusableNodes = null;
     this._primaryFocusStack = [];
+    this._pendingAutofocus = [];
     this._rootScope.dispose();
     FocusManager._instance = null;
   }

@@ -314,6 +314,13 @@ export class ConversationViewState extends State<ConversationView> {
   private _activityActionExpanded: Map<string, boolean> = new Map();
 
   /**
+   * Per activity-group progressive animation state.
+   * 逆向: h9R (actions_intents.js:4397-4443) — visibleActionCount + _scheduleAppendStep(90ms)
+   */
+  private _activityGroupVisibleCount: Map<number, number> = new Map();
+  private _activityGroupAppendTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
+
+  /**
    * ScrollController for conversation auto-scroll (followMode: true).
    * 逆向: amp conversation auto-scrolls to bottom
    */
@@ -347,14 +354,30 @@ export class ConversationViewState extends State<ConversationView> {
     if (this._hasInProgress()) {
       this._startAnimation();
     }
+
+    // Initialize visible action counts for existing activity groups
+    // 逆向: h9R.initState — this.visibleActionCount = this.widget.props.actions.length
+    const initItems = this.widget.config.items;
+    if (initItems) {
+      for (let i = 0; i < initItems.length; i++) {
+        const item = initItems[i];
+        if (item.type === "activity-group") {
+          this._activityGroupVisibleCount.set(i, item.actions.length);
+        }
+      }
+    }
   }
 
   /**
    * 清理资源。
    */
   dispose(): void {
-    // 逆向: Y1T.dispose() — this._stopAnimation(), ...
+    // 逆向: Y1T.dispose() — this._stopAnimation(), this._clearPendingAppendTimer(), ...
     this._stopAnimation();
+    for (const timer of this._activityGroupAppendTimers.values()) {
+      clearTimeout(timer);
+    }
+    this._activityGroupAppendTimers.clear();
     this._scrollController.dispose();
     super.dispose();
   }
@@ -398,6 +421,37 @@ export class ConversationViewState extends State<ConversationView> {
   }
 
   /**
+   * Progressively reveal action rows at 90ms intervals.
+   * 逆向: h9R._scheduleAppendStep (actions_intents.js:4436-4443)
+   */
+  private _scheduleAppendStep(itemIndex: number, targetCount: number): void {
+    if ((this._activityGroupVisibleCount.get(itemIndex) ?? 0) >= targetCount) return;
+    if (this._activityGroupAppendTimers.has(itemIndex)) return;
+
+    const timer = setTimeout(() => {
+      this._activityGroupAppendTimers.delete(itemIndex);
+      this.setState(() => {
+        const current = this._activityGroupVisibleCount.get(itemIndex) ?? 0;
+        this._activityGroupVisibleCount.set(itemIndex, Math.min(current + 1, targetCount));
+      });
+      this._scheduleAppendStep(itemIndex, targetCount);
+    }, 90);
+    this._activityGroupAppendTimers.set(itemIndex, timer);
+  }
+
+  /**
+   * Clear a pending append timer for a specific activity group.
+   * 逆向: h9R._clearPendingAppendTimer (actions_intents.js:4432-4435)
+   */
+  private _clearAppendTimer(itemIndex: number): void {
+    const timer = this._activityGroupAppendTimers.get(itemIndex);
+    if (timer) {
+      clearTimeout(timer);
+      this._activityGroupAppendTimers.delete(itemIndex);
+    }
+  }
+
+  /**
    * React to widget config changes — start/stop animation as needed.
    * 逆向: Y1T.didUpdateWidget(T) (chunk-006.js:6129-6142)
    */
@@ -414,15 +468,28 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     // 逆向: _closeDenseActivityGroupsOnBoundary — auto-collapse completed groups
+    // 逆向: h9R.didUpdateWidget — progressive animation state management
     const items = this.widget.config.items;
     if (items) {
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
-        if (
-          item.type === "activity-group" &&
-          !item.hasInProgress &&
-          this._activityGroupExpanded.get(i) === true
-        ) {
+        if (item.type !== "activity-group") continue;
+
+        // Update progressive animation state
+        if (item.hasInProgress) {
+          const totalActions = item.actions.length;
+          const visibleCount = this._activityGroupVisibleCount.get(i) ?? 0;
+          if (visibleCount < totalActions) {
+            this._scheduleAppendStep(i, totalActions);
+          }
+        } else {
+          // Completed: show all, clean up timer
+          this._clearAppendTimer(i);
+          this._activityGroupVisibleCount.delete(i);
+        }
+
+        // Auto-collapse completed groups
+        if (!item.hasInProgress && this._activityGroupExpanded.get(i) === true) {
           this._activityGroupExpanded.set(i, false);
         }
       }
@@ -1207,9 +1274,24 @@ export class ConversationViewState extends State<ConversationView> {
     const fileRefColor = appTheme?.fileReference ?? Color.cyan();
     const toolSuccessColor = appTheme?.toolSuccess ?? SUCCESS_COLOR;
 
+    // Progressive animation: slice actions to visible count
+    // 逆向: h9R.build — a.slice(0, this.visibleActionCount).map(...)
+    let visibleCount: number;
+    if (group.hasInProgress && groupItemIndex !== undefined) {
+      visibleCount = this._activityGroupVisibleCount.get(groupItemIndex) ?? 0;
+      if (visibleCount < group.actions.length) {
+        this._scheduleAppendStep(groupItemIndex, group.actions.length);
+      }
+    } else {
+      // Completed: show all immediately
+      visibleCount = group.actions.length;
+    }
+
+    const visibleActions = group.actions.slice(0, visibleCount);
+
     const actionWidgets: Widget[] = [];
-    for (let actionIdx = 0; actionIdx < group.actions.length; actionIdx++) {
-      const action = group.actions[actionIdx];
+    for (let actionIdx = 0; actionIdx < visibleActions.length; actionIdx++) {
+      const action = visibleActions[actionIdx]!;
       actionWidgets.push(
         this._buildSingleActionRow(
           action,

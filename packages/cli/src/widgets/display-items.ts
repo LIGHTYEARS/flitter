@@ -999,7 +999,8 @@ function buildActivitySummary(actions: ActivityAction[]): string {
   // 逆向: cfT iterates kinds in fixed order: read, search, web, explore, list
   // "search" uses custom plural "searches" (not "searchs")
   // "explore" uses "exploration"/"explorations" (逆向: cfT entry ["explore", "exploration", void 0])
-  if (counts.read) parts.push(`${counts.read} read${counts.read > 1 ? "s" : ""}`);
+  // 逆向: lW0 (2816_unknown_lW0.js) uses "file read" / "file reads"
+  if (counts.read) parts.push(`${counts.read} file read${counts.read > 1 ? "s" : ""}`);
   if (counts.search) parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`);
   if (counts.explore) parts.push(`${counts.explore} exploration${counts.explore > 1 ? "s" : ""}`);
   if (counts.list) parts.push(`${counts.list} list${counts.list > 1 ? "s" : ""}`);

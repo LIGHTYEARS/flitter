@@ -1118,11 +1118,11 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     // Summary text
-    // 逆向: chunk-006.js:6183-6185 — R.app.toolName
+    // 逆向: lW0 (2816_unknown_lW0.js) — summary in R.app.toolName color (not dim)
     headerSpans.push(
       new TextSpan({
         text: group.summary,
-        style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
+        style: new TextStyle({ foreground: toolNameColor }),
       }),
     );
 

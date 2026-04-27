@@ -1090,12 +1090,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const normalLayout = new Column({
       children: [
         mainContent,
-        // Shortcuts help panel — shown above the input field when `?` was pressed.
-        // 逆向: chunk-006.js:37662-37664
-        //   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
-        //   U8R is the shortcuts help table, rendered above the input area.
-        //   In flitter, ShortcutsPopup is the equivalent of amp's U8R.
-        ...(this._isShowingShortcutsHelp ? [new ShortcutsPopup()] : []),
         // 输入框 or 审批对话框
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows
         // A0R (confirmation widget) instead of input when approval is pending
@@ -1116,6 +1110,10 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               topLeftLabel: this._buildTopLeftLabel(),
               topRightLabel: this._buildTopRightLabel(),
               bottomRightLabel: this._buildBottomRightLabel(),
+              // Shortcuts help panel — shown above the input border when `?` was pressed.
+              // 逆向: chunk-006.js:37662-37664
+              //   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
+              topWidget: this._isShowingShortcutsHelp ? new ShortcutsPopup() : undefined,
               // 逆向: chunk-006.js:34746-34751
               //   When input is empty and shortcuts help is not shown → show "? for shortcuts" hint.
               //   The hint uses keybind color for "?" and dim foreground for " for shortcuts".

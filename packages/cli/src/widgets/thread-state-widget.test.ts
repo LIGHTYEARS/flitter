@@ -927,6 +927,7 @@ describe("ThreadStateWidget", () => {
 
     it("build() includes ShortcutsPopup when _isShowingShortcutsHelp is true", async () => {
       const { ShortcutsPopup } = await import("./shortcuts-popup.js");
+      const { InputField } = await import("./input-field.js");
       const state = await createState();
 
       // Set help panel flag directly
@@ -934,22 +935,29 @@ describe("ThreadStateWidget", () => {
 
       const tree = state.build({} as any);
       const children: unknown[] = getColumnChildren(tree);
-      const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
-      assert.ok(hasShortcutsPopup, "Column should contain a ShortcutsPopup when help is shown");
+      // ShortcutsPopup is now passed as topWidget prop on InputField
+      // 逆向: k8R topWidget (chunk-006.js:37662-37664)
+      const inputField = children.find((c: any) => c instanceof InputField) as any;
+      assert.ok(inputField, "Should have an InputField child");
+      assert.ok(
+        inputField.config.topWidget instanceof ShortcutsPopup,
+        "InputField.topWidget should be a ShortcutsPopup when help is shown",
+      );
     });
 
     it("build() excludes ShortcutsPopup when _isShowingShortcutsHelp is false", async () => {
-      const { ShortcutsPopup } = await import("./shortcuts-popup.js");
+      const { InputField } = await import("./input-field.js");
       const state = await createState();
 
       (state as any)._isShowingShortcutsHelp = false;
 
       const tree = state.build({} as any);
       const children: unknown[] = getColumnChildren(tree);
-      const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
+      const inputField = children.find((c: any) => c instanceof InputField) as any;
+      assert.ok(inputField, "Should have an InputField child");
       assert.ok(
-        !hasShortcutsPopup,
-        "Column should NOT contain a ShortcutsPopup when help is hidden",
+        !inputField.config.topWidget,
+        "InputField.topWidget should be undefined when help is hidden",
       );
     });
 

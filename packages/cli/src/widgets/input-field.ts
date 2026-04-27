@@ -152,6 +152,16 @@ export interface InputFieldConfig {
    *   `if (text === "/") { showCommandPalette(); controller.text = ""; }`
    */
   onSlashCommandTrigger?: () => void;
+  /**
+   * Widget rendered above the input box's top border (inside the input area).
+   *
+   * 逆向: k8R topWidget (chunk-006.js:37662-37664)
+   *   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
+   *
+   * Used for the shortcuts help panel (ShortcutsPopup / U8R) which appears
+   * directly above the input box border, not as a separate layout element.
+   */
+  topWidget?: import("@flitter/tui").Widget;
 }
 
 // ════════════════════════════════════════════════════
@@ -354,6 +364,9 @@ export class InputFieldState extends State<InputField> {
     return new Column({
       mainAxisSize: "min",
       children: [
+        // topWidget: e.g. ShortcutsPopup rendered above the input box border
+        // 逆向: k8R topWidget (chunk-006.js:37662-37664)
+        ...(this.widget.config.topWidget ? [this.widget.config.topWidget] : []),
         // 顶部边框: ╭──...──╮
         new RichText({
           text: new TextSpan({ text: topBorder, style: borderStyle }),

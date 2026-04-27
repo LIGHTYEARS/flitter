@@ -898,6 +898,7 @@ export class WidgetsBinding {
 
     const screen = this.tui.getScreen();
     screen.clear();
+    screen.clearCursor();
     rootRO.paint(screen, 0, 0);
   }
 

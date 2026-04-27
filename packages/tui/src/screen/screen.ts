@@ -256,6 +256,20 @@ export class Screen {
   }
 
   /**
+   * 重置光标状态。
+   *
+   * 每帧 paint 前调用，确保只有主动调用 setCursor 的 Widget
+   * 才会显示光标。否则上一帧残留的光标位置会继续渲染。
+   *
+   * 逆向: amp Zx.clearCursor (modules/0489_unknown_pY.js:124-126)
+   *   clearCursor() { this.cursorPosition = null; this.cursorVisible = false; }
+   */
+  clearCursor(): void {
+    this.cursorPosition = null;
+    this.cursorVisible = false;
+  }
+
+  /**
    * Store the terminal's default foreground and background RGB colors.
    *
    * 逆向: amp modules/0489_unknown_pY.js:11-13

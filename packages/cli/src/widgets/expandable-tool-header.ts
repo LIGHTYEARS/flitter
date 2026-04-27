@@ -74,8 +74,21 @@ export type ToolStatus =
 
 /** ExpandableToolHeader configuration. */
 export interface ExpandableToolHeaderConfig {
-  /** Tool name/title displayed in the header row. */
-  title: string;
+  /** Tool name/title displayed in the header row (plain string). */
+  title?: string;
+
+  /**
+   * Custom title widget displayed in the header row.
+   * When provided, takes precedence over `title` string.
+   * The caller is responsible for including any status icon in the widget;
+   * the `status` / `statusColor` props only affect the legacy `title` path.
+   *
+   * 逆向: Ds.title (misc_utils.js:934-995) — amp's Ds takes title as a Widget,
+   *   not a string. V1T.build() places this.widget.title directly in the Row.
+   *   Our ExpandableToolHeader originally simplified this to a string; titleWidget
+   *   restores the full Widget flexibility needed for styled summary headers.
+   */
+  titleWidget?: Widget;
 
   /**
    * Current expansion state (controlled mode).
@@ -345,44 +358,54 @@ export class ExpandableToolHeaderState extends State<ExpandableToolHeader> {
   // ────────────────────────────────────────────────
 
   build(_context: BuildContext): Widget {
-    const { title, status, statusColor, trailing, child } = this.widget.config;
+    const { title, titleWidget, status, statusColor, trailing, child } = this.widget.config;
     const isExpanded = this._isExpanded;
 
-    // ── Build header text spans ──
-    // 逆向: c9R.build lines 6407-6421
-    const headerSpans: TextSpan[] = [];
+    // ── Build label widget ──
+    // 逆向: Ds.build (misc_utils.js:968-991) — title is placed directly in the Row.
+    // When titleWidget is provided, use it directly (caller already includes status icon).
+    // When title string is provided, build a RichText with optional status icon prefix.
+    let labelWidget: Widget;
 
-    // Status icon (if status provided)
-    // 逆向: if (r) { let l = _shouldAnimate(r) ? spinner.toBraille() : xW(r); ... }
-    if (status) {
-      const icon = shouldAnimate(status)
-        ? ExpandableToolHeaderState.BRAILLE_FRAMES[this._spinnerFrame]
-        : statusToIcon(status);
-      const iconColor = statusColor ?? MUTED_COLOR;
+    if (titleWidget) {
+      // 逆向: Ds (misc_utils.js:934-995) — title is a Widget, used directly
+      labelWidget = titleWidget;
+    } else {
+      // Legacy path: build from title string + optional status icon
+      // 逆向: c9R.build lines 6407-6421
+      const headerSpans: TextSpan[] = [];
+
+      // Status icon (if status provided)
+      // 逆向: if (r) { let l = _shouldAnimate(r) ? spinner.toBraille() : xW(r); ... }
+      if (status) {
+        const icon = shouldAnimate(status)
+          ? ExpandableToolHeaderState.BRAILLE_FRAMES[this._spinnerFrame]
+          : statusToIcon(status);
+        const iconColor = statusColor ?? MUTED_COLOR;
+        headerSpans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: iconColor }),
+          }),
+        );
+      }
+
+      // Title (tool name)
+      // 逆向: c.push(new G(e, new cT({ color: R.app.toolName })))
       headerSpans.push(
         new TextSpan({
-          text: `${icon} `,
-          style: new TextStyle({ foreground: iconColor }),
+          text: title ?? "",
+          style: new TextStyle({ foreground: TOOL_NAME_COLOR }),
         }),
       );
+
+      labelWidget = new RichText({
+        text: new TextSpan({ children: headerSpans }),
+      }) as unknown as Widget;
     }
 
-    // Title (tool name)
-    // 逆向: c.push(new G(e, new cT({ color: R.app.toolName })))
-    headerSpans.push(
-      new TextSpan({
-        text: title,
-        style: new TextStyle({ foreground: TOOL_NAME_COLOR }),
-      }),
-    );
-
-    const labelWidget = new RichText({
-      text: new TextSpan({ children: headerSpans }),
-    }) as unknown as Widget;
-
     // Chevron indicator
-    // 逆向: c9R.build — i = a ? "▼" : "▶"
-    // 逆向: new xT({ text: new G(i, new cT({ color: R.colors.mutedForeground })) })
+    // 逆向: V1T.build (misc_utils.js:971-973) — a = expanded ? "▼" : "▶", mutedForeground
     const chevron = new RichText({
       text: new TextSpan({
         text: isExpanded ? "\u25BC" : "\u25B6",
@@ -391,7 +414,7 @@ export class ExpandableToolHeaderState extends State<ExpandableToolHeader> {
     }) as unknown as Widget;
 
     // Assemble header row: [label, (trailing?), spacer, chevron]
-    // 逆向: new G0({ cursor: "pointer", onClick: ..., child: new T0({ children: [s, SizedBox(1), A] }) })
+    // 逆向: V1T.build — new T0({ mainAxisSize: "min", children: [this.widget.title, XT(1), a] })
     const rowChildren: Widget[] = [labelWidget];
 
     if (trailing) {

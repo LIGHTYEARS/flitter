@@ -21,6 +21,7 @@
  * @module
  */
 
+import { isAbsolute, resolve } from "node:path";
 import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
   Border,
@@ -61,6 +62,8 @@ import type {
   ThinkingItem,
   ToolItem,
 } from "./display-items.js";
+import { ExpandableToolHeader } from "./expandable-tool-header.js";
+import { cwdRelativePath } from "./guidance-file-display.js";
 
 // ════════════════════════════════════════════════════
 //  Message 接口
@@ -172,10 +175,31 @@ const ERROR_COLOR_LOCAL = ERROR_COLOR;
  * 逆向: $R.app.toolCancelled → LT.yellow */
 const CANCELLED_COLOR = Color.indexed(3);
 
-/** warning 色 — interrupted user message border
+/** warning 色 — interrupted user message border, read range indicator
  * 逆向: S$ widget — R.interrupted switches border from e.success (green)
- * to e.warning (amber). misc_utils.js:9037 `let l = R.interrupted ? e.warning : e.success;` */
+ * to e.warning (amber). misc_utils.js:9037 `let l = R.interrupted ? e.warning : e.success;`
+ * 逆向: B9R (misc_utils.js:7802-7806) — @start-end range in e.colors.warning */
 const WARNING_COLOR = Color.indexed(3);
+
+// ════════════════════════════════════════════════════
+//  Path helpers
+// ════════════════════════════════════════════════════
+
+/**
+ * Build a `file://` URI from a file path.
+ *
+ * 逆向: JM(h, T) (misc_utils.js:7793) — converts a file path to a file:// URI
+ *   for use in OSC 8 hyperlinks. Resolves relative paths against `cwd`.
+ *
+ * @param filePath - Absolute or relative file path
+ * @param cwd - Working directory for resolving relative paths
+ * @returns `file://` URI string
+ */
+function toFileUri(filePath: string, cwd?: string): string {
+  if (filePath.startsWith("file://")) return filePath;
+  const abs = isAbsolute(filePath) ? filePath : resolve(cwd ?? process.cwd(), filePath);
+  return `file://${abs}`;
+}
 
 // ════════════════════════════════════════════════════
 //  角色配置映射
@@ -279,6 +303,15 @@ export class ConversationViewState extends State<ConversationView> {
    * 逆向: stateController.denseViewItemStates Map
    */
   private _activityGroupExpanded: Map<number, boolean> = new Map();
+
+  /**
+   * Expansion state for individual action rows within an activity group.
+   * Key format: `${groupItemIndex}-${actionIndex}` to disambiguate actions
+   * across different groups.
+   *
+   * 逆向: Y1T.actionExpanded (actions_intents.js:1786) — Map<number, boolean>
+   */
+  private _activityActionExpanded: Map<string, boolean> = new Map();
 
   /**
    * ScrollController for conversation auto-scroll (followMode: true).
@@ -1061,29 +1094,26 @@ export class ConversationViewState extends State<ConversationView> {
   }
 
   /**
-   * Build an ActivityGroupItem widget — collapsed by default for completed groups,
-   * expanded for in-progress groups. Click header to toggle.
+   * Build an ActivityGroupItem widget — uses ExpandableToolHeader (flitter's Ds).
    *
-   * 逆向: Y1T (actions_intents.js) + denseViewItemStates (chunk-005.js:3280) —
-   * default expanded = !completed (i.e., in-progress groups start expanded).
-   * _closeDenseActivityGroupsOnBoundary auto-collapses completed groups.
+   * 逆向: Y1T.build (actions_intents.js:1839-1872) —
+   *   1. Build RichText titleWidget: [statusIcon + summary] in toolName color
+   *   2. Build expanded child: Column of action rows via _buildActionRows
+   *   3. Wrap in Ds (ExpandableToolHeader) with titleWidget, child, expanded, onChanged
    *
-   * 逆向: chunk-006.js:6179 — R.app.toolRunning for spinner
-   * 逆向: chunk-006.js:6181 — R.app.toolSuccess for checkmark
-   * 逆向: chunk-006.js:6184 — R.app.toolName for summary text
+   * 逆向: actions_intents.js:4460-4484 — subagent variant also uses Ds with
+   *   styled summary title + action rows. Includes guidance files (Jm) above actions.
    *
    * @param group - ActivityGroupItem from DisplayItem[]
    * @param itemIndex - Index in items array, used to key collapse state
    * @param appTheme - Optional AppTheme for semantic colors
-   * @returns Header widget (collapsed) or Column with header + rows (expanded)
+   * @returns ExpandableToolHeader widget
    */
   private _buildActivityGroupWidget(
     group: ActivityGroupItem,
     itemIndex?: number,
     appTheme?: AppTheme | null,
   ): Widget {
-    const hasActions = group.actions.length > 0;
-
     // Resolve semantic colors from AppTheme with fallbacks
     const toolRunningColor = appTheme?.toolRunning ?? TOOL_RUNNING_COLOR;
     const toolSuccessColor = appTheme?.toolSuccess ?? SUCCESS_COLOR;
@@ -1096,11 +1126,12 @@ export class ConversationViewState extends State<ConversationView> {
         ? (this._activityGroupExpanded.get(itemIndex) ?? defaultExpanded)
         : defaultExpanded;
 
-    // Build summary header row
+    // ── Build titleWidget (status icon + summary as RichText) ──
+    // 逆向: Y1T.build (actions_intents.js:1845-1857) — builds spans then wraps in xT
     const headerSpans: TextSpan[] = [];
 
     // Status icon for the group
-    // 逆向: chunk-006.js:6178-6181 — R.app.toolRunning / R.app.toolSuccess
+    // 逆向: actions_intents.js:1846-1850 — spinner (active) or ✓ (completed)
     if (group.hasInProgress) {
       headerSpans.push(
         new TextSpan({
@@ -1118,7 +1149,7 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     // Summary text
-    // 逆向: lW0 (2816_unknown_lW0.js) — summary in R.app.toolName color (not dim)
+    // 逆向: actions_intents.js:1851-1853 — summary in R.app.toolName color
     headerSpans.push(
       new TextSpan({
         text: group.summary,
@@ -1126,86 +1157,221 @@ export class ConversationViewState extends State<ConversationView> {
       }),
     );
 
-    // Expand/collapse indicator
-    if (hasActions) {
-      headerSpans.push(
-        new TextSpan({
-          text: isExpanded ? " \u25BC" : " \u25B6",
-          style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
-        }),
-      );
-    }
+    const titleWidget = new RichText({
+      text: new TextSpan({ children: headerSpans }),
+      selectable: true,
+    }) as unknown as Widget;
 
-    const headerWidget = new GestureDetector({
-      onTap:
-        hasActions && itemIndex !== undefined
-          ? () => {
+    // ── Build expanded child: action rows ──
+    // 逆向: actions_intents.js:1859-1862 — Column of action rows when expanded
+    const actionChild = this._buildActionRows(group, itemIndex, appTheme);
+
+    // ── Wrap in ExpandableToolHeader (Ds) ──
+    // 逆向: actions_intents.js:1863-1872 — new Ds({ title, child, expanded, onChanged })
+    return new ExpandableToolHeader({
+      titleWidget,
+      child: actionChild,
+      isExpanded: isExpanded,
+      onToggle:
+        itemIndex !== undefined
+          ? (newExpanded: boolean) => {
               this.setState(() => {
-                this._activityGroupExpanded.set(itemIndex, !isExpanded);
+                this._activityGroupExpanded.set(itemIndex, newExpanded);
               });
             }
           : undefined,
-      child: new RichText({
-        text: new TextSpan({ children: headerSpans }),
-      }),
-    });
+    }) as unknown as Widget;
+  }
 
-    // Collapsed: just the header
-    if (!isExpanded || !hasActions) {
-      return headerWidget;
+  /**
+   * Build the expanded action rows for an activity group.
+   *
+   * 逆向: Y1T._buildActionRow (actions_intents.js:1874-1517) — per-action row:
+   *   1. Og(T, a) — middle-dot bullet + title in mutedForeground, dim
+   *   2. If no detail and no guidanceFiles → just padded Og
+   *   3. If has detail or guidanceFiles → nested Ds (expandable) wrapping detail content
+   *
+   * 逆向: actions_intents.js:4486-4516 — subagent variant adds guidanceFiles
+   *
+   * @param group - ActivityGroupItem
+   * @param groupItemIndex - Group's index in items array (for action expand key)
+   * @param appTheme - Optional AppTheme
+   * @returns Column widget with all action rows
+   */
+  private _buildActionRows(
+    group: ActivityGroupItem,
+    groupItemIndex?: number,
+    appTheme?: AppTheme | null,
+  ): Widget {
+    const cwd = this.widget.config.cwd;
+    const fileRefColor = appTheme?.fileReference ?? Color.cyan();
+    const toolSuccessColor = appTheme?.toolSuccess ?? SUCCESS_COLOR;
+
+    const actionWidgets: Widget[] = [];
+    for (let actionIdx = 0; actionIdx < group.actions.length; actionIdx++) {
+      const action = group.actions[actionIdx];
+      actionWidgets.push(
+        this._buildSingleActionRow(
+          action,
+          actionIdx,
+          groupItemIndex,
+          cwd,
+          fileRefColor,
+          toolSuccessColor,
+        ),
+      );
     }
 
-    // Expanded: header + individual action rows
-    const actionWidgets: Widget[] = [];
-    for (const action of group.actions) {
-      const spans: TextSpan[] = [];
-
-      if (action.status === "in-progress") {
-        spans.push(
-          new TextSpan({
-            text: `${this._spinner.toBraille()} `,
-            style: new TextStyle({ foreground: toolRunningColor }),
-          }),
-        );
-      } else {
-        const icon = _getActionStatusIcon(action.status);
-        const color = _getActionStatusColor(action.status, appTheme);
-        spans.push(
-          new TextSpan({
-            text: `${icon} `,
-            style: new TextStyle({ foreground: color }),
-          }),
-        );
-      }
-
-      spans.push(
-        new TextSpan({
-          text: action.toolName,
-          style: new TextStyle({ foreground: toolNameColor, bold: true }),
-        }),
-      );
-
-      const toolDetail = action.path || action.detail;
-      if (toolDetail) {
-        spans.push(
-          new TextSpan({
-            text: ` ${toolDetail}`,
-            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
-          }),
-        );
-      }
-
-      actionWidgets.push(
-        new RichText({
-          text: new TextSpan({ children: spans }),
-        }),
-      );
+    if (actionWidgets.length === 0) {
+      return new SizedBox({ width: 0, height: 0 }) as unknown as Widget;
     }
 
     return new Column({
-      mainAxisSize: "min",
-      children: [headerWidget, ...actionWidgets],
-    });
+      crossAxisAlignment: "start",
+      children: actionWidgets,
+    }) as unknown as Widget;
+  }
+
+  /**
+   * Build a single action row within an activity group.
+   *
+   * 逆向: Y1T._buildActionRow (actions_intents.js:1874-1517):
+   *   - Og(T, a) renders "· title" in mutedForeground, dim
+   *   - If action has detail or guidanceFiles, wrap in nested Ds (expandable)
+   *
+   * 逆向: Og (2817_unknown_Og.js) — middle-dot bullet:
+   *   `new xT({ text: new G("", void 0, [new G("·", t), new G(" ", t), new G(T.title, e)]) })`
+   *
+   * 逆向: B9R (misc_utils.js:7789-7823) — Read tool action row:
+   *   - File path as H3 hyperlink (fileReference color, dim, underline)
+   *   - @start-end range in warning color, dim
+   *   - Guidance files as tail spans
+   *
+   * @param action - Single ActivityAction
+   * @param actionIdx - Index within the group's actions array
+   * @param groupItemIndex - Group's item index (for expand key)
+   * @param cwd - Working directory for path shortening
+   * @param fileRefColor - Color for file reference hyperlinks
+   * @param toolSuccessColor - Color for guidance file notices
+   * @returns Widget for this action row
+   */
+  private _buildSingleActionRow(
+    action: ActivityAction,
+    actionIdx: number,
+    groupItemIndex: number | undefined,
+    cwd: string | undefined,
+    fileRefColor: Color,
+    toolSuccessColor: Color,
+  ): Widget {
+    // ── Build the Og-style title widget (middle-dot bullet) ──
+    // 逆向: Og (2817_unknown_Og.js:1-15) — "· title" in mutedForeground, dim
+    const mutedStyle = new TextStyle({ foreground: DIM_COLOR, dim: true });
+    const bulletSpans: TextSpan[] = [
+      new TextSpan({ text: "\u00B7", style: mutedStyle }), // · (middle dot)
+      new TextSpan({ text: " ", style: mutedStyle }),
+    ];
+
+    // Build the action title content
+    // 逆向: B9R (misc_utils.js:7789-7809) — Read tool: file path as hyperlink
+    if (action.kind === "read" && action.path) {
+      // File path as cyan, dim, underline hyperlink
+      // 逆向: B9R — H3({ uri: JM(h,T), text: ki(h,T), style: { color: fileReference, dim, underline } })
+      const relPath = cwdRelativePath(action.path, cwd);
+      const fileUri = toFileUri(action.path, cwd);
+      bulletSpans.push(
+        new TextSpan({
+          text: relPath,
+          url: fileUri,
+          style: new TextStyle({
+            foreground: fileRefColor,
+            dim: true,
+            underline: true,
+          }),
+        }),
+      );
+
+      // Read range: @start-end in warning color
+      // 逆向: B9R — if read_range: ` @${c}-${s}` in { color: e.colors.warning, dim }
+      if (action.readRange) {
+        const [start, end] = action.readRange;
+        if (typeof start === "number" && typeof end === "number" && start >= 0 && end >= 0) {
+          bulletSpans.push(
+            new TextSpan({
+              text: ` @${start}-${end}`,
+              style: new TextStyle({ foreground: WARNING_COLOR, dim: true }),
+            }),
+          );
+        }
+      }
+    } else {
+      // Non-read actions: show path/detail/toolName in muted dim
+      // 逆向: Og — T.title in mutedForeground, dim
+      const displayText = action.path || action.detail || action.toolName;
+      bulletSpans.push(new TextSpan({ text: displayText, style: mutedStyle }));
+    }
+
+    const bulletWidget = new RichText({
+      text: new TextSpan({ children: bulletSpans }),
+      selectable: true,
+    }) as unknown as Widget;
+
+    // ── Check if action needs expandable content ──
+    // 逆向: actions_intents.js:4489 — if no detail and no guidanceFiles, just padded Og
+    const hasGuidance = action.guidanceFiles && action.guidanceFiles.length > 0;
+
+    if (!hasGuidance) {
+      // Simple case: just the padded bullet widget (no nested expand)
+      // 逆向: actions_intents.js:1876-1880 / 4489-4493 — padding left:1
+      return new Container({
+        padding: EdgeInsets.only({ left: 1 }),
+        child: bulletWidget,
+      }) as unknown as Widget;
+    }
+
+    // ── Build expandable content for actions with guidanceFiles ──
+    // 逆向: actions_intents.js:4495-4516 — nested Ds with guidance file tail
+    // 逆向: B9R (misc_utils.js:7811-7816) — guidance files as dim green text
+    const guidanceSpans: TextSpan[] = [];
+    for (const gf of action.guidanceFiles!) {
+      const gfName = cwdRelativePath(gf.uri, cwd);
+      guidanceSpans.push(
+        new TextSpan({
+          text: `  Loaded ${gfName} (${gf.lineCount} lines)\n`,
+          style: new TextStyle({ foreground: toolSuccessColor, dim: true }),
+        }),
+      );
+    }
+
+    const guidanceWidget = new RichText({
+      text: new TextSpan({ children: guidanceSpans }),
+      selectable: true,
+    }) as unknown as Widget;
+
+    const detailChild = new Container({
+      padding: EdgeInsets.only({ left: 2 }),
+      child: guidanceWidget,
+    }) as unknown as Widget;
+
+    // Build expand key for this action
+    const expandKey =
+      groupItemIndex !== undefined ? `${groupItemIndex}-${actionIdx}` : `0-${actionIdx}`;
+    const actionExpanded = this._activityActionExpanded.get(expandKey) ?? false;
+
+    // Wrap in nested ExpandableToolHeader (Ds)
+    // 逆向: actions_intents.js:4503-4516 — new Ds({ title: Og, child: detail, expanded, onChanged })
+    return new Container({
+      padding: EdgeInsets.only({ left: 1 }),
+      child: new ExpandableToolHeader({
+        titleWidget: bulletWidget,
+        child: detailChild,
+        isExpanded: actionExpanded,
+        onToggle: (newExpanded: boolean) => {
+          this.setState(() => {
+            this._activityActionExpanded.set(expandKey, newExpanded);
+          });
+        },
+      }) as unknown as Widget,
+    }) as unknown as Widget;
   }
 
   /**

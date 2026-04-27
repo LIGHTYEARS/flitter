@@ -1,6 +1,17 @@
 # 自定义 Widget
 
-本指南展示如何使用 Flitter 的三棵树架构构建自定义 Widget。
+## 为什么要了解这个？
+
+Widget 是你和 Flitter 打交道的主要方式。无论是显示一段文字、响应用户点击，还是构建复杂的交互界面，你都是在写 Widget。掌握自定义 Widget 的几种方式，是从「能用框架」到「用好框架」的关键一步。
+
+:::info 你将学到什么
+- 如何创建无状态的 `StatelessWidget`
+- 如何用 `StatefulWidget` 管理可变状态和生命周期
+- 如何用 `InheritedWidget` 在组件树中共享数据
+- 组合模式：用现有 Widget 搭积木构建新功能
+- 如何用 `runApp` 启动应用
+- 低级别 RenderObject 的直接操作（进阶）
+:::
 
 ## StatelessWidget
 
@@ -33,8 +44,12 @@ class StatusBar extends StatelessWidget {
 }
 
 // 使用
-new StatusBar({ message: '✓ 保存成功', color: Color.green() })
+new StatusBar({ message: '保存成功', color: Color.green() })
 ```
+
+:::tip 什么时候用 StatelessWidget？
+如果你的 Widget 只是把传入的数据渲染出来，不需要自己持有任何状态（没有计数器、没有选中/未选中这种内部状态），那就用 StatelessWidget。它更简单、更容易理解、性能也更好。
+:::
 
 ## StatefulWidget
 
@@ -96,47 +111,61 @@ class CounterState extends State<Counter> {
 ### State 生命周期
 
 ```
-createState()        ← StatefulWidget 首次被挂载
-    ↓
-initState()          ← 初始化（只调用一次）
-    ↓
-build()              ← 构建 Widget 子树
-    ↓
-[用户交互 → setState()]
-    ↓
-build()              ← 重新构建
-    ↓
+createState()        <-- StatefulWidget 首次被挂载
+    |
+initState()          <-- 初始化（只调用一次）
+    |
+build()              <-- 构建 Widget 子树
+    |
+[用户交互 -> setState()]
+    |
+build()              <-- 重新构建
+    |
 [父级重建，新 Widget 替换旧 Widget]
-    ↓
-didUpdateWidget()    ← 接收新配置
-    ↓
-build()              ← 重新构建
-    ↓
-dispose()            ← 卸载，释放资源
+    |
+didUpdateWidget()    <-- 接收新配置
+    |
+build()              <-- 重新构建
+    |
+dispose()            <-- 卸载，释放资源
 ```
+
+下面逐步解释每个阶段：
+
+- **`createState()`** -- 框架调用 `StatefulWidget.createState()` 创建对应的 State 对象。每个 StatefulWidget 实例在树中挂载时只会调用一次。
+- **`initState()`** -- State 创建后立即调用。适合做一次性的初始化工作，比如启动定时器、注册监听器。注意：这里还拿不到 `context` 的完整信息（如 InheritedWidget），如果需要的话请在 `didChangeDependencies()` 中处理。
+- **`build()`** -- 根据当前 State 构建 Widget 子树。这个方法可能会被频繁调用（每次 `setState` 都会触发），所以里面不要放耗时操作。
+- **`didUpdateWidget()`** -- 当父级重建并为这个位置提供了一个新的 Widget 实例时调用。你可以在这里对比新旧 Widget 的属性，决定是否需要更新内部状态。
+- **`dispose()`** -- Widget 从树中移除时调用。这是释放资源的地方：取消定时器、移除监听器、关闭流。调用完 `dispose()` 之后再调用 `setState()` 会抛异常。
 
 ### setState 规则
 
 ```ts
-// ✅ 正确：在回调中修改状态
+// 正确：在回调中修改状态
 this.setState(() => {
   this.count++;
 });
 
-// ✅ 也可以不传回调，先修改再调用
+// 也可以不传回调，先修改再调用
 this.count++;
 this.setState();
 
-// ❌ 错误：在 dispose 后调用会抛异常
+// 错误：在 dispose 后调用会抛异常
 dispose() {
   super.dispose();
   // this.setState(() => {...}); // 抛出 "setState called after dispose"
 }
 ```
 
+:::tip setState 的最佳实践
+`setState()` 的回调里应该只包含状态修改逻辑，不要放异步操作或其他副作用。同时，尽量让 `setState()` 的影响范围最小化——如果只有一个子组件的数据变了，就把那部分 State 下放到子组件中，而不是在顶层 `setState()` 导致整棵子树重建。
+:::
+
 ## InheritedWidget
 
-用于向子树高效传递数据（类似 React Context）。
+:::info 想在多个 Widget 之间共享数据？InheritedWidget 就是答案
+在实际开发中，你经常需要让多个不同层级的 Widget 访问同一份数据——比如主题色、用户信息、应用配置。如果层层传递 constructor 参数，代码会变得非常臃肿。`InheritedWidget` 就是为了解决这个问题：它类似 React 的 Context，把数据「注入」到子树中，任何后代 Widget 都可以直接获取。
+:::
 
 ```ts
 class ThemeProvider extends InheritedWidget {
@@ -178,9 +207,17 @@ class MyWidget extends StatelessWidget {
 
 当 `updateShouldNotify` 返回 `true` 时，所有通过 `dependOnInheritedWidgetOfExactType` 订阅了该 Widget 的子节点会自动标记为脏并重建。
 
+:::tip InheritedWidget 的典型用法
+定义一个 `static of(context)` 方法是 InheritedWidget 的惯用模式。调用方只需要 `ThemeProvider.of(context)` 一行代码就能拿到数据，完全不用关心 InheritedWidget 的内部机制。
+:::
+
 ## 组合模式
 
-优先通过组合现有 Widget 构建新功能，而非创建自定义 RenderObject。
+:::tip 优先使用组合模式而非自定义 RenderObject
+90% 的需求都可以通过组合现有 Widget 来实现。`Container`、`Row`、`Column`、`Stack`、`Padding`、`GestureDetector` 这些内置 Widget 已经覆盖了大多数布局和交互场景。只有在这些 Widget 无法满足需求时（比如你需要自定义布局算法），才需要直接操作 RenderObject。
+:::
+
+通过组合现有 Widget 构建新功能：
 
 ```ts
 // 带标签的输入框
@@ -248,6 +285,10 @@ await runApp(new MyApp(), {
 
 ## 低级别：直接使用 RenderObject
 
+:::warning 大多数开发者不需要这个
+下面这一节是面向需要绕过 Widget 层直接操控渲染的高级场景（如一次性渲染、性能测试工具）。如果你刚开始学习 Flitter，可以放心跳过这部分，等有需要时再回来看。
+:::
+
 对于不需要完整 Widget 树的场景（如一次性渲染），可以直接操作 RenderObject：
 
 ```ts
@@ -296,3 +337,14 @@ screen.clear();
 // 调整大小
 screen.resize(newWidth, newHeight);
 ```
+
+## 下一步
+
+掌握了自定义 Widget 的基础之后，可以继续探索这些主题：
+
+- **[布局系统](../subsystems/layout.md)** -- 深入了解 BoxConstraints、Flex 布局等布局机制
+- **[手势与交互](../subsystems/gestures.md)** -- 处理点击、拖拽等用户交互
+- **[焦点系统](../subsystems/focus-system.md)** -- 管理键盘焦点和 Tab 导航
+- **[输入处理](../subsystems/input-handling.md)** -- 键盘事件处理与快捷键绑定
+- **[滚动](../subsystems/scroll.md)** -- 可滚动容器的使用
+- **[实战教程：构建聊天 TUI](../walkthroughs/build-a-chat-tui.md)** -- 从零开始构建一个完整的终端聊天界面

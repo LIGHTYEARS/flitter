@@ -1,6 +1,27 @@
 # Actions 与 Shortcuts
 
-Flitter 提供了一套完整的 **Actions / Shortcuts** 系统，将「键盘快捷键」与「业务逻辑」解耦。这套系统直接对标 Flutter 的同名机制，由三个核心概念组成：
+当应用变得复杂，你可能会在多个地方处理同一个快捷键，或者希望不同界面对同一按键有不同响应。传统做法是在 `onKey` 里直接写 `if (key === 'Ctrl+S') save()`，但这会导致：
+- 快捷键和业务逻辑耦合
+- 无法在不同层级覆盖行为
+- 无法查询「某个操作是否可用」
+
+Actions/Shortcuts 系统就是为了解决这些问题而设计的。它将「键盘快捷键」与「业务逻辑」解耦，让快捷键绑定和业务逻辑分别定义，可以在 Widget 树的不同层级覆盖。
+
+### 你将学到什么
+
+- Intent、Action、Shortcuts 三个核心概念及其关系
+- 如何定义快捷键并绑定到业务逻辑
+- 何时使用 Actions/Shortcuts 而非直接在 onKey 中处理
+- 动态快捷键管理和 Action 查找调用
+
+:::tip 何时使用 Actions/Shortcuts，何时使用 onKey
+如果你的快捷键只在一个特定 Widget 内使用、逻辑简单且不需要被外部查询或覆盖，直接用 `Focus` 的 `onKey` 就够了。当你需要以下能力时，才需要 Actions/Shortcuts：
+- 同一个操作可以被多个快捷键触发（如 Ctrl+S 和菜单栏的「保存」按钮）
+- 父级 Widget 需要覆盖子级的行为
+- 需要通过 `Actions.handler` 查询操作是否可用（比如按钮的 disabled 状态）
+:::
+
+Flitter 提供了一套完整的 **Actions / Shortcuts** 系统，直接对标 Flutter 的同名机制，由三个核心概念组成：
 
 - **Intent** — 描述用户意图（「做什么」）
 - **Action** — 执行具体逻辑（「怎么做」）
@@ -8,22 +29,15 @@ Flitter 提供了一套完整的 **Actions / Shortcuts** 系统，将「键盘�
 
 ## 核心概念
 
+下面的流程图展示了从按键事件到 Action 执行的完整路径：
+
 ```
 按键事件 → Shortcuts（KeyActivator → Intent）→ Actions（Intent → Action）→ invoke()
 ```
 
-### 为什么要这样设计？
-
-传统做法是在 `onKey` 里直接写 `if (key === 'Ctrl+S') save()`，但这会导致：
-- 快捷键和业务逻辑耦合
-- 无法在不同层级覆盖行为
-- 无法查询「某个操作是否可用」
-
-Actions/Shortcuts 模式让快捷键绑定和业务逻辑分别定义，可以在 Widget 树的不同层级覆盖。
-
 ## Intent
 
-`Intent` 是一个标记类，用于描述用户意图。创建自定义 Intent 只需继承：
+`Intent` 是一个标记类，用于描述用户意图。它只表示「想做什么」，不包含具体逻辑。创建自定义 Intent 只需继承：
 
 ```ts
 import { Intent } from '@flitter/tui';
@@ -43,7 +57,7 @@ class NavigateIntent extends Intent {
 
 ## Action
 
-`Action` 定义如何响应某个 Intent：
+`Action` 定义如何响应某个 Intent——即「怎么做」的部分：
 
 ```ts
 import { Action } from '@flitter/tui';
@@ -68,6 +82,8 @@ class SaveAction extends Action<SaveIntent> {
 ```
 
 ### Action 返回值
+
+Action 的 invoke 方法通过返回值控制事件是否继续冒泡：
 
 | 返回值 | 说明 |
 |--------|------|
@@ -123,7 +139,13 @@ new Shortcuts({
 - 如果没有提供 `focusNode`，会自动包裹一个 `Focus` Widget
 - 按键事件由 FocusNode 接收，交给 `ShortcutManager` 匹配
 
+## 进阶用法
+
 ### ShortcutManager
+
+:::tip 何时使用
+当你需要在运行时动态添加或移除快捷键（比如根据上下文切换键绑定），可以直接操作 `ShortcutManager`。大部分场景下，通过 `Shortcuts` Widget 的声明式用法就够了。
+:::
 
 `ShortcutManager` 管理快捷键映射，可以动态增删：
 
@@ -147,7 +169,7 @@ const intent = manager.handleKeyEvent(event);  // Intent | null
 
 ## Actions Widget
 
-`Actions` 将 `Intent → Action` 的映射注册到 Widget 树中：
+`Actions` 将 `Intent → Action` 的映射注册到 Widget 树中。通常和 `Shortcuts` 组合使用：
 
 ```ts
 import { Actions } from '@flitter/tui';
@@ -168,6 +190,10 @@ new Actions({
 ```
 
 ### 静态方法
+
+:::tip 何时使用
+静态方法适合在 Widget 树中「远程」调用 Action 的场景。比如你有一个工具栏按钮，需要触发在编辑器深层注册的 SaveAction——用 `Actions.invoke(context, new SaveIntent())` 就能做到。
+:::
 
 `Actions` 提供了一组静态方法，可在 Widget 树中查找和调用 Action：
 
@@ -275,3 +301,13 @@ FocusNode 接收 KeyEvent
   ↓   调用 action.invoke(intent)
   ↓   返回 "handled" | "ignored"
 ```
+
+## 与其他子系统的配合
+
+- **焦点系统**：`Shortcuts` Widget 内部通过 FocusNode 接收按键事件，因此它依赖焦点系统来确定哪个 Shortcuts 节点是活跃的。详见 [焦点系统](./focus-system.md)。
+- **浮层系统**：在 Modal 弹层中注册独立的 Shortcuts/Actions，可以让弹层有自己的快捷键集合，与主界面互不干扰。详见 [浮层系统](./overlay.md)。
+
+## 下一步
+
+- [焦点系统](./focus-system.md) — 了解快捷键事件是如何路由到 Shortcuts Widget 的
+- [浮层系统](./overlay.md) — 在弹层中使用独立的快捷键配置

@@ -2,9 +2,24 @@
 
 ## 概述
 
+当内容超出终端屏幕的可见范围时，你需要滚动系统来让用户浏览全部内容。无论是一个有上千行的日志查看器，还是一个超出屏幕高度的配置面板，滚动系统都是必不可少的。
+
 `@flitter/tui` 的滚动系统实现了类 Flutter 的滚动架构，将**控制器**（状态管理）、**物理特性**（边界与惯性）、**可滚动容器**（Scrollable）和**列表视图**（ListView 虚拟化）分层解耦，让任意数量的内容都能高性能渲染。
 
+:::info 如果你用过 CSS overflow: scroll
+Flitter 的滚动系统类似于 CSS 中的 `overflow: scroll`，但功能更丰富。`Scrollable` 相当于给容器加上 `overflow: scroll`，而 `ListView` 则更进一步——它不仅支持滚动，还实现了虚拟化（只渲染视口内的元素），类似于 React 社区中 `react-window` 或 `react-virtualized` 的效果。
+:::
+
+### 你将学到什么
+
+- 如何使用 `ScrollController` 和 `ListView` 创建可滚动列表
+- vim 风格的键盘滚动支持
+- followMode 自动追尾功能（适用于日志流）
+- 惯性滚动和 Scrollbar 集成
+
 ## 核心概念
+
+下面这张表列出了滚动系统中各个类的职责分工：
 
 | 类 | 职责 |
 |---|---|

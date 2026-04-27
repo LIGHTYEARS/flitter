@@ -1,10 +1,19 @@
 # 浮层与弹窗 Widget
 
-本页涵盖 Flitter 的 Overlay 浮层系统和各类弹窗 Widget。
+本页涵盖 Flitter 的 Overlay 浮层系统和各类弹窗 Widget。当你需要在主界面之上显示模态对话框、命令面板、下拉菜单或加载提示时，会用到这里的组件。
+
+:::tip 快速参考：最常用浮层组件
+- **PopupOverlay** -- 模态弹出层（全屏遮罩 + 居中内容 + Escape 关闭）
+- **ConfirmDialog** -- 确认对话框（Y/N 快捷键）
+- **FuzzyPicker** -- 模糊搜索选择器（命令面板的核心）
+- **CommandPalette** -- 完整的命令搜索面板
+:::
 
 ---
 
 ## Overlay / OverlayState
+
+**何时使用：** 需要底层的浮层管理能力时使用。大多数情况下，直接使用 `PopupOverlay` 或 `ModalStack` 更方便。
 
 > 弹出层容器，管理多个 OverlayEntry 的插入、移除和按序渲染。条目按插入顺序堆叠（后插入在上层）。
 
@@ -91,6 +100,8 @@ new OverlayContainer({
 
 ## ModalStack / ModalStackController
 
+**何时使用：** 需要管理多层模态对话框（推入/弹出）时使用。例如：主界面 → 设置面板 → 确认对话框。
+
 > 推入/弹出式模态管理系统。ModalStackController 控制模态栈，ModalStackWidget 渲染根内容与堆叠的模态层。
 
 **ModalStackController 方法:**
@@ -131,6 +142,8 @@ controller.pop();
 
 ## FuzzyPicker
 
+**何时使用：** 需要让用户从一个候选列表中模糊搜索并选择一项时使用（如命令面板、文件选择器）。
+
 > 通用模糊搜索选择器。组合 TextField + 可滚动列表 + 键盘/鼠标导航，用于命令面板、文件选择器等场景。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -169,6 +182,8 @@ new FuzzyPicker({
 ---
 
 ## CommandPalette
+
+**何时使用：** 需要提供类似 VS Code 命令面板（Ctrl+Shift+P）的功能时使用。
 
 > 基于 AutocompleteController 的命令搜索面板。内部创建 TextEditingController 管理搜索输入，通过模糊匹配过滤命令列表。
 
@@ -237,6 +252,8 @@ ac.initialize({
 
 ## PopupOverlay
 
+**何时使用：** 需要显示一个模态弹出层（带全屏遮罩、Escape 键关闭、焦点捕获）时使用。这是最常用的弹窗容器。
+
 > 模态弹出层。全屏背景遮罩 + 居中内容 + Escape 键关闭 + 焦点捕获。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -262,6 +279,8 @@ new PopupOverlay({
 ---
 
 ## ConfirmDialog
+
+**何时使用：** 需要用户确认一个操作（如删除文件、退出应用）时使用。
 
 > 模态确认对话框，带内联键绑定提示。Y/y 确认，N/n/Escape 取消。
 
@@ -306,6 +325,8 @@ new ConfirmDialog({
 
 ## PromptDialog
 
+**何时使用：** 需要用户输入一段文本（如文件名、搜索关键词）时使用。
+
 > 模态文本输入对话框。Enter 提交，Escape 取消。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -333,6 +354,8 @@ new PromptDialog({
 ---
 
 ## SpinnerOverlay
+
+**何时使用：** 需要在执行耗时操作时显示加载提示（带动画旋转指示器）时使用。
 
 > 模态加载对话框，带动画 BrailleSpinner（100ms 帧率匹配 amp）。
 

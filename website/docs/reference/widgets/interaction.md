@@ -1,10 +1,19 @@
 # 交互 Widget
 
-本文档涵盖 Flitter TUI 中处理手势、焦点、文本编辑和快捷键的 Widget。
+本页涵盖 Flitter TUI 中处理手势、焦点、文本编辑和快捷键的 Widget。这些组件让你的 TUI 应用能够响应鼠标点击、键盘输入和焦点切换。
+
+:::tip 快速参考：最常用交互 Widget
+- **GestureDetector** -- 检测鼠标点击（最常用的交互入口）
+- **Focus** -- 管理键盘焦点（让 Widget 能接收按键事件）
+- **TextField** -- 文本输入框
+- **Shortcuts + Actions** -- 注册和响应快捷键
+:::
 
 ---
 
 ## GestureDetector
+
+**何时使用：** 需要让某个 Widget 可以被鼠标点击时使用。
 
 > 高级手势检测，内部使用 MouseRegion。
 
@@ -25,6 +34,8 @@ new GestureDetector({
 ---
 
 ## MouseRegion
+
+**何时使用：** 需要检测鼠标 hover、拖拽、滚轮等精细鼠标事件时使用。大多数情况用 `GestureDetector` 即可。
 
 > 底层鼠标区域检测（hover、click、drag 等全部事件）。
 
@@ -55,6 +66,8 @@ new MouseRegion({
 ---
 
 ## Focus
+
+**何时使用：** 需要让 Widget 能接收键盘事件，或在焦点获得/失去时执行操作时使用。
 
 > 焦点管理 Widget。声明式焦点管理，纯副作用 Widget，不改变子节点渲染。
 
@@ -124,7 +137,14 @@ node.requestFocus();
 
 ## TextField
 
+**何时使用：** 需要用户输入文本时使用（搜索框、命令行输入等）。
+
 > 可编辑文本输入框。
+
+:::tip 最常用参数
+- `controller` -- 必须提供一个 `TextEditingController` 来管理文本状态
+- `placeholder` -- 输入为空时显示的提示文本
+:::
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -211,6 +231,8 @@ new TextEditingController(opts?: { text?: string; width?: number })
 
 ## Shortcuts
 
+**何时使用：** 需要在 Widget 树中注册快捷键绑定时使用。与 `Actions` 配合，实现「按键 → 意图 → 动作」的解耦。
+
 > 在 Widget 树中注册 KeyActivator -> Intent 映射。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -226,6 +248,8 @@ new TextEditingController(opts?: { text?: string; width?: number })
 ---
 
 ## Actions
+
+**何时使用：** 需要将 Intent（用户意图）映射到具体的 Action（处理逻辑）时使用。
 
 > 在 Widget 树中注册 Intent -> Action 映射。
 

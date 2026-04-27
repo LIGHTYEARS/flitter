@@ -2,6 +2,26 @@
 
 本教程将带你构建一个支持 Markdown 渲染的终端聊天界面，展示 TextField 输入、Scrollable 消息列表、MarkdownParser + MarkdownRenderer 富文本渲染等组件的用法。
 
+## 你将学到什么
+
+- [ ] 使用 `TextField` + `TextEditingController` 实现文本输入
+- [ ] 用 `Scrollable` + `ScrollController` 实现可滚动的消息列表
+- [ ] 用 `MarkdownParser` + `MarkdownRenderer` 渲染富文本
+- [ ] 用 `Container` + `BoxDecoration` 实现彩色消息气泡
+- [ ] 组合以上组件构建完整的聊天界面
+
+## 前置知识
+
+在开始之前，建议你已经了解以下内容：
+
+- TypeScript 基础语法
+- [Flitter 核心概念](/tutorial/core-concepts/three-tree)中的 Widget、StatefulWidget、build 方法
+- 建议先完成[构建仪表盘](/tutorial/walkthroughs/build-a-dashboard)教程
+
+:::info 关于 LLM 集成
+在本教程中我们使用预设的回复来演示聊天界面的构建。在实际应用中，你可以替换为真正的 LLM API 调用——Flitter 的 `@flitter/llm` 包提供了完整的大模型接入支持。
+:::
+
 ## 1. 创建应用骨架
 
 聊天应用需要维护消息列表和输入状态。使用 `StatefulWidget` 管理状态，`TextEditingController` 控制输入框：
@@ -46,6 +66,10 @@ class ChatDemoState extends State<ChatDemo> {
 await runApp(new ChatDemo() as unknown as WidgetInterface);
 ```
 
+:::info 关于 `as unknown as Widget` 类型转换
+你可能注意到了 `as unknown as Widget` 类型转换。这是 TypeScript 类型系统的一个限制——框架内部使用了复杂的类型层次，但在实际使用中你可以安全地忽略这些转换。
+:::
+
 `TextEditingController` 管理输入框的文本内容，可通过 `.text` 属性读写，在 `dispose` 中清理资源。
 
 ## 2. 消息列表 — Scrollable + ScrollController
@@ -79,6 +103,8 @@ private _buildMessageList(): Widget {
   }) as unknown as Widget;
 }
 ```
+
+**这段代码做了什么：** 将所有聊天消息映射为 Widget 列表，每条消息之间添加 1 行间距。然后用 `Scrollable` + `ScrollViewport` 包裹，当消息数量超出屏幕时可以滚动查看。
 
 在 `build()` 中用 `Expanded` 包裹消息列表，让它占据输入框和标题栏之外的所有空间：
 
@@ -127,6 +153,8 @@ private _buildInput(): Widget {
 }
 ```
 
+**这段代码做了什么：** 创建一个带深色背景的输入区域——左侧是青色的 `>` 提示符，右侧是可编辑的文本输入框。用户按 Enter 时触发 `onSubmitted` 回调发送消息。
+
 `TextField` 支持丰富的配置：
 
 - `placeholder` — 空内容时的提示文字
@@ -138,6 +166,8 @@ private _buildInput(): Widget {
 用 `Expanded` 包裹 `TextField` 让它占满行内剩余宽度。
 
 ## 4. Markdown 消息渲染
+
+终端聊天界面的一大亮点是支持 Markdown 富文本渲染。Flitter 让这件事变得非常简单——只需三行代码就能将 Markdown 文本渲染为带样式的终端富文本。
 
 `MarkdownParser` 将 Markdown 文本解析为 AST，`MarkdownRenderer` 将 AST 转换为 `TextSpan[]`，然后用 `RichText` 渲染：
 
@@ -160,6 +190,8 @@ private _renderMarkdown(content: string): Widget {
   }) as unknown as Widget;
 }
 ```
+
+**这段代码做了什么：** 只需三步——解析 Markdown 文本、渲染为 TextSpan、用 RichText 显示。就这么简单！如果解析结果为空，则回退到显示原始文本。
 
 `MarkdownParser` 基于 micromark + GFM 扩展，支持标准 Markdown 语法：
 
@@ -194,9 +226,13 @@ private _sendMessage(text: string): void {
 }
 ```
 
+**这段代码做了什么：** 处理消息发送流程——先添加用户消息，再添加模拟的助手回复，然后清空输入框并滚动到底部，确保最新消息始终可见。
+
 `ScrollController.jumpTo(offset)` 可以立即跳转到指定滚动偏移。加上一个小余量（+20）确保新消息完全可见。
 
-在实际应用中，你可以将模拟回复替换为真正的 LLM API 调用，并使用 `MarkdownParser.appendText()` 支持流式渲染。
+:::tip 替换为真实的 LLM 调用
+在实际应用中，你可以将 `CANNED_RESPONSES` 替换为真正的 LLM API 调用，并使用 `MarkdownParser.appendText()` 支持流式渲染——让助手的回复像打字一样逐字出现。
+:::
 
 ## 6. 样式美化 — Container + 彩色消息气泡
 
@@ -233,6 +269,8 @@ private _buildMessageBubble(msg: ChatMessage): Widget {
 }
 ```
 
+**这段代码做了什么：** 为每条消息创建一个彩色气泡——用户消息用蓝色背景，助手消息用深灰色背景。每个气泡顶部显示角色标签（「You」或「Assistant」），下方是经过 Markdown 渲染的消息内容。
+
 `Padding` 添加外边距，`Container.padding` 添加内边距，`BoxDecoration.color` 设置背景色。`Column` 垂直排列角色标签和消息内容。
 
 退出方式：输入 `q` + Enter 退出，或使用 `Ctrl+C`。`Ctrl+C` 通过 `WidgetsBinding.addKeyInterceptor` 全局拦截。
@@ -246,3 +284,18 @@ private _buildMessageBubble(msg: ChatMessage): Widget {
 bun run examples/tui-chat-demo.ts
 ```
 :::
+
+## 恭喜完成！
+
+你已经成功构建了一个支持 Markdown 渲染的终端聊天界面！在这个过程中，你学会了：
+
+- 使用 `TextField` + `TextEditingController` 实现文本输入
+- 用 `Scrollable` + `ScrollController` 实现可滚动消息列表
+- 用 `MarkdownParser` + `MarkdownRenderer` 渲染 Markdown 富文本
+- 用 `Container` + `BoxDecoration` 创建彩色消息气泡
+
+**下一步：**
+
+- [LLM 集成架构](/architecture/llm-integration) — 了解如何接入真实的大模型 API
+- [核心概念](/tutorial/core-concepts/three-tree) — 深入理解 Widget 树、Element 树和渲染机制
+- [构建仪表盘](/tutorial/walkthroughs/build-a-dashboard) — 学习 ProgressBar、Table 等更多组件

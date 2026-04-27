@@ -1,10 +1,17 @@
 # 媒体 Widget
 
-本页涵盖 Flitter 的图像显示和图表渲染组件。
+本页涵盖 Flitter 的图像显示和图表渲染组件。这些组件让你的终端应用能够展示图片和数据可视化图表。
+
+:::tip 快速参考
+- **ImageWidget** -- 使用 Kitty 协议在终端中显示图像（需要支持的终端）
+- **RenderChart** -- 生成终端图表（柱状图、折线图等，使用 Unicode 字符绘制）
+:::
 
 ---
 
 ## ImageWidget
+
+**何时使用：** 需要在终端中显示图像（PNG 格式）时使用。注意：需要支持 Kitty 图形协议的终端（如 Kitty、WezTerm）。
 
 > 使用 Kitty 终端图形协议在终端中显示图像。通过 APC 分块传输将 PNG base64 数据发送给终端，并在布局区域内填充 Unicode 占位符格网。StatefulWidget，内部管理图像 ID 分配和生命周期。
 
@@ -80,6 +87,8 @@ new ImageWidget({
 ---
 
 ## RenderChart
+
+**何时使用：** 需要在终端中渲染数据图表（柱状图、折线图、面积图等）时使用。
 
 > 独立图表渲染器，生成终端 ANSI 转义字符串行。支持 6 种图表类型，使用 Unicode 方块字符和 Braille 点阵绘制。
 

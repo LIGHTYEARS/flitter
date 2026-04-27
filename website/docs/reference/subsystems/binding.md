@@ -1,5 +1,16 @@
 # Binding 子系统
 
+本页介绍 Flitter 的核心编排层——`WidgetsBinding` 单例和 `runApp` 入口函数。`runApp` 是启动 Flitter TUI 应用的唯一入口，`WidgetsBinding` 则协调所有子系统（构建、布局、绘制、渲染）的运行。
+
+:::warning 高级内容
+`runApp` 是每个 Flitter 应用都会用到的入口函数。但 `WidgetsBinding` 的内部子系统（`BuildOwner`、`PipelineOwner`、`FrameScheduler`）属于框架内部机制，大多数开发者不需要直接操作它们。
+:::
+
+**何时需要用到：**
+- **runApp** -- 每个应用都需要，是启动 TUI 的入口
+- **WidgetsBinding.instance** -- 需要订阅原始输入事件、手动调度帧、或添加键盘拦截器时
+- **BuildOwner / PipelineOwner** -- 开发框架扩展或调试渲染管线问题时
+
 > WidgetsBinding 单例编排所有子系统，runApp 是应用入口。
 
 ---

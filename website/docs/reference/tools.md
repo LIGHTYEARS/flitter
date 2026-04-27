@@ -1,5 +1,15 @@
 # 工具系统 API
 
+本页详细介绍 Flitter CLI 内置的工具系统。工具（Tool）是 AI 代理与外部世界交互的桥梁——每个工具封装一种能力（读写文件、搜索代码、执行命令等），通过统一接口调用。
+
+:::tip 最常用工具
+日常开发中最频繁使用的工具：
+- **BashTool** -- 执行 Shell 命令
+- **ReadTool / WriteTool / EditTool** -- 读取、写入、编辑文件
+- **GrepTool / GlobTool** -- 搜索文件内容和文件名
+- **TaskTool** -- 启动子代理执行复杂任务
+:::
+
 ## Tool 接口
 
 所有工具实现统一接口：

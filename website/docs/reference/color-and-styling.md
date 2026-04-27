@@ -1,6 +1,13 @@
 # 颜色与样式
 
-`Color` 和 `TextStyle` 是 Flitter 中最基础的视觉类型，几乎所有 Widget 都依赖它们。
+本页详细介绍 `Color` 和 `TextStyle` —— Flitter 中最基础的视觉类型。几乎所有 Widget 都依赖它们来控制文本颜色、背景色和装饰效果。
+
+:::tip 最常用模式
+大多数场景下你只需要这三种用法：
+- `Color.green()` / `Color.red()` / `Color.cyan()` -- 使用命名色快速设置颜色
+- `new TextStyle({ foreground: Color.green(), bold: true })` -- 创建带颜色和加粗的文本样式
+- `base.copyWith({ foreground: Color.yellow() })` -- 基于已有样式创建变体
+:::
 
 ## Color
 
@@ -47,6 +54,25 @@ Color.indexed(46)    // 亮绿色
 Color.rgb(100, 149, 237)  // 矢车菊蓝
 Color.rgb(255, 165, 0)    // 橙色
 ```
+
+### 常用颜色速查
+
+:::tip 常用颜色对照
+终端的 16 色命名色在不同终端主题下的实际显示颜色会有差异，但语义含义是固定的：
+
+| 用途 | 推荐颜色 | 说明 |
+|------|---------|------|
+| 成功/通过 | `Color.green()` | 绿色，表示正常状态 |
+| 错误/失败 | `Color.red()` | 红色，表示错误或危险 |
+| 警告/注意 | `Color.yellow()` | 黄色，表示需要关注 |
+| 信息/链接 | `Color.cyan()` | 青色，表示信息提示 |
+| 标题/强调 | `Color.blue()` | 蓝色，表示重要内容 |
+| 关键字/装饰 | `Color.magenta()` | 洋红色，表示特殊标记 |
+| 次要文本 | `Color.brightBlack()` | 灰色，表示弱化内容 |
+| 自定义品牌色 | `Color.rgb(r, g, b)` | 真彩色，需终端支持 |
+
+如果你的应用需要在各种终端下保持一致外观，优先使用命名色；如果目标终端确定支持真彩色（如 iTerm2、kitty、WezTerm），可以使用 `Color.rgb()` 获得更精确的颜色控制。
+:::
 
 ### 颜色属性
 
@@ -105,6 +131,10 @@ const merged = base.merge(new TextStyle({ italic: true }));
 ```
 
 ### 常用样式组合
+
+:::tip 最常用参数
+大多数场景只需要 `foreground`（前景色）和 `bold`（加粗）两个参数。其他装饰属性（`italic`、`underline`、`dim` 等）按需添加即可。
+:::
 
 ```ts
 // 标题样式

@@ -1,6 +1,13 @@
 # 颜色、样式与主题
 
-本文档详细介绍 Flitter TUI 框架中与样式、颜色和主题相关的核心组件：**Color**、**TextStyle**、**AppColorScheme**、**Theme / ThemeData**、**ThemeRegistry** 和 **TOML Theme Loader**。
+本页详细介绍 Flitter TUI 框架中与视觉表现相关的全部 API：颜色系统、文本样式、配色方案、主题管理，以及自定义 TOML 主题加载。如果你想让应用拥有统一的视觉风格，或支持用户自定义主题，这里有你需要的全部内容。
+
+:::tip 快速参考：最常用 API
+- **Color.green() / Color.red() / Color.rgb(r,g,b)** -- 创建颜色
+- **new TextStyle({ foreground, bold })** -- 创建文本样式
+- **Theme.of(context)** -- 获取当前主题数据
+- **AppColorScheme.default().copyWith(...)** -- 自定义配色
+:::
 
 ---
 
@@ -18,6 +25,8 @@
 ## 1. Color -- 终端颜色
 
 ### 简介
+
+**何时使用：** 需要设置文本前景色、背景色、边框颜色等任何颜色属性时使用。
 
 `Color` 是不可变的终端颜色值对象，支持四种颜色模式，覆盖从基础 ANSI 到 24 位真彩色的全部终端颜色能力。所有实例通过静态工厂方法创建，不可直接 `new`。
 
@@ -76,6 +85,12 @@ Color.rgb(r: number, g: number, b: number)  // 24 位真彩色
 
 ### 简介
 
+**何时使用：** 需要定义文本的颜色、加粗、斜体等视觉属性时使用。
+
+:::tip 最常用参数
+大多数情况下只需要 `foreground`（前景色）和 `bold`（加粗）：`new TextStyle({ foreground: Color.cyan(), bold: true })`。
+:::
+
 `TextStyle` 封装终端文本的完整样式信息，包括前景色、背景色和五种文本修饰属性。采用不可变设计，通过 `copyWith` 或 `merge` 创建新实例。
 
 ### 构造参数
@@ -130,6 +145,8 @@ new TextStyle(options?: Partial<{
 ## 3. AppColorScheme -- 应用配色方案
 
 ### 简介
+
+**何时使用：** 需要定义应用的统一配色方案，或基于内置预设调整个别颜色时使用。
 
 `AppColorScheme` 定义了 TUI 应用所需的 15 种语义颜色。
 
@@ -240,6 +257,8 @@ const colors = theme.colorScheme;
 
 ### 简介
 
+**何时使用：** 需要列出所有可用主题、注册自定义主题、或按名称查找主题时使用。
+
 `ThemeRegistry` 是主题的中央注册表，管理内置主题和自定义主题的查找。自定义主题覆盖同名内置主题。
 
 ### API
@@ -279,6 +298,8 @@ class ThemeRegistry {
 ## 6. TOML Theme Loader -- 自定义主题加载器
 
 ### 简介
+
+**何时使用：** 需要让用户通过 TOML 配置文件自定义主题颜色时使用。
 
 从 `~/.config/flitter/themes/{name}/colors.toml` 加载用户自定义主题。每个子目录代表一个主题。
 

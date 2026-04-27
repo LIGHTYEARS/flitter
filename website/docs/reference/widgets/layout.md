@@ -1,7 +1,18 @@
 # 布局 Widget
 
-本文档详细介绍 Flitter TUI 框架中的核心布局组件。这些组件采用 Flutter 风格的布局模型，
+本页详细介绍 Flitter TUI 框架中的核心布局组件。这些组件采用 Flutter 风格的布局模型，
 通过声明式的 Widget 树描述界面结构，由渲染引擎自动完成约束传递和尺寸计算。
+
+如果你有 Web 前端经验，可以把 Flitter 的布局 Widget 理解为 CSS Flexbox 的声明式版本——用 Widget 嵌套代替 CSS 属性组合。
+
+:::tip 快速参考：最常用布局 Widget
+- **Row / Column** -- 水平/垂直排列子节点（类似于 CSS `display: flex`）
+- **Container** -- 带 padding、背景色、边框的通用容器（类似于 HTML `<div>` 加 CSS 装饰）
+- **Expanded** -- 在 Row/Column 中按比例填充剩余空间（类似于 CSS `flex: 1`）
+- **SizedBox** -- 固定尺寸容器或间距占位（类似于固定宽高的 `<div>`）
+- **Stack** -- 子节点层叠放置（类似于 CSS `position: absolute`）
+- **Center** -- 居中子节点（类似于 `display: flex; justify-content: center; align-items: center`）
+:::
 
 ---
 
@@ -29,6 +40,12 @@
 
 ### 简介
 
+**何时使用：** 需要将多个子节点沿水平方向（Row）或垂直方向（Column）线性排列时使用。这是最常用的布局方式。
+
+:::info 类似于 CSS Flexbox
+`Row` 相当于 `display: flex; flex-direction: row`，`Column` 相当于 `display: flex; flex-direction: column`。`mainAxisAlignment` 对应 `justify-content`，`crossAxisAlignment` 对应 `align-items`。
+:::
+
 `Row` 和 `Column` 是最常用的线性布局组件。`Row` 沿**水平方向**排列子节点，`Column` 沿**垂直方向**排列子节点。两者内部均通过 `RenderFlex` 渲染对象实现，共享相同的布局算法。
 
 布局分为两个阶段：
@@ -36,6 +53,12 @@
 2. **第二遍**：将剩余空间按弹性因子分配给弹性子节点（`Flexible` / `Expanded`）
 
 ### 构造参数
+
+:::tip 最常用参数
+- `children` -- 子 Widget 列表，必须提供
+- `mainAxisAlignment` -- 主轴对齐（如 `"center"`、`"spaceBetween"`），控制子项如何分布
+- `crossAxisAlignment` -- 交叉轴对齐（如 `"stretch"`），控制子项如何拉伸
+:::
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -122,6 +145,12 @@ const compactRow = new Row({
 
 ### 简介
 
+**何时使用：** 在 Row/Column 内需要按比例分配剩余空间时使用。`Expanded` 是最常用的（强制填满），`Flexible` 用于允许子项不填满分配空间的场景。
+
+:::info 类似于 CSS flex 属性
+`Expanded({ flex: 1 })` 相当于 CSS `flex: 1`，即占据剩余空间。`Expanded({ flex: 2 })` 相当于 `flex: 2`，占两份空间。
+:::
+
 `Flexible` 和 `Expanded` 用于在 `Row` / `Column` 内按比例分配剩余空间。
 
 - **Flexible**：以指定的弹性因子参与空间分配，适配方式默认为 `"loose"`（子项可以小于分配到的空间）。
@@ -201,6 +230,12 @@ const flexibleRow = new Row({
 ## 3. Stack / Positioned (层叠布局)
 
 ### 简介
+
+**何时使用：** 需要将多个子节点叠放在同一区域，或者需要精确控制子节点位置时使用。常见场景包括：浮层、角标、叠加效果等。
+
+:::info 类似于 CSS position: absolute
+`Stack` 相当于一个 `position: relative` 的容器，`Positioned` 相当于 `position: absolute` 的子元素，通过 `left`/`top`/`right`/`bottom` 控制偏移。
+:::
 
 `Stack` 将子节点**层叠**放置，后面的子节点绘制在前面的子节点之上。子节点分为两类：
 
@@ -289,6 +324,12 @@ const positioned = new Stack({
 
 ### 简介
 
+**何时使用：** 需要在子 Widget 周围添加空白间距时使用。
+
+:::info 类似于 CSS padding
+`Padding` 相当于在元素上设置 CSS `padding` 属性。如果同时需要背景色或边框，考虑直接用 `Container`（它内置了 padding 支持）。
+:::
+
 `Padding` 在子 Widget 周围添加指定的内边距。布局时，先将父约束收缩（减去间距部分），将收缩后的约束传给子节点，最终自身尺寸 = 子节点尺寸 + 间距。
 
 间距通过 `EdgeInsets` 对象描述，该对象是不可变的（使用 `Object.freeze`），通过静态工厂方法创建。
@@ -362,6 +403,12 @@ const asymmetric = new Padding({
 
 ### 简介
 
+**何时使用：** 需要给子 Widget 一个固定的宽度和/或高度时使用，或者在 Row/Column 中插入固定间距。
+
+:::info 类似于固定尺寸的 div
+`SizedBox({ width: 20, height: 3 })` 相当于 `<div style="width: 20ch; height: 3em">`。无子节点时常用作空白间距占位符。
+:::
+
 `SizedBox` 用于为子 Widget 指定固定的宽度和/或高度。未指定的维度保持父约束不变。
 
 - **有子节点时**：子节点在指定维度上被紧约束（min = max = 指定值），自身尺寸等于子节点布局后的实际尺寸。
@@ -413,6 +460,12 @@ const rowWithGap = new Row({
 ## 6. Container (便捷容器)
 
 ### 简介
+
+**何时使用：** 需要一个带 padding、背景色、边框的通用容器时使用。`Container` 是日常开发中最常用的组合 Widget。
+
+:::info 类似于 HTML div
+`Container` 相当于 HTML 的 `<div>`，你可以通过参数同时设置宽高、内边距、背景色和边框——就像给 `<div>` 添加 CSS 属性一样。
+:::
 
 `Container` 是一个便捷的 `StatelessWidget`，它将 `Padding` 和 `SizedBox` 组合在一起，简化常见的布局模式。
 
@@ -555,6 +608,8 @@ interface Size { readonly width: number; readonly height: number; }
 
 ## IntrinsicHeight
 
+**何时使用：** Row 中多个子项需要等高（高度取决于最高的那个）时使用。
+
 > 强制子节点高度等于其固有高度。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -580,6 +635,8 @@ new IntrinsicHeight({
 ---
 
 ## OverlapColumn
+
+**何时使用：** 需要多个带边框的面板垂直排列且共享边框线（合并相邻边框）时使用。
 
 > 垂直排列子节点，相邻子节点之间重叠指定行数。
 
@@ -607,6 +664,8 @@ new OverlapColumn({
 ---
 
 ## SplitPane
+
+**何时使用：** 需要可拖拽调整大小的两栏/两行布局时使用，如编辑器的侧边栏+主内容区。
 
 > 可调整大小的分割布局，两个子面板之间有可拖拽分隔线。
 
@@ -636,6 +695,12 @@ new SplitPane({
 
 ## Spacer
 
+**何时使用：** 在 Row/Column 中需要弹性空白间隔时使用，例如把两个元素推到两端。
+
+:::info 类似于 CSS flex spacer
+`Spacer` 相当于在 Flexbox 中插入一个 `flex: 1` 的空元素，常用于将内容推向两端。
+:::
+
 > Flex 布局中的弹性间隔。等价于 `Flexible({ child: SizedBox(), flex: N, fit: "tight" })`。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -659,6 +724,12 @@ new Row({
 
 ## ClipBox
 
+**何时使用：** 子节点内容可能超出容器边界、需要裁剪隐藏溢出部分时使用。
+
+:::info 类似于 CSS overflow: hidden
+`ClipBox` 相当于在容器上设置 `overflow: hidden`。
+:::
+
 > 裁剪容器，将子节点的绘制限制在自身边界内，超出部分被静默丢弃。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -681,6 +752,12 @@ new ClipBox({
 
 ## Center
 
+**何时使用：** 需要将子 Widget 在可用空间内居中放置时使用。
+
+:::info 类似于 CSS 居中
+`Center` 相当于 `display: flex; justify-content: center; align-items: center`。
+:::
+
 > Align 的语法糖，将子 Widget 居中放置。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -701,6 +778,8 @@ new Center({
 ---
 
 ## Align
+
+**何时使用：** 需要将子 Widget 居中对齐，或需要控制自身尺寸与子节点尺寸的比例关系时使用。大多数情况直接用 `Center` 即可。
 
 > 将子 Widget 居中对齐，可选按比例因子缩放自身尺寸。
 
@@ -726,6 +805,12 @@ new Align({
 ---
 
 ## MediaQuery
+
+**何时使用：** 需要获取终端窗口尺寸或检测终端能力（是否支持真彩色、Emoji 宽度等）时使用。
+
+:::info 类似于 CSS @media 查询
+`MediaQuery.sizeOf(context)` 的作用类似于 CSS 的 `@media (max-width: ...)` —— 让你的 Widget 根据终端实际尺寸做出响应式调整。
+:::
 
 > InheritedWidget，向子树注入终端尺寸和能力信息。
 

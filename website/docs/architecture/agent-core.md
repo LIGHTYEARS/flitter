@@ -1,8 +1,38 @@
 # Agent 引擎
 
+:::info 本页面适合...
+本页面适合想要深入了解 Flitter 内部架构的开发者。如果你只是使用框架构建 TUI 应用，可以跳过这部分。如果你需要自定义工具、扩展 Agent 行为或理解推理循环的工作原理，这里是最好的起点。
+:::
+
 `@flitter/agent-core` 实现了 AI Agent 的核心推理和工具执行循环。
 
-## ThreadWorker
+## 整体架构概览
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ThreadWorker                          │
+│  ┌─────────┐   ┌───────────┐   ┌──────────────────┐    │
+│  │ Prompt   │──>│ LLM 流式  │──>│ ToolOrchestrator │    │
+│  │ 构建     │   │ 调用      │   │ 工具编排执行     │    │
+│  └─────────┘   └───────────┘   └──────────────────┘    │
+│       ^                              │                   │
+│       │         ┌───────────┐        │                   │
+│       └─────────│ 递归推理  │<───────┘                   │
+│                 └───────────┘                            │
+├─────────────────────────────────────────────────────────┤
+│  ToolRegistry │ PermissionEngine │ PluginService         │
+├─────────────────────────────────────────────────────────┤
+│  RetryScheduler │ HookSystem │ SubAgentManager           │
+└─────────────────────────────────────────────────────────┘
+```
+
+下面按三大模块展开介绍：**推理循环**、**工具系统**、**扩展机制**。
+
+---
+
+## 推理循环
+
+### ThreadWorker
 
 ThreadWorker 是 Agent 的核心状态机，管理完整的推理循环：
 
@@ -40,6 +70,10 @@ ThreadWorker 发射类型化的 `AgentEvent` 流：
 - 通过 `getOrCreate(threadId)` 获取或创建 Worker
 
 ## 工具系统
+
+:::info 如果你不需要自定义工具
+如果你只是使用 Flitter 内置的工具（如 Bash、Read、Edit 等），可以跳过工具注册部分，直接查看[Agent 模式](#agent-模式)了解如何选择不同的推理配置。
+:::
 
 ### 内置工具（19 个）
 
@@ -107,6 +141,10 @@ registry.getCliFilters(); // → { includeTools: [...] }
 
 ## Agent 模式
 
+:::info 大多数用户使用 `auto` 模式即可
+`auto` 模式会自动平衡能力与速度。只有在需要处理特别复杂的任务时，才需要手动切换到 `smart` 或 `deep` 模式。
+:::
+
 `AgentMode` 支持 6 种预设模式，每种对应不同的模型和推理配置：
 
 | 模式 | 主模型 | 推理强度 | 适用场景 |
@@ -124,7 +162,11 @@ getModelForMode(mode: AgentMode): string;
 isDeepReasoningMode(mode: AgentMode): boolean;
 ```
 
-## 插件系统
+---
+
+## 扩展机制
+
+### 插件系统
 
 `PluginService` 支持用户自定义 TypeScript 插件：
 
@@ -149,7 +191,7 @@ PluginService → PluginHost(子进程) → PluginRuntime(JSON-RPC)
 - `onToolCall(toolName, input)` — 工具调用前拦截，可修改参数
 - `onToolResult(toolName, result)` — 工具返回后拦截，可修改结果
 
-## Hook 系统
+### Hook 系统
 
 生命周期 Hook 在工具执行前后注入自定义逻辑：
 
@@ -172,7 +214,7 @@ PluginService → PluginHost(子进程) → PluginRuntime(JSON-RPC)
 { tool: 'Bash', pattern: 'rm *', action: 'PreToolUse' }
 ```
 
-## Handoff 机制
+### Handoff 机制
 
 `ThreadWorker.executeHandoff()` 支持跨 Agent 任务移交：
 
@@ -180,7 +222,7 @@ PluginService → PluginHost(子进程) → PluginRuntime(JSON-RPC)
 - `HandoffState` 追踪移交进度
 - 完成后发射 `HandoffComplete` 事件
 
-## 重试调度器
+### 重试调度器
 
 智能错误分类 + 指数退避重试：
 
@@ -191,7 +233,7 @@ PluginService → PluginHost(子进程) → PluginRuntime(JSON-RPC)
 | 上下文溢出 | `isContextWindowError()` | 触发 Compaction 后重试 |
 | 其他错误 | — | 直接抛出 |
 
-## 权限系统
+### 权限系统
 
 `PermissionEngine` 提供基于模式匹配的细粒度权限控制，使用 4 层决策层级：
 
@@ -209,9 +251,20 @@ PluginService → PluginHost(子进程) → PluginRuntime(JSON-RPC)
 type PermissionCheckResult = 'allowed' | 'denied' | 'ask';
 ```
 
-## SubAgent
+### SubAgent
 
 `SubAgentManager` 支持创建子代理：
 - 子代理拥有独立的 ThreadWorker 实例
 - PreHook/PostHook 系统在工具执行前后注入逻辑
 - `HookApplicator` 将 Hook 规则应用到子代理的工具调用链
+
+## 何时需要了解这些
+
+| 场景 | 需要了解的部分 |
+|------|---------------|
+| 自定义 Agent 工具 | ToolRegistry、Tool 接口 |
+| 控制工具权限 | PermissionEngine |
+| 编写插件 | PluginService、拦截钩子 |
+| 调试推理行为 | ThreadWorker、事件流 |
+| 处理 LLM 错误 | 重试调度器 |
+| 创建子任务 | SubAgent、Handoff |

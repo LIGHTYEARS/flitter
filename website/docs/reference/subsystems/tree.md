@@ -1,5 +1,17 @@
 # Widget 树子系统
 
+本页介绍 Flitter 三棵树架构的核心抽象：Widget（不可变的 UI 描述）、Element（运行时实例）和 RenderObject（布局与绘制）。理解三棵树的关系是深入掌握 Flitter 框架的关键。
+
+:::warning 高级内容
+大多数开发者不需要直接操作 Element 和 RenderObject。日常开发只需编写 Widget（通过 `StatelessWidget` 或 `StatefulWidget`），框架会自动管理其余两棵树。只有在开发自定义布局 Widget 或调试渲染问题时才需要深入理解这些内容。
+:::
+
+**何时需要用到：**
+- 需要理解 `StatefulWidget` 的 `State` 生命周期时
+- 开发自定义的 `RenderObject`（如特殊布局算法）时
+- 使用 `GlobalKey` 或 `InheritedWidget` 进行跨组件通信时
+- 调试 Widget 树的构建和更新行为时
+
 > Widget → Element → RenderObject 三棵树的核心抽象。
 
 ---

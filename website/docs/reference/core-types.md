@@ -1,10 +1,20 @@
 # 核心类型
 
-Flitter 框架中有一些基础类型贯穿整个 API，理解它们是高效使用框架的前提。
+本页介绍 Flitter 框架中贯穿整个 API 的基础类型。理解它们是高效使用框架的前提。如果你有 CSS 或 React 经验，会发现很多概念有直接的对应关系。
+
+:::tip 快速参考
+- **EdgeInsets** -- 控制间距（类似于 CSS 的 `padding` / `margin` 简写语法）
+- **BoxConstraints** -- 约束子组件尺寸（类似于 CSS 的 `min-width` / `max-width` / `min-height` / `max-height`）
+- **Key** -- 帮助框架识别节点身份（类似于 React 的 `key` prop）
+:::
 
 ## EdgeInsets
 
 `EdgeInsets` 表示四个方向的间距，用于 padding、margin 等场景。
+
+:::info 类似于 CSS 的 padding/margin 简写
+`EdgeInsets.all(2)` 相当于 CSS `padding: 2px`；`EdgeInsets.symmetric({ horizontal: 2, vertical: 1 })` 相当于 `padding: 1px 2px`；`EdgeInsets.only({ left: 1, top: 2 })` 相当于 `padding-left: 1px; padding-top: 2px`。
+:::
 
 ### 创建方式
 
@@ -66,6 +76,10 @@ new Container({
 ## BoxConstraints
 
 `BoxConstraints` 是布局系统的核心——父级通过约束告诉子级可用空间。
+
+:::info 类似于 CSS 的 min-width/max-width
+`BoxConstraints` 的概念类似于 CSS 中同时设置 `min-width`、`max-width`、`min-height`、`max-height`。不同之处在于，CSS 是元素自己声明约束，而 Flitter 是父组件向下传递约束给子组件。
+:::
 
 ### 创建方式
 
@@ -138,6 +152,10 @@ interface Size {
 ## Key
 
 `Key` 用于帮助框架在 Widget 树 diff 时识别节点身份。
+
+:::info 类似于 React 的 key prop
+如果你用过 React，`Key` 的作用和 React 中 `<li key="item-1">` 的 `key` 完全一样——帮助框架在列表重排时正确追踪每个元素，而不是按位置盲目匹配。`GlobalKey` 则类似于 React 的 `ref`，可以从外部访问组件实例。
+:::
 
 ```ts
 // 普通 Key

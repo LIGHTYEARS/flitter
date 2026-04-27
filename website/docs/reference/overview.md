@@ -1,6 +1,26 @@
 # TUI 框架概述
 
+本页是 Flitter 参考文档的入口。无论你是刚上手的新开发者，还是需要快速查阅 API 细节的老用户，都可以从这里找到方向。
+
 `@flitter/tui` 是 Flitter 的核心包——一个完整的 Flutter-for-Terminal UI 框架。它将 Flutter 的三棵树架构（Widget → Element → RenderObject）完整移植到终端环境。
+
+## 如何使用本参考文档
+
+:::tip 教程 vs 参考
+**教程**（Tutorial）是循序渐进的学习路径，适合第一次接触 Flitter 的开发者，带你从零搭建应用。
+
+**参考**（Reference）是按主题组织的 API 速查手册，适合已经了解基本概念、需要查阅具体参数和用法的开发者。
+
+如果你还没跑过 Flitter 的 Hello World，建议先去教程区走一遍，再回来查参考。
+:::
+
+**推荐阅读顺序：**
+
+1. **核心类型** -- 先了解 `EdgeInsets`、`BoxConstraints`、`Key` 等贯穿全框架的基础类型
+2. **颜色与样式** -- 掌握 `Color`、`TextStyle` 和主题系统
+3. **Widget 参考** -- 按需查阅布局、文本、交互等各类 Widget 的详细 API
+4. **工具系统** -- 了解内置工具的接口和用法
+5. **子系统 API** -- 仅在需要深度定制时查阅（大多数开发者不需要）
 
 ## 核心理念
 
@@ -52,3 +72,7 @@ runApp(
 | Markdown | `markdown/` | MarkdownParser、MarkdownRenderer |
 | 主题系统 | `theme/` | ThemeRegistry、ThemeSpec、ColorPalette，8 套内置主题 + 自定义主题 |
 | 选区系统 | `selection/` | SelectionArea、Selectable、Clipboard，跨 Widget 文本选择 |
+
+:::tip 快速参考：最常用模块
+大多数应用开发只需关注三个模块：**内置 Widget**（`widgets/`）用于搭建界面，**绑定层**（`binding/`）中的 `runApp` 用于启动应用，以及**主题系统**（`theme/`）用于控制视觉风格。其余模块在需要深度定制时再查阅即可。
+:::

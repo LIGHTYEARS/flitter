@@ -2,6 +2,22 @@
 
 本教程将带你构建一个分栏式终端文件浏览器，展示 SplitPane、Scrollable、Focus 键盘导航等组件的用法。
 
+## 你将学到什么
+
+- [ ] 使用 `SplitPane` 实现分栏布局
+- [ ] 用 `Scrollable` + `ScrollViewport` 实现可滚动列表
+- [ ] 用 `Focus` + `onKey` 实现键盘导航
+- [ ] 读取文件系统并动态更新界面
+- [ ] 用 `Container` + `BoxDecoration` 实现选中高亮效果
+
+## 前置知识
+
+在开始之前，建议你已经了解以下内容：
+
+- TypeScript 基础语法
+- [Flitter 核心概念](/tutorial/core-concepts/three-tree)中的 Widget、StatefulWidget、build 方法
+- 建议先完成[构建仪表盘](/tutorial/walkthroughs/build-a-dashboard)教程
+
 ## 1. 创建应用骨架
 
 文件浏览器需要维护当前路径、文件列表和选中索引等状态，使用 `StatefulWidget`：
@@ -37,6 +53,10 @@ class FileBrowserDemoState extends State<FileBrowserDemo> {
 await runApp(new FileBrowserDemo() as unknown as WidgetInterface);
 ```
 
+:::info 关于 `as unknown as Widget` 类型转换
+你可能注意到了 `as unknown as Widget` 类型转换。这是 TypeScript 类型系统的一个限制——框架内部使用了复杂的类型层次，但在实际使用中你可以安全地忽略这些转换。
+:::
+
 `resolve(".")` 获取当前工作目录的绝对路径作为初始目录。
 
 ## 2. 文件列表 — Scrollable + ScrollViewport
@@ -65,6 +85,8 @@ private _buildFileList(): Widget {
   }) as unknown as Widget;
 }
 ```
+
+**这段代码做了什么：** 将文件列表的每一项映射为一个 Widget 行，然后放入 `Column` 中纵向排列。外层用 `Scrollable` + `ScrollViewport` 包裹，当文件数量超出屏幕高度时可以自动滚动查看。
 
 `Scrollable` 是高层组件，自动集成键盘和鼠标滚动。`ScrollViewport` 是底层渲染组件，负责裁剪超出视口的内容。`viewportBuilder` 回调接收一个 `ScrollController`，用于控制滚动位置。
 
@@ -101,9 +123,15 @@ private _buildFileRow(entry: FileEntry, index: number): Widget {
 }
 ```
 
+**这段代码做了什么：** 构建文件列表中的一行。选中的项会显示蓝色高亮背景和黄色的 `>` 光标，目录名用青色粗体显示以区分于普通文件。
+
 ## 3. 键盘导航 — Focus + onKeyEvent
 
 `Focus` 组件捕获键盘事件。`onKey` 回调返回 `"handled"` 或 `"ignored"` 控制事件冒泡：
+
+:::tip Vim 风格快捷键
+本示例使用 `j`（向下）和 `k`（向上）作为导航键，这是 Vim 编辑器中常用的方向键。如果你不熟悉 Vim，不用担心——同时也支持标准的方向键（ArrowUp / ArrowDown）。
+:::
 
 ```ts
 import { Focus } from "../packages/tui/src/widgets/focus.js";
@@ -156,6 +184,8 @@ private _handleKey = (event: KeyEvent): KeyEventResult => {
 };
 ```
 
+**这段代码做了什么：** 处理键盘事件——`j`/`k` 或方向键上下移动选中项，`Enter` 进入目录，`Backspace` 返回上级目录，`q` 退出应用。每个按键处理后调用 `setState` 更新界面。
+
 `j`/`k` 是 Vim 风格的上下导航键，同时支持方向键。`Enter` 进入目录，`Backspace` 返回上级。
 
 ## 4. 焦点管理 — Focus + autofocus
@@ -176,6 +206,8 @@ build(_context: BuildContext): WidgetInterface {
 
 ## 5. 分割面板 — SplitPane
 
+文件浏览器的经典布局是左右分栏：左侧显示文件列表，右侧显示文件预览。`SplitPane` 组件正是为此设计的——它将两个子组件以指定比例分割显示，中间自动绘制分隔线。
+
 `SplitPane` 将两个子组件以指定比例分割显示，中间绘制分隔线：
 
 ```ts
@@ -192,6 +224,8 @@ new Expanded({
   }),
 }) as unknown as Widget;
 ```
+
+**这段代码做了什么：** 创建一个左右分栏布局，左侧占 35% 宽度显示文件列表，右侧占 65% 宽度显示文件预览，中间自动绘制竖线分隔符。
 
 `direction` 支持 `"horizontal"`（左右分割）和 `"vertical"`（上下分割）。`initialRatio` 设定左/上面板的初始占比（0.0-1.0）。分隔线自动使用 `│` 或 `─` 字符绘制。
 
@@ -278,3 +312,17 @@ private _buildStatusBar(): Widget {
 bun run examples/tui-file-browser-demo.ts
 ```
 :::
+
+## 恭喜完成！
+
+你已经成功构建了一个分栏式终端文件浏览器！在这个过程中，你学会了：
+
+- 使用 `SplitPane` 实现左右分栏布局
+- 用 `Scrollable` + `ScrollViewport` 处理长列表滚动
+- 用 `Focus` + `onKey` 实现 Vim 风格的键盘导航
+- 读取文件系统并用 `setState` 动态更新界面
+
+**下一步：**
+
+- [构建聊天 TUI](/tutorial/walkthroughs/build-a-chat-tui) — 学习 TextField 输入和 Markdown 渲染
+- [核心概念](/tutorial/core-concepts/three-tree) — 深入理解 Widget 树、Element 树和渲染机制

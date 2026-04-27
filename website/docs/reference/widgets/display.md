@@ -1,10 +1,22 @@
 # 展示 Widget
 
-本文档涵盖 Flitter TUI 中用于信息展示的 Widget：容器装饰、标签、开关、进度条、通知、折叠面板等。
+本页涵盖 Flitter TUI 中用于信息展示的 Widget：容器装饰、标签、开关、进度条、通知、折叠面板等。这些组件帮助你构建丰富的视觉界面。
+
+:::tip 快速参考：最常用展示 Widget
+- **Container** -- 带 padding、背景色、边框的通用容器，几乎每个界面都会用到
+- **Badge** -- 内联彩色标签，用于状态指示
+- **ProgressBar** -- 进度条，用于显示加载或完成进度
+:::
 
 ---
 
 ## Container
+
+**何时使用：** 需要为子 Widget 添加背景色、边框、内外边距或固定尺寸时使用。
+
+:::info 类似于 HTML div + CSS
+Container 是 Flitter 中最接近 HTML `<div>` 的组件——你可以通过 `decoration` 设置背景色和边框，通过 `padding`/`margin` 设置间距。
+:::
 
 > 通用装饰容器（padding、margin、decoration）。
 
@@ -64,6 +76,8 @@ new Border({ top?, bottom?, left?, right?: BorderSide })
 
 ## Badge
 
+**何时使用：** 需要显示数字计数、状态标签或圆点指示器时使用。
+
 > 内联彩色标签。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -88,6 +102,8 @@ new Badge({ count: 42, color: Color.red() })   // [42] 红色
 ---
 
 ## Toggle
+
+**何时使用：** 需要用户切换某个布尔选项时使用（如启用/禁用功能）。
 
 > 可聚焦的开关组件。支持键盘（Space/Enter）和鼠标点击。
 
@@ -116,6 +132,8 @@ new Toggle({
 
 ## ProgressBar
 
+**何时使用：** 需要显示确定进度（如文件下载 75%）时使用。
+
 > Unicode 子字符块进度条（`▏▎▍▌▋▊▉█` 1/8 精度平滑渲染）。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -136,6 +154,8 @@ new ProgressBar({ value: 0.75, width: 30, label: "Loading" })
 ---
 
 ## AnimatedProgressBar
+
+**何时使用：** 需要显示不确定进度（「正在加载中...」）时使用。
 
 > 动画彗星尾迹进度指示器。StatefulWidget，使用 setInterval 驱动动画。
 
@@ -178,6 +198,8 @@ const char = spinner.toBraille();  // 返回一个 U+2800-U+28FF 范围的 brail
 
 ## NotificationBanner
 
+**何时使用：** 需要在界面中显示持久化的通知消息（信息/警告/错误/成功）时使用。
+
 > 内联通知横幅（非浮层 toast），带类型图标和颜色。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -205,6 +227,8 @@ new NotificationBanner({
 
 ## Disclosure
 
+**何时使用：** 需要可折叠/展开的内容区域时使用（如设置面板、详情展开等）。
+
 > 可折叠展开的标题+内容 Widget。StatefulWidget，受控模式。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -230,6 +254,8 @@ new Disclosure({
 ---
 
 ## DialogBox
+
+**何时使用：** 需要带边框的对话框或面板布局（支持左右双列）时使用。
 
 > 带边框的两列对话框布局。
 
@@ -261,6 +287,12 @@ new DialogBox({
 
 ## Offstage
 
+**何时使用：** 需要隐藏某个 Widget 但保持其内部状态不丢失时使用。
+
+:::info 类似于 CSS visibility: hidden
+与直接不渲染不同，`Offstage` 隐藏子节点但保持其 State 存活，切回可见时无需重新初始化。
+:::
+
 > 隐藏子节点但保持其状态。
 
 | 参数 | 类型 | 默认值 | 说明 |
@@ -283,6 +315,8 @@ new Offstage({
 ---
 
 ## ForceDimWidget
+
+**何时使用：** 需要让子树中的所有文本变暗（dim）以表示非活动状态时使用。
 
 > InheritedWidget，向子树传播 dim（暗淡）状态。
 
@@ -308,6 +342,8 @@ const isDimmed = ForceDimWidget.shouldForceDim(context);
 ---
 
 ## SizeChangedNotifier
+
+**何时使用：** 需要监听子 Widget 尺寸变化时使用（如动态内容改变大小后需要同步更新其他部分）。
 
 > 包裹子节点，在布局尺寸变化时触发回调。
 

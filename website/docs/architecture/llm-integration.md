@@ -1,6 +1,31 @@
 # LLM 集成
 
+:::info 本页面适合...
+本页面适合想要深入了解 Flitter 内部架构的开发者。如果你只是使用框架构建 TUI 应用，可以跳过这部分。如果你需要接入自定义模型、配置降级策略或使用 MCP 协议，这里提供了完整的技术细节。
+:::
+
 `@flitter/llm` 提供统一的大模型接入层和 MCP 协议实现。
+
+## 快速开始
+
+最简单的 LLM 调用方式——只需指定模型名称，框架会自动选择正确的 Provider：
+
+```ts
+import { getProviderForModel } from "@flitter/llm";
+
+const provider = getProviderForModel("claude-sonnet-4-6");
+
+for await (const delta of provider.stream({
+  model: "claude-sonnet-4-6",
+  messages: [{ role: "user", content: "你好！" }],
+})) {
+  process.stdout.write(delta.text ?? "");
+}
+```
+
+:::tip 大多数用户只需使用 Anthropic Provider
+如果你使用 Claude 系列模型，只需确保设置了 `ANTHROPIC_API_KEY` 环境变量即可。框架会根据模型名称前缀自动选择 `AnthropicProvider`。
+:::
 
 ## Provider 架构
 
@@ -80,6 +105,10 @@ for await (const delta of fallback.streamWithFallback(params, getProvider)) {
 
 ## MCP 协议
 
+:::info 什么是 MCP？
+Model Context Protocol（MCP）是一个开放协议，允许 AI 应用连接到外部工具和数据源。如果你熟悉 Language Server Protocol（LSP），MCP 的概念类似——只不过 LSP 服务于 IDE，而 MCP 服务于 AI Agent。
+:::
+
 完整的 Model Context Protocol 实现：
 
 ### 传输层
@@ -118,3 +147,14 @@ OAuth 2.0 + PKCE 认证流程，支持：
 ## 消息转换
 
 `BaseMessageTransformer` 和 `BaseToolTransformer` 处理不同 Provider 之间的消息格式转换，确保上层代码不需要关心 Provider 差异。
+
+## 何时需要了解这些
+
+| 场景 | 需要了解的部分 |
+|------|---------------|
+| 接入新的 LLM 模型 | Provider 架构、自动检测 |
+| 处理模型过载 | 模型降级链 |
+| 使用 MCP 工具服务器 | MCP 协议、连接管理 |
+| 配置 Vertex AI | Vertex AI 认证 |
+| 实现实时对话 | GenAI WebSocket Live Provider |
+| 接入第三方 OAuth | OAuth 认证 |

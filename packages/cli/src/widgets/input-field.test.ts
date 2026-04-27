@@ -22,8 +22,16 @@
 
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import { Column, FocusManager, RichText, StatefulWidget, type TextSpan } from "@flitter/tui";
+import {
+  Column,
+  Container,
+  FocusManager,
+  RichText,
+  StatefulWidget,
+  type TextSpan,
+} from "@flitter/tui";
 import { InputField, type InputFieldConfig, InputFieldState } from "./input-field.js";
+import { ShortcutsPopup } from "./shortcuts-popup.js";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -223,6 +231,43 @@ describe("InputField visual fidelity", () => {
     state.dispose();
   });
 
+  it("空字段渲染光标块 (reverse-video space) + 占位符", () => {
+    // Guardrail: InputField must always show a cursor block even when empty.
+    // This ensures the cursor is visible after overlay dismiss (e.g., closing
+    // the command palette), not just when there is text content.
+    const { state } = mountInputField({ onSubmit: () => {} });
+    const built = state.build({} as any);
+    const richTexts = collectRichTexts(built);
+
+    // Find a TextSpan with a single space character that has non-default fg AND bg
+    let hasCursorBlock = false;
+    for (const rt of richTexts) {
+      rt.text.visitTextSpan((s: TextSpan) => {
+        if (hasCursorBlock) return false;
+        if (
+          s.text === " " &&
+          s.style?.foreground &&
+          s.style.foreground.kind === "named" &&
+          s.style.foreground.index === 0 && // black
+          s.style?.background &&
+          s.style.background.kind === "named" &&
+          s.style.background.index === 7 // white
+        ) {
+          hasCursorBlock = true;
+          return false;
+        }
+        return true;
+      });
+      if (hasCursorBlock) break;
+    }
+    assert.ok(
+      hasCursorBlock,
+      "Empty InputField should render a cursor block (black-on-white space)",
+    );
+
+    state.dispose();
+  });
+
   it("有文本时显示实际文本内容", () => {
     const { state, fm } = mountInputField({ onSubmit: () => {} });
 
@@ -251,12 +296,17 @@ describe("InputField visual fidelity", () => {
     const richTexts = collectRichTexts(built);
 
     // 查找包含 background 颜色的 span (inverse video 效果)
-    // Cursor uses background = Color.default() (terminal fg as bg)
-    // and foreground = Color.indexed(0) (black) for contrast
+    // Cursor uses foreground = Color.black() (named, index 0) and
+    // background = Color.white() (named, index 7) for visible cursor block
     let hasInverseSpan = false;
     for (const rt of richTexts) {
       rt.text.visitTextSpan((s: TextSpan) => {
-        if (s.style?.foreground && s.style.foreground.kind === "index") {
+        if (
+          s.style?.foreground &&
+          s.style.foreground.kind === "named" &&
+          s.style?.background &&
+          s.style.background.kind === "named"
+        ) {
           hasInverseSpan = true;
           return false;
         }
@@ -701,5 +751,113 @@ describe("InputFieldState.insertThreadMention", () => {
     );
 
     state.dispose();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  topWidget rendering position — guardrail for inside-border layout
+// ═══════════════════════════════════════════════════════════
+// 逆向: k8R topWidget (chunk-006.js:37662-37664) — topWidget renders INSIDE
+// the TextField's BoxDecoration border, not above it. This test prevents
+// regression where topWidget accidentally renders above ╭──╮.
+
+describe("InputField topWidget renders inside border", () => {
+  afterEach(() => {
+    try {
+      FocusManager.instance.dispose();
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("topWidget is wrapped in Container between top border and content rows", () => {
+    // Create a dummy widget to use as topWidget
+    const dummyTopWidget = new RichText({
+      text: { toPlainText: () => "SHORTCUTS", visitTextSpan: () => true } as any,
+    } as any);
+
+    const { state } = mountInputField({
+      onSubmit: () => {},
+      topWidget: dummyTopWidget,
+      width: 76,
+    });
+    const built = state.build({} as any);
+
+    // built should be a Column
+    assert.ok(built instanceof Column, "build() should return a Column");
+    const children: any[] = (built as any).children;
+    assert.ok(
+      Array.isArray(children) && children.length >= 3,
+      "Column should have at least 3 children",
+    );
+
+    // First child: top border ╭──╮ (RichText)
+    const firstChild = children[0];
+    assert.ok(firstChild instanceof RichText, "First child should be RichText (top border)");
+    const topBorderText = (firstChild as RichText).text.toPlainText();
+    assert.ok(topBorderText.includes("\u256D"), "First child should be top border starting with ╭");
+
+    // Second child: Container wrapping topWidget (NOT a RichText border)
+    const secondChild = children[1];
+    assert.ok(
+      secondChild instanceof Container,
+      "Second child should be Container wrapping topWidget (not above the border)",
+    );
+
+    // Last child: bottom border ╰──╯ (RichText)
+    const lastChild = children[children.length - 1];
+    assert.ok(lastChild instanceof RichText, "Last child should be RichText (bottom border)");
+    const bottomBorderText = (lastChild as RichText).text.toPlainText();
+    assert.ok(
+      bottomBorderText.includes("\u2570"),
+      "Last child should be bottom border starting with ╰",
+    );
+
+    state.dispose();
+  });
+
+  it("without topWidget, no Container is inserted between borders", () => {
+    const { state } = mountInputField({
+      onSubmit: () => {},
+      width: 76,
+    });
+    const built = state.build({} as any);
+
+    const children: any[] = (built as any).children;
+
+    // First child: top border
+    assert.ok(children[0] instanceof RichText, "First child should be top border RichText");
+
+    // Second child should NOT be a Container (should be content Row)
+    assert.ok(
+      !(children[1] instanceof Container),
+      "Without topWidget, second child should not be a Container",
+    );
+
+    state.dispose();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ShortcutsPopup separator — guardrail for ─ divider
+// ═══════════════════════════════════════════════════════════
+// 逆向: U8R (misc_utils.js:9882-9887) — returns Column with [...shortcutRows, separator]
+// where separator is Row(Expanded(B8R(color))) — a ─ horizontal rule.
+
+describe("ShortcutsPopup includes ─ separator", () => {
+  it("build() output Column includes a ─ separator as last child", () => {
+    const popup = new ShortcutsPopup();
+    const built = popup.build({} as any);
+
+    // built should be a Column
+    assert.ok(built instanceof Column, "ShortcutsPopup.build() should return a Column");
+    const children: any[] = (built as any).children;
+    assert.ok(children.length >= 2, "Column should have shortcut rows + separator");
+
+    // Last child should be a RichText containing ─
+    const lastChild = children[children.length - 1];
+    assert.ok(lastChild instanceof RichText, "Last child should be RichText (separator)");
+    const text = (lastChild as RichText).text.toPlainText();
+    assert.ok(text.includes("\u2500"), "Separator should contain ─ characters");
   });
 });

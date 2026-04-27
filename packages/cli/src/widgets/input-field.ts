@@ -29,8 +29,13 @@
 
 import type { BuildContext, Element, KeyEvent, PasteEvent, Widget } from "@flitter/tui";
 import {
+  Border,
+  BorderSide,
+  BoxDecoration,
   Color,
   Column,
+  Container,
+  EdgeInsets,
   FocusManager,
   FocusNode,
   type KeyEventResult,
@@ -71,10 +76,12 @@ const MUTED_TEXT_COLOR = Color.default();
 const TEXT_COLOR = Color.default();
 
 /** background 色 — 光标反色前景
- * 逆向: cursor uses inverse video. We use indexed 0 (black) for the
- * cursor character foreground so it contrasts against the default bg.
- * This is the closest terminal-native approach without an 'inverse' SGR attr. */
-const BG_COLOR = Color.indexed(0);
+ * 逆向: L1T._paintSoftwareCursor (chunk-006.js:5108-5112) uses { reverse: !0 }
+ * 逆向: L1T.paint (actions_intents.js:1675) passes backgroundColor ?? LT.black
+ * Since TextStyle has no reverse property, we manually swap fg↔bg.
+ * Cursor block: foreground = black (text on cursor), background = white (cursor block color) */
+const CURSOR_FG_COLOR = Color.black();
+const CURSOR_BG_COLOR = Color.white();
 
 /** 默认边框宽度 (80 列终端 - 2 列边框字符) */
 const DEFAULT_BORDER_INNER_WIDTH = 78;
@@ -153,13 +160,21 @@ export interface InputFieldConfig {
    */
   onSlashCommandTrigger?: () => void;
   /**
-   * Widget rendered above the input box's top border (inside the input area).
+   * Fired when `?` is pressed on an empty input field.
+   *
+   * 逆向: chunk-006.js:36288-36308 — toggle isShowingShortcutsHelp when `?`
+   * pressed, input empty, input focused, no overlay open.
+   */
+  onShortcutsToggle?: () => void;
+  /**
+   * Widget rendered inside the input box border, above the text input area.
    *
    * 逆向: k8R topWidget (chunk-006.js:37662-37664)
    *   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
    *
-   * Used for the shortcuts help panel (ShortcutsPopup / U8R) which appears
-   * directly above the input box border, not as a separate layout element.
+   * In amp, the topWidget sits inside the TextField's BoxDecoration border,
+   * above the text cursor, with a ─ horizontal separator between them.
+   * Used for the shortcuts help panel (ShortcutsPopup / U8R).
    */
   topWidget?: import("@flitter/tui").Widget;
 }
@@ -223,6 +238,10 @@ export class InputFieldState extends State<InputField> {
   /** 文本编辑控制器 */
   private _controller!: TextEditingController;
 
+  /** Focus change listener — triggers rebuild so cursor visibility updates.
+   * 逆向: sP._focusChangeListener (actions_intents.js:819-821) */
+  private _focusChangeListener!: (node: FocusNode) => void;
+
   /**
    * 初始化状态。
    *
@@ -237,6 +256,14 @@ export class InputFieldState extends State<InputField> {
       onKey: (event: KeyEvent) => this._handleKeyEvent(event),
       onPaste: (event: PasteEvent) => this._handlePasteEvent(event),
     });
+    // 逆向: sP.initState — _focusChangeListener = T => { this.setState(() => {}) }
+    // (actions_intents.js:819-821)
+    // Focus change triggers rebuild so cursor visibility updates when focus
+    // returns after overlay dismiss.
+    this._focusChangeListener = (_node: FocusNode) => {
+      if (this.mounted) this.setState();
+    };
+    this._focusNode.addListener(this._focusChangeListener);
     FocusManager.instance.registerNode(this._focusNode);
     this._focusNode.requestFocus();
   }
@@ -256,6 +283,7 @@ export class InputFieldState extends State<InputField> {
    * 注销 FocusNode、销毁 FocusNode 和 TextEditingController。
    */
   dispose(): void {
+    this._focusNode.removeListener(this._focusChangeListener);
     FocusManager.instance.unregisterNode(this._focusNode);
     this._focusNode.dispose();
     this._controller.dispose();
@@ -300,17 +328,38 @@ export class InputFieldState extends State<InputField> {
 
     // 内容 Widget
     let contentWidget: Widget;
+    const hasFocus = this._focusNode.hasFocus;
     if (isEmpty) {
-      // 占位符文本
+      // 逆向: L1T.paint — cursor is painted at cursorPosition when focused, even when text is empty
+      // (actions_intents.js:1675-1696). The cursor is a reverse-video space at position 0.
+      // Placeholder text renders after the cursor when focused.
       const placeholder = this.widget.config.placeholder ?? "Type a message...";
-      contentWidget = new RichText({
-        text: new TextSpan({
-          text: placeholder,
-          style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
-        }),
-      });
-    } else {
-      // 实际文本 + 光标 (反色)
+      if (hasFocus) {
+        const cursorStyle = new TextStyle({
+          foreground: CURSOR_FG_COLOR,
+          background: CURSOR_BG_COLOR,
+        });
+        contentWidget = new RichText({
+          text: new TextSpan({
+            children: [
+              new TextSpan({ text: " ", style: cursorStyle }),
+              new TextSpan({
+                text: placeholder,
+                style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
+              }),
+            ],
+          }),
+        });
+      } else {
+        contentWidget = new RichText({
+          text: new TextSpan({
+            text: placeholder,
+            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
+          }),
+        });
+      }
+    } else if (hasFocus) {
+      // 实际文本 + 光标 (反色) — only when focused
       const cursorPos = this._controller.cursorPosition;
       const before = text.slice(0, cursorPos);
       const cursorChar = text[cursorPos] || " ";
@@ -318,8 +367,8 @@ export class InputFieldState extends State<InputField> {
 
       const textStyle = new TextStyle({ foreground: TEXT_COLOR });
       const cursorStyle = new TextStyle({
-        foreground: BG_COLOR,
-        background: TEXT_COLOR,
+        foreground: CURSOR_FG_COLOR,
+        background: CURSOR_BG_COLOR,
       });
 
       contentWidget = new RichText({
@@ -330,6 +379,12 @@ export class InputFieldState extends State<InputField> {
             ...(after ? [new TextSpan({ text: after, style: textStyle })] : []),
           ],
         }),
+      });
+    } else {
+      // Text without cursor — unfocused
+      const textStyle = new TextStyle({ foreground: TEXT_COLOR });
+      contentWidget = new RichText({
+        text: new TextSpan({ text, style: textStyle }),
       });
     }
 
@@ -364,13 +419,32 @@ export class InputFieldState extends State<InputField> {
     return new Column({
       mainAxisSize: "min",
       children: [
-        // topWidget: e.g. ShortcutsPopup rendered above the input box border
-        // 逆向: k8R topWidget (chunk-006.js:37662-37664)
-        ...(this.widget.config.topWidget ? [this.widget.config.topWidget] : []),
         // 顶部边框: ╭──...──╮
         new RichText({
           text: new TextSpan({ text: topBorder, style: borderStyle }),
         }),
+        // topWidget inside border (e.g. ShortcutsPopup)
+        // 逆向: k8R topWidget (chunk-006.js:37662-37664) — rendered inside
+        // the TextField's BoxDecoration border, above the text input area.
+        // We use a Container with left+right borders only (no top/bottom)
+        // so that │ side borders are painted on every row of the topWidget.
+        ...(this.widget.config.topWidget
+          ? [
+              new Container({
+                width: borderInnerWidth + 4,
+                padding: EdgeInsets.symmetric({ horizontal: 1 }),
+                decoration: new BoxDecoration({
+                  border: new Border(
+                    undefined, // no top
+                    new BorderSide(borderColor, 1, "rounded"),
+                    undefined, // no bottom
+                    new BorderSide(borderColor, 1, "rounded"),
+                  ),
+                }),
+                child: this.widget.config.topWidget,
+              }),
+            ]
+          : []),
         // 内容区: │ content │ (3 行, 左右各 │ 边框)
         // 逆向: amp SR._paintGridBorders 自动绘制 │ 侧边框
         ...this._buildContentRows(contentWidget, borderInnerWidth, borderStyle),
@@ -749,6 +823,14 @@ export class InputFieldState extends State<InputField> {
       // fire the trigger callback to open the command palette, then clear input.
       if (event.key === "/" && m.text === "/" && this.widget.config.onSlashCommandTrigger) {
         this.widget.config.onSlashCommandTrigger();
+        m.text = "";
+        this._markDirty();
+      }
+
+      // ── "?" shortcuts toggle trigger ──
+      // 逆向: chunk-006.js:36288-36308 — toggle shortcuts when `?` pressed on empty input
+      if (event.key === "?" && m.text === "?" && this.widget.config.onShortcutsToggle) {
+        this.widget.config.onShortcutsToggle();
         m.text = "";
         this._markDirty();
       }

@@ -569,6 +569,34 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
+   * Restore focus to the InputField after overlay dismiss.
+   *
+   * 逆向: amp uses focusNode.requestFocus() directly after overlay dismiss
+   * since it holds a ref to the InputField's FocusNode. In flitter,
+   * InputField manages its own FocusNode internally, so we find it
+   * by debugLabel through FocusManager.
+   *
+   * Uses addPostFrameCallback to defer focus restoration until after the
+   * current frame completes — the overlay's FocusNode must be unregistered
+   * (during widget tree teardown) before we can reclaim focus.
+   */
+  private _restoreInputFieldFocus(): void {
+    // Defense-in-depth: after the overlay's rebuild frame completes,
+    // verify InputField has focus. With frame-internal autofocus this
+    // should be a no-op, but guards against edge cases.
+    WidgetsBinding.instance.frameScheduler.addPostFrameCallback(() => {
+      const primaryFocus = FocusManager.instance.primaryFocus;
+      if (primaryFocus?.debugLabel !== "InputField") {
+        const nodes = FocusManager.instance.findAllFocusableNodes();
+        const inputNode = nodes.find((n) => n.debugLabel === "InputField");
+        if (inputNode) {
+          inputNode.requestFocus();
+        }
+      }
+    });
+  }
+
+  /**
    * 初始化状态。
    *
    * 订阅 ThreadStore 和 ThreadWorker 事件流:
@@ -742,20 +770,12 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         return true;
       }
 
-      // ── ? key — shortcuts help panel ────────────────────────────────────
+      // ── Shortcuts help panel auto-dismiss ───────────────────────────────
       // 逆向: chunk-006.js:36288-36308
-      //   When `?` pressed and input is empty and input is focused and no other
-      //   overlay is open → toggle isShowingShortcutsHelp.
       //   When isShowingShortcutsHelp is true and any key fires → dismiss.
       //   Escape while showing help → dismiss and consume the event.
-      if (event.key === "?") {
-        if (inputFocused) {
-          this.setState(() => {
-            this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
-          });
-          return true;
-        }
-      }
+      //   The `?` toggle itself is handled inside InputField (onShortcutsToggle)
+      //   so it only fires when the input is empty.
       if (this._isShowingShortcutsHelp) {
         this.setState(() => {
           this._isShowingShortcutsHelp = false;
@@ -1125,6 +1145,12 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                   this._isShowingCommandPalette = true;
                 });
               },
+              // 逆向: chunk-006.js:36288-36308 — toggle shortcuts on `?` when input empty
+              onShortcutsToggle: () => {
+                this.setState(() => {
+                  this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
+                });
+              },
               // Gap fix: wire Ctrl+G and Ctrl+S through to interactive.ts
               onOpenInEditor: this.widget.config.onOpenInEditor,
               onToggleAgentMode: this.widget.config.onToggleAgentMode,
@@ -1166,12 +1192,14 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               this.setState(() => {
                 this._isShowingCommandPalette = false;
               });
+              this._restoreInputFieldFocus();
               this.widget.config.onSlashCommand?.(commandId, "");
             },
             onDismiss: () => {
               this.setState(() => {
                 this._isShowingCommandPalette = false;
               });
+              this._restoreInputFieldFocus();
             },
           }) as unknown as Widget,
         }),
@@ -1207,6 +1235,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                   this.setState(() => {
                     this._isShowingHistoryPicker = false;
                   });
+                  this._restoreInputFieldFocus();
                   // Navigate history to the selected entry
                   const history = this._promptHistory;
                   if (!history.isNavigating) {
@@ -1226,6 +1255,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                   this.setState(() => {
                     this._isShowingHistoryPicker = false;
                   });
+                  this._restoreInputFieldFocus();
                 },
                 renderItem: (entry, isSelected) => {
                   return new Container({

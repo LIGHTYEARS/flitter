@@ -34,8 +34,6 @@ import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Color,
   Column,
-  EdgeInsets,
-  Padding,
   RichText,
   Row,
   SizedBox,
@@ -160,11 +158,23 @@ export class ShortcutsPopup extends StatelessWidget {
       });
     });
 
-    return new Padding({
-      padding: EdgeInsets.symmetric({ horizontal: 1 }),
-      child: new Column({
-        children: rows,
+    // ─ separator at bottom (逆向: U8R returns xR { children: [...h, i] }
+    // where i is Row(Expanded(B8R(color))) — a full-width ─ horizontal rule)
+    // The separator sits between the shortcuts and the text input area.
+    // We render it as a RichText of ─ characters; the actual width is
+    // constrained by the parent (InputField's Container wrapper).
+    const separatorStyle = new TextStyle({ foreground: FG_COLOR, dim: true });
+    const separator = new RichText({
+      text: new TextSpan({
+        text: "\u2500".repeat(200), // oversized; clipped by parent constraint
+        style: separatorStyle,
       }),
+      maxLines: 1,
+    });
+
+    return new Column({
+      mainAxisSize: "min",
+      children: [...rows, separator],
     });
   }
 }

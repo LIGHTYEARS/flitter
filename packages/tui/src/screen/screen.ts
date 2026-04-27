@@ -173,9 +173,17 @@ export class Screen {
    * @param char - 显示字符
    * @param style - 文本样式
    * @param width - 显示宽度，默认为 1
+   * @param url - OSC 8 超链接 URL（可选）
    */
-  writeChar(x: number, y: number, char: string, style: TextStyle, width: number = 1): void {
-    this.back.writeChar(x, y, char, style, width);
+  writeChar(
+    x: number,
+    y: number,
+    char: string,
+    style: TextStyle,
+    width: number = 1,
+    url?: string,
+  ): void {
+    this.back.writeChar(x, y, char, style, width, url);
     this.markDirty(x, y);
     if (width === 2) {
       this.markDirty(x + 1, y);

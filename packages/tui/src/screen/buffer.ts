@@ -107,13 +107,21 @@ export class ScreenBuffer {
    * @param char - 显示字符
    * @param style - 文本样式
    * @param width - 显示宽度，默认为 1
+   * @param url - OSC 8 超链接 URL（可选）
    */
-  writeChar(x: number, y: number, char: string, style: TextStyle, width: number = 1): void {
+  writeChar(
+    x: number,
+    y: number,
+    char: string,
+    style: TextStyle,
+    width: number = 1,
+    url?: string,
+  ): void {
     const merged = this._mergeBackground(x, y, style);
-    this.setCell(x, y, new Cell(char, merged, width));
+    this.setCell(x, y, new Cell(char, merged, width, url));
     if (width === 2) {
       const merged2 = this._mergeBackground(x + 1, y, merged);
-      this.setCell(x + 1, y, new Cell("", merged2, 0));
+      this.setCell(x + 1, y, new Cell("", merged2, 0, url));
     }
   }
 

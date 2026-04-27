@@ -49,6 +49,8 @@ interface LayoutGlyph {
   width: number;
   /** 来源 TextSpan 引用，用于 hit-testing */
   span: TextSpan;
+  /** OSC 8 超链接 URL (逆向: amp G.hyperlink) */
+  url?: string;
 }
 
 /** 文本对齐方式 */
@@ -654,7 +656,7 @@ export class RenderParagraph extends RenderBox {
               background: glyph.style.foreground,
             })
           : glyph.style;
-        screen.writeChar(x, y, glyph.grapheme, style, glyph.width);
+        screen.writeChar(x, y, glyph.grapheme, style, glyph.width, glyph.url);
         x += glyph.width;
         glyphIndex++;
       }
@@ -667,27 +669,36 @@ export class RenderParagraph extends RenderBox {
    * @param span - 当前 TextSpan 节点
    * @param styleStack - 祖先样式栈（从根到父）
    * @param out - 输出的字素数组
+   * @param parentUrl - 祖先节点的 url，用于 url 继承（逆向: amp getStyledSegments 的第三个参数）
    *
    * @internal
    */
-  private _collectGlyphs(span: TextSpan, styleStack: TextStyle[], out: LayoutGlyph[]): void {
+  private _collectGlyphs(
+    span: TextSpan,
+    styleStack: TextStyle[],
+    out: LayoutGlyph[],
+    parentUrl?: string,
+  ): void {
     // 计算有效样式：从根到当前节点逐层合并
     const effectiveStyle = this._resolveStyle(span, styleStack);
     const newStack = [...styleStack, effectiveStyle];
+
+    // 逆向: amp getStyledSegments — r = T.hyperlink ?? a
+    const effectiveUrl = span.url ?? parentUrl;
 
     // 处理当前节点的文本
     if (span.text) {
       const segments = graphemeSegments(span.text);
       for (const seg of segments) {
         const w = charWidth(seg);
-        out.push({ grapheme: seg, style: effectiveStyle, width: w, span });
+        out.push({ grapheme: seg, style: effectiveStyle, width: w, span, url: effectiveUrl });
       }
     }
 
     // 递归处理子节点
     if (span.children) {
       for (const child of span.children) {
-        this._collectGlyphs(child, newStack, out);
+        this._collectGlyphs(child, newStack, out, effectiveUrl);
       }
     }
   }

@@ -105,6 +105,12 @@ export interface ConversationViewConfig {
   /** 流式增量文本 */
   streamingDelta?: string | null;
   /**
+   * Current working directory for workspace-relative path display.
+   * Used to convert absolute file paths to short relative paths.
+   * 逆向: ki() (2651_unknown_qD0.js) uses workspace root to shorten paths.
+   */
+  cwd?: string;
+  /**
    * Index in items[] of the currently selected (browse-mode) message.
    *
    * When set, the corresponding user message widget is rendered with a full

@@ -1084,6 +1084,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                       this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
                     error: this._error,
                     selectedItemIndex: this._selectedItemIndex,
+                    cwd: process.cwd(),
                   }),
               }),
             }),

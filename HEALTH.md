@@ -1,6 +1,6 @@
 # HEALTH — 项目健康度 Overview
 
-> 最后更新: 2026-04-25 | 更新者: claude-opus-4-6
+> 最后更新: 2026-04-26 | 更新者: claude-opus-4-6
 
 Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widget 框架。本文件是项目当前状态的活快照，由 AI 在每次 session 中维护。静态架构设计见 [ARCHITECTURE.md](ARCHITECTURE.md)。
 
@@ -10,9 +10,9 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 维度 | 状态 | 摘要 |
 |------|------|------|
-| 测试覆盖 | 🟡 | 6451 pass / 1 fail (pre-existing: container integration inference roundtrip), 351 测试文件. +1 context-window-overlay test file (25 tests) |
+| 测试覆盖 | 🟢 | 7410 pass / 0 fail, 392 测试文件. Gap closure: +30 selection/image/kitty tests. Pre-existing failures fixed (container-integration, E2E import check, typecheck) |
 | 技术债务 | 🟢 | 0 真实 TODO，0 FIXME/HACK，极度干净（grep.ts/todo-write.ts JSDoc 示例中的 'TODO' 不计入） |
-| 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包 |
+| 依赖健康 | 🟢 | 严格分层 DAG，无循环依赖，2 个独立 leaf 包. +3 image deps (jpeg-js, upng-js, omggif) |
 
 ### ⚠️ Watch Items
 
@@ -24,7 +24,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 
 | 包 | 测试文件 | E2E | 通过 | 失败 | 跳过 |
 |----|---------|-----|------|------|------|
-| @flitter/tui | 92 | 1 | ✓ | 0 | 0 |
+| @flitter/tui | 95 | 1 | ✓ | 0 | 0 |
 | @flitter/agent-core | 59 | 0 | ✓ | 0 | 0 |
 | @flitter/cli | 84 | 2 | ✓ | 0 | 0 |
 | @flitter/llm | 30 | 0 | ✓ | 0 | 0 |
@@ -33,7 +33,7 @@ Flitter 是 amp-cli 的逆向工程实现，基于 Flutter-for-Terminal 的 widg
 | @flitter/flitter | 6 | 0 | ✓ | 0 | 0 |
 | @flitter/schemas | 5 | 0 | ✓ | 0 | 0 |
 | apps/flitter-cli | 0 | 0 | — | — | — |
-| **总计** | **351** | **3** | **6451** | **0** | **0** |
+| **总计** | **392** | **3** | **7410** | **0** | **0** |
 
 `apps/flitter-cli` 是 1 文件的薄入口层，委托给 `@flitter/cli` 和 `@flitter/flitter`，零测试可接受。
 
@@ -86,7 +86,7 @@ apps/flitter-cli
 | 包 | 内部依赖 | 关键外部依赖 | 循环? |
 |----|---------|-------------|-------|
 | @flitter/schemas | 0 | zod | 否 |
-| @flitter/tui | 0 | micromark + GFM 扩展 | 否 |
+| @flitter/tui | 0 | micromark + GFM 扩展, jpeg-js, upng-js, omggif | 否 |
 | @flitter/util | 1 (schemas) | — | 否 |
 | @flitter/data | 2 (schemas, util) | — | 否 |
 | @flitter/llm | 2 (schemas, util) | @anthropic-ai/sdk, openai, @google/genai | 否 |

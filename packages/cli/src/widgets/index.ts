@@ -145,7 +145,6 @@ export {
   SkillListModalWidget,
   type SkillWarning,
 } from "./skill-list-modal.js";
-export { SlashCommandAutocomplete } from "./slash-command-autocomplete.js";
 export {
   CONTEXT_DANGER,
   CONTEXT_RECOMMENDATION,

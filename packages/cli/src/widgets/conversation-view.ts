@@ -46,6 +46,7 @@ import {
   State,
   StatefulWidget,
   SyntaxHighlighter,
+  supportsKittyGraphics,
   syntaxColorsToTheme,
   TextSpan,
   TextStyle,
@@ -525,8 +526,8 @@ export class ConversationViewState extends State<ConversationView> {
         new Scrollbar({
           controller,
           getScrollInfo: () => ({
-            totalContentHeight: controller.maxScrollExtent + 24,
-            viewportHeight: 24,
+            totalContentHeight: controller.maxScrollExtent + (controller.viewportDimension || 24),
+            viewportHeight: controller.viewportDimension || 24,
             scrollOffset: controller.offset,
           }),
         }),
@@ -617,6 +618,7 @@ export class ConversationViewState extends State<ConversationView> {
       text: new TextSpan({
         children,
       }),
+      selectable: true,
     });
 
     // Token usage display (逆向: NJT feature flag)
@@ -637,14 +639,22 @@ export class ConversationViewState extends State<ConversationView> {
   /**
    * Build [image N] label spans for image content blocks.
    * 逆向: _8R (1953_unknown__8R.js:23-27) — underlined italic labels
+   *
+   * Shows contextual text based on terminal capabilities:
+   * - Kitty-capable: "[image N]" (could render inline in future)
+   * - Other terminals: "[image N — terminal does not support inline images]"
    */
   private _buildImageLabels(count: number): TextSpan[] {
     const spans: TextSpan[] = [];
+    const hasKitty = supportsKittyGraphics();
     for (let i = 0; i < count; i++) {
       if (i > 0) spans.push(new TextSpan({ text: " " }));
+      const label = hasKitty
+        ? `[image ${i + 1}]`
+        : `[image ${i + 1} — terminal does not support inline images]`;
       spans.push(
         new TextSpan({
-          text: `[image ${i + 1}]`,
+          text: label,
           style: new TextStyle({
             underline: true,
             foreground: MUTED_TEXT_COLOR,
@@ -707,6 +717,7 @@ export class ConversationViewState extends State<ConversationView> {
 
     const content = new RichText({
       text: new TextSpan({ children: allSpans }),
+      selectable: true,
     });
 
     let borderWidget: Widget;

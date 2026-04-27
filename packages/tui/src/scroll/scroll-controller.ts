@@ -47,6 +47,9 @@ export class ScrollController {
   /** 最大滚动范围 */
   private _maxScrollExtent: number = 0;
 
+  /** 视口高度（由 RenderScrollable.performLayout 设置） */
+  private _viewportDimension: number = 0;
+
   /** 是否处于跟随模式（自动滚到底部） */
   private _followMode: boolean = true;
 
@@ -94,6 +97,26 @@ export class ScrollController {
    */
   get maxScrollExtent(): number {
     return this._maxScrollExtent;
+  }
+
+  /**
+   * 视口高度（行数）。
+   *
+   * 由 {@link RenderScrollable.performLayout} 在每次布局时设置。
+   *
+   * @returns 当前视口高度
+   */
+  get viewportDimension(): number {
+    return this._viewportDimension;
+  }
+
+  /**
+   * 更新视口高度。
+   *
+   * @param height - 新的视口高度（行数）
+   */
+  updateViewportDimension(height: number): void {
+    this._viewportDimension = height;
   }
 
   /**

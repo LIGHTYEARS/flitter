@@ -98,12 +98,20 @@ describe("WelcomeScreen", () => {
     assert.ok(hasCtrlO, `Expected "Ctrl+O" in ${JSON.stringify(texts)}`);
   });
 
-  it("build() includes Tab/Shift+Tab navigation hint", () => {
+  it("build() includes a rotating splash hint", () => {
     const widget = new WelcomeScreen();
     const built = widget.build({} as any);
     const texts = extractPlainTexts(built);
-    const hasTabHint = texts.some((t) => t.includes("Tab/Shift+Tab"));
-    assert.ok(hasTabHint, `Expected "Tab/Shift+Tab" in ${JSON.stringify(texts)}`);
+    // 逆向: amp fIT array — welcome screen shows one randomly-selected hint
+    // The hint text is below the "Ctrl+O for help" line
+    // We check that there are at least 3 text entries (welcome, ctrl+o, hint)
+    assert.ok(
+      texts.length >= 3,
+      `Expected at least 3 text entries, got ${texts.length}: ${JSON.stringify(texts)}`,
+    );
+    // The hint should not be empty
+    const hintText = texts[texts.length - 1];
+    assert.ok(hintText && hintText.length > 0, `Expected non-empty hint text, got: "${hintText}"`);
   });
 
   it("build() uses AnimatedOrb instead of static ASCII art", () => {

@@ -29,17 +29,27 @@
 import { resolveModel } from "@flitter/llm";
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
+  BoxDecoration,
+  Center,
+  Color,
   Column,
+  Container,
   EdgeInsets,
   Expanded,
   FocusManager,
+  FuzzyPicker,
   Padding,
   Positioned,
+  Row,
   Scrollable,
   ScrollController,
+  SelectionAreaWidget,
+  SizedBox,
   Stack,
   State,
   StatefulWidget,
+  Text,
+  TextStyle,
   WidgetsBinding,
 } from "@flitter/tui";
 import type { Subscription } from "@flitter/util";
@@ -47,6 +57,7 @@ import type { Subscription } from "@flitter/util";
 import type { ApprovalRequest } from "./approval-widget.js";
 import { ApprovalWidget } from "./approval-widget.js";
 import { BottomStatusLine } from "./bottom-status-line.js";
+import { CommandPaletteOverlay } from "./command-palette-widget.js";
 import { ConversationView } from "./conversation-view.js";
 import type { DisplayItem } from "./display-items.js";
 import { projectStreamingMessage, transformThreadToDisplayItems } from "./display-items.js";
@@ -111,6 +122,12 @@ export interface ThreadStateWidgetConfig {
   /** Ctrl+G: open current input in $EDITOR (逆向: actions_intents.js:1054-1058)
    * Called with the current input text. */
   onOpenInEditor?: (text: string) => void;
+  /** Ctrl+S: toggle agent mode (逆向: chunk-006.js:35516-35524)
+   * Called to cycle through visible agent modes (smart/deep/fast). */
+  onToggleAgentMode?: () => void;
+  /** Alt+D: toggle deep reasoning effort (逆向: chunk-006.js:35556)
+   * Called to cycle deep reasoning effort (medium/high/xhigh). */
+  onToggleDeepReasoning?: () => void;
 
   /**
    * `e` key: edit selected message.
@@ -137,6 +154,33 @@ export interface ThreadStateWidgetConfig {
    *   "Stick a fork in it, it's done" deprecation modal.
    */
   onShowForkDeprecation?: () => void;
+
+  /**
+   * Slash command list for the command palette overlay.
+   * Each entry has an id (command name), label, optional category and description.
+   *
+   * 逆向: amp's commandPaletteMode populates from e0R command registry entries
+   *   with { id, noun (category), verb (label), description }
+   */
+  slashCommands?: Array<{
+    id: string;
+    label: string;
+    category?: string;
+    description?: string;
+  }>;
+
+  /**
+   * Slash command execution callback — fired when user selects a command from palette.
+   *
+   * 逆向: amp executes via e0R.execute(commandId) which calls registered handler.
+   */
+  onSlashCommand?: (command: string, args: string) => void;
+
+  /**
+   * Thread list for @@ mention picker.
+   * 逆向: amp wQ thread picker uses R.threads for thread selection.
+   */
+  threadList?: Array<{ id: string; title: string | null; messageCount: number }>;
 }
 
 // ════════════════════════════════════════════════════
@@ -469,6 +513,19 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    */
   private _isShowingShortcutsHelp = false;
 
+  /**
+   * Whether the command palette overlay is currently shown.
+   *
+   * Toggled by pressing `/` when the input field is empty.
+   * Dismissed by Escape, or when a command is selected.
+   *
+   * 逆向: amp's commandPaletteMode (tui-thread-widgets.js:2748)
+   *   Triggered by textChangeListener when text === "/", opens modal command list.
+   */
+  private _isShowingCommandPalette = false;
+  private _isShowingHistoryPicker = false;
+  private _isShowingThreadPicker = false;
+
   /** 滚动控制器 */
   private _scrollController: ScrollController;
 
@@ -542,7 +599,42 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     //   Shift+Tab in selection mode → navigate down (exit if at end);
     //   Escape in selection mode → exit.
     this._scrollKeyInterceptorUnsub = WidgetsBinding.instance.addKeyInterceptor((event) => {
-      if (event.modifiers.ctrl || event.modifiers.alt || event.modifiers.meta) return false;
+      // ── Command palette / overlay active — let FuzzyPicker handle all keys ─────
+      // 逆向: jetbrains_wizard.js:5642 — QP.enabled = false when palette open
+      //   All normal app widgets (input, scrolling) are disabled.
+      //   FuzzyPicker handles its own keyboard via Shortcuts/Actions.
+      if (this._isShowingCommandPalette) {
+        return false; // let FuzzyPicker handle it
+      }
+
+      // ── Alt+T — toggle thinking blocks ──────────────────────────────────
+      // 逆向: chunk-006.js:37137-37139 — x0.alt("t") → Ut.instance.toggleAll()
+      if (event.key === "t" && event.modifiers.alt) {
+        this.toggleThinkingBlocks();
+        return true;
+      }
+
+      // ── Alt+D — toggle deep reasoning effort ────────────────────────────
+      // 逆向: chunk-006.js:37156-37158 — x0.alt("d") → toggleDeepReasoningEffort()
+      if (event.key === "d" && event.modifiers.alt) {
+        this.widget.config.onToggleDeepReasoning?.();
+        return true;
+      }
+
+      // ── Ctrl+R — prompt history picker ──────────────────────────────────
+      // 逆向: chunk-006.js:37141-37145 — x0.ctrl("r") → isShowingPromptHistoryPicker = true
+      if (event.key === "r" && event.modifiers.ctrl) {
+        if (this._promptHistory.entries.length > 0) {
+          this.setState(() => {
+            this._isShowingHistoryPicker = true;
+          });
+          return true;
+        }
+        return false;
+      }
+
+      // Non-intercepted modifier keys pass through to InputField's own handler
+      if (event.modifiers.ctrl || event.modifiers.meta) return false;
 
       const primaryFocus = FocusManager.instance.primaryFocus;
       const inputFocused = primaryFocus?.debugLabel === "InputField";
@@ -960,18 +1052,20 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const conversationArea =
       displayItems.length === 0
         ? new WelcomeScreen({ productName: "Flitter" })
-        : new Padding({
-            padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
-            child: new Scrollable({
-              controller: this._scrollController,
-              viewportBuilder: () =>
-                new ConversationView({
-                  items: displayItems,
-                  inferenceState:
-                    this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
-                  error: this._error,
-                  selectedItemIndex: this._selectedItemIndex,
-                }),
+        : new SelectionAreaWidget({
+            child: new Padding({
+              padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
+              child: new Scrollable({
+                controller: this._scrollController,
+                viewportBuilder: () =>
+                  new ConversationView({
+                    items: displayItems,
+                    inferenceState:
+                      this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+                    error: this._error,
+                    selectedItemIndex: this._selectedItemIndex,
+                  }),
+              }),
             }),
           });
 
@@ -993,7 +1087,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         })
       : new Expanded({ child: conversationArea });
 
-    return new Column({
+    const normalLayout = new Column({
       children: [
         mainContent,
         // Shortcuts help panel — shown above the input field when `?` was pressed.
@@ -1027,6 +1121,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
               //   The hint uses keybind color for "?" and dim foreground for " for shortcuts".
               //   In flitter, placeholder is a plain string — the InputField shows it when empty.
               placeholder: this._isShowingShortcutsHelp ? "" : "? for shortcuts",
+              // 逆向: jetbrains_wizard.js:3040 — textChangeListener
+              onSlashCommandTrigger: () => {
+                this.setState(() => {
+                  this._isShowingCommandPalette = true;
+                });
+              },
+              // Gap fix: wire Ctrl+G and Ctrl+S through to interactive.ts
+              onOpenInEditor: this.widget.config.onOpenInEditor,
+              onToggleAgentMode: this.widget.config.onToggleAgentMode,
+              // Gap fix: wire @@ thread mention trigger
+              onThreadMentionTrigger: () => {
+                this.setState(() => {
+                  this._isShowingThreadPicker = true;
+                });
+              },
             }),
         // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
         new BottomStatusLine({
@@ -1037,5 +1146,187 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         }),
       ],
     });
+
+    // 逆向: jetbrains_wizard.js:5611 — N0 (Center overlay) pushed onto Ta (Stack)
+    //   when isShowingPalette is true. The normal app UI is disabled via QP.enabled=false.
+    //   In flitter, we always use a Stack as root. When the command palette is active,
+    //   the overlay is added as a Positioned child on top of the normal layout.
+    const showPalette =
+      this._isShowingCommandPalette && (this.widget.config.slashCommands?.length ?? 0) > 0;
+    const stackChildren: Widget[] = [normalLayout];
+
+    if (showPalette) {
+      stackChildren.push(
+        new Positioned({
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: new CommandPaletteOverlay({
+            commands: this.widget.config.slashCommands!,
+            onSelect: (commandId) => {
+              this.setState(() => {
+                this._isShowingCommandPalette = false;
+              });
+              this.widget.config.onSlashCommand?.(commandId, "");
+            },
+            onDismiss: () => {
+              this.setState(() => {
+                this._isShowingCommandPalette = false;
+              });
+            },
+          }) as unknown as Widget,
+        }),
+      );
+    }
+
+    // ── Prompt History Picker overlay (Ctrl+R) ─────────────────────────
+    // 逆向: chunk-006.js:32904-33027 — L8R class (Prompt History picker)
+    //   Title: "Prompt History", fuzzy filter, most-recent-first
+    if (this._isShowingHistoryPicker && this._promptHistory.entries.length > 0) {
+      const historyEntries = [...this._promptHistory.entries].reverse();
+      const items = historyEntries.map((text, i) => ({
+        id: `history-${i}`,
+        label: text.length > 100 ? `${text.slice(0, 97)}...` : text,
+        text,
+      }));
+
+      stackChildren.push(
+        new Positioned({
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: new Center({
+            child: new SizedBox({
+              width: 80,
+              height: 20,
+              child: new FuzzyPicker({
+                title: "Prompt History",
+                items,
+                getLabel: (item) => item.label,
+                onAccept: (item) => {
+                  this.setState(() => {
+                    this._isShowingHistoryPicker = false;
+                  });
+                  // Navigate history to the selected entry
+                  const history = this._promptHistory;
+                  if (!history.isNavigating) {
+                    history.startNavigation("");
+                  }
+                  const idx = history.entries.indexOf(item.text);
+                  if (idx >= 0) {
+                    history.startNavigation("");
+                    while (history.canGoBack()) {
+                      const entry = history.goBack();
+                      if (entry === item.text) break;
+                    }
+                  }
+                  this.setState(() => {});
+                },
+                onDismiss: () => {
+                  this.setState(() => {
+                    this._isShowingHistoryPicker = false;
+                  });
+                },
+                renderItem: (entry, isSelected) => {
+                  return new Container({
+                    decoration: new BoxDecoration({
+                      color: isSelected ? Color.rgb(50, 50, 80) : Color.default(),
+                    }),
+                    child: new Padding({
+                      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+                      child: new Text({
+                        data: entry.label,
+                        style: new TextStyle({
+                          foreground: isSelected ? Color.indexed(4) : Color.default(),
+                        }),
+                      }),
+                    }),
+                  }) as Widget;
+                },
+              }),
+            }),
+          }),
+        }),
+      );
+    }
+
+    // ── Thread Picker overlay (@@) ─────────────────────────────────────
+    // 逆向: chunk-004.js:34900-34954 — wQ thread picker
+    if (
+      this._isShowingThreadPicker &&
+      this.widget.config.threadList &&
+      this.widget.config.threadList.length > 0
+    ) {
+      const threads = this.widget.config.threadList;
+      const items = threads.map((t) => ({
+        id: t.id,
+        label: t.title ?? t.id.slice(0, 8),
+        description: `${t.messageCount} msgs`,
+      }));
+
+      stackChildren.push(
+        new Positioned({
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: new Center({
+            child: new SizedBox({
+              width: 80,
+              height: 20,
+              child: new FuzzyPicker({
+                title: "Select a thread to mention",
+                items,
+                getLabel: (item) => item.label,
+                onAccept: (_item) => {
+                  this.setState(() => {
+                    this._isShowingThreadPicker = false;
+                  });
+                  // TODO: insert @<threadId> into input field
+                  // For now, just close the picker
+                },
+                onDismiss: () => {
+                  this.setState(() => {
+                    this._isShowingThreadPicker = false;
+                  });
+                },
+                renderItem: (entry, isSelected) => {
+                  return new Container({
+                    decoration: new BoxDecoration({
+                      color: isSelected ? Color.rgb(50, 50, 80) : Color.default(),
+                    }),
+                    child: new Padding({
+                      padding: EdgeInsets.symmetric({ horizontal: 1 }),
+                      child: new Row({
+                        children: [
+                          new Text({
+                            data: entry.label,
+                            style: new TextStyle({
+                              foreground: isSelected ? Color.indexed(4) : Color.default(),
+                            }),
+                          }),
+                          new SizedBox({ width: 2 }),
+                          new Text({
+                            data: entry.description ?? "",
+                            style: new TextStyle({
+                              foreground: Color.default(),
+                              dim: true,
+                            }),
+                          }),
+                        ],
+                      }),
+                    }),
+                  }) as Widget;
+                },
+              }),
+            }),
+          }),
+        }),
+      );
+    }
+
+    return new Stack({ children: stackChildren });
   }
 }

@@ -312,6 +312,10 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
       ctx.showMessage(
         `New thread created: ${newId}\nUse /switch ${newId} or run: flitter --thread-id ${newId}`,
       );
+      // 逆向: amp's /new calls R.switchToThread(newId) after creation
+      if (ctx.switchToThread) {
+        await ctx.switchToThread(newId);
+      }
     },
   });
 
@@ -535,11 +539,15 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
         return;
       }
 
-      ctx.showMessage(
-        `Mode switch to "${requested}" requested.\n` +
-          `(Mode switching applies from the next inference turn. ` +
-          `Use 'flitter config set agent.mode ${requested}' for persistent change.)`,
-      );
+      // 逆向: e0R:1364-1418 — amp calls agentModeController.setMode(requested)
+      // Persist to config and apply as runtime override
+      if (ctx.configService.setRuntimeOverride) {
+        ctx.configService.setRuntimeOverride("agent.mode", requested);
+      }
+      if (ctx.configService.updateSettings) {
+        ctx.configService.updateSettings("global", "agent.mode", requested);
+      }
+      ctx.showMessage(`Mode switched to: ${requested}`);
     },
   });
 
@@ -633,8 +641,12 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
     name: "quit",
     aliases: ["exit", "q"],
     description: "Exit the application",
-    execute: async (_args, ctx) => {
-      ctx.showMessage("Exiting...\n(Use Ctrl+C or Ctrl+D to exit the interactive session.)");
+    execute: async (_args, _ctx) => {
+      // 逆向: d9.instance.stop() in chunk-006.js:36707-36715
+      // Stops the TUI framework, which resolves the runApp() promise
+      // and triggers cleanup in interactive.ts's finally block.
+      const { WidgetsBinding } = await import("@flitter/tui");
+      WidgetsBinding.instance.stop();
     },
   });
 

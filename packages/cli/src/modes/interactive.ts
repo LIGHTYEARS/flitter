@@ -45,9 +45,14 @@ import {
   visibilityToMeta,
 } from "../commands/threads.js";
 import type { CliContext } from "../context.js";
+import { ThreadNavigationHistory } from "../navigation/thread-navigation.js";
 import { resolveSystemPromptText } from "../util/system-prompt.js";
 import { AppWidget } from "../widgets/app-widget.js";
-import { parseCommandInput } from "../widgets/command-detection.js";
+import {
+  detectShellCommand,
+  parseCommandInput,
+  type ShellCommandResult,
+} from "../widgets/command-detection.js";
 import type { ThemeData } from "../widgets/theme-controller.js";
 import { ThemeController } from "../widgets/theme-controller.js";
 import { ThreadStateWidget } from "../widgets/thread-state-widget.js";
@@ -419,6 +424,145 @@ export async function launchInteractiveMode(
   // 逆向: eA (KXT) in chunk-004.js:3713 — setCapabilities() called from XXT.finishInitialization
   const clipboard = new Clipboard();
 
+  // Thread navigation history — back/forward stack for /back, /forward, /switch
+  // 逆向: SrT class in 2633_unknown_SrT.js:30-121
+  const navHistory = new ThreadNavigationHistory();
+  navHistory.setCurrentThread(threadId);
+
+  // Shared mutable ref for thinking blocks toggle (accessed from slash context)
+  const thinkingBlocksRef = { value: false };
+
+  /**
+   * Build a SlashCommandContext with all required fields.
+   * Used by both onSubmit and onSlashCommand to avoid duplication.
+   */
+  function buildSlashContext(): SlashCommandContext {
+    return {
+      threadId,
+      threadStore: container.threadStore,
+      threadWorker: worker,
+      configService: container.configService,
+      showMessage: (msg: string) => {
+        const snapshot = container.threadStore.getThreadSnapshot(threadId);
+        if (snapshot) {
+          container.threadStore.setCachedThread({
+            ...snapshot,
+            messages: [
+              ...snapshot.messages,
+              {
+                role: "assistant",
+                content: [{ type: "text", text: msg }],
+                state: { type: "complete" },
+              },
+            ],
+            // biome-ignore lint/suspicious/noExplicitAny: state field not in schema
+          } as any);
+        }
+      },
+      clearInput: () => {},
+      costTracker,
+      toolboxService: container.toolboxService,
+      skillService: container.skillService,
+      openUrl: defaultOpenBrowser,
+      writeClipboard: (text: string) => clipboard.writeText(text),
+      // Gap fix: wire submitMessage for /editor, /agents-md-generate, /skill-invoke
+      // 逆向: amp's openInEditor sets textController.text; /editor submits via R.submitMessage()
+      submitMessage: (text: string) => {
+        const snapshot = container.threadStore.getThreadSnapshot(threadId);
+        if (snapshot) {
+          container.threadStore.setCachedThread(
+            {
+              ...snapshot,
+              messages: [...snapshot.messages, { role: "user", content: [{ type: "text", text }] }],
+            } as ThreadSnapshot,
+            { scheduleUpload: true },
+          );
+        }
+        worker.runInference();
+      },
+      // Gap fix: wire compactThread
+      compactThread: async () => {
+        const snapshot = container.threadStore.getThreadSnapshot(threadId);
+        if (!snapshot) {
+          return {
+            compacted: false,
+            thread: { messages: [] } as unknown as ThreadSnapshot,
+            tokensBefore: 0,
+            tokensAfter: 0,
+          };
+        }
+        const result = await container.contextManager.checkAndCompact(snapshot);
+        if (result.compacted) {
+          container.threadStore.setCachedThread(result.thread, { scheduleUpload: true });
+        }
+        return result;
+      },
+      // Gap fix: wire toggleThinkingBlocks / showThinkingBlocks
+      // 逆向: Ut.instance.toggleAll() (e0R:830)
+      showThinkingBlocks: thinkingBlocksRef.value,
+      toggleThinkingBlocks: () => {
+        thinkingBlocksRef.value = !thinkingBlocksRef.value;
+      },
+      // Gap fix: wire mcpServerManager for /mcp-reload, /mcp-status
+      // 逆向: R.mcpService.restartServers() (e0R:1326)
+      mcpServerManager: container.mcpServerManager
+        ? {
+            restartServers: () => {
+              (container.mcpServerManager as { refresh?: () => void }).refresh?.();
+            },
+            getServers: () => {
+              try {
+                const mgr = container.mcpServerManager as {
+                  servers$?: { getValue(): Map<string, unknown> };
+                };
+                if (mgr.servers$) {
+                  const servers = mgr.servers$.getValue();
+                  return [...servers.entries()].map(([name, s]) => ({
+                    name,
+                    status: ((s as Record<string, unknown>).status as string) ?? "disconnected",
+                    toolCount: ((s as Record<string, unknown>).tools as unknown[] | undefined)
+                      ?.length,
+                    error: ((s as Record<string, unknown>).error as Error | undefined)?.message,
+                  })) as Array<{
+                    name: string;
+                    status: "connected" | "connecting" | "disconnected" | "error";
+                    toolCount?: number;
+                    error?: string;
+                  }>;
+                }
+              } catch {
+                // MCP manager may not expose servers$ in all configurations
+              }
+              return [];
+            },
+          }
+        : undefined,
+      // Gap fix: wire thread navigation for /switch, /back, /forward, /parent
+      // 逆向: SrT.navigateBack/navigateForward (2633_unknown_SrT.js:94-121)
+      navigateBack: async () => {
+        const targetId = navHistory.navigateBack();
+        if (targetId) {
+          buildSlashContext().showMessage(`Navigated back to thread: ${targetId}`);
+        }
+      },
+      navigateForward: async () => {
+        const targetId = navHistory.navigateForward();
+        if (targetId) {
+          buildSlashContext().showMessage(`Navigated forward to thread: ${targetId}`);
+        }
+      },
+      canNavigateBack: () => navHistory.canNavigateBack(),
+      canNavigateForward: () => navHistory.canNavigateForward(),
+      switchToThread: async (targetThreadId: string) => {
+        navHistory.recordNavigation(threadId);
+        navHistory.setCurrentThread(targetThreadId);
+        buildSlashContext().showMessage(
+          `Switched to thread: ${targetThreadId}\n(Note: live thread switch requires TUI restart in current architecture.)`,
+        );
+      },
+    };
+  }
+
   // 4-5. 组装真实 Widget 树并启动 runApp
   // ThreadStateWidget 拥有完整布局 (ConversationView + StatusBar + InputField)
   // Build the AppWidget before runApp; onCapabilitiesReady may mutate themeData before mount.
@@ -434,60 +578,23 @@ export async function launchInteractiveMode(
         // 逆向: amp intercepts "/" prefix in editor submit action (e0R.execute)
         const parsed = parseCommandInput(text);
         if (parsed) {
-          const ctx: SlashCommandContext = {
-            threadId,
-            threadStore: container.threadStore,
-            threadWorker: worker,
-            configService: container.configService,
-            showMessage: (msg: string) => {
-              // Append as a system message in the thread for display
-              const snapshot = container.threadStore.getThreadSnapshot(threadId);
-              if (snapshot) {
-                container.threadStore.setCachedThread({
-                  ...snapshot,
-                  messages: [
-                    ...snapshot.messages,
-                    {
-                      role: "assistant",
-                      content: [{ type: "text", text: msg }],
-                      state: { type: "complete" },
-                    },
-                  ],
-                  // biome-ignore lint/suspicious/noExplicitAny: state field not in schema
-                } as any);
-              }
-            },
-            clearInput: () => {
-              // InputField clears on submit automatically
-            },
-            costTracker,
-            toolboxService: container.toolboxService,
-            skillService: container.skillService,
-            compactThread: async () => {
-              const snapshot = container.threadStore.getThreadSnapshot(threadId);
-              if (!snapshot) {
-                return {
-                  compacted: false,
-                  thread: { messages: [] } as unknown as ThreadSnapshot,
-                  tokensBefore: 0,
-                  tokensAfter: 0,
-                };
-              }
-              const result = await container.contextManager.checkAndCompact(snapshot);
-              if (result.compacted) {
-                container.threadStore.setCachedThread(result.thread, { scheduleUpload: true });
-              }
-              return result;
-            },
-            // /open-in-browser: open a URL in the default browser
-            // 逆向: Wb() (chunk-002.js:24072) — darwin→open, win32→start "", default→xdg-open
-            openUrl: defaultOpenBrowser,
-            // Clipboard write for slash commands (/copy-url, /copy-id, /copy-markdown)
-            // 逆向: d9.instance.tuiInstance.clipboard.writeText(a) in e0R (amp slash handlers)
-            writeClipboard: (text: string) => clipboard.writeText(text),
-          };
+          const ctx = buildSlashContext();
           slashRegistry.dispatch(parsed.command, parsed.args, ctx).catch((err) => {
             log.info("Slash command error", { error: err });
+          });
+          return;
+        }
+
+        // Check for $/$$ shell command prefix
+        // 逆向: jetbrains_wizard.js:4095-4140 — submit handler calls YP(text)
+        //   If detected, calls invokeBashCommand(cmd, {visibility}) which uses
+        //   toolService.invokeTool(BashTool, {cmd}) directly. Result appended
+        //   to thread as tool_use/tool_result pair.
+        const shellResult = detectShellCommand(text);
+        if (shellResult) {
+          if (!shellResult.cmd) return; // empty command — ignore
+          executeShellCommand(shellResult, threadId, container).catch((err) => {
+            log.info("Shell command execution error", { error: err });
           });
           return;
         }
@@ -508,7 +615,7 @@ export async function launchInteractiveMode(
         worker.runInference();
       },
       modelName:
-        ((config.settings as Record<string, unknown>)["llm.model"] as string) ??
+        ((config.settings as Record<string, unknown>)["internal.model"] as string) ??
         "claude-sonnet-4-20250514",
       tokenCount: 0,
       toastManager,
@@ -517,6 +624,108 @@ export async function launchInteractiveMode(
       modeName: (context.agentMode as string | undefined) ?? "smart",
       // biome-ignore lint/suspicious/noExplicitAny: skillService type varies by container version
       skillCount: (container.skillService as any)?.list?.()?.length as number | undefined,
+      // Gap fix: wire Ctrl+G open in $EDITOR
+      // 逆向: chunk-006.js:35969-35988 — openInEditor creates temp file, spawns $EDITOR
+      onOpenInEditor: async (text: string) => {
+        try {
+          const { mkdtemp, writeFile, readFile, rm } = await import("node:fs/promises");
+          const { join } = await import("node:path");
+          const { tmpdir } = await import("node:os");
+          const { spawnSync } = await import("node:child_process");
+          const dir = await mkdtemp(join(tmpdir(), "flitter-edit-"));
+          const file = join(dir, "message.flitter.md");
+          await writeFile(file, text, "utf-8");
+          const editor =
+            process.env.FLITTER_EDITOR || process.env.EDITOR || process.env.VISUAL || "vi";
+          // Suspend TUI, spawn editor, resume
+          // 逆向: Zb(a) — suspends TUI, spawnSync editor, resumes
+          WidgetsBinding.instance.tui.handleSuspend();
+          spawnSync(editor, [file], { stdio: "inherit" });
+          WidgetsBinding.instance.tui.handleResume();
+          const result = await readFile(file, "utf-8");
+          await rm(dir, { recursive: true }).catch(() => {});
+          // Submit the edited text as a new user message
+          if (result.trim()) {
+            buildSlashContext().submitMessage?.(result);
+          }
+        } catch (err) {
+          log.info("Open in editor failed", { error: err });
+        }
+      },
+      // Gap fix: wire Ctrl+S agent mode toggle
+      // 逆向: chunk-006.js:35516-35524 — toggleAgentMode cycles visible modes
+      onToggleAgentMode: () => {
+        const cfg = container.configService.get();
+        const currentMode =
+          (cfg.settings["agent.mode"] as string) ??
+          (cfg.settings["experimental.agentMode"] as string) ??
+          "smart";
+        const modes = ["smart", "deep", "fast"];
+        const idx = modes.indexOf(currentMode);
+        const nextMode = modes[(idx + 1) % modes.length]!;
+        container.configService.setRuntimeOverride("agent.mode", nextMode);
+        buildSlashContext().showMessage(`Agent mode switched to: ${nextMode}`);
+      },
+      // Gap fix: wire selection mode callbacks (e/r/f keys)
+      // 逆向: interactive_widgets.js:2479-2501
+      onMessageEdit: (_ordinal: number, currentText: string) => {
+        // Put the text back as a new user message for re-editing
+        // 逆向: handleEditMessage → _selectEditingUserMessageByOrdinal
+        buildSlashContext().showMessage(`[Editing message]\n\n${currentText}`);
+      },
+      onMessageRestore: (ordinal: number) => {
+        // Truncate thread to before this message
+        // 逆向: handleRestoreMessage → truncates thread
+        const snapshot = container.threadStore.getThreadSnapshot(threadId);
+        if (snapshot) {
+          const messages = snapshot.messages.slice(0, ordinal);
+          container.threadStore.setCachedThread({ ...snapshot, messages } as ThreadSnapshot, {
+            scheduleUpload: true,
+          });
+        }
+      },
+      onShowForkDeprecation: () => {
+        // 逆向: handleForkMessage → fork deprecation modal
+        buildSlashContext().showMessage(
+          "Fork has been deprecated. Use /new to start a new thread instead.",
+        );
+      },
+      // Command palette: build list from slash registry
+      // 逆向: amp's commandPaletteMode populates from e0R command registry
+      slashCommands: slashRegistry.listCommands().map((cmd) => ({
+        id: cmd.name,
+        label: cmd.name,
+        description: cmd.description,
+      })),
+      onSlashCommand: (command: string, args: string) => {
+        const ctx = buildSlashContext();
+        slashRegistry.dispatch(command, args, ctx).catch((err) => {
+          log.info("Slash command (palette) error", { error: err });
+        });
+      },
+      // Gap fix: wire Alt+D deep reasoning toggle
+      // 逆向: chunk-006.js:35556 — toggleDeepReasoningEffort cycles medium→high→xhigh
+      onToggleDeepReasoning: () => {
+        buildSlashContext().showMessage(
+          "Deep reasoning effort toggle (requires deep/internal agent mode).",
+        );
+      },
+      // Gap fix: thread list for @@ mention picker
+      threadList: (
+        container.threadStore as {
+          observeThreadList?: (opts: {
+            includeArchived?: boolean;
+          }) => Array<{ id: string; title: string | null; messageCount: number }>;
+        }
+      ).observeThreadList
+        ? (
+            container.threadStore as {
+              observeThreadList: (opts: {
+                includeArchived?: boolean;
+              }) => Array<{ id: string; title: string | null; messageCount: number }>;
+            }
+          ).observeThreadList({ includeArchived: false })
+        : [],
     }),
   });
   // Wire appWidget into the hot-reload ref so config changes can update it.
@@ -566,6 +775,175 @@ export async function launchInteractiveMode(
     const thread = container.threadStore.getThreadSnapshot(threadId);
     if (thread && thread.messages?.length > 0) {
       process.stdout.write(`\nThread: /threads/${threadId}\n`);
+    }
+  }
+}
+
+// ─── Shell command execution ─────────────────────────────
+
+/**
+ * Execute a shell command directly, bypassing the LLM inference.
+ *
+ * 逆向: jetbrains_wizard.js:3518-3570 — invokeBashCommand
+ *   Creates tool_use/tool_result message pair, calls activeThreadHandle.invokeBashTool()
+ *   which delegates to toolService.invokeTool(BashTool, {args: {cmd}}).
+ * 逆向: modules/1244_ThreadWorker_ov.js:1025 — invokeBashTool
+ *   `toolService.invokeTool(BashTool, {args: {cmd}, userInput: {accepted: true}})`
+ *
+ * The result is appended to the thread as a tool_use (assistant) + tool_result (user) pair,
+ * matching the standard message format so the conversation view renders it correctly.
+ * For hidden visibility ($$ prefix), messages are not persisted to the thread.
+ */
+async function executeShellCommand(
+  shell: ShellCommandResult,
+  threadId: string,
+  container: ServiceContainer,
+): Promise<void> {
+  const toolUseId = `manual-bash-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  // 1. Append tool_use message (assistant) + in-progress tool_result (user)
+  const snapshot = container.threadStore.getThreadSnapshot(threadId);
+  if (!snapshot) return;
+
+  const toolUseMsg = {
+    role: "assistant" as const,
+    content: [
+      {
+        type: "tool_use" as const,
+        id: toolUseId,
+        name: "Bash",
+        complete: true,
+        input: { command: shell.cmd },
+      },
+    ],
+    state: { type: "complete", stopReason: "tool_use" },
+  };
+  const toolResultMsg = {
+    role: "user" as const,
+    content: [
+      {
+        type: "tool_result" as const,
+        toolUseID: toolUseId,
+        run: { status: "in-progress" as const },
+      },
+    ],
+  };
+
+  // For hidden visibility, skip thread persistence
+  if (shell.visibility !== "hidden") {
+    container.threadStore.setCachedThread({
+      ...snapshot,
+      messages: [...snapshot.messages, toolUseMsg, toolResultMsg],
+    } as unknown as ThreadSnapshot);
+  }
+
+  // 2. Execute via BashTool.execute() directly
+  // 逆向: tools.ts:313 — tool.execute(input, context) pattern
+  const bashTool = container.toolRegistry.get("Bash");
+  if (!bashTool) {
+    log.info("BashTool not found in registry");
+    return;
+  }
+
+  const toolConfig = container.configService.get();
+  try {
+    const resultOrObs = bashTool.execute(
+      { command: shell.cmd },
+      {
+        workingDirectory: process.cwd(),
+        signal: new AbortController().signal,
+        threadId,
+        config: toolConfig,
+      },
+    );
+    // ToolSpec.execute returns Promise<ToolResult> | Observable<ToolResult>
+    // BashTool always returns a Promise — cast to resolve the union type.
+    const result = await (resultOrObs as Promise<{
+      status: string;
+      content?: string;
+      error?: string;
+    }>);
+
+    // 3. Update tool_result with final result
+    if (shell.visibility !== "hidden") {
+      const finalSnapshot = container.threadStore.getThreadSnapshot(threadId);
+      if (finalSnapshot) {
+        const messages = [...finalSnapshot.messages];
+        for (let i = messages.length - 1; i >= 0; i--) {
+          // biome-ignore lint/suspicious/noExplicitAny: thread message format is dynamic
+          const msg = messages[i] as any;
+          if (
+            msg.role === "user" &&
+            msg.content?.some(
+              (b: { type: string; toolUseID?: string }) =>
+                b.type === "tool_result" && b.toolUseID === toolUseId,
+            )
+          ) {
+            messages[i] = {
+              ...msg,
+              content: [
+                {
+                  type: "tool_result",
+                  toolUseID: toolUseId,
+                  run:
+                    result.status === "error"
+                      ? {
+                          status: "error",
+                          error: { message: result.error ?? result.content ?? "Unknown error" },
+                        }
+                      : { status: "done", result: result.content ?? "" },
+                },
+              ],
+            };
+            break;
+          }
+        }
+        container.threadStore.setCachedThread({
+          ...finalSnapshot,
+          messages,
+        } as unknown as ThreadSnapshot);
+      }
+    }
+  } catch (err) {
+    log.info("Shell command execution failed", { error: err });
+    // Update tool_result with error
+    if (shell.visibility !== "hidden") {
+      const finalSnapshot = container.threadStore.getThreadSnapshot(threadId);
+      if (finalSnapshot) {
+        const messages = [...finalSnapshot.messages];
+        for (let i = messages.length - 1; i >= 0; i--) {
+          // biome-ignore lint/suspicious/noExplicitAny: thread message format is dynamic
+          const msg = messages[i] as any;
+          if (
+            msg.role === "user" &&
+            msg.content?.some(
+              (b: { type: string; toolUseID?: string }) =>
+                b.type === "tool_result" && b.toolUseID === toolUseId,
+            )
+          ) {
+            messages[i] = {
+              ...msg,
+              content: [
+                {
+                  type: "tool_result",
+                  toolUseID: toolUseId,
+                  run: {
+                    status: "error",
+                    error: {
+                      message: err instanceof Error ? err.message : String(err),
+                    },
+                  },
+                },
+              ],
+            };
+            break;
+          }
+        }
+        container.threadStore.setCachedThread({
+          ...finalSnapshot,
+          messages,
+        } as unknown as ThreadSnapshot);
+      }
     }
   }
 }

@@ -141,6 +141,17 @@ export interface InputFieldConfig {
    * logic from jetbrains_wizard.js:3142-3201).
    */
   onThreadMentionTrigger?: () => void;
+  /**
+   * `/` command palette trigger (逆向: jetbrains_wizard.js:3040 — textChangeListener)
+   *
+   * Fired when the user types `/` as the sole character in the input field.
+   * The input is cleared after firing, and the app layer is responsible for
+   * displaying the command palette overlay.
+   *
+   * Amp reference:
+   *   `if (text === "/") { showCommandPalette(); controller.text = ""; }`
+   */
+  onSlashCommandTrigger?: () => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -325,7 +336,12 @@ export class InputFieldState extends State<InputField> {
     const topBorder = `\u256D\u2500${topLeftStr}${"\u2500".repeat(topFillLen)}${topRightStr}\u2500\u256E`;
 
     // Bottom border with overlay labels
-    const bottomLeft = this.widget.config.bottomLeftLabel ?? "";
+    // 逆向: k8R.build() (chunk-006.js:31497) — currentShellModeStatus → "shell mode" / "shell mode (incognito)"
+    const bottomLeft = shellResult
+      ? shellResult.visibility === "hidden"
+        ? "shell mode (incognito)"
+        : "shell mode"
+      : (this.widget.config.bottomLeftLabel ?? "");
     const bottomRight = this.widget.config.bottomRightLabel ?? "";
     const bottomLeftStr = bottomLeft ? `${bottomLeft}\u2500` : "";
     const bottomRightStr = bottomRight ? `\u2500${bottomRight}` : "";
@@ -486,6 +502,16 @@ export class InputFieldState extends State<InputField> {
     // ── Ctrl keybindings ──
     // 逆向: actions_intents.js:1054-1091
     if (event.modifiers.ctrl) {
+      // Ctrl+Z: undo / Ctrl+Shift+Z: redo (no amp reference — new feature)
+      if (event.key === "z") {
+        if (event.modifiers.shift) {
+          m.redo();
+        } else {
+          m.undo();
+        }
+        this._markDirty();
+        return "handled";
+      }
       // Ctrl+G: open in editor (逆向: actions_intents.js:1054-1058)
       if (event.key === "g") {
         if (this.widget.config.onOpenInEditor) {
@@ -530,47 +556,32 @@ export class InputFieldState extends State<InputField> {
         this._markDirty();
         return "handled";
       } else if (event.key === "n") {
-        // Ctrl+N: move down (with amp edge-case logic)
-        // 逆向: actions_intents.js:1065-1078
-        const line = m.cursorLine;
-        const lineCount = m.lineCount;
-        if (line === lineCount - 1) {
-          // On last line: if not at end, move to line end; else ignored
-          const gs = m.graphemes;
-          // Find end of current line (count graphemes until newline or end)
-          let lineEnd = m.cursorPosition;
-          while (lineEnd < gs.length && gs[lineEnd] !== "\n") lineEnd++;
-          if (m.cursorPosition === lineEnd) {
-            return "ignored";
-          } else {
-            m.moveCursorToLineEnd({ extend: shift });
-            this._markDirty();
-            return "handled";
-          }
-        } else {
-          const oldPos = m.cursorPosition;
-          m.moveCursorDown({ extend: shift });
-          if (m.cursorPosition === oldPos) return "ignored";
+        // Ctrl+N: history next (逆向: chunk-006.js:37243 — DM("next"))
+        // Per amp reference, Ctrl+N is history navigation, not cursor movement.
+        const history = this.widget.config.promptHistory;
+        if (history?.isNavigating) {
+          m.text = history.goForward();
+          m.moveCursorToEnd({});
           this._markDirty();
           return "handled";
         }
+        return "ignored";
       } else if (event.key === "p") {
-        // Ctrl+P: move up (with amp edge-case logic)
-        // 逆向: actions_intents.js:1079-1089
-        const line = m.cursorLine;
-        if (line === 0) {
-          const oldPos = m.cursorPosition;
-          m.moveCursorToLineStart({ extend: shift });
-          if (m.cursorPosition === oldPos) return "ignored";
-          this._markDirty();
-          return "handled";
-        } else {
-          const oldPos = m.cursorPosition;
-          m.moveCursorUp({ extend: shift });
-          if (m.cursorPosition === oldPos) return "ignored";
-          this._markDirty();
+        // Ctrl+P: history previous (逆向: chunk-006.js:37242 — DM("previous"))
+        // Per amp reference, Ctrl+P is history navigation, not cursor movement.
+        const history = this.widget.config.promptHistory;
+        if (history && history.entries.length > 0) {
+          if (!history.isNavigating) {
+            history.startNavigation(m.text);
+          }
+          if (history.canGoBack()) {
+            m.text = history.goBack();
+            m.moveCursorToStart({});
+            this._markDirty();
+          }
           return "handled";
         }
+        return "ignored";
       } else if (event.key === "d") {
         m.deleteForward(1);
         this._markDirty();
@@ -629,14 +640,10 @@ export class InputFieldState extends State<InputField> {
         return "handled";
       }
 
-      // Alt+D: delete word right (逆向: actions_intents.js:1123-1127)
+      // Alt+D: pass through to key interceptor (toggle deep reasoning)
+      // 逆向: amp maps Alt+D to toggleDeepReasoningEffort, NOT deleteWordRight.
+      //   Use Alt+Delete for word-delete-right if needed.
       if (event.key.toLowerCase() === "d") {
-        const lenBefore = m.text.length;
-        m.deleteWordRight();
-        if (m.text.length < lenBefore) {
-          this._markDirty();
-          return "handled";
-        }
         return "ignored";
       }
 
@@ -661,13 +668,40 @@ export class InputFieldState extends State<InputField> {
       } else if (event.key === "ArrowUp") {
         const oldPos = m.cursorPosition;
         m.moveCursorUp({ extend: shift });
-        if (m.cursorPosition === oldPos) return "ignored";
+        if (m.cursorPosition === oldPos) {
+          // At top of text — navigate history
+          // 逆向: chunk-006.js:34950-34962 — navigateHistoryPrevious
+          const history = this.widget.config.promptHistory;
+          if (history && history.entries.length > 0) {
+            if (!history.isNavigating) {
+              history.startNavigation(m.text);
+            }
+            if (history.canGoBack()) {
+              m.text = history.goBack();
+              m.moveCursorToStart({});
+              this._markDirty();
+              return "handled";
+            }
+          }
+          return "ignored";
+        }
         this._markDirty();
         return "handled";
       } else if (event.key === "ArrowDown") {
         const oldPos = m.cursorPosition;
         m.moveCursorDown({ extend: shift });
-        if (m.cursorPosition === oldPos) return "ignored";
+        if (m.cursorPosition === oldPos) {
+          // At bottom of text — navigate history forward
+          // 逆向: chunk-006.js:34950-34962 — navigateHistoryNext
+          const history = this.widget.config.promptHistory;
+          if (history?.isNavigating) {
+            m.text = history.goForward();
+            m.moveCursorToEnd({});
+            this._markDirty();
+            return "handled";
+          }
+          return "ignored";
+        }
         this._markDirty();
         return "handled";
       }
@@ -694,6 +728,18 @@ export class InputFieldState extends State<InputField> {
         }
       }
 
+      // ── "/" command palette trigger ──
+      // 逆向: jetbrains_wizard.js:3040 — textChangeListener
+      //   `if (text === "/") { showCommandPalette(); controller.text = ""; }`
+      //
+      // When the user types "/" and the input becomes exactly "/",
+      // fire the trigger callback to open the command palette, then clear input.
+      if (event.key === "/" && m.text === "/" && this.widget.config.onSlashCommandTrigger) {
+        this.widget.config.onSlashCommandTrigger();
+        m.text = "";
+        this._markDirty();
+      }
+
       return "handled";
     }
 
@@ -710,6 +756,10 @@ export class InputFieldState extends State<InputField> {
   private _submitText(): KeyEventResult {
     const text = this._controller.text;
     if (text.trim()) {
+      // Push to prompt history before clearing
+      // 逆向: chunk-006.js:34930 — this.widget.dependencies.history.add(text)
+      const history = this.widget.config.promptHistory;
+      if (history) history.push(text);
       this._controller.text = "";
       this.widget.config.onSubmit(text);
     }

@@ -12,6 +12,16 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+/**
+ * Helper: build() now returns Stack { Column, [Positioned(overlay)] }.
+ * This helper unwraps the Stack to get the Column's children.
+ */
+function getColumnChildren(tree: unknown): unknown[] {
+  const stackChildren: unknown[] = (tree as any).children ?? [];
+  const column = stackChildren[0] as any;
+  return column?.children ?? column?.config?.children ?? [];
+}
+
 // ─── 简单 Mock 工具 ─────────────────────────────────────────
 
 /** 简单 Subscription mock */
@@ -418,9 +428,15 @@ describe("ThreadStateWidget", () => {
 
     const tree = state.build({} as any);
 
-    // The root should be a Column
+    // The root is a Stack wrapping the Column (always-Stack pattern for overlay support)
     assert.ok(tree, "build() should return a Widget");
-    assert.ok(tree.constructor.name === "Column", `Expected Column, got ${tree.constructor.name}`);
+    assert.ok(tree.constructor.name === "Stack", `Expected Stack, got ${tree.constructor.name}`);
+    const stackChildren = (tree as any).children || [];
+    assert.ok(stackChildren.length >= 1, "Stack should have at least 1 child");
+    assert.ok(
+      stackChildren[0].constructor.name === "Column",
+      `Expected Column as first Stack child, got ${stackChildren[0].constructor.name}`,
+    );
   });
 
   it("build() Column 包含 Expanded 子节点", async () => {
@@ -450,7 +466,7 @@ describe("ThreadStateWidget", () => {
     state.initState();
 
     const tree = state.build({} as any);
-    const children = (tree as any).children || (tree as any).config?.children || [];
+    const children = getColumnChildren(tree);
     const hasExpanded = children.some((c: any) => c.constructor.name === "Expanded");
     assert.ok(hasExpanded, "Column should contain an Expanded child");
   });
@@ -482,7 +498,7 @@ describe("ThreadStateWidget", () => {
     state.initState();
 
     const tree = state.build({} as any);
-    const children = (tree as any).children || (tree as any).config?.children || [];
+    const children = getColumnChildren(tree);
     const hasInputField = children.some((c: any) => c.constructor.name === "InputField");
     assert.ok(hasInputField, "Column should contain an InputField child");
   });
@@ -516,7 +532,7 @@ describe("ThreadStateWidget", () => {
     state.initState();
 
     const tree = state.build({} as any);
-    const children = (tree as any).children || (tree as any).config?.children || [];
+    const children = getColumnChildren(tree);
     // StatusBar removed (Gap A/F) — now uses BottomStatusLine instead
     const hasBottomStatusLine = children.some(
       (c: any) => c.constructor.name === "BottomStatusLine",
@@ -917,7 +933,7 @@ describe("ThreadStateWidget", () => {
       (state as any)._isShowingShortcutsHelp = true;
 
       const tree = state.build({} as any);
-      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const children: unknown[] = getColumnChildren(tree);
       const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
       assert.ok(hasShortcutsPopup, "Column should contain a ShortcutsPopup when help is shown");
     });
@@ -929,7 +945,7 @@ describe("ThreadStateWidget", () => {
       (state as any)._isShowingShortcutsHelp = false;
 
       const tree = state.build({} as any);
-      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const children: unknown[] = getColumnChildren(tree);
       const hasShortcutsPopup = children.some((c: any) => c instanceof ShortcutsPopup);
       assert.ok(
         !hasShortcutsPopup,
@@ -944,7 +960,7 @@ describe("ThreadStateWidget", () => {
       (state as any)._isShowingShortcutsHelp = false;
 
       const tree = state.build({} as any);
-      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const children: unknown[] = getColumnChildren(tree);
       const inputField = children.find((c: any) => c instanceof InputField) as any;
       assert.ok(inputField, "Should have an InputField child");
       assert.equal(
@@ -961,7 +977,7 @@ describe("ThreadStateWidget", () => {
       (state as any)._isShowingShortcutsHelp = true;
 
       const tree = state.build({} as any);
-      const children: unknown[] = (tree as any).children ?? (tree as any).config?.children ?? [];
+      const children: unknown[] = getColumnChildren(tree);
       const inputField = children.find((c: any) => c instanceof InputField) as any;
       assert.ok(inputField, "Should have an InputField child");
       assert.equal(

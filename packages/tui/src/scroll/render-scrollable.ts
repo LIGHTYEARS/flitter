@@ -214,6 +214,7 @@ export class RenderScrollable extends RenderBox {
     }
 
     const viewportHeight = this._size.height;
+    this._scrollController.updateViewportDimension(viewportHeight);
     this._scrollController.updateMaxScrollExtent(Math.max(0, childHeight - viewportHeight));
 
     // 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)

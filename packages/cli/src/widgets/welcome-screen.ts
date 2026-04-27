@@ -74,6 +74,38 @@ const ORB_WIDTH = 40;
 const ORB_HEIGHT = 40;
 
 // ════════════════════════════════════════════════════
+//  fIT — 旋转提示数组
+//  逆向: 1472_tail_anonymous.js:4217-4330
+//  每次渲染随机选择一条提示
+// ════════════════════════════════════════════════════
+
+/**
+ * 旋转提示条目。
+ *
+ * 逆向: amp fIT array — type determines styling:
+ * - "hint": secondary color, backtick spans get command color
+ * - "prompt": primary foreground color
+ */
+interface SplashHint {
+  type: "hint" | "prompt";
+  text: string;
+}
+
+/** 逆向: fIT array (1472_tail_anonymous.js:4217-4330) — curated subset */
+const SPLASH_HINTS: SplashHint[] = [
+  { type: "hint", text: "Use Ctrl+O to open the command palette" },
+  { type: "hint", text: "Use Ctrl+G to edit the prompt in your $EDITOR" },
+  { type: "hint", text: "Use $ or $$ to run shell commands directly" },
+  { type: "hint", text: "Use Tab/Shift+Tab to navigate to previous messages" },
+  { type: "hint", text: "Use Ctrl+R to search prompt history" },
+  { type: "hint", text: "Use Ctrl+S to switch between agent modes" },
+  { type: "hint", text: "Use Alt+T to toggle thinking blocks display" },
+  { type: "prompt", text: '"Do not write any code yet. Plan first."' },
+  { type: "prompt", text: '"Think hard before you start implementing."' },
+  { type: "prompt", text: '"Use subagents to update these components."' },
+];
+
+// ════════════════════════════════════════════════════
 //  WelcomeScreen Widget
 // ════════════════════════════════════════════════════
 
@@ -179,22 +211,15 @@ export class WelcomeScreen extends StatelessWidget {
     // Lines 8-9: empty (2 rows)
     helpChildren.push(new SizedBox({ height: 2 }));
 
-    // Line 10: "Use Tab/Shift+Tab to navigate to previous"
+    // Line 10+: Random rotating hint — 逆向: misc_utils.js:2812-2819
+    // amp selects one fIT entry at random to display below the Ctrl+O line
+    const hint = SPLASH_HINTS[Math.floor(Math.random() * SPLASH_HINTS.length)];
+    const hintStyle = hint.type === "hint" ? dimStyle : titleStyle;
     helpChildren.push(
       new RichText({
         text: new TextSpan({
-          text: "Use Tab/Shift+Tab to navigate to previous",
-          style: dimStyle,
-        }),
-      }),
-    );
-
-    // Line 11: "messages to edit or restore to a previous state"
-    helpChildren.push(
-      new RichText({
-        text: new TextSpan({
-          text: "messages to edit or restore to a previous state",
-          style: dimStyle,
+          text: hint.text,
+          style: hintStyle,
         }),
       }),
     );

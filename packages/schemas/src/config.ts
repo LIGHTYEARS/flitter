@@ -97,6 +97,9 @@ export const SettingsSchema = z.object({
   "openai.speed": z.string().optional(),
   "openai.baseURL": z.string().optional(),
   "openai.apiKey": z.string().optional(),
+  "openai.useChatCompletions": z.boolean().optional(),
+  "openai.temperature": z.number().optional(),
+  "openai.promptCacheKey": z.string().optional(),
 
   // Gemini
   "gemini.thinkingLevel": z.string().optional(),

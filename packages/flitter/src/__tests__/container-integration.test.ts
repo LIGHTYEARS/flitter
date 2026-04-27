@@ -4,7 +4,7 @@
  * Verifies that createContainer() + createThreadWorker() produce a worker
  * with all 6+1 callbacks correctly wired end-to-end:
  *
- * 1. provider       — not null, is AnthropicProvider
+ * 1. provider       — not null, has LLMProvider shape (stream function)
  * 2. getMessages    — returns thread messages from ThreadStore
  * 3. getThreadSnapshot — returns the stored snapshot
  * 4. buildSystemPrompt — returns non-empty SystemPromptBlock[]
@@ -20,7 +20,6 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { FileSettingsStorage } from "@flitter/data";
-import { AnthropicProvider } from "@flitter/llm";
 import type { ThreadSnapshot } from "@flitter/schemas";
 import { type ContainerOptions, createContainer, type SecretStorage } from "../container";
 
@@ -113,10 +112,13 @@ describe("container integration: inference roundtrip", () => {
         worker as unknown as { opts: import("@flitter/agent-core").ThreadWorkerOptions }
       ).opts;
 
-      // ── 1. provider is wired (not null, is AnthropicProvider) ────────────
+      // ── 1. provider is wired (not null, has LLMProvider shape) ────────────
+      // createFallbackProvider returns a routing wrapper { name, stream }, not an
+      // AnthropicProvider instance — so we verify the LLMProvider duck-type.
       expect(workerOpts.provider).toBeDefined();
       expect(workerOpts.provider).not.toBeNull();
-      expect(workerOpts.provider).toBeInstanceOf(AnthropicProvider);
+      expect(workerOpts.provider).toHaveProperty("stream");
+      expect(typeof workerOpts.provider.stream).toBe("function");
 
       // ── 2. getMessages returns thread messages ────────────────────────────
       const messages = workerOpts.getMessages();

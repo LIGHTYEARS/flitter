@@ -22,6 +22,7 @@ import {
   BehaviorSubject,
   createLogger,
   distinctUntilChanged,
+  GlobalCachedValue,
   type Observable,
   type Subscription,
 } from "@flitter/util";
@@ -96,6 +97,19 @@ export class ConfigService implements IConfigService {
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private debounceMs = 300;
 
+  /**
+   * Admin settings TTL cache — avoids re-reading the managed-settings.json on every reload().
+   *
+   * 逆向: amp-cli-reversed/chunk-005.js:145039-145077
+   *   JmT = new d5T({ compute: async () => { ... oHR() ... }, softTTL: 30000, hardTTL: 120000,
+   *     changes: (T, R) => { let a = cHR(T, R); return a.length > 0 ? a : void 0; }
+   *   })
+   *
+   * The changes callback mirrors amp's cHR() (chunk-002.js:25063) which returns the list
+   * of changed key names when old and new admin settings differ.
+   */
+  private _adminSettingsCache: GlobalCachedValue<Record<string, unknown>, string[]>;
+
   constructor(options: ConfigServiceOptions) {
     this.storage = options.storage;
     this.secretStorage = options.secretStorage;
@@ -109,6 +123,24 @@ export class ConfigService implements IConfigService {
     this.workspaceRootSubject = new BehaviorSubject<string | undefined>(
       options.workspaceRoot ?? undefined,
     );
+
+    // 逆向: amp-cli-reversed/chunk-005.js:145039-145077
+    //   JmT = new d5T({ softTTL: 30000, hardTTL: 120000, compute: () => oHR(), changes: cHR })
+    //   cHR (chunk-002.js:25063): returns array of changed key names, or [] if identical.
+    this._adminSettingsCache = new GlobalCachedValue<Record<string, unknown>, string[]>({
+      softTTL: 30_000,
+      hardTTL: 120_000,
+      compute: () => readAdminSettings(),
+      changes: (oldVal, newVal) => {
+        const a = oldVal ?? {};
+        const b = newVal ?? {};
+        const aJson = JSON.stringify(a, Object.keys(a).sort());
+        const bJson = JSON.stringify(b, Object.keys(b).sort());
+        if (aJson === bJson) return undefined;
+        const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+        return Array.from(allKeys);
+      },
+    });
   }
 
   get workspaceRoot(): string {
@@ -231,7 +263,8 @@ export class ConfigService implements IConfigService {
     // Apply admin settings overlay (highest priority)
     // 逆向: iHR(T) — modules/1273_unknown_iHR.js
     //   `get(a, e) { if (e === "admin" || a in adminDict) return adminDict[a]; return T.get(a, e); }`
-    const adminSettings = await readAdminSettings();
+    // 逆向: chunk-005.js:145039 — admin settings use GlobalCachedValue (softTTL: 30s, hardTTL: 120s)
+    const adminSettings = await this._adminSettingsCache.get();
     if (Object.keys(adminSettings).length > 0) {
       settings = { ...settings, ...adminSettings } as Settings;
       log.debug("Admin settings merged", { keys: Object.keys(adminSettings) });

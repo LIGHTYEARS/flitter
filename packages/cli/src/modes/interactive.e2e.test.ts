@@ -176,13 +176,13 @@ describe("launchInteractiveMode E2E", () => {
 
   it("should import runApp from @flitter/tui (not a stub)", () => {
     // 验证 runApp 从 @flitter/tui 导入 (非本地 stub)
-    const importLine = interactiveSource
-      .split("\n")
-      .find((line: string) => line.includes("runApp") && line.includes("import"));
-    assert.ok(importLine, "应有 runApp 的 import 语句");
+    // Note: import may be multi-line, so we match the import block rather than a single line.
+    const importBlockRe = /import\s*\{[^}]*\brunApp\b[^}]*\}\s*from\s*["']([^"']+)["']/s;
+    const match = interactiveSource.match(importBlockRe);
+    assert.ok(match, "应有 runApp 的 import 语句");
     assert.ok(
-      importLine!.includes("@flitter/tui"),
-      `runApp 应从 @flitter/tui 导入, 实际: ${importLine}`,
+      match![1].includes("@flitter/tui"),
+      `runApp 应从 @flitter/tui 导入, 实际来源: ${match![1]}`,
     );
     // 确认不是本地 stub 定义
     assert.ok(

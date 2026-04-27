@@ -431,6 +431,7 @@ export class ReplToolWidgetState extends State<ReplToolWidget> {
 
     return new RichText({
       text: new TextSpan({ children: spans }),
+      selectable: true,
     });
   }
 }

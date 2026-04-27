@@ -445,6 +445,28 @@ export function createProgram(version: string): Command {
     }
   }
 
+  // ─── Keyboard Tester (hidden) ─────────────────────────────
+
+  // 逆向: chunk-005.js:4772-4777 — amp registers `keyboard-tester` as hidden command
+  //   R.command("keyboard-tester", { hidden: !0 })
+  //     .summary("Keyboard input tester")
+  //     .description("Internal: stream parsed terminal input events as JSONL.")
+  //     .option("--raw", "Log raw incoming terminal bytes before parsing")
+  //     .action(async p => { await sy0({ raw: p.raw === !0 }); process.exit(...); })
+  program
+    .command("keyboard-tester")
+    .description("Test terminal keyboard input (developer tool)")
+    .option("--raw", "Also log raw hex bytes before parsing");
+
+  // Mark the keyboard-tester command hidden
+  {
+    const kbTestCmd = program.commands.find((c) => c.name() === "keyboard-tester");
+    if (kbTestCmd) {
+      // @ts-expect-error — Commander's _hidden is internal but stable across versions
+      kbTestCmd._hidden = true;
+    }
+  }
+
   // ─── Skills 管理 ─────────────────────────────────────────
   // 逆向: amp-cli-reversed/chunk-004.js:23716 (g40 — `skill` command group)
 

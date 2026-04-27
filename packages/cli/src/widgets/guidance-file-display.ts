@@ -185,13 +185,12 @@ export class GuidanceFileDisplay extends StatelessWidget {
 
     // 逆向: new xT({ text: new G(a, new cT({ color: R.app.toolSuccess, dim: true })), selectable: true })
     //   xT = RichText, G = TextSpan, cT = TextStyle
-    //   Note: selectable: true is not yet supported in flitter's RichText;
-    //   the property is noted here for completeness but omitted from the call.
     const richText = new RichText({
       text: new TextSpan({
         text,
         style: new TextStyle({ foreground: successColor, dim: true }),
       }),
+      selectable: true,
     }) as unknown as Widget;
 
     // 逆向: new uR({ padding: TR.only({ left: 2 }), child: ... })

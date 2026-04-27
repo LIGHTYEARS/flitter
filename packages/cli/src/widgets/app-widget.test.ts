@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { Column, State, StatefulWidget } from "@flitter/tui";
+import { Column, Stack, State, StatefulWidget } from "@flitter/tui";
 import { AppThemeController } from "./app-theme-controller.js";
 import { AppWidget, AppWidgetState } from "./app-widget.js";
 import { ConfigProvider } from "./config-provider.js";
@@ -170,7 +170,7 @@ describe("ThreadStateWidget", () => {
     assert.ok(state instanceof ThreadStateWidgetState);
   });
 
-  it("build 返回 Column 布局", () => {
+  it("build 返回 Stack 布局（包含 Column）", () => {
     const widget = new ThreadStateWidget({
       threadStore: { observeThread: () => undefined },
       threadWorker: { events$: { subscribe: () => ({ unsubscribe: () => {}, closed: false }) } },
@@ -183,7 +183,13 @@ describe("ThreadStateWidget", () => {
     (state as unknown as { _mounted: boolean })._mounted = true;
 
     const built = state.build({} as never);
-    assert.ok(built instanceof Column);
+    assert.ok(built instanceof Stack, `Expected Stack, got ${built.constructor.name}`);
+    const stackChildren = (built as any).children || [];
+    assert.ok(stackChildren.length >= 1, "Stack should have at least 1 child");
+    assert.ok(
+      stackChildren[0] instanceof Column,
+      `Expected Column as first Stack child, got ${stackChildren[0].constructor.name}`,
+    );
   });
 });
 

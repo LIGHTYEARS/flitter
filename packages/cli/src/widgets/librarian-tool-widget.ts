@@ -604,6 +604,7 @@ function _makeTextWidget(text: string): Widget {
       text,
       style: new TextStyle({ foreground: Color.default() }),
     }),
+    selectable: true,
   }) as unknown as Widget;
 }
 

@@ -4,13 +4,14 @@
  * 逆向: qM/QQT (misc_utils.js:1380, interactive_widgets.js:451-631) — file preview
  *       w0R/B0R (misc_utils.js:5955, jetbrains_wizard.js:1806-1926) — attached variant
  *
- * Simplifications: no Kitty graphics (always placeholder), no async loading,
- * keyboard hints instead of io dialog.
+ * Supports Kitty Graphics Protocol for terminals that support it (kitty, WezTerm, Ghostty).
+ * JPEG/GIF images are transcoded to PNG before rendering.
+ * Falls back to text placeholder for unsupported terminals.
  *
  * @module
  */
 
-import type { BuildContext, Element, KeyEventResult } from "@flitter/tui";
+import type { BuildContext, Element, KeyEventResult, Widget } from "@flitter/tui";
 import {
   Border,
   BorderSide,
@@ -21,12 +22,15 @@ import {
   Container,
   EdgeInsets,
   Focus,
+  ImageWidget,
   RichText,
   SizedBox,
   State,
   StatefulWidget,
+  supportsKittyGraphics,
   TextSpan,
   TextStyle,
+  transcodeToKittyPng,
 } from "@flitter/tui";
 import { AppThemeController } from "./app-theme-controller.js";
 
@@ -191,13 +195,39 @@ export class ImagePreviewModalState extends State<ImagePreviewModal> {
       }),
     });
 
-    // ── Image placeholder ── 逆向: QQT.build line 578-583
-    const imagePlaceholder = new RichText({
-      text: new TextSpan({
-        text: "(Terminal does not support inline images)",
-        style: new TextStyle({ foreground: fgColor, dim: true, italic: true }),
-      }),
-    });
+    // ── Image content ── 逆向: QQT.build line 578-583
+    // When Kitty is supported and image data is available, render the actual image;
+    // otherwise show a text placeholder.
+    let imageWidget: Widget;
+    const { imageData, mediaType } = this.widget.config;
+    if (supportsKittyGraphics() && imageData && mediaType) {
+      const result = transcodeToKittyPng(imageData, mediaType);
+      if (result.success) {
+        imageWidget = new ImageWidget({
+          base64Data: result.png,
+          mediaType: "image/png",
+          width: 60,
+          height: 20,
+        });
+      } else {
+        imageWidget = new RichText({
+          text: new TextSpan({
+            text: `(Cannot display: ${result.reason})`,
+            style: new TextStyle({ foreground: fgColor, dim: true, italic: true }),
+          }),
+        });
+      }
+    } else {
+      const altText = imageData
+        ? "(Terminal does not support inline images)"
+        : "(No image data available)";
+      imageWidget = new RichText({
+        text: new TextSpan({
+          text: altText,
+          style: new TextStyle({ foreground: fgColor, dim: true, italic: true }),
+        }),
+      });
+    }
 
     // ── Action hints ── 逆向: QQT "Save Image"+"Close", B0R "Remove image"+"Close"
     const hintParts: TextSpan[] = [];
@@ -249,7 +279,7 @@ export class ImagePreviewModalState extends State<ImagePreviewModal> {
         new SizedBox({ height: 1 }),
         metadata,
         new SizedBox({ height: 1 }),
-        imagePlaceholder,
+        imageWidget,
         new SizedBox({ height: 1 }),
         actionHints,
       ],

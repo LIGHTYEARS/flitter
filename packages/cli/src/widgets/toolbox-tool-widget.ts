@@ -478,6 +478,7 @@ export class ToolboxToolWidgetState extends State<ToolboxToolWidget> {
 
     return new RichText({
       text: new TextSpan({ children: spans }),
+      selectable: true,
     });
   }
 }

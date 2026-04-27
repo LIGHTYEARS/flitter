@@ -36,6 +36,7 @@ import { createLogger, setLogLevel, setLogOutput } from "@flitter/util";
 import { handleLogin, handleLogout } from "./commands/auth";
 import { handleConfigGet, handleConfigList, handleConfigSet } from "./commands/config";
 import { handleInstall } from "./commands/install";
+import { handleKeyboardTester } from "./commands/keyboard-tester";
 import { handleMcpAdd, handleMcpList, handleMcpRemove } from "./commands/mcp";
 import {
   handleMcpApprove,
@@ -371,6 +372,19 @@ export async function main(opts?: MainOptions): Promise<void> {
           },
         );
         // 逆向: 0473_unknown__m0.js:3 — amp calls process.exit() after install
+        process.exit(process.exitCode ?? 0);
+      });
+    }
+
+    // keyboard-tester 命令 (hidden) — 逆向: 0525_unknown_sy0.js
+    // Stream parsed terminal input events as JSONL for diagnostics
+    const kbTestCmd = program.commands.find((c) => c.name() === "keyboard-tester");
+    if (kbTestCmd) {
+      kbTestCmd.action(async (cmdOpts: Record<string, unknown>) => {
+        await handleKeyboardTester({
+          raw: cmdOpts?.raw === true,
+        });
+        // 逆向: chunk-005.js:4776 — amp calls process.exit() after keyboard-tester
         process.exit(process.exitCode ?? 0);
       });
     }

@@ -321,6 +321,19 @@ export class ConversationViewState extends State<ConversationView> {
   private _activityGroupAppendTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
 
   /**
+   * Tracks which activity groups the user has manually toggled.
+   * Auto-collapse skips "touched" groups to respect user preference.
+   * 逆向: stateController.denseViewItemTouched Set (chunk-005.js:2677)
+   */
+  private _activityGroupTouched: Set<number> = new Set();
+
+  /**
+   * Previous hasInProgress state per group, for detecting done transitions.
+   * 逆向: n8R._closeDenseActivityGroupsOnBoundary (chunk-005.js:2674-2693)
+   */
+  private _activityGroupWasInProgress: Map<number, boolean> = new Map();
+
+  /**
    * ScrollController for conversation auto-scroll (followMode: true).
    * 逆向: amp conversation auto-scrolls to bottom
    */
@@ -363,6 +376,7 @@ export class ConversationViewState extends State<ConversationView> {
         const item = initItems[i];
         if (item.type === "activity-group") {
           this._activityGroupVisibleCount.set(i, item.actions.length);
+          this._activityGroupWasInProgress.set(i, item.hasInProgress);
         }
       }
     }
@@ -468,6 +482,7 @@ export class ConversationViewState extends State<ConversationView> {
     }
 
     // 逆向: _closeDenseActivityGroupsOnBoundary — auto-collapse completed groups
+    // Respects user-touched state (逆向: stateController.denseViewItemTouched)
     // 逆向: h9R.didUpdateWidget — progressive animation state management
     const items = this.widget.config.items;
     if (items) {
@@ -475,8 +490,11 @@ export class ConversationViewState extends State<ConversationView> {
         const item = items[i];
         if (item.type !== "activity-group") continue;
 
+        const wasInProgress = this._activityGroupWasInProgress.get(i) ?? false;
+        const isNowInProgress = item.hasInProgress;
+
         // Update progressive animation state
-        if (item.hasInProgress) {
+        if (isNowInProgress) {
           const totalActions = item.actions.length;
           const visibleCount = this._activityGroupVisibleCount.get(i) ?? 0;
           if (visibleCount < totalActions) {
@@ -488,10 +506,13 @@ export class ConversationViewState extends State<ConversationView> {
           this._activityGroupVisibleCount.delete(i);
         }
 
-        // Auto-collapse completed groups
-        if (!item.hasInProgress && this._activityGroupExpanded.get(i) === true) {
-          this._activityGroupExpanded.set(i, false);
+        // Auto-collapse on in-progress → done transition
+        if (wasInProgress && !isNowInProgress) {
+          if (!this._activityGroupTouched.has(i)) {
+            this._activityGroupExpanded.set(i, false);
+          }
         }
+        this._activityGroupWasInProgress.set(i, isNowInProgress);
       }
     }
   }
@@ -1244,6 +1265,7 @@ export class ConversationViewState extends State<ConversationView> {
           ? (newExpanded: boolean) => {
               this.setState(() => {
                 this._activityGroupExpanded.set(itemIndex, newExpanded);
+                this._activityGroupTouched.add(itemIndex);
               });
             }
           : undefined,

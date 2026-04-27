@@ -302,6 +302,86 @@ describe("transformThreadToDisplayItems", () => {
       command: "sleep 10",
     });
   });
+
+  it("Read tool with read_range populates ActivityAction.readRange", () => {
+    // 逆向: B9R.build reads R.input.read_range and renders @start-end (misc_utils.js:7800-7809)
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tu_1",
+            name: "Read",
+            input: { file_path: "/tmp/a.ts", read_range: [10, 50] },
+            complete: true,
+          },
+        ],
+        state: { type: "complete" as const },
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            toolUseID: "tu_1",
+            run: { status: "done" as const, result: "file contents" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect(items).toHaveLength(1);
+    const group = items[0] as {
+      type: "activity-group";
+      actions: Array<{ readRange?: [number, number] }>;
+    };
+    expect(group.type).toBe("activity-group");
+    expect(group.actions[0].readRange).toEqual([10, 50]);
+  });
+
+  it("Read tool with discoveredGuidanceFiles populates ActivityAction.guidanceFiles", () => {
+    // 逆向: B9R.build reads a.result.discoveredGuidanceFiles (misc_utils.js:7811-7816)
+    // 逆向: $b() in chunk-004.js:37537-37542 extracts discoveredGuidanceFiles from run result
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use" as const,
+            id: "tu_1",
+            name: "Read",
+            input: { file_path: "/tmp/a.ts" },
+            complete: true,
+          },
+        ],
+        state: { type: "complete" as const },
+      },
+      {
+        role: "user" as const,
+        content: [
+          {
+            type: "tool_result" as const,
+            toolUseID: "tu_1",
+            run: {
+              status: "done" as const,
+              result: {
+                discoveredGuidanceFiles: [{ uri: "/tmp/AGENTS.md", lineCount: 42 }],
+              },
+            },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    expect(items).toHaveLength(1);
+    const group = items[0] as {
+      type: "activity-group";
+      actions: Array<{ guidanceFiles?: Array<{ uri: string; lineCount: number }> }>;
+    };
+    expect(group.type).toBe("activity-group");
+    expect(group.actions[0].guidanceFiles).toEqual([{ uri: "/tmp/AGENTS.md", lineCount: 42 }]);
+  });
 });
 
 describe("transformThreadToDisplayItems — image blocks", () => {

@@ -116,6 +116,10 @@ export interface ActivityAction {
   path?: string;
   /** Additional detail (pattern for search, range for read) */
   detail?: string;
+  /** Read range [start, end] line numbers (逆向: B9R R.input.read_range — misc_utils.js:7800-7809) */
+  readRange?: [number, number];
+  /** Guidance files discovered during this tool run (逆向: B9R a.result.discoveredGuidanceFiles — misc_utils.js:7811-7816, $b() — chunk-004.js:37537-37542) */
+  guidanceFiles?: Array<{ uri: string; lineCount: number }>;
 }
 
 /**
@@ -462,6 +466,28 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             : typeof block.input?.glob === "string"
               ? (block.input.glob as string)
               : undefined;
+
+        // Extract readRange for Read tool (逆向: B9R R.input.read_range — misc_utils.js:7800-7809)
+        let readRange: [number, number] | undefined;
+        if (block.name === "Read" && Array.isArray(block.input?.read_range)) {
+          const [start, end] = block.input.read_range as [unknown, unknown];
+          if (typeof start === "number" && typeof end === "number" && start >= 0 && end >= 0) {
+            readRange = [start, end];
+          }
+        }
+
+        // Extract guidanceFiles from tool result (逆向: $b() — chunk-004.js:37537-37542, B9R a.result.discoveredGuidanceFiles — misc_utils.js:7811-7816)
+        let guidanceFiles: Array<{ uri: string; lineCount: number }> | undefined;
+        if (
+          result?.run?.status === "done" &&
+          typeof result.run.result === "object" &&
+          result.run.result !== null &&
+          Array.isArray((result.run.result as Record<string, unknown>).discoveredGuidanceFiles)
+        ) {
+          guidanceFiles = (result.run.result as Record<string, unknown>)
+            .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>;
+        }
+
         activityBuffer.push({
           kind: ACTIVITY_TOOLS[block.name],
           toolName: block.name,
@@ -470,6 +496,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             status === "rejected-by-user" ? "cancelled" : (status as ActivityAction["status"]),
           path: toolPath,
           detail: toolDetail,
+          readRange,
+          guidanceFiles,
         });
       } else if (BASH_TOOLS.has(block.name)) {
         // 逆向: yx0 `(p === "Bash" || p === "shell_command")` branch (chunk-004.js:7752-7787)

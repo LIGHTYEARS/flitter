@@ -1007,6 +1007,66 @@ export class ConversationViewState extends State<ConversationView> {
           }),
         );
       }
+    } else if (tool.kind === "read") {
+      // 逆向: B9R (misc_utils.js:7776-7823) → x3 (misc_utils.js:6312-6356)
+      // Standalone Read tool row: status icon + "Read" bold + file path hyperlink + optional @range
+      const fileRefColor = appTheme?.fileReference ?? Color.cyan();
+
+      if (isInProgress) {
+        spans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: toolRunningColor }),
+          }),
+        );
+      } else {
+        const icon = _getStatusIcon(tool.status);
+        const iconColor = _getStatusColor(tool.status, appTheme);
+        spans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: iconColor }),
+          }),
+        );
+      }
+
+      // 逆向: x3/i9R — tool name in bold toolName color
+      spans.push(
+        new TextSpan({
+          text: tool.toolName,
+          style: new TextStyle({ bold: true, foreground: toolNameColor }),
+        }),
+      );
+
+      // 逆向: B9R — H3 hyperlink with fileReference color, dim, underline
+      if (tool.path) {
+        const cwd = this.widget.config.cwd;
+        const relPath = cwdRelativePath(tool.path, cwd);
+        const fileUri = toFileUri(tool.path, cwd);
+        spans.push(new TextSpan({ text: " " }));
+        spans.push(
+          new TextSpan({
+            text: relPath,
+            url: fileUri,
+            style: new TextStyle({
+              foreground: fileRefColor,
+              dim: true,
+              underline: true,
+            }),
+          }),
+        );
+      }
+
+      // 逆向: B9R — ` @${c}-${s}` in warning color, dim
+      if (tool.readRange) {
+        const [start, end] = tool.readRange;
+        spans.push(
+          new TextSpan({
+            text: ` @${start}-${end}`,
+            style: new TextStyle({ foreground: WARNING_COLOR, dim: true }),
+          }),
+        );
+      }
     } else {
       // Non-bash tools: status icon + tool name + detail (original behavior)
       if (isInProgress) {
@@ -1054,6 +1114,22 @@ export class ConversationViewState extends State<ConversationView> {
     });
 
     const columnChildren: Widget[] = [mainRow];
+
+    // 逆向: B9R (misc_utils.js:7811-7816) — guidance files as dim success-colored text below Read row
+    if (tool.kind === "read" && tool.guidanceFiles && tool.guidanceFiles.length > 0) {
+      const cwd = this.widget.config.cwd;
+      for (const gf of tool.guidanceFiles) {
+        const gfName = cwdRelativePath(gf.uri, cwd);
+        columnChildren.push(
+          new RichText({
+            text: new TextSpan({
+              text: `  Loaded ${gfName} (${gf.lineCount} lines)`,
+              style: new TextStyle({ foreground: toolSuccessColor, dim: true }),
+            }),
+          }) as unknown as Widget,
+        );
+      }
+    }
 
     // 逆向: chunk-004.js:21064-21067 — edit branch renders diff via cE0(T.diff, R)
     if ((tool.kind === "edit" || tool.kind === "create-file") && tool.diff) {

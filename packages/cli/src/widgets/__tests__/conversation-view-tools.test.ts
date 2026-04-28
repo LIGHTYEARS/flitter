@@ -33,19 +33,37 @@ describe("ConversationView tool rendering", () => {
   });
 
   it("accepts activity-group items", () => {
+    // Activity groups are still used by specialized tools (finder, code_review, etc.)
     const items: DisplayItem[] = [
       {
         type: "activity-group",
         actions: [
-          { kind: "read", toolName: "Read", toolUseId: "tu_1", status: "done" },
-          { kind: "search", toolName: "Grep", toolUseId: "tu_2", status: "done" },
+          { kind: "explore", toolName: "finder", toolUseId: "tu_1", status: "done" },
+          { kind: "explore", toolName: "code_review", toolUseId: "tu_2", status: "done" },
         ],
-        summary: "1 read, 1 search",
+        summary: "2 explores",
         hasInProgress: false,
       },
     ];
     const view = new ConversationView({ items });
     expect(view.config.items).toHaveLength(1);
+  });
+
+  it("accepts standalone Read tool items", () => {
+    // 逆向: B9R → x3 — Read renders as standalone tool in main chat view
+    const items: DisplayItem[] = [
+      {
+        type: "tool",
+        toolUseId: "tu_1",
+        toolName: "Read",
+        kind: "read",
+        status: "done",
+        path: "/tmp/package.json",
+      },
+    ];
+    const view = new ConversationView({ items });
+    expect(view.config.items).toHaveLength(1);
+    expect((view.config.items![0] as { kind: string }).kind).toBe("read");
   });
 
   it("still accepts legacy messages array", () => {
@@ -123,10 +141,10 @@ describe("ConversationView tool rendering", () => {
       {
         type: "activity-group",
         actions: [
-          { kind: "read", toolName: "Read", toolUseId: "tu_1", status: "done" },
-          { kind: "search", toolName: "Grep", toolUseId: "tu_2", status: "in-progress" },
+          { kind: "explore", toolName: "finder", toolUseId: "tu_1", status: "done" },
+          { kind: "explore", toolName: "code_review", toolUseId: "tu_2", status: "in-progress" },
         ],
-        summary: "1 read, 1 search",
+        summary: "2 explores",
         hasInProgress: true,
       },
     ];
@@ -139,10 +157,12 @@ describe("ConversationView tool rendering", () => {
     const items: DisplayItem[] = [
       { type: "message", role: "user", text: "Do something" },
       {
-        type: "activity-group",
-        actions: [{ kind: "read", toolName: "Read", toolUseId: "tu_1", status: "done" }],
-        summary: "1 read",
-        hasInProgress: false,
+        type: "tool",
+        toolUseId: "tu_1",
+        toolName: "Read",
+        kind: "read",
+        status: "done",
+        path: "/tmp/file.ts",
       },
       {
         type: "tool",

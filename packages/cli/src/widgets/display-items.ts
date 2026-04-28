@@ -73,6 +73,10 @@ export interface ToolItem {
   // generic fallback
   args?: Record<string, unknown>;
   error?: string;
+  /** Read range [start, end] line numbers (逆向: B9R R.input.read_range — misc_utils.js:7800-7809) */
+  readRange?: [number, number];
+  /** Guidance files discovered during this tool run (逆向: B9R a.result.discoveredGuidanceFiles — misc_utils.js:7811-7816) */
+  guidanceFiles?: Array<{ uri: string; lineCount: number }>;
   /** Parsed chart data for "chart" tool results (逆向: c8R / s8R chart widget) */
   chartData?: ChartData;
   /** Unified diff text for edit/create-file results (逆向: amp chunk-004.js:7793-7803) */
@@ -169,18 +173,29 @@ const CREATE_TOOLS = new Set(["Write", "create_file"]);
 
 /**
  * Tools grouped into activity rows (逆向: yx0 `c()` calls).
- * Read -> read, Grep/Glob/FuzzyFind -> search, file_tree -> list, etc.
+ * Reserved for future DTW/thread-controller view.
+ * In the main chat view (f8R/x8R), all tools render standalone (逆向: Bs.buildThreadItemWidget).
  */
-const ACTIVITY_TOOLS: Record<string, "read" | "search" | "list"> = {
-  Read: "read",
-  Grep: "search",
-  Glob: "search",
-  FuzzyFind: "search",
-  file_tree: "list",
-  read_thread: "read",
-  find_thread: "search",
-  skill: "read",
-  get_diagnostics: "read",
+const ACTIVITY_TOOLS: Record<string, "read" | "search" | "list"> = {};
+
+/** Read tool gets standalone row with file path + range (逆向: Bs.buildReadTool → B9R → x3) */
+const READ_TOOLS = new Set(["Read"]);
+
+/** Grep tool gets standalone row with pattern (逆向: Bs.buildGrepTool → W9R → x3) */
+const GREP_TOOLS = new Set(["Grep"]);
+
+/**
+ * Other formerly-grouped tools get generic standalone rows.
+ * 逆向: Bs.buildGenericTool, Bs.buildToolWidget switch — each gets its own x3 row.
+ */
+const GENERIC_STANDALONE_TOOLS: Record<string, { displayName: string; detailKey: string }> = {
+  Glob: { displayName: "Glob", detailKey: "pattern" },
+  FuzzyFind: { displayName: "FuzzyFind", detailKey: "query" },
+  file_tree: { displayName: "List", detailKey: "path" },
+  read_thread: { displayName: "Read Thread", detailKey: "path" },
+  find_thread: { displayName: "Find Thread", detailKey: "query" },
+  skill: { displayName: "Skill", detailKey: "description" },
+  get_diagnostics: { displayName: "Get Diagnostics", detailKey: "path" },
 };
 
 /** Tools to silently skip (逆向: _x0 set / bx0 check in 2153_unknown_ux0.js) */
@@ -450,10 +465,84 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
       const result = resultMap.get(block.id);
       const status = (result?.run?.status as ToolItem["status"]) ?? "in-progress";
 
-      // Classify the tool (逆向: yx0 if/else chain)
-      if (ACTIVITY_TOOLS[block.name]) {
-        // 逆向: yx0 `c()` calls for Read, Grep, Glob, file_tree, etc.
-        // 逆向: B9R (misc_utils.js:7776) R.input.path, W9R (misc_utils.js:8088) R.input.pattern
+      // Classify the tool (逆向: Bs.buildToolWidget switch — main chat view f8R/x8R path)
+
+      if (READ_TOOLS.has(block.name)) {
+        // 逆向: Bs.buildReadTool → B9R → x3 (misc_utils.js:7776-7823)
+        flushActivityBuffer();
+        const toolPath =
+          typeof block.input?.file_path === "string"
+            ? (block.input.file_path as string)
+            : typeof block.input?.path === "string"
+              ? (block.input.path as string)
+              : undefined;
+
+        let readRange: [number, number] | undefined;
+        if (Array.isArray(block.input?.read_range)) {
+          const [start, end] = block.input.read_range as [unknown, unknown];
+          if (typeof start === "number" && typeof end === "number" && start >= 0 && end >= 0) {
+            readRange = [start, end];
+          }
+        }
+
+        let guidanceFiles: Array<{ uri: string; lineCount: number }> | undefined;
+        if (
+          result?.run?.status === "done" &&
+          typeof result.run.result === "object" &&
+          result.run.result !== null &&
+          Array.isArray((result.run.result as Record<string, unknown>).discoveredGuidanceFiles)
+        ) {
+          guidanceFiles = (result.run.result as Record<string, unknown>)
+            .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>;
+        }
+
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: block.name,
+          kind: "read",
+          status,
+          path: toolPath,
+          readRange,
+          guidanceFiles,
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (GREP_TOOLS.has(block.name)) {
+        // 逆向: Bs.buildGrepTool → W9R → x3 (misc_utils.js:8088)
+        flushActivityBuffer();
+        const pattern =
+          typeof block.input?.pattern === "string" ? (block.input.pattern as string) : undefined;
+        const grepPath =
+          typeof block.input?.path === "string" ? (block.input.path as string) : undefined;
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: block.name,
+          kind: "search",
+          status,
+          path: grepPath,
+          args: pattern ? { detail: pattern } : undefined,
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (GENERIC_STANDALONE_TOOLS[block.name]) {
+        // 逆向: Bs.buildGenericTool → x3 (misc_utils.js various buildXTool methods)
+        flushActivityBuffer();
+        const config = GENERIC_STANDALONE_TOOLS[block.name];
+        const detail =
+          typeof block.input?.[config.detailKey] === "string"
+            ? (block.input[config.detailKey] as string)
+            : extractDetail(block.input as Record<string, unknown> | undefined);
+        items.push({
+          type: "tool",
+          toolUseId: block.id,
+          toolName: config.displayName,
+          kind: "generic",
+          status,
+          args: detail ? { detail } : (block.input as Record<string, unknown>),
+          error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+        });
+      } else if (ACTIVITY_TOOLS[block.name]) {
+        // Reserved for future DTW/thread-controller view (currently empty map)
         const toolPath =
           typeof block.input?.file_path === "string"
             ? (block.input.file_path as string)
@@ -467,27 +556,6 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
               ? (block.input.glob as string)
               : undefined;
 
-        // Extract readRange for Read tool (逆向: B9R R.input.read_range — misc_utils.js:7800-7809)
-        let readRange: [number, number] | undefined;
-        if (block.name === "Read" && Array.isArray(block.input?.read_range)) {
-          const [start, end] = block.input.read_range as [unknown, unknown];
-          if (typeof start === "number" && typeof end === "number" && start >= 0 && end >= 0) {
-            readRange = [start, end];
-          }
-        }
-
-        // Extract guidanceFiles from tool result (逆向: $b() — chunk-004.js:37537-37542, B9R a.result.discoveredGuidanceFiles — misc_utils.js:7811-7816)
-        let guidanceFiles: Array<{ uri: string; lineCount: number }> | undefined;
-        if (
-          result?.run?.status === "done" &&
-          typeof result.run.result === "object" &&
-          result.run.result !== null &&
-          Array.isArray((result.run.result as Record<string, unknown>).discoveredGuidanceFiles)
-        ) {
-          guidanceFiles = (result.run.result as Record<string, unknown>)
-            .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>;
-        }
-
         activityBuffer.push({
           kind: ACTIVITY_TOOLS[block.name],
           toolName: block.name,
@@ -496,8 +564,6 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             status === "rejected-by-user" ? "cancelled" : (status as ActivityAction["status"]),
           path: toolPath,
           detail: toolDetail,
-          readRange,
-          guidanceFiles,
         });
       } else if (BASH_TOOLS.has(block.name)) {
         // 逆向: yx0 `(p === "Bash" || p === "shell_command")` branch (chunk-004.js:7752-7787)

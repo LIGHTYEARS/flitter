@@ -19,8 +19,8 @@ describe("transformThreadToDisplayItems", () => {
     expect(items[1]).toEqual({ type: "message", role: "assistant", text: "Hi there!" });
   });
 
-  it("transforms a tool_use + tool_result into an activity-group item", () => {
-    // Read is an activity tool in amp's yx0 — even a single Read produces an activity-group
+  it("transforms a tool_use + tool_result into a standalone Read tool item", () => {
+    // 逆向: Bs.buildReadTool → B9R → x3 — Read renders as standalone tool in main chat view
     const messages = [
       {
         role: "assistant" as const,
@@ -48,19 +48,24 @@ describe("transformThreadToDisplayItems", () => {
       },
     ];
     const items = transformThreadToDisplayItems(messages);
-    expect(items).toHaveLength(2); // message text + activity group
+    expect(items).toHaveLength(2); // message text + tool
     expect(items[0]).toEqual({
       type: "message",
       role: "assistant",
       text: "Let me read that file.",
     });
     expect(items[1]).toMatchObject({
-      type: "activity-group",
-      actions: [{ kind: "read", toolName: "Read", toolUseId: "tu_1", status: "done" }],
+      type: "tool",
+      kind: "read",
+      toolName: "Read",
+      toolUseId: "tu_1",
+      status: "done",
+      path: "/tmp/a.txt",
     });
   });
 
-  it("groups lightweight read/search tools into activity-group items", () => {
+  it("renders Read/Grep/Glob as standalone tool items", () => {
+    // 逆向: Bs.buildToolWidget — Read/Grep/Glob each get their own x3 row in main chat view
     const messages = [
       {
         role: "assistant" as const,
@@ -111,14 +116,24 @@ describe("transformThreadToDisplayItems", () => {
       },
     ];
     const items = transformThreadToDisplayItems(messages);
-    expect(items).toHaveLength(1);
+    expect(items).toHaveLength(3);
     expect(items[0]).toMatchObject({
-      type: "activity-group",
-      actions: [
-        { kind: "read", toolName: "Read", toolUseId: "tu_1" },
-        { kind: "search", toolName: "Grep", toolUseId: "tu_2" },
-        { kind: "search", toolName: "Glob", toolUseId: "tu_3" },
-      ],
+      type: "tool",
+      kind: "read",
+      toolName: "Read",
+      toolUseId: "tu_1",
+    });
+    expect(items[1]).toMatchObject({
+      type: "tool",
+      kind: "search",
+      toolName: "Grep",
+      toolUseId: "tu_2",
+    });
+    expect(items[2]).toMatchObject({
+      type: "tool",
+      kind: "generic",
+      toolName: "Glob",
+      toolUseId: "tu_3",
     });
   });
 
@@ -303,7 +318,7 @@ describe("transformThreadToDisplayItems", () => {
     });
   });
 
-  it("Read tool with read_range populates ActivityAction.readRange", () => {
+  it("Read tool with read_range populates ToolItem.readRange", () => {
     // 逆向: B9R.build reads R.input.read_range and renders @start-end (misc_utils.js:7800-7809)
     const messages = [
       {
@@ -332,15 +347,13 @@ describe("transformThreadToDisplayItems", () => {
     ];
     const items = transformThreadToDisplayItems(messages);
     expect(items).toHaveLength(1);
-    const group = items[0] as {
-      type: "activity-group";
-      actions: Array<{ readRange?: [number, number] }>;
-    };
-    expect(group.type).toBe("activity-group");
-    expect(group.actions[0].readRange).toEqual([10, 50]);
+    const toolItem = items[0] as ToolItem;
+    expect(toolItem.type).toBe("tool");
+    expect(toolItem.kind).toBe("read");
+    expect(toolItem.readRange).toEqual([10, 50]);
   });
 
-  it("Read tool with discoveredGuidanceFiles populates ActivityAction.guidanceFiles", () => {
+  it("Read tool with discoveredGuidanceFiles populates ToolItem.guidanceFiles", () => {
     // 逆向: B9R.build reads a.result.discoveredGuidanceFiles (misc_utils.js:7811-7816)
     // 逆向: $b() in chunk-004.js:37537-37542 extracts discoveredGuidanceFiles from run result
     const messages = [
@@ -375,12 +388,10 @@ describe("transformThreadToDisplayItems", () => {
     ];
     const items = transformThreadToDisplayItems(messages);
     expect(items).toHaveLength(1);
-    const group = items[0] as {
-      type: "activity-group";
-      actions: Array<{ guidanceFiles?: Array<{ uri: string; lineCount: number }> }>;
-    };
-    expect(group.type).toBe("activity-group");
-    expect(group.actions[0].guidanceFiles).toEqual([{ uri: "/tmp/AGENTS.md", lineCount: 42 }]);
+    const toolItem = items[0] as ToolItem;
+    expect(toolItem.type).toBe("tool");
+    expect(toolItem.kind).toBe("read");
+    expect(toolItem.guidanceFiles).toEqual([{ uri: "/tmp/AGENTS.md", lineCount: 42 }]);
   });
 });
 

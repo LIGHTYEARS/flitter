@@ -781,6 +781,9 @@ export class RichText extends Widget implements RenderObjectWidget {
     this.overflow = args.overflow ?? "clip";
     this.maxLines = args.maxLines;
     this.selectable = args.selectable ?? false;
+
+    // 逆向: amp Text widget constructor calls sendDebugData({ text })
+    this.sendDebugData({ text: this.text.toPlainText() });
   }
 
   createElement(): Element {

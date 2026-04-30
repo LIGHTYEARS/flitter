@@ -19,6 +19,8 @@
  */
 
 import { logger } from "../debug/logger.js";
+import { WidgetREPLServer } from "../debug/widget-repl-server.js";
+import { WidgetTreeDebugger } from "../debug/widget-tree-debugger.js";
 import { FocusManager } from "../focus/focus-manager.js";
 import { MouseManager } from "../gestures/mouse-manager.js";
 import { FrameStatsOverlay } from "../perf/frame-stats-overlay.js";
@@ -156,6 +158,12 @@ export class WidgetsBinding {
    * If null, hyperlink clicks are silently ignored.
    */
   private _openUrl: ((url: string) => Promise<void>) | null = null;
+
+  /** Widget tree debugger (HTTP inspector). */
+  private _inspector: WidgetTreeDebugger | null = null;
+
+  /** Widget REPL server. */
+  private _replServer: WidgetREPLServer | null = null;
 
   /**
    * 获取 WidgetsBinding 单例实例。
@@ -314,6 +322,17 @@ export class WidgetsBinding {
       this.mouseManager.setTui(this.tui);
       this.setupEventHandlers();
       this.requestForcedPaintFrame();
+
+      // 逆向: chunk-004:30211-30212 — inspector activation
+      const inspectorEnabled = process.env.FLITTER_INSPECTOR === "1";
+      const inspectorPort = parseInt(process.env.FLITTER_INSPECTOR_PORT || "9876", 10);
+      this._inspector = new WidgetTreeDebugger(inspectorEnabled, 1000, inspectorPort);
+      this._inspector.start(this.rootElement!);
+
+      if (inspectorEnabled) {
+        this._replServer = new WidgetREPLServer(this.rootElement!);
+        this._replServer.start();
+      }
 
       await this.waitForExit();
     } finally {
@@ -983,6 +1002,16 @@ export class WidgetsBinding {
     this.pendingResizeEvent = null;
     this.clearExitHint();
     this.isRunning = false;
+
+    // Stop inspector/REPL
+    if (this._inspector) {
+      this._inspector.stop();
+      this._inspector = null;
+    }
+    if (this._replServer) {
+      this._replServer.stop();
+      this._replServer = null;
+    }
 
     // 终端清理
     await this.tui.deinit();

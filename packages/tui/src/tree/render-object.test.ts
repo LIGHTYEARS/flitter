@@ -784,3 +784,30 @@ describe("RenderObject — attach/detach idempotency (amp vH alignment)", () => 
     assert.equal(childDetachCount, afterFirst, "second detach should not recurse into children");
   });
 });
+
+describe("RenderObject — debugData", () => {
+  it("初始 debugData 为空对象", () => {
+    const ro = new TestRenderObject();
+    assert.deepStrictEqual(ro.debugData, {});
+  });
+
+  it("sendDebugData 合并数据", () => {
+    const ro = new TestRenderObject();
+    ro.sendDebugData({ padding: { top: 1 } });
+    assert.deepStrictEqual(ro.debugData, { padding: { top: 1 } });
+  });
+
+  it("多次 sendDebugData 累积合并", () => {
+    const ro = new TestRenderObject();
+    ro.sendDebugData({ margin: null });
+    ro.sendDebugData({ padding: { left: 2 } });
+    assert.deepStrictEqual(ro.debugData, { margin: null, padding: { left: 2 } });
+  });
+
+  it("sendDebugData 覆盖同名 key", () => {
+    const ro = new TestRenderObject();
+    ro.sendDebugData({ width: 10 });
+    ro.sendDebugData({ width: 20 });
+    assert.deepStrictEqual(ro.debugData, { width: 20 });
+  });
+});

@@ -55,6 +55,31 @@ export abstract class RenderObject {
    */
   allowHitTestOutsideBounds = false;
 
+  /**
+   * 调试数据存储。
+   *
+   * 逆向: modules/0533_unknown_vH.js:8 — _debugData = {}
+   */
+  _debugData: Record<string, unknown> = {};
+
+  /**
+   * 合并调试数据。
+   *
+   * 逆向: modules/0533_unknown_vH.js:12-16 — sendDebugData(T)
+   */
+  sendDebugData(data: Record<string, unknown>): void {
+    this._debugData = { ...this._debugData, ...data };
+  }
+
+  /**
+   * 获取调试数据。
+   *
+   * 逆向: modules/0533_unknown_vH.js:17-19 — get debugData()
+   */
+  get debugData(): Record<string, unknown> {
+    return this._debugData;
+  }
+
   // ════════════════════════════════════════════════════
   //  只读属性访问器
   // ════════════════════════════════════════════════════

@@ -641,6 +641,7 @@ export class WidgetsBinding {
     for (const interceptor of this.keyInterceptors) {
       if (interceptor(event)) {
         this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
+        WidgetTreeDebugger.recordKeystroke(event.key, this._getFocusPath(), true);
         return;
       }
     }
@@ -648,12 +649,29 @@ export class WidgetsBinding {
     // 2. 焦点管理器 (冒泡路由)
     if (this.focusManager.handleKeyEvent(event)) {
       this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
+      WidgetTreeDebugger.recordKeystroke(event.key, this._getFocusPath(), true);
       return;
     }
 
     // 3. 全局键盘事件
     this.handleGlobalKeyEvent(event);
     this.performanceTracker.recordKeyEvent(performance.now() - keyStart);
+    WidgetTreeDebugger.recordKeystroke(event.key, this._getFocusPath(), false);
+  }
+
+  /**
+   * 提取当前焦点路径（从 primaryFocus 到根节点的 debugLabel 列表）。
+   *
+   * 逆向: amp handleKeyEvent 传递 focusPath 给 recordKeystroke
+   */
+  private _getFocusPath(): string[] {
+    const path: string[] = [];
+    let node = this.focusManager.primaryFocus;
+    while (node) {
+      path.unshift(node.debugLabel ?? node.constructor.name);
+      node = node.parent;
+    }
+    return path;
   }
 
   /**

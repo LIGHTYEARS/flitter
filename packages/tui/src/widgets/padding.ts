@@ -201,6 +201,9 @@ export class RenderPadding extends RenderBox {
     const constraints = this._constraints!;
     const padding = this._padding;
 
+    // 逆向: amp Padding RO performLayout calls sendDebugData({ padding })
+    this.sendDebugData({ padding });
+
     // 收缩约束
     const deflatedConstraints = new BoxConstraints({
       minWidth: Math.max(0, constraints.minWidth - padding.horizontal),

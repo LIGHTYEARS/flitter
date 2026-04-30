@@ -238,3 +238,34 @@ describe("Widget.createElement", () => {
     assert.ok(element instanceof TestElement);
   });
 });
+
+// ════════════════════════════════════════════════════
+//  Widget.debugData 测试
+// ════════════════════════════════════════════════════
+
+describe("Widget — debugData", () => {
+  it("初始 debugData 为空对象", () => {
+    const w = new WidgetA();
+    assert.deepStrictEqual(w.debugData, {});
+  });
+
+  it("sendDebugData 合并数据", () => {
+    const w = new WidgetA();
+    w.sendDebugData({ text: "hello" });
+    assert.deepStrictEqual(w.debugData, { text: "hello" });
+  });
+
+  it("多次 sendDebugData 累积合并", () => {
+    const w = new WidgetA();
+    w.sendDebugData({ a: 1 });
+    w.sendDebugData({ b: 2 });
+    assert.deepStrictEqual(w.debugData, { a: 1, b: 2 });
+  });
+
+  it("sendDebugData 覆盖同名 key", () => {
+    const w = new WidgetA();
+    w.sendDebugData({ x: "old" });
+    w.sendDebugData({ x: "new" });
+    assert.deepStrictEqual(w.debugData, { x: "new" });
+  });
+});

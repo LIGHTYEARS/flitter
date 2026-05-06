@@ -255,8 +255,7 @@ export class MarkdownRenderer {
    * 渲染内联代码。
    */
   private _renderCodeSpan(node: MarkdownNode): TextSpan[] {
-    const style = new TextStyle({
-      foreground: Color.yellow(),
+    const style = this._theme.inlineCode.copyWith({
       background: Color.indexed(236),
     });
     return [new TextSpan({ text: node.value ?? "", style })];
@@ -369,19 +368,28 @@ export class MarkdownRenderer {
    * 渲染链接。
    */
   private _renderLink(node: MarkdownNode): TextSpan[] {
-    const linkStyle = new TextStyle({
-      underline: true,
-      foreground: Color.blue(),
-    });
-    const children = this._renderChildren(node, linkStyle);
     const url = node.url ?? "";
-
+    const linkStyle = this._theme.link;
+    const children = this._renderChildren(node, linkStyle);
     return [
       new TextSpan({
         style: linkStyle,
-        children: [...children, new TextSpan({ text: ` (${url})` })],
+        url,
+        children,
       }),
     ];
+  }
+
+  /**
+   * 渲染图片节点。
+   *
+   * 逆向: amp-cli-reversed/modules/1472_tui_components/text_rendering.js:1619-1625
+   * amp 中图片渲染为 `[Image: altText]`，样式为 link.copyWith({ italic: true })。
+   */
+  private _renderImage(node: MarkdownNode): TextSpan[] {
+    const alt = node.alt ?? "image";
+    const style = this._theme.link.copyWith({ italic: true });
+    return [new TextSpan({ text: `[Image: ${alt}]`, style, url: node.url })];
   }
 
   /**

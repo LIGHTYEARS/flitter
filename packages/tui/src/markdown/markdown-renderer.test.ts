@@ -10,6 +10,7 @@ import { describe, expect, it } from "bun:test";
 import { Color } from "../screen/color.js";
 import type { TextSpan } from "../widgets/text-span.js";
 import type { MarkdownNode } from "./markdown-parser.js";
+import { MarkdownParser } from "./markdown-parser.js";
 import { MarkdownRenderer } from "./markdown-renderer.js";
 import { defaultMarkdownTheme } from "./markdown-theme.js";
 import { SyntaxHighlighter } from "./syntax-highlight.js";
@@ -168,6 +169,9 @@ describe("MarkdownRenderer", () => {
       (s) => s.text === "inline" && s.style?.background?.kind !== "default",
     );
     expect(codeSpan).toBeDefined();
+    expect(codeSpan!.style!.bold).toBe(true);
+    expect(codeSpan!.style!.foreground.equals(Color.yellow())).toBe(true);
+    expect(codeSpan!.style!.background!.equals(Color.indexed(236))).toBe(true);
   });
 
   it("code block 带语法高亮", () => {
@@ -531,6 +535,68 @@ describe("MarkdownRenderer", () => {
     const text = collectText(spans);
     expect(text).toContain("click");
     expect(text).toContain("https://example.com");
+  });
+
+  // ── 图片 ──────────────────────────────────────────
+
+  it("图片渲染为 [Image: alt] 样式", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "paragraph",
+        children: [
+          {
+            type: "image",
+            alt: "screenshot",
+            url: "http://example.com/img.png",
+          },
+        ],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const text = collectText(spans);
+    expect(text).toContain("[Image: screenshot]");
+  });
+
+  it("图片无 alt 时使用默认文本 'image'", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "paragraph",
+        children: [{ type: "image", url: "http://example.com/img.png" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const text = collectText(spans);
+    expect(text).toContain("[Image: image]");
+  });
+
+  it("图片样式为 italic + link 色 (blue + underline)", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "paragraph",
+        children: [
+          {
+            type: "image",
+            alt: "pic",
+            url: "http://example.com/pic.png",
+          },
+        ],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const imgSpan = findSpanWith(
+      spans,
+      (s) => s.style?.italic === true && s.style?.underline === true,
+    );
+    expect(imgSpan).toBeDefined();
+    expect(imgSpan!.url).toBe("http://example.com/pic.png");
+  });
+
+  it("图片通过 parser 从 markdown 解析", () => {
+    const parser = new MarkdownParser();
+    const ast = parser.parse("![screenshot](http://example.com/img.png)");
+    const spans = renderer.render(ast);
+    const text = collectText(spans);
+    expect(text).toContain("[Image: screenshot]");
   });
 
   // ── thematic break ────────────────────────────────

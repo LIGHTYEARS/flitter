@@ -92,16 +92,31 @@ export class MarkdownRenderer {
   /**
    * 递归渲染节点列表。
    */
-  private _renderNodes(nodes: MarkdownNode[], parentStyle: TextStyle | undefined): TextSpan[] {
+  private _renderNodes(
+    nodes: MarkdownNode[],
+    parentStyle: TextStyle | undefined,
+    nested: boolean = false,
+  ): TextSpan[] {
     const spans: TextSpan[] = [];
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
       const nodeSpans = this._renderNode(node, parentStyle);
       spans.push(...nodeSpans);
 
-      // 块级元素间添加换行
+      // 块级元素间添加换行：嵌套上下文（如 blockquote）使用单换行，顶层使用双换行
+      // 逆向: amp 使用 hasBlankLineBetween(prev, next) 检查源码位置来决定是否插入空行
+      // 我们没有位置数据，在嵌套上下文中，parser 已经插入了 text("\n") 节点作为分隔，
+      // 所以仅在下一个节点不是纯空白文本节点时才插入分隔符
       if (this._isBlock(node) && i < nodes.length - 1) {
-        spans.push(new TextSpan({ text: "\n\n" }));
+        if (nested) {
+          const next = nodes[i + 1];
+          // 如果下一个节点是纯空白文本，跳过分隔符（parser 已提供换行）
+          if (!(next.type === "text" && next.value && /^\s*$/.test(next.value))) {
+            spans.push(new TextSpan({ text: "\n" }));
+          }
+        } else {
+          spans.push(new TextSpan({ text: "\n\n" }));
+        }
       }
     }
     return spans;
@@ -357,7 +372,8 @@ export class MarkdownRenderer {
    */
   private _renderBlockquote(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
     const borderStyle = new TextStyle({ foreground: this._theme.blockquoteBorder });
-    const children = this._renderChildren(node, parentStyle);
+    // 逆向: amp blockquote 内部不插入额外空行，使用 nested=true 让段落间使用单换行
+    const children = node.children ? this._renderNodes(node.children, parentStyle, true) : [];
 
     return [
       new TextSpan({
@@ -401,44 +417,116 @@ export class MarkdownRenderer {
 
   /**
    * 渲染表格。
+   *
+   * 逆向: amp-cli-reversed/modules/1472_tui_components/text_rendering.js:1544-1590
+   * amp 使用 Unicode box-drawing 圆角边框（╭╮╰╯├┤┬┴┼─│），
+   * 列宽按最大内容宽度归一化，表头行粗体，支持 node.align 列对齐。
    */
   private _renderTable(node: MarkdownNode): TextSpan[] {
     const rows = node.children ?? [];
     if (rows.length === 0) return [];
 
-    const borderStyle = new TextStyle({
-      foreground: Color.indexed(8),
-    });
+    const borderStyle = new TextStyle({ foreground: this._theme.tableBorder });
+    const headerStyle = new TextStyle({ bold: true });
+    const aligns = node.align ?? [];
+
+    // Measure column widths
+    const numCols = Math.max(...rows.map((r) => (r.children ?? []).length));
+    const colWidths: number[] = new Array(numCols).fill(0);
+
+    const cellContents: string[][] = [];
+    for (const row of rows) {
+      const cells = row.children ?? [];
+      const rowTexts: string[] = [];
+      for (let j = 0; j < numCols; j++) {
+        const cell = cells[j];
+        const text = cell ? this._collectPlainText(cell) : "";
+        rowTexts.push(text);
+        colWidths[j] = Math.max(colWidths[j], text.length);
+      }
+      cellContents.push(rowTexts);
+    }
+
+    // Ensure minimum width of 3 per column
+    for (let j = 0; j < numCols; j++) {
+      colWidths[j] = Math.max(colWidths[j], 3);
+    }
 
     const spans: TextSpan[] = [];
+
+    // Top border: ╭───┬───╮
+    const topBorder = "╭" + colWidths.map((w) => "─".repeat(w + 2)).join("┬") + "╮";
+    spans.push(new TextSpan({ text: topBorder, style: borderStyle }));
+    spans.push(new TextSpan({ text: "\n" }));
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const cells = row.children ?? [];
-      const cellTexts: TextSpan[][] = cells.map((cell) => this._renderChildren(cell, undefined));
+      const isHeader = i === 0;
 
-      // 构建行: │ cell1 │ cell2 │
-      const rowChildren: TextSpan[] = [new TextSpan({ text: "│ ", style: borderStyle })];
-      for (let j = 0; j < cellTexts.length; j++) {
-        rowChildren.push(...cellTexts[j]);
+      // Data row: │ cell │ cell │
+      const rowChildren: TextSpan[] = [];
+      rowChildren.push(new TextSpan({ text: "│ ", style: borderStyle }));
+
+      for (let j = 0; j < numCols; j++) {
+        const cell = cells[j];
+        const cellSpans = cell
+          ? this._renderChildren(cell, isHeader ? headerStyle : undefined)
+          : [];
+        const plainText = cellContents[i][j];
+        const padding = colWidths[j] - plainText.length;
+        const align = aligns[j] ?? "left";
+
+        let leftPad = 0;
+        let rightPad = padding;
+        if (align === "right") {
+          leftPad = padding;
+          rightPad = 0;
+        } else if (align === "center") {
+          leftPad = Math.floor(padding / 2);
+          rightPad = padding - leftPad;
+        }
+
+        if (leftPad > 0) rowChildren.push(new TextSpan({ text: " ".repeat(leftPad) }));
+        if (isHeader) {
+          rowChildren.push(new TextSpan({ style: headerStyle, children: cellSpans }));
+        } else {
+          rowChildren.push(...cellSpans);
+        }
+        if (rightPad > 0) rowChildren.push(new TextSpan({ text: " ".repeat(rightPad) }));
+
         rowChildren.push(
-          new TextSpan({ text: j < cellTexts.length - 1 ? " │ " : " │", style: borderStyle }),
+          new TextSpan({
+            text: j < numCols - 1 ? " │ " : " │",
+            style: borderStyle,
+          }),
         );
       }
       spans.push(new TextSpan({ children: rowChildren }));
+      spans.push(new TextSpan({ text: "\n" }));
 
-      // 表头后添加分隔线
-      if (i === 0) {
-        const sep = cells.map(() => "───").join("─┼─");
-        spans.push(new TextSpan({ text: "\n├─" + sep + "─┤", style: borderStyle }));
-      }
-
-      if (i < rows.length - 1) {
+      // Header separator: ├───┼───┤
+      if (isHeader) {
+        const sep = "├" + colWidths.map((w) => "─".repeat(w + 2)).join("┼") + "┤";
+        spans.push(new TextSpan({ text: sep, style: borderStyle }));
         spans.push(new TextSpan({ text: "\n" }));
       }
     }
 
+    // Bottom border: ╰───┴───╯
+    const bottomBorder = "╰" + colWidths.map((w) => "─".repeat(w + 2)).join("┴") + "╯";
+    spans.push(new TextSpan({ text: bottomBorder, style: borderStyle }));
+
     return spans;
+  }
+
+  /**
+   * 递归收集节点的纯文本内容（用于表格列宽测量）。
+   */
+  private _collectPlainText(node: MarkdownNode): string {
+    if (node.value) return node.value;
+    if (!node.children) return "";
+    return node.children.map((c) => this._collectPlainText(c)).join("");
   }
 
   /**

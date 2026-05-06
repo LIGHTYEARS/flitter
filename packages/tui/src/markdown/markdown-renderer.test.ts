@@ -453,49 +453,6 @@ describe("MarkdownRenderer", () => {
 
   // ── 表格 ──────────────────────────────────────────
 
-  it("表格 → 带边框的文本格式化", () => {
-    const nodes: MarkdownNode[] = [
-      {
-        type: "table",
-        children: [
-          {
-            type: "tableRow",
-            children: [
-              {
-                type: "tableCell",
-                children: [{ type: "text", value: "A" }],
-              },
-              {
-                type: "tableCell",
-                children: [{ type: "text", value: "B" }],
-              },
-            ],
-          },
-          {
-            type: "tableRow",
-            children: [
-              {
-                type: "tableCell",
-                children: [{ type: "text", value: "1" }],
-              },
-              {
-                type: "tableCell",
-                children: [{ type: "text", value: "2" }],
-              },
-            ],
-          },
-        ],
-      },
-    ];
-    const spans = renderer.render(nodes);
-    const text = collectText(spans);
-    expect(text).toContain("│");
-    expect(text).toContain("A");
-    expect(text).toContain("B");
-  });
-
-  // ── blockquote ────────────────────────────────────
-
   /** 递归收集所有叶子 TextSpan（有 text 属性的） */
   function flattenSpans(spans: TextSpan[]): TextSpan[] {
     const result: TextSpan[] = [];
@@ -509,6 +466,158 @@ describe("MarkdownRenderer", () => {
     }
     return result;
   }
+
+  describe("table rendering", () => {
+    it("表格使用圆角 Unicode box-drawing 边框", () => {
+      const nodes: MarkdownNode[] = [
+        {
+          type: "table",
+          children: [
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "A" }] },
+                { type: "tableCell", children: [{ type: "text", value: "B" }] },
+              ],
+            },
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "1" }] },
+                { type: "tableCell", children: [{ type: "text", value: "2" }] },
+              ],
+            },
+          ],
+        },
+      ];
+      const spans = renderer.render(nodes);
+      const text = collectText(spans);
+      expect(text).toContain("╭");
+      expect(text).toContain("╮");
+      expect(text).toContain("╰");
+      expect(text).toContain("╯");
+      expect(text).toContain("│");
+      expect(text).toContain("─");
+    });
+
+    it("表格列等宽对齐", () => {
+      const nodes: MarkdownNode[] = [
+        {
+          type: "table",
+          children: [
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "Name" }] },
+                { type: "tableCell", children: [{ type: "text", value: "Age" }] },
+              ],
+            },
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "Alice" }] },
+                { type: "tableCell", children: [{ type: "text", value: "30" }] },
+              ],
+            },
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "Bob" }] },
+                { type: "tableCell", children: [{ type: "text", value: "5" }] },
+              ],
+            },
+          ],
+        },
+      ];
+      const spans = renderer.render(nodes);
+      const text = collectText(spans);
+      const lines = text.split("\n").filter((l) => l.includes("│"));
+      // All data/header rows should have same width
+      const widths = lines.map((l) => l.length);
+      expect(widths.every((w) => w === widths[0])).toBe(true);
+    });
+
+    it("表头渲染为粗体", () => {
+      const nodes: MarkdownNode[] = [
+        {
+          type: "table",
+          children: [
+            {
+              type: "tableRow",
+              children: [{ type: "tableCell", children: [{ type: "text", value: "Name" }] }],
+            },
+            {
+              type: "tableRow",
+              children: [{ type: "tableCell", children: [{ type: "text", value: "Alice" }] }],
+            },
+          ],
+        },
+      ];
+      const spans = renderer.render(nodes);
+      // Find span with bold style wrapping the header content
+      const boldSpan = findSpanWith(spans, (s) => s.style?.bold === true);
+      expect(boldSpan).toBeDefined();
+    });
+
+    it("表格支持列对齐", () => {
+      const nodes: MarkdownNode[] = [
+        {
+          type: "table",
+          align: ["left", "center", "right"],
+          children: [
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "L" }] },
+                { type: "tableCell", children: [{ type: "text", value: "C" }] },
+                { type: "tableCell", children: [{ type: "text", value: "R" }] },
+              ],
+            },
+            {
+              type: "tableRow",
+              children: [
+                { type: "tableCell", children: [{ type: "text", value: "x" }] },
+                { type: "tableCell", children: [{ type: "text", value: "y" }] },
+                { type: "tableCell", children: [{ type: "text", value: "z" }] },
+              ],
+            },
+          ],
+        },
+      ];
+      const spans = renderer.render(nodes);
+      const text = collectText(spans);
+      // Table should render without errors and contain the data
+      expect(text).toContain("L");
+      expect(text).toContain("C");
+      expect(text).toContain("R");
+      // Should have proper box-drawing
+      expect(text).toContain("╭");
+      expect(text).toContain("┬");
+      expect(text).toContain("╯");
+    });
+
+    it("表格列最小宽度为 3", () => {
+      const nodes: MarkdownNode[] = [
+        {
+          type: "table",
+          children: [
+            {
+              type: "tableRow",
+              children: [{ type: "tableCell", children: [{ type: "text", value: "X" }] }],
+            },
+            {
+              type: "tableRow",
+              children: [{ type: "tableCell", children: [{ type: "text", value: "Y" }] }],
+            },
+          ],
+        },
+      ];
+      const spans = renderer.render(nodes);
+      const text = collectText(spans);
+      // Min width 3 means top border should have at least "─────" (3+2=5 dashes)
+      expect(text).toContain("─────");
+    });
+  });
 
   it("blockquote → 2-space pad + colored │ border + space + content (not dim)", () => {
     const nodes: MarkdownNode[] = [
@@ -538,6 +647,18 @@ describe("MarkdownRenderer", () => {
     const contentSpan = allLeaves.find((s) => s.text?.includes("quoted"));
     expect(contentSpan).toBeDefined();
     expect(contentSpan!.style?.dim).not.toBe(true);
+  });
+
+  it("块引用内段落之间使用单换行", () => {
+    const parser = new MarkdownParser();
+    const md = "> paragraph one\n>\n> paragraph two";
+    const ast = parser.parse(md);
+    const spans = renderer.render(ast);
+    const text = collectText(spans);
+    // Inside blockquote, should use single \n not \n\n
+    expect(text).toContain("paragraph one");
+    expect(text).toContain("paragraph two");
+    expect(text).not.toMatch(/paragraph one\n\nparagraph two/);
   });
   // ── 链接 ──────────────────────────────────────────
 

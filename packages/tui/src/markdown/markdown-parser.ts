@@ -39,6 +39,7 @@ export type MarkdownNodeType =
   | "code"
   | "codeSpan"
   | "link"
+  | "image"
   | "list"
   | "listItem"
   | "table"
@@ -75,6 +76,8 @@ export interface MarkdownNode {
   url?: string;
   /** link title */
   title?: string;
+  /** image alt text */
+  alt?: string;
   /** table 列对齐方式 */
   align?: ("left" | "center" | "right" | null)[];
 }
@@ -326,6 +329,13 @@ export class MarkdownParser {
         };
         stack.push(node);
         break;
+      }
+      case "img": {
+        const alt = this._getAttr(tag, "alt") ?? "";
+        const src = this._getAttr(tag, "src") ?? "";
+        const imageNode: MarkdownNode = { type: "image", alt, url: src };
+        this._pushChild(stack, nodes, imageNode);
+        return;
       }
       default: {
         // 其他 HTML 标签原样保留为 html 节点

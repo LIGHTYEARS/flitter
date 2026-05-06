@@ -513,10 +513,9 @@ describe("MarkdownRenderer", () => {
     expect(text).toContain("│ ");
     expect(text).toContain("quoted");
   });
-
   // ── 链接 ──────────────────────────────────────────
 
-  it("link → underline + url", () => {
+  it("link → OSC 8 超链接 (underline + url property, no visible URL)", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "paragraph",
@@ -530,11 +529,16 @@ describe("MarkdownRenderer", () => {
       },
     ];
     const spans = renderer.render(nodes);
+    // Should have underline style
     const linkSpan = findSpanWith(spans, (s) => s.style?.underline === true);
     expect(linkSpan).toBeDefined();
+    // The URL should be on the span's url property (OSC 8), not in the text
+    const spanWithUrl = findSpanWith(spans, (s) => s.url === "https://example.com");
+    expect(spanWithUrl).toBeDefined();
+    // Visible text should contain "click" but NOT the URL
     const text = collectText(spans);
     expect(text).toContain("click");
-    expect(text).toContain("https://example.com");
+    expect(text).not.toContain("(https://example.com)");
   });
 
   // ── 图片 ──────────────────────────────────────────

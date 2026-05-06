@@ -10,6 +10,7 @@
  * @module
  */
 
+import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
@@ -215,7 +216,17 @@ export class RenderScrollable extends RenderBox {
 
     const viewportHeight = this._size.height;
     this._scrollController.updateViewportDimension(viewportHeight);
-    this._scrollController.updateMaxScrollExtent(Math.max(0, childHeight - viewportHeight));
+
+    // 逆向: amp v1T.performLayout() (interactive_widgets.js:246-248)
+    //   Snapshot atBottom before updating maxScrollExtent, then jumpTo if followMode && wasAtBottom.
+    const newExtent = Math.max(0, childHeight - viewportHeight);
+    const wasAtBottom = this._scrollController.atBottom;
+    this._scrollController.updateMaxScrollExtent(newExtent);
+    if (this._scrollController.followMode && wasAtBottom) {
+      this._scrollController.jumpTo(newExtent);
+    } else if (this._scrollController.offset > newExtent) {
+      this._scrollController.jumpTo(newExtent);
+    }
 
     // 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
     // When position="bottom" and content is shorter than viewport,
@@ -225,6 +236,43 @@ export class RenderScrollable extends RenderBox {
     } else {
       this._bottomAnchorOffset = 0;
     }
+  }
+
+  // ════════════════════════════════════════════════════
+  //  命中测试
+  // ════════════════════════════════════════════════════
+
+  /**
+   * 命中测试 — 将点击坐标调整 scrollOffset 后委托给子节点。
+   *
+   * paint() shifts child Y by (-scrollOffset + bottomAnchorOffset).
+   * hitTest must pass the same offset so child bounds checks match screen positions.
+   */
+  override hitTest(
+    result: HitTestResult,
+    position: { x: number; y: number },
+    offsetX = 0,
+    offsetY = 0,
+  ): boolean {
+    const absX = offsetX + this._offset.x;
+    const absY = offsetY + this._offset.y;
+
+    const inX = position.x >= absX && position.x < absX + this._size.width;
+    const inY = position.y >= absY && position.y < absY + this._size.height;
+    if (!inX || !inY) return false;
+
+    result.add({
+      target: this,
+      localPosition: { x: position.x - absX, y: position.y - absY },
+    });
+
+    if (!this.child) return true;
+
+    const scrollOffset = Math.floor(this._scrollController.offset);
+    const adjustedY = absY - scrollOffset + this._bottomAnchorOffset;
+    this.child.hitTest(result, position, absX, adjustedY);
+
+    return true;
   }
 
   // ════════════════════════════════════════════════════

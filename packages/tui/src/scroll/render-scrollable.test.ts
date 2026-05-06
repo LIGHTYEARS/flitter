@@ -7,6 +7,7 @@
  */
 
 import { beforeEach, describe, expect, it } from "bun:test";
+import { HitTestResult } from "../gestures/hit-test.js";
 import { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
@@ -446,6 +447,86 @@ describe("RenderScrollable", () => {
       scrollable.layout(parentConstraints);
       scrollable.paint(screen, 0, 0);
       expect(child.paintCalls[child.paintCalls.length - 1]!.offsetY).toBe(20);
+    });
+  });
+
+  describe("hitTest", () => {
+    it("should hit child at correct position when scrolled", () => {
+      const controller = new ScrollController();
+      controller.disableFollowMode();
+      const scrollable = new RenderScrollable(controller, "top");
+      const child = new MockChildRenderBox(100);
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+      controller.jumpTo(20);
+
+      // Click at screen row 5 — content row 25 (5 + 20)
+      // Paint: child at offsetY - scrollOffset = 0 - 20 = -20
+      // Content row 25 painted at screen row 25 + (-20) = 5
+      const result = HitTestResult.hitTest(scrollable, { x: 5, y: 5 });
+
+      const childHit = result.hits.find((h) => h.target === child);
+      expect(childHit).toBeDefined();
+      expect(childHit!.localPosition.y).toBe(25);
+    });
+
+    it("should hit child at correct position with bottom anchor (short content)", () => {
+      const controller = new ScrollController();
+      controller.disableFollowMode();
+      const scrollable = new RenderScrollable(controller, "bottom");
+      const child = new MockChildRenderBox(10);
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+      // bottomAnchorOffset = 30 - 10 = 20, scrollOffset = 0
+      // Paint: child at offsetY - 0 + 20 = 20
+      // Content row 5 at screen row 25
+
+      const result = HitTestResult.hitTest(scrollable, { x: 5, y: 25 });
+
+      const childHit = result.hits.find((h) => h.target === child);
+      expect(childHit).toBeDefined();
+      expect(childHit!.localPosition.y).toBe(5);
+    });
+
+    it("should NOT hit child outside viewport bounds", () => {
+      const controller = new ScrollController();
+      controller.disableFollowMode();
+      const scrollable = new RenderScrollable(controller, "top");
+      const child = new MockChildRenderBox(100);
+      scrollable.adoptChild(child);
+      scrollable.attach();
+
+      const parentConstraints = new BoxConstraints({
+        minWidth: 80,
+        maxWidth: 80,
+        minHeight: 30,
+        maxHeight: 30,
+      });
+
+      scrollable.layout(parentConstraints);
+
+      const result = HitTestResult.hitTest(scrollable, { x: 5, y: 35 });
+
+      const scrollableHit = result.hits.find((h) => h.target === scrollable);
+      expect(scrollableHit).toBeUndefined();
     });
   });
 });

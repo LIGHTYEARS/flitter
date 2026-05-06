@@ -31,11 +31,13 @@ import {
   Color,
   Column,
   Container,
+  defaultMarkdownTheme,
   EdgeInsets,
   Expanded,
   GestureDetector,
   MarkdownParser,
   MarkdownRenderer,
+  type MarkdownTheme,
   RenderChart,
   RichText,
   Row,
@@ -46,7 +48,6 @@ import {
   SizedBox,
   State,
   StatefulWidget,
-  SyntaxHighlighter,
   supportsKittyGraphics,
   syntaxColorsToTheme,
   TextSpan,
@@ -349,18 +350,17 @@ export class ConversationViewState extends State<ConversationView> {
     super.initState();
     this._parser = new MarkdownParser();
     // 逆向: chunk-006.js:11773 — R.app.syntaxHighlight wired into markdown renderer
-    // Read AppTheme to pass syntax highlight colors; fall back to default theme
-    let syntaxTheme: ReturnType<typeof SyntaxHighlighter.defaultTheme>;
+    // 逆向: 1472_tui_components/text_rendering.js:1282-1328 — full styleScheme from theme context
+    // Read AppTheme to build full MarkdownTheme; fall back to default theme
+    let markdownTheme: MarkdownTheme;
     try {
       const appTheme = AppThemeController.maybeOf(this.context as unknown as Element);
-      syntaxTheme = appTheme
-        ? syntaxColorsToTheme(appTheme.syntaxHighlight)
-        : SyntaxHighlighter.defaultTheme();
+      markdownTheme = appTheme ? this._createMarkdownTheme(appTheme) : defaultMarkdownTheme();
     } catch {
       // No AppThemeController in ancestor tree — fall back to default theme
-      syntaxTheme = SyntaxHighlighter.defaultTheme();
+      markdownTheme = defaultMarkdownTheme();
     }
-    this._renderer = new MarkdownRenderer({ syntaxTheme });
+    this._renderer = new MarkdownRenderer({ markdownTheme });
     if (this.widget.config.scrollController) {
       this._scrollController = this.widget.config.scrollController;
       this._ownsScrollController = false;
@@ -440,6 +440,39 @@ export class ConversationViewState extends State<ConversationView> {
     if (!this._animationTimer) return;
     clearInterval(this._animationTimer);
     this._animationTimer = undefined;
+  }
+
+  /**
+   * Build a MarkdownTheme from AppTheme semantic colors.
+   *
+   * Maps app-semantic colors onto the MarkdownTheme interface so that
+   * markdown rendering uses the same palette as the rest of the UI.
+   *
+   * 逆向: 1472_tui_components/text_rendering.js:1282-1328 —
+   *   R.app.inlineCode, R.app.codeBlock, R.app.tableBorder, R.app.link,
+   *   R.app.syntaxHighlight all wired into the markdown styleScheme.
+   *
+   * @param appTheme - AppTheme instance from the widget tree
+   * @returns MarkdownTheme with colors from the app palette
+   */
+  private _createMarkdownTheme(appTheme: AppTheme): MarkdownTheme {
+    return {
+      headingColors: [
+        appTheme.userMessage, // h1 — primary (cyan)
+        appTheme.link, // h2 — link color (blue)
+        appTheme.userMessage, // h3
+        appTheme.link, // h4
+        appTheme.assistantMessage, // h5 — foreground/default
+        appTheme.assistantMessage, // h6
+      ],
+      headingBoldLevels: 2,
+      inlineCode: new TextStyle({ foreground: appTheme.inlineCode, bold: true }),
+      codeBlockForeground: appTheme.codeBlock,
+      link: new TextStyle({ foreground: appTheme.link, underline: true }),
+      blockquoteBorder: appTheme.tableBorder,
+      tableBorder: appTheme.tableBorder,
+      syntaxTheme: syntaxColorsToTheme(appTheme.syntaxHighlight),
+    };
   }
 
   /**

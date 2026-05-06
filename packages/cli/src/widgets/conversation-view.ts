@@ -55,16 +55,17 @@ import {
 import { openInPager } from "../util/pager.js";
 import { type AppTheme, AppThemeController } from "./app-theme-controller.js";
 import { buildDiffWidget } from "./diff-widget.js";
-import type {
-  ActivityAction,
-  ActivityGroupItem,
-  DisplayItem,
-  MessageItem,
-  ThinkingItem,
-  ToolItem,
+import {
+  type ActivityAction,
+  type ActivityGroupItem,
+  type DisplayItem,
+  deduplicateGuidanceFiles,
+  type MessageItem,
+  type ThinkingItem,
+  type ToolItem,
 } from "./display-items.js";
 import { ExpandableToolHeader } from "./expandable-tool-header.js";
-import { cwdRelativePath } from "./guidance-file-display.js";
+import { cwdRelativePath, guidanceFileDisplayName } from "./guidance-file-display.js";
 
 // ════════════════════════════════════════════════════
 //  Message 接口
@@ -310,15 +311,6 @@ export class ConversationViewState extends State<ConversationView> {
    * 逆向: stateController.denseViewItemStates Map
    */
   private _activityGroupExpanded: Map<number, boolean> = new Map();
-
-  /**
-   * Expansion state for individual action rows within an activity group.
-   * Key format: `${groupItemIndex}-${actionIndex}` to disambiguate actions
-   * across different groups.
-   *
-   * 逆向: Y1T.actionExpanded (actions_intents.js:1786) — Map<number, boolean>
-   */
-  private _activityActionExpanded: Map<string, boolean> = new Map();
 
   /**
    * Per activity-group progressive animation state.
@@ -609,7 +601,7 @@ export class ConversationViewState extends State<ConversationView> {
           children.push(this._buildActivityGroupWidget(item, i, appTheme));
           break;
         case "thinking":
-          children.push(this._buildThinkingWidget(item, i));
+          children.push(this._buildThinkingWidget(item, i, appTheme));
           break;
       }
 
@@ -1120,10 +1112,11 @@ export class ConversationViewState extends State<ConversationView> {
       // 逆向: B9R — ` @${c}-${s}` in warning color, dim
       if (tool.readRange) {
         const [start, end] = tool.readRange;
+        const warningColor = appTheme?.warning ?? WARNING_COLOR;
         spans.push(
           new TextSpan({
             text: ` @${start}-${end}`,
-            style: new TextStyle({ foreground: WARNING_COLOR, dim: true }),
+            style: new TextStyle({ foreground: warningColor, dim: true }),
           }),
         );
       }
@@ -1277,10 +1270,10 @@ export class ConversationViewState extends State<ConversationView> {
 
     // 逆向: Y9R (1947_unknown_Y9R.js) — guidance files rendered for ALL tool kinds (bash, read, etc.)
     // 逆向: Y9R is called unconditionally from both G9R and K9R build() methods
+    // 逆向: ZA (modules/1831_unknown_ZA.js) — guidanceFileDisplayName for short display
     if (tool.guidanceFiles && tool.guidanceFiles.length > 0) {
-      const cwd = this.widget.config.cwd;
       for (const gf of tool.guidanceFiles) {
-        const gfName = cwdRelativePath(gf.uri, cwd);
+        const gfName = guidanceFileDisplayName(gf.uri);
         columnChildren.push(
           new RichText({
             text: new TextSpan({
@@ -1568,25 +1561,44 @@ export class ConversationViewState extends State<ConversationView> {
     const actionWidgets: Widget[] = [];
     for (let actionIdx = 0; actionIdx < visibleActions.length; actionIdx++) {
       const action = visibleActions[actionIdx]!;
-      actionWidgets.push(
-        this._buildSingleActionRow(
-          action,
-          actionIdx,
-          groupItemIndex,
-          cwd,
-          fileRefColor,
-          toolSuccessColor,
-        ),
-      );
+      actionWidgets.push(this._buildSingleActionRow(action, cwd, fileRefColor, appTheme));
     }
 
-    if (actionWidgets.length === 0) {
+    // 逆向: actions_intents.js:4475-4477 — deduplicated guidance files at top of expanded column
+    // [...(i.length > 0 ? [Jm(i, R), new XT({ height: 1 })] : []), ...actionRows]
+    const deduped = deduplicateGuidanceFiles(group.actions);
+    const columnChildren: Widget[] = [];
+
+    if (deduped.length > 0) {
+      // 逆向: Jm (chunk-004.js:36821-36837) — "Loaded <ZA(uri)> (lineCount lines)" dim toolSuccess
+      const guidanceText = deduped
+        .map((gf) => `  Loaded ${guidanceFileDisplayName(gf.uri)} (${gf.lineCount} lines)`)
+        .join("\n");
+      columnChildren.push(
+        new Container({
+          padding: EdgeInsets.only({ left: 2 }),
+          child: new RichText({
+            text: new TextSpan({
+              text: guidanceText,
+              style: new TextStyle({ foreground: toolSuccessColor, dim: true }),
+            }),
+            selectable: true,
+          }) as unknown as Widget,
+        }) as unknown as Widget,
+      );
+      // 逆向: new XT({ height: 1 }) spacer after guidance block
+      columnChildren.push(new SizedBox({ height: 1 }) as unknown as Widget);
+    }
+
+    columnChildren.push(...actionWidgets);
+
+    if (columnChildren.length === 0) {
       return new SizedBox({ width: 0, height: 0 }) as unknown as Widget;
     }
 
     return new Column({
       crossAxisAlignment: "start",
-      children: actionWidgets,
+      children: columnChildren,
     }) as unknown as Widget;
   }
 
@@ -1606,20 +1618,15 @@ export class ConversationViewState extends State<ConversationView> {
    *   - Guidance files as tail spans
    *
    * @param action - Single ActivityAction
-   * @param actionIdx - Index within the group's actions array
-   * @param groupItemIndex - Group's item index (for expand key)
    * @param cwd - Working directory for path shortening
    * @param fileRefColor - Color for file reference hyperlinks
-   * @param toolSuccessColor - Color for guidance file notices
    * @returns Widget for this action row
    */
   private _buildSingleActionRow(
     action: ActivityAction,
-    actionIdx: number,
-    groupItemIndex: number | undefined,
     cwd: string | undefined,
     fileRefColor: Color,
-    toolSuccessColor: Color,
+    appTheme?: AppTheme | null,
   ): Widget {
     // ── Build the Og-style title widget (middle-dot bullet) ──
     // 逆向: Og (2817_unknown_Og.js:1-15) — "· title" in mutedForeground, dim
@@ -1653,10 +1660,11 @@ export class ConversationViewState extends State<ConversationView> {
       if (action.readRange) {
         const [start, end] = action.readRange;
         if (typeof start === "number" && typeof end === "number" && start >= 0 && end >= 0) {
+          const warningColor = appTheme?.warning ?? WARNING_COLOR;
           bulletSpans.push(
             new TextSpan({
               text: ` @${start}-${end}`,
-              style: new TextStyle({ foreground: WARNING_COLOR, dim: true }),
+              style: new TextStyle({ foreground: warningColor, dim: true }),
             }),
           );
         }
@@ -1673,62 +1681,12 @@ export class ConversationViewState extends State<ConversationView> {
       selectable: true,
     }) as unknown as Widget;
 
-    // ── Check if action needs expandable content ──
-    // 逆向: actions_intents.js:4489 — if no detail and no guidanceFiles, just padded Og
-    const hasGuidance = action.guidanceFiles && action.guidanceFiles.length > 0;
-
-    if (!hasGuidance) {
-      // Simple case: just the padded bullet widget (no nested expand)
-      // 逆向: actions_intents.js:1876-1880 / 4489-4493 — padding left:1
-      return new Container({
-        padding: EdgeInsets.only({ left: 1 }),
-        child: bulletWidget,
-      }) as unknown as Widget;
-    }
-
-    // ── Build expandable content for actions with guidanceFiles ──
-    // 逆向: actions_intents.js:4495-4516 — nested Ds with guidance file tail
-    // 逆向: B9R (misc_utils.js:7811-7816) — guidance files as dim green text
-    const guidanceSpans: TextSpan[] = [];
-    for (const gf of action.guidanceFiles!) {
-      const gfName = cwdRelativePath(gf.uri, cwd);
-      guidanceSpans.push(
-        new TextSpan({
-          text: `  Loaded ${gfName} (${gf.lineCount} lines)\n`,
-          style: new TextStyle({ foreground: toolSuccessColor, dim: true }),
-        }),
-      );
-    }
-
-    const guidanceWidget = new RichText({
-      text: new TextSpan({ children: guidanceSpans }),
-      selectable: true,
-    }) as unknown as Widget;
-
-    const detailChild = new Container({
-      padding: EdgeInsets.only({ left: 2 }),
-      child: guidanceWidget,
-    }) as unknown as Widget;
-
-    // Build expand key for this action
-    const expandKey =
-      groupItemIndex !== undefined ? `${groupItemIndex}-${actionIdx}` : `0-${actionIdx}`;
-    const actionExpanded = this._activityActionExpanded.get(expandKey) ?? false;
-
-    // Wrap in nested ExpandableToolHeader (Ds)
-    // 逆向: actions_intents.js:4503-4516 — new Ds({ title: Og, child: detail, expanded, onChanged })
+    // ── Always render as simple padded bullet (guidance files now shown at group level) ──
+    // 逆向: actions_intents.js:4475-4477 — guidance files deduplicated to group level via Jm()
+    // 逆向: actions_intents.js:1876-1880 — padding left:1
     return new Container({
       padding: EdgeInsets.only({ left: 1 }),
-      child: new ExpandableToolHeader({
-        titleWidget: bulletWidget,
-        child: detailChild,
-        isExpanded: actionExpanded,
-        onToggle: (newExpanded: boolean) => {
-          this.setState(() => {
-            this._activityActionExpanded.set(expandKey, newExpanded);
-          });
-        },
-      }) as unknown as Widget,
+      child: bulletWidget,
     }) as unknown as Widget;
   }
 
@@ -1745,7 +1703,11 @@ export class ConversationViewState extends State<ConversationView> {
    * @param itemIndex - Index in the items array, used to track expand/collapse state
    * @returns Thinking block Widget
    */
-  private _buildThinkingWidget(item: ThinkingItem, itemIndex: number): Widget {
+  private _buildThinkingWidget(
+    item: ThinkingItem,
+    itemIndex: number,
+    appTheme?: AppTheme | null,
+  ): Widget {
     const isExpanded = this._expandedThinking.has(itemIndex);
     const spans: TextSpan[] = [];
 
@@ -1768,7 +1730,8 @@ export class ConversationViewState extends State<ConversationView> {
       );
     }
 
-    const labelColor = item.isCancelled ? WARNING_COLOR : DIM_COLOR;
+    const warningColor = appTheme?.warning ?? WARNING_COLOR;
+    const labelColor = item.isCancelled ? warningColor : DIM_COLOR;
     spans.push(
       new TextSpan({
         text: "Thinking",
@@ -1780,7 +1743,7 @@ export class ConversationViewState extends State<ConversationView> {
       spans.push(
         new TextSpan({
           text: " (interrupted)",
-          style: new TextStyle({ foreground: WARNING_COLOR, italic: true }),
+          style: new TextStyle({ foreground: warningColor, italic: true }),
         }),
       );
     }

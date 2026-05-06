@@ -81,6 +81,8 @@ export interface AppTheme {
   completed: Color;
   /** Cancelled state */
   cancelled: Color;
+  /** Warning state (interrupted, read-range indicators) */
+  warning?: Color;
 
   // ── UI element colors ──────────────────────────────
   /** Recommendation highlight */
@@ -216,6 +218,7 @@ export function createDefaultAppTheme(mode: "dark" | "light" = "dark"): AppTheme
     waiting: Color.yellow(),
     completed: Color.green(),
     cancelled: Color.indexed(8),
+    warning: Color.indexed(3),
 
     // UI elements — 逆向: lines 128-134
     recommendation: Color.blue(),

@@ -254,10 +254,11 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
   const flushActivityBuffer = () => {
     if (activityBuffer.length === 0) return;
     const hasInProgress = activityBuffer.some((a) => a.status === "in-progress");
+    const guidanceFilesCount = deduplicateGuidanceFiles(activityBuffer).length;
     items.push({
       type: "activity-group",
       actions: [...activityBuffer],
-      summary: buildActivitySummary(activityBuffer),
+      summary: buildActivitySummary(activityBuffer, guidanceFilesCount),
       hasInProgress,
     });
     activityBuffer.length = 0;
@@ -1076,27 +1077,43 @@ function buildSpecializedActivityGroup(
   return { actions, summary: mode };
 }
 
+// 逆向: pW0 — chunk-004.js:36925-36934
+export function deduplicateGuidanceFiles(
+  actions: ActivityAction[],
+): Array<{ uri: string; lineCount: number }> {
+  const seen = new Set<string>();
+  const result: Array<{ uri: string; lineCount: number }> = [];
+  for (const action of actions) {
+    for (const gf of action.guidanceFiles ?? []) {
+      const key = `${gf.uri}|${gf.lineCount}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(gf);
+    }
+  }
+  return result;
+}
+
 /**
  * Build a summary string for an activity group.
  *
- * 逆向: cfT() in 2177_unknown_cfT.js
- * Produces strings like "1 read, 2 searches" with proper pluralization.
- * amp iterates [read, search, web, explore, list] in order with custom plural forms.
- * "explore" uses plural "explorations" (逆向: cfT — "exploration" entry).
+ * 逆向: lW0() in 2816_unknown_lW0.js
+ * Produces strings like "1 thought, 2 file reads, 1 search" with proper pluralization.
+ * amp order: thought → read → search (search + explore merged) → guidance files.
  */
-function buildActivitySummary(actions: ActivityAction[]): string {
+export function buildActivitySummary(actions: ActivityAction[], guidanceFilesCount = 0): string {
   const counts: Record<string, number> = {};
   for (const a of actions) {
     counts[a.kind] = (counts[a.kind] ?? 0) + 1;
   }
   const parts: string[] = [];
-  // 逆向: cfT iterates kinds in fixed order: read, search, web, explore, list
-  // "search" uses custom plural "searches" (not "searchs")
-  // "explore" uses "exploration"/"explorations" (逆向: cfT entry ["explore", "exploration", void 0])
-  // 逆向: lW0 (2816_unknown_lW0.js) uses "file read" / "file reads"
+  // 逆向: lW0 iterates in fixed order: thought, read, search (merged), guidance files
+  if (counts.thinking) parts.push(`${counts.thinking} thought${counts.thinking > 1 ? "s" : ""}`);
   if (counts.read) parts.push(`${counts.read} file read${counts.read > 1 ? "s" : ""}`);
-  if (counts.search) parts.push(`${counts.search} search${counts.search > 1 ? "es" : ""}`);
-  if (counts.explore) parts.push(`${counts.explore} exploration${counts.explore > 1 ? "s" : ""}`);
+  const searchCount = (counts.search ?? 0) + (counts.explore ?? 0);
+  if (searchCount) parts.push(`${searchCount} search${searchCount > 1 ? "es" : ""}`);
+  if (guidanceFilesCount > 0)
+    parts.push(`${guidanceFilesCount} guidance file${guidanceFilesCount > 1 ? "s" : ""}`);
   if (counts.list) parts.push(`${counts.list} list${counts.list > 1 ? "s" : ""}`);
   return parts.join(", ") || "activity";
 }

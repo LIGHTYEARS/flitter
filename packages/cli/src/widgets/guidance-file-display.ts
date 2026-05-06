@@ -29,7 +29,7 @@
  * @module guidance-file-display
  */
 
-import { relative } from "node:path";
+import { basename, dirname, relative } from "node:path";
 import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
   Color,
@@ -113,6 +113,28 @@ export function cwdRelativePath(uri: string, cwd?: string): string {
   }
   // Fallback to node:path.relative for cross-directory paths
   return relative(cwd, uri);
+}
+
+// 逆向: ZA — modules/1831_unknown_ZA.js:8-23
+export function guidanceFileDisplayName(uri: string, depth = 1): string {
+  let filePath = uri.startsWith("file://") ? uri.slice(7) : uri;
+  if (/^\/[A-Za-z]:[\\/]/.test(filePath)) filePath = filePath.slice(1);
+
+  const base = basename(filePath) || "AGENTS.md";
+  const parts: string[] = [];
+  let dir = dirname(filePath);
+
+  for (let i = 0; i < depth; i++) {
+    const seg = basename(dir);
+    if (!seg || seg === dir) break;
+    parts.unshift(seg);
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+
+  if (parts.length === 0) return base;
+  return [...parts, base].join("/");
 }
 
 // ════════════════════════════════════════════════════

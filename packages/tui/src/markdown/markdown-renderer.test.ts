@@ -10,6 +10,7 @@ import { describe, expect, it } from "bun:test";
 import type { TextSpan } from "../widgets/text-span.js";
 import type { MarkdownNode } from "./markdown-parser.js";
 import { MarkdownRenderer } from "./markdown-renderer.js";
+import { defaultMarkdownTheme } from "./markdown-theme.js";
 import { SyntaxHighlighter } from "./syntax-highlight.js";
 
 describe("SyntaxHighlighter", () => {
@@ -444,5 +445,44 @@ describe("MarkdownRenderer", () => {
     const text = collectText(spans);
     expect(text).toContain("first");
     expect(text).toContain("second");
+  });
+
+  // ── MarkdownTheme ────────────────────────────────
+
+  it("接受自定义 MarkdownTheme", () => {
+    const theme = defaultMarkdownTheme();
+    const customRenderer = new MarkdownRenderer({ markdownTheme: theme });
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 1,
+        children: [{ type: "text", value: "Hello" }],
+      },
+    ];
+    const spans = customRenderer.render(nodes);
+    expect(spans.length).toBeGreaterThan(0);
+    expect(collectText(spans)).toContain("Hello");
+  });
+
+  it("markdownTheme 的 syntaxTheme 作为默认语法主题", () => {
+    const theme = defaultMarkdownTheme();
+    const customRenderer = new MarkdownRenderer({ markdownTheme: theme });
+    const nodes: MarkdownNode[] = [{ type: "code", lang: "js", value: "const x = 1" }];
+    const spans = customRenderer.render(nodes);
+    expect(spans.length).toBeGreaterThan(0);
+    expect(collectText(spans)).toContain("const");
+  });
+
+  it("syntaxTheme 选项覆盖 markdownTheme.syntaxTheme", () => {
+    const theme = defaultMarkdownTheme();
+    const overrideTheme = SyntaxHighlighter.defaultTheme();
+    const customRenderer = new MarkdownRenderer({
+      markdownTheme: theme,
+      syntaxTheme: overrideTheme,
+    });
+    const nodes: MarkdownNode[] = [{ type: "code", lang: "js", value: "let y = 2" }];
+    const spans = customRenderer.render(nodes);
+    expect(spans.length).toBeGreaterThan(0);
+    expect(collectText(spans)).toContain("let");
   });
 });

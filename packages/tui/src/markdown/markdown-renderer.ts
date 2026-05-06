@@ -22,6 +22,7 @@ import { Color } from "../screen/color.js";
 import { TextStyle } from "../screen/text-style.js";
 import { TextSpan } from "../widgets/text-span.js";
 import type { MarkdownNode } from "./markdown-parser.js";
+import { defaultMarkdownTheme, type MarkdownTheme } from "./markdown-theme.js";
 import { SyntaxHighlighter, type SyntaxTheme } from "./syntax-highlight.js";
 
 /**
@@ -30,6 +31,8 @@ import { SyntaxHighlighter, type SyntaxTheme } from "./syntax-highlight.js";
 export interface MarkdownRendererOptions {
   /** 语法高亮主题（不传则使用默认深色主题） */
   syntaxTheme?: SyntaxTheme;
+  /** Markdown 渲染主题（不传则使用默认主题） */
+  markdownTheme?: MarkdownTheme;
 }
 
 /**
@@ -40,6 +43,8 @@ export interface MarkdownRendererOptions {
 export class MarkdownRenderer {
   /** 语法高亮器 */
   private readonly _highlighter: SyntaxHighlighter;
+  /** Markdown 渲染主题 */
+  private readonly _theme: MarkdownTheme;
 
   /**
    * 创建渲染器实例。
@@ -47,8 +52,9 @@ export class MarkdownRenderer {
    * @param options - 渲染配置
    */
   constructor(options?: MarkdownRendererOptions) {
-    const theme = options?.syntaxTheme ?? SyntaxHighlighter.defaultTheme();
-    this._highlighter = new SyntaxHighlighter(theme);
+    this._theme = options?.markdownTheme ?? defaultMarkdownTheme();
+    const syntaxTheme = options?.syntaxTheme ?? this._theme.syntaxTheme;
+    this._highlighter = new SyntaxHighlighter(syntaxTheme);
   }
 
   /**

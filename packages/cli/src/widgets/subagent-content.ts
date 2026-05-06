@@ -381,3 +381,45 @@ export function buildSubagentContentByParentID(
 
   return result;
 }
+
+// ─── Public API for widget layer ─────────────────────
+
+/**
+ * When parent is cancelled, propagate cancellation to all non-terminal child tools.
+ * Returns a new SubagentContent (does not mutate input).
+ * 逆向: jM0 `t()` closure — but applied at widget layer for late status updates
+ */
+export function propagateCancellation(content: SubagentContent): SubagentContent {
+  return {
+    ...content,
+    tools: content.tools.map((tool) => {
+      if (isTerminalStatus(tool.toolRun.status)) return tool;
+      return {
+        ...tool,
+        toolRun: {
+          ...tool.toolRun,
+          status: "cancelled" as const,
+          reason: "Parent subagent was cancelled",
+        },
+      };
+    }),
+  };
+}
+
+/**
+ * Compute a cache signature for SubagentContent. Used to detect when widget needs rebuild.
+ * 逆向: o8R() in 1950_unknown_o8R.js
+ */
+export function computeSubagentSignature(content: SubagentContent | undefined): string {
+  if (!content) return "none";
+  const toolsSig = content.tools
+    .map(
+      (t) =>
+        `${t.toolUse.id}|${t.toolUse.name}|${t.toolRun.status}|${t.toolProgress?.status ?? "none"}`,
+    )
+    .join("|");
+  const msgSig = content.terminalAssistantMessage
+    ? `msg:${content.terminalAssistantMessage.state.type}:${content.terminalAssistantMessage.content.length}`
+    : "no-msg";
+  return `tools:${toolsSig}|assistant:${msgSig}`;
+}

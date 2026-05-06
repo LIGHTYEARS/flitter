@@ -2,8 +2,10 @@ import { describe, expect, it } from "bun:test";
 import type { RawMessage } from "../display-items.js";
 import {
   buildSubagentContentByParentID,
+  computeSubagentSignature,
   hasTerminalMessage,
   isSubagentTool,
+  propagateCancellation,
   type SubagentContent,
   type SubagentTool,
 } from "../subagent-content.js";
@@ -551,5 +553,132 @@ describe("buildSubagentContentByParentID", () => {
     expect(result[parentId].tools[0].toolRun.error).toEqual({
       message: "command not found",
     });
+  });
+});
+
+// ─── propagateCancellation ─────────────────────────────
+
+describe("propagateCancellation", () => {
+  it("marks in-progress child tools as cancelled", () => {
+    const content: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "c1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "in-progress" },
+        },
+        {
+          toolUse: { type: "tool_use", id: "c2", name: "Read", input: {}, complete: true },
+          toolRun: { status: "done", result: "ok" },
+        },
+      ],
+    };
+    const result = propagateCancellation(content);
+    expect(result.tools[0].toolRun.status).toBe("cancelled");
+    expect(result.tools[0].toolRun.reason).toBe("Parent subagent was cancelled");
+    expect(result.tools[1].toolRun.status).toBe("done"); // terminal — unchanged
+  });
+
+  it("does not mutate original content", () => {
+    const content: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "c1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "in-progress" },
+        },
+      ],
+    };
+    propagateCancellation(content);
+    expect(content.tools[0].toolRun.status).toBe("in-progress");
+  });
+
+  it("preserves error status tools", () => {
+    const content: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "c1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "error", error: { message: "fail" } },
+        },
+        {
+          toolUse: { type: "tool_use", id: "c2", name: "Read", input: {}, complete: true },
+          toolRun: { status: "queued" },
+        },
+      ],
+    };
+    const result = propagateCancellation(content);
+    expect(result.tools[0].toolRun.status).toBe("error"); // terminal — unchanged
+    expect(result.tools[1].toolRun.status).toBe("cancelled"); // non-terminal → cancelled
+  });
+});
+
+// ─── computeSubagentSignature ─────────────────────────────
+
+describe("computeSubagentSignature", () => {
+  it("returns 'none' for undefined", () => {
+    expect(computeSubagentSignature(undefined)).toBe("none");
+  });
+
+  it("same content produces same signature", () => {
+    const content: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "t1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "done" },
+        },
+      ],
+    };
+    expect(computeSubagentSignature(content)).toBe(computeSubagentSignature(content));
+  });
+
+  it("status change produces different signature", () => {
+    const c1: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "t1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "in-progress" },
+        },
+      ],
+    };
+    const c2: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "t1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "done" },
+        },
+      ],
+    };
+    expect(computeSubagentSignature(c1)).not.toBe(computeSubagentSignature(c2));
+  });
+
+  it("includes terminalAssistantMessage in signature", () => {
+    const c1: SubagentContent = { tools: [] };
+    const c2: SubagentContent = {
+      tools: [],
+      terminalAssistantMessage: {
+        content: [{ type: "text", text: "hi" }],
+        state: { type: "complete" },
+      },
+    };
+    expect(computeSubagentSignature(c1)).not.toBe(computeSubagentSignature(c2));
+  });
+
+  it("includes toolProgress status in signature", () => {
+    const c1: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "t1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "in-progress" },
+        },
+      ],
+    };
+    const c2: SubagentContent = {
+      tools: [
+        {
+          toolUse: { type: "tool_use", id: "t1", name: "Bash", input: {}, complete: true },
+          toolRun: { status: "in-progress" },
+          toolProgress: { status: "running" },
+        },
+      ],
+    };
+    expect(computeSubagentSignature(c1)).not.toBe(computeSubagentSignature(c2));
   });
 });

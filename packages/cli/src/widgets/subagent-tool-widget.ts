@@ -38,7 +38,7 @@ import {
 } from "@flitter/tui";
 import { ExpandableToolHeader, type ToolStatus } from "./expandable-tool-header.js";
 import type { SubagentContent, SubagentTool } from "./subagent-content.js";
-import { hasTerminalMessage } from "./subagent-content.js";
+import { hasTerminalMessage, propagateCancellation } from "./subagent-content.js";
 
 // ════════════════════════════════════════════════════
 //  Types
@@ -139,7 +139,16 @@ export class SubagentToolWidgetState extends State<SubagentToolWidget> {
     const { toolName, status, description, outputResult, error, subagentContent, hideHeader } =
       this.widget.config;
 
-    const content: SubagentContent = subagentContent ?? { tools: [] };
+    // Apply cancellation propagation for late status updates
+    // 逆向: jM0 `t()` closure — widget layer applies when parent cancelled but pipeline didn't know
+    let effectiveContent: SubagentContent;
+    if (status === "cancelled" && subagentContent) {
+      effectiveContent = propagateCancellation(subagentContent);
+    } else {
+      effectiveContent = subagentContent ?? { tools: [] };
+    }
+
+    const content: SubagentContent = effectiveContent;
 
     // ── Build body children ──
     // 逆向: D9R.build lines 7668-7737

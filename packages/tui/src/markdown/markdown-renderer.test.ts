@@ -288,7 +288,7 @@ describe("MarkdownRenderer", () => {
 
   // ── 列表 ──────────────────────────────────────────
 
-  it("无序列表 → 带 '  - ' 前缀", () => {
+  it("无序列表 → 带 '• ' 前缀", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "list",
@@ -319,8 +319,8 @@ describe("MarkdownRenderer", () => {
     ];
     const spans = renderer.render(nodes);
     const text = collectText(spans);
-    expect(text).toContain("- item1");
-    expect(text).toContain("- item2");
+    expect(text).toContain("• item1");
+    expect(text).toContain("• item2");
   });
 
   it("有序列表 → 带数字前缀", () => {
@@ -347,7 +347,7 @@ describe("MarkdownRenderer", () => {
     expect(text).toContain("1. first");
   });
 
-  it("任务列表 → [x] / [ ] 前缀", () => {
+  it("任务列表 → [✓] / [ ] 前缀", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "list",
@@ -378,8 +378,73 @@ describe("MarkdownRenderer", () => {
     ];
     const spans = renderer.render(nodes);
     const text = collectText(spans);
-    expect(text).toContain("[x] done");
+    expect(text).toContain("[✓] done");
     expect(text).toContain("[ ] todo");
+  });
+
+  it("嵌套列表添加缩进", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "list",
+        ordered: false,
+        children: [
+          {
+            type: "listItem",
+            checked: null,
+            children: [
+              {
+                type: "paragraph",
+                children: [{ type: "text", value: "item 1" }],
+              },
+              {
+                type: "list",
+                ordered: false,
+                children: [
+                  {
+                    type: "listItem",
+                    checked: null,
+                    children: [
+                      {
+                        type: "paragraph",
+                        children: [{ type: "text", value: "nested item" }],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const text = collectText(spans);
+    expect(text).toContain("• item 1");
+    expect(text).toContain("  • nested item");
+  });
+
+  it("task list checked 使用 ✓", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "list",
+        ordered: false,
+        children: [
+          {
+            type: "listItem",
+            checked: true,
+            children: [
+              {
+                type: "paragraph",
+                children: [{ type: "text", value: "done" }],
+              },
+            ],
+          },
+        ],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const text = collectText(spans);
+    expect(text).toContain("[✓]");
   });
 
   // ── 表格 ──────────────────────────────────────────

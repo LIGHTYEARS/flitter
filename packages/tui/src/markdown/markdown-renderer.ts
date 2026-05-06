@@ -152,6 +152,9 @@ export class MarkdownRenderer {
       case "link":
         return this._renderLink(node);
 
+      case "image":
+        return this._renderImage(node);
+
       case "table":
         return this._renderTable(node);
 

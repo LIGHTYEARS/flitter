@@ -1,12 +1,23 @@
 import { describe, expect, test } from "bun:test";
 import type { Config } from "@flitter/schemas";
-import type { SubAgentManager, SubAgentOptions } from "../../../subagent/subagent";
+import type { SubAgentOptions } from "../../../subagent/subagent";
+import type { SubAgentRunner, SubAgentRunnerEvent } from "../../../subagent/subagent-runner";
 import { createTaskTool } from "../task";
+
+function createMockRunner(opts: {
+  runFn: (spawnOpts: SubAgentOptions) => Promise<SubAgentRunnerEvent>;
+}): SubAgentRunner {
+  return {
+    run: opts.runFn,
+  } as unknown as SubAgentRunner;
+}
 
 describe("TaskTool", () => {
   test("has correct name, description, and inputSchema", () => {
-    const mockManager = {} as SubAgentManager;
-    const tool = createTaskTool(mockManager);
+    const mockRunner = createMockRunner({
+      runFn: async () => ({ status: "done", turns: [], message: "" }),
+    });
+    const tool = createTaskTool(mockRunner);
 
     expect(tool.name).toBe("Task");
     expect(tool.source).toBe("builtin");
@@ -16,20 +27,25 @@ describe("TaskTool", () => {
     expect(tool.inputSchema.required).toContain("description");
   });
 
-  test("execute calls subAgentManager.spawn with prompt and description", async () => {
-    let spawnCalledWith: SubAgentOptions | null = null;
-    const mockManager = {
-      spawn: async (opts: SubAgentOptions) => {
-        spawnCalledWith = opts;
+  test("execute calls runner.run and returns result with progress", async () => {
+    let runCalledWith: SubAgentOptions | null = null;
+    const mockRunner = createMockRunner({
+      runFn: async (opts) => {
+        runCalledWith = opts;
         return {
-          threadId: "child-1",
-          response: "Done! Created the file.",
-          status: "completed" as const,
+          status: "done",
+          message: "Done! Created the file.",
+          turns: [
+            {
+              message: "Done! Created the file.",
+              activeTools: new Map(),
+            },
+          ],
         };
       },
-    } as unknown as SubAgentManager;
+    });
 
-    const tool = createTaskTool(mockManager);
+    const tool = createTaskTool(mockRunner);
     const context = {
       workingDirectory: "/tmp/test",
       signal: AbortSignal.timeout(5000),
@@ -42,25 +58,26 @@ describe("TaskTool", () => {
       context,
     );
 
-    expect(spawnCalledWith).not.toBeNull();
-    expect(spawnCalledWith!.prompt).toBe("Create a new file");
-    expect(spawnCalledWith!.description).toBe("Create file");
-    expect(spawnCalledWith!.parentThreadId).toBe("parent-thread");
+    expect(runCalledWith).not.toBeNull();
+    expect(runCalledWith!.prompt).toBe("Create a new file");
+    expect(runCalledWith!.description).toBe("Create file");
+    expect(runCalledWith!.parentThreadId).toBe("parent-thread");
     expect(result.status).toBe("done");
     expect(result.content).toBe("Done! Created the file.");
+    expect(result.progress).toBeDefined();
+    expect(result.progress!.length).toBe(1);
   });
 
   test("execute returns error status on spawn failure", async () => {
-    const mockManager = {
-      spawn: async () => ({
-        threadId: "child-2",
-        response: "",
-        status: "error" as const,
-        error: "Out of tokens",
+    const mockRunner = createMockRunner({
+      runFn: async () => ({
+        status: "error",
+        message: "Out of tokens",
+        turns: [],
       }),
-    } as unknown as SubAgentManager;
+    });
 
-    const tool = createTaskTool(mockManager);
+    const tool = createTaskTool(mockRunner);
     const context = {
       workingDirectory: "/tmp/test",
       signal: AbortSignal.timeout(5000),
@@ -74,16 +91,23 @@ describe("TaskTool", () => {
     expect(result.error).toBe("Out of tokens");
   });
 
-  test("execute returns timeout status", async () => {
-    const mockManager = {
-      spawn: async () => ({
-        threadId: "child-3",
-        response: "partial work done",
-        status: "timeout" as const,
+  test("execute handles timeout via error event", async () => {
+    const mockRunner = createMockRunner({
+      runFn: async () => ({
+        status: "error",
+        message: "Sub-agent timed out",
+        turns: [
+          {
+            message: "partial work done",
+            activeTools: new Map([
+              ["t1", { id: "t1", tool_name: "Read", status: "done", result: "contents" }],
+            ]),
+          },
+        ],
       }),
-    } as unknown as SubAgentManager;
+    });
 
-    const tool = createTaskTool(mockManager);
+    const tool = createTaskTool(mockRunner);
     const context = {
       workingDirectory: "/tmp/test",
       signal: AbortSignal.timeout(5000),
@@ -94,7 +118,29 @@ describe("TaskTool", () => {
     const result = await tool.execute({ prompt: "Long task", description: "Long" }, context);
 
     expect(result.status).toBe("error");
-    expect(result.error).toContain("timeout");
-    expect(result.content).toBe("partial work done");
+    expect(result.error).toContain("timed out");
+    // Progress should still be populated even on error
+    expect(result.progress).toBeDefined();
+    expect(result.progress!.length).toBe(1);
+    expect(result.progress![0]!.tool_uses!.length).toBe(1);
+  });
+
+  test("execute returns error on missing prompt", async () => {
+    const mockRunner = createMockRunner({
+      runFn: async () => ({ status: "done", turns: [], message: "" }),
+    });
+
+    const tool = createTaskTool(mockRunner);
+    const context = {
+      workingDirectory: "/tmp/test",
+      signal: AbortSignal.timeout(5000),
+      threadId: "parent-thread",
+      config: {} as unknown as Config,
+    };
+
+    const result = await tool.execute({ description: "No prompt" }, context);
+
+    expect(result.status).toBe("error");
+    expect(result.error).toContain("prompt");
   });
 });

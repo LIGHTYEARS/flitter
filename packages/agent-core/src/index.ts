@@ -116,6 +116,7 @@ export {
   matchHookToTool,
   parseHooksConfig,
 } from "./subagent/hooks";
+export { mapSubAgentEventToProgress, mapSubAgentEventToToolResult } from "./subagent/map-progress";
 export type {
   SubAgentInfo,
   SubAgentManagerOptions,
@@ -124,6 +125,13 @@ export type {
   SubAgentWorkerOptions,
 } from "./subagent/subagent";
 export { SubAgentManager } from "./subagent/subagent";
+export type {
+  SubAgentRunnerDeps,
+  SubAgentRunnerEvent,
+  SubAgentToolExecution,
+  SubAgentTurn,
+} from "./subagent/subagent-runner";
+export { SubAgentRunner } from "./subagent/subagent-runner";
 export type { SubAgentTypeConfig } from "./subagent/subagent-types";
 export {
   getSubAgentToolPatterns,

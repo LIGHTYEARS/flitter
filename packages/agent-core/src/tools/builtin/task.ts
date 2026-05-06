@@ -3,22 +3,22 @@
  *
  * 逆向: amp 2026_tail_anonymous.js:143055 (Dt = "Task" tool spec)
  * 逆向: amp 1354_unknown_wi.js (subagent inference runner)
+ * 逆向: amp 0064_unknown_iXR.js (progress mapping)
  */
 
-import type { SubAgentManager } from "../../subagent/subagent";
+import { mapSubAgentEventToToolResult } from "../../subagent/map-progress";
+import type { SubAgentRunner } from "../../subagent/subagent-runner";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 
 /**
- * Create a Task ToolSpec bound to a SubAgentManager.
+ * Create a Task ToolSpec bound to a SubAgentRunner.
+ *
+ * 逆向: amp Task tool → hXR() → wi.run() → iXR → ToolResult with progress
  *
  * The Task tool is a factory (not a static constant) because it needs
- * a reference to the SubAgentManager instance from the container.
- *
- * 逆向: amp's Task tool description instructs the LLM on when to use
- * subagents (multi-step tasks, large output, parallel independent work)
- * and when not to (single file ops, uncertain plans).
+ * a reference to the SubAgentRunner instance from the container.
  */
-export function createTaskTool(subAgentManager: SubAgentManager): ToolSpec {
+export function createTaskTool(runner: SubAgentRunner): ToolSpec {
   return {
     name: "Task",
     description: `Perform a task using a sub-agent that has access to file read/write, search, and shell tools.
@@ -59,10 +59,7 @@ How to use:
     source: "builtin",
     isReadOnly: false,
     executionProfile: {
-      // Task tools do not conflict with each other (can run in parallel)
-      // and do not conflict with other tools (subagent has its own context)
       resourceKeys: [],
-      // 逆向: amp uses `meta: { disableTimeout: !0 }` on Task (chunk-005.js:146548)
       disableTimeout: true,
     },
 
@@ -75,43 +72,14 @@ How to use:
       }
 
       try {
-        const result = await subAgentManager.spawn({
+        const event = await runner.run({
           parentThreadId: context.threadId,
           prompt,
           description: description ?? "Sub-task",
           type: "task",
         });
 
-        switch (result.status) {
-          case "completed":
-            return {
-              status: "done",
-              content: result.response || "(no output)",
-            };
-          case "timeout":
-            return {
-              status: "error",
-              error: `Sub-agent timeout. Partial response: ${result.response || "(none)"}`,
-              content: result.response,
-            };
-          case "cancelled":
-            return {
-              status: "error",
-              error: "Sub-agent was cancelled",
-              content: result.response,
-            };
-          case "error":
-            return {
-              status: "error",
-              error: result.error ?? "Sub-agent encountered an error",
-              content: result.response,
-            };
-          default:
-            return {
-              status: "error",
-              error: `Unknown sub-agent status: ${String((result as { status: string }).status)}`,
-            };
-        }
+        return mapSubAgentEventToToolResult(event);
       } catch (err) {
         return {
           status: "error",

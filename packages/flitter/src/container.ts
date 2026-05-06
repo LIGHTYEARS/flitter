@@ -70,6 +70,7 @@ import {
   type ReplInferenceFn,
   resolveToolboxPaths,
   SubAgentManager,
+  SubAgentRunner,
   ThreadWorker as ThreadWorkerImpl,
   ToolboxService,
   ToolOrchestrator,
@@ -638,8 +639,13 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
     disposables.push(subAgentManager);
     log.info("SubAgentManager created");
 
-    // Register Task tool (depends on SubAgentManager)
-    const taskTool = createTaskTool(subAgentManager);
+    // Register Task tool (depends on SubAgentManager + SubAgentRunner)
+    // 逆向: Task tool → hXR() → wi.run() → iXR → ToolResult with progress
+    const subAgentRunner = new SubAgentRunner({
+      subAgentManager,
+      getThreadSnapshot: (tid) => threadStore.getThreadSnapshot(tid),
+    });
+    const taskTool = createTaskTool(subAgentRunner);
     toolRegistry.register(taskTool);
     log.info("Task tool registered");
 
@@ -807,7 +813,7 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             // 逆向: amp's BfR "tool:data" case calls xwT() which finds or creates
             // a user message after the assistant message, then upserts a tool_result
             // content block. Fields must match display-items.ts RawContentBlock:
-            //   toolUseID (camelCase), run.status, run.result, run.error
+            //   toolUseID (camelCase), run.status, run.result, run.error, run.progress
             if (event.status === "completed" && event.result) {
               const snapshot = threadStore.getThreadSnapshot(threadId);
               if (!snapshot) return;
@@ -824,6 +830,8 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
                       ...(isError
                         ? { error: { message: event.result.content ?? "Unknown error" } }
                         : {}),
+                      // 逆向: tool_result.run.progress — subagent turns (iXR output)
+                      ...(event.result.progress ? { progress: event.result.progress } : {}),
                     },
                   },
                 ],

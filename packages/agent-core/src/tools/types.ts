@@ -94,6 +94,20 @@ export interface ToolResult {
   data?: Record<string, unknown>;
   /** 工具写入的文件路径列表 */
   outputFiles?: string[];
+  /** 子代理执行进度 — 逆向: tool_result.run.progress (iXR 映射结果) */
+  progress?: Array<{
+    message?: string;
+    reasoning?: string;
+    tool_uses?: Array<{
+      id?: string;
+      tool_name?: string;
+      normalized_name?: string;
+      input?: unknown;
+      status?: string;
+      result?: unknown;
+      error?: { message: string };
+    }>;
+  }>;
 }
 
 // ─── 工具消息 ──────────────────────────────────────────

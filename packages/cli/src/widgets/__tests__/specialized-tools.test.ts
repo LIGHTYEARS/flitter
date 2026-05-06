@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { ToolItem } from "../display-items.js";
+import type { SubagentToolItem, ToolItem } from "../display-items.js";
 import { transformThreadToDisplayItems } from "../display-items.js";
 
 describe("specialized tool rendering", () => {
@@ -91,7 +91,7 @@ describe("specialized tool rendering", () => {
 });
 
 describe("Task tool rendering", () => {
-  it("emits Task tool with kind generic and name Subagent", () => {
+  it("Task without mode produces SubagentToolItem", () => {
     const messages = [
       {
         role: "assistant" as const,
@@ -111,10 +111,147 @@ describe("Task tool rendering", () => {
       },
     ];
     const items = transformThreadToDisplayItems(messages);
-    const tool = items.find((i) => i.type === "tool") as ToolItem;
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
     expect(tool).toBeDefined();
-    expect(tool.kind).toBe("generic");
+    expect(tool.type).toBe("subagent-tool");
     expect(tool.toolName).toBe("Subagent");
-    expect(tool.args).toHaveProperty("detail");
+    expect(tool.description).toBe("Search for login bugs");
+    expect(tool.status).toBe("done");
+  });
+
+  it("oracle tool produces SubagentToolItem with toolName Oracle", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-oracle",
+            name: "oracle",
+            input: { task: "Explain how caching works" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-oracle",
+            run: { status: "done", result: "Caching stores..." },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.type).toBe("subagent-tool");
+    expect(tool.toolName).toBe("Oracle");
+    expect(tool.description).toBe("Explain how caching works");
+    expect(tool.status).toBe("done");
+  });
+
+  it("librarian tool produces SubagentToolItem with toolName Librarian", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-lib",
+            name: "librarian",
+            input: { query: "Find all auth modules" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-lib",
+            run: { status: "done", result: "Found auth/" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.type).toBe("subagent-tool");
+    expect(tool.toolName).toBe("Librarian");
+    expect(tool.description).toBe("Find all auth modules");
+    expect(tool.status).toBe("done");
+  });
+
+  it("sa__code_writer produces SubagentToolItem with toolName Code Writer", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-sa",
+            name: "sa__code_writer",
+            input: { prompt: "Write a utility function" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-sa",
+            run: { status: "done", result: "function util() {}" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.type).toBe("subagent-tool");
+    expect(tool.toolName).toBe("Code Writer");
+    expect(tool.description).toBe("Write a utility function");
+    expect(tool.status).toBe("done");
+  });
+
+  it("sa__ with hyphenated name title-cases each segment", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-sa2",
+            name: "sa__file-system-helper",
+            input: { prompt: "Create a temp dir" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-sa2",
+            run: { status: "in-progress" },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.toolName).toBe("File System Helper");
+    expect(tool.status).toBe("in-progress");
+  });
+
+  it("SubagentToolItem captures error from failed run", () => {
+    const messages = [
+      {
+        role: "assistant" as const,
+        content: [
+          {
+            type: "tool_use",
+            id: "tu-err",
+            name: "Task",
+            input: { description: "Do something" },
+          },
+          {
+            type: "tool_result",
+            toolUseID: "tu-err",
+            run: { status: "error", error: { message: "Timeout exceeded" } },
+          },
+        ],
+      },
+    ];
+    const items = transformThreadToDisplayItems(messages);
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
+    expect(tool).toBeDefined();
+    expect(tool.status).toBe("error");
+    expect(tool.error).toBe("Timeout exceeded");
   });
 });

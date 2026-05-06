@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import type { ActivityGroupItem, ToolItem } from "../display-items.js";
+import type { ActivityGroupItem, SubagentToolItem } from "../display-items.js";
 import { transformThreadToDisplayItems } from "../display-items.js";
 
 // ─── Helpers ─────────────────────────────────────────
@@ -221,20 +221,20 @@ describe("Task tool with mode input", () => {
     expect(group.summary).toBe("code tour: auth flow");
   });
 
-  it("Task without mode still renders as Subagent ToolItem", () => {
-    // 逆向: yx0 Task branch — no mode → generic Subagent
+  it("Task without mode still renders as SubagentToolItem", () => {
+    // 逆向: yx0 Task branch — no mode → SubagentToolItem with toolName "Subagent"
     const messages = makeToolMessages("Task", { description: "do something" });
     const items = transformThreadToDisplayItems(messages);
-    const tool = items.find((i) => i.type === "tool") as ToolItem;
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
     expect(tool).toBeDefined();
     expect(tool.toolName).toBe("Subagent");
   });
 
-  it("Task with unknown mode falls back to generic Subagent", () => {
+  it("Task with unknown mode falls back to SubagentToolItem", () => {
     // Only finder/code_review/code_tour get specialized treatment
     const messages = makeToolMessages("Task", { mode: "unknown_mode" });
     const items = transformThreadToDisplayItems(messages);
-    const tool = items.find((i) => i.type === "tool") as ToolItem;
+    const tool = items.find((i) => i.type === "subagent-tool") as SubagentToolItem;
     expect(tool).toBeDefined();
     expect(tool.toolName).toBe("Subagent");
   });

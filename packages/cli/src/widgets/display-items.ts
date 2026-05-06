@@ -19,10 +19,16 @@
 import type { ChartData } from "@flitter/tui";
 import { classifyBashCommand } from "../util/bash-classifier.js";
 import { generateSimpleDiff } from "./diff-widget.js";
+import { buildSubagentContentByParentID, type SubagentContent } from "./subagent-content.js";
 
 // ─── Display Item Types ─────────────────────────────
 
-export type DisplayItem = MessageItem | ToolItem | ActivityGroupItem | ThinkingItem;
+export type DisplayItem =
+  | MessageItem
+  | ToolItem
+  | ActivityGroupItem
+  | ThinkingItem
+  | SubagentToolItem;
 
 export interface MessageItem {
   type: "message";
@@ -162,6 +168,24 @@ export interface ThinkingItem {
   isCancelled?: boolean;
 }
 
+/**
+ * A subagent tool invocation (Task, oracle, librarian, sa__* custom agents).
+ *
+ * 逆向: chunk-006.js:29351 buildSubagentTool — dedicated widget for sa__ prefix tools.
+ * 逆向: yx0 lines 273-306 — Task/oracle/librarian produce kind:"generic" in pipeline,
+ *   then shT/buildSubagentTool renders them as subagent-specific widgets.
+ * We merge the classification into the display-item layer for cleaner rendering.
+ */
+export interface SubagentToolItem {
+  type: "subagent-tool";
+  toolUseId: string;
+  toolName: string; // "Subagent" | "Oracle" | "Librarian" | title-cased from sa__
+  status: ToolItem["status"];
+  description?: string;
+  error?: string;
+  subagentContent?: SubagentContent;
+}
+
 // ─── Tool classification ─────────────────────────────
 
 /** Tools that get their own full row with command+output (逆向: yx0 Bash/shell_command branch) */
@@ -214,7 +238,12 @@ export interface RawContentBlock {
   input?: Record<string, unknown>;
   complete?: boolean;
   toolUseID?: string;
-  run?: { status: string; result?: unknown; error?: { message: string; errorCode?: string } };
+  run?: {
+    status: string;
+    result?: unknown;
+    error?: { message: string; errorCode?: string };
+    progress?: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -232,6 +261,9 @@ export interface RawContentBlock {
  * 逆向: yx0 + ux0 (2154_Subagent_yx0.js, 2153_unknown_ux0.js)
  */
 export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayItem[] {
+  // Build subagent content map (逆向: jM0 — keyed by parent tool_use ID)
+  const subagentContentByParentID = buildSubagentContentByParentID(messages);
+
   // Phase 1: Build tool_use → tool_result lookup (逆向: ux0 Map-based join)
   const resultMap = new Map<string, RawContentBlock>();
   for (const msg of messages) {
@@ -819,6 +851,60 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           summary: tourSummary,
           hasInProgress: status === "in-progress" || status === "queued",
         });
+      } else if (block.name?.startsWith("sa__")) {
+        // 逆向: chunk-006.js:29076 — e.startsWith("sa__") → buildSubagentTool
+        // 逆向: chunk-006.js:29353 — R.name.replace(/^sa__/, "").split(/[_-]/).map(...)
+        flushActivityBuffer();
+        const displayName = block.name
+          .replace(/^sa__/, "")
+          .split(/[_-]/)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        const subagentContent = block.id ? subagentContentByParentID[block.id] : undefined;
+        items.push({
+          type: "subagent-tool",
+          toolUseId: block.id ?? "",
+          toolName: displayName,
+          status,
+          description: typeof block.input?.prompt === "string" ? block.input.prompt : undefined,
+          error:
+            result?.run?.status === "error"
+              ? (result.run.error as { message: string } | undefined)?.message
+              : undefined,
+          subagentContent,
+        });
+      } else if (block.name === "oracle") {
+        // 逆向: yx0 lines 283-294 — oracle tool with task detail
+        flushActivityBuffer();
+        const subagentContent = block.id ? subagentContentByParentID[block.id] : undefined;
+        items.push({
+          type: "subagent-tool",
+          toolUseId: block.id ?? "",
+          toolName: "Oracle",
+          status,
+          description: typeof block.input?.task === "string" ? block.input.task : undefined,
+          error:
+            result?.run?.status === "error"
+              ? (result.run.error as { message: string } | undefined)?.message
+              : undefined,
+          subagentContent,
+        });
+      } else if (block.name === "librarian") {
+        // 逆向: yx0 lines 296-306 — librarian tool with query detail
+        flushActivityBuffer();
+        const subagentContent = block.id ? subagentContentByParentID[block.id] : undefined;
+        items.push({
+          type: "subagent-tool",
+          toolUseId: block.id ?? "",
+          toolName: "Librarian",
+          status,
+          description: typeof block.input?.query === "string" ? block.input.query : undefined,
+          error:
+            result?.run?.status === "error"
+              ? (result.run.error as { message: string } | undefined)?.message
+              : undefined,
+          subagentContent,
+        });
       } else if (block.name === "Task") {
         // 逆向: yx0 Task branch — render as Subagent with description detail
         // Uses extractDetail (逆向: ai()) to find the best detail string
@@ -842,16 +928,23 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           });
         } else {
           const detail =
-            extractDetail(block.input as Record<string, unknown>) ??
-            JSON.stringify(block.input ?? {});
+            typeof block.input?.description === "string"
+              ? block.input.description
+              : typeof block.input?.prompt === "string"
+                ? block.input.prompt
+                : undefined;
+          const subagentContent = block.id ? subagentContentByParentID[block.id] : undefined;
           items.push({
-            type: "tool",
-            toolUseId: block.id,
+            type: "subagent-tool",
+            toolUseId: block.id ?? "",
             toolName: "Subagent",
-            kind: "generic",
             status,
-            args: { detail },
-            error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
+            description: detail,
+            error:
+              result?.run?.status === "error"
+                ? (result.run.error as { message: string } | undefined)?.message
+                : undefined,
+            subagentContent,
           });
         }
       } else if (block.name === "chart") {

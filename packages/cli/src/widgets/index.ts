@@ -69,6 +69,7 @@ export {
   type ActivityGroupItem,
   type DisplayItem,
   type MessageItem,
+  type SubagentToolItem,
   type ThinkingItem,
   type ToolItem,
   transformThreadToDisplayItems,

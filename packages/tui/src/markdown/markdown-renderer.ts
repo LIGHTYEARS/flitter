@@ -351,15 +351,22 @@ export class MarkdownRenderer {
 
   /**
    * 渲染块引用。
+   *
+   * 逆向: amp-cli-reversed/modules/1472_tui_components/text_rendering.js:1402-1420
+   * amp 使用 left padding 2, 左边框装饰（colored │），inner padding 1，内容不 dim。
    */
   private _renderBlockquote(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
-    const dimStyle = new TextStyle({ dim: true });
+    const borderStyle = new TextStyle({ foreground: this._theme.blockquoteBorder });
     const children = this._renderChildren(node, parentStyle);
 
-    // 添加 "│ " 前缀
     return [
       new TextSpan({
-        children: [new TextSpan({ text: "│ ", style: dimStyle }), ...children],
+        children: [
+          new TextSpan({ text: "  " }),
+          new TextSpan({ text: "│", style: borderStyle }),
+          new TextSpan({ text: " " }),
+          ...children,
+        ],
       }),
     ];
   }

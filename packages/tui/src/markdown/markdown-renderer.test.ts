@@ -496,7 +496,21 @@ describe("MarkdownRenderer", () => {
 
   // ── blockquote ────────────────────────────────────
 
-  it("blockquote → '│ ' 前缀", () => {
+  /** 递归收集所有叶子 TextSpan（有 text 属性的） */
+  function flattenSpans(spans: TextSpan[]): TextSpan[] {
+    const result: TextSpan[] = [];
+    for (const span of spans) {
+      if (span.text !== undefined) {
+        result.push(span);
+      }
+      if (span.children) {
+        result.push(...flattenSpans(span.children));
+      }
+    }
+    return result;
+  }
+
+  it("blockquote → 2-space pad + colored │ border + space + content (not dim)", () => {
     const nodes: MarkdownNode[] = [
       {
         type: "blockquote",
@@ -510,8 +524,20 @@ describe("MarkdownRenderer", () => {
     ];
     const spans = renderer.render(nodes);
     const text = collectText(spans);
-    expect(text).toContain("│ ");
+    // Should have "  │ " prefix pattern
+    expect(text).toContain("  │");
     expect(text).toContain("quoted");
+
+    // Border character should not be dim
+    const allLeaves = flattenSpans(spans);
+    const borderSpan = allLeaves.find((s) => s.text === "│");
+    expect(borderSpan).toBeDefined();
+    expect(borderSpan!.style?.dim).not.toBe(true);
+
+    // Content should not be dim
+    const contentSpan = allLeaves.find((s) => s.text?.includes("quoted"));
+    expect(contentSpan).toBeDefined();
+    expect(contentSpan!.style?.dim).not.toBe(true);
   });
   // ── 链接 ──────────────────────────────────────────
 

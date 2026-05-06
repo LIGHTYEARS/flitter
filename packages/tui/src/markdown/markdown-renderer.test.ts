@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { Color } from "../screen/color.js";
 import type { TextSpan } from "../widgets/text-span.js";
 import type { MarkdownNode } from "./markdown-parser.js";
 import { MarkdownRenderer } from "./markdown-renderer.js";
@@ -213,6 +214,76 @@ describe("MarkdownRenderer", () => {
     ];
     const spans = renderer.render(nodes);
     expect(collectText(spans)).toContain("### ");
+  });
+
+  it("h1 渲染为蓝色粗体", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 1,
+        children: [{ type: "text", value: "Title" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const headingSpan = spans[0];
+    expect(headingSpan.style!.bold).toBe(true);
+    expect(headingSpan.style!.foreground.equals(Color.blue())).toBe(true);
+  });
+
+  it("h2 渲染为青色粗体", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 2,
+        children: [{ type: "text", value: "Title" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const headingSpan = spans[0];
+    expect(headingSpan.style!.bold).toBe(true);
+    expect(headingSpan.style!.foreground.equals(Color.cyan())).toBe(true);
+  });
+
+  it("h3 渲染为蓝色非粗体", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 3,
+        children: [{ type: "text", value: "Title" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const headingSpan = spans[0];
+    expect(headingSpan.style!.bold).toBe(false);
+    expect(headingSpan.style!.foreground.equals(Color.blue())).toBe(true);
+  });
+
+  it("h4 渲染为青色非粗体", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 4,
+        children: [{ type: "text", value: "Title" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const headingSpan = spans[0];
+    expect(headingSpan.style!.bold).toBe(false);
+    expect(headingSpan.style!.foreground.equals(Color.cyan())).toBe(true);
+  });
+
+  it("h5 渲染为默认前景色非粗体", () => {
+    const nodes: MarkdownNode[] = [
+      {
+        type: "heading",
+        level: 5,
+        children: [{ type: "text", value: "Title" }],
+      },
+    ];
+    const spans = renderer.render(nodes);
+    const headingSpan = spans[0];
+    expect(headingSpan.style!.bold).toBe(false);
+    expect(headingSpan.style!.foreground.equals(Color.default())).toBe(true);
   });
 
   // ── 列表 ──────────────────────────────────────────

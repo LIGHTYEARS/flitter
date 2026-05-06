@@ -141,10 +141,10 @@ export class MarkdownRenderer {
         return this._renderCodeBlock(node);
 
       case "list":
-        return this._renderList(node, parentStyle);
+        return this._renderList(node, parentStyle, 0);
 
       case "listItem":
-        return this._renderListItem(node, parentStyle, false, 0);
+        return this._renderListItem(node, parentStyle, false, 0, 0);
 
       case "blockquote":
         return this._renderBlockquote(node, parentStyle);
@@ -189,12 +189,15 @@ export class MarkdownRenderer {
    */
   private _renderHeading(node: MarkdownNode, _parentStyle: TextStyle | undefined): TextSpan[] {
     const level = node.level ?? 1;
+    const idx = Math.min(level, 6) - 1;
+    const color = this._theme.headingColors[idx];
+    const bold = level <= this._theme.headingBoldLevels;
+    const style = new TextStyle({ bold, foreground: color });
     const prefix = "#".repeat(level) + " ";
-    const boldStyle = new TextStyle({ bold: true });
-    const children = this._renderChildren(node, boldStyle);
+    const children = this._renderChildren(node, style);
     return [
       new TextSpan({
-        style: boldStyle,
+        style,
         children: [new TextSpan({ text: prefix }), ...children],
       }),
     ];
@@ -286,14 +289,18 @@ export class MarkdownRenderer {
   /**
    * 渲染列表。
    */
-  private _renderList(node: MarkdownNode, parentStyle: TextStyle | undefined): TextSpan[] {
+  private _renderList(
+    node: MarkdownNode,
+    parentStyle: TextStyle | undefined,
+    depth: number = 0,
+  ): TextSpan[] {
     const ordered = node.ordered ?? false;
     const spans: TextSpan[] = [];
     const items = node.children ?? [];
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      spans.push(...this._renderListItem(item, parentStyle, ordered, i));
+      spans.push(...this._renderListItem(item, parentStyle, ordered, i, depth));
       if (i < items.length - 1) {
         spans.push(new TextSpan({ text: "\n" }));
       }
@@ -310,36 +317,34 @@ export class MarkdownRenderer {
     parentStyle: TextStyle | undefined,
     ordered: boolean,
     index: number,
+    depth: number = 0,
   ): TextSpan[] {
+    const indent = "  ".repeat(depth);
     let prefix: string;
     if (node.checked === true) {
-      prefix = "  [x] ";
+      prefix = `${indent}[✓] `;
     } else if (node.checked === false) {
-      prefix = "  [ ] ";
+      prefix = `${indent}[ ] `;
     } else if (ordered) {
-      prefix = `  ${index + 1}. `;
+      prefix = `${indent}${index + 1}. `;
     } else {
-      prefix = "  - ";
+      prefix = `${indent}• `;
     }
 
-    const children = this._renderChildren(node, parentStyle);
+    const resultSpans: TextSpan[] = [new TextSpan({ text: prefix })];
 
-    // 如果 children 中包含嵌套 paragraph，展平
-    const flatChildren: TextSpan[] = [];
-    for (const child of children) {
-      if (child.children && !child.text && !child.style) {
-        // 透明 paragraph wrapper -> 展平
-        flatChildren.push(...(child.children ?? []));
+    for (const child of node.children ?? []) {
+      if (child.type === "list") {
+        resultSpans.push(new TextSpan({ text: "\n" }));
+        resultSpans.push(...this._renderList(child, parentStyle, depth + 1));
+      } else if (child.type === "paragraph") {
+        resultSpans.push(...this._renderChildren(child, parentStyle));
       } else {
-        flatChildren.push(child);
+        resultSpans.push(...this._renderNode(child, parentStyle));
       }
     }
 
-    return [
-      new TextSpan({
-        children: [new TextSpan({ text: prefix }), ...flatChildren],
-      }),
-    ];
+    return [new TextSpan({ children: resultSpans })];
   }
 
   /**

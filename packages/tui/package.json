@@ -25,9 +25,11 @@
     "micromark-extension-gfm-table": "^2.0.0",
     "micromark-extension-gfm-task-list-item": "^2.0.0",
     "omggif": "^1.0.10",
+    "prismjs": "^1.30.0",
     "upng-js": "^2.1.0"
   },
   "devDependencies": {
+    "@types/prismjs": "^1.26.6",
     "bun-types": "^1.1.0",
     "typescript": "^5.4.0"
   }

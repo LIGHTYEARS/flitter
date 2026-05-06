@@ -9,4 +9,5 @@
 export * from "./markdown-parser.js";
 export * from "./markdown-renderer.js";
 export * from "./markdown-theme.js";
+export * from "./prism-languages.js";
 export * from "./syntax-highlight.js";

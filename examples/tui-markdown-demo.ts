@@ -1,7 +1,17 @@
 /**
  * TUI Markdown Demo — MarkdownParser & MarkdownRenderer showcase.
  *
- * Demonstrates Markdown → AST → TextSpan rendering pipeline.
+ * Demonstrates all 10 markdown rendering features:
+ * 1. Heading color grading (h1=blue bold, h2=cyan bold, h3=blue, h4=cyan)
+ * 2. Prism.js syntax highlighting (language-aware)
+ * 3. Table column width + alignment + Unicode box-drawing
+ * 4. Blockquote colored left border
+ * 5. Nested list indentation + bullet + checkmark
+ * 6. OSC 8 clickable links
+ * 7. Image node rendering
+ * 8. Smart paragraph spacing
+ * 9. Inline code bold
+ * 10. MarkdownTheme integration
  *
  * Run: bun run examples/tui-markdown-demo.ts
  *
@@ -13,145 +23,113 @@ import { AnsiRenderer } from "../packages/tui/src/screen/ansi-renderer.js";
 import { BoxConstraints } from "../packages/tui/src/tree/constraints.js";
 import { Color } from "../packages/tui/src/screen/color.js";
 import { TextStyle } from "../packages/tui/src/screen/text-style.js";
-import { ContainerRenderObject } from "../packages/tui/src/widgets/container.js";
-import { EdgeInsets } from "../packages/tui/src/widgets/edge-insets.js";
-import { BorderSide } from "../packages/tui/src/widgets/border-side.js";
-import { Border } from "../packages/tui/src/widgets/border.js";
-import { BoxDecoration } from "../packages/tui/src/widgets/box-decoration.js";
 import { MarkdownParser } from "../packages/tui/src/markdown/markdown-parser.js";
 import { MarkdownRenderer } from "../packages/tui/src/markdown/markdown-renderer.js";
 import { RenderParagraph } from "../packages/tui/src/widgets/rich-text.js";
 import { TextSpan } from "../packages/tui/src/widgets/text-span.js";
 
 // ════════════════════════════════════════════════════
-//  Helper
+//  Markdown Source — exercises all 10 features
 // ════════════════════════════════════════════════════
 
-function writeText(
-  screen: Screen,
-  x: number,
-  y: number,
-  text: string,
-  style: TextStyle = TextStyle.NORMAL,
-): void {
-  for (let i = 0; i < text.length && x + i < screen.width; i++) {
-    screen.writeChar(x + i, y, text[i], style);
-  }
+const markdownSource = `# Heading 1 (Blue + Bold)
+
+## Heading 2 (Cyan + Bold)
+
+### Heading 3 (Blue, no bold)
+
+#### Heading 4 (Cyan, no bold)
+
+This paragraph has \`inline code\` which is **yellow + bold** with a dark background.
+
+Here is a [clickable link](https://example.com) rendered as OSC 8 hyperlink.
+
+![screenshot](https://example.com/image.png)
+
+> Blockquote with colored left border.
+> Content is NOT dim — only the │ border has color.
+
+- Top-level bullet
+  - Nested bullet (indented)
+    - Deep nested
+- [✓] Checked task
+- [ ] Unchecked task
+
+1. Ordered item one
+2. Ordered item two
+
+| Name  | Language   | Stars |
+|:------|:----------:|------:|
+| React | JavaScript | 220k  |
+| Vue   | TypeScript | 46k   |
+| Svelte| JavaScript | 78k   |
+
+\`\`\`typescript
+interface User {
+  name: string;
+  age: number;
 }
 
+function greet(user: User): string {
+  // Return greeting
+  return \`Hello, \${user.name}!\`;
+}
+\`\`\`
+
+\`\`\`python
+def fibonacci(n: int) -> int:
+    """Calculate nth Fibonacci number."""
+    if n <= 1:
+        return n
+    return fibonacci(n - 1) + fibonacci(n - 2)
+\`\`\`
+
+---
+
+Thematic break above. Smart spacing: no double-newline inside blockquotes.
+`;
+
 // ════════════════════════════════════════════════════
-//  Setup
+//  Parse & Render
 // ════════════════════════════════════════════════════
 
-const W = 240;
-const H = 60;
+const parser = new MarkdownParser();
+const renderer = new MarkdownRenderer();
+
+const ast = parser.parse(markdownSource);
+const spans = renderer.render(ast);
+
+// ════════════════════════════════════════════════════
+//  Output via RenderParagraph
+// ════════════════════════════════════════════════════
+
+const W = 100;
+const H = 80;
 const screen = new Screen(W, H);
 
 const titleStyle = new TextStyle({ foreground: Color.cyan(), bold: true });
-const bold = new TextStyle({ bold: true });
 const dimStyle = new TextStyle({ dim: true });
-const labelStyle = new TextStyle({ foreground: Color.yellow() });
 
-// ════════════════════════════════════════════════════
-//  Title
-// ════════════════════════════════════════════════════
-
-writeText(screen, 2, 0, "Flitter TUI Markdown Demo — Parser & Renderer", titleStyle);
-writeText(screen, 2, 1, "━".repeat(47), dimStyle);
-
-// ════════════════════════════════════════════════════
-//  Section 1: Parse markdown and show AST
-// ════════════════════════════════════════════════════
-
-writeText(screen, 2, 3, "1. Markdown Source:", bold);
-
-const markdownSource = `# Hello Flitter
-This is **bold** and *italic* text.
-
-- Item one
-- Item two
-- Item three
-
-\`inline code\` and a [link](https://example.com)`;
-
-// Show source in a bordered container
-const srcBorder = Border.all(new BorderSide(Color.brightBlack(), 1, "rounded"));
-const srcDeco = new BoxDecoration({ color: Color.rgb(25, 25, 35), border: srcBorder });
-const srcRO = new ContainerRenderObject(36, 10, undefined, undefined, srcDeco);
-srcRO.layout(BoxConstraints.tight(36, 10));
-srcRO.paint(screen, 2, 4);
-
-const srcLines = markdownSource.split("\n");
-for (let i = 0; i < srcLines.length && i < 8; i++) {
-  writeText(screen, 4, 5 + i, srcLines[i].slice(0, 33), new TextStyle({ foreground: Color.green() }));
+// Title
+const title = "Flitter Markdown Rendering — All 10 Gaps Closed";
+for (let i = 0; i < title.length && i < W; i++) {
+  screen.writeChar(i + 2, 0, title[i], titleStyle);
+}
+const sep = "━".repeat(title.length);
+for (let i = 0; i < sep.length && i < W; i++) {
+  screen.writeChar(i + 2, 1, sep[i], dimStyle);
 }
 
-// ════════════════════════════════════════════════════
-//  Section 2: Parsed AST
-// ════════════════════════════════════════════════════
-
-writeText(screen, 40, 3, "2. Parsed AST (nodes):", bold);
-
-const parser = new MarkdownParser();
-const nodes = parser.parse(markdownSource);
-
-// Show node types
-let astY = 4;
-for (let i = 0; i < nodes.length && astY < 14; i++) {
-  const node = nodes[i];
-  const typeStr = `[${node.type}]`;
-  const valueStr = node.value
-    ? ` "${node.value.slice(0, 25)}${node.value.length > 25 ? "..." : ""}"`
-    : node.children
-      ? ` (${node.children.length} children)`
-      : "";
-  writeText(screen, 42, astY, typeStr, new TextStyle({ foreground: Color.magenta() }));
-  writeText(screen, 42 + typeStr.length, astY, valueStr.slice(0, 35 - typeStr.length), labelStyle);
-  astY++;
-}
+// Render markdown spans into the screen via RenderParagraph
+const rootSpan = new TextSpan({ children: spans });
+const rp = new RenderParagraph(rootSpan);
+rp.layout(BoxConstraints.loose(W - 4, H - 4));
+rp.paint(screen, 2, 3);
 
 // ════════════════════════════════════════════════════
-//  Section 3: Rendered TextSpans
+//  Output
 // ════════════════════════════════════════════════════
 
-writeText(screen, 2, 15, "3. Rendered output (MarkdownRenderer → TextSpan → RenderParagraph):", bold);
-
-const mdRenderer = new MarkdownRenderer();
-const spans = mdRenderer.render(nodes);
-
-// Create a bordered area for rendered output
-const outBorder = Border.all(new BorderSide(Color.cyan(), 1, "rounded"));
-const outDeco = new BoxDecoration({ border: outBorder });
-const outRO = new ContainerRenderObject(76, 7, undefined, undefined, outDeco);
-outRO.layout(BoxConstraints.tight(76, 7));
-outRO.paint(screen, 2, 16);
-
-// Render each span via RenderParagraph
-let renderY = 17;
-for (const span of spans) {
-  if (renderY >= 22) break;
-  const rp = new RenderParagraph(span);
-  rp.layout(BoxConstraints.loose(72, 1));
-  rp.paint(screen, 4, renderY);
-  renderY++;
-}
-
-// ════════════════════════════════════════════════════
-//  Footer
-// ════════════════════════════════════════════════════
-
-writeText(
-  screen,
-  2,
-  23,
-  "Pipeline: Markdown → parse() → MarkdownNode[] → render() → TextSpan[] → RenderParagraph",
-  dimStyle,
-);
-
-// ════════════════════════════════════════════════════
-//  Render
-// ════════════════════════════════════════════════════
-
-const renderer = new AnsiRenderer();
-process.stdout.write(renderer.renderFull(screen));
+const ansi = new AnsiRenderer();
+process.stdout.write(ansi.renderFull(screen));
 console.log("\n");

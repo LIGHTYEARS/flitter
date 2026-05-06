@@ -820,6 +820,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           actions: finderActions,
           summary: finderSummary,
           hasInProgress: status === "in-progress" || status === "queued",
+          isSubagent: true,
+          subagentLabel: "Finder",
         });
       } else if (block.name === "code_review") {
         // 逆向: chunk-004.js:7969 — p === "code_review" → qx0(m, input) builder
@@ -835,6 +837,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           actions: reviewActions,
           summary: reviewSummary,
           hasInProgress: status === "in-progress" || status === "queued",
+          isSubagent: true,
+          subagentLabel: "Code Review",
         });
       } else if (block.name === "code_tour") {
         // 逆向: chunk-004.js:7981 — p === "code_tour" → Hx0(m, input) builder
@@ -850,6 +854,8 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
           actions: tourActions,
           summary: tourSummary,
           hasInProgress: status === "in-progress" || status === "queued",
+          isSubagent: true,
+          subagentLabel: "Code Tour",
         });
       } else if (block.name?.startsWith("sa__")) {
         // 逆向: chunk-006.js:29076 — e.startsWith("sa__") → buildSubagentTool
@@ -925,6 +931,9 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             actions: modeActions,
             summary: modeSummary,
             hasInProgress: status === "in-progress" || status === "queued",
+            isSubagent: true,
+            subagentLabel:
+              mode === "finder" ? "Finder" : mode === "code_review" ? "Code Review" : "Code Tour",
           });
         } else {
           const detail =

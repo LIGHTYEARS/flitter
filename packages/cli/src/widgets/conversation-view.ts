@@ -1570,9 +1570,14 @@ export class ConversationViewState extends State<ConversationView> {
 
     // Summary text
     // 逆向: actions_intents.js:1851-1853 — summary in R.app.toolName color
+    // When isSubagent with a label, prefix the summary with the label
+    const headerTitle =
+      group.isSubagent && group.subagentLabel
+        ? `${group.subagentLabel}: ${group.summary}`
+        : group.summary;
     headerSpans.push(
       new TextSpan({
-        text: group.summary,
+        text: headerTitle,
         style: new TextStyle({ foreground: toolNameColor }),
       }),
     );

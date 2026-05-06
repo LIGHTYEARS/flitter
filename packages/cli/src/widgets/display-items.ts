@@ -66,6 +66,8 @@ export interface ToolItem {
   command?: string;
   output?: string;
   exitCode?: number;
+  /** Working directory for bash tools (逆向: Q9R T.cwd || T.workdir — modules/1948_unknown_Q9R.js) */
+  cwd?: string;
   // edit/create-file-specific (逆向: yx0 edit_file / create_file branches)
   path?: string;
   oldString?: string;
@@ -592,6 +594,18 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
           });
         } else {
+          // 逆向: Y9R (1947_unknown_Y9R.js) — guidance files appended unconditionally for bash tools
+          let bashGuidanceFiles: Array<{ uri: string; lineCount: number }> | undefined;
+          if (
+            result?.run?.status === "done" &&
+            typeof result.run.result === "object" &&
+            result.run.result !== null &&
+            Array.isArray((result.run.result as Record<string, unknown>).discoveredGuidanceFiles)
+          ) {
+            bashGuidanceFiles = (result.run.result as Record<string, unknown>)
+              .discoveredGuidanceFiles as Array<{ uri: string; lineCount: number }>;
+          }
+
           items.push({
             type: "tool",
             toolUseId: block.id,
@@ -600,6 +614,20 @@ export function transformThreadToDisplayItems(messages: RawMessage[]): DisplayIt
             status,
             command: cmd,
             output: typeof result?.run?.result === "string" ? result.run.result : undefined,
+            // 逆向: Q9R (modules/1948_unknown_Q9R.js) — cwd from input, exitCode from result
+            cwd:
+              typeof block.input?.cwd === "string"
+                ? block.input.cwd
+                : typeof block.input?.workdir === "string"
+                  ? block.input.workdir
+                  : undefined,
+            exitCode:
+              typeof result?.run?.result === "object" &&
+              result.run.result !== null &&
+              typeof (result.run.result as Record<string, unknown>).exitCode === "number"
+                ? ((result.run.result as Record<string, unknown>).exitCode as number)
+                : undefined,
+            guidanceFiles: bashGuidanceFiles,
             error: result?.run?.status === "error" ? result?.run?.error?.message : undefined,
           });
         }

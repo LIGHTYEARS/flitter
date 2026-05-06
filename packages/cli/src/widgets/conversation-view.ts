@@ -52,6 +52,7 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+import { openInPager } from "../util/pager.js";
 import { type AppTheme, AppThemeController } from "./app-theme-controller.js";
 import { buildDiffWidget } from "./diff-widget.js";
 import type {
@@ -97,6 +98,8 @@ export interface Message {
  * @property selectedItemIndex - Index in items[] of the currently selected message (for browse mode highlight)
  */
 export interface ConversationViewConfig {
+  /** External scroll controller (owned by parent, e.g. ThreadStateWidget) */
+  scrollController?: ScrollController;
   /** Display items (replaces old messages array) */
   items?: DisplayItem[];
   /** Legacy: flat messages (for backward compatibility during migration) */
@@ -174,6 +177,10 @@ const ERROR_COLOR_LOCAL = ERROR_COLOR;
 /** cancelled 色 — 工具取消/拒绝
  * 逆向: $R.app.toolCancelled → LT.yellow */
 const CANCELLED_COLOR = Color.indexed(3);
+
+/** command 色 — grep pattern, command arguments
+ * 逆向: $R.app.command → LT.yellow */
+const COMMAND_COLOR = Color.indexed(3);
 
 /** warning 色 — interrupted user message border, read range indicator
  * 逆向: S$ widget — R.interrupted switches border from e.success (green)
@@ -335,9 +342,11 @@ export class ConversationViewState extends State<ConversationView> {
 
   /**
    * ScrollController for conversation auto-scroll (followMode: true).
-   * 逆向: amp conversation auto-scrolls to bottom
+   * 逆向: amp f8R uses a single controller passed from the parent (jetbrains_wizard.js:5011)
+   * When an external controller is provided via config, we use it directly.
    */
   private _scrollController!: ScrollController;
+  private _ownsScrollController = false;
 
   /**
    * 初始化状态。
@@ -360,8 +369,13 @@ export class ConversationViewState extends State<ConversationView> {
       syntaxTheme = SyntaxHighlighter.defaultTheme();
     }
     this._renderer = new MarkdownRenderer({ syntaxTheme });
-    this._scrollController = new ScrollController();
-    // followMode is true by default, which ensures new messages auto-scroll to bottom
+    if (this.widget.config.scrollController) {
+      this._scrollController = this.widget.config.scrollController;
+      this._ownsScrollController = false;
+    } else {
+      this._scrollController = new ScrollController();
+      this._ownsScrollController = true;
+    }
 
     // 逆向: Y1T.initState() — if (this._isActive) this._startAnimation()
     if (this._hasInProgress()) {
@@ -392,7 +406,9 @@ export class ConversationViewState extends State<ConversationView> {
       clearTimeout(timer);
     }
     this._activityGroupAppendTimers.clear();
-    this._scrollController.dispose();
+    if (this._ownsScrollController) {
+      this._scrollController.dispose();
+    }
     super.dispose();
   }
 
@@ -572,7 +588,7 @@ export class ConversationViewState extends State<ConversationView> {
    */
   private _buildFromItems(
     items: DisplayItem[],
-    inferenceState?: "idle" | "running",
+    _inferenceState?: "idle" | "running",
     error?: Error | null,
     appTheme?: AppTheme | null,
     selectedItemIndex?: number | null,
@@ -615,18 +631,6 @@ export class ConversationViewState extends State<ConversationView> {
       );
     }
 
-    // 流式推理指示器
-    if (inferenceState === "running") {
-      children.push(
-        new RichText({
-          text: new TextSpan({
-            text: "...",
-            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
-          }),
-        }),
-      );
-    }
-
     // 错误显示
     if (error) {
       children.push(new SizedBox({ height: 1 }));
@@ -643,9 +647,11 @@ export class ConversationViewState extends State<ConversationView> {
         new Expanded({
           child: new Scrollable({
             controller,
+            position: "bottom",
             viewportBuilder: (_ctx, ctrl) =>
               new ScrollViewport({
                 controller: ctrl,
+                position: "bottom",
                 child: contentColumn,
               }),
           }),
@@ -991,6 +997,40 @@ export class ConversationViewState extends State<ConversationView> {
         spans.push(new TextSpan({ text: firstLine, style: cmdStyle }));
       }
 
+      // Q9R metadata: (in: <cwd>, exit code: N) — 逆向: modules/1948_unknown_Q9R.js
+      if (tool.status !== "rejected-by-user") {
+        const metaSpans: TextSpan[] = [];
+        const italicStyle = new TextStyle({ italic: true });
+        const italicDimStyle = new TextStyle({ italic: true, dim: true });
+
+        if (tool.cwd) {
+          const relPath = tool.cwd;
+          metaSpans.push(new TextSpan({ text: " (", style: italicStyle }));
+          metaSpans.push(new TextSpan({ text: "in: ", style: italicDimStyle }));
+          metaSpans.push(new TextSpan({ text: relPath, style: italicDimStyle }));
+        }
+
+        if (tool.status === "done" && typeof tool.exitCode === "number" && tool.exitCode !== 0) {
+          if (metaSpans.length > 0) {
+            metaSpans.push(new TextSpan({ text: ", ", style: italicStyle }));
+          } else {
+            metaSpans.push(new TextSpan({ text: " (", style: italicStyle }));
+          }
+          metaSpans.push(new TextSpan({ text: "exit code: ", style: italicStyle }));
+          metaSpans.push(
+            new TextSpan({
+              text: String(tool.exitCode),
+              style: new TextStyle({ italic: true, foreground: toolErrorColor }),
+            }),
+          );
+        }
+
+        if (metaSpans.length > 0) {
+          metaSpans.push(new TextSpan({ text: ")", style: italicStyle }));
+          spans.push(...metaSpans);
+        }
+      }
+
       // Status suffix — 逆向: chunk-006.js:30045-30051
       if (tool.status === "rejected-by-user") {
         spans.push(
@@ -1006,6 +1046,26 @@ export class ConversationViewState extends State<ConversationView> {
             style: new TextStyle({ foreground: CANCELLED_COLOR, italic: true }),
           }),
         );
+      }
+
+      // Continuation lines — 逆向: chunk-006.js:30052-30055
+      // After status suffix, push newline then render lines 2+ indented with "  " prefix
+      if (cmdLines.length > 1) {
+        spans.push(new TextSpan({ text: "\n" }));
+        const continuationStyle =
+          tool.status === "cancelled" || tool.status === "cancellation-requested"
+            ? new TextStyle({ bold: true, strikethrough: true })
+            : tool.status === "rejected-by-user"
+              ? new TextStyle({ bold: true, dim: true })
+              : cmdStyle;
+        for (let i = 1; i < cmdLines.length; i++) {
+          spans.push(
+            new TextSpan({
+              text: `  ${cmdLines[i]}\n`,
+              style: continuationStyle,
+            }),
+          );
+        }
       }
     } else if (tool.kind === "read") {
       // 逆向: B9R (misc_utils.js:7776-7823) → x3 (misc_utils.js:6312-6356)
@@ -1067,8 +1127,108 @@ export class ConversationViewState extends State<ConversationView> {
           }),
         );
       }
+    } else if (tool.kind === "search") {
+      // 逆向: W9R → x3 (misc_utils.js:8088-8126)
+      // Grep/search: spinner/icon + "Grep" bold + pattern in command color + ` in <path>` dim
+      const commandColor = appTheme?.command ?? COMMAND_COLOR;
+
+      if (isInProgress) {
+        spans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: toolRunningColor }),
+          }),
+        );
+      } else {
+        const icon = _getStatusIcon(tool.status);
+        const iconColor = _getStatusColor(tool.status, appTheme);
+        spans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: iconColor }),
+          }),
+        );
+      }
+
+      spans.push(
+        new TextSpan({
+          text: tool.toolName,
+          style: new TextStyle({ bold: true, foreground: toolNameColor }),
+        }),
+      );
+
+      // 逆向: W9R — pattern text in app.command color (yellow)
+      const pattern = tool.args && typeof tool.args.detail === "string" ? tool.args.detail : null;
+      if (pattern) {
+        spans.push(new TextSpan({ text: " " }));
+        spans.push(
+          new TextSpan({
+            text: pattern,
+            style: new TextStyle({ foreground: commandColor }),
+          }),
+        );
+      }
+
+      // 逆向: W9R — ` in <path>` in dim mutedForeground
+      if (tool.path) {
+        const cwd = this.widget.config.cwd;
+        const relPath = cwdRelativePath(tool.path, cwd);
+        spans.push(
+          new TextSpan({
+            text: ` in ${relPath}`,
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
+          }),
+        );
+      }
+    } else if (tool.kind === "edit" || tool.kind === "create-file") {
+      // 逆向: j9R → x3 (misc_utils.js:7162) — Edit with hyperlinked file path
+      const fileRefColor = appTheme?.fileReference ?? Color.cyan();
+
+      if (isInProgress) {
+        spans.push(
+          new TextSpan({
+            text: `${this._spinner.toBraille()} `,
+            style: new TextStyle({ foreground: toolRunningColor }),
+          }),
+        );
+      } else {
+        const icon = _getStatusIcon(tool.status);
+        const iconColor = _getStatusColor(tool.status, appTheme);
+        spans.push(
+          new TextSpan({
+            text: `${icon} `,
+            style: new TextStyle({ foreground: iconColor }),
+          }),
+        );
+      }
+
+      spans.push(
+        new TextSpan({
+          text: tool.toolName,
+          style: new TextStyle({ bold: true, foreground: toolNameColor }),
+        }),
+      );
+
+      // 逆向: j9R — H3 hyperlink with fileReference color, dim, underline
+      if (tool.path) {
+        const cwd = this.widget.config.cwd;
+        const relPath = cwdRelativePath(tool.path, cwd);
+        const fileUri = toFileUri(tool.path, cwd);
+        spans.push(new TextSpan({ text: " " }));
+        spans.push(
+          new TextSpan({
+            text: relPath,
+            url: fileUri,
+            style: new TextStyle({
+              foreground: fileRefColor,
+              dim: true,
+              underline: true,
+            }),
+          }),
+        );
+      }
     } else {
-      // Non-bash tools: status icon + tool name + detail (original behavior)
+      // Generic/other non-bash tools: status icon + tool name + detail (original behavior)
       if (isInProgress) {
         spans.push(
           new TextSpan({
@@ -1115,8 +1275,9 @@ export class ConversationViewState extends State<ConversationView> {
 
     const columnChildren: Widget[] = [mainRow];
 
-    // 逆向: B9R (misc_utils.js:7811-7816) — guidance files as dim success-colored text below Read row
-    if (tool.kind === "read" && tool.guidanceFiles && tool.guidanceFiles.length > 0) {
+    // 逆向: Y9R (1947_unknown_Y9R.js) — guidance files rendered for ALL tool kinds (bash, read, etc.)
+    // 逆向: Y9R is called unconditionally from both G9R and K9R build() methods
+    if (tool.guidanceFiles && tool.guidanceFiles.length > 0) {
       const cwd = this.widget.config.cwd;
       for (const gf of tool.guidanceFiles) {
         const gfName = cwdRelativePath(gf.uri, cwd);
@@ -1193,15 +1354,43 @@ export class ConversationViewState extends State<ConversationView> {
       }
     }
 
-    // B1: Bash output display — 逆向: chunk-006.js:30059
-    //   on(a.result.output, isComplete, colors) renders output below command
+    // B1: Bash output display — 逆向: 1946_unknown_on.js:on()
+    //   on(T, R, a) renders output below command: CR strip, trimEnd, last 15 lines, truncation label above
     if (isBash && tool.output && tool.status !== "rejected-by-user") {
-      const outputLines = tool.output.split("\n");
-      const MAX_VISIBLE_LINES = 5;
+      const cleaned = tool.output.replace(/\r/g, "").trimEnd();
+      const outputLines = cleaned.split("\n");
+      const MAX_VISIBLE_LINES = 15;
       const truncated = outputLines.length > MAX_VISIBLE_LINES;
-      const visibleLines = truncated ? outputLines.slice(0, MAX_VISIBLE_LINES) : outputLines;
+      const visibleLines = truncated ? outputLines.slice(-MAX_VISIBLE_LINES) : outputLines;
 
-      const outputText = visibleLines.join("\n");
+      // Truncation label ABOVE visible output (amp: `[... N lines truncated ...] `)
+      if (truncated) {
+        const truncatedCount = outputLines.length - MAX_VISIBLE_LINES;
+        // \u9006\u5411: 1946_unknown_on.js:15-20 \u2014 truncation label + "View all" pager link (accent+underline, triggers yd0(fullText))
+        const isComplete = tool.status === "done" || tool.status === "cancelled";
+        const truncationChildren: TextSpan[] = [
+          new TextSpan({
+            text: `  [... ${truncatedCount} lines truncated ...] `,
+            style: new TextStyle({ foreground: DIM_COLOR, dim: true }),
+          }),
+        ];
+        if (isComplete) {
+          truncationChildren.push(
+            new TextSpan({
+              text: "View all",
+              style: new TextStyle({ foreground: ACCENT_COLOR, underline: true }),
+              onTap: () => openInPager(cleaned),
+            }),
+          );
+        }
+        columnChildren.push(
+          new RichText({
+            text: new TextSpan({ children: truncationChildren }),
+          }),
+        );
+      }
+
+      const outputText = visibleLines.join("\n") + "\n";
       columnChildren.push(
         new RichText({
           text: new TextSpan({
@@ -1210,17 +1399,6 @@ export class ConversationViewState extends State<ConversationView> {
           }),
         }),
       );
-
-      if (truncated) {
-        columnChildren.push(
-          new RichText({
-            text: new TextSpan({
-              text: `  \u25BC Show more (${outputLines.length - MAX_VISIBLE_LINES} more lines)`,
-              style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
-            }),
-          }),
-        );
-      }
     }
 
     // Error message in red — 逆向: chunk-006.js:30056-30058
@@ -1701,26 +1879,21 @@ export class ConversationViewState extends State<ConversationView> {
     // 构建消息 Widget 列表
     const children: Widget[] = [];
 
+    // 当 inferenceState === "running" 且最后一条消息是 assistant 时,
+    // 显示流式指示器 "..."
+    const lastMessage = messages[messages.length - 1];
+    const showStreamingIndicator =
+      inferenceState === "running" && lastMessage?.role === "assistant";
+
     for (let i = 0; i < messages.length; i++) {
       const msg = messages[i];
-      children.push(this._buildMessageWidget(msg));
+      const isLastAndStreaming = i === messages.length - 1 && showStreamingIndicator;
+      children.push(this._buildMessageWidget(msg, isLastAndStreaming));
 
       // 消息间添加 1 行间距分隔
       if (i < messages.length - 1) {
         children.push(new SizedBox({ height: 1 }));
       }
-    }
-
-    // 流式推理指示器
-    if (inferenceState === "running") {
-      children.push(
-        new RichText({
-          text: new TextSpan({
-            text: "...",
-            style: new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true }),
-          }),
-        }),
-      );
     }
 
     // 错误显示
@@ -1740,9 +1913,10 @@ export class ConversationViewState extends State<ConversationView> {
    * 2. Markdown 渲染后的内容
    *
    * @param message - 消息数据 (legacy Message interface)
+   * @param isStreaming - 是否显示流式指示器 (inferenceState === "running")
    * @returns 消息 Widget
    */
-  private _buildMessageWidget(message: Message): Widget {
+  private _buildMessageWidget(message: Message, isStreaming = false): Widget {
     const roleConfig = ROLE_CONFIG[message.role] ?? {
       prefix: `${message.role}: `,
       color: MUTED_TEXT_COLOR,
@@ -1761,10 +1935,24 @@ export class ConversationViewState extends State<ConversationView> {
     const ast = this._parser.parse(message.content);
     const contentSpans = this._renderer.render(ast);
 
-    // 组合: 角色指示器 + 换行 + 内容
+    // 组合: 角色指示器 + 换行 + 内容 + 流式指示器 (如果需要)
+    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans];
+
+    // 逆向: 当 inferenceState === "running" 时追加 "..." 流式指示器
+    // 这与现代路径的 █ 不同 — 现代路径使用 item.isStreaming 与光标,
+    // 而 legacy 路径使用 inferenceState 与 "..." 作为简单指示器。
+    if (isStreaming) {
+      children.push(
+        new TextSpan({
+          text: "...",
+          style: new TextStyle({ foreground: ACCENT_COLOR }),
+        }),
+      );
+    }
+
     return new RichText({
       text: new TextSpan({
-        children: [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans],
+        children,
       }),
     });
   }
@@ -1817,23 +2005,21 @@ export class ConversationViewState extends State<ConversationView> {
 /**
  * Get status icon for a tool status.
  *
- * 逆向: sE0() function (chunk-004.js:21126)
- * - done → "✓" (\u2713)
- * - error → "✗" (\u2717)
- * - cancelled/rejected → "⊘" (\u2298)
+ * 逆向: xW() function (modules/2820_unknown_xW.js)
+ * - done → "✓"
+ * - error/cancelled/rejected → "✕"
  * - blocked-on-user → "?"
- * - in-progress/queued → "⋯" (\u22EF)
+ * - in-progress/queued → "⋯"
  */
 function _getStatusIcon(status: ToolItem["status"]): string {
   switch (status) {
     case "done":
       return "\u2713"; // ✓
     case "error":
-      return "\u2717"; // ✗
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
-      return "\u2298"; // ⊘
+      return "\u2715"; // ✕
     case "blocked-on-user":
       return "?";
     case "in-progress":
@@ -1916,7 +2102,7 @@ function _getToolDetail(tool: ToolItem): string | null {
 /**
  * Get status icon for an ActivityAction status.
  *
- * Uses same icon set as tool status (逆向: sE0, chunk-004.js:21126).
+ * 逆向: xW() function (modules/2820_unknown_xW.js) — same mapping as _getStatusIcon.
  * ActivityAction extends to include blocked-on-user, queued, and rejected-by-user.
  */
 function _getActionStatusIcon(status: ActivityAction["status"]): string {
@@ -1924,11 +2110,10 @@ function _getActionStatusIcon(status: ActivityAction["status"]): string {
     case "done":
       return "\u2713"; // ✓
     case "error":
-      return "\u2717"; // ✗
     case "cancelled":
     case "cancellation-requested":
     case "rejected-by-user":
-      return "\u2298"; // ⊘
+      return "\u2715"; // ✕
     case "blocked-on-user":
       return "?";
     case "in-progress":

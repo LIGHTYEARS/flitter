@@ -62,11 +62,15 @@ import {
   type DisplayItem,
   deduplicateGuidanceFiles,
   type MessageItem,
+  type SubagentToolItem,
   type ThinkingItem,
   type ToolItem,
 } from "./display-items.js";
-import { ExpandableToolHeader } from "./expandable-tool-header.js";
+import { ExpandableToolHeader, type ToolStatus } from "./expandable-tool-header.js";
 import { cwdRelativePath, guidanceFileDisplayName } from "./guidance-file-display.js";
+import { LibrarianToolWidget } from "./librarian-tool-widget.js";
+import { OracleToolWidget } from "./oracle-tool-widget.js";
+import { SubagentToolWidget } from "./subagent-tool-widget.js";
 
 // ════════════════════════════════════════════════════
 //  Message 接口
@@ -415,6 +419,7 @@ export class ConversationViewState extends State<ConversationView> {
       (item) =>
         (item.type === "activity-group" && item.hasInProgress) ||
         (item.type === "tool" && item.status === "in-progress") ||
+        (item.type === "subagent-tool" && item.status === "in-progress") ||
         (item.type === "thinking" && (item as ThinkingItem).isStreaming === true),
     );
   }
@@ -636,6 +641,53 @@ export class ConversationViewState extends State<ConversationView> {
         case "thinking":
           children.push(this._buildThinkingWidget(item, i, appTheme));
           break;
+        case "subagent-tool": {
+          // 逆向: x8R.buildWidget dispatch → shT/buildSubagentTool, M9R/buildOracleTool, buildLibrarianTool
+          const subItem = item as SubagentToolItem;
+          if (subItem.toolName === "Oracle") {
+            children.push(
+              new OracleToolWidget({
+                toolName: "Oracle",
+                status: subItem.status as ToolStatus,
+                input: subItem.description,
+                output:
+                  subItem.subagentContent?.terminalAssistantMessage?.content
+                    .filter((b) => b.type === "text")
+                    .map((b) => (b as { type: "text"; text: string }).text)
+                    .join("\n") || undefined,
+                error: subItem.error,
+                progress: subItem.subagentContent?.progressChunks
+                  ?.map((c) => c.message)
+                  .filter((m): m is string => !!m && m.trim().length > 0),
+              }) as unknown as Widget,
+            );
+          } else if (subItem.toolName === "Librarian") {
+            children.push(
+              new LibrarianToolWidget({
+                name: "Librarian",
+                status: subItem.status as ToolStatus,
+                query: subItem.description,
+                result:
+                  subItem.subagentContent?.terminalAssistantMessage?.content
+                    .filter((b) => b.type === "text")
+                    .map((b) => (b as { type: "text"; text: string }).text)
+                    .join("\n") || undefined,
+                error: subItem.error,
+              }) as unknown as Widget,
+            );
+          } else {
+            children.push(
+              new SubagentToolWidget({
+                toolName: subItem.toolName,
+                status: subItem.status as ToolStatus,
+                description: subItem.description,
+                error: subItem.error,
+                subagentContent: subItem.subagentContent,
+              }) as unknown as Widget,
+            );
+          }
+          break;
+        }
       }
 
       // 项目间添加 1 行间距分隔

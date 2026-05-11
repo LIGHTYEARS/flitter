@@ -10,7 +10,7 @@
  * - 占位符 "Type a message..." (mutedText #565f89)
  * - 光标反色 (inverse video)
  * - 1 列内部左右 padding
- * - 高度 1-5 行动态调整
+ * - 动态高度: minLines=3, 随内容增长, 外层 ConstrainedBox 限制 max 40% viewport
  *
  * 逆向参考: TextField key handling (conversation-ui-logic.js)
  *
@@ -49,6 +49,9 @@ import {
   TextSpan,
   TextStyle,
 } from "@flitter/tui";
+// 逆向: chunk-004.js:32086 — VTR() 剪贴板图片读取
+// Direct import from tui package since clipboard-image is not exported from main entry
+import { readClipboardImage } from "../../../tui/src/selection/clipboard-image.js";
 import { detectShellCommand, getShellModeBorderColor } from "./command-detection.js";
 import {
   detectDoubleAtTrigger,
@@ -86,6 +89,33 @@ const CURSOR_BG_COLOR = Color.white();
 /** 默认边框宽度 (80 列终端 - 2 列边框字符) */
 const DEFAULT_BORDER_INNER_WIDTH = 78;
 
+/**
+ * 最大图片附件数量。
+ *
+ * 逆向: chunk-005.js:15289 — pb = 4
+ */
+const MAX_IMAGE_ATTACHMENTS = 4;
+
+// ════════════════════════════════════════════════════
+//  ImageAttachment 类型
+// ════════════════════════════════════════════════════
+
+/**
+ * 图片附件数据结构。
+ *
+ * 逆向: chunk-004.js:21263-21272 — vE0() 返回的对象结构
+ */
+export interface ImageAttachment {
+  type: "image";
+  source: {
+    type: "base64";
+    data: string;
+    mediaType: string;
+  };
+  /** 附件来源文件路径 */
+  sourcePath: string;
+}
+
 // ════════════════════════════════════════════════════
 //  InputFieldConfig 接口
 // ════════════════════════════════════════════════════
@@ -97,14 +127,21 @@ const DEFAULT_BORDER_INNER_WIDTH = 78;
  * @property placeholder - 占位符文本（可选）
  */
 export interface InputFieldConfig {
-  /** 提交回调 */
-  onSubmit: (text: string) => void;
+  /** 提交回调 — 携带文本和图片附件
+   * 逆向: chunk-006.js:13389-13395 — _handleSubmitted 触发 onSubmitted */
+  onSubmit: (text: string, imageAttachments?: ImageAttachment[]) => void;
   /** 占位符文本 */
   placeholder?: string;
   /** 历史记录导航 (optional) */
   promptHistory?: import("./prompt-history.js").PromptHistory;
   /** Override width for border rendering (default: derived from MediaQuery or 78) */
   width?: number;
+  /**
+   * 最小显示行数 (逆向: chunk-006.js:13474 — minLines: this.props.minLines ?? 3)
+   * 输入框至少展示这么多行内容区，不足时用空白行补齐。
+   * 默认为 3。
+   */
+  minLines?: number;
   /** Border overlay labels (逆向: YrT overlayTexts, text_rendering.js:2395) */
   topLeftLabel?: string;
   topRightLabel?: string;
@@ -149,6 +186,19 @@ export interface InputFieldConfig {
    */
   onThreadMentionTrigger?: () => void;
   /**
+   * 最大可见行数 — 超过此行数时启用内部滚动 (viewport 裁剪)。
+   *
+   * 逆向: chunk-006.js:4185-4206 — RenderScrollable.performLayout()
+   *   子节点用无限高约束布局，然后裁剪到 maxHeight。
+   * 逆向: chunk-006.js:36929 — I = Math.max(Math.floor(a.size.height * 0.4), 12)
+   *   maxLines 由调用方根据 viewport 高度计算后传入。
+   *
+   * 当 totalLines > maxLines 时，InputField 内部跟踪 _textScrollOffset
+   * 并只渲染可见窗口内的行。光标移动自动滚动保持可见。
+   * 默认 undefined (无限制，不裁剪)。
+   */
+  maxLines?: number;
+  /**
    * `/` command palette trigger (逆向: jetbrains_wizard.js:3040 — textChangeListener)
    *
    * Fired when the user types `/` as the sole character in the input field.
@@ -177,6 +227,28 @@ export interface InputFieldConfig {
    * Used for the shortcuts help panel (ShortcutsPopup / U8R).
    */
   topWidget?: import("@flitter/tui").Widget;
+  /**
+   * 图片插入回调 (逆向: chunk-006.js:13339-13343 — onInsertImage)
+   *
+   * 当粘贴文本中检测到图片文件路径时逐一触发。
+   * 如果提供，由外部负责处理文件读取和附件添加。
+   * 如果未提供，InputField 在内部处理图片文件 → base64 转换。
+   */
+  onInsertImage?: (imagePath: string) => void;
+  /**
+   * 外部传入的图片附件列表（受控模式）。
+   *
+   * 逆向: chunk-006.js:13399 — this.props.imageAttachments
+   * 提供时 InputField 使用此列表渲染附件栏，不使用内部状态。
+   */
+  imageAttachments?: ImageAttachment[];
+  /**
+   * 图片附件变化回调（非受控模式下有效）。
+   *
+   * 逆向: jetbrains_wizard.js:3276 — setImageAttachments
+   * 当内部附件列表发生变化时通知外部。
+   */
+  onImageAttachmentsChanged?: (attachments: ImageAttachment[]) => void;
 }
 
 // ════════════════════════════════════════════════════
@@ -243,6 +315,26 @@ export class InputFieldState extends State<InputField> {
   private _focusChangeListener!: (node: FocusNode) => void;
 
   /**
+   * 内部图片附件列表（非受控模式使用）。
+   *
+   * 逆向: jetbrains_wizard.js:2434 — imageAttachments = []
+   */
+  private _imageAttachments: ImageAttachment[] = [];
+
+  /**
+   * 内部文本滚动偏移量 (行级别)。
+   *
+   * 当内容行数超过 maxLines 时，只渲染从 _textScrollOffset 开始的可见窗口。
+   * 光标移动时自动调整以保持光标所在行可见。
+   *
+   * 逆向: chunk-006.js:4161-4175 — RenderScrollable._scrollOffset
+   *   `_scrollOffset` 管理偏移，`updateChildOffset()` 应用 `-scrollOffset` 偏移显示。
+   * 逆向: chunk-006.js:4185-4206 — performLayout()
+   *   子节点用无限高约束布局后，scrollOffset 裁剪可见范围。
+   */
+  private _textScrollOffset = 0;
+
+  /**
    * 初始化状态。
    *
    * 创建 TextEditingController 和 FocusNode，将 FocusNode 注册到 FocusManager
@@ -297,7 +389,7 @@ export class InputFieldState extends State<InputField> {
    * - 空文本: 占位符 "Type a message..." (mutedText 色)
    * - 有文本: 实际文本 + 光标 (反色)
    * - 边框颜色: 聚焦 primary (#7aa2f7), 非聚焦 border (#3b4261)
-   * - 高度: 1-5 行动态调整
+   * - 高度: 动态调整 (minLines=3, 随内容增长, 外层 ConstrainedBox 限制 maxHeight)
    *
    * @param _context - 构建上下文
    * @returns Widget 树
@@ -388,7 +480,7 @@ export class InputFieldState extends State<InputField> {
       });
     }
 
-    // Fixed 3-row height (逆向: YrT maxHeight, text_rendering.js:2395)
+    // 逆向: chunk-006.js:13474-13476 — dynamic height (minLines=3, maxLines=null, expands=true)
     const borderInnerWidth = this.widget.config.width ?? terminalWidth - 4;
 
     // Top border with overlay labels
@@ -456,6 +548,8 @@ export class InputFieldState extends State<InputField> {
           : []),
         // 内容区: │ content │ (3 行, 左右各 │ 边框)
         // 逆向: amp SR._paintGridBorders 自动绘制 │ 侧边框
+        // 附件栏 (逆向: chunk-006.js:13426-13458 — images bar above text area)
+        ...this._buildAttachmentBar(borderInnerWidth, borderStyle),
         ...this._buildContentRows(contentWidget, borderInnerWidth, borderStyle),
         // 底部边框: ╰──...──╯
         new RichText({
@@ -466,13 +560,62 @@ export class InputFieldState extends State<InputField> {
   }
 
   /**
+   * 构建图片附件栏 — 显示在输入文本上方、边框内部。
+   *
+   * 逆向: chunk-006.js:13426-13458 — Images: [Image 1] [Image 2] ...
+   * 仅在有图片附件时显示，格式为 "│ Images: [Image 1] [Image 2] │"
+   *
+   * @param innerWidth - 内容区宽度
+   * @param borderStyle - 边框文本样式
+   * @returns Widget 列表（0 或 1 个 Row）
+   */
+  private _buildAttachmentBar(innerWidth: number, borderStyle: TextStyle): Widget[] {
+    const attachments = this._getEffectiveAttachments();
+    if (attachments.length === 0) return [];
+
+    const SIDE = "\u2502"; // │
+
+    // 逆向: chunk-006.js:13428-13429 — "Images: " 前缀 (dim)
+    const labelStyle = new TextStyle({ foreground: MUTED_TEXT_COLOR, dim: true });
+    const imageStyle = new TextStyle({ foreground: Color.green(), underline: true });
+
+    // Build text: "Images: [Image 1] [Image 2] ..."
+    const children: TextSpan[] = [new TextSpan({ text: "Images: ", style: labelStyle })];
+    for (let i = 0; i < attachments.length; i++) {
+      // 逆向: chunk-006.js:13441 — `[Image ${s + 1}]`
+      children.push(new TextSpan({ text: `[Image ${i + 1}]`, style: imageStyle }));
+      if (i < attachments.length - 1) {
+        children.push(new TextSpan({ text: " " }));
+      }
+    }
+
+    const attachmentWidget = new RichText({
+      text: new TextSpan({ children }),
+    });
+
+    return [
+      new Row({
+        mainAxisSize: "min",
+        children: [
+          new RichText({ text: new TextSpan({ text: `${SIDE} `, style: borderStyle }) }),
+          new SizedBox({ width: innerWidth, child: attachmentWidget }),
+          new RichText({ text: new TextSpan({ text: ` ${SIDE}`, style: borderStyle }) }),
+        ],
+      }),
+    ];
+  }
+
+  /**
    * 构建带 │ 侧边框的内容行。
    *
-   * 生成 3 行 (固定高度):
-   *   │ {content padded to innerWidth} │
-   *   │ {空白 padded to innerWidth}    │
-   *   │ {空白 padded to innerWidth}    │
+   * 动态高度: 根据文本行数生成内容行，最少 minLines 行 (默认 3)。
+   * 当文本行数超过 minLines 时，行数随内容增长。
+   * 外层 ConstrainedBox (在 ThreadStateWidget 中) 提供 maxHeight 约束，
+   * 超出时由 Container 裁剪实现滚动效果。
    *
+   * 逆向: chunk-006.js:13474-13476 — textFieldProps: { minLines: 3, maxLines: null, expands: true }
+   * 逆向: chunk-006.js:36929 — I = Math.max(Math.floor(a.size.height * 0.4), 12)
+   * 逆向: chunk-006.js:36992-36994 — SR({ constraints: new o0(0, width, 0, I), child: L })
    * 逆向: amp SR._paintGridBorders 自动在 BoxDecoration border 区域绘制 │
    */
   private _buildContentRows(
@@ -483,21 +626,82 @@ export class InputFieldState extends State<InputField> {
     const SIDE = "\u2502"; // │
     const rows: Widget[] = [];
 
-    // Row 1: │ {content} │
-    rows.push(
-      new Row({
-        mainAxisSize: "min",
-        children: [
-          new RichText({ text: new TextSpan({ text: `${SIDE} `, style: borderStyle }) }),
-          new SizedBox({ width: innerWidth, child: contentWidget }),
-          new RichText({ text: new TextSpan({ text: ` ${SIDE}`, style: borderStyle }) }),
-        ],
-      }),
-    );
+    // 逆向: chunk-006.js:13474 — minLines: this.props.minLines ?? 3
+    const minLines = this.widget.config.minLines ?? 3;
 
-    // Rows 2-3: │ {blank} │
+    // 计算文本实际需要的行数 (考虑换行 + 宽度自动折行)
+    const text = this._controller.text;
+    const textLineCount = this._computeTextLineCount(text, innerWidth);
+
+    // 动态行数: max(minLines, textLineCount)
+    // 逆向: chunk-006.js:13475-13476 — maxLines: null, expands: true
+    // TextField expands to fill available space, minimum minLines
+    const totalLines = Math.max(minLines, textLineCount);
+
+    // ── Internal scroll viewport ──────────────────────────────────────────
+    // 逆向: chunk-006.js:4185-4206 — RenderScrollable.performLayout()
+    //   子节点用无限高约束布局 (new o0(minW, maxW, 0, POSITIVE_INFINITY))，
+    //   然后 updateChildOffset() 设置 setOffset(0, -scrollOffset) 裁剪显示。
+    // 逆向: chunk-006.js:4201-4205 — scrollController.updateMaxScrollExtent(t)
+    //   followMode 时 jumpTo 底部，否则 clamp offset。
+    //
+    // maxLines: 外层传入的最大可见行数。减去附件栏等占用后的纯文本区域高度。
+    // 当 totalLines > maxLines 时启用滚动裁剪。
+    const maxLines = this.widget.config.maxLines;
+    let visibleLines = totalLines;
+    let scrollOffset = 0;
+
+    if (maxLines !== undefined && totalLines > maxLines) {
+      visibleLines = maxLines;
+
+      // 计算光标所在行，自动滚动保持光标可见
+      // 逆向: RenderEditable 的 _showCaret 方法确保光标不会滚出视口
+      const cursorLine = this._computeCursorLine(text, this._controller.cursorPosition, innerWidth);
+
+      // 调整 scrollOffset 保持光标可见
+      if (cursorLine < this._textScrollOffset) {
+        // 光标在视口上方 → 上滚
+        this._textScrollOffset = cursorLine;
+      } else if (cursorLine >= this._textScrollOffset + visibleLines) {
+        // 光标在视口下方 → 下滚
+        this._textScrollOffset = cursorLine - visibleLines + 1;
+      }
+
+      // Clamp
+      const maxOffset = totalLines - visibleLines;
+      this._textScrollOffset = Math.max(0, Math.min(this._textScrollOffset, maxOffset));
+      scrollOffset = this._textScrollOffset;
+    } else {
+      // 不需要滚动时重置偏移
+      this._textScrollOffset = 0;
+    }
+
+    // Row 1: │ {content} │ — content widget contains cursor and text rendering
+    // 只在 scrollOffset === 0 时显示内容 widget (第一行)
+    if (scrollOffset === 0) {
+      rows.push(
+        new Row({
+          mainAxisSize: "min",
+          children: [
+            new RichText({ text: new TextSpan({ text: `${SIDE} `, style: borderStyle }) }),
+            new SizedBox({ width: innerWidth, child: contentWidget }),
+            new RichText({ text: new TextSpan({ text: ` ${SIDE}`, style: borderStyle }) }),
+          ],
+        }),
+      );
+    } else {
+      // 当滚动后第一行也是空白行 — content widget 被滚出视口
+      const blankFill = " ".repeat(innerWidth);
+      rows.push(
+        new RichText({
+          text: new TextSpan({ text: `${SIDE} ${blankFill} ${SIDE}`, style: borderStyle }),
+        }),
+      );
+    }
+
+    // Remaining visible rows: │ {blank} │
     const blankFill = " ".repeat(innerWidth);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 1; i < visibleLines; i++) {
       rows.push(
         new RichText({
           text: new TextSpan({ text: `${SIDE} ${blankFill} ${SIDE}`, style: borderStyle }),
@@ -506,6 +710,77 @@ export class InputFieldState extends State<InputField> {
     }
 
     return rows;
+  }
+
+  /**
+   * 计算文本在给定宽度下占用的行数。
+   *
+   * 考虑换行符分割的逻辑行，以及每行超过 innerWidth 时的自动折行。
+   * 空文本返回 1 (光标/占位符占一行)。
+   *
+   * 逆向: amp TextField 的 RenderEditable 自动处理 wrap:true 的折行计算，
+   * 这里用简化公式近似: 每个逻辑行 ceil(charCount / innerWidth) 行。
+   *
+   * @param text - 输入文本
+   * @param innerWidth - 可用内容宽度 (字符数)
+   * @returns 文本需要的显示行数
+   */
+  private _computeTextLineCount(text: string, innerWidth: number): number {
+    if (!text) return 1;
+    const lines = text.split("\n");
+    let count = 0;
+    const w = Math.max(1, innerWidth);
+    for (const line of lines) {
+      // 每个逻辑行至少占 1 行，超宽时按 ceil(length / width) 折行
+      count += Math.max(1, Math.ceil(line.length / w));
+    }
+    return count;
+  }
+
+  /**
+   * 计算光标所在的显示行号 (0-indexed)。
+   *
+   * 逆向: amp RenderEditable 内部通过 TextPainter.getOffsetForCaret() 计算光标的
+   * 像素位置，然后转换为 scrollOffset。在终端 TUI 中，我们用字符宽度模拟。
+   *
+   * @param text - 输入文本
+   * @param cursorPos - 光标字符位置
+   * @param innerWidth - 可用内容宽度
+   * @returns 光标所在的显示行 (0-indexed)
+   */
+  private _computeCursorLine(text: string, cursorPos: number, innerWidth: number): number {
+    if (!text) return 0;
+    const w = Math.max(1, innerWidth);
+    const lines = text.split("\n");
+    let displayLine = 0;
+    let charsSoFar = 0;
+
+    for (const line of lines) {
+      const lineDisplayRows = Math.max(1, Math.ceil(line.length / w));
+      const lineEnd = charsSoFar + line.length;
+
+      if (cursorPos <= lineEnd) {
+        // Cursor is within this logical line
+        const posInLine = cursorPos - charsSoFar;
+        displayLine += Math.floor(posInLine / w);
+        return displayLine;
+      }
+
+      displayLine += lineDisplayRows;
+      charsSoFar = lineEnd + 1; // +1 for the \n separator
+    }
+
+    return displayLine;
+  }
+
+  /**
+   * 重置文本滚动偏移量。
+   *
+   * 逆向: chunk-006.js:37074 — this.textController.resetScrollOffset()
+   * 在 Escape 清空输入时调用。
+   */
+  resetScrollOffset(): void {
+    this._textScrollOffset = 0;
   }
 
   // ──────────────────────────────────────────────
@@ -568,7 +843,14 @@ export class InputFieldState extends State<InputField> {
 
     // ── Backspace ──
     // 逆向: actions_intents.js:1040-1049
+    // 逆向: chunk-006.js:13384-13388 — _handleBackspaceAtStart: pop image when text empty
     if (event.key === "Backspace") {
+      // When cursor is at start (text empty or cursor == 0), try removing last attachment
+      if (m.text === "" || (m.cursorPosition === 0 && !m.hasSelection)) {
+        if (this._handleBackspaceAtStart()) {
+          return "handled";
+        }
+      }
       if (event.modifiers.alt) {
         m.deleteWordLeft();
       } else {
@@ -853,20 +1135,29 @@ export class InputFieldState extends State<InputField> {
   /**
    * 提交文本内容。
    *
-   * 清空输入框并触发 onSubmit 回调（仅在文本非空时）。
+   * 清空输入框并触发 onSubmit 回调（仅在文本非空或有图片附件时）。
+   * 逆向: jetbrains_wizard.js:4097 — if (!T.trim() && imageAttachments.length === 0) return
    *
    * @returns 处理结果
    */
   private _submitText(): KeyEventResult {
     const text = this._controller.text;
-    if (text.trim()) {
-      // Push to prompt history before clearing
-      // 逆向: chunk-006.js:34930 — this.widget.dependencies.history.add(text)
-      const history = this.widget.config.promptHistory;
-      if (history) history.push(text);
-      this._controller.text = "";
-      this.widget.config.onSubmit(text);
+    const attachments = this._getEffectiveAttachments();
+    // 逆向: jetbrains_wizard.js:4097 — 文本空且无附件时不提交
+    if (!text.trim() && attachments.length === 0) {
+      return "handled";
     }
+    // Push to prompt history before clearing
+    // 逆向: chunk-006.js:34930 — this.widget.dependencies.history.add(text)
+    const history = this.widget.config.promptHistory;
+    if (history && text.trim()) history.push(text);
+    this._controller.text = "";
+    // 逆向: jetbrains_wizard.js:4157 — this.imageAttachments = []
+    const submittedAttachments = attachments.length > 0 ? [...attachments] : undefined;
+    this._imageAttachments = [];
+    this.widget.config.onImageAttachmentsChanged?.(this._imageAttachments);
+    this.widget.config.onSubmit(text, submittedAttachments);
+    this._markDirty();
     return "handled";
   }
 
@@ -892,13 +1183,165 @@ export class InputFieldState extends State<InputField> {
   /**
    * 处理粘贴事件。
    *
+   * 逆向: chunk-006.js:13335-13344 — controller.onInsertText 拦截粘贴
+   * 粘贴优先级:
+   * 1. 文本长度 > 3 时检测图片文件路径 (gE0)
+   * 2. 如果粘贴文本为空/很短，尝试从系统剪贴板读取二进制图片
+   * 3. 否则正常插入文本
+   *
    * @param event - 粘贴事件
    * @returns 处理结果
    */
   private _handlePasteEvent(event: PasteEvent): KeyEventResult {
-    this._controller.insertText(event.text);
+    const text = event.text;
+
+    // 逆向: chunk-006.js:13336 — if (T.length <= 3) return !0 (太短不检测路径)
+    if (text.length > 3) {
+      // 逆向: chunk-006.js:13337 — let a = gE0(T)
+      const imagePaths = extractImagePaths(text);
+      if (imagePaths.length > 0) {
+        // 逆向: chunk-006.js:13339-13342 — onInsertImage 回调
+        if (this.widget.config.onInsertImage) {
+          for (const path of imagePaths) {
+            this.widget.config.onInsertImage(path);
+          }
+        } else {
+          // 非受控模式：内部处理图片路径 → 附件
+          this._handleImagePaths(imagePaths);
+        }
+        this._markDirty();
+        return "handled";
+      }
+    }
+
+    // 如果粘贴文本为空或只有空白（可能是二进制图片粘贴场景），
+    // 尝试从系统剪贴板读取图片
+    // 逆向: chunk-004.js:32086 — VTR() 剪贴板图片读取
+    if (!text.trim()) {
+      this._tryReadClipboardImage();
+      return "handled";
+    }
+
+    // 普通文本粘贴
+    this._controller.insertText(text);
     this._markDirty();
     return "handled";
+  }
+
+  /**
+   * 异步尝试从系统剪贴板读取二进制图片。
+   *
+   * 逆向: chunk-004.js:32086 — VTR() clipboard image read
+   * 读取成功则添加到附件列表。
+   */
+  private async _tryReadClipboardImage(): Promise<void> {
+    try {
+      const result = await readClipboardImage();
+      if (result) {
+        const { readFile } = await import("node:fs/promises");
+        const data = await readFile(result.path);
+        const attachment: ImageAttachment = {
+          type: "image",
+          source: {
+            type: "base64",
+            data: data.toString("base64"),
+            mediaType: result.mimeType,
+          },
+          sourcePath: result.path,
+        };
+        this.addImageAttachment(attachment);
+      }
+    } catch {
+      // 剪贴板读取失败 — 静默忽略
+    }
+  }
+
+  /**
+   * 处理退格键在文本开头的行为 — 移除最后一个图片附件。
+   *
+   * 逆向: chunk-006.js:13384-13388 — _handleBackspaceAtStart
+   *   if (this.props.imageAttachments.length > 0 && this.props.popImage)
+   *     return this.props.popImage(), !0
+   *
+   * @returns true if an attachment was removed
+   */
+  private _handleBackspaceAtStart(): boolean {
+    const attachments = this._getEffectiveAttachments();
+    if (attachments.length > 0) {
+      // 逆向: jetbrains_wizard.js:3704-3705 — imageAttachments.slice(0, -1)
+      this._imageAttachments = this._imageAttachments.slice(0, -1);
+      this.widget.config.onImageAttachmentsChanged?.(this._imageAttachments);
+      this._markDirty();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 获取有效的图片附件列表（受控模式用 props，非受控模式用内部状态）。
+   *
+   * 逆向: chunk-006.js:13399 — this.props.imageAttachments
+   */
+  private _getEffectiveAttachments(): ImageAttachment[] {
+    return this.widget.config.imageAttachments ?? this._imageAttachments;
+  }
+
+  /**
+   * 添加图片附件（内部使用，非受控模式）。
+   *
+   * 逆向: jetbrains_wizard.js:3694-3698 — if >= pb return; push to array
+   *
+   * @param attachment - 要添加的图片附件
+   * @returns true if added successfully
+   */
+  addImageAttachment(attachment: ImageAttachment): boolean {
+    if (this._getEffectiveAttachments().length >= MAX_IMAGE_ATTACHMENTS) {
+      return false;
+    }
+    this._imageAttachments = [...this._imageAttachments, attachment];
+    this.widget.config.onImageAttachmentsChanged?.(this._imageAttachments);
+    this._markDirty();
+    return true;
+  }
+
+  /**
+   * 内部处理图片文件路径列表 — 读取文件并转为 base64 附件。
+   *
+   * 逆向: chunk-004.js:21229-21255 — GH(T) async image handling
+   */
+  private _handleImagePaths(paths: string[]): void {
+    for (const imagePath of paths) {
+      if (this._getEffectiveAttachments().length >= MAX_IMAGE_ATTACHMENTS) break;
+      // 异步读取文件 — fire-and-forget, 读取完成后更新状态
+      this._readImageFile(imagePath);
+    }
+  }
+
+  /**
+   * 异步读取图片文件并添加到附件列表。
+   *
+   * 逆向: chunk-004.js:21229-21255 — GH() reads file, validates, converts to base64
+   */
+  private async _readImageFile(imagePath: string): Promise<void> {
+    try {
+      const { readFile } = await import("node:fs/promises");
+      const { extname } = await import("node:path");
+      const data = await readFile(imagePath);
+      const ext = extname(imagePath).toLowerCase().replace(".", "");
+      const mediaType = extToMimeType(ext);
+      const attachment: ImageAttachment = {
+        type: "image",
+        source: {
+          type: "base64",
+          data: data.toString("base64"),
+          mediaType,
+        },
+        sourcePath: imagePath,
+      };
+      this.addImageAttachment(attachment);
+    } catch {
+      // 逆向: chunk-004.js:21235 — Failed to read image file, log and ignore
+    }
   }
 
   /**
@@ -910,5 +1353,95 @@ export class InputFieldState extends State<InputField> {
     if (this._mounted && this._element) {
       this._element.markNeedsRebuild();
     }
+  }
+}
+
+// ════════════════════════════════════════════════════
+//  图片路径检测工具函数
+// ════════════════════════════════════════════════════
+
+/**
+ * 从粘贴文本中提取图片文件路径。
+ *
+ * 逆向: chunk-004.js:21216-21222 — gE0(T)
+ * 1. trim + 去除首尾引号
+ * 2. 按换行分割得到多行；如果只有一行，尝试按图片扩展名 + 空格 + 引号/路径 分割
+ * 3. 逐项调用 extractSingleImagePath 验证是否为有效图片绝对路径
+ *
+ * @param text - 粘贴的原始文本
+ * @returns 有效的绝对图片文件路径列表
+ */
+export function extractImagePaths(text: string): string[] {
+  // 逆向: chunk-004.js:21217 — T.trim().replace(/^["']|["']$/g, "")
+  const trimmed = text.trim().replace(/^["']|["']$/g, "");
+  // 逆向: chunk-004.js:21218-21219 — split by newline, filter empty
+  let lines = trimmed.split("\n").filter(Boolean);
+  // 逆向: chunk-004.js:21220 — if single line, try split by image ext boundary
+  if (lines.length === 1) {
+    lines = trimmed.split(/(?<=\.(?:png|jpe?g|gif|webp))\s+(?=["']?\/)/i);
+  }
+  // 逆向: chunk-004.js:21221 — map through IE0, filter nulls
+  return lines.map((line) => extractSingleImagePath(line)).filter((p): p is string => p !== null);
+}
+
+/**
+ * 验证单个文本片段是否为有效图片文件绝对路径。
+ *
+ * 逆向: modules/2469_unknown_IE0.js:4-12 — IE0(T)
+ * 1. trim + 去除首尾引号
+ * 2. 反转义 (\\. → .)
+ * 3. 转换 unicode 转义 u{XXXX}
+ * 4. 检查扩展名 .png/.jpg/.jpeg/.gif/.webp
+ * 5. 必须是绝对路径
+ *
+ * @param text - 单个路径文本
+ * @returns 有效的绝对路径或 null
+ */
+export function extractSingleImagePath(text: string): string | null {
+  // 逆向: IE0 line 5 — trim + strip quotes
+  let cleaned = text.trim().replace(/^["']|["']$/g, "");
+  // 逆向: IE0 line 6 — unescape backslash sequences
+  cleaned = cleaned.replace(/\\(.)/g, "$1");
+  // 逆向: IE0 line 6 — convert u{XXXX} unicode escapes
+  cleaned = cleaned.replace(/u\{([0-9a-fA-F]+)\}/g, (_match, hex) =>
+    String.fromCodePoint(parseInt(hex, 16)),
+  );
+  // 逆向: IE0 line 6 — must end with image extension
+  if (!/\.(png|jpe?g|gif|webp)$/i.test(cleaned)) return null;
+  // 逆向: IE0 line 7 — must be absolute path
+  if (!isAbsolutePath(cleaned)) return null;
+  return cleaned;
+}
+
+/**
+ * 检测路径是否为绝对路径 (跨平台)。
+ *
+ * 逆向: IE0 使用 rB.isAbsolute(R)
+ */
+function isAbsolutePath(p: string): boolean {
+  // Unix absolute: starts with /
+  if (p.startsWith("/")) return true;
+  // Windows absolute: C:\ or C:/
+  if (/^[a-zA-Z]:[/\\]/.test(p)) return true;
+  return false;
+}
+
+/**
+ * 文件扩展名转 MIME 类型。
+ *
+ * 逆向: chunk-004.js:21239-21241 — eG(r) extension to mediaType
+ */
+function extToMimeType(ext: string): string {
+  switch (ext) {
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "png":
+    default:
+      return "image/png";
   }
 }

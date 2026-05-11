@@ -133,6 +133,20 @@ export interface ConversationViewConfig {
    *   vs non-selected: only left border
    */
   selectedItemIndex?: number | null;
+  /**
+   * Whether dense view mode is active.
+   *
+   * When true:
+   * - Thinking blocks are hidden by default (unless user manually expanded them)
+   * - Activity groups are collapsed by default (unless user manually expanded them)
+   *
+   * 逆向: chunk-006.js:31602 — denseView prop on AhT (ConversationView widget)
+   * 逆向: chunk-006.js:31688-31689 — get _isDenseViewEnabled() { return this.widget.denseView; }
+   * 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+   * 逆向: chunk-006.js:31731-31748 — dense mode uses n8R delegate for compact rendering
+   * 逆向: chunk-006.js:32038-32039 — didUpdateWidget clears denseViewItemStates on mode change
+   */
+  denseView?: boolean;
 }
 
 // ════════════════════════════════════════════════════
@@ -302,6 +316,29 @@ export class ConversationViewState extends State<ConversationView> {
   private _animationTimer: ReturnType<typeof setInterval> | undefined;
 
   /**
+   * Widget cache: maps cache key to { sig, widget } for avoiding redundant rebuilds.
+   * 逆向: chunk-006.js:31673 — _widgetCache = new Map()
+   * 逆向: chunk-006.js:32218-32231 — cache lookup/store logic in _buildItemAtIndex
+   */
+  private _widgetCache: Map<string, { sig: string; widget: Widget }> = new Map();
+
+  /**
+   * Maps each render item index to its unique cache key.
+   * Key format: `${cacheIdentity}:${dupCount}` to disambiguate repeated identities.
+   * 逆向: chunk-006.js:31672 — _renderItemCacheKeys = []
+   * 逆向: chunk-006.js:31786-31792 — _rebuildRenderItemCacheKeys algorithm
+   */
+  private _renderItemCacheKeys: string[] = [];
+
+  /**
+   * Set of item indices that are currently streaming (assistant message or unstable tool).
+   * Items in this set always bypass the cache and rebuild every frame.
+   * 逆向: chunk-006.js:31670 — _streamingIndexes = new Set()
+   * 逆向: chunk-006.js:32093-32101 — _updateStreamingIndexes logic
+   */
+  private _streamingIndexes: Set<number> = new Set();
+
+  /**
    * Set of item indices for expanded thinking blocks.
    * 逆向: fJT._localExpanded + _thinkingBlockStates Map (chunk-006.js:16872, 28475)
    */
@@ -326,6 +363,21 @@ export class ConversationViewState extends State<ConversationView> {
    * 逆向: stateController.denseViewItemTouched Set (chunk-005.js:2677)
    */
   private _activityGroupTouched: Set<number> = new Set();
+
+  /**
+   * Tracks which thinking blocks the user has manually toggled (touched).
+   * When dense mode changes, touched items are not affected.
+   * 逆向: chunk-006.js:32039 — _stateController.clearDenseViewItemStates()
+   *   Only untouched items reset their state on dense mode toggle.
+   */
+  private _denseViewItemTouched: Set<string> = new Set();
+
+  /**
+   * Tracks the last dense view state to detect transitions.
+   * 逆向: chunk-006.js:31680 — _lastDenseViewState = null
+   * 逆向: chunk-006.js:32038-32039 — didUpdateWidget checks lastDenseViewState !== _isDenseViewEnabled
+   */
+  private _lastDenseViewState: boolean | null = null;
 
   /**
    * Previous hasInProgress state per group, for detecting done transitions.
@@ -366,6 +418,9 @@ export class ConversationViewState extends State<ConversationView> {
       this._ownsScrollController = true;
     }
 
+    // 逆向: chunk-006.js:32023 — this._lastDenseViewState = this._isDenseViewEnabled
+    this._lastDenseViewState = this.widget.config.denseView ?? false;
+
     // 逆向: Y1T.initState() — if (this._isActive) this._startAnimation()
     if (this._hasInProgress()) {
       this._startAnimation();
@@ -389,12 +444,15 @@ export class ConversationViewState extends State<ConversationView> {
    * 清理资源。
    */
   dispose(): void {
+    // 逆向: chunk-006.js:32111 — this._widgetCache.clear() in dispose
     // 逆向: Y1T.dispose() — this._stopAnimation(), this._clearPendingAppendTimer(), ...
+    this._widgetCache.clear();
     this._stopAnimation();
     for (const timer of this._activityGroupAppendTimers.values()) {
       clearTimeout(timer);
     }
     this._activityGroupAppendTimers.clear();
+
     if (this._ownsScrollController) {
       this._scrollController.dispose();
     }
@@ -504,12 +562,222 @@ export class ConversationViewState extends State<ConversationView> {
     }
   }
 
+  // ════════════════════════════════════════════════════
+  //  Widget cache helpers
+  // ════════════════════════════════════════════════════
+
+  /**
+   * Compute a cache identity string for a DisplayItem.
+   * Used as the base for cache key generation (before dedup counter).
+   *
+   * 逆向: chunk-006.js:31789 — getCacheIdentity(R) called by _rebuildRenderItemCacheKeys.
+   * In amp, getCacheIdentity is delegated to the renderDelegate, which uses
+   * the item's type + unique identifier (toolUseId, message index, etc.).
+   *
+   * @param item - Display item to identify
+   * @param index - Position in the items array (fallback identifier)
+   * @returns Identity string
+   */
+  private _computeCacheIdentity(item: DisplayItem, index: number): string {
+    // 逆向: chunk-006.js:31789 — a = this._getRenderDelegate().getCacheIdentity(R)
+    // Each item type has a natural unique key:
+    switch (item.type) {
+      case "message":
+        return `msg:${index}`;
+      case "tool":
+        return `tool:${item.toolUseId}`;
+      case "activity-group":
+        return `ag:${index}`;
+      case "thinking":
+        return `think:${index}`;
+      case "subagent-tool":
+        return `sub:${item.toolUseId}`;
+    }
+  }
+
+  /**
+   * Rebuild the cache key array from current items.
+   * Handles duplicated identities by appending a counter suffix.
+   *
+   * 逆向: chunk-006.js:31786-31792 — _rebuildRenderItemCacheKeys()
+   *   let T = new Map();
+   *   this._renderItemCacheKeys = this._renderItems.map(R => {
+   *     let a = getCacheIdentity(R), e = T.get(a) ?? 0;
+   *     return T.set(a, e + 1), `${a}:${e}`;
+   *   });
+   *
+   * @param items - Current display items
+   */
+  private _rebuildRenderItemCacheKeys(items: DisplayItem[]): void {
+    const counters = new Map<string, number>();
+    this._renderItemCacheKeys = items.map((item, idx) => {
+      const identity = this._computeCacheIdentity(item, idx);
+      const count = counters.get(identity) ?? 0;
+      counters.set(identity, count + 1);
+      return `${identity}:${count}`;
+    });
+  }
+
+  /**
+   * Get the cache key for a render item at a given index.
+   *
+   * 逆向: chunk-006.js:31799-31801 — _getCacheKeyForRenderItem(T)
+   *   return this._renderItemCacheKeys[T] ?? `missing:${T}`;
+   *
+   * @param index - Render item index
+   * @returns Cache key string
+   */
+  private _getCacheKeyForRenderItem(index: number): string {
+    return this._renderItemCacheKeys[index] ?? `missing:${index}`;
+  }
+
+  /**
+   * Compute a render signature for a display item.
+   * The signature captures the item's "visual state" — if it changes, the widget must rebuild.
+   *
+   * 逆向: chunk-006.js:32219 — getRenderSignature(a) in _buildItemAtIndex
+   * The signature includes content hash + status + relevant fields.
+   *
+   * @param item - Display item
+   * @param index - Item index (for selectedItemIndex comparison)
+   * @returns Signature string
+   */
+  private _computeRenderSignature(item: DisplayItem, index: number): string {
+    const selectedItemIndex = this.widget.config.selectedItemIndex ?? null;
+    const isSelected = index === selectedItemIndex;
+
+    switch (item.type) {
+      case "message":
+        // 逆向: chunk-006.js:32219 — signature includes all visual-affecting state
+        return `msg|${item.role}|${item.text.length}|${item.isStreaming ?? false}|${item.interrupted ?? false}|${item.images ?? 0}|sel:${isSelected ? 1 : 0}`;
+      case "tool":
+        return `tool|${item.toolUseId}|${item.status}|${item.exitCode ?? ""}|${(item.output ?? "").length}|${item.error ?? ""}|${item.diff ? item.diff.length : 0}`;
+      case "activity-group": {
+        const expanded = this._activityGroupExpanded.get(index) ?? item.hasInProgress;
+        const denseView = this.widget.config.denseView ?? false;
+        return `ag|${item.actions.length}|${item.hasInProgress}|${item.summary}|exp:${expanded ? 1 : 0}|dense:${denseView ? 1 : 0}`;
+      }
+      case "thinking": {
+        const thinkExpanded = this._expandedThinking.has(index);
+        const denseViewThink = this.widget.config.denseView ?? false;
+        const isTouched = this._denseViewItemTouched.has(`think:${index}`);
+        return `think|${item.text.length}|${item.isStreaming ?? false}|${item.isCancelled ?? false}|exp:${thinkExpanded ? 1 : 0}|dense:${denseViewThink ? 1 : 0}|touched:${isTouched ? 1 : 0}`;
+      }
+      case "subagent-tool":
+        return `sub|${item.toolUseId}|${item.status}|${item.error ?? ""}`;
+    }
+  }
+
+  /**
+   * Determine if a display item is "streaming" (actively changing each frame).
+   * Streaming items bypass the widget cache entirely.
+   *
+   * 逆向: chunk-006.js:32081-32087 — _isMessageStreaming(T)
+   *   T.item.type === "message" && R.role === "assistant" && R.state.type === "streaming"
+   * 逆向: chunk-006.js:32088-32092 — _isToolResultStable(T)
+   *   T.item.type !== "toolResult" → true; wt(status) checks terminal status
+   *
+   * @param item - Display item to check
+   * @returns True if item is streaming/unstable
+   */
+  private _isItemStreaming(item: DisplayItem): boolean {
+    if (item.type === "message") {
+      return item.role === "assistant" && item.isStreaming === true;
+    }
+    if (item.type === "thinking") {
+      return item.isStreaming === true;
+    }
+    if (item.type === "tool") {
+      return item.status === "in-progress" || item.status === "queued";
+    }
+    if (item.type === "subagent-tool") {
+      return item.status === "in-progress";
+    }
+    if (item.type === "activity-group") {
+      return item.hasInProgress;
+    }
+    return false;
+  }
+
+  /**
+   * Update streaming indexes based on current items.
+   *
+   * 逆向: chunk-006.js:32093-32101 — _updateStreamingIndexes()
+   *   - Remove indexes >= items.length
+   *   - Add/remove based on _isMessageStreaming check
+   *
+   * @param items - Current display items
+   */
+  private _updateStreamingIndexes(items: DisplayItem[]): void {
+    // 逆向: chunk-006.js:32094 — remove out-of-range indexes
+    for (const idx of this._streamingIndexes) {
+      if (idx >= items.length) this._streamingIndexes.delete(idx);
+    }
+    // 逆向: chunk-006.js:32095-32101 — add/remove based on streaming state
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const isStreaming = this._isItemStreaming(item);
+      if (isStreaming && !this._streamingIndexes.has(i)) {
+        this._streamingIndexes.add(i);
+      } else if (!isStreaming && this._streamingIndexes.has(i)) {
+        this._streamingIndexes.delete(i);
+      }
+    }
+  }
+
+  /**
+   * Remove orphaned cache entries whose keys no longer appear in _renderItemCacheKeys.
+   *
+   * 逆向: chunk-006.js:32067-32070 — _cleanupOrphanedCacheEntries()
+   *   let T = new Set(this._renderItemCacheKeys);
+   *   for (let R of this._widgetCache.keys()) if (!T.has(R)) this._widgetCache.delete(R);
+   */
+  private _cleanupOrphanedCacheEntries(): void {
+    const validKeys = new Set(this._renderItemCacheKeys);
+    for (const key of this._widgetCache.keys()) {
+      if (!validKeys.has(key)) {
+        this._widgetCache.delete(key);
+      }
+    }
+  }
+
   /**
    * React to widget config changes — start/stop animation as needed.
    * 逆向: Y1T.didUpdateWidget(T) (chunk-006.js:6129-6142)
    */
   didUpdateWidget(_oldWidget: ConversationView): void {
     super.didUpdateWidget(_oldWidget);
+
+    // 逆向: chunk-006.js:32038-32039 — dense view state transition handling
+    // When denseView prop changes, clear per-item states (untouched items reset).
+    const currentDenseView = this.widget.config.denseView ?? false;
+    if (this._lastDenseViewState !== currentDenseView) {
+      this._lastDenseViewState = currentDenseView;
+      // 逆向: chunk-006.js:32039 — this._stateController.clearDenseViewItemStates()
+      // Clear expansion states for untouched items
+      for (const [key] of this._activityGroupExpanded) {
+        if (!this._activityGroupTouched.has(key)) {
+          this._activityGroupExpanded.delete(key);
+        }
+      }
+      // Clear thinking expansion for untouched items
+      for (const idx of this._expandedThinking) {
+        if (!this._denseViewItemTouched.has(`think:${idx}`)) {
+          this._expandedThinking.delete(idx);
+        }
+      }
+      this._widgetCache.clear();
+
+      // 逆向: chunk-006.js:32039 — if (!this._isDenseViewEnabled) _i.instance.setAllExpanded(false)
+      // When leaving dense mode, collapse all expanded groups
+      if (!currentDenseView) {
+        for (const [key] of this._activityGroupExpanded) {
+          if (!this._activityGroupTouched.has(key)) {
+            this._activityGroupExpanded.set(key, false);
+          }
+        }
+      }
+    }
 
     const wasActive = this._animationTimer !== undefined;
     const isActive = this._hasInProgress();
@@ -600,8 +868,9 @@ export class ConversationViewState extends State<ConversationView> {
   /**
    * Build widget tree from DisplayItem[] array.
    *
-   * Dispatches each item to its type-specific renderer.
-   * 逆向: yx0 main loop produces items, then the conversation view iterates them.
+   * 逆向: chunk-006.js:32118-32137 f8R.build() 使用 Column+Scrollable 全量构建，不使用 ListView 虚拟化
+   * amp 的策略是：所有 items 都在 Column 中（totalContentHeight 精确），
+   * Widget Cache 避免重复 build 开销，Scrollbar 和 followMode 依赖精确的 totalContentHeight。
    *
    * @param items - Display items
    * @param inferenceState - Current inference state
@@ -616,78 +885,49 @@ export class ConversationViewState extends State<ConversationView> {
     appTheme?: AppTheme | null,
     selectedItemIndex?: number | null,
   ): Widget {
+    // 逆向: chunk-006.js:31780-31781 — _updateRenderItems() calls _rebuildRenderItemCacheKeys()
+    // Rebuild cache keys and update streaming indexes on every build pass
+    this._rebuildRenderItemCacheKeys(items);
+    this._updateStreamingIndexes(items);
+
+    // 逆向: chunk-006.js:32123-32127 — for (let l = 0; l < e; l++) _buildItemAtIndex(T, l)
+    // 全量遍历所有 items 构建 Widget（经过缓存），放入 Column
     const children: Widget[] = [];
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
 
-      switch (item.type) {
-        case "message":
-          children.push(this._buildMessageItemWidget(item, appTheme, i === selectedItemIndex));
-          break;
-        case "tool":
-          children.push(this._buildToolWidget(item, appTheme));
-          break;
-        case "activity-group":
-          children.push(this._buildActivityGroupWidget(item, i, appTheme));
-          break;
-        case "thinking":
-          children.push(this._buildThinkingWidget(item, i, appTheme));
-          break;
-        case "subagent-tool": {
-          // 逆向: x8R.buildWidget dispatch → shT/buildSubagentTool, M9R/buildOracleTool, buildLibrarianTool
-          const subItem = item as SubagentToolItem;
-          if (subItem.toolName === "Oracle") {
-            children.push(
-              new OracleToolWidget({
-                toolName: "Oracle",
-                status: subItem.status as ToolStatus,
-                input: subItem.description,
-                output:
-                  subItem.subagentContent?.terminalAssistantMessage?.content
-                    .filter((b) => b.type === "text")
-                    .map((b) => (b as { type: "text"; text: string }).text)
-                    .join("\n") || undefined,
-                error: subItem.error,
-                progress: subItem.subagentContent?.progressChunks
-                  ?.map((c) => c.message)
-                  .filter((m): m is string => !!m && m.trim().length > 0),
-              }) as unknown as Widget,
-            );
-          } else if (subItem.toolName === "Librarian") {
-            children.push(
-              new LibrarianToolWidget({
-                name: "Librarian",
-                status: subItem.status as ToolStatus,
-                query: subItem.description,
-                result:
-                  subItem.subagentContent?.terminalAssistantMessage?.content
-                    .filter((b) => b.type === "text")
-                    .map((b) => (b as { type: "text"; text: string }).text)
-                    .join("\n") || undefined,
-                error: subItem.error,
-              }) as unknown as Widget,
-            );
-          } else {
-            children.push(
-              new SubagentToolWidget({
-                toolName: subItem.toolName,
-                status: subItem.status as ToolStatus,
-                description: subItem.description,
-                error: subItem.error,
-                subagentContent: subItem.subagentContent,
-              }) as unknown as Widget,
-            );
-          }
-          break;
+      // 逆向: chunk-006.js:32218-32231 — _buildItemAtIndex cache logic
+      // If item is streaming/unstable, skip cache and always rebuild
+      if (this._streamingIndexes.has(i)) {
+        // 逆向: chunk-006.js:32233-32237 — streaming items bypass cache entirely
+        children.push(this._buildItemWidgetByType(item, i, appTheme, selectedItemIndex));
+      } else {
+        // Stable item: check cache by key + signature
+        // 逆向: chunk-006.js:32219-32231 — sig check + cache hit/miss
+        const sig = this._computeRenderSignature(item, i);
+        const cacheKey = this._getCacheKeyForRenderItem(i);
+        const cached = this._widgetCache.get(cacheKey);
+
+        if (cached && cached.sig === sig) {
+          // 逆向: chunk-006.js:32222 — if (o && o.sig === A) return o.widget
+          children.push(cached.widget);
+        } else {
+          // 逆向: chunk-006.js:32223-32231 — build widget, store in cache
+          const widget = this._buildItemWidgetByType(item, i, appTheme, selectedItemIndex);
+          this._widgetCache.set(cacheKey, { sig, widget });
+          children.push(widget);
         }
       }
 
-      // 项目间添加 1 行间距分隔
+      // 逆向: chunk-006.js:32125-32127 — spacer between items: new XT({ height: 1 })
       if (i < items.length - 1) {
         children.push(new SizedBox({ height: 1 }));
       }
     }
+
+    // 逆向: chunk-006.js:32067-32070 — clean up orphaned cache entries after rebuild
+    this._cleanupOrphanedCacheEntries();
 
     // 空列表: 显示空状态文本
     if (children.length === 0) {
@@ -707,8 +947,8 @@ export class ConversationViewState extends State<ConversationView> {
       children.push(this._buildErrorWidget(error));
     }
 
-    // B5: Wrap conversation Column in Scrollable + Scrollbar
-    // 逆向: amp conversation auto-scrolls to bottom and has scroll indicator on right side
+    // 逆向: chunk-006.js:32128-32136 — Scrollable (I3) wrapping Column (xR)
+    //   new I3({ controller, autofocus, position: "bottom", child: new xR({ children: t }) })
     const contentColumn = new Column({ children });
     const controller = this._scrollController;
 
@@ -736,6 +976,77 @@ export class ConversationViewState extends State<ConversationView> {
         }),
       ],
     });
+  }
+
+  /**
+   * Dispatch a single DisplayItem to its type-specific widget builder.
+   * Extracted from _buildFromItems loop so the cache logic can call it cleanly.
+   *
+   * 逆向: chunk-006.js:32209-32237 — _buildItemAtIndex dispatches to
+   *   this._getRenderDelegate().buildWidget(T, a, R)
+   *
+   * @param item - The display item
+   * @param index - Item index in the items array
+   * @param appTheme - Optional AppTheme
+   * @param selectedItemIndex - Currently selected item index (browse mode)
+   * @returns Built widget for this item
+   */
+  private _buildItemWidgetByType(
+    item: DisplayItem,
+    index: number,
+    appTheme?: AppTheme | null,
+    selectedItemIndex?: number | null,
+  ): Widget {
+    switch (item.type) {
+      case "message":
+        return this._buildMessageItemWidget(item, appTheme, index === selectedItemIndex);
+      case "tool":
+        return this._buildToolWidget(item, appTheme);
+      case "activity-group":
+        return this._buildActivityGroupWidget(item, index, appTheme);
+      case "thinking":
+        return this._buildThinkingWidget(item, index, appTheme);
+      case "subagent-tool": {
+        // 逆向: x8R.buildWidget dispatch → shT/buildSubagentTool, M9R/buildOracleTool, buildLibrarianTool
+        const subItem = item as SubagentToolItem;
+        if (subItem.toolName === "Oracle") {
+          return new OracleToolWidget({
+            toolName: "Oracle",
+            status: subItem.status as ToolStatus,
+            input: subItem.description,
+            output:
+              subItem.subagentContent?.terminalAssistantMessage?.content
+                .filter((b) => b.type === "text")
+                .map((b) => (b as { type: "text"; text: string }).text)
+                .join("\n") || undefined,
+            error: subItem.error,
+            progress: subItem.subagentContent?.progressChunks
+              ?.map((c) => c.message)
+              .filter((m): m is string => !!m && m.trim().length > 0),
+          }) as unknown as Widget;
+        } else if (subItem.toolName === "Librarian") {
+          return new LibrarianToolWidget({
+            name: "Librarian",
+            status: subItem.status as ToolStatus,
+            query: subItem.description,
+            result:
+              subItem.subagentContent?.terminalAssistantMessage?.content
+                .filter((b) => b.type === "text")
+                .map((b) => (b as { type: "text"; text: string }).text)
+                .join("\n") || undefined,
+            error: subItem.error,
+          }) as unknown as Widget;
+        } else {
+          return new SubagentToolWidget({
+            toolName: subItem.toolName,
+            status: subItem.status as ToolStatus,
+            description: subItem.description,
+            error: subItem.error,
+            subagentContent: subItem.subagentContent,
+          }) as unknown as Widget;
+        }
+      }
+    }
   }
 
   /**
@@ -934,9 +1245,8 @@ export class ConversationViewState extends State<ConversationView> {
       );
     }
 
-    const content = contentChildren.length === 1
-      ? contentChildren[0]
-      : new Column({ children: contentChildren });
+    const content =
+      contentChildren.length === 1 ? contentChildren[0] : new Column({ children: contentChildren });
 
     let borderWidget: Widget;
 
@@ -1548,7 +1858,9 @@ export class ConversationViewState extends State<ConversationView> {
     const toolNameColor = appTheme?.toolName ?? TOOL_NAME_COLOR;
 
     // 逆向: denseViewItemStates.get(id) ?? !completed — default expanded when in-progress
-    const defaultExpanded = group.hasInProgress;
+    // 逆向: chunk-006.js:31731-31748 — dense mode: groups default to collapsed
+    const denseView = this.widget.config.denseView ?? false;
+    const defaultExpanded = denseView ? false : group.hasInProgress;
     const isExpanded =
       itemIndex !== undefined
         ? (this._activityGroupExpanded.get(itemIndex) ?? defaultExpanded)
@@ -1806,6 +2118,14 @@ export class ConversationViewState extends State<ConversationView> {
     itemIndex: number,
     appTheme?: AppTheme | null,
   ): Widget {
+    // 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+    // In dense mode, thinking blocks are hidden unless user has manually expanded (touched) them.
+    const denseView = this.widget.config.denseView ?? false;
+    if (denseView && !this._denseViewItemTouched.has(`think:${itemIndex}`)) {
+      // Return a zero-height placeholder in dense mode for untouched thinking blocks
+      return new SizedBox({ width: 0, height: 0 });
+    }
+
     const isExpanded = this._expandedThinking.has(itemIndex);
     const spans: TextSpan[] = [];
 
@@ -1878,6 +2198,8 @@ export class ConversationViewState extends State<ConversationView> {
               } else {
                 this._expandedThinking.add(itemIndex);
               }
+              // 逆向: chunk-006.js:32039 — mark as touched so dense mode toggle won't reset
+              this._denseViewItemTouched.add(`think:${itemIndex}`);
             });
           },
           child: headerRow,

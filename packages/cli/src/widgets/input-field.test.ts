@@ -30,9 +30,9 @@ import {
   StatefulWidget,
   type TextSpan,
 } from "@flitter/tui";
+import { AppThemeController, createDefaultAppTheme } from "./app-theme-controller.js";
 import { InputField, type InputFieldConfig, InputFieldState } from "./input-field.js";
 import { ShortcutsPopup } from "./shortcuts-popup.js";
-import { AppThemeController, createDefaultAppTheme } from "./app-theme-controller.js";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -870,5 +870,127 @@ describe("ShortcutsPopup includes ─ separator", () => {
     assert.ok(lastChild instanceof RichText, "Last child should be RichText (separator)");
     const text = (lastChild as RichText).text.toPlainText();
     assert.ok(text.includes("\u2500"), "Separator should contain ─ characters");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  InputField 动态高度测试
+// ═══════════════════════════════════════════════════════════
+// 逆向: chunk-006.js:13474-13476 — minLines: 3, maxLines: null, expands: true
+// 逆向: chunk-006.js:36929 — I = Math.max(Math.floor(a.size.height * 0.4), 12)
+// 逆向: chunk-006.js:36992-36994 — SR({ constraints: o0(0, width, 0, I), child: L })
+
+/**
+ * 计算 InputField build 输出中内容行数 (│ 开头的行)。
+ * 不含顶部/底部边框行 (╭/╰)。
+ */
+function countContentRows(widget: any): number {
+  // InputField.build() returns a Column; count children that have │ side borders
+  // (i.e. content rows between ╭...╮ and ╰...╯)
+  if (!(widget instanceof Column)) return 0;
+  const children: any[] = (widget as any).children ?? [];
+  let count = 0;
+  for (const child of children) {
+    const text = extractAllText(child);
+    // Content rows start with │ (U+2502), border rows start with ╭/╰ or ├
+    if (text.startsWith("\u2502") || text.includes("\u2502 ")) {
+      count++;
+    }
+  }
+  return count;
+}
+
+describe("InputField dynamic height (逆向: chunk-006.js:13474-13476)", () => {
+  afterEach(() => {
+    try {
+      FocusManager.instance.dispose();
+    } catch {
+      /* ignore */
+    }
+  });
+
+  it("空输入时高度为 minLines (默认 3 行)", () => {
+    const { state } = mountInputField({ onSubmit: () => {} });
+    const built = state.build({} as any);
+    const rows = countContentRows(built);
+
+    assert.equal(rows, 3, "Empty input should have 3 content rows (minLines default)");
+    state.dispose();
+  });
+
+  it("单行短文本时高度仍为 minLines=3", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    for (const ch of "hello") {
+      fm.handleKeyEvent({ type: "key", key: ch, modifiers: NO_MODS });
+    }
+    const built = state.build({} as any);
+    const rows = countContentRows(built);
+
+    assert.equal(rows, 3, "Short single-line text should still show 3 rows (minLines)");
+    state.dispose();
+  });
+
+  it("多行文本 (4行) 时高度随内容增长到 4 行", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    // 输入 3 行文本 (3 个换行 + 4th line)
+    fm.handleKeyEvent({ type: "key", key: "a", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: { ...NO_MODS, shift: true } });
+    fm.handleKeyEvent({ type: "key", key: "b", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: { ...NO_MODS, shift: true } });
+    fm.handleKeyEvent({ type: "key", key: "c", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: { ...NO_MODS, shift: true } });
+    fm.handleKeyEvent({ type: "key", key: "d", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const rows = countContentRows(built);
+
+    assert.equal(rows, 4, "4-line text should expand to 4 content rows");
+    state.dispose();
+  });
+
+  it("自定义 minLines=5 — 空输入时高度为 5 行", () => {
+    const { state } = mountInputField({ onSubmit: () => {}, minLines: 5 });
+    const built = state.build({} as any);
+    const rows = countContentRows(built);
+
+    assert.equal(rows, 5, "Empty input with minLines=5 should have 5 content rows");
+    state.dispose();
+  });
+
+  it("6 行文本超过默认 minLines=3 — 高度为 6", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    // 输入 6 行
+    for (let i = 0; i < 5; i++) {
+      fm.handleKeyEvent({ type: "key", key: String(i), modifiers: NO_MODS });
+      fm.handleKeyEvent({ type: "key", key: "Enter", modifiers: { ...NO_MODS, shift: true } });
+    }
+    fm.handleKeyEvent({ type: "key", key: "x", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const rows = countContentRows(built);
+
+    assert.equal(rows, 6, "6-line text should expand to 6 content rows");
+    state.dispose();
+  });
+
+  it("_computeTextLineCount 正确计算折行", () => {
+    const { state } = mountInputField({ onSubmit: () => {}, width: 10 });
+    // Access private method for unit testing
+    const compute = (state as any)._computeTextLineCount.bind(state);
+
+    // Empty text = 1 line
+    assert.equal(compute("", 10), 1);
+    // Single short line = 1 line
+    assert.equal(compute("hello", 10), 1);
+    // Exactly 10 chars = 1 line
+    assert.equal(compute("1234567890", 10), 1);
+    // 11 chars wraps to 2 lines
+    assert.equal(compute("12345678901", 10), 2);
+    // 2 logical lines, each short
+    assert.equal(compute("abc\ndef", 10), 2);
+    // 1 line that wraps + 1 short line
+    assert.equal(compute("12345678901\nabc", 10), 3);
+
+    state.dispose();
   });
 });

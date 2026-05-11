@@ -13,11 +13,12 @@ describe("InputField border rendering", () => {
     expect(src).not.toContain("\u2518"); // ┘ old square
   });
 
-  it("should have fixed 3-row content height", async () => {
+  it("should have dynamic content height with minLines default", async () => {
     const src = await Bun.file("packages/cli/src/widgets/input-field.ts").text();
-    expect(src).not.toMatch(/Math\.min\(5/);
-    // Implementation uses 1 content row + 2 blank rows (i < 2 loop) = 3 rows fixed
-    expect(src).toMatch(/for \(let i = 0; i < 2; i\+\+\)/);
+    // 逆向: amp uses dynamic height based on text content lines
+    // Task 4 changed from fixed 3-row to dynamic with minLines (default 3)
+    expect(src).toMatch(/minLines/);
+    expect(src).toMatch(/_computeTextLineCount|_buildContentRows/);
   });
 
   it("should accept overlay text config", async () => {

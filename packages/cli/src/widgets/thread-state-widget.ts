@@ -27,8 +27,9 @@
  */
 
 import { resolveModel } from "@flitter/llm";
-import type { BuildContext, Widget } from "@flitter/tui";
+import type { BuildContext, Element, Widget } from "@flitter/tui";
 import {
+  BoxConstraints,
   BoxDecoration,
   Center,
   Color,
@@ -38,6 +39,7 @@ import {
   Expanded,
   FocusManager,
   FuzzyPicker,
+  MediaQuery,
   Padding,
   Positioned,
   Row,
@@ -168,6 +170,49 @@ export interface ThreadStateWidgetConfig {
     category?: string;
     description?: string;
   }>;
+
+  /**
+   * Callback when user confirms exit (double Ctrl+C).
+   *
+   * 逆向: chunk-006.js:36723-36736 — onExitPressed → exitApplication()
+   */
+  onExit?: () => void;
+
+  /**
+   * Callback when user cancels current inference (double Escape during processing).
+   *
+   * 逆向: chunk-006.js:37099-37108 — cancelStreamingMessage() + cancelBashInvocations()
+   */
+  onCancelInference?: () => void;
+
+  /**
+   * Access to the input field text for Escape-to-clear checks.
+   * Returns the current text value.
+   *
+   * 逆向: chunk-006.js:37110-37116 — this.textController.text.trim() !== ""
+   */
+  getInputText?: () => string;
+
+  /**
+   * Clear the input field text.
+   *
+   * 逆向: chunk-006.js:37088 — this.textController.clear(); this.textController.resetScrollOffset();
+   */
+  clearInputText?: () => void;
+
+  /**
+   * Get current image attachments count for clear-input check.
+   *
+   * 逆向: chunk-006.js:37110 — this.imageAttachments.length > 0
+   */
+  getImageAttachmentCount?: () => number;
+
+  /**
+   * Clear image attachments.
+   *
+   * 逆向: chunk-006.js:37091 — this.imageAttachments = []
+   */
+  clearImageAttachments?: () => void;
 
   /**
    * Slash command execution callback — fired when user selects a command from palette.
@@ -509,6 +554,23 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   private _showThinkingBlocks = true;
 
   /**
+   * Whether dense view mode is enabled.
+   *
+   * Dense view collapses activity groups and hides thinking blocks by default,
+   * giving a more compact view of the conversation. Toggled by Alt+T when in
+   * agent mode (deep). Items that the user has manually toggled (touched) are
+   * not affected by dense mode changes.
+   *
+   * 逆向: chunk-006.js:31688-31689 — get _isDenseViewEnabled() { return this.widget.denseView; }
+   * 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+   * 逆向: chunk-006.js:31731 — if (this._isDenseViewEnabled) return new n8R(...)
+   * 逆向: chunk-004.js:33769-33796 — _i class (DenseViewToggle singleton)
+   * 逆向: chunk-006.js:37138 — Alt+T: Ut.instance.toggleAll(), if qo(agentMode) _i.instance.toggleAll()
+   * 逆向: chunk-001.js:6169-6171 — qo(T) { return T === "deep" || T === C0T; }
+   */
+  private _isDenseViewEnabled = false;
+
+  /**
    * Whether the shortcuts help panel (ShortcutsPopup / U8R) is currently shown.
    *
    * Toggled by pressing `?` when the input field is empty.
@@ -532,6 +594,74 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   private _isShowingCommandPalette = false;
   private _isShowingHistoryPicker = false;
   private _isShowingThreadPicker = false;
+
+  /**
+   * Overlay state flags for Escape priority chain.
+   * These correspond to amp's overlay states that are dismissed in order by Escape.
+   * Each flag represents a modal/overlay that, when active, claims the Escape key.
+   *
+   * 逆向: chunk-006.js:37029-37122 — full 28-layer Escape waterfall
+   * Many of these overlays are not yet fully implemented in flitter, but their
+   * state flags are declared here so the Escape chain is architecturally complete.
+   */
+  private _isShowingMCPStatusModal = false;
+  /** 逆向: chunk-006.js:37034 — pendingAuthLogin */
+  private _pendingAuthLogin = false;
+  /** 逆向: chunk-006.js:37040 — pendingMCPServers */
+  private _hasPendingMCPServers = false;
+  /** 逆向: chunk-006.js:37042 — displayMessage */
+  private _displayMessage: string | null = null;
+  /** 逆向: chunk-006.js:37046-37048 — isShowingContextAnalyzeModal */
+  private _isShowingContextAnalyzeModal = false;
+  /** 逆向: chunk-006.js:37049-37051 — isShowingSkillListModal */
+  private _isShowingSkillListModal = false;
+  /** 逆向: chunk-006.js:37052-37054 — isShowingFileChangesOverlay */
+  private _isShowingFileChangesOverlay = false;
+  /** 逆向: chunk-006.js:37055-37057 — isShowingContextDetailOverlay */
+  private _isShowingContextDetailOverlay = false;
+  /** 逆向: chunk-006.js:37058 — isShowingIdePicker */
+  private _isShowingIdePicker = false;
+  /** 逆向: chunk-006.js:37059 — isShowingJetBrainsInstaller */
+  private _isShowingJetBrainsInstaller = false;
+  /** 逆向: chunk-006.js:37060-37062 — isShowingConfirmationOverlay */
+  private _isShowingConfirmationOverlay = false;
+  /** 逆向: chunk-006.js:37063-37065 — isShowingConsoleOverlay */
+  private _isShowingConsoleOverlay = false;
+  /** 逆向: chunk-006.js:37066-37070 — handoff state */
+  private _handoffCountdownActive = false;
+  private _isInHandoffMode = false;
+  private _isGeneratingHandoff = false;
+  /** 逆向: chunk-006.js:37071 — isInQueueMode */
+  private _isInQueueMode = false;
+  /** 逆向: chunk-006.js:37100 — executingCommand */
+  private _executingCommand: { name: string; abortController: AbortController } | null = null;
+
+  /**
+   * Whether currently confirming Escape-to-clear-input (double-tap Escape to clear).
+   *
+   * 逆向: chunk-006.js:37086-37097 — isConfirmingClearInput
+   *   Second Escape within 1000ms clears text + imageAttachments + pendingSkills.
+   */
+  private _isConfirmingClearInput = false;
+  private _clearInputConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Whether currently confirming Escape-to-cancel-processing (double-tap to abort inference).
+   *
+   * 逆向: chunk-006.js:37099-37108 — isConfirmingCancelProcessing
+   *   Second Escape within 1000ms cancels streaming + bash invocations.
+   */
+  private _isConfirmingCancelProcessing = false;
+  private _cancelProcessingConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Whether currently confirming Ctrl+C exit (double-tap to quit).
+   *
+   * 逆向: chunk-006.js:36723-36736 — isConfirmingExit
+   *   Second Ctrl+C within 1000ms calls exitApplication().
+   */
+  private _isConfirmingExit = false;
+  private _exitConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /** 滚动控制器 */
   private _scrollController: ScrollController;
@@ -562,16 +692,44 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
-   * Toggle visibility of thinking blocks.
+   * Whether dense view mode is currently enabled.
    *
-   * 逆向: amp-cli-reversed/modules/2785_unknown_e0R.js:829-831
-   *   `execute: async R => { Ut.instance.toggleAll(); ... k8.instance.requestFrame(); }`
-   *   Ut is the thinking block expansion tracker. toggleAll() flips all blocks.
-   *   k8.instance.requestFrame() triggers a re-render.
+   * 逆向: chunk-006.js:31688-31689 — get _isDenseViewEnabled() { return this.widget.denseView; }
+   */
+  get isDenseViewEnabled(): boolean {
+    return this._isDenseViewEnabled;
+  }
+
+  /**
+   * Toggle visibility of thinking blocks and dense view mode.
+   *
+   * Alt+T toggles thinking blocks globally. Additionally, when in agent mode
+   * (deep), it also toggles dense view mode which collapses activity groups
+   * and hides thinking blocks by default.
+   *
+   * 逆向: chunk-006.js:37137-37139 — tT = new x9(() => {
+   *   if (Ut.instance.toggleAll(), qo(i.getAgentMode())) _i.instance.toggleAll();
+   *   return "handled";
+   * })
+   * 逆向: chunk-001.js:6169-6171 — qo(T) { return T === "deep" || T === C0T; }
+   *   Dense view is only toggled when agent mode is "deep".
+   * 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+   *   In dense mode, thinking blocks are hidden.
    */
   toggleThinkingBlocks(): void {
     this.setState(() => {
+      // 逆向: chunk-006.js:37138 — Ut.instance.toggleAll() (always toggle thinking)
       this._showThinkingBlocks = !this._showThinkingBlocks;
+
+      // 逆向: chunk-006.js:37138 — if qo(i.getAgentMode()) _i.instance.toggleAll()
+      // qo() returns true for "deep" mode — toggle dense view in agent mode
+      const agentMode = this.widget.config.modeName;
+      if (agentMode === "deep") {
+        this._isDenseViewEnabled = !this._isDenseViewEnabled;
+        // 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+        // When dense is enabled, thinking is hidden; when disabled, thinking is shown.
+        this._showThinkingBlocks = !this._isDenseViewEnabled;
+      }
     });
   }
 
@@ -604,6 +762,332 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
+   * Unified Escape key priority chain.
+   *
+   * Returns true if the Escape was handled (consumed), false if not.
+   * Checks conditions in waterfall order — first matching condition wins.
+   *
+   * 逆向: chunk-006.js:37029-37122 — iT = new x9(() => { ... })
+   *   The Escape handler is a sequential if-else chain that returns "handled"
+   *   at the first matching condition. Order matters.
+   */
+  private _handleEscapeChain(): boolean {
+    // ─── Full Escape priority chain (amp 28-layer waterfall) ──────────────
+    // 逆向: chunk-006.js:37029-37122 — iT = new x9(() => { ... })
+    // Each layer returns true ("handled") if it consumed the Escape key.
+
+    // 1. Command palette open → dismiss
+    // 逆向: chunk-006.js:37030 — if (this.isShowingPalette) return this.dismissPalette(), "handled"
+    if (this._isShowingCommandPalette) {
+      this.setState(() => {
+        this._isShowingCommandPalette = false;
+      });
+      this._restoreInputFieldFocus();
+      return true;
+    }
+
+    // 2. MCP status modal → dismiss
+    // 逆向: chunk-006.js:37031-37033 — if (this.isShowingMCPStatusModal)
+    if (this._isShowingMCPStatusModal) {
+      this.setState(() => {
+        this._isShowingMCPStatusModal = false;
+      });
+      return true;
+    }
+
+    // 3. Pending auth login → cancel
+    // 逆向: chunk-006.js:37034 — if (this.pendingAuthLogin) return this.cancelAuthLoginSession()
+    if (this._pendingAuthLogin) {
+      this.setState(() => {
+        this._pendingAuthLogin = false;
+      });
+      return true;
+    }
+
+    // 4. Active OAuth request → reject
+    // 逆向: chunk-006.js:37035-37036 — let NT = this.getActiveOAuthRequest(); if (NT) reject
+    // OAuth requests are not yet implemented — placeholder for architectural completeness
+    // (will be wired when @flitter/llm OAuth flow is implemented)
+
+    // 5. History picker → dismiss
+    // 逆向: chunk-006.js:37037-37039 — if (this.isShowingPromptHistoryPicker)
+    if (this._isShowingHistoryPicker) {
+      this.setState(() => {
+        this._isShowingHistoryPicker = false;
+      });
+      this._restoreInputFieldFocus();
+      return true;
+    }
+
+    // 6. Pending MCP servers → deny
+    // 逆向: chunk-006.js:37040 — if (this.pendingMCPServers.length > 0) return deny()
+    if (this._hasPendingMCPServers) {
+      this.setState(() => {
+        this._hasPendingMCPServers = false;
+      });
+      return true;
+    }
+
+    // 7. Ephemeral error → dismiss
+    // 逆向: chunk-006.js:37041 — if (this.getCurrentEphemeralError()) return handleEphemeralErrorResponse("dismiss")
+    if (this._error) {
+      this.setState(() => {
+        this._error = null;
+      });
+      return true;
+    }
+
+    // 8. Display message → dismiss
+    // 逆向: chunk-006.js:37042 — if (this.displayMessage) return this.handleDisplayMessageDismiss()
+    if (this._displayMessage) {
+      this.setState(() => {
+        this._displayMessage = null;
+      });
+      return true;
+    }
+
+    // 9. Shortcuts help → dismiss
+    // 逆向: chunk-006.js:37043-37045 — if (this.isShowingHelp)
+    if (this._isShowingShortcutsHelp) {
+      this.setState(() => {
+        this._isShowingShortcutsHelp = false;
+      });
+      return true;
+    }
+
+    // 10. Context analyze modal → dismiss
+    // 逆向: chunk-006.js:37046-37048 — if (this.isShowingContextAnalyzeModal)
+    if (this._isShowingContextAnalyzeModal) {
+      this.setState(() => {
+        this._isShowingContextAnalyzeModal = false;
+      });
+      return true;
+    }
+
+    // 11. Skill list modal → dismiss
+    // 逆向: chunk-006.js:37049-37051 — if (this.isShowingSkillListModal)
+    if (this._isShowingSkillListModal) {
+      this.setState(() => {
+        this._isShowingSkillListModal = false;
+      });
+      return true;
+    }
+
+    // 12. File changes overlay → dismiss
+    // 逆向: chunk-006.js:37052-37054 — if (this.isShowingFileChangesOverlay)
+    if (this._isShowingFileChangesOverlay) {
+      this.setState(() => {
+        this._isShowingFileChangesOverlay = false;
+      });
+      return true;
+    }
+
+    // 13. Context detail overlay → dismiss
+    // 逆向: chunk-006.js:37055-37057 — if (this.isShowingContextDetailOverlay)
+    if (this._isShowingContextDetailOverlay) {
+      this.setState(() => {
+        this._isShowingContextDetailOverlay = false;
+      });
+      return true;
+    }
+
+    // 14. IDE picker → dismiss
+    // 逆向: chunk-006.js:37058 — if (this.isShowingIdePicker)
+    if (this._isShowingIdePicker) {
+      this.setState(() => {
+        this._isShowingIdePicker = false;
+      });
+      return true;
+    }
+
+    // 15. JetBrains installer → dismiss
+    // 逆向: chunk-006.js:37059 — if (this.isShowingJetBrainsInstaller)
+    if (this._isShowingJetBrainsInstaller) {
+      this.setState(() => {
+        this._isShowingJetBrainsInstaller = false;
+      });
+      return true;
+    }
+
+    // 16. Confirmation overlay → dismiss
+    // 逆向: chunk-006.js:37060-37062 — if (this.isShowingConfirmationOverlay)
+    if (this._isShowingConfirmationOverlay) {
+      this.setState(() => {
+        this._isShowingConfirmationOverlay = false;
+      });
+      return true;
+    }
+
+    // 17. Console overlay → dismiss
+    // 逆向: chunk-006.js:37063-37065 — if (this.isShowingConsoleOverlay)
+    if (this._isShowingConsoleOverlay) {
+      this.setState(() => {
+        this._isShowingConsoleOverlay = false;
+      });
+      return true;
+    }
+
+    // 18. Handoff countdown active → stop countdown
+    // 逆向: chunk-006.js:37066 — if (this.handoffState.countdownSeconds !== null) return this.handoffController?.stopCountdown()
+    if (this._handoffCountdownActive) {
+      this.setState(() => {
+        this._handoffCountdownActive = false;
+      });
+      return true;
+    }
+
+    // 19. Handoff mode → cancel generation or exit handoff
+    // 逆向: chunk-006.js:37067-37070 — if (this.handoffState.isInHandoffMode) { ... }
+    if (this._isInHandoffMode) {
+      this.setState(() => {
+        this._isGeneratingHandoff = false;
+        this._isInHandoffMode = false;
+      });
+      return true;
+    }
+
+    // 20. Queue mode → exit
+    // 逆向: chunk-006.js:37071 — if (this.isInQueueMode) return this.exitQueueMode()
+    if (this._isInQueueMode) {
+      this.setState(() => {
+        this._isInQueueMode = false;
+      });
+      return true;
+    }
+
+    // 21. Thread picker → dismiss
+    // 逆向: analogous overlay dismiss pattern (flitter-specific, amp uses palette for this)
+    if (this._isShowingThreadPicker) {
+      this.setState(() => {
+        this._isShowingThreadPicker = false;
+      });
+      this._restoreInputFieldFocus();
+      return true;
+    }
+
+    // 22. Text has selection → clear selection
+    // 逆向: chunk-006.js:37072 — if (this.textController.hasSelection) return this.textController.clearSelection()
+    // In flitter, "selection" is message-selection mode (Tab-based browse mode)
+    if (this._isInMessageSelectionMode) {
+      this.setState(() => {
+        this._exitSelectionMode();
+      });
+      return true;
+    }
+
+    // 23. Second Escape (confirming clear input) → actually clear
+    // 逆向: chunk-006.js:37073-37078
+    if (this._isConfirmingClearInput) {
+      this.widget.config.clearInputText?.();
+      this.widget.config.clearImageAttachments?.();
+      this.setState(() => {
+        this._isConfirmingClearInput = false;
+      });
+      if (this._clearInputConfirmTimeout) {
+        clearTimeout(this._clearInputConfirmTimeout);
+        this._clearInputConfirmTimeout = null;
+      }
+      return true;
+    }
+
+    // 24. Second Escape (confirming cancel processing) → actually cancel
+    // 逆向: chunk-006.js:37091-37098
+    if (this._isConfirmingCancelProcessing) {
+      this.widget.config.onCancelInference?.();
+      this.setState(() => {
+        this._isConfirmingCancelProcessing = false;
+      });
+      if (this._cancelProcessingConfirmTimeout) {
+        clearTimeout(this._cancelProcessingConfirmTimeout);
+        this._cancelProcessingConfirmTimeout = null;
+      }
+      return true;
+    }
+
+    // 25. Executing command → abort
+    // 逆向: chunk-006.js:37100 — if (this.executingCommand) return abort()
+    if (this._executingCommand) {
+      this._executingCommand.abortController.abort();
+      this._executingCommand = null;
+      return true;
+    }
+
+    // 26. Inference running or bash invocations → enter confirm-cancel state
+    // 逆向: chunk-006.js:37101-37109
+    if (this._inferenceState === "running") {
+      this.setState(() => {
+        this._isConfirmingCancelProcessing = true;
+      });
+      this._cancelProcessingConfirmTimeout = setTimeout(() => {
+        this.setState(() => {
+          this._isConfirmingCancelProcessing = false;
+        });
+        this._cancelProcessingConfirmTimeout = null;
+      }, 1000);
+      return true;
+    }
+
+    // 27. Input has text or attachments → enter confirm-clear state
+    // 逆向: chunk-006.js:37112-37121
+    const inputText = this.widget.config.getInputText?.() ?? "";
+    const attachmentCount = this.widget.config.getImageAttachmentCount?.() ?? 0;
+    if (inputText.trim() !== "" || attachmentCount > 0) {
+      this.setState(() => {
+        this._isConfirmingClearInput = true;
+      });
+      this._clearInputConfirmTimeout = setTimeout(() => {
+        this.setState(() => {
+          this._isConfirmingClearInput = false;
+        });
+        this._clearInputConfirmTimeout = null;
+      }, 1000);
+      return true;
+    }
+
+    // 28. Nothing to handle
+    // 逆向: chunk-006.js:37122 — return "ignored"
+    return false;
+  }
+
+  /**
+   * Ctrl+C handler — double-tap to exit.
+   *
+   * First Ctrl+C enters confirm-exit state (with 1s timeout).
+   * Second Ctrl+C within the timeout calls onExit() to quit.
+   *
+   * 逆向: chunk-006.js:36723-36736 — onExitPressed = () => { ... }
+   * 逆向: chunk-006.js:37124-37126 — aT = new x9(() => { return this.onExitPressed(), "handled"; })
+   *
+   * @returns true (always consumed)
+   */
+  private _handleCtrlC(): boolean {
+    // 逆向: chunk-006.js:36724 — if (this.isConfirmingExit) { clearTimeout(exitConfirmTimeout); exitApplication(); }
+    if (this._isConfirmingExit) {
+      if (this._exitConfirmTimeout) {
+        clearTimeout(this._exitConfirmTimeout);
+        this._exitConfirmTimeout = null;
+      }
+      this.widget.config.onExit?.();
+      return true;
+    }
+
+    // 逆向: chunk-006.js:36728-36735 — else { setState({ isConfirmingExit: true }); exitConfirmTimeout = setTimeout(() => { setState({ isConfirmingExit: false }); exitConfirmTimeout = null; }, 1000); }
+    this.setState(() => {
+      this._isConfirmingExit = true;
+    });
+    if (this._exitConfirmTimeout) {
+      clearTimeout(this._exitConfirmTimeout);
+    }
+    this._exitConfirmTimeout = setTimeout(() => {
+      this.setState(() => {
+        this._isConfirmingExit = false;
+      });
+      this._exitConfirmTimeout = null;
+    }, 1000);
+    return true;
+  }
+
+  /**
    * 初始化状态。
    *
    * 订阅 ThreadStore 和 ThreadWorker 事件流:
@@ -613,6 +1097,16 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   initState(): void {
     super.initState();
     const { threadStore, threadWorker, threadId } = this.widget.config;
+
+    // 逆向: chunk-006.js:36908 — denseView: qo(_)
+    // 逆向: chunk-001.js:6169-6171 — qo(T) { return T === "deep" || T === C0T; }
+    // Dense view is initialized from the agent mode — "deep" mode starts with dense enabled.
+    const agentMode = this.widget.config.modeName;
+    if (agentMode === "deep") {
+      this._isDenseViewEnabled = true;
+      // 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+      this._showThinkingBlocks = false;
+    }
 
     // Register key interceptor for:
     //   - j/k scroll (browse mode, InputField not focused)
@@ -640,6 +1134,19 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
       //   FuzzyPicker handles its own keyboard via Shortcuts/Actions.
       if (this._isShowingCommandPalette) {
         return false; // let FuzzyPicker handle it
+      }
+
+      // ── Escape key — unified priority chain ──────────────────────────────
+      // 逆向: chunk-006.js:37029-37122 — iT = new x9(() => { ... })
+      //   Waterfall of conditions; first match returns "handled".
+      if (event.key === "Escape") {
+        return this._handleEscapeChain();
+      }
+
+      // ── Ctrl+C — exit confirmation ──────────────────────────────────────
+      // 逆向: chunk-006.js:37124-37126 — aT = new x9(() => { return this.onExitPressed(), "handled"; })
+      if (event.key === "c" && event.modifiers.ctrl) {
+        return this._handleCtrlC();
       }
 
       // ── Alt+T — toggle thinking blocks ──────────────────────────────────
@@ -709,15 +1216,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         return false;
       }
 
-      // ── Escape key ───────────────────────────────────────────────────────
-      // 逆向: amp handleEscape → if selectedUserMessageOrdinal !== null → clearSelected + dismiss
-      if (event.key === "Escape" && this._isInMessageSelectionMode) {
-        this.setState(() => {
-          this._exitSelectionMode();
-        });
-        return true;
-      }
-
       // ── e key — edit selected message ────────────────────────────────
       // 逆向: interactive_widgets.js:2479-2487 — handleEditMessage
       //   if selectedUserMessageOrdinal !== null → extract text via Tz0(message),
@@ -775,21 +1273,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         });
         this.widget.config.onMessageRestore?.(ordinal);
         return true;
-      }
-
-      // ── Shortcuts help panel auto-dismiss ───────────────────────────────
-      // 逆向: chunk-006.js:36288-36308
-      //   When isShowingShortcutsHelp is true and any key fires → dismiss.
-      //   Escape while showing help → dismiss and consume the event.
-      //   The `?` toggle itself is handled inside InputField (onShortcutsToggle)
-      //   so it only fires when the input is empty.
-      if (this._isShowingShortcutsHelp) {
-        this.setState(() => {
-          this._isShowingShortcutsHelp = false;
-        });
-        // Escape consumed; other keys pass through so they take effect
-        if (event.key === "Escape") return true;
-        return false;
       }
 
       // ── j/k scroll ───────────────────────────────────────────────────────
@@ -1056,6 +1539,19 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     this._eventSub?.unsubscribe();
     this._eventSub = null;
     this._scrollController.dispose();
+    // 逆向: chunk-006.js:37086-37121 — clear all confirm timeouts on dispose
+    if (this._clearInputConfirmTimeout) {
+      clearTimeout(this._clearInputConfirmTimeout);
+      this._clearInputConfirmTimeout = null;
+    }
+    if (this._cancelProcessingConfirmTimeout) {
+      clearTimeout(this._cancelProcessingConfirmTimeout);
+      this._cancelProcessingConfirmTimeout = null;
+    }
+    if (this._exitConfirmTimeout) {
+      clearTimeout(this._exitConfirmTimeout);
+      this._exitConfirmTimeout = null;
+    }
     super.dispose();
   }
 
@@ -1148,6 +1644,7 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
                 error: this._error,
                 selectedItemIndex: this._selectedItemIndex,
                 cwd: process.cwd(),
+                denseView: this._isDenseViewEnabled,
               }),
             }),
           });
@@ -1170,60 +1667,82 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         })
       : new Expanded({ child: conversationArea });
 
+    // 逆向: chunk-006.js:36929 — I = Math.max(Math.floor(a.size.height * 0.4), 12)
+    // 逆向: chunk-006.js:36992-36994 — SR({ constraints: new o0(0, width, 0, I), child: L })
+    // 计算 max 40% viewport 约束: 底部输入区最多占 viewport 高度的 40%, 最小 12 行
+    let viewportHeight = 24; // fallback
+    try {
+      viewportHeight = MediaQuery.sizeOf(_context as unknown as Element).height;
+    } catch {
+      // MediaQuery not in ancestor tree (e.g., unit tests) — use fallback
+    }
+    const bottomMaxHeight = Math.max(Math.floor(viewportHeight * 0.4), 12);
+
     const normalLayout = new Column({
       children: [
         mainContent,
-        // 输入框 or 审批对话框
+        // 输入框 or 审批对话框 — 包裹在 ConstrainedBox 中限制最大高度
+        // 逆向: chunk-006.js:36992-36994 — SR({ constraints: o0(0, width, 0, I), child: L })
         // 逆向: jetbrains_wizard.js — buildBottomWidget() conditionally shows
         // A0R (confirmation widget) instead of input when approval is pending
-        this._pendingApproval
-          ? new ApprovalWidget({
-              request: this._pendingApproval,
-              onRespond: (toolUseId, response) => {
-                threadWorker.userRespondToApproval?.(toolUseId, response);
-                this.setState(() => {
-                  this._pendingApproval = null;
-                  this._waitingForApproval = false;
-                });
-              },
-            })
-          : new InputField({
-              onSubmit,
-              promptHistory: this._promptHistory,
-              topLeftLabel: this._buildTopLeftLabel(),
-              topRightLabel: this._buildTopRightLabel(),
-              bottomRightLabel: this._buildBottomRightLabel(),
-              // Shortcuts help panel — shown above the input border when `?` was pressed.
-              // 逆向: chunk-006.js:37662-37664
-              //   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
-              topWidget: this._isShowingShortcutsHelp ? new ShortcutsPopup() : undefined,
-              // 逆向: chunk-006.js:34746-34751
-              //   When input is empty and shortcuts help is not shown → show "? for shortcuts" hint.
-              //   The hint uses keybind color for "?" and dim foreground for " for shortcuts".
-              //   In flitter, placeholder is a plain string — the InputField shows it when empty.
-              placeholder: this._isShowingShortcutsHelp ? "" : "? for shortcuts",
-              // 逆向: jetbrains_wizard.js:3040 — textChangeListener
-              onSlashCommandTrigger: () => {
-                this.setState(() => {
-                  this._isShowingCommandPalette = true;
-                });
-              },
-              // 逆向: chunk-006.js:36288-36308 — toggle shortcuts on `?` when input empty
-              onShortcutsToggle: () => {
-                this.setState(() => {
-                  this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
-                });
-              },
-              // Gap fix: wire Ctrl+G and Ctrl+S through to interactive.ts
-              onOpenInEditor: this.widget.config.onOpenInEditor,
-              onToggleAgentMode: this.widget.config.onToggleAgentMode,
-              // Gap fix: wire @@ thread mention trigger
-              onThreadMentionTrigger: () => {
-                this.setState(() => {
-                  this._isShowingThreadPicker = true;
-                });
-              },
-            }),
+        new Container({
+          constraints: new BoxConstraints({
+            minHeight: 0,
+            maxHeight: bottomMaxHeight,
+          }),
+          child: this._pendingApproval
+            ? new ApprovalWidget({
+                request: this._pendingApproval,
+                onRespond: (toolUseId, response) => {
+                  threadWorker.userRespondToApproval?.(toolUseId, response);
+                  this.setState(() => {
+                    this._pendingApproval = null;
+                    this._waitingForApproval = false;
+                  });
+                },
+              })
+            : new InputField({
+                onSubmit,
+                promptHistory: this._promptHistory,
+                topLeftLabel: this._buildTopLeftLabel(),
+                topRightLabel: this._buildTopRightLabel(),
+                bottomRightLabel: this._buildBottomRightLabel(),
+                // 逆向: chunk-006.js:4185-4206 — RenderScrollable.performLayout()
+                // 传入 maxLines 让 InputField 内部管理滚动裁剪
+                // bottomMaxHeight 减去上下边框 (2行)，为纯内容区域可见行数
+                maxLines: bottomMaxHeight - 2,
+                // Shortcuts help panel — shown above the input border when `?` was pressed.
+                // 逆向: chunk-006.js:37662-37664
+                //   `topWidget: this.isShowingShortcutsHelp ? new U8R({ submitOnEnter }) : void 0`
+                topWidget: this._isShowingShortcutsHelp ? new ShortcutsPopup() : undefined,
+                // 逆向: chunk-006.js:34746-34751
+                //   When input is empty and shortcuts help is not shown → show "? for shortcuts" hint.
+                //   The hint uses keybind color for "?" and dim foreground for " for shortcuts".
+                //   In flitter, placeholder is a plain string — the InputField shows it when empty.
+                placeholder: this._isShowingShortcutsHelp ? "" : "? for shortcuts",
+                // 逆向: jetbrains_wizard.js:3040 — textChangeListener
+                onSlashCommandTrigger: () => {
+                  this.setState(() => {
+                    this._isShowingCommandPalette = true;
+                  });
+                },
+                // 逆向: chunk-006.js:36288-36308 — toggle shortcuts on `?` when input empty
+                onShortcutsToggle: () => {
+                  this.setState(() => {
+                    this._isShowingShortcutsHelp = !this._isShowingShortcutsHelp;
+                  });
+                },
+                // Gap fix: wire Ctrl+G and Ctrl+S through to interactive.ts
+                onOpenInEditor: this.widget.config.onOpenInEditor,
+                onToggleAgentMode: this.widget.config.onToggleAgentMode,
+                // Gap fix: wire @@ thread mention trigger
+                onThreadMentionTrigger: () => {
+                  this.setState(() => {
+                    this._isShowingThreadPicker = true;
+                  });
+                },
+              }),
+        }),
         // 1-row status line with wave spinner (逆向: IZT, jetbrains_wizard.js:681-708)
         new BottomStatusLine({
           inferenceState: this._inferenceState === "cancelled" ? "idle" : this._inferenceState,

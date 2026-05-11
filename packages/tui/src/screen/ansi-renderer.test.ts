@@ -69,6 +69,16 @@ describe("ANSI 常量", () => {
     assert.ok(MOUSE_OFF.includes("?1006l"));
   });
 
+  it("enableMouse(true) 应额外启用 ?1016h", () => {
+    const renderer = new AnsiRenderer();
+    assert.ok(renderer.enableMouse(true).includes("?1016h"));
+  });
+
+  it("disableMouse() 应禁用 ?1016l", () => {
+    const renderer = new AnsiRenderer();
+    assert.ok(renderer.disableMouse().includes("?1016l"));
+  });
+
   it("PASTE_ON/OFF 格式正确", () => {
     assert.equal(PASTE_ON, `${CSI}?2004h`);
     assert.equal(PASTE_OFF, `${CSI}?2004l`);

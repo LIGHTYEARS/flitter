@@ -16,7 +16,9 @@
  */
 
 import type { PermissionContext, ThreadSnapshot } from "@flitter/schemas";
+import type { Subscription } from "@flitter/util";
 import { BehaviorSubject } from "@flitter/util";
+import type { AgentEvent } from "../worker/events";
 import type { ThreadWorker } from "../worker/thread-worker";
 import { getSubAgentToolPatterns } from "./subagent-types";
 
@@ -40,6 +42,16 @@ export interface SubAgentOptions {
   maxTurns?: number;
   /** 超时时间 (ms) */
   timeout?: number;
+  /**
+   * 逆向: amp's toolProgressByToolUseID$ — called after each inference turn
+   * with the child thread ID so the caller can extract and propagate progress.
+   */
+  onTurnComplete?: (childThreadId: string) => void;
+  /**
+   * 逆向: amp's per-tool granularity — called on each tool:start/tool:complete
+   * from the child worker's events$ stream for real-time progress updates.
+   */
+  onChildToolEvent?: (childThreadId: string, event: AgentEvent) => void;
 }
 
 // ─── 子代理结果 ─────────────────────────────────────────
@@ -156,8 +168,10 @@ export class SubAgentManager {
   readonly activeAgents$: BehaviorSubject<Map<string, SubAgentInfo>>;
 
   private readonly opts: SubAgentManagerOptions;
-  private readonly runningWorkers: Map<string, { worker: ThreadWorker; abort: AbortController }> =
-    new Map();
+  private readonly runningWorkers: Map<
+    string,
+    { worker: ThreadWorker; abort: AbortController; childEventSub?: Subscription }
+  > = new Map();
   private disposed = false;
 
   constructor(opts: SubAgentManagerOptions) {
@@ -211,7 +225,16 @@ export class SubAgentManager {
     });
 
     const abortController = new AbortController();
-    this.runningWorkers.set(threadId, { worker, abort: abortController });
+    // 逆向: amp subscribes to child worker events$ for per-tool progress
+    let childEventSub: Subscription | undefined;
+    if (spawnOpts.onChildToolEvent) {
+      childEventSub = worker.events$.subscribe((event) => {
+        if (event.type === "tool:start" || event.type === "tool:complete") {
+          spawnOpts.onChildToolEvent!(threadId, event);
+        }
+      });
+    }
+    this.runningWorkers.set(threadId, { worker, abort: abortController, childEventSub });
 
     // ─── Step 4: 添加初始 user 消息 ──────────────
     this.opts.addMessage(threadId, {
@@ -243,6 +266,9 @@ export class SubAgentManager {
         while (turn < maxTurns && !timedOut && !abortController.signal.aborted) {
           turn++;
           await worker.runInference();
+
+          // 逆向: amp's toolProgressByToolUseID$ emits after each turn
+          spawnOpts.onTurnComplete?.(threadId);
 
           // ThreadWorker.runInference 已经处理了递归推理
           // 这里只需要检查推理状态
@@ -386,6 +412,7 @@ export class SubAgentManager {
   private cleanup(threadId: string): void {
     const entry = this.runningWorkers.get(threadId);
     if (entry) {
+      entry.childEventSub?.unsubscribe();
       entry.worker.dispose();
       this.runningWorkers.delete(threadId);
     }

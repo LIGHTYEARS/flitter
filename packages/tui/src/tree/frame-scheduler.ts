@@ -11,9 +11,6 @@
  * @module
  */
 
-import { logger } from "../debug/logger.js";
-
-const log = logger.scoped("frame");
 
 /**
  * 帧阶段类型。
@@ -89,35 +86,67 @@ export class FrameScheduler {
   /**
    * 请求调度一帧。
    *
+   * 逆向: amp k8.requestFrame — 永远不同步执行帧，
+   * 通过 setImmediate/setTimeout 延迟到下一次 event loop，
+   * 确保所有 pending I/O（如多个连续鼠标事件）先被处理完毕。
+   *
    * 如果当前正在执行帧，则标记 scheduled 标志位，在帧完成后自动触发新帧。
-   * 如果已有待执行的定时器，则忽略重复请求。
-   * 启用帧节流时，会在必要时延迟执行以满足最小帧间隔。
+   * 如果已有调度等待中，则忽略重复请求。
    */
   requestFrame(): void {
-    log.debug("requestFrame", {
-      inProgress: this._frameInProgress,
-      scheduled: this._frameScheduled,
-      pendingTimer: this._pendingFrameTimer !== null,
-    });
+    // 逆向: amp k8 line 37-40 — 帧执行中时仅标记，不重入
+    if (this._frameScheduled) return;
     if (this._frameInProgress) {
       this._frameScheduled = true;
       return;
     }
-    if (this._pendingFrameTimer !== null) {
+
+    this._frameScheduled = true;
+
+    if (!this._useFramePacing) {
+      // 逆向: amp k8 line 42-43 — 测试模式直接 setImmediate(0)
+      this._scheduleExecution(0);
       return;
     }
-    if (this._useFramePacing) {
-      const now = Date.now();
-      const elapsed = now - this._lastFrameTimestamp;
-      if (elapsed < FrameScheduler.MIN_FRAME_INTERVAL) {
-        const remaining = FrameScheduler.MIN_FRAME_INTERVAL - elapsed;
-        this._pendingFrameTimer = setTimeout(() => {
-          this._pendingFrameTimer = null;
-          this.executeFrame();
-        }, remaining);
-        return;
-      }
+
+    const now = performance.now();
+    const elapsed = now - this._lastFrameTimestamp;
+
+    if (this._lastFrameTimestamp === 0 || elapsed >= FrameScheduler.MIN_FRAME_INTERVAL) {
+      // 逆向: amp k8 line 49-50 — 足够时间已过，立即调度（但仍异步）
+      this._scheduleExecution(0);
+      return;
     }
+
+    // 逆向: amp k8 line 53-54 — 帧节流，等待剩余时间
+    const remaining = Math.max(0, FrameScheduler.MIN_FRAME_INTERVAL - elapsed);
+    this._scheduleExecution(remaining);
+  }
+
+  /**
+   * 调度帧执行。
+   *
+   * 逆向: amp k8.scheduleFrameExecution — delay=0 时用 setImmediate，
+   * 确保在当前 event loop 的所有 I/O callbacks 处理完后才执行帧。
+   * 这防止了连续鼠标事件之间的中间状态被渲染。
+   */
+  private _scheduleExecution(delay: number): void {
+    if (delay <= 0) {
+      // setImmediate 在 I/O callbacks 之后执行，让 pending 输入事件先被处理
+      setImmediate(() => this._runScheduledFrame());
+    } else {
+      this._pendingFrameTimer = setTimeout(() => this._runScheduledFrame(), delay);
+    }
+  }
+
+  /**
+   * 运行已调度的帧。
+   *
+   * 逆向: amp k8.runScheduledFrame
+   */
+  private _runScheduledFrame(): void {
+    this._pendingFrameTimer = null;
+    if (this._frameInProgress) return;
     this.executeFrame();
   }
 
@@ -165,47 +194,51 @@ export class FrameScheduler {
   /**
    * 执行一帧。
    *
-   * 按照 build -> layout -> paint -> render 顺序执行各阶段的回调，
-   * 然后执行所有一次性 post-frame 回调。
-   * 如果帧执行期间有新帧请求，帧完成后会自动触发一次后续帧（不会无限递归）。
+   * 逆向: amp k8.executeFrame — 清除 scheduled 标志，设置 inProgress，
+   * 执行四阶段 + post-frame 回调。帧完成后如果有新请求则重新调度。
    */
   executeFrame(): void {
-    this._runFrame();
+    if (this._frameInProgress) return;
 
-    // 如果帧执行期间收到了新帧请求，执行一次后续帧
-    if (this._frameScheduled) {
-      this._frameScheduled = false;
-      this._runFrame();
+    this._frameScheduled = false;
+    this._frameInProgress = true;
+    this._lastFrameTimestamp = performance.now();
+
+    try {
+      // 按顺序执行四个阶段
+      const phases: FramePhase[] = ["build", "layout", "paint", "render"];
+      for (const phase of phases) {
+        this._executePhase(phase);
+      }
+
+      // 执行一次性 post-frame 回调
+      const postCallbacks = [...this._postFrameCallbacks];
+      this._postFrameCallbacks = [];
+      for (const cb of postCallbacks) {
+        cb();
+      }
+    } finally {
+      this._frameInProgress = false;
+
+      // 逆向: amp k8 line 95-99 — 帧执行期间如果收到新请求，重新调度
+      if (this._frameScheduled) {
+        if (!this._useFramePacing) {
+          this._scheduleExecution(0);
+        } else {
+          const now = performance.now();
+          const elapsed = now - this._lastFrameTimestamp;
+          const delay = elapsed >= FrameScheduler.MIN_FRAME_INTERVAL
+            ? 0
+            : Math.max(0, FrameScheduler.MIN_FRAME_INTERVAL - elapsed);
+          this._scheduleExecution(delay);
+        }
+      }
     }
   }
 
-  /**
-   * 内部帧执行逻辑。
-   *
-   * 设置帧进行中标志，按顺序执行四个阶段的回调，
-   * 执行一次性 post-frame 回调，然后清除帧进行中标志。
-   */
+  /** @deprecated 已合并到 executeFrame，保留仅为向后兼容测试 */
   private _runFrame(): void {
-    this._frameInProgress = true;
-    log.debug("frameStart");
-    this._frameScheduled = false;
-    this._lastFrameTimestamp = Date.now();
-
-    // 按顺序执行四个阶段
-    const phases: FramePhase[] = ["build", "layout", "paint", "render"];
-    for (const phase of phases) {
-      this._executePhase(phase);
-    }
-
-    // 执行一次性 post-frame 回调
-    const postCallbacks = [...this._postFrameCallbacks];
-    this._postFrameCallbacks = [];
-    for (const cb of postCallbacks) {
-      cb();
-    }
-
-    log.debug("frameEnd");
-    this._frameInProgress = false;
+    this.executeFrame();
   }
 
   /**

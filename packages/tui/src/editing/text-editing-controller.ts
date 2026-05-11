@@ -184,6 +184,8 @@ export class TextEditingController {
   private static readonly MAX_UNDO_SIZE = 100;
   /** Guard flag to prevent nested _pushUndo calls */
   private _undoGuard: boolean = false;
+  /** 是否已销毁 */
+  private _disposed: boolean = false;
 
   /**
    * 创建文本编辑控制器

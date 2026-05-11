@@ -15,6 +15,9 @@ import { Element } from "../tree/element.js";
 import type { BuildOwnerLike } from "../tree/types.js";
 import { setBuildOwner } from "../tree/types.js";
 import type { KeyEvent } from "../vt/types.js";
+import { Focus } from "../widgets/focus.js";
+import type { MouseEvent as ScrollMouseEvent } from "../widgets/mouse-region.js";
+import { MouseRegion } from "../widgets/mouse-region.js";
 import { RenderScrollable } from "./render-scrollable.js";
 import { ScrollController } from "./scroll-controller.js";
 import { Scrollable, type ScrollableState, ScrollViewport } from "./scrollable.js";
@@ -61,6 +64,47 @@ class MockBuildOwner implements BuildOwnerLike {
   scheduleBuildFor(element: unknown): void {
     this.scheduledElements.push(element);
   }
+}
+
+/**
+ * 创建滚轮事件，走 Scrollable.build() 暴露出的 MouseRegion.onScroll 真实入口。
+ */
+function wheel(
+  direction: "up" | "down" | "left" | "right",
+  mods?: { shift?: boolean; ctrl?: boolean; alt?: boolean; meta?: boolean },
+): ScrollMouseEvent {
+  return {
+    type: "scroll",
+    direction,
+    position: { x: 0, y: 0 },
+    localPosition: { x: 0, y: 0 },
+    modifiers: {
+      shift: mods?.shift ?? false,
+      ctrl: mods?.ctrl ?? false,
+      alt: mods?.alt ?? false,
+      meta: mods?.meta ?? false,
+    },
+  };
+}
+
+/**
+ * 挂载 Scrollable 并提取 Focus > MouseRegion 入口，避免直接调用 state 方法。
+ */
+function mountScrollableEntry(scrollable: Scrollable): {
+  element: Element;
+  state: ScrollableState;
+  focus: Focus;
+  mouseRegion: MouseRegion;
+} {
+  const element = scrollable.createElement();
+  element.mount(undefined);
+
+  const state = (element as unknown as { _state: ScrollableState })._state;
+  const builtWidget = state.build(element as unknown as BuildContext);
+  const focus = builtWidget as Focus;
+  const mouseRegion = focus.child as MouseRegion;
+
+  return { element, state, focus, mouseRegion };
 }
 
 // ════════════════════════════════════════════════════
@@ -241,5 +285,222 @@ describe("Scrollable StatefulWidget", () => {
   it("static computeMaxScrollExtent works (backward compat)", () => {
     expect(Scrollable.computeMaxScrollExtent(50, 20)).toBe(30);
     expect(Scrollable.computeMaxScrollExtent(10, 20)).toBe(0);
+  });
+
+  it("initializes followMode for bottom-positioned views only once", () => {
+    const controller = new ScrollController();
+    const scrollable = new Scrollable({
+      controller,
+      position: "bottom",
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    });
+    const element = scrollable.createElement();
+    element.mount(undefined);
+
+    const state = (element as unknown as { _state: ScrollableState })._state;
+    expect(state.controller.followMode).toBe(true);
+
+    state.controller.disableFollowMode();
+    state.build(element as unknown as BuildContext);
+
+    expect(state.controller.followMode).toBe(false);
+
+    element.unmount();
+    controller.dispose();
+  });
+
+  it("syncs followMode when position changes through didUpdateWidget", () => {
+    const controller = new ScrollController();
+    const element = new Scrollable({
+      controller,
+      position: "bottom",
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    }).createElement();
+    element.mount(undefined);
+
+    const state = (element as unknown as { _state: ScrollableState })._state;
+    expect(state.controller.followMode).toBe(true);
+
+    element.update(
+      new Scrollable({
+        controller,
+        position: "top",
+        viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+      }),
+    );
+    expect(state.controller.followMode).toBe(false);
+
+    element.update(
+      new Scrollable({
+        controller,
+        position: "bottom",
+        viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+      }),
+    );
+    expect(state.controller.followMode).toBe(true);
+
+    element.unmount();
+    controller.dispose();
+  });
+
+  it("rebinds ScrollBehavior and scroll listener when controller changes through didUpdateWidget", () => {
+    const controller1 = new ScrollController();
+    controller1.disableFollowMode();
+    controller1.updateMaxScrollExtent(100);
+
+    const controller2 = new ScrollController();
+    controller2.disableFollowMode();
+    controller2.updateMaxScrollExtent(100);
+
+    const element = new Scrollable({
+      controller: controller1,
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    }).createElement();
+    element.mount(undefined);
+
+    const state = (element as unknown as { _state: ScrollableState })._state;
+
+    element.update(
+      new Scrollable({
+        controller: controller2,
+        viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+      }),
+    );
+
+    expect(state.handleKeyEvent(key("ArrowDown"))).toBe("handled");
+    expect(controller1.offset).toBe(0);
+    expect(controller2.offset).toBe(3);
+
+    element.performRebuild();
+    mockOwner.scheduledElements = [];
+
+    controller2.jumpTo(10);
+    expect(mockOwner.scheduledElements).toEqual([element]);
+
+    element.performRebuild();
+    mockOwner.scheduledElements = [];
+
+    controller1.jumpTo(10);
+    expect(mockOwner.scheduledElements).toHaveLength(0);
+
+    element.unmount();
+    controller1.dispose();
+    controller2.dispose();
+  });
+
+  it("syncs ScrollBehavior axisDirection when switching between vertical and horizontal at runtime", () => {
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(100);
+
+    const element = new Scrollable({
+      controller,
+      axisDirection: "vertical",
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    }).createElement();
+    element.mount(undefined);
+
+    const state = (element as unknown as { _state: ScrollableState })._state;
+
+    expect(state.handleKeyEvent(key("ArrowDown"))).toBe("handled");
+    expect(controller.offset).toBe(3);
+
+    element.update(
+      new Scrollable({
+        controller,
+        axisDirection: "horizontal",
+        viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+      }),
+    );
+
+    expect(state.handleKeyEvent(key("ArrowDown"))).toBe("ignored");
+    expect(controller.offset).toBe(3);
+    expect(state.handleKeyEvent(key("ArrowRight"))).toBe("handled");
+    expect(controller.offset).toBe(6);
+
+    element.update(
+      new Scrollable({
+        controller,
+        axisDirection: "vertical",
+        viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+      }),
+    );
+
+    expect(state.handleKeyEvent(key("ArrowRight"))).toBe("ignored");
+    expect(controller.offset).toBe(6);
+    expect(state.handleKeyEvent(key("ArrowDown"))).toBe("handled");
+    expect(controller.offset).toBe(9);
+
+    element.unmount();
+    controller.dispose();
+  });
+
+  it("returns false when MouseRegion.onScroll does not change controller.offset", () => {
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(10);
+    controller.jumpTo(0);
+
+    const scrollable = new Scrollable({
+      controller,
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    });
+
+    const { element, mouseRegion } = mountScrollableEntry(scrollable);
+
+    expect(mouseRegion.onScroll?.(wheel("up"))).toBe(false);
+    expect(controller.offset).toBe(0);
+
+    element.unmount();
+    controller.dispose();
+  });
+
+  it("returns true when MouseRegion.onScroll changes controller.offset", () => {
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(10);
+    controller.jumpTo(5);
+
+    const scrollable = new Scrollable({
+      controller,
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    });
+
+    const { element, mouseRegion } = mountScrollableEntry(scrollable);
+
+    expect(mouseRegion.onScroll?.(wheel("down"))).toBe(true);
+    expect(controller.offset).toBe(6);
+
+    element.unmount();
+    controller.dispose();
+  });
+
+  it("lets mouse wheel take over an in-flight animation through MouseRegion.onScroll", async () => {
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(200);
+
+    const scrollable = new Scrollable({
+      controller,
+      viewportBuilder: (_ctx, _ctrl) => new LeafWidget(),
+    });
+
+    const { element, mouseRegion } = mountScrollableEntry(scrollable);
+
+    controller.animateTo(100, 80);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const animatedOffset = controller.offset;
+    expect(animatedOffset).toBeGreaterThan(0);
+
+    expect(mouseRegion.onScroll?.(wheel("down"))).toBe(true);
+    const takenOverOffset = controller.offset;
+    expect(takenOverOffset).toBe(animatedOffset + 1);
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    expect(controller.offset).toBe(takenOverOffset);
+
+    element.unmount();
+    controller.dispose();
   });
 });

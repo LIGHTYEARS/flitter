@@ -35,9 +35,8 @@ import {
   EdgeInsets,
   Expanded,
   GestureDetector,
-  MarkdownParser,
-  MarkdownRenderer,
   type MarkdownTheme,
+  MarkdownView,
   RenderChart,
   RichText,
   Row,
@@ -234,7 +233,7 @@ const ROLE_CONFIG: Record<string, { prefix: string; color: Color }> = {
  * ConversationView -- 消息列表显示 Widget。
  *
  * 渲染消息列表，支持:
- * - Markdown 内容渲染 (MarkdownParser + MarkdownRenderer)
+ * - Markdown 内容渲染 (MarkdownView Widget)
  * - 角色指示器 (bold + 色彩编码)
  * - 空状态提示
  * - 错误内联显示 (红色 + 重试提示)
@@ -287,11 +286,8 @@ export class ConversationView extends StatefulWidget {
  *        qr (2821_unknown_qr.js) — status color mapping
  */
 export class ConversationViewState extends State<ConversationView> {
-  /** Markdown 解析器 (复用实例) */
-  private _parser!: MarkdownParser;
-
-  /** Markdown 渲染器 (复用实例) */
-  private _renderer!: MarkdownRenderer;
+  /** Markdown 渲染主题 */
+  private _markdownTheme!: MarkdownTheme;
 
   /**
    * Braille spinner for in-progress tool indicators.
@@ -348,23 +344,20 @@ export class ConversationViewState extends State<ConversationView> {
   /**
    * 初始化状态。
    *
-   * 创建 MarkdownParser 和 MarkdownRenderer 实例。
+   * 计算 MarkdownTheme 供 MarkdownView 使用。
    */
   initState(): void {
     super.initState();
-    this._parser = new MarkdownParser();
     // 逆向: chunk-006.js:11773 — R.app.syntaxHighlight wired into markdown renderer
     // 逆向: 1472_tui_components/text_rendering.js:1282-1328 — full styleScheme from theme context
     // Read AppTheme to build full MarkdownTheme; fall back to default theme
-    let markdownTheme: MarkdownTheme;
     try {
       const appTheme = AppThemeController.maybeOf(this.context as unknown as Element);
-      markdownTheme = appTheme ? this._createMarkdownTheme(appTheme) : defaultMarkdownTheme();
+      this._markdownTheme = appTheme ? this._createMarkdownTheme(appTheme) : defaultMarkdownTheme();
     } catch {
       // No AppThemeController in ancestor tree — fall back to default theme
-      markdownTheme = defaultMarkdownTheme();
+      this._markdownTheme = defaultMarkdownTheme();
     }
-    this._renderer = new MarkdownRenderer({ markdownTheme });
     if (this.widget.config.scrollController) {
       this._scrollController = this.widget.config.scrollController;
       this._ownsScrollController = false;
@@ -795,40 +788,48 @@ export class ConversationViewState extends State<ConversationView> {
       }),
     });
 
-    const ast = this._parser.parse(item.text);
-    // 逆向: x8R — use renderStreaming() for streaming messages (strips trailing empty paragraphs)
-    const contentSpans = item.isStreaming
-      ? this._renderer.renderStreaming(ast)
-      : this._renderer.render(ast);
+    // Markdown 内容: MarkdownView Widget 直接渲染
+    // 逆向: x8R — use streaming mode for streaming messages (strips trailing empty paragraphs)
+    const markdownWidget = new MarkdownView({
+      content: item.text,
+      streaming: item.isStreaming,
+    });
 
-    const children: TextSpan[] = [];
+    const widgetChildren: Widget[] = [];
 
     // Only add role prefix if non-empty
     // 逆向: amp has NO assistant prefix — only user messages get ┃ border
     if (roleConfig.prefix) {
-      children.push(roleSpan, new TextSpan({ text: "\n" }));
-    }
-
-    if (item.images && item.images > 0) {
-      children.push(...this._buildImageLabels(item.images));
-    }
-    children.push(...contentSpans);
-
-    // 逆向: x8R — append block cursor █ in accent color for streaming messages
-    if (item.isStreaming) {
-      children.push(
-        new TextSpan({
-          text: "\u2588", // █ block cursor
-          style: new TextStyle({ foreground: ACCENT_COLOR }),
+      widgetChildren.push(
+        new RichText({
+          text: new TextSpan({ children: [roleSpan] }),
         }),
       );
     }
 
-    const messageWidget = new RichText({
-      text: new TextSpan({
-        children,
-      }),
-      selectable: true,
+    if (item.images && item.images > 0) {
+      widgetChildren.push(
+        new RichText({
+          text: new TextSpan({ children: this._buildImageLabels(item.images) }),
+        }),
+      );
+    }
+    widgetChildren.push(markdownWidget);
+
+    // 逆向: x8R — append block cursor █ in accent color for streaming messages
+    if (item.isStreaming) {
+      widgetChildren.push(
+        new RichText({
+          text: new TextSpan({
+            text: "\u2588", // █ block cursor
+            style: new TextStyle({ foreground: ACCENT_COLOR }),
+          }),
+        }),
+      );
+    }
+
+    const messageWidget = new Column({
+      children: widgetChildren,
     });
 
     // Token usage display (逆向: NJT feature flag)
@@ -906,29 +907,36 @@ export class ConversationViewState extends State<ConversationView> {
     _appTheme?: AppTheme | null,
     isSelected?: boolean,
   ): Widget {
-    const ast = this._parser.parse(item.text);
-    const contentSpans = this._renderer.render(ast);
+    // Markdown 内容: MarkdownView Widget 直接渲染
+    const markdownWidget = new MarkdownView({
+      content: item.text,
+    });
 
-    // Prepend image labels if images exist
-    const allSpans: TextSpan[] = [];
+    // 构建内容 Widget 列表
+    const contentChildren: Widget[] = [];
     if (item.images && item.images > 0) {
-      allSpans.push(...this._buildImageLabels(item.images));
+      contentChildren.push(
+        new RichText({
+          text: new TextSpan({ children: this._buildImageLabels(item.images) }),
+        }),
+      );
     }
-    allSpans.push(...contentSpans);
+    contentChildren.push(markdownWidget);
 
     if (item.interrupted) {
-      allSpans.push(
-        new TextSpan({
-          text: " (interrupted)",
-          style: new TextStyle({ foreground: WARNING_COLOR, italic: true }),
+      contentChildren.push(
+        new RichText({
+          text: new TextSpan({
+            text: " (interrupted)",
+            style: new TextStyle({ foreground: WARNING_COLOR, italic: true }),
+          }),
         }),
       );
     }
 
-    const content = new RichText({
-      text: new TextSpan({ children: allSpans }),
-      selectable: true,
-    });
+    const content = contentChildren.length === 1
+      ? contentChildren[0]
+      : new Column({ children: contentChildren });
 
     let borderWidget: Widget;
 
@@ -1976,38 +1984,39 @@ export class ConversationViewState extends State<ConversationView> {
     };
 
     // 角色指示器: bold + 角色颜色
-    const roleSpan = new TextSpan({
-      text: roleConfig.prefix,
-      style: new TextStyle({
-        bold: true,
-        foreground: roleConfig.color,
+    const roleWidget = new RichText({
+      text: new TextSpan({
+        text: roleConfig.prefix,
+        style: new TextStyle({
+          bold: true,
+          foreground: roleConfig.color,
+        }),
       }),
     });
 
-    // 消息内容: 通过 MarkdownParser + MarkdownRenderer 管线渲染
-    const ast = this._parser.parse(message.content);
-    const contentSpans = this._renderer.render(ast);
+    // Markdown 内容: MarkdownView Widget 直接渲染
+    const markdownWidget = new MarkdownView({
+      content: message.content,
+      streaming: isStreaming,
+    });
 
-    // 组合: 角色指示器 + 换行 + 内容 + 流式指示器 (如果需要)
-    const children: TextSpan[] = [roleSpan, new TextSpan({ text: "\n" }), ...contentSpans];
+    const children: Widget[] = [roleWidget, markdownWidget];
 
     // 逆向: 当 inferenceState === "running" 时追加 "..." 流式指示器
     // 这与现代路径的 █ 不同 — 现代路径使用 item.isStreaming 与光标,
     // 而 legacy 路径使用 inferenceState 与 "..." 作为简单指示器。
     if (isStreaming) {
       children.push(
-        new TextSpan({
-          text: "...",
-          style: new TextStyle({ foreground: ACCENT_COLOR }),
+        new RichText({
+          text: new TextSpan({
+            text: "...",
+            style: new TextStyle({ foreground: ACCENT_COLOR }),
+          }),
         }),
       );
     }
 
-    return new RichText({
-      text: new TextSpan({
-        children,
-      }),
-    });
+    return new Column({ children });
   }
 
   /**

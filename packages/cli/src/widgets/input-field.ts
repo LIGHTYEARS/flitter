@@ -443,6 +443,15 @@ export class InputFieldState extends State<InputField> {
                 }),
                 child: this.widget.config.topWidget,
               }),
+              // Separator between topWidget and input area
+              // 逆向: U8R returns xR { children: [...shortcuts, separator] }
+              // where separator is a horizontal rule connecting the side borders
+              new RichText({
+                text: new TextSpan({
+                  text: `├${"─".repeat(borderInnerWidth + 2)}┤`,
+                  style: borderStyle,
+                }),
+              }),
             ]
           : []),
         // 内容区: │ content │ (3 行, 左右各 │ 边框)

@@ -13,6 +13,9 @@
 import { Color } from "../screen/color.js";
 import { TextStyle } from "../screen/text-style.js";
 import { SyntaxHighlighter, type SyntaxTheme } from "./syntax-highlight.js";
+import { InheritedWidget } from "../tree/inherited-widget.js";
+import type { Widget, Key } from "../tree/element.js";
+import type { Element } from "../tree/element.js";
 
 /**
  * Markdown 渲染主题接口。
@@ -63,4 +66,53 @@ export function defaultMarkdownTheme(): MarkdownTheme {
     tableBorder: Color.indexed(8),
     syntaxTheme: SyntaxHighlighter.defaultTheme(),
   };
+}
+
+/**
+ * Markdown 主题 InheritedWidget。
+ *
+ * 在 Widget 树中注入 MarkdownTheme 数据，子 Widget 通过
+ * `MarkdownThemeWidget.of(context)` 获取。
+ *
+ * 逆向: amp $R.of(context) — 从 BuildContext 获取 styleScheme。
+ *
+ * @example
+ * ```ts
+ * const themed = new MarkdownThemeWidget({
+ *   data: defaultMarkdownTheme(),
+ *   child: new MarkdownView({ content: "# Hello" }),
+ * });
+ * ```
+ */
+export class MarkdownThemeWidget extends InheritedWidget {
+  /** 主题数据 */
+  readonly data: MarkdownTheme;
+
+  constructor(opts: { data: MarkdownTheme; child: Widget; key?: Key }) {
+    super({ child: opts.child, key: opts.key });
+    this.data = opts.data;
+  }
+
+  /**
+   * 从 BuildContext (Element) 获取最近的 MarkdownTheme。
+   *
+   * 找不到时返回默认主题。
+   *
+   * @param context - 当前 Element (BuildContext)
+   * @returns MarkdownTheme 数据
+   */
+  static of(context: Element): MarkdownTheme {
+    const element = context.dependOnInheritedWidgetOfExactType(MarkdownThemeWidget);
+    if (element) {
+      return (element.widget as MarkdownThemeWidget).data;
+    }
+    return defaultMarkdownTheme();
+  }
+
+  /**
+   * 判断主题数据是否变化。
+   */
+  updateShouldNotify(oldWidget: MarkdownThemeWidget): boolean {
+    return this.data !== oldWidget.data;
+  }
 }

@@ -257,10 +257,31 @@ export class Screen {
 
   /**
    * 清空后缓冲区并标记需要全量刷新。
+   *
+   * Use this for explicit user-triggered refresh (e.g., Ctrl+L) or
+   * situations where we truly need to clear and fully redraw the terminal.
    */
   clear(): void {
     this.back.clear();
     this.needsFullRefresh = true;
+  }
+
+  /**
+   * 清空后缓冲区以准备新一帧的绘制，但不标记全量刷新。
+   *
+   * 逆向: amp Zx.clear() (modules/0490_unknown_Zx.js:43-44)
+   *   clear() { this.backBuffer.clear(); }
+   *   — amp's clear() only clears backBuffer cells, it does NOT set needsFullRefresh.
+   *   — needsFullRefresh is only set by markForRefresh() (called on resize).
+   *
+   * After clearing the back buffer, the subsequent render will compare back vs
+   * front (via getDirtyOnly) to emit only changed cells — enabling incremental
+   * diff rendering instead of full-screen redraws every frame.
+   */
+  clearBackBuffer(): void {
+    this.back.clear();
+    this.dirtyRows.clear();
+    this.dirtyCells.clear();
   }
 
   /**
@@ -395,25 +416,37 @@ export class Screen {
   }
 
   /**
-   * 增量刷新：仅返回标记为脏的单元格。
+   * 增量刷新：比较前后缓冲区，返回有差异的单元格。
+   *
+   * 逆向: amp Zx.getDiff() (modules/0490_unknown_Zx.js:53-99)
+   *   Compares frontBuffer vs backBuffer cell-by-cell and returns only
+   *   cells that differ. This is the core of amp's incremental rendering.
+   *
+   * Note: We compare back vs front directly rather than relying on dirty-cell
+   * tracking, because the back buffer is cleared every frame before painting.
+   * After clear, every painted cell would be "dirty" relative to cleared state,
+   * which is meaningless. What matters is: what changed relative to what's
+   * currently displayed (front buffer)?
    *
    * @internal
    */
   private getDirtyOnly(): DirtyRegion[] {
     const regions: DirtyRegion[] = [];
-    const sortedRows = Array.from(this.dirtyRows).sort((a, b) => a - b);
 
-    for (const y of sortedRows) {
-      const cols = this.dirtyCells.get(y);
-      if (!cols || cols.size === 0) continue;
-
-      const sortedCols = Array.from(cols).sort((a, b) => a - b);
+    for (let y = 0; y < this.height; y++) {
       const cells: Array<{ x: number; cell: Cell }> = [];
-      for (const x of sortedCols) {
-        cells.push({ x, cell: this.back.getCell(x, y) });
+      for (let x = 0; x < this.width; x++) {
+        const backCell = this.back.getCell(x, y);
+        const frontCell = this.front.getCell(x, y);
+        if (!backCell.equals(frontCell)) {
+          cells.push({ x, cell: backCell });
+        }
       }
-      regions.push({ y, cells });
+      if (cells.length > 0) {
+        regions.push({ y, cells });
+      }
     }
+
     return regions;
   }
 }

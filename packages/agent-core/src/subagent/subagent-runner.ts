@@ -65,7 +65,7 @@ export class SubAgentRunner {
    * 运行子代理并返回完整的 SubAgentRunnerEvent (含 turns/progress)。
    * 逆向: hXR() → wi.run() → iXR 映射
    *
-   * @param opts - SubAgentManager.spawn() 参数
+   * @param opts - SubAgentManager.spawn() 参数 (may include onTurnComplete for live progress)
    */
   async run(opts: SubAgentOptions): Promise<SubAgentRunnerEvent> {
     const result = await this.deps.subAgentManager.spawn(opts);
@@ -105,7 +105,7 @@ export class SubAgentRunner {
    * 我们扫描所有 assistant 消息, 每个生成一个 turn;
    * 然后用下一条 user 消息中的 tool_result 填充 tool 的执行状态
    */
-  private extractTurns(threadId: string): SubAgentTurn[] {
+  extractTurns(threadId: string): SubAgentTurn[] {
     const snapshot = this.deps.getThreadSnapshot(threadId);
     if (!snapshot) return [];
 

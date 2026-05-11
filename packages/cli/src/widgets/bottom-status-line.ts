@@ -58,9 +58,16 @@ export function deriveBottomStatus(
   runningToolCount = 0,
   waitingForApproval = false,
 ): string | null {
-  if (inferenceState === "idle") return null;
+  // 逆向: yB() (2731_unknown_yB.js:54-90)
+  // 优先级: approval > tool-running > inference running > idle
+  // 关键: 工具执行和审批状态独立于 inferenceState，必须先判断
   if (waitingForApproval) return "Waiting for approval...";
-  if (runningToolCount > 0) return "Running tools...";
+  if (runningToolCount > 0) {
+    // 逆向: yB() line 64-67 — 多工具时显示数量
+    if (runningToolCount > 1) return `Running ${runningToolCount} tools...`;
+    return "Running tools...";
+  }
+  if (inferenceState === "idle") return null;
   if (hasStartedStreaming) return "Streaming response...";
   return "Waiting for response...";
 }

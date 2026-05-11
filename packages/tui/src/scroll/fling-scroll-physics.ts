@@ -147,6 +147,13 @@ export class FlingScrollPhysics implements ScrollPhysics {
   /**
    * Clamp offset to bounds (delegates to ClampingScrollPhysics).
    */
+  shouldAcceptUserOffset(): boolean {
+    return this._clamping.shouldAcceptUserOffset();
+  }
+
+  /**
+   * Clamp offset to bounds (delegates to ClampingScrollPhysics).
+   */
   clampOffset(offset: number, minExtent: number, maxExtent: number): number {
     return this._clamping.clampOffset(offset, minExtent, maxExtent);
   }

@@ -68,6 +68,7 @@ import type {
   FocusEvent as TermFocusEvent,
   MouseEvent as TermMouseEvent,
 } from "../vt/types.js";
+import { JetBrainsWheelFilter, isJetBrainsTerminal } from "../vt/jetbrains-wheel-filter.js";
 import { QueryParser } from "./query-parser.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 import { createTtyInput, createTtyOutput } from "./tty-input.js";
@@ -348,6 +349,9 @@ export class TuiController {
 
   private focusHandlers: ((event: TermFocusEvent) => void)[] = [];
 
+  /** JetBrains 终端滚轮事件过滤器 逆向: XXT.jetBrainsWheelFilter in 2112_unknown_XXT.js:18 */
+  private jetBrainsWheelFilter: JetBrainsWheelFilter | null = null;
+
   /** 绑定的 resize 处理函数引用（用于移除监听器） */
   private boundHandleResize = this.handleResize.bind(this);
   /** 绑定的 cleanup 处理函数引用（用于移除监听器） */
@@ -358,6 +362,9 @@ export class TuiController {
   constructor() {
     this.screen = new Screen(80, 24);
     this.renderer = new AnsiRenderer();
+    this.jetBrainsWheelFilter = new JetBrainsWheelFilter((event) => {
+      for (const handler of this.mouseHandlers) handler(event);
+    });
   }
 
   // ════════════════════════════════════════════════════
@@ -391,6 +398,10 @@ export class TuiController {
             this.handleKeyEvent(event);
             break;
           case "mouse":
+            // 逆向: amp 2112_unknown_XXT.js:75-77 — 仅 JetBrains 终端启用滚轮过滤
+            if (isJetBrainsTerminal() && !this.jetBrainsWheelFilter?.handleWheelEvent(event)) {
+              break;
+            }
             for (const handler of this.mouseHandlers) handler(event);
             break;
           case "paste":
@@ -529,6 +540,8 @@ export class TuiController {
     this.parser = null;
     this.capabilities = null;
     this._queryParser = null;
+    this.jetBrainsWheelFilter?.dispose();
+    this.jetBrainsWheelFilter = null;
     this.initialized = false;
   }
 
@@ -839,6 +852,7 @@ export class TuiController {
    */
   render(): void {
     const output = this.renderer.render(this.screen);
+    TuiController.log.debug("render", { outputLen: output.length, fullRefresh: this.screen.needsFullRefresh });
     if (output) {
       // 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:188-201
       // Amp wraps render output with startSync()/endSync() to prevent visual tearing.
@@ -948,6 +962,7 @@ export class TuiController {
       this.capabilityResolve();
       this.capabilityResolve = null;
     }
+    this._installPixelMouseConverter();
     // 逆向: XXT.js:429 — if (capabilities.emojiWidth) this.enableEmojiWidth()
     this.enableEmojiWidth();
     // 逆向: XXT.js:431 — this.enableModifyOtherKeys() — unconditional, no capability gate
@@ -999,6 +1014,52 @@ export class TuiController {
    */
   get queryParser(): QueryParser | null {
     return this._queryParser;
+  }
+
+  /**
+   * 根据当前 pixel mouse 能力安装 SGR 鼠标坐标转换器。
+   */
+  private _installPixelMouseConverter(): void {
+    const pixelData = this._queryParser?.getPixelDimensions();
+    if (!this._queryParser?.shouldUsePixelMouse() || !pixelData || !this.parser) {
+      return;
+    }
+
+    const cellWidth = pixelData.pixelWidth / pixelData.columns;
+    const cellHeight = pixelData.pixelHeight / pixelData.rows;
+
+    this.parser.setSgrMouseConverter((buttonByte, x1, y1, finalChar) => {
+      const action =
+        buttonByte >= 64 && buttonByte < 128
+          ? ((buttonByte & ~0x1c) === 64 ? "wheel_up" : "wheel_down")
+          : finalChar === "M"
+            ? "press"
+            : "release";
+      const button =
+        buttonByte >= 64 && buttonByte < 128
+          ? "none"
+          : (buttonByte & 0x03) === 0
+            ? "left"
+            : (buttonByte & 0x03) === 1
+              ? "middle"
+              : (buttonByte & 0x03) === 2
+                ? "right"
+                : "none";
+
+      return {
+        type: "mouse",
+        action,
+        button,
+        x: (x1 - 1) / cellWidth,
+        y: (y1 - 1) / cellHeight,
+        modifiers: {
+          shift: (buttonByte & 0x04) !== 0,
+          alt: (buttonByte & 0x08) !== 0,
+          ctrl: (buttonByte & 0x10) !== 0,
+          meta: false,
+        },
+      };
+    });
   }
 
   // ════════════════════════════════════════════════════
@@ -1054,7 +1115,17 @@ export class TuiController {
    * @private
    */
   private enableMouse(): void {
-    this.ttyOutput?.stream.write(MOUSE_ON);
+    const shouldUsePixelMouse = this._queryParser?.shouldUsePixelMouse() ?? false;
+    this.ttyOutput?.stream.write(this.renderer.enableMouse(shouldUsePixelMouse));
+  }
+
+  /**
+   * 禁用鼠标追踪。
+   *
+   * @private
+   */
+  private disableMouse(): void {
+    this.ttyOutput?.stream.write(this.renderer.disableMouse());
   }
 
   /**
@@ -1144,6 +1215,27 @@ export class TuiController {
     });
 
     this.terminalSize = { width: event.width, height: event.height };
+
+    if (this._queryParser && event.pixelWidth > 0 && event.pixelHeight > 0) {
+      const usedPixelMouseBefore = this._queryParser.shouldUsePixelMouse();
+      this._queryParser.updateInbandPixelData(
+        event.width,
+        event.height,
+        event.pixelWidth,
+        event.pixelHeight,
+      );
+      const usedPixelMouseAfter = this._queryParser.shouldUsePixelMouse();
+
+      if (!usedPixelMouseBefore && usedPixelMouseAfter) {
+        this.disableMouse();
+        this.enableMouse();
+      }
+
+      if (usedPixelMouseAfter) {
+        this._installPixelMouseConverter();
+      }
+    }
+
     this.screen.resize(event.width, event.height);
 
     const size = this.terminalSize;

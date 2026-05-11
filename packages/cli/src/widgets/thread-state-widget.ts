@@ -41,7 +41,6 @@ import {
   Padding,
   Positioned,
   Row,
-  Scrollable,
   ScrollController,
   SelectionAreaWidget,
   SizedBox,
@@ -64,6 +63,7 @@ import { projectStreamingMessage, transformThreadToDisplayItems } from "./displa
 import { InputField } from "./input-field.js";
 import { PromptHistory } from "./prompt-history.js";
 import { ShortcutsPopup } from "./shortcuts-popup.js";
+import type { ProgressChunk } from "./subagent-content.js";
 import type { ToastManager } from "./toast-manager.js";
 import { ToastOverlay } from "./toast-overlay.js";
 import { WelcomeScreen } from "./welcome-screen.js";
@@ -278,6 +278,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
 
   /** Running tool count for status bar (逆向: yB tool tracking) */
   private _runningToolCount = 0;
+
+  /**
+   * Live subagent progress keyed by parent tool_use ID.
+   * 逆向: amp's toolProgressByToolUseID$ — out-of-band progress for in-progress tools.
+   * Cleared for a tool when its tool:complete event arrives.
+   */
+  private _toolProgressByToolUseID = new Map<string, ProgressChunk[]>();
 
   /** Total input tokens consumed in this session */
   private _totalInputTokens = 0;
@@ -806,28 +813,27 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         };
         this._lastSnapshot = snap;
         this.setState(() => {
-          // 逆向: yx0() pipeline — transform raw thread messages into DisplayItems
-          this._items = transformThreadToDisplayItems(
-            (snap.messages ?? []) as Parameters<typeof transformThreadToDisplayItems>[0],
-          );
-          // 逆向: ttT.emitThread() — append projected streaming message
-          if (this._streamingBlocks.length > 0 && this._streamingMessageId) {
-            const projected = projectStreamingMessage(
-              this._streamingBlocks as Parameters<typeof projectStreamingMessage>[0],
-              this._streamingMessageId,
+          // 逆向: ttT.onMessageEvent — clear streaming state when snapshot contains
+          // the committed message, BEFORE rebuilding items (prevents duplicate projection)
+          if (this._streamingMessageId) {
+            const msgs = snap.messages ?? [];
+            const committed = msgs.find(
+              (m: Record<string, unknown>) =>
+                String(m.messageId) === this._streamingMessageId &&
+                Array.isArray(m.content) &&
+                (m.content as Array<{ type: string }>).some((b) => b.type === "tool_use"),
             );
-            if (projected) {
-              const projectedItems = transformThreadToDisplayItems([projected] as Parameters<
-                typeof transformThreadToDisplayItems
-              >[0]);
-              this._items = [...this._items, ...projectedItems];
+            if (committed) {
+              this._streamingBlocks = [];
+              this._streamingMessageId = null;
             }
           }
+          // 逆向: yx0() pipeline — transform raw thread messages into DisplayItems
+          this._rebuildItems();
         });
-        // 自动滚动到底部 (新消息到达时)
-        if (this._scrollController.followMode) {
-          this._scrollController.scrollToBottom();
-        }
+        // 逆向: amp handles auto-scroll at layout level in v1T.performLayout(),
+        // not via imperative scrollToBottom() after setState. The RenderScrollable
+        // snapshots atBottom before updateMaxScrollExtent and jumpTo(newMax) if followMode.
       });
     }
 
@@ -921,11 +927,25 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         case "tool:complete":
           this.setState(() => {
             this._runningToolCount = Math.max(0, this._runningToolCount - 1);
+            // 逆向: amp clearToolProgressFromBlocks — remove live progress once real result arrives
+            if (ev.toolUseId) {
+              this._toolProgressByToolUseID.delete(ev.toolUseId);
+            }
             // Clear pending approval if this tool completed
             // 逆向: jetbrains_wizard.js — pendingApprovals filtered on tool completion
             if (this._pendingApproval && ev.toolUseId === this._pendingApproval.toolUseId) {
               this._pendingApproval = null;
               this._waitingForApproval = false;
+            }
+          });
+          break;
+        case "tool:progress":
+          this.setState(() => {
+            // 逆向: amp's toolProgressByToolUseID$ — store live subagent progress
+            const progressEv = ev as { toolUseId?: string; progress?: ProgressChunk[] };
+            if (progressEv.toolUseId && progressEv.progress) {
+              this._toolProgressByToolUseID.set(progressEv.toolUseId, progressEv.progress);
+              this._rebuildItems();
             }
           });
           break;
@@ -961,6 +981,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    */
   private _rebuildItems(): void {
     if (!this._lastSnapshot) return;
+    // 逆向: ttT.onMessageEvent — suppress streaming projection when snapshot
+    // already contains the committed message with tool_use blocks
+    if (this._streamingMessageId) {
+      const msgs = this._lastSnapshot.messages ?? [];
+      const committed = msgs.find(
+        (m: Record<string, unknown>) =>
+          String(m.messageId) === this._streamingMessageId &&
+          Array.isArray(m.content) &&
+          (m.content as Array<{ type: string }>).some((b) => b.type === "tool_use"),
+      );
+      if (committed) {
+        this._streamingBlocks = [];
+        this._streamingMessageId = null;
+      }
+    }
     this._items = transformThreadToDisplayItems(
       (this._lastSnapshot.messages ?? []) as Parameters<typeof transformThreadToDisplayItems>[0],
     );
@@ -975,6 +1010,35 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         >[0]);
         this._items = [...this._items, ...projectedItems];
       }
+    }
+    this._injectLiveProgress();
+  }
+
+  /**
+   * Inject live subagent progress into SubagentToolItems that don't yet have
+   * subagentContent from the thread snapshot (tool still in-progress).
+   *
+   * 逆向: amp's toolProgressByToolUseID flows into _toolAuxiliarySignature
+   * and causes re-render with subagentProgressTurns data.
+   */
+  private _injectLiveProgress(): void {
+    if (this._toolProgressByToolUseID.size === 0) return;
+    for (let i = 0; i < this._items.length; i++) {
+      const item = this._items[i]!;
+      if (item.type !== "subagent-tool") continue;
+      const progress = this._toolProgressByToolUseID.get(item.toolUseId);
+      if (!progress || progress.length === 0) continue;
+      // Only inject if subagentContent has no progress data yet
+      if (item.subagentContent?.progressChunks && item.subagentContent.progressChunks.length > 0) {
+        continue;
+      }
+      this._items[i] = {
+        ...item,
+        subagentContent: {
+          tools: item.subagentContent?.tools ?? [],
+          progressChunks: progress,
+        },
+      };
     }
   }
 
@@ -1069,23 +1133,21 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     // 逆向: jetbrains_wizard.js:4961-5006
     //   isTranscriptEmpty() ? brT (welcome screen) : G8R (conversation view)
     // 逆向: f8R.build() (interactive_widgets.js:2721) — uR padding: left:2, right:2, bottom:1
+    // 逆向: amp has ONE scroll layer inside f8R, not an outer wrapper — controller passed as prop
     const conversationArea =
       displayItems.length === 0
         ? new WelcomeScreen({ productName: "Flitter" })
         : new SelectionAreaWidget({
             child: new Padding({
               padding: EdgeInsets.only({ left: 2, right: 2, bottom: 1 }),
-              child: new Scrollable({
-                controller: this._scrollController,
-                viewportBuilder: () =>
-                  new ConversationView({
-                    items: displayItems,
-                    inferenceState:
-                      this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
-                    error: this._error,
-                    selectedItemIndex: this._selectedItemIndex,
-                    cwd: process.cwd(),
-                  }),
+              child: new ConversationView({
+                scrollController: this._scrollController,
+                items: displayItems,
+                inferenceState:
+                  this._inferenceState === "cancelled" ? "idle" : this._inferenceState,
+                error: this._error,
+                selectedItemIndex: this._selectedItemIndex,
+                cwd: process.cwd(),
               }),
             }),
           });

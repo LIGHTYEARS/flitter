@@ -31,6 +31,11 @@ describe("ClampingScrollPhysics", () => {
     const physics = new ClampingScrollPhysics();
     expect(physics.clampOffset(0, 0, 0)).toBe(0);
   });
+
+  it("shouldAcceptUserOffset returns true", () => {
+    const physics = new ClampingScrollPhysics();
+    expect(physics.shouldAcceptUserOffset()).toBe(true);
+  });
 });
 
 // ════════════════════════════════════════════════════
@@ -108,6 +113,47 @@ describe("ScrollController", () => {
       });
       controller.jumpTo(0);
       expect(notified).toBe(false);
+    });
+  });
+
+  describe("updateOffset", () => {
+    it("should clamp negative offsets to 0", () => {
+      controller.updateMaxScrollExtent(100);
+      controller.updateOffset(-5);
+      expect(controller.offset).toBe(0);
+    });
+
+    it("should clamp offsets beyond maxScrollExtent", () => {
+      controller.updateMaxScrollExtent(100);
+      controller.updateOffset(500);
+      expect(controller.offset).toBe(100);
+    });
+
+    it("should not notify listeners when clamped value is unchanged", () => {
+      controller.updateMaxScrollExtent(100);
+      let notified = false;
+      controller.addListener(() => {
+        notified = true;
+      });
+      controller.updateOffset(0);
+      expect(notified).toBe(false);
+    });
+
+    it("should keep an in-flight animation when the effective offset does not change", async () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(200);
+      controller.jumpTo(0);
+      controller.animateTo(100, 80);
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const animatedOffset = controller.offset;
+      expect(animatedOffset).toBeGreaterThan(0);
+
+      controller.updateOffset(animatedOffset);
+      expect(controller.offset).toBe(animatedOffset);
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(controller.offset).toBe(100);
     });
   });
 
@@ -197,9 +243,11 @@ describe("ScrollController", () => {
   // ════════════════════════════════════════════════════
 
   describe("followMode", () => {
-    it("updateMaxScrollExtent should auto-scroll to bottom when followMode is true", () => {
+    it("updateMaxScrollExtent should NOT auto-scroll (layout handles follow-mode)", () => {
+      // 逆向: amp Q3.updateMaxScrollExtent does NOT call scrollToBottom().
+      // Auto-scroll is handled at the layout level in RenderScrollable.performLayout().
       controller.updateMaxScrollExtent(100);
-      expect(controller.offset).toBe(100);
+      expect(controller.offset).toBe(0);
     });
 
     it("updateMaxScrollExtent should NOT auto-scroll when followMode is false", () => {
@@ -279,6 +327,24 @@ describe("ScrollController", () => {
       controller.animateTo(1, 0);
       expect(controller.offset).toBe(1);
     });
+
+    it("should ignore non-finite targets without corrupting offset", async () => {
+      controller.updateMaxScrollExtent(200);
+      controller.jumpTo(40);
+      controller.animateTo(Number.NaN, 50);
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(controller.offset).toBe(40);
+    });
+
+    it("should ignore non-finite duration values without corrupting offset", async () => {
+      controller.updateMaxScrollExtent(200);
+      controller.jumpTo(40);
+      controller.animateTo(100, Number.NaN);
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      expect(controller.offset).toBe(40);
+    });
   });
 
   // ════════════════════════════════════════════════════
@@ -332,7 +398,9 @@ describe("ScrollController", () => {
 
     it("atBottom should be true when offset equals maxScrollExtent", () => {
       controller.updateMaxScrollExtent(100);
-      expect(controller.atBottom).toBe(true); // followMode auto-scrolls
+      // updateMaxScrollExtent no longer auto-scrolls; manually jump to verify atBottom
+      controller.jumpTo(100);
+      expect(controller.atBottom).toBe(true);
     });
 
     it("atEdge should be true when at top or bottom", () => {
@@ -378,6 +446,23 @@ describe("ScrollController", () => {
       controller.jumpTo(NaN);
 
       // Animation should still complete
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(controller.offset).toBe(100);
+    });
+
+    it("updateOffset(NaN) should be a no-op and not cancel a running animation", async () => {
+      controller.disableFollowMode();
+      controller.updateMaxScrollExtent(200);
+      controller.jumpTo(0);
+      controller.animateTo(100, 80);
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const animatedOffset = controller.offset;
+      expect(animatedOffset).not.toBe(0);
+
+      controller.updateOffset(NaN);
+      expect(controller.offset).toBe(animatedOffset);
+
       await new Promise((resolve) => setTimeout(resolve, 200));
       expect(controller.offset).toBe(100);
     });
@@ -428,6 +513,70 @@ describe("ScrollController", () => {
       controller.jumpTo(-10);
       expect(controller.offset).toBe(0);
       expect(notified).toBe(false);
+    });
+  });
+
+  // ════════════════════════════════════════════════════
+  //  Regression: scroll jitter when followMode + maxExtent=0
+  // ════════════════════════════════════════════════════
+
+  describe("followMode jitter guard (maxExtent=0 → atBottom should not trigger auto-scroll)", () => {
+    it("atBottom is true when offset=0 and maxScrollExtent=0", () => {
+      // This documents the raw behavior that causes jitter if unguarded
+      expect(controller.offset).toBe(0);
+      expect(controller.maxScrollExtent).toBe(0);
+      expect(controller.atBottom).toBe(true);
+    });
+
+    it("simulated performLayout: should NOT auto-scroll when oldExtent was 0", () => {
+      // Simulates the RenderScrollable.performLayout guard:
+      // When maxScrollExtent=0 (content fits viewport), growing content should
+      // not trigger auto-scroll even though followMode=true and atBottom=true.
+      controller.enableFollowMode();
+      // Initial state: content fits viewport, maxExtent=0
+      controller.updateMaxScrollExtent(0);
+      expect(controller.offset).toBe(0);
+      expect(controller.atBottom).toBe(true);
+
+      // Simulate the guarded performLayout logic:
+      // const oldExtent = controller.maxScrollExtent; // 0
+      // const wasAtBottom = oldExtent > 0 && controller.atBottom; // false
+      const oldExtent = controller.maxScrollExtent;
+      const wasAtBottom = oldExtent > 0 && controller.atBottom;
+      expect(wasAtBottom).toBe(false);
+
+      // Content grows past viewport
+      const newExtent = 10;
+      controller.updateMaxScrollExtent(newExtent);
+
+      // Without the guard, followMode && atBottom would have triggered jumpTo(10)
+      // With the guard, offset stays at 0
+      if (controller.followMode && wasAtBottom) {
+        controller.jumpTo(newExtent);
+      }
+      expect(controller.offset).toBe(0);
+    });
+
+    it("simulated performLayout: SHOULD auto-scroll when oldExtent > 0 and at bottom", () => {
+      // Normal auto-scroll: user is at the bottom of scrollable content
+      controller.enableFollowMode();
+      controller.updateMaxScrollExtent(50);
+      controller.jumpTo(50); // user is at bottom
+      expect(controller.atBottom).toBe(true);
+
+      // Simulate the guarded performLayout logic:
+      const oldExtent = controller.maxScrollExtent; // 50
+      const wasAtBottom = oldExtent > 0 && controller.atBottom; // true
+      expect(wasAtBottom).toBe(true);
+
+      // Content grows
+      const newExtent = 60;
+      controller.updateMaxScrollExtent(newExtent);
+
+      if (controller.followMode && wasAtBottom) {
+        controller.jumpTo(newExtent);
+      }
+      expect(controller.offset).toBe(60); // auto-scrolled to new bottom
     });
   });
 });

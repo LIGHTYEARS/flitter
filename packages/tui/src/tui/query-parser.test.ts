@@ -77,6 +77,28 @@ describe("QueryParser", () => {
     expect(caps.pixelMouse).toBe(true);
   });
 
+  test("pixelMouse + inband pixel data enables shouldUsePixelMouse", () => {
+    const qp = new QueryParser();
+    qp.processDecrqss("?1016", "2");
+    qp.updateInbandPixelData(80, 24, 1600, 1200);
+
+    expect(qp.shouldUsePixelMouse()).toBe(true);
+    expect(qp.getPixelDimensions()).toEqual({
+      columns: 80,
+      rows: 24,
+      pixelWidth: 1600,
+      pixelHeight: 1200,
+    });
+  });
+
+  test("inband pixel data缺失时 shouldUsePixelMouse=false", () => {
+    const qp = new QueryParser();
+    qp.processDecrqss("?1016", "2");
+
+    expect(qp.shouldUsePixelMouse()).toBe(false);
+    expect(qp.getPixelDimensions()).toBeNull();
+  });
+
   test("processXtversion detects osc52 from known terminals", () => {
     const qp = new QueryParser();
     qp.processXtversion("ghostty 1.2.3");

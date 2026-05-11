@@ -46,7 +46,11 @@ The only way to proceed past an unresolved failure is explicit user approval to 
 
 Flitter has structured debug logging gated by `FLITTER_LOG_LEVEL=debug`. See [`docs/debug-logging.md`](docs/debug-logging.md) for channels, usage, and how to add new log points.
 
-### 5. Post-fix retrospective: fix the net, not just the bug
+### 5. Tests must assert the full "after" snapshot, not just what the code explicitly writes
+
+**Why:** Tests that only mirror the implementation's assignments can never catch what the implementation forgot to do.
+
+### 6. Post-fix retrospective: fix the net, not just the bug
 
 When a runtime bug was not caught by existing type checks or tests, you MUST — after fixing it — ask three questions before moving on:
 
@@ -56,7 +60,7 @@ When a runtime bug was not caught by existing type checks or tests, you MUST —
 
 **Why:** "Tests pass, feature broken" is the easiest class of bug to repeat. This rule turns every such incident into a lasting improvement.
 
-### 6. Maintain HEALTH.md
+### 7. Maintain HEALTH.md
 
 When your session produces meaningful code changes (new/deleted tests, bug fixes, dependency changes), update the affected sections of `HEALTH.md` before ending the session. See the "AI Agent 使用指南" section in HEALTH.md for the update protocol and data verification commands.
 

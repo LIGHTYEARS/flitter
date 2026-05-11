@@ -1,0 +1,32 @@
+# 监听端口
+port: 8317
+
+request-logging:
+  enabled: true
+  capture-body: true
+
+# 认证目录
+auth-dir: "~/.cli-proxy-api"
+
+# Amp CLI 集成
+ampcode:
+  # upstream-url: "https://ampcode.com"
+  restrict-management-to-localhost: false
+  model-mappings:
+    - from: "claude-opus-4-6"
+      to: "claude-opus-4-6"
+    - from: "claude-sonnet-4-6"
+      to: "claude-sonnet-4-6"
+  
+# LiteLLM 作为 provider  
+openai-compatibility:
+  - name: "litellm"
+    base-url: "http://localhost:8082"
+    api-key-entries:
+      - api-key: "sk-1234"
+    models:
+      - name: "claude-opus-4-6"
+      - name: "claude-sonnet-4-6"
+
+api-keys:
+  - "cli-proxy-api-1234"

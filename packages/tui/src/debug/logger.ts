@@ -164,3 +164,58 @@ export class Logger {
  * ```
  */
 export const logger = new Logger();
+
+/**
+ * 创建写入文件的 LogBackend。
+ *
+ * 逆向: amp 的 xl 可替换后端设计 — `xl = hiT` 初始指向 console，
+ * 但 fD 代理层允许运行时替换。amp 在生产中从不启动 inspector（MJT() = false），
+ * 所以不需要文件后端。Flitter 的 FLITTER_INSPECTOR=1 开发模式需要将
+ * inspector 日志写入文件，避免 console.error 污染 TUI 渲染。
+ *
+ * @param filePath - 日志文件绝对路径
+ * @returns LogBackend 实例，所有级别写入同一文件
+ */
+export function createFileBackend(filePath: string): LogBackend {
+  const fs = require("node:fs") as typeof import("node:fs");
+  const fd = fs.openSync(filePath, "a");
+
+  const write = (level: string, msg: string, ...args: unknown[]): void => {
+    const timestamp = new Date().toISOString();
+    const extra = args.length > 0 ? " " + args.map(a => {
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(" ") : "";
+    const line = `${timestamp} [${level}] ${msg}${extra}\n`;
+    fs.writeSync(fd, line);
+  };
+
+  return {
+    error: (msg, ...args) => write("ERROR", msg, ...args),
+    warn: (msg, ...args) => write("WARN", msg, ...args),
+    info: (msg, ...args) => write("INFO", msg, ...args),
+    debug: (msg, ...args) => write("DEBUG", msg, ...args),
+  };
+}
+
+/**
+ * 创建用于 inspector 子系统的 Logger。
+ *
+ * 当 TUI 运行时，inspector 日志不能走 stderr（会污染屏幕），
+ * 改写到文件。文件路径优先使用 FLITTER_LOG_FILE 环境变量，
+ * 否则默认 /tmp/flitter-inspector-<pid>.log。
+ *
+ * @returns { logger: Logger, filePath: string }
+ */
+export function createInspectorLogger(): { logger: Logger; filePath: string } {
+  const path = require("node:path") as typeof import("node:path");
+  const os = require("node:os") as typeof import("node:os");
+
+  const filePath = process.env.FLITTER_LOG_FILE
+    || path.join(os.tmpdir(), `flitter-inspector-${process.pid}.log`);
+
+  const backend = createFileBackend(filePath);
+  return {
+    logger: new Logger({ backend, level: "debug" }),
+    filePath,
+  };
+}

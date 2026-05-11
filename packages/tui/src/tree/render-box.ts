@@ -10,9 +10,40 @@
  */
 
 import type { Screen } from "../screen/screen.js";
+import { logger } from "../debug/logger.js";
 import type { BoxConstraints, Size } from "./constraints.js";
 import { RenderObject } from "./render-object.js";
 import type { Position } from "./types.js";
+
+const log = logger.scoped("layout");
+
+/**
+ * 描述 RenderScrollable 进入 layout 的原因，帮助区分是 layout 脏还是仅约束变化。
+ *
+ * @param node - 当前进入 layout 的盒节点
+ * @param constraintsChanged - 本次约束是否变化
+ * @returns 适合日志输出的状态摘要
+ */
+function describeLayoutEntry(node: RenderBox, constraintsChanged: boolean): Record<string, unknown> {
+  const candidate = node as RenderBox & {
+    child?: {
+      constructor?: { name?: string };
+      needsLayout?: boolean;
+      needsPaint?: boolean;
+    } | null;
+  };
+
+  return {
+    node: candidate.constructor.name,
+    depth: candidate.depth,
+    needsLayoutBefore: candidate.needsLayout,
+    needsPaintBefore: candidate.needsPaint,
+    constraintsChanged,
+    childType: candidate.child?.constructor?.name ?? null,
+    childNeedsLayout: candidate.child?.needsLayout ?? null,
+    childNeedsPaint: candidate.child?.needsPaint ?? null,
+  };
+}
 
 /**
  * 盒模型渲染对象抽象基类。
@@ -263,10 +294,14 @@ export abstract class RenderBox extends RenderObject {
    */
   layout(constraints: BoxConstraints): void {
     const constraintsChanged = !this._lastConstraints || !constraints.equals(this._lastConstraints);
+    const needsLayoutBefore = this._needsLayout;
 
     this._lastConstraints = constraints;
 
-    if (this._needsLayout || constraintsChanged) {
+    if (needsLayoutBefore || constraintsChanged) {
+      if (this.constructor.name === "RenderScrollable") {
+        log.debug("layout:enter", describeLayoutEntry(this, constraintsChanged));
+      }
       this._needsLayout = false;
       this.performLayout();
       this.markNeedsPaint();
@@ -296,7 +331,7 @@ export abstract class RenderBox extends RenderObject {
    * @param offsetX - 全局 X 偏移量
    * @param offsetY - 全局 Y 偏移量
    */
-  performPaint(_screen: Screen, _offsetX: number, _offsetY: number): void {}
+  performPaint(_screen: Screen, _offsetX: number, _offsetY: number): void { }
 
   /**
    * 绘制当前节点及其子树。

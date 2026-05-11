@@ -39,6 +39,42 @@ import {
 const log = logger.scoped("mouse");
 
 /**
+ * 描述滚动目标，便于定位边界 no-op 时 scroll target 是否在切换。
+ *
+ * @param target - 命中的滚动目标
+ * @returns 适合日志输出的目标摘要
+ */
+function describeScrollTarget(target: RenderMouseRegion): Record<string, unknown> {
+  return {
+    type: target.constructor.name,
+    depth: target.depth,
+    attached: target.attached,
+    hasOnScroll: Boolean(target.onScroll),
+  };
+}
+
+/**
+ * 将最近一小段滚轮信号压成可读序列，便于观察方向翻转。
+ *
+ * @param entries - 最近收到的滚轮信号窗口
+ * @returns 适合日志输出的紧凑序列
+ */
+function describeScrollWindow(
+  entries: Array<{ action: "wheel_up" | "wheel_down"; at: number }>,
+): string[] {
+  if (entries.length === 0) {
+    return [];
+  }
+
+  const base = entries[0]!.at;
+  return entries.map((entry, index) => {
+    const previous = index === 0 ? null : entries[index - 1];
+    const sincePreviousMs = previous === null ? 0 : entry.at - previous.at;
+    return `${entry.action}@+${entry.at - base}ms(dt=${sincePreviousMs}ms)`;
+  });
+}
+
+/**
  * 鼠标事件处理器。
  *
  * 接收鼠标事件和对应的命中条目，由 Widget 层注册并处理。
@@ -166,6 +202,15 @@ export class MouseManager {
    * 逆向: ha._scrollSessionLastEvent (2026_tail_anonymous.js:158213)
    */
   private _scrollSessionLastEvent = 0;
+
+  /** 最近一次滚轮信号的方向，用于观察边界附近是否发生方向翻转。 */
+  private _lastScrollAction: "wheel_up" | "wheel_down" | null = null;
+
+  /** 最近一次滚轮信号的时间戳。 */
+  private _lastScrollActionAt = 0;
+
+  /** 最近一小段滚轮信号窗口，用于定位抖动时的输入序列。 */
+  private _recentScrollActions: Array<{ action: "wheel_up" | "wheel_down"; at: number }> = [];
 
   /**
    * 全局鼠标释放回调集合。
@@ -665,6 +710,32 @@ export class MouseManager {
   ): void {
     // 逆向: ha._handleScroll (2026_tail_anonymous.js:158359-158392)
     const now = Date.now();
+    const rawAction = raw.action === "wheel_up" || raw.action === "wheel_down" ? raw.action : null;
+    const previousAction = this._lastScrollAction;
+    const sinceLastActionMs = this._lastScrollActionAt === 0 ? null : now - this._lastScrollActionAt;
+    const actionFlipped = rawAction !== null && previousAction !== null && rawAction !== previousAction;
+
+    if (rawAction !== null) {
+      this._recentScrollActions.push({ action: rawAction, at: now });
+      if (this._recentScrollActions.length > 8) {
+        this._recentScrollActions.shift();
+      }
+      this._lastScrollAction = rawAction;
+      this._lastScrollActionAt = now;
+    }
+
+    log.debug("scrollSignal", {
+      action: raw.action,
+      previousAction,
+      actionFlipped,
+      sinceLastActionMs,
+      sequence: describeScrollWindow(this._recentScrollActions),
+      position,
+      modifiers: raw.modifiers,
+      sessionActive:
+        this._scrollSessionTarget?.attached === true &&
+        now - this._scrollSessionLastEvent <= MouseManager.SCROLL_SESSION_TIMEOUT,
+    });
 
     // Session stickiness: stick to previous target if still attached and within timeout
     if (
@@ -672,6 +743,13 @@ export class MouseManager {
       now - this._scrollSessionLastEvent <= MouseManager.SCROLL_SESSION_TIMEOUT &&
       this._scrollSessionTarget
     ) {
+      log.debug("scrollSession:reuse", {
+        action: raw.action,
+        sessionTarget: describeScrollTarget(this._scrollSessionTarget),
+        availableTargets: targets
+          .filter((entry) => Boolean(entry.target.onScroll))
+          .map((entry) => describeScrollTarget(entry.target)),
+      });
       const entry = targets.find((t) => t.target === this._scrollSessionTarget);
       if (entry) {
         const scrollEvent = createScrollEvent(raw, position, entry.localPosition);
@@ -687,6 +765,14 @@ export class MouseManager {
 
     // No active session — find scroll targets
     const scrollTargets = this._findScrollTargets(targets);
+    log.debug("scrollTargets", {
+      action: raw.action,
+      hitTargets: targets.length,
+      scrollTargets: scrollTargets.map((entry) => ({
+        ...describeScrollTarget(entry.target),
+        localPosition: entry.localPosition,
+      })),
+    });
     if (scrollTargets.length === 0) {
       this._scrollSessionTarget = null;
       this._scrollSessionLastEvent = 0;
@@ -699,13 +785,27 @@ export class MouseManager {
       if (!entry) continue;
       const scrollEvent = createScrollEvent(raw, position, entry.localPosition);
       const handled = entry.target.onScroll?.(scrollEvent as unknown as WidgetMouseEvent) ?? false;
+      log.debug("scrollTargets:dispatch", {
+        action: raw.action,
+        target: describeScrollTarget(entry.target),
+        localPosition: entry.localPosition,
+        handled,
+      });
       if (handled) {
         this._scrollSessionTarget = entry.target;
         this._scrollSessionLastEvent = now;
+        log.debug("scrollSession:start", {
+          action: raw.action,
+          target: describeScrollTarget(entry.target),
+        });
         return;
       }
     }
 
+    log.debug("scrollSession:clear", {
+      action: raw.action,
+      reason: "no-target-handled",
+    });
     this._scrollSessionTarget = null;
     this._scrollSessionLastEvent = 0;
   }
@@ -960,6 +1060,9 @@ export class MouseManager {
     this._currentClickCount.clear();
     this._scrollSessionTarget = null;
     this._scrollSessionLastEvent = 0;
+    this._lastScrollAction = null;
+    this._lastScrollActionAt = 0;
+    this._recentScrollActions = [];
     this._globalReleaseCallbacks.clear();
     this._globalClickCallbacks.clear();
     this._middleClickPasteCallbacks.clear();

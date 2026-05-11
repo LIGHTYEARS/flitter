@@ -14,11 +14,16 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Screen } from "../screen/screen.js";
+import type { Widget } from "../tree/element.js";
+import { Element } from "../tree/element.js";
 import { RenderBox } from "../tree/render-box.js";
-import { setPipelineOwner } from "../tree/types.js";
+import type { BuildOwnerLike } from "../tree/types.js";
+import { setBuildOwner, setPipelineOwner } from "../tree/types.js";
 import type { TuiController } from "../tui/tui-controller.js";
 import type { MouseEvent as TermMouseEvent } from "../vt/types.js";
 import { RenderMouseRegion } from "../widgets/mouse-region.js";
+import { ScrollController } from "../scroll/scroll-controller.js";
+import { Scrollable, type ScrollableState } from "../scroll/scrollable.js";
 import { MouseManager } from "./mouse-manager.js";
 
 // ════════════════════════════════════════════════════
@@ -34,6 +39,37 @@ class TestRenderBox extends RenderBox {
   setTestBounds(size: { width: number; height: number }, offset: { x: number; y: number }): void {
     this._size = size;
     this._offset = offset;
+  }
+}
+
+/**
+ * 最小 BuildOwner，用于 Scrollable 状态测试中的 setState 调度。
+ */
+class MockBuildOwner implements BuildOwnerLike {
+  scheduleBuildFor(_element: unknown): void {}
+}
+
+/**
+ * 最小 Widget，用于挂载 Scrollable 测试状态。
+ */
+class ScrollSessionLeafWidget implements Widget {
+  key = undefined;
+
+  canUpdate(other: Widget): boolean {
+    return this.constructor === other.constructor;
+  }
+
+  createElement(): Element {
+    return new ScrollSessionLeafElement(this);
+  }
+}
+
+/**
+ * 最小 Element，占位即可。
+ */
+class ScrollSessionLeafElement extends Element {
+  performRebuild(): void {
+    super.performRebuild();
   }
 }
 
@@ -74,11 +110,13 @@ describe("MouseManager", () => {
       requestPaint: () => {},
       removeFromQueues: () => {},
     });
+    setBuildOwner(new MockBuildOwner());
     // 每个测试前 dispose 确保干净状态
     MouseManager.instance.dispose();
   });
 
   afterEach(() => {
+    setBuildOwner(undefined);
     setPipelineOwner(undefined);
   });
 
@@ -647,6 +685,168 @@ describe("MouseManager dispatch", () => {
     expect(scrollEvents.length).toBe(1);
     expect(scrollEvents[0]!.type).toBe("scroll");
     expect(scrollEvents[0]!.direction).toBe("down");
+  });
+
+  test("inner top-boundary wheel_up no-op falls back to outer scroll target on first hit", () => {
+    const mm = MouseManager.instance;
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(10);
+    controller.jumpTo(0);
+
+    const scrollable = new Scrollable({
+      controller,
+      viewportBuilder: (_ctx, _ctrl) => new ScrollSessionLeafWidget(),
+    });
+    const element = scrollable.createElement();
+    element.mount(undefined);
+    const state = (element as unknown as { _state: ScrollableState })._state;
+
+    const deliveredTargets: string[] = [];
+    const outer = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (event) => {
+        deliveredTargets.push(`outer:${event.position.x},${event.position.y}`);
+        return true;
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: false,
+    });
+    root.adoptChild(outer);
+    outer.setOffset(0, 0);
+    outer.setSize(80, 24);
+
+    const inner = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (event) => {
+        deliveredTargets.push(`inner:${event.position.x},${event.position.y}`);
+        return state.handleMouseScrollEvent(event);
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    outer.adoptChild(inner);
+    inner.setOffset(0, 0);
+    inner.setSize(20, 10);
+    root.attach();
+
+    mm.setRootRenderObject(root);
+
+    try {
+      mm.handleMouseEvent({
+        type: "mouse",
+        x: 5,
+        y: 5,
+        button: "none",
+        action: "wheel_up",
+        modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+      });
+
+      expect(deliveredTargets).toEqual(["inner:5,5", "outer:5,5"]);
+      expect(controller.offset).toBe(0);
+    } finally {
+      root.detach();
+      element.unmount();
+      controller.dispose();
+    }
+  });
+
+  test("existing scroll session keeps routing boundary wheel_up no-op to the original target", () => {
+    const mm = MouseManager.instance;
+    const root = new TestRenderBox();
+    root.setTestBounds({ width: 80, height: 24 }, { x: 0, y: 0 });
+
+    const controller = new ScrollController();
+    controller.disableFollowMode();
+    controller.updateMaxScrollExtent(10);
+    controller.jumpTo(1);
+
+    const scrollable = new Scrollable({
+      controller,
+      viewportBuilder: (_ctx, _ctrl) => new ScrollSessionLeafWidget(),
+    });
+    const element = scrollable.createElement();
+    element.mount(undefined);
+    const state = (element as unknown as { _state: ScrollableState })._state;
+
+    const deliveredTargets: string[] = [];
+    const outer = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (event) => {
+        deliveredTargets.push(`outer:${event.position.x},${event.position.y}`);
+        return true;
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: false,
+    });
+    root.adoptChild(outer);
+    outer.setOffset(0, 0);
+    outer.setSize(80, 24);
+
+    const inner = new RenderMouseRegion({
+      onClick: null,
+      onEnter: null,
+      onExit: null,
+      onHover: null,
+      onScroll: (event) => {
+        deliveredTargets.push(`inner:${event.position.x},${event.position.y}`);
+        return state.handleMouseScrollEvent(event);
+      },
+      onRelease: null,
+      onDrag: null,
+      cursor: null,
+      opaque: true,
+    });
+    outer.adoptChild(inner);
+    inner.setOffset(0, 0);
+    inner.setSize(20, 10);
+    root.attach();
+
+    mm.setRootRenderObject(root);
+
+    try {
+      mm.handleMouseEvent({
+        type: "mouse",
+        x: 5,
+        y: 5,
+        button: "none",
+        action: "wheel_up",
+        modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+      });
+      mm.handleMouseEvent({
+        type: "mouse",
+        x: 50,
+        y: 20,
+        button: "none",
+        action: "wheel_up",
+        modifiers: { shift: false, ctrl: false, alt: false, meta: false },
+      });
+
+      expect(deliveredTargets).toEqual(["inner:5,5", "inner:50,20"]);
+      expect(controller.offset).toBe(0);
+    } finally {
+      root.detach();
+      element.unmount();
+      controller.dispose();
+    }
   });
 
   // ════════════════════════════════════════════════════

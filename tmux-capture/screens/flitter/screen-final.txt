@@ -1,0 +1,40 @@
+  ┃ Hello! Can you tell me what 2+2 is and write a haiku about coding                                                █
+                                                                                                                     █
+  ✓ Thinking ▶                                                                                                       █
+                                                                                                                     █
+  2 + 2 = 4                                                                                                          █
+                                                                                                                     █
+                                                                                                                     █
+  Here's a coding haiku:                                                                                             █
+                                                                                                                     █
+                                                                                                                     █
+  Bugs hide in plain sight                                                                                           █
+  Patience weaves through logic's maze                                                                               █
+  Code breathes, works, delights                                                                                     ▂
+                                                                                                                     █
+  ┃ Nice! Now can you explain what a monorepo is in 2 sentences                                                      █
+                                                                                                                     █
+  ✓ Thinking ▶                                                                                                       █
+                                                                                                                     █
+  A monorepo is a version control strategy where multiple distinct projects or packages—often with shared dependencie█
+  s or related functionalities—are housed within a single repository, rather than being split across separate, isolat█
+  ed repositories. This structure enables unified versioning, simplified cross-project dependency management, and str█
+  eamlined collaboration, with tools like Turborepo, Lerna, or Bazel commonly used to efficiently handle builds, test█
+  s, and deployments for the interconnected codebases within.                                                        █
+                                                                                                                     █
+  ┃ What files are in this directory                                                                                 █
+                                                                                                                     █
+  ✓ Thinking ▶                                                                                                       █
+                                                                                                                     █
+  Let's list the files and directories in the current working directory using ls -la to see everything including hidd█
+  en items:                                                                                                          █
+                                                                                                                     █
+  $ cd /Users/bytedance/workspace/flitter && ls -la                                                                  █
+    total 1264                                                                                                       █
+
+╭─2% of 1000k────────────────────────────────────────────────────────────────────────────────────────smart──!─0─skills─╮
+│ ? for shortcuts                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰─────────────────────────────────────────────────────────────────────────────────────────~/workspace/flitter (master)─╯
+

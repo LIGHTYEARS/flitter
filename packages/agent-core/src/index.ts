@@ -280,6 +280,7 @@ export type {
   RetryStartEvent,
   ToolCompleteEvent,
   ToolDataEvent,
+  ToolProgressEvent,
   ToolStartEvent,
   TurnCompleteEvent,
 } from "./worker/events";

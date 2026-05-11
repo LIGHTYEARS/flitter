@@ -57,6 +57,9 @@ export interface MouseEvent {
 /** 鼠标事件回调类型 */
 export type MouseEventCallback = (event: MouseEvent) => void;
 
+/** 滚轮事件回调类型 — 返回 true 表示已消费（建立 scroll session） */
+export type ScrollEventCallback = (event: MouseEvent) => boolean | void;
+
 // ════════════════════════════════════════════════════
 //  RenderMouseRegion
 // ════════════════════════════════════════════════════
@@ -79,8 +82,8 @@ export class RenderMouseRegion extends RenderBox {
   onExit: MouseEventCallback | null;
   /** 逆向: si.onHover */
   onHover: MouseEventCallback | null;
-  /** 逆向: si.onScroll */
-  onScroll: MouseEventCallback | null;
+  /** 逆向: si.onScroll — 返回 true 表示已消费事件 */
+  onScroll: ScrollEventCallback | null;
   /** 逆向: si.onRelease */
   onRelease: MouseEventCallback | null;
   /** 逆向: si.onDrag */
@@ -112,7 +115,7 @@ export class RenderMouseRegion extends RenderBox {
     onEnter: MouseEventCallback | null;
     onExit: MouseEventCallback | null;
     onHover: MouseEventCallback | null;
-    onScroll: MouseEventCallback | null;
+    onScroll: ScrollEventCallback | null;
     onRelease: MouseEventCallback | null;
     onDrag: MouseEventCallback | null;
     cursor: string | null;
@@ -374,8 +377,8 @@ interface MouseRegionArgs {
   onExit?: MouseEventCallback;
   /** 鼠标悬停回调 */
   onHover?: MouseEventCallback;
-  /** 滚轮事件回调 */
-  onScroll?: MouseEventCallback;
+  /** 滚轮事件回调 — 返回 true 表示已消费 */
+  onScroll?: ScrollEventCallback;
   /** 释放回调 */
   onRelease?: MouseEventCallback;
   /** 拖拽回调 */
@@ -416,7 +419,7 @@ export class MouseRegion extends Widget implements RenderObjectWidget {
   /** 逆向: G0.onHover */
   readonly onHover: MouseEventCallback | null;
   /** 逆向: G0.onScroll */
-  readonly onScroll: MouseEventCallback | null;
+  readonly onScroll: ScrollEventCallback | null;
   /** 逆向: G0.onRelease */
   readonly onRelease: MouseEventCallback | null;
   /** 逆向: G0.onDrag */

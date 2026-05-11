@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Screen } from "../screen/screen.js";
 import type { KeyEvent, PasteEvent, MouseEvent as TermMouseEvent } from "../vt/types.js";
+import { QueryParser } from "./query-parser.js";
 import type { TerminalSize } from "./tui-controller.js";
 import { isTtyStream, TuiController } from "./tui-controller.js";
 
@@ -133,6 +134,38 @@ describe("TuiController — onMouse", () => {
       ctrl.onMouse((e) => events.push(e));
       assert.deepStrictEqual(events, []);
     });
+  });
+});
+
+describe("TuiController — pixel mouse", () => {
+  it("enableMouse 在 pixelMouse 可用时应启用 ?1016h", () => {
+    const ctrl = new TuiController();
+    const writes: string[] = [];
+    const queryParser = new QueryParser();
+    queryParser.processDecrqss("?1016", "2");
+    queryParser.updateInbandPixelData(80, 24, 1600, 1200);
+
+    const internal = ctrl as unknown as {
+      initialized: boolean;
+      ttyOutput: { stream: { write: (chunk: string) => void } } | null;
+      _queryParser: QueryParser | null;
+      enableMouse(): void;
+    };
+
+    internal.initialized = true;
+    internal.ttyOutput = {
+      stream: {
+        write: (chunk: string) => {
+          writes.push(chunk);
+        },
+      },
+    };
+    internal._queryParser = queryParser;
+
+    internal.enableMouse();
+
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0]?.includes("?1016h"));
   });
 });
 

@@ -18,7 +18,7 @@
  * @module
  */
 
-import { logger } from "../debug/logger.js";
+import { createInspectorLogger, logger } from "../debug/logger.js";
 import { WidgetREPLServer } from "../debug/widget-repl-server.js";
 import { WidgetTreeDebugger } from "../debug/widget-tree-debugger.js";
 import { FocusManager } from "../focus/focus-manager.js";
@@ -143,6 +143,13 @@ export class WidgetsBinding {
 
   /** Listeners notified when exitHintActive changes (逆向: setState in uhT.onExitPressed) */
   private _exitHintListeners: Set<() => void> = new Set();
+
+  /**
+   * Cancel-inference listeners — notified on first Ctrl+C when inference is running.
+   * 逆向: amp EZT.onEscPressed → cancelAgentLoop() — first press cancels, second exits.
+   * In flitter we use Ctrl+C (not Escape) for cancel since that's what users expect.
+   */
+  private _cancelListeners: Set<() => boolean> = new Set();
 
   /** 当前 MediaQuery Widget 引用，用于 resize 时更新 */
   private currentMediaQueryData: MediaQueryData | null = null;
@@ -324,13 +331,23 @@ export class WidgetsBinding {
       this.requestForcedPaintFrame();
 
       // 逆向: chunk-004:30211-30212 — inspector activation
+      // amp 的 MJT() 在生产中总返回 false，所以 inspector 日志不会出现。
+      // Flitter 的 FLITTER_INSPECTOR=1 开发模式需要将 inspector 日志
+      // 重定向到文件，避免 console.error 污染 TUI 渲染。
       const inspectorEnabled = process.env.FLITTER_INSPECTOR === "1";
       const inspectorPort = parseInt(process.env.FLITTER_INSPECTOR_PORT || "9876", 10);
-      this._inspector = new WidgetTreeDebugger(inspectorEnabled, 1000, inspectorPort);
+
+      let inspectorLog: import("../debug/logger.js").Logger | undefined;
+      if (inspectorEnabled) {
+        const { logger: fileLogger } = createInspectorLogger();
+        inspectorLog = fileLogger;
+      }
+
+      this._inspector = new WidgetTreeDebugger(inspectorEnabled, 1000, inspectorPort, inspectorLog);
       this._inspector.start(this.rootElement!);
 
       if (inspectorEnabled) {
-        this._replServer = new WidgetREPLServer(this.rootElement!);
+        this._replServer = new WidgetREPLServer(this.rootElement!, inspectorLog);
         this._replServer.start();
       }
 
@@ -685,22 +702,28 @@ export class WidgetsBinding {
    * @param event - 键盘事件
    */
   private handleGlobalKeyEvent(event: KeyEvent): void {
-    // Ctrl+C → 双按退出 (逆向: onExitPressed in chunk-006.js:15619)
+    // Ctrl+C → cancel inference (if running) or double-press exit
+    // 逆向: amp onExitPressed (actions_intents.js:3058) — double-press exit
+    // 逆向: amp EZT.onEscPressed (misc_utils.js:2257) — cancel on first press if running
+    // flitter combines both: first Ctrl+C cancels inference if running, else starts exit hint
     if (event.key === "c" && event.modifiers.ctrl) {
       if (this._exitHintActive) {
         // 第二次 Ctrl+C: 清除提示并退出
         this.clearExitHint();
         this.stop();
       } else {
-        // 第一次 Ctrl+C: 激活 1s 提示窗口
-        this._exitHintActive = true;
-        this._notifyExitHintListeners();
-        if (this._exitHintTimeout) clearTimeout(this._exitHintTimeout);
-        this._exitHintTimeout = setTimeout(() => {
-          this._exitHintActive = false;
-          this._exitHintTimeout = null;
+        // 第一次 Ctrl+C: 尝试取消推理；如果没有运行中的推理，则启动退出提示
+        const cancelled = this._notifyCancelListeners();
+        if (!cancelled) {
+          this._exitHintActive = true;
           this._notifyExitHintListeners();
-        }, 1000);
+          if (this._exitHintTimeout) clearTimeout(this._exitHintTimeout);
+          this._exitHintTimeout = setTimeout(() => {
+            this._exitHintActive = false;
+            this._exitHintTimeout = null;
+            this._notifyExitHintListeners();
+          }, 1000);
+        }
       }
       return;
     }
@@ -745,6 +768,33 @@ export class WidgetsBinding {
   /** Notify all exit hint listeners. */
   private _notifyExitHintListeners(): void {
     for (const listener of this._exitHintListeners) listener();
+  }
+
+  /**
+   * Register a cancel-inference listener. Called on first Ctrl+C.
+   * The listener should return `true` if it handled the cancel (inference was running),
+   * or `false` if idle (so the exit-hint flow takes over).
+   *
+   * 逆向: amp EZT.onEscPressed checks bo0(agentState) before cancelling.
+   *
+   * @returns unsubscribe function
+   */
+  onCancelRequested(listener: () => boolean): () => void {
+    this._cancelListeners.add(listener);
+    return () => {
+      this._cancelListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Attempt to cancel inference via registered listeners.
+   * Returns true if at least one listener handled the cancel.
+   */
+  private _notifyCancelListeners(): boolean {
+    for (const listener of this._cancelListeners) {
+      if (listener()) return true;
+    }
+    return false;
   }
 
   /**
@@ -872,21 +922,22 @@ export class WidgetsBinding {
   /**
    * 帧开始处理。
    *
-   * 逆向: d9.beginFrame in tui-render-pipeline.js:65-66
+   * 逆向: d9.beginFrame (modules/2120_ForExit_d9.js:139-141)
+   *   this.shouldPaintCurrentFrame = this.forcePaintOnNextFrame
+   *     || this.buildOwner.hasDirtyElements
+   *     || this.pipelineOwner.hasNodesNeedingLayout
+   *     || this.pipelineOwner.hasNodesNeedingPaint
+   *     || this.tui.getScreen().requiresFullRefresh
    *
-   * 判断当前帧是否需要绘制 (dirty/needsLayout/needsPaint/forceRefresh)。
+   * 判断当前帧是否需要绘制 (dirty/needsLayout/needsPaint/forceRefresh/screenRefresh)。
    */
   private beginFrame(): void {
     this.shouldPaintCurrentFrame =
       this.forcePaintOnNextFrame ||
       this.buildOwner.hasDirtyElements ||
       this.pipelineOwner.hasNodesNeedingLayout ||
-      this.pipelineOwner.hasNodesNeedingPaint;
-    log.debug("beginFrame", {
-      shouldPaint: this.shouldPaintCurrentFrame,
-      dirty: this.buildOwner.hasDirtyElements,
-      force: this.forcePaintOnNextFrame,
-    });
+      this.pipelineOwner.hasNodesNeedingPaint ||
+      this.tui.getScreen().needsFullRefresh;
     this.didPaintCurrentFrame = false;
     this.forcePaintOnNextFrame = false;
   }
@@ -899,7 +950,9 @@ export class WidgetsBinding {
    * flushPaint → renderRenderObject → screen
    */
   private paint(): void {
-    if (!this.shouldPaintCurrentFrame) return;
+    if (!this.shouldPaintCurrentFrame) {
+      return;
+    }
 
     // 执行 PipelineOwner 的绘制
     this.pipelineOwner.flushPaint();
@@ -925,7 +978,6 @@ export class WidgetsBinding {
    */
   private render(): void {
     if (!this.didPaintCurrentFrame) return;
-    log.debug("render");
 
     // 通过 TuiController.render() 差分渲染到 stdout
     this.tui.render();
@@ -934,17 +986,20 @@ export class WidgetsBinding {
   /**
    * 将渲染树绘制到 Screen 缓冲区。
    *
-   * 逆向: amp d9 — R.clear(), R.clearCursor(), this.renderRenderObject(T, R, 0, 0)
+   * 逆向: amp d9.paint() (modules/2120_ForExit_d9.js:151-153)
+   *   R.clear(), R.clearCursor(), this.renderRenderObject(T, R, 0, 0)
    *
-   * 找到根渲染对象后，先清除 screen back buffer（防止旧帧残留），
-   * 再调用其 paint 方法。
+   * Key insight from amp: Zx.clear() only clears backBuffer cells — it does
+   * NOT set needsFullRefresh. This enables incremental diff rendering where
+   * only cells that actually changed (compared to the front buffer) are
+   * emitted to stdout. We use clearBackBuffer() to match this behavior.
    */
   private renderRenderObject(): void {
     const rootRO = this.pipelineOwner.rootRenderObject;
     if (!rootRO) return;
 
     const screen = this.tui.getScreen();
-    screen.clear();
+    screen.clearBackBuffer();
     screen.clearCursor();
     rootRO.paint(screen, 0, 0);
   }

@@ -21,6 +21,7 @@
 
 import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
+import { logger } from "../debug/logger.js";
 import { TextStyle } from "../screen/text-style.js";
 import type { Selectable, SelectionArea } from "../selection/selection-area.js";
 import { InheritedSelectionArea } from "../selection/selection-area-widget.js";
@@ -52,6 +53,8 @@ interface LayoutGlyph {
   /** OSC 8 超链接 URL (逆向: amp G.hyperlink) */
   url?: string;
 }
+
+const log = logger.scoped("rich-text");
 
 /** 文本对齐方式 */
 export type TextAlign = "left" | "center" | "right";
@@ -202,15 +205,223 @@ export class RenderParagraph extends RenderBox {
    * @param value - 新的 TextSpan
    */
   set textSpan(value: TextSpan) {
-    if (!this._textSpan.equals(value)) {
+    if (this._textSpan.equals(value)) return;
+
+    if (this._constraints === undefined || this.needsLayout) {
       this._textSpan = value;
       this.markNeedsLayout();
+      return;
     }
+
+    const nextLines = this._buildVisibleLinesForTextSpan(value, this._constraints.maxWidth);
+    const requiresRelayout = !this._areLineLayoutsEquivalent(this._lines, nextLines);
+
+    this._textSpan = value;
+
+    if (requiresRelayout) {
+      log.debug("textSpan:relayout", {
+        debugData: this.debugData,
+        previousText: this._truncateText(this._linesToPlainText(this._lines)),
+        nextText: this._truncateText(value.toPlainText()),
+        previousLayout: this._describeLineLayout(this._lines),
+        nextLayout: this._describeLineLayout(nextLines),
+      });
+      this.markNeedsLayout();
+      return;
+    }
+
+    this._lines = nextLines;
+    this.markNeedsPaint();
   }
 
+  /**
+   * 比较两组可见文本行的几何布局是否一致。
+   *
+   * 只要行数、每行 glyph 数量以及每个 glyph 的 cell 宽度完全一致，
+   * 则本次更新不会改变段落尺寸、换行点或命中区域，可降级为 paint-only。
+   *
+   * @param previousLines - 旧的可见文本行
+   * @param nextLines - 新的可见文本行
+   * @returns `true` 表示布局几何不变
+   */
+  private _areLineLayoutsEquivalent(
+    previousLines: LayoutGlyph[][],
+    nextLines: LayoutGlyph[][],
+  ): boolean {
+    if (previousLines.length !== nextLines.length) {
+      return false;
+    }
+
+    for (let lineIndex = 0; lineIndex < previousLines.length; lineIndex++) {
+      const previousLine = previousLines[lineIndex]!;
+      const nextLine = nextLines[lineIndex]!;
+      if (previousLine.length !== nextLine.length) {
+        return false;
+      }
+
+      for (let glyphIndex = 0; glyphIndex < previousLine.length; glyphIndex++) {
+        if (previousLine[glyphIndex]!.width !== nextLine[glyphIndex]!.width) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * 将已布局的文本行还原为纯文本，便于调试比较。
+   *
+   * @param lines - 已布局文本行
+   * @returns 还原后的纯文本
+   */
+  private _linesToPlainText(lines: LayoutGlyph[][]): string {
+    return lines.map((line) => line.map((glyph) => glyph.grapheme).join("")).join("\n");
+  }
+
+  /**
+   * 生成文本行布局摘要，便于定位为何触发 relayout。
+   *
+   * @param lines - 已布局文本行
+   * @returns 包含行数、每行宽度和每行 glyph 数量的摘要
+   */
+  private _describeLineLayout(lines: LayoutGlyph[][]): Record<string, unknown> {
+    const widths = lines.map((line) => line.reduce((sum, glyph) => sum + glyph.width, 0));
+    const glyphCounts = lines.map((line) => line.length);
+    return {
+      lineCount: lines.length,
+      widths,
+      glyphCounts,
+    };
+  }
+
+  /**
+   * 截断调试文本，避免日志被长消息打爆。
+   *
+   * @param text - 原始文本
+   * @returns 截断后的文本
+   */
+  private _truncateText(text: string): string {
+    return text.length <= 120 ? text : `${text.slice(0, 117)}...`;
+  }
+
+  /**
+   * 基于指定 TextSpan 与段落配置构建可见文本行。
+   *
+   * 该方法会统一应用自动换行、`maxLines` 截断和 `ellipsis` 处理，
+   * 供完整布局和纯视觉更新时的 glyph 缓存刷新共用。
+   *
+   * @param textSpan - 参与布局的 TextSpan
+   * @param maxWidth - 可用最大宽度
+   * @returns 最终用于绘制的文本行
+   */
+  private _buildVisibleLinesForTextSpan(textSpan: TextSpan, maxWidth: number): LayoutGlyph[][] {
+    let lines = this._computeLinesForTextSpan(textSpan, maxWidth);
+
+    if (lines.length === 0) {
+      return [];
+    }
+
+    if (this._maxLines !== undefined && lines.length > this._maxLines) {
+      lines = lines.slice(0, this._maxLines);
+
+      if (this._overflow === "ellipsis" && lines.length > 0) {
+        const lastLine = [...lines[lines.length - 1]!];
+        let lastLineWidth = 0;
+        for (const g of lastLine) lastLineWidth += g.width;
+
+        if (lastLineWidth >= maxWidth) {
+          while (lastLine.length > 0 && lastLineWidth > maxWidth - 1) {
+            const removed = lastLine.pop()!;
+            lastLineWidth -= removed.width;
+          }
+        }
+
+        const ellipsisStyle =
+          lastLine.length > 0 ? lastLine[lastLine.length - 1]!.style : TextStyle.NORMAL;
+        const ellipsisSpan = lastLine.length > 0 ? lastLine[lastLine.length - 1]!.span : textSpan;
+        lastLine.push({ grapheme: "…", style: ellipsisStyle, width: 1, span: ellipsisSpan });
+        lines[lines.length - 1] = lastLine;
+      }
+    }
+
+    return lines;
+  }
+
+  /**
+   * 基于当前 TextSpan 与段落配置构建可见文本行。
+   *
+   * @param maxWidth - 可用最大宽度
+   * @returns 最终用于绘制的文本行
+   */
+  private _buildVisibleLines(maxWidth: number): LayoutGlyph[][] {
+    return this._buildVisibleLinesForTextSpan(this._textSpan, maxWidth);
+  }
+
+  /**
+   * 收集指定 TextSpan 的字素并按给定宽度换行。
+   *
+   * 逆向: amp t1T — 供 performLayout 和 intrinsic size 方法共用。
+   *
+   * @param textSpan - 参与布局的 TextSpan
+   * @param maxWidth - 最大可用宽度
+   * @returns 自动换行后的文本行
+   */
+  private _computeLinesForTextSpan(textSpan: TextSpan, maxWidth: number): LayoutGlyph[][] {
+    const allGlyphs: LayoutGlyph[] = [];
+    this._collectGlyphs(textSpan, [], allGlyphs);
+
+    if (allGlyphs.length === 0) return [];
+
+    const lines: LayoutGlyph[][] = [];
+    let currentLine: LayoutGlyph[] = [];
+    let currentLineWidth = 0;
+
+    for (const glyph of allGlyphs) {
+      // 逆向: amp Kw._computeLines (2151_unknown_Kw.js:96-104) — \n triggers hard break
+      if (glyph.grapheme === "\n") {
+        lines.push(currentLine);
+        currentLine = [];
+        currentLineWidth = 0;
+        continue; // don't add \n to any line
+      }
+      if (currentLine.length > 0 && currentLineWidth + glyph.width > maxWidth) {
+        lines.push(currentLine);
+        currentLine = [];
+        currentLineWidth = 0;
+      }
+      currentLine.push(glyph);
+      currentLineWidth += glyph.width;
+    }
+    lines.push(currentLine);
+
+    return lines;
+  }
+
+  /**
+   * 收集字素并按给定宽度换行。
+   *
+   * @param maxWidth - 最大可用宽度
+   * @returns 自动换行后的文本行
+   */
+  private _computeLines(maxWidth: number): LayoutGlyph[][] {
+    return this._computeLinesForTextSpan(this._textSpan, maxWidth);
+  }
+
+  /**
+   * 获取文本对齐方式。
+   *
+   * @returns 当前对齐方式
+   */
   get textAlign(): TextAlign {
     return this._textAlign;
   }
+
+  /**
+   * 设置文本对齐方式。
+   *
+   * @param value - 新的对齐方式
+   */
   set textAlign(value: TextAlign) {
     if (this._textAlign !== value) {
       this._textAlign = value;
@@ -450,42 +661,6 @@ export class RenderParagraph extends RenderBox {
     super.dispose();
   }
 
-  /**
-   * 收集字素并按给定宽度换行。
-   *
-   * 逆向: amp t1T — 供 performLayout 和 intrinsic size 方法共用。
-   */
-  private _computeLines(maxWidth: number): LayoutGlyph[][] {
-    const allGlyphs: LayoutGlyph[] = [];
-    this._collectGlyphs(this._textSpan, [], allGlyphs);
-
-    if (allGlyphs.length === 0) return [];
-
-    const lines: LayoutGlyph[][] = [];
-    let currentLine: LayoutGlyph[] = [];
-    let currentLineWidth = 0;
-
-    for (const glyph of allGlyphs) {
-      // 逆向: amp Kw._computeLines (2151_unknown_Kw.js:96-104) — \n triggers hard break
-      if (glyph.grapheme === "\n") {
-        lines.push(currentLine);
-        currentLine = [];
-        currentLineWidth = 0;
-        continue; // don't add \n to any line
-      }
-      if (currentLine.length > 0 && currentLineWidth + glyph.width > maxWidth) {
-        lines.push(currentLine);
-        currentLine = [];
-        currentLineWidth = 0;
-      }
-      currentLine.push(glyph);
-      currentLineWidth += glyph.width;
-    }
-    lines.push(currentLine);
-
-    return lines;
-  }
-
   // ────────────────────────────────────────────────
   //  Intrinsic sizes (amp t1T alignment)
   // ────────────────────────────────────────────────
@@ -562,43 +737,13 @@ export class RenderParagraph extends RenderBox {
    */
   performLayout(): void {
     const constraints = this._constraints!;
-    const maxWidth = constraints.maxWidth;
-
-    let lines = this._computeLines(maxWidth);
+    const lines = this._buildVisibleLines(constraints.maxWidth);
 
     // 空文本
     if (lines.length === 0) {
       this._lines = [];
       this.size = constraints.constrain(0, 0);
       return;
-    }
-
-    // maxLines 截断
-    // 逆向: amp t1T — 超过 maxLines 的行被丢弃
-    if (this._maxLines !== undefined && lines.length > this._maxLines) {
-      lines = lines.slice(0, this._maxLines);
-
-      // ellipsis 处理: 替换最后一行的尾部字符为 '…'
-      if (this._overflow === "ellipsis" && lines.length > 0) {
-        const lastLine = [...lines[lines.length - 1]!];
-        let lastLineWidth = 0;
-        for (const g of lastLine) lastLineWidth += g.width;
-
-        if (lastLineWidth >= maxWidth) {
-          // 移除尾部字符直到腾出 1 格空间
-          while (lastLine.length > 0 && lastLineWidth > maxWidth - 1) {
-            const removed = lastLine.pop()!;
-            lastLineWidth -= removed.width;
-          }
-        }
-        // 追加 … 字素
-        const ellipsisStyle =
-          lastLine.length > 0 ? lastLine[lastLine.length - 1]!.style : TextStyle.NORMAL;
-        const ellipsisSpan =
-          lastLine.length > 0 ? lastLine[lastLine.length - 1]!.span : this._textSpan;
-        lastLine.push({ grapheme: "…", style: ellipsisStyle, width: 1, span: ellipsisSpan });
-        lines[lines.length - 1] = lastLine;
-      }
     }
 
     this._lines = lines;

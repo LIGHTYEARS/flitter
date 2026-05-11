@@ -483,8 +483,8 @@ describe("FrameScheduler", () => {
     assert.equal(scheduler.isFrameScheduled, true);
   });
 
-  // ── 22. 帧完成后 scheduled 触发新帧 ─────────────────
-  it("帧完成后 scheduled 触发新帧", () => {
+  // ── 22. 帧完成后 scheduled 触发新帧（异步） ─────────────────
+  it("帧完成后 scheduled 触发新帧", async () => {
     let buildRunCount = 0;
 
     scheduler.addFrameCallback(
@@ -501,8 +501,63 @@ describe("FrameScheduler", () => {
 
     scheduler.executeFrame();
 
-    // 第一帧的 build 回调请求了新帧，帧完成后应自动触发第二帧
-    assert.equal(buildRunCount, 2, "应自动触发第二帧执行");
+    // 逆向: amp k8 — 帧内 requestFrame 不同步触发第二帧，而是异步调度
+    assert.equal(buildRunCount, 1, "第一帧同步完成");
+
+    // 等待 setImmediate 触发第二帧
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(buildRunCount, 2, "异步触发第二帧执行");
+  });
+
+  // ── 23. 多次 requestFrame 合并为一帧（同一 event loop） ───────
+  it("多次 requestFrame 在同一 event loop 合并为一帧", async () => {
+    let frameBuildCount = 0;
+
+    scheduler.addFrameCallback(
+      "build-counter-coalesced",
+      () => {
+        frameBuildCount++;
+      },
+      "build",
+    );
+
+    // 在同一轮事件循环中连续请求多次帧。
+    scheduler.requestFrame();
+    scheduler.requestFrame();
+    scheduler.requestFrame();
+
+    // 等待异步帧执行。
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(frameBuildCount, 1, "应仅执行一帧");
+
+    // 再等一轮，确认没有额外帧被排队执行。
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(frameBuildCount, 1, "不应出现隐式第二帧");
+  });
+
+  // ── 24. 合帧时仅消费最终状态快照 ───────────────────────────
+  it("合帧时仅消费最终状态快照", async () => {
+    const states: number[] = [];
+    let pendingState = 0;
+
+    scheduler.addFrameCallback(
+      "consume-final-state",
+      () => {
+        states.push(pendingState);
+      },
+      "build",
+    );
+
+    pendingState = 1;
+    scheduler.requestFrame();
+    pendingState = 2;
+    scheduler.requestFrame();
+    pendingState = 3;
+    scheduler.requestFrame();
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.deepEqual(states, [3], "同一轮合帧应只消费最终状态");
   });
 });
 

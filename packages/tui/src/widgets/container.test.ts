@@ -14,8 +14,10 @@
 
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { Color } from "../screen/color.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
+import { BoxDecoration } from "./box-decoration.js";
 import { Container } from "./container.js";
 import { EdgeInsets } from "./edge-insets.js";
 import { RenderPadding } from "./padding.js";
@@ -303,6 +305,57 @@ describe("Container", () => {
     ro.layout(BoxConstraints.loose(200, 200));
     assert.equal(ro.size.width, 30);
     assert.equal(ro.size.height, 15);
+  });
+
+  it("updateProperties 在属性未变化时不重新标记 layout 或 paint", () => {
+    const padding = EdgeInsets.all(4);
+    const constraints = BoxConstraints.loose(80, 24);
+    const decoration = new BoxDecoration({ color: Color.blue() });
+    const container = new Container({
+      width: 20,
+      height: 10,
+      padding,
+      decoration,
+      constraints,
+    });
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    const internal = ro as unknown as {
+      attach(): void;
+      _needsLayout: boolean;
+      _needsPaint: boolean;
+    };
+
+    internal.attach();
+    internal._needsLayout = false;
+    internal._needsPaint = false;
+
+    ro.updateProperties(20, 10, padding, undefined, decoration, constraints);
+
+    assert.equal(ro.needsLayout, false);
+    assert.equal(ro.needsPaint, false);
+  });
+
+  it("updateProperties 在仅 decoration 颜色变化时只标记 paint", () => {
+    const decoration = new BoxDecoration({ color: Color.blue() });
+    const nextDecoration = new BoxDecoration({ color: Color.red() });
+    const container = new Container({
+      decoration,
+    });
+    const ro = container.createRenderObject() as import("./container.js").ContainerRenderObject;
+    const internal = ro as unknown as {
+      attach(): void;
+      _needsLayout: boolean;
+      _needsPaint: boolean;
+    };
+
+    internal.attach();
+    internal._needsLayout = false;
+    internal._needsPaint = false;
+
+    ro.updateProperties(undefined, undefined, undefined, undefined, nextDecoration, undefined);
+
+    assert.equal(ro.needsLayout, false);
+    assert.equal(ro.needsPaint, true);
   });
 });
 

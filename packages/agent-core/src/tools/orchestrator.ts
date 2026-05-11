@@ -803,7 +803,18 @@ export class ToolOrchestrator {
       this.toolMessages.set(toolUse.id, toolMessageSubject);
       const contextWithMessages: ToolContext = {
         ...context,
+        toolUseId: toolUse.id,
         toolMessages: toolMessageSubject,
+        // 逆向: amp's toolProgressByToolUseID$ — inject emitProgress for subagent tools
+        emitProgress: this.callbacks.onToolEvent
+          ? (progress) => {
+              this.callbacks.onToolEvent!({
+                type: "tool:progress",
+                toolUseId: toolUse.id,
+                progress,
+              });
+            }
+          : undefined,
       };
 
       // 7. 执行工具 — race tool execution against the per-tool AbortController.

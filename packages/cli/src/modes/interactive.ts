@@ -738,6 +738,17 @@ export async function launchInteractiveMode(
   //   the screen buffer on click and calls this opener.
   WidgetsBinding.instance.setOpenUrl(defaultOpenBrowser);
 
+  // Wire Ctrl+C → cancel inference when running.
+  // 逆向: amp EZT.onEscPressed (misc_utils.js:2257) — cancel on first press if agent is working
+  const cancelUnsub = WidgetsBinding.instance.onCancelRequested(() => {
+    const state = worker.inferenceState$.getValue();
+    if (state === "running") {
+      worker.cancelInference();
+      return true;
+    }
+    return false;
+  });
+
   try {
     await runApp(appWidget, {
       onCapabilitiesReady: (capabilities) => {
@@ -767,6 +778,7 @@ export async function launchInteractiveMode(
   } finally {
     // 6. 清理
     log.info("TUI exited, cleaning up...");
+    cancelUnsub();
     themeChangeCleanup?.();
     toastManager.dispose();
     await container.asyncDispose();

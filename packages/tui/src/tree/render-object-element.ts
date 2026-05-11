@@ -48,6 +48,20 @@ export abstract class RenderObjectElement extends Element {
   /** 关联的渲染对象 */
   protected _renderObject: RenderObject | undefined = undefined;
 
+  /**
+   * 同步当前 element/widget 的调试身份到 render object。
+   *
+   * 这样在 render 层的 `markNeedsLayout()` 日志里，就能直接看到
+   * 当前 render object 对应的 element/widget 名字，而不必再额外回溯映射。
+   */
+  protected syncRenderObjectDebugData(): void {
+    this._renderObject?.sendDebugData({
+      elementType: this.constructor.name,
+      widgetType: this.widget.constructor.name,
+      widgetKey: this.widget.key?.toString() ?? null,
+    });
+  }
+
   // ════════════════════════════════════════════════════
   //  属性访问器
   // ════════════════════════════════════════════════════
@@ -78,6 +92,7 @@ export abstract class RenderObjectElement extends Element {
   override mount(parent?: Element): void {
     super.mount(parent);
     this._renderObject = (this.widget as unknown as RenderObjectWidget).createRenderObject();
+    this.syncRenderObjectDebugData();
     // 逆向: amp RenderObjectElement.mount (chunk-005.js:164087)
     // amp calls _renderObject.attach() immediately after creation.
     // This sets _attached=true, enabling markNeedsLayout/markNeedsPaint
@@ -99,6 +114,7 @@ export abstract class RenderObjectElement extends Element {
   override update(newWidget: Widget): void {
     super.update(newWidget);
     (this.widget as unknown as RenderObjectWidget).updateRenderObject(this._renderObject!);
+    this.syncRenderObjectDebugData();
     this._dirty = false;
   }
 

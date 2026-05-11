@@ -87,79 +87,75 @@ export function isCjk(codePoint: number): boolean {
   );
 }
 
+// 逆向: chunk-003.js:22520 — Bm0(T) { return /\p{M}/u.test(T); }
+const COMBINING_MARK_RE = /\p{M}/u;
+
 /**
  * 判断给定码点是否为零宽字符
  *
- * 覆盖以下 Unicode 范围：
- * - U+200B — 零宽空格 (ZWSP)
- * - U+200C — 零宽非连接符 (ZWNJ)
- * - U+200D — 零宽连接符 (ZWJ)
+ * 逆向: chunk-003.js:22558 — xxT 的零宽判定分支
+ * 匹配 amp 的完整零宽检测：
+ * - 组合标记 \p{M}
+ * - U+200B-200D — ZWJ/ZWNJ/ZWSP
  * - U+200E-200F — 方向标记
- * - U+FEFF — 字节序标记 (BOM)
- * - U+00AD — 软连字符
- * - U+2060-2069 — 格式控制字符
+ * - U+2060 — Word Joiner
+ * - U+FEFF — BOM
  * - U+FE00-FE0F — 变体选择符
- * - U+0300-036F — 组合变音符号
- * - U+0000-001F — 控制字符（U+0009 制表符除外）
+ * - U+E0100-E01EF — 补充变体选择符
+ * - U+1F3FB-1F3FF — 肤色修饰符
  *
  * @param codePoint - Unicode 码点
  * @returns 如果是零宽字符返回 true
- *
- * @example
- * ```ts
- * isZeroWidth(0x200D); // true — ZWJ
- * isZeroWidth(0x0041); // false — 'A'
- * isZeroWidth(0x0009); // false — Tab 不是零宽字符
- * ```
  */
 export function isZeroWidth(codePoint: number): boolean {
-  // 制表符 Tab 不是零宽字符
   if (codePoint === 0x0009) return false;
 
+  // 逆向: xxT 零宽判定 (line 22558):
+  //   Bm0(String.fromCodePoint(T)) ||
+  //   T >= 8203 && T <= 8205 ||   (0x200B-0x200D)
+  //   T === 8206 || T === 8207 ||  (0x200E-0x200F)
+  //   T === 8288 ||               (0x2060)
+  //   T === 65279 ||              (0xFEFF)
+  //   T >= 65024 && T <= 65039 || (0xFE00-0xFE0F)
+  //   T >= 917760 && T <= 917999 ||(0xE0100-0xE01EF)
+  //   T >= 127995 && T <= 127999  (0x1F3FB-0x1F3FF)
+  if (COMBINING_MARK_RE.test(String.fromCodePoint(codePoint))) return true;
+
   return (
-    // 控制字符 U+0000-001F（Tab 已排除）
-    (codePoint >= 0x0000 && codePoint <= 0x001f) ||
-    // 软连字符
-    codePoint === 0x00ad ||
-    // 零宽空格、零宽非连接符、零宽连接符、方向标记
-    (codePoint >= 0x200b && codePoint <= 0x200f) ||
-    // 格式控制字符
-    (codePoint >= 0x2060 && codePoint <= 0x2069) ||
-    // 组合变音符号
-    (codePoint >= 0x0300 && codePoint <= 0x036f) ||
-    // 变体选择符
+    (codePoint >= 0x200b && codePoint <= 0x200d) ||
+    codePoint === 0x200e ||
+    codePoint === 0x200f ||
+    codePoint === 0x2060 ||
+    codePoint === 0xfeff ||
     (codePoint >= 0xfe00 && codePoint <= 0xfe0f) ||
-    // 字节序标记
-    codePoint === 0xfeff
+    (codePoint >= 0xe0100 && codePoint <= 0xe01ef) ||
+    (codePoint >= 0x1f3fb && codePoint <= 0x1f3ff)
   );
 }
 
 /**
  * 计算单个 Unicode 码点的显示宽度
  *
- * - 零宽字符 -> 0
- * - CJK 双宽字符 -> 2
- * - 默认 Emoji 呈现的码点 -> 2
- * - Emoji 但默认文本呈现的码点 -> 1（需 VS16 才变为 2）
- * - 其他字符 -> 1
+ * 逆向: chunk-003.js:22556 — xxT(T)
+ *   if (T === 9) return tabWidth;
+ *   if (zeroWidth checks) return 0;
+ *   if (Um0(T)) {           // Extended_Pictographic
+ *     if (wm0(T)) return 1; // !Emoji_Presentation → text-default
+ *     return 2;             // Emoji_Presentation → wide
+ *   }
+ *   if (Hm0(T)) return 2;  // CJK
+ *   return 1;
  *
  * @param codePoint - Unicode 码点
  * @returns 显示宽度（0、1 或 2）
- *
- * @example
- * ```ts
- * codePointWidth(0x41);    // 1 — 'A'
- * codePointWidth(0x4E2D);  // 2 — '中'
- * codePointWidth(0x200D);  // 0 — ZWJ
- * codePointWidth(0x1F600); // 2 — 😀（默认 Emoji 呈现）
- * codePointWidth(0x2600);  // 1 — ☀（默认文本呈现）
- * ```
  */
 export function codePointWidth(codePoint: number): number {
   if (isZeroWidth(codePoint)) return 0;
+  if (isEmoji(codePoint)) {
+    if (!isEmojiPresentation(codePoint)) return 1;
+    return 2;
+  }
   if (isCjk(codePoint)) return 2;
-  if (isEmojiPresentation(codePoint)) return 2;
-  if (isEmoji(codePoint)) return 1; // 需 VS16 才变为宽度 2
   return 1;
 }
 
@@ -192,75 +188,33 @@ const widthCache = new Map<string, number>();
 /**
  * 计算单个字素簇的显示宽度（带缓存）
  *
- * 对于单码点字素簇直接调用 codePointWidth；
- * 对于多码点字素簇，按以下优先级判定宽度：
- * - 包含 VS15 (U+FE0E) → 1（强制文本呈现）
- * - 包含 VS16 (U+FE0F) → 2（强制 Emoji 呈现）
- * - 包含 ZWJ (U+200D) → 2（ZWJ 序列）
- * - 包含肤色修饰符 (U+1F3FB-1F3FF) → 2
- * - 首码点为区域指示符 → 2（旗帜序列）
- * - 否则取各码点宽度最大值
+ * 逆向: chunk-003.js:22522-22554 — Nm0(T, R=true) grapheme width mode
+ * 遍历字素簇的码点，找到第一个非零宽码点，获取其 codePointWidth，
+ * 然后检查下一个码点是否为 VS-15 (→1) 或 VS-16 (→2) 覆盖。
  *
  * @param grapheme - 单个字素簇字符串
  * @returns 显示宽度
- *
- * @example
- * ```ts
- * charWidth("A");  // 1
- * charWidth("中"); // 2
- * charWidth("😀"); // 2
- * charWidth("🇯🇵"); // 2 — 旗帜序列
- * charWidth("👨‍👩‍👧"); // 2 — ZWJ 家庭序列
- * ```
  */
 export function charWidth(grapheme: string): number {
   const cached = widthCache.get(grapheme);
   if (cached !== undefined) return cached;
 
-  let width: number;
+  const chars = Array.from(grapheme);
+  let width = 0;
 
-  // 单码点快捷路径
-  const firstCodePoint = grapheme.codePointAt(0)!;
-  // 检查是否为单码点：如果 BMP 字符则长度为 1，如果辅助平面则长度为 2（代理对）
-  const firstLen = firstCodePoint > 0xffff ? 2 : 1;
-  if (grapheme.length === firstLen) {
-    width = codePointWidth(firstCodePoint);
-  } else {
-    // 多码点字素簇：检测 Emoji 相关修饰符与序列标记
-    let hasVS15 = false;
-    let hasVS16 = false;
-    let hasZWJ = false;
-    let hasSkinTone = false;
-    let hasEmojiBase = false;
-    let maxWidth = 0;
-    let hasNonZero = false;
-
-    for (const char of grapheme) {
-      const cp = char.codePointAt(0)!;
-      if (cp === 0xfe0e) hasVS15 = true;
-      if (cp === 0xfe0f) hasVS16 = true;
-      if (cp === 0x200d) hasZWJ = true;
-      if (cp >= 0x1f3fb && cp <= 0x1f3ff) hasSkinTone = true;
-      if (isEmoji(cp) || isEmojiPresentation(cp)) hasEmojiBase = true;
-      const w = codePointWidth(cp);
-      if (w > 0) {
-        hasNonZero = true;
-        if (w > maxWidth) maxWidth = w;
+  for (let t = 0; t < chars.length; t++) {
+    const cp = chars[t].codePointAt(0);
+    if (cp === undefined) continue;
+    const w = codePointWidth(cp);
+    if (w !== 0) {
+      let finalW = w;
+      if (t + 1 < chars.length) {
+        const next = chars[t + 1]?.codePointAt(0);
+        if (next === 0xfe0e) finalW = 1;
+        else if (next === 0xfe0f) finalW = 2;
       }
-    }
-
-    if (hasVS15) {
-      width = 1;
-    } else if (hasEmojiBase && (hasVS16 || hasZWJ || hasSkinTone)) {
-      width = 2;
-    } else if (firstCodePoint >= 0x1f1e6 && firstCodePoint <= 0x1f1ff) {
-      // 旗帜序列（区域指示符对）
-      width = 2;
-    } else if (!hasEmojiBase && hasVS16) {
-      // 非 Emoji 码点 + VS16 的情况：按原始宽度处理
-      width = hasNonZero ? Math.max(maxWidth, 1) : 0;
-    } else {
-      width = hasNonZero ? Math.max(maxWidth, 1) : 0;
+      width = finalW;
+      break;
     }
   }
 

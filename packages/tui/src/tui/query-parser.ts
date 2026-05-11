@@ -83,6 +83,7 @@ export class QueryParser {
     syncOutput: false,
     emojiWidth: false,
     pixelMouse: false,
+    pixelDimensions: null,
     kittyKeyboard: false,
     osc52: false,
     kittyGraphics: false,
@@ -104,6 +105,16 @@ export class QueryParser {
     cursor: null,
     indices: [null, null, null, null, null, null, null, null],
   };
+
+  /** 最近一次带内 resize 上报的像素尺寸。 */
+  private _inbandPixelData:
+    | {
+        columns: number;
+        rows: number;
+        pixelWidth: number;
+        pixelHeight: number;
+      }
+    | null = null;
 
   // ── Query building ───────────────────────────────
 
@@ -187,6 +198,7 @@ export class QueryParser {
    * so we force emojiWidth=true when detected regardless of DECRQSS response.
    */
   processDeviceAttributes(): boolean {
+    this.checkPixelDimensions();
     // 逆向: dY.js:44 — detectJetBrains() || detectTmux() → emojiWidth = true
     if (this._isJetBrains() || this._isTmux()) {
       this._capabilities.emojiWidth = true;
@@ -316,6 +328,70 @@ export class QueryParser {
       this._kittyWidthQuerySent = false;
     }
     return false;
+  }
+
+  /**
+   * 记录带内 resize 上报的像素尺寸。
+   *
+   * @param columns - 终端列数
+   * @param rows - 终端行数
+   * @param pixelWidth - 终端像素宽度
+   * @param pixelHeight - 终端像素高度
+   */
+  updateInbandPixelData(
+    columns: number,
+    rows: number,
+    pixelWidth: number,
+    pixelHeight: number,
+  ): void {
+    if (columns > 0 && rows > 0 && pixelWidth > 0 && pixelHeight > 0) {
+      this._inbandPixelData = {
+        columns,
+        rows,
+        pixelWidth,
+        pixelHeight,
+      };
+      this._capabilities.pixelDimensions = { width: pixelWidth, height: pixelHeight };
+    }
+  }
+
+  /**
+   * 刷新 pixelDimensions 能力位。
+   */
+  checkPixelDimensions(): void {
+    if (this._inbandPixelData !== null) {
+      this._capabilities.pixelDimensions = {
+        width: this._inbandPixelData.pixelWidth,
+        height: this._inbandPixelData.pixelHeight,
+      };
+      return;
+    }
+    this._capabilities.pixelDimensions = null;
+  }
+
+  /**
+   * 判断当前是否应启用 pixel mouse。
+   *
+   * @returns 当终端同时支持 ?1016 与像素尺寸数据时返回 true
+   */
+  shouldUsePixelMouse(): boolean {
+    return this._capabilities.pixelMouse === true && this._capabilities.pixelDimensions != null;
+  }
+
+  /**
+   * 返回当前像素尺寸明细。
+   *
+   * @returns 当前像素尺寸，未知时返回 null
+   */
+  getPixelDimensions():
+    | {
+        columns: number;
+        rows: number;
+        pixelWidth: number;
+        pixelHeight: number;
+      }
+    | null {
+    return this._inbandPixelData;
   }
 
   /**

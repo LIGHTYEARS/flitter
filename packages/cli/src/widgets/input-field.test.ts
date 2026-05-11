@@ -32,6 +32,7 @@ import {
 } from "@flitter/tui";
 import { InputField, type InputFieldConfig, InputFieldState } from "./input-field.js";
 import { ShortcutsPopup } from "./shortcuts-popup.js";
+import { AppThemeController, createDefaultAppTheme } from "./app-theme-controller.js";
 
 // ─── 测试辅助 ─────────────────────────────────────────
 
@@ -847,7 +848,17 @@ describe("InputField topWidget renders inside border", () => {
 describe("ShortcutsPopup includes ─ separator", () => {
   it("build() output Column includes a ─ separator as last child", () => {
     const popup = new ShortcutsPopup();
-    const built = popup.build({} as any);
+    // AppThemeController.of() needs context.dependOnInheritedWidgetOfExactType
+    const theme = createDefaultAppTheme();
+    const mockWidget = Object.create(AppThemeController.prototype);
+    mockWidget.theme = theme;
+    const mockContext = {
+      dependOnInheritedWidgetOfExactType: (type: any) => {
+        if (type === AppThemeController) return { widget: mockWidget };
+        return null;
+      },
+    };
+    const built = popup.build(mockContext as any);
 
     // built should be a Column
     assert.ok(built instanceof Column, "ShortcutsPopup.build() should return a Column");

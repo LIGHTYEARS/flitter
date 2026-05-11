@@ -41,6 +41,31 @@ export abstract class InheritedWidget implements Widget {
   readonly child: Widget;
 
   /**
+   * 调试数据存储。
+   *
+   * 逆向: modules/0536_unknown_Mn.js:3 — _debugData = {}
+   */
+  _debugData: Record<string, unknown> = {};
+
+  /**
+   * 合并调试数据。
+   *
+   * 逆向: modules/0536_unknown_Mn.js:10-14 — sendDebugData(T)
+   */
+  sendDebugData(data: Record<string, unknown>): void {
+    this._debugData = { ...this._debugData, ...data };
+  }
+
+  /**
+   * 获取调试数据。
+   *
+   * 逆向: modules/0536_unknown_Mn.js:15-17 — get debugData()
+   */
+  get debugData(): Record<string, unknown> {
+    return this._debugData;
+  }
+
+  /**
    * 创建 InheritedWidget 实例。
    *
    * @param opts - 配置项

@@ -241,12 +241,14 @@ export class ScrollBehavior {
   }
 
   /**
-   * 逆向: amp P1T → scrollableState.handleScrollDelta — 钳位偏移更新。
+   * 逆向: amp P1T → scrollableState.handleScrollDelta — 用户滚动增量更新。
    *
-   * jumpTo 内部会 clamp 到 [0, maxScrollExtent]。
+   * 该路径与 {@link ScrollController.jumpTo} 的显式跳转语义分离：
+   * 只做“当前 offset + delta”的用户输入累加，然后交给
+   * {@link ScrollController.updateOffset} 做边界收敛。
    */
   handleScrollDelta(delta: number): void {
     const newOffset = this._controller.offset + delta;
-    this._controller.jumpTo(newOffset);
+    this._controller.updateOffset(newOffset);
   }
 }

@@ -169,6 +169,16 @@ function shouldAnimate(status: ToolStatus): boolean {
   return status === "in-progress" || status === "queued";
 }
 
+/**
+ * Whether a tool status indicates completion (should be collapsed by default).
+ *
+ * 逆向: x8R._isTaskCompleted — returns true for any status that is NOT
+ * "in-progress", "queued", or "blocked-on-user"
+ */
+function isTaskCompleted(status: ToolStatus): boolean {
+  return status !== "in-progress" && status !== "queued" && status !== "blocked-on-user";
+}
+
 // ════════════════════════════════════════════════════
 //  Default colors
 // ════════════════════════════════════════════════════
@@ -280,6 +290,10 @@ export class ExpandableToolHeaderState extends State<ExpandableToolHeader> {
   override initState(): void {
     super.initState();
     const status = this.widget.config.status;
+    // 逆向: x8R._buildCollapsibleTaskItem — expanded = !_isTaskCompleted(status)
+    if (status && !isTaskCompleted(status)) {
+      this._expanded = true;
+    }
     if (status && shouldAnimate(status)) {
       this._startAnimation();
     }
@@ -296,6 +310,15 @@ export class ExpandableToolHeaderState extends State<ExpandableToolHeader> {
       this._startAnimation();
     } else if (wasAnimating && !nowAnimating) {
       this._stopAnimation();
+    }
+
+    // 逆向: auto-collapse when task completes (in-progress → done)
+    if (!this._isControlled && oldStatus && newStatus) {
+      const wasCompleted = isTaskCompleted(oldStatus);
+      const nowCompleted = isTaskCompleted(newStatus);
+      if (!wasCompleted && nowCompleted) {
+        this._expanded = false;
+      }
     }
 
     // Sync uncontrolled → controlled transition
@@ -441,6 +464,7 @@ export class ExpandableToolHeaderState extends State<ExpandableToolHeader> {
     // Expanded: header + child
     // 逆向: parent pattern (misc_utils.js:6468-6471) — Column([header, ...children])
     return new Column({
+      mainAxisSize: "min",
       children: [headerRow, child],
     }) as unknown as Widget;
   }

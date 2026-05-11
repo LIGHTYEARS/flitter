@@ -879,7 +879,7 @@ describe("复杂场景", () => {
     setBuildOwner(env.buildOwner);
   });
 
-  it("完整端到端：setState -> 帧调度 -> build -> layout -> paint", () => {
+  it("完整端到端：setState -> 帧调度 -> build -> layout -> paint", async () => {
     // 设置完整管线
     const rootRO = new ColorBoxRenderObject("root");
     env.pipelineOwner.setRootRenderObject(rootRO);
@@ -899,9 +899,12 @@ describe("复杂场景", () => {
     const buildCountBefore = state.buildCount;
 
     // setState 触发完整管线
-    // 由于 onNeedFrame 已连接，setState -> scheduleBuildFor -> requestFrame -> executeFrame
+    // 逆向: amp k8 — requestFrame 通过 setImmediate 异步调度帧
     state.increment();
     assert.equal(state.count, 1);
+
+    // 等待异步帧调度完成
+    await new Promise((resolve) => setImmediate(resolve));
 
     // 由于帧被自动触发执行，build 阶段已完成
     assert.ok(state.buildCount > buildCountBefore, "setState 后应触发 rebuild");

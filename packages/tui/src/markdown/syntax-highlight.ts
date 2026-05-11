@@ -468,7 +468,7 @@ export class SyntaxHighlighter {
  * 逆向: Sv() uses syntaxHighlight colors to create styled text spans
  *
  * @param colors - SyntaxHighlightColors from AppTheme.syntaxHighlight
- * @returns SyntaxTheme suitable for SyntaxHighlighter / MarkdownRenderer
+ * @returns SyntaxTheme suitable for SyntaxHighlighter
  */
 export function syntaxColorsToTheme(colors: SyntaxHighlightColors): SyntaxTheme {
   return {

@@ -33,6 +33,7 @@ export type AgentEvent =
   | ToolStartEvent
   | ToolDataEvent
   | ToolCompleteEvent
+  | ToolProgressEvent
   | ApprovalRequestEvent
   | TurnCompleteEvent
   | CompactionStartEvent
@@ -91,6 +92,29 @@ export interface ToolDataEvent {
 export interface ToolCompleteEvent {
   type: "tool:complete";
   toolUseId: string;
+}
+
+/**
+ * 子代理工具实时进度事件
+ * 逆向: amp's toolProgressByToolUseID$ — out-of-band progress stream
+ * that carries subagentProgressTurns for live rendering during execution.
+ */
+export interface ToolProgressEvent {
+  type: "tool:progress";
+  toolUseId: string;
+  progress: Array<{
+    message?: string;
+    reasoning?: string;
+    tool_uses?: Array<{
+      id?: string;
+      tool_name?: string;
+      normalized_name?: string;
+      input?: unknown;
+      status?: string;
+      result?: unknown;
+      error?: { message: string };
+    }>;
+  }>;
 }
 
 /**

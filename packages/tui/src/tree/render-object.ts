@@ -11,7 +11,79 @@
 
 import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
+import { logger } from "../debug/logger.js";
 import { getPipelineOwner, type ParentData } from "./types.js";
+
+const log = logger.scoped("render.invalidate");
+
+/**
+ * 判断当前节点是否属于本轮 scroll 抖动定位的最小观察范围。
+ *
+ * 只跟踪 `RenderFlex` 本身，以及它直接挂在 `RenderScrollable` 下的相邻链路，
+ * 避免把整棵渲染树的 invalidate 日志重新打爆。
+ *
+ * @param node - 当前需要判断的渲染节点
+ * @returns 是否属于目标观察范围
+ */
+function shouldLogInvalidate(node: RenderObject): boolean {
+  const selfType = node.constructor.name;
+  const parentType = node.parent?.constructor.name ?? "";
+  return selfType === "RenderFlex" || parentType === "RenderScrollable";
+}
+
+/**
+ * 生成 invalidate 日志摘要。
+ *
+ * @param node - 当前节点
+ * @param phase - 当前 invalidate 类型
+ * @returns 适合日志输出的状态摘要
+ */
+function describeInvalidate(node: RenderObject, phase: "layout" | "paint"): Record<string, unknown> {
+  return {
+    phase,
+    node: node.constructor.name,
+    depth: node.depth,
+    parent: node.parent?.constructor.name ?? null,
+    needsLayout: node.needsLayout,
+    needsPaint: node.needsPaint,
+    attached: node.attached,
+  };
+}
+
+/**
+ * 判断当前节点是否是本轮要追调用源的目标节点。
+ *
+ * 只跟踪 `RenderScrollable` 的直接 child `RenderFlex`，避免在所有
+ * `markNeedsLayout()` 上打印调用栈把日志打爆。
+ *
+ * @param node - 当前渲染节点
+ * @returns 是否需要追加调用源日志
+ */
+function shouldLogInvalidateCaller(node: RenderObject): boolean {
+  return node.constructor.name === "RenderFlex" && node.parent?.constructor.name === "RenderScrollable";
+}
+
+/**
+ * 提取短调用栈，帮助定位是谁触发了 `markNeedsLayout()`。
+ *
+ * @returns 去掉当前日志辅助函数后的短调用点列表
+ */
+function getInvalidateCallerFrames(): string[] {
+  const stack = new Error().stack;
+  if (!stack) return [];
+
+  return stack
+    .split("\n")
+    .slice(1)
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        !line.includes("getInvalidateCallerFrames") &&
+        !line.includes("RenderObject.markNeedsLayout") &&
+        !line.includes("shouldLogInvalidateCaller"),
+    )
+    .slice(0, 4);
+}
 
 /**
  * 渲染树节点抽象基类。
@@ -284,6 +356,17 @@ export abstract class RenderObject {
   markNeedsLayout(): void {
     if (this._needsLayout) return;
     if (!this._attached) return;
+    if (shouldLogInvalidate(this)) {
+      log.debug("markNeedsLayout", {
+        ...describeInvalidate(this, "layout"),
+        ...(shouldLogInvalidateCaller(this)
+          ? {
+              callerFrames: getInvalidateCallerFrames(),
+              debugData: this.debugData,
+            }
+          : {}),
+      });
+    }
     this._needsLayout = true;
     if (this._parent != null) {
       this._parent.markNeedsLayout();
@@ -300,6 +383,9 @@ export abstract class RenderObject {
   markNeedsPaint(): void {
     if (this._needsPaint) return;
     if (!this._attached) return;
+    if (shouldLogInvalidate(this)) {
+      log.debug("markNeedsPaint", describeInvalidate(this, "paint"));
+    }
     this._needsPaint = true;
     getPipelineOwner()?.requestPaint(this);
   }

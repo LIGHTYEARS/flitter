@@ -12,9 +12,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import type { Element } from "../tree/element.js";
-import { logger } from "./logger.js";
-
-const log = logger.scoped("widget-repl");
+import { Logger, logger } from "./logger.js";
 
 // ════════════════════════════════════════════════════
 //  WidgetDebugAPI
@@ -208,10 +206,12 @@ export class WidgetREPLServer {
   private _server: net.Server | null = null;
   private _api: WidgetDebugAPI;
   private _socketPath: string;
+  private readonly _log: Logger;
 
-  constructor(rootElement: Element | null = null) {
+  constructor(rootElement: Element | null = null, customLogger?: Logger) {
     this._api = new WidgetDebugAPI(rootElement);
     this._socketPath = path.join(os.tmpdir(), `flitter-widget-repl-${process.pid}.sock`);
+    this._log = (customLogger ?? logger).scoped("widget-repl");
   }
 
   /** Update the root element (call after framework re-roots). */
@@ -248,14 +248,14 @@ export class WidgetREPLServer {
       try {
         fs.chmodSync(this._socketPath, 0o600);
       } catch {
-        log.warn("Failed to chmod REPL socket; leaving default permissions");
+        this._log.warn("Failed to chmod REPL socket; leaving default permissions");
       }
-      log.info(`Widget REPL listening on ${this._socketPath}`);
-      log.info(`Connect with: nc -U ${this._socketPath}`);
+      this._log.info(`Widget REPL listening on ${this._socketPath}`);
+      this._log.info(`Connect with: nc -U ${this._socketPath}`);
     });
 
     this._server.on("error", (err) => {
-      log.error("Widget REPL server error:", err);
+      this._log.error("Widget REPL server error:", err);
     });
   }
 
@@ -351,7 +351,7 @@ export class WidgetREPLServer {
     });
 
     socket.on("error", (err) => {
-      log.debug("Widget REPL socket error:", err);
+      this._log.debug("Widget REPL socket error:", err);
     });
   }
 }

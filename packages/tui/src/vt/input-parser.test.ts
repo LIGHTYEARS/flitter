@@ -537,6 +537,28 @@ describe("鼠标事件", () => {
     assert.equal(mouse.action, "wheel_down");
   });
 
+  it("33b. 自定义 SGR mouse converter 可覆盖默认坐标解码", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((event) => events.push(event));
+    parser.setSgrMouseConverter((buttonByte, x1, y1, finalChar) => ({
+      type: "mouse",
+      action: buttonByte === 64 ? "wheel_up" : finalChar === "M" ? "press" : "release",
+      button: "none",
+      x: (x1 - 1) / 2,
+      y: (y1 - 1) / 4,
+      modifiers: { shift: false, alt: false, ctrl: false, meta: false },
+    }));
+
+    parser.feed(Buffer.from("\x1b[<64;5;9M", "latin1"));
+
+    assert.equal(events.length, 1);
+    const mouse = assertMouseEvent(events[0]);
+    assert.equal(mouse.action, "wheel_up");
+    assert.equal(mouse.x, 2);
+    assert.equal(mouse.y, 2);
+  });
+
   // ── 34. SGR 鼠标：移动事件 ────────────────────────────
   it("34. CSI < 32;3;4 M → 移动事件，左键按住", () => {
     const events = feedStr("\x1b[<32;3;4M");

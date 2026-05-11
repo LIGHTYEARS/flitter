@@ -11,8 +11,10 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { Color } from "../screen/color.js";
 import { HitTestResult } from "../gestures/hit-test.js";
 import { Screen } from "../screen/screen.js";
+import { TextStyle } from "../screen/text-style.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderParagraph, RichText } from "./rich-text.js";
 import { TextSpan } from "./text-span.js";
@@ -414,5 +416,61 @@ describe("RichText Widget — selectable prop", () => {
     const widget = new RichText({ text: new TextSpan({ text: "test" }), selectable: true });
     widget.updateRenderObject(rp);
     assert.equal(rp.selectable, true);
+  });
+});
+
+describe("RenderParagraph — textSpan dirty marking", () => {
+  it("仅文本样式变化时不触发布局，但会重绘新样式", () => {
+    const rp = new RenderParagraph(
+      new TextSpan({
+        text: "A",
+        style: new TextStyle({ foreground: Color.blue() }),
+      }),
+    );
+    const internal = rp as unknown as {
+      attach(): void;
+      _needsLayout: boolean;
+      _needsPaint: boolean;
+    };
+
+    internal.attach();
+    rp.layout(BoxConstraints.tight(4, 1));
+    internal._needsLayout = false;
+    internal._needsPaint = false;
+
+    rp.textSpan = new TextSpan({
+      text: "A",
+      style: new TextStyle({ foreground: Color.red() }),
+    });
+
+    assert.equal(rp.needsLayout, false);
+    assert.equal(rp.needsPaint, true);
+
+    const screen = new Screen(4, 1);
+    rp.paint(screen, 0, 0);
+    assert.equal(screen.getCell(0, 0).style.foreground.equals(Color.red()), true);
+  });
+
+  it("仅等宽文本变化时不触发布局，但会重绘新字形", () => {
+    const rp = new RenderParagraph(new TextSpan({ text: "⠋ " }));
+    const internal = rp as unknown as {
+      attach(): void;
+      _needsLayout: boolean;
+      _needsPaint: boolean;
+    };
+
+    internal.attach();
+    rp.layout(BoxConstraints.tight(4, 1));
+    internal._needsLayout = false;
+    internal._needsPaint = false;
+
+    rp.textSpan = new TextSpan({ text: "⠙ " });
+
+    assert.equal(rp.needsLayout, false);
+    assert.equal(rp.needsPaint, true);
+
+    const screen = new Screen(4, 1);
+    rp.paint(screen, 0, 0);
+    assert.equal(screen.getCell(0, 0).char, "⠙");
   });
 });

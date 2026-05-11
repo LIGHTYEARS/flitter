@@ -2,20 +2,52 @@
  * 滚动视口渲染对象。
  *
  * {@link RenderScrollable} 是 {@link RenderBox} 的子类，作为可滚动视口的
- * 渲染层核心。在 layout 阶段将无限高度约束传递给子节点，在 paint 阶段
- * 根据 {@link ScrollController.offset} 应用滚动偏移并裁剪到视口范围。
+ * 渲染层核心。在 layout 阶段将无限高度约束传递给子节点，并同步当前可见的
+ * 滚动偏移快照，让 paint/hitTest 始终共享同一份 render snapshot，同时裁剪到
+ * 视口范围。
  *
  * 对应逆向工程中的滚动视口渲染实现。
  *
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
 import { BoxConstraints } from "../tree/constraints.js";
 import { RenderBox } from "../tree/render-box.js";
 import { ClipScreen } from "../widgets/viewport.js";
 import type { ScrollController } from "./scroll-controller.js";
+
+const log = logger.scoped("scroll.render");
+
+/**
+ * 描述渲染节点，便于定位 offset 稳定时是谁仍在推动 relayout。
+ *
+ * @param node - 需要描述的渲染节点
+ * @returns 适合日志输出的节点摘要
+ */
+function describeRenderNode(node: RenderBox | null): Record<string, unknown> | null {
+  if (!node) return null;
+
+  const candidate = node as RenderBox & {
+    depth?: number;
+    attached?: boolean;
+    parent?: { constructor?: { name?: string } } | null;
+    _needsLayout?: boolean;
+    _needsPaint?: boolean;
+  };
+
+  return {
+    type: candidate.constructor.name,
+    depth: candidate.depth ?? -1,
+    attached: candidate.attached ?? false,
+    size: candidate.size,
+    needsLayout: candidate._needsLayout ?? false,
+    needsPaint: candidate._needsPaint ?? false,
+    parentType: candidate.parent?.constructor?.name ?? "unknown",
+  };
+}
 
 // ════════════════════════════════════════════════════
 //  常量
@@ -38,7 +70,7 @@ const MAX_CHILD_HEIGHT = 100_000;
  *
  * 继承 {@link RenderBox}，管理一个单子节点（通过 adoptChild 添加）。
  * 在布局时将无限高度约束传给子节点，自身尺寸等于父约束的视口大小。
- * 在绘制时根据 ScrollController 的 offset 偏移子节点的 Y 坐标。
+ * 在绘制和命中测试时根据当前 render snapshot 偏移子节点的 Y 坐标。
  *
  * @example
  * ```ts
@@ -56,6 +88,12 @@ export class RenderScrollable extends RenderBox {
   /** 滚动偏移变化回调（用于触发 markNeedsPaint） */
   private _onScrollChange: (() => void) | null = null;
 
+  /** 当前 render object 使用的滚动偏移快照。 */
+  private _scrollOffset: number = 0;
+
+  /** 当前 render object 使用的 bottom-anchor 偏移快照。 */
+  private _bottomAnchorOffset: number = 0;
+
   /**
    * Viewport position: "top" (default) or "bottom".
    *
@@ -64,15 +102,6 @@ export class RenderScrollable extends RenderBox {
    * via a negative paint offset.
    */
   private _position: "top" | "bottom";
-
-  /**
-   * Bottom-anchor paint offset — when content < viewport and position="bottom",
-   * this holds the negative offset to push content to the bottom edge.
-   *
-   * 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
-   *   _scrollOffset = -(viewportHeight - contentHeight)
-   */
-  private _bottomAnchorOffset: number = 0;
 
   /**
    * 创建可滚动视口渲染对象。
@@ -151,7 +180,21 @@ export class RenderScrollable extends RenderBox {
    */
   override attach(): void {
     super.attach();
-    this._onScrollChange = () => this.markNeedsPaint();
+    this._onScrollChange = () => {
+      const nextOffset = this._scrollController.offset;
+      if (this._scrollOffset === nextOffset) {
+        return;
+      }
+
+      log.debug("syncScrollOffset", {
+        reason: "listener",
+        from: this._scrollOffset,
+        to: nextOffset,
+        position: this._position,
+      });
+      this._scrollOffset = nextOffset;
+      this.markNeedsPaint();
+    };
     this._scrollController.addListener(this._onScrollChange);
   }
 
@@ -184,6 +227,9 @@ export class RenderScrollable extends RenderBox {
    */
   performLayout(): void {
     const constraints = this._constraints!;
+    const childNeedsLayoutBefore = this.child?.needsLayout ?? false;
+    const childNeedsPaintBefore = this.child?.needsPaint ?? false;
+    const childHeightBeforeLayout = this.child?.size.height ?? 0;
 
     if (this.child) {
       // 向子节点传递无限高度约束
@@ -220,21 +266,74 @@ export class RenderScrollable extends RenderBox {
     // 逆向: amp v1T.performLayout() (interactive_widgets.js:246-248)
     //   Snapshot atBottom before updating maxScrollExtent, then jumpTo if followMode && wasAtBottom.
     const newExtent = Math.max(0, childHeight - viewportHeight);
-    const wasAtBottom = this._scrollController.atBottom;
+    const oldExtent = this._scrollController.maxScrollExtent;
+    const wasAtBottom = oldExtent > 0 && this._scrollController.atBottom;
     this._scrollController.updateMaxScrollExtent(newExtent);
-    if (this._scrollController.followMode && wasAtBottom) {
+
+    const grewSinceLastLayout = newExtent > oldExtent;
+    const shouldAutoScroll = this._scrollController.followMode && wasAtBottom && grewSinceLastLayout;
+
+    log.debug("performLayout", {
+      childHeight,
+      childHeightBeforeLayout,
+      childNeedsLayoutBefore,
+      childNeedsPaintBefore,
+      viewportHeight,
+      oldExtent,
+      newExtent,
+      grewSinceLastLayout,
+      offset: this._scrollController.offset,
+      followMode: this._scrollController.followMode,
+      shouldAutoScroll,
+      wasAtBottom,
+      position: this._position,
+    });
+
+    if (
+      childNeedsLayoutBefore &&
+      childHeightBeforeLayout === childHeight &&
+      oldExtent === newExtent &&
+      this._scrollOffset === this._scrollController.offset
+    ) {
+      log.debug("performLayout:stableRelayout", {
+        position: this._position,
+        offset: this._scrollController.offset,
+        extent: newExtent,
+        child: describeRenderNode(this.child),
+      });
+    }
+
+    if (shouldAutoScroll) {
+      log.debug("performLayout:autoScroll", { to: newExtent });
       this._scrollController.jumpTo(newExtent);
     } else if (this._scrollController.offset > newExtent) {
+      log.debug("performLayout:clampOffset", { offset: this._scrollController.offset, newExtent });
       this._scrollController.jumpTo(newExtent);
+    }
+
+    const nextScrollOffset = this._scrollController.offset;
+    if (this._scrollOffset !== nextScrollOffset) {
+      log.debug("syncScrollOffset", {
+        reason: "layout",
+        from: this._scrollOffset,
+        to: nextScrollOffset,
+        position: this._position,
+      });
+      this._scrollOffset = nextScrollOffset;
     }
 
     // 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
     // When position="bottom" and content is shorter than viewport,
     // compute a negative paint offset to anchor content to the bottom edge.
-    if (this._position === "bottom" && childHeight <= viewportHeight) {
-      this._bottomAnchorOffset = viewportHeight - childHeight;
-    } else {
-      this._bottomAnchorOffset = 0;
+    const nextBottomAnchorOffset =
+      this._position === "bottom" && childHeight <= viewportHeight ? viewportHeight - childHeight : 0;
+    if (this._bottomAnchorOffset !== nextBottomAnchorOffset) {
+      log.debug("syncBottomAnchorOffset", {
+        from: this._bottomAnchorOffset,
+        to: nextBottomAnchorOffset,
+        position: this._position,
+      });
+      this._bottomAnchorOffset = nextBottomAnchorOffset;
     }
   }
 
@@ -243,10 +342,10 @@ export class RenderScrollable extends RenderBox {
   // ════════════════════════════════════════════════════
 
   /**
-   * 命中测试 — 将点击坐标调整 scrollOffset 后委托给子节点。
+   * 命中测试 — 将点击坐标调整到当前 render snapshot 的 scrollOffset 后委托给子节点。
    *
-   * paint() shifts child Y by (-scrollOffset + bottomAnchorOffset).
-   * hitTest must pass the same offset so child bounds checks match screen positions.
+   * paint() shifts child Y by (-scrollOffset + bottomAnchorOffset)。
+   * hitTest 必须消费与 paint 相同的 snapshot，保证命中与屏幕内容一致。
    */
   override hitTest(
     result: HitTestResult,
@@ -268,7 +367,7 @@ export class RenderScrollable extends RenderBox {
 
     if (!this.child) return true;
 
-    const scrollOffset = Math.floor(this._scrollController.offset);
+    const scrollOffset = Math.floor(this._scrollOffset);
     const adjustedY = absY - scrollOffset + this._bottomAnchorOffset;
     this.child.hitTest(result, position, absX, adjustedY);
 
@@ -282,7 +381,7 @@ export class RenderScrollable extends RenderBox {
   /**
    * 绘制可滚动视口。
    *
-   * 将子节点绘制到 screen 上，Y 坐标减去滚动偏移量。
+   * 将子节点绘制到 screen 上，Y 坐标减去当前 render snapshot 的滚动偏移量。
    * 使用 ClipScreen 裁剪到视口范围，防止内容泄漏到视口外。
    *
    * 逆向: g1T.paint (interactive_widgets.js:153-161)
@@ -297,7 +396,15 @@ export class RenderScrollable extends RenderBox {
 
     if (!this.child) return;
 
-    const scrollOffset = Math.floor(this._scrollController.offset);
+    const scrollOffset = Math.floor(this._scrollOffset);
+    const bottomOffset = this._bottomAnchorOffset;
+
+    log.debug("paint", {
+      scrollOffset,
+      bottomAnchorOffset: bottomOffset,
+      offsetX,
+      offsetY,
+    });
 
     // 逆向: g1T.paint line 158 — 创建 ClipScreen 裁剪子节点绘制到视口范围内
     const clipScreen = new ClipScreen(
@@ -310,7 +417,6 @@ export class RenderScrollable extends RenderBox {
 
     // Apply bottom-anchor offset when content is shorter than viewport
     // 逆向: amp v1T.paint uses _scrollOffset which can be negative for bottom-stick
-    const bottomOffset = this._bottomAnchorOffset;
     this.child.paint(
       clipScreen as unknown as Screen,
       offsetX,

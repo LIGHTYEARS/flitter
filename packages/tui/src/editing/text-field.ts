@@ -123,6 +123,8 @@ class TextFieldState extends State<TextField> {
   private _autoCopyTimer: ReturnType<typeof setTimeout> | undefined = undefined;
   /** Copy-highlight timer handle */
   private _copyHighlightTimer: ReturnType<typeof setTimeout> | undefined = undefined;
+  /** 复制高亮是否激活 */
+  private _copyHighlightActive: boolean = false;
 
   static readonly AUTO_COPY_DELAY_MS = 500;
   static readonly AUTO_COPY_HIGHLIGHT_DURATION_MS = 300;

@@ -260,3 +260,52 @@ describe("ScrollBehavior — horizontal key bindings (amp P1T alignment)", () =>
     assert.equal(behavior.handleKeyEvent(makeKeyEvent("k")), "ignored");
   });
 });
+
+describe("ScrollBehavior — user delta path separation", () => {
+  let controller: ScrollController;
+  let behavior: ScrollBehavior;
+
+  beforeEach(() => {
+    controller = new ScrollController();
+    controller.disableFollowMode();
+    behavior = new ScrollBehavior(controller, {
+      scrollStep: 3,
+      pageScrollStep: 10,
+    });
+  });
+
+  afterEach(() => {
+    controller.dispose();
+  });
+
+  it("handleScrollDelta clamps at top via updateOffset without changing jumpTo semantics", () => {
+    controller.updateMaxScrollExtent(100);
+    controller.jumpTo(0);
+    behavior.handleScrollDelta(-3);
+    assert.equal(controller.offset, 0);
+  });
+
+  it("handleScrollDelta clamps at bottom via updateOffset", () => {
+    controller.updateMaxScrollExtent(10);
+    controller.jumpTo(10);
+    behavior.handleScrollDelta(3);
+    assert.equal(controller.offset, 10);
+  });
+
+  it("handleScrollDelta takes over and cancels an in-flight animateTo", async () => {
+    controller.updateMaxScrollExtent(200);
+    controller.jumpTo(0);
+    controller.animateTo(100, 80);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const animatedOffset = controller.offset;
+    assert.notEqual(animatedOffset, 0);
+
+    behavior.handleScrollDelta(5);
+    const expectedOffset = animatedOffset + 5;
+    assert.equal(controller.offset, expectedOffset);
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    assert.equal(controller.offset, expectedOffset);
+  });
+});

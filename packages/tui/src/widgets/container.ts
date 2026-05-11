@@ -57,6 +57,118 @@ export class ContainerRenderObject extends RenderBox {
   private _forceDim: boolean = false;
 
   /**
+   * 比较两个可选对象是否都为空或按给定规则相等。
+   *
+   * @param current - 当前值
+   * @param next - 新值
+   * @param equals - 非空时的相等比较函数
+   * @returns 两个值是否等价
+   */
+  private areOptionalValuesEqual<T>(
+    current: T | undefined,
+    next: T | undefined,
+    equals: (left: T, right: T) => boolean,
+  ): boolean {
+    if (current === next) return true;
+    if (!current || !next) return false;
+    return equals(current, next);
+  }
+
+  /**
+   * 比较两个可选边框单边配置是否完全一致。
+   *
+   * @param current - 当前边框单边
+   * @param next - 新边框单边
+   * @returns 单边配置是否等价
+   */
+  private areBorderSidesEqual(
+    current: { color: Color; width: number; style: "rounded" | "solid" } | undefined,
+    next: { color: Color; width: number; style: "rounded" | "solid" } | undefined,
+  ): boolean {
+    if (current === next) return true;
+    if (!current || !next) return false;
+    return (
+      current.width === next.width &&
+      current.style === next.style &&
+      current.color.equals(next.color)
+    );
+  }
+
+  /**
+   * 比较两个可选边框是否完全一致。
+   *
+   * @param current - 当前边框
+   * @param next - 新边框
+   * @returns 边框是否等价
+   */
+  private areBordersEqual(
+    current:
+      | {
+          top?: { color: Color; width: number; style: "rounded" | "solid" };
+          right?: { color: Color; width: number; style: "rounded" | "solid" };
+          bottom?: { color: Color; width: number; style: "rounded" | "solid" };
+          left?: { color: Color; width: number; style: "rounded" | "solid" };
+        }
+      | undefined,
+    next:
+      | {
+          top?: { color: Color; width: number; style: "rounded" | "solid" };
+          right?: { color: Color; width: number; style: "rounded" | "solid" };
+          bottom?: { color: Color; width: number; style: "rounded" | "solid" };
+          left?: { color: Color; width: number; style: "rounded" | "solid" };
+        }
+      | undefined,
+  ): boolean {
+    if (current === next) return true;
+    if (!current || !next) return false;
+    return (
+      this.areBorderSidesEqual(current.top, next.top) &&
+      this.areBorderSidesEqual(current.right, next.right) &&
+      this.areBorderSidesEqual(current.bottom, next.bottom) &&
+      this.areBorderSidesEqual(current.left, next.left)
+    );
+  }
+
+  /**
+   * 比较两个可选装饰是否完全一致。
+   *
+   * @param current - 当前装饰
+   * @param next - 新装饰
+   * @returns 装饰是否等价
+   */
+  private areDecorationsEqual(
+    current: BoxDecoration | undefined,
+    next: BoxDecoration | undefined,
+  ): boolean {
+    if (current === next) return true;
+    if (!current || !next) return false;
+    const colorsEqual =
+      current.color === next.color ||
+      (current.color !== undefined &&
+        next.color !== undefined &&
+        current.color.equals(next.color));
+    return colorsEqual && this.areBordersEqual(current.border, next.border);
+  }
+
+  /**
+   * 判断装饰变化是否会影响布局。
+   *
+   * Container 的布局只关心边框占位是否存在，不关心背景色。
+   *
+   * @param current - 当前装饰
+   * @param next - 新装饰
+   * @returns 是否需要重新布局
+   */
+  private didLayoutDecorationChange(
+    current: BoxDecoration | undefined,
+    next: BoxDecoration | undefined,
+  ): boolean {
+    const currentBorder = current?.border;
+    const nextBorder = next?.border;
+    return !this.areBordersEqual(currentBorder, nextBorder);
+  }
+
+  /**
    * 逆向: qw constructor(T, R, a, e, t, r)
    */
   constructor(
@@ -101,14 +213,33 @@ export class ContainerRenderObject extends RenderBox {
     decoration?: BoxDecoration,
     extraConstraints?: BoxConstraints,
   ): void {
+    const needsLayout =
+      this._width !== width ||
+      this._height !== height ||
+      !this.areOptionalValuesEqual(this._padding, padding, (left, right) => left.equals(right)) ||
+      !this.areOptionalValuesEqual(this._margin, margin, (left, right) => left.equals(right)) ||
+      !this.areOptionalValuesEqual(
+        this._extraConstraints,
+        extraConstraints,
+        (left, right) => left.equals(right),
+      ) ||
+      this.didLayoutDecorationChange(this._decoration, decoration);
+    const needsPaint =
+      needsLayout || !this.areDecorationsEqual(this._decoration, decoration);
+
     this._width = width;
     this._height = height;
     this._padding = padding;
     this._margin = margin;
     this._decoration = decoration;
     this._extraConstraints = extraConstraints;
-    this.markNeedsLayout();
-    this.markNeedsPaint();
+
+    if (needsLayout) {
+      this.markNeedsLayout();
+    }
+    if (needsPaint) {
+      this.markNeedsPaint();
+    }
   }
 
   // ────────────────────────────────────────────────────

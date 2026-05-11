@@ -25,12 +25,10 @@
 import type { BuildContext, Widget } from "@flitter/tui";
 import {
   Color,
-  Column,
   Container,
   EdgeInsets,
   RichText,
   Row,
-  SizedBox,
   State,
   StatefulWidget,
   TextSpan,
@@ -39,6 +37,7 @@ import {
 import { ExpandableToolHeader, type ToolStatus } from "./expandable-tool-header.js";
 import type { SubagentContent, SubagentTool } from "./subagent-content.js";
 import { hasTerminalMessage, propagateCancellation } from "./subagent-content.js";
+import { TreeChildren } from "./tree-children.js";
 
 // ════════════════════════════════════════════════════
 //  Types
@@ -192,12 +191,8 @@ export class SubagentToolWidgetState extends State<SubagentToolWidget> {
     // ── Assemble body ──
     // 逆向: n = new uR({ padding: new TR(2, 0, 2, 0), child: new Jb({ children: s }) })
     const bodyWidget = new Container({
-      padding: EdgeInsets.symmetric({ horizontal: 2 }),
-      child: new Column({
-        crossAxisAlignment: "start",
-        mainAxisSize: "min",
-        children: bodyChildren,
-      }) as unknown as Widget,
+      padding: EdgeInsets.only({ left: 2 }),
+      child: new TreeChildren({ children: bodyChildren }) as unknown as Widget,
     }) as unknown as Widget;
 
     // ── Header wrapping ──
@@ -206,9 +201,20 @@ export class SubagentToolWidgetState extends State<SubagentToolWidget> {
       return bodyWidget;
     }
 
+    // 逆向: WQ() builds title with icon + name + detail(description)
+    const trailingWidget = description
+      ? (new RichText({
+          text: new TextSpan({
+            text: description,
+            style: new TextStyle({ foreground: Color.default() }),
+          }),
+        }) as unknown as Widget)
+      : undefined;
+
     return new ExpandableToolHeader({
       title: toolName,
       status,
+      trailing: trailingWidget,
       child: bodyWidget,
     }) as unknown as Widget;
   }
@@ -377,7 +383,6 @@ export class SubagentToolWidgetState extends State<SubagentToolWidget> {
     return new Row({
       mainAxisSize: "min",
       children: [
-        new SizedBox({ width: 2 }) as unknown as Widget,
         new RichText({
           text: new TextSpan({ children: spans }),
         }) as unknown as Widget,
@@ -466,7 +471,6 @@ function _buildProgressToolRow(name: string, input: unknown, status?: string): W
   return new Row({
     mainAxisSize: "min",
     children: [
-      new SizedBox({ width: 2 }) as unknown as Widget,
       new RichText({
         text: new TextSpan({ children: spans }),
       }) as unknown as Widget,

@@ -119,12 +119,14 @@ export const ALT_SCREEN_OFF = `${CSI}?1049l`;
  *   ?1006h — SGR extended coordinates (supports columns/rows > 223)
  */
 export const MOUSE_ON = `${CSI}?1002h${CSI}?1003h${CSI}?1004h${CSI}?1006h`;
+export const PIXEL_MOUSE_ON = `${CSI}?1016h`;
 /**
  * 禁用鼠标追踪 — mirrors MOUSE_ON
  * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:157630
  *   hu0 = t9 + "?1002l" + t9 + "?1003l" + t9 + "?1004l" + t9 + "?1006l"
  */
 export const MOUSE_OFF = `${CSI}?1002l${CSI}?1003l${CSI}?1004l${CSI}?1006l`;
+export const PIXEL_MOUSE_OFF = `${CSI}?1016l`;
 
 /** 启用 Bracketed Paste 模式 */
 export const PASTE_ON = `${CSI}?2004h`;
@@ -306,6 +308,25 @@ export class AnsiRenderer {
    */
   getColorDepth(): ColorDepth {
     return this.colorDepth;
+  }
+
+  /**
+   * 返回启用鼠标追踪的 ANSI 序列。
+   *
+   * @param pixelMouse - 为 true 时追加 ?1016h
+   * @returns 鼠标启用序列
+   */
+  enableMouse(pixelMouse: boolean = false): string {
+    return MOUSE_ON + (pixelMouse ? PIXEL_MOUSE_ON : "");
+  }
+
+  /**
+   * 返回禁用鼠标追踪的 ANSI 序列。
+   *
+   * @returns 鼠标禁用序列
+   */
+  disableMouse(): string {
+    return MOUSE_OFF + PIXEL_MOUSE_OFF;
   }
 
   /**

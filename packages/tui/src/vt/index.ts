@@ -20,5 +20,6 @@
  */
 
 export { InputParser } from "./input-parser.js";
+export { JetBrainsWheelFilter, isJetBrainsTerminal } from "./jetbrains-wheel-filter.js";
 export * from "./types.js";
 export { VtParser } from "./vt-parser.js";

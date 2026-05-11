@@ -1,0 +1,40 @@
+  [38;5;2m┃[39m Hello! Can you tell me what 2+2 is and write a haiku about coding                                                [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  [38;5;2m✓ [2m[39mThinking[0m [2m▶[0m                                                                                                       [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  2 + 2 = 4                                                                                                          [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  Here's a coding haiku:                                                                                             [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+                                                                                                                     [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  [48;5;236mBugs hide in plain sight[49m                                                                                           [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  [48;5;236mPatience weaves through logic's maze[49m                                                                               [38;2;150;150;150m[48;2;60;60;60m█[39m[49m
+  [48;5;236mCode breathes, works, delights[49m                                                                                     [38;2;60;60;60m[48;2;150;150;150m▂[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [38;5;2m┃[39m Nice! Now can you explain what a monorepo is in 2 sentences                                                      [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [38;5;2m✓ [2m[39mThinking[0m [2m▶[0m                                                                                                       [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  A monorepo is a version control strategy where multiple distinct projects or packages—often with shared dependencie[38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  s or related functionalities—are housed within a single repository, rather than being split across separate, isolat[38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  ed repositories. This structure enables unified versioning, simplified cross-project dependency management, and str[38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  eamlined collaboration, with tools like Turborepo, Lerna, or Bazel commonly used to efficiently handle builds, test[38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  s, and deployments for the interconnected codebases within.                                                        [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [38;5;2m┃[39m What files are in this directory                                                                                 [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [38;5;2m✓ [2m[39mThinking[0m [2m▶[0m                                                                                                       [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  Let's list the files and directories in the current working directory using [33m[48;5;236mls -la[39m[49m to see everything including hidd[38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  en items:                                                                                                          [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+                                                                                                                     [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [1m[32m$ [39mcd /Users/bytedance/workspace/flitter && ls -la[0m                                                                  [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+  [2m  total 1264[0m                                                                                                       [38;2;60;60;60m[48;2;150;150;150m█[39m[49m
+
+╭─2% of 1000k────────────────────────────────────────────────────────────────────────────────────────smart──!─0─skills─╮
+│ [2m? for shortcuts[0m                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰─────────────────────────────────────────────────────────────────────────────────────────~/workspace/flitter (master)─╯
+

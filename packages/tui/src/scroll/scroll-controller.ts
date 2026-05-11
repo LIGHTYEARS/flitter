@@ -11,8 +11,11 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type { ScrollPhysics } from "./scroll-physics.js";
 import { ClampingScrollPhysics } from "./scroll-physics.js";
+
+const log = logger.scoped("scroll");
 
 // ════════════════════════════════════════════════════
 //  ScrollController
@@ -240,8 +243,56 @@ export class ScrollController {
     this._cancelAnimation();
 
     const clamped = this._physics.clampOffset(offset, 0, this._maxScrollExtent);
-    if (this._offset === clamped) return;
+    if (this._offset === clamped) {
+      log.debug("jumpTo:noop", { requested: offset, clamped, current: this._offset, max: this._maxScrollExtent });
+      return;
+    }
 
+    log.debug("jumpTo", { from: this._offset, to: clamped, requested: offset, max: this._maxScrollExtent });
+    this._offset = clamped;
+    this._notifyListeners();
+  }
+
+  /**
+   * 直接更新滚动偏移量（用户输入增量路径专用）。
+   *
+   * 与 {@link jumpTo} 的差异：
+   * - 有效用户输入会接管并中止现有动画，不带 jump 语义日志
+   * - 使用 ScrollPhysics 在 [0, maxScrollExtent] 范围内钳位
+   * - NaN 输入直接忽略，避免污染 offset 与动画状态
+   * - 若钳位结果与当前值一致则静默返回，不通知监听器
+   *
+   * 对齐 amp Q3.updateOffset 的“用户滚动专用入口”语义，并补上 flitter
+   * 的动画接管与 NaN 防护，避免边界抖动路径污染状态。
+   *
+   * @param offset - 目标偏移量
+   */
+  updateOffset(offset: number): void {
+    if (this._disposed) return;
+
+    // 防御: NaN offset 会污染所有后续计算；无效输入不应打断动画
+    if (Number.isNaN(offset)) return;
+
+    const clamped = this._physics.clampOffset(offset, 0, this._maxScrollExtent);
+    if (this._offset === clamped) {
+      log.debug("updateOffset:noop", {
+        requested: offset,
+        clamped,
+        current: this._offset,
+        max: this._maxScrollExtent,
+      });
+      return;
+    }
+
+    // 用户滚动路径优先级高于编程式动画；仅在偏移真实变化时接管动画
+    this._cancelAnimation();
+
+    log.debug("updateOffset", {
+      from: this._offset,
+      to: clamped,
+      requested: offset,
+      max: this._maxScrollExtent,
+    });
     this._offset = clamped;
     this._notifyListeners();
   }
@@ -260,11 +311,12 @@ export class ScrollController {
     const oldExtent = this._maxScrollExtent;
     this._maxScrollExtent = extent;
 
-    if (this._followMode) {
-      this.scrollToBottom();
-    }
+    // 逆向: amp Q3.updateMaxScrollExtent — does NOT call scrollToBottom().
+    // Auto-scroll is handled at the layout level in RenderScrollable.performLayout()
+    // which snapshots atBottom before this call, then jumpTo(newExtent) if followMode && wasAtBottom.
 
     if (oldExtent !== extent) {
+      log.debug("updateMaxScrollExtent", { from: oldExtent, to: extent, offset: this._offset, followMode: this._followMode });
       this._notifyListeners();
     }
   }
@@ -338,6 +390,18 @@ export class ScrollController {
    */
   animateTo(target: number, duration: number = 200): void {
     if (this._disposed) return;
+
+    // 防御: 非有限 target / duration 会让动画目标或进度变成 NaN/Infinity，
+    // 从而污染 offset 或导致定时器无法收敛；忽略非法动画请求且不打断现有动画。
+    if (!Number.isFinite(target) || !Number.isFinite(duration)) {
+      log.warn("animateTo:ignoreNonFinite", {
+        target,
+        duration,
+        offset: this._offset,
+        max: this._maxScrollExtent,
+      });
+      return;
+    }
 
     const clamped = this._physics.clampOffset(target, 0, this._maxScrollExtent);
 

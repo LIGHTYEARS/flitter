@@ -2,12 +2,12 @@
  * TUI Chat Demo — markdown-enabled chat interface showcase.
  *
  * Demonstrates TextField for input, Scrollable for message history,
- * MarkdownParser + MarkdownRenderer for rich message display,
+ * MarkdownView for rich message display,
  * and auto-scroll to latest message.
  *
  * - Scrollable message list with colored bubbles
  * - Text input field at bottom
- * - Messages rendered with markdown formatting
+ * - Messages rendered with markdown formatting via MarkdownView Widget
  * - Type message + Enter to send (mock assistant replies)
  * - Pre-populated with sample messages
  *
@@ -21,8 +21,7 @@ import { runApp } from "../packages/tui/src/binding/run-app.js";
 import { WidgetsBinding } from "../packages/tui/src/binding/widgets-binding.js";
 import { TextEditingController } from "../packages/tui/src/editing/text-editing-controller.js";
 import { TextField } from "../packages/tui/src/editing/text-field.js";
-import { MarkdownParser } from "../packages/tui/src/markdown/markdown-parser.js";
-import { MarkdownRenderer } from "../packages/tui/src/markdown/markdown-renderer.js";
+import { MarkdownView } from "../packages/tui/src/markdown/markdown-view.js";
 import { Color } from "../packages/tui/src/screen/color.js";
 import { TextStyle } from "../packages/tui/src/screen/text-style.js";
 import { ScrollController } from "../packages/tui/src/scroll/scroll-controller.js";
@@ -88,8 +87,6 @@ class ChatDemoState extends State<ChatDemo> {
   private _messages: ChatMessage[] = [...INITIAL_MESSAGES];
   private _inputCtrl!: TextEditingController;
   private _scrollCtrl!: ScrollController;
-  private _parser = new MarkdownParser();
-  private _renderer = new MarkdownRenderer();
   private _responseIndex = 0;
 
   override initState(): void {
@@ -131,10 +128,6 @@ class ChatDemoState extends State<ChatDemo> {
     const labelColor = isUser ? Color.cyan() : Color.green();
     const label = isUser ? "You" : "Assistant";
 
-    // Parse and render markdown content
-    const ast = this._parser.parse(msg.content);
-    const spans = this._renderer.render(ast);
-
     return new Padding({
       padding: EdgeInsets.symmetric({ horizontal: 1, vertical: 0 }),
       child: new Container({
@@ -147,12 +140,8 @@ class ChatDemoState extends State<ChatDemo> {
               data: label,
               style: new TextStyle({ foreground: labelColor, bold: true }),
             }) as unknown as Widget,
-            // Message content (rendered markdown)
-            new RichText({
-              text: new TextSpan({
-                children: spans.length > 0 ? spans : [new TextSpan({ text: msg.content })],
-              }),
-            }) as unknown as Widget,
+            // Message content (rendered markdown via MarkdownView)
+            new MarkdownView({ content: msg.content }) as unknown as Widget,
           ],
         }),
       }),
@@ -276,7 +265,7 @@ class ChatDemoState extends State<ChatDemo> {
           height: 1,
           decoration: new BoxDecoration({ color: Color.rgb(40, 40, 40) }),
           child: new Text({
-            data: " TextField + MarkdownParser + MarkdownRenderer | Scrollable auto-scroll",
+            data: " TextField + MarkdownView | Scrollable auto-scroll",
             style: new TextStyle({ dim: true }),
           }),
         }) as unknown as Widget,

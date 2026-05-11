@@ -279,6 +279,18 @@ function decodeSgrMouse(
   return { type: "mouse", x, y, button, action, modifiers };
 }
 
+/**
+ * SGR 鼠标转换函数。
+ *
+ * 允许调用方在启用 ?1016 后，把像素坐标转换回字符坐标。
+ */
+type SgrMouseConverter = (
+  buttonByte: number,
+  x1: number,
+  y1: number,
+  finalChar: string,
+) => TermMouseEvent;
+
 // ════════════════════════════════════════════════════
 //  InputParser 类
 // ════════════════════════════════════════════════════
@@ -305,6 +317,9 @@ export class InputParser {
 
   /** 内部 VtParser 实例（用于 feed 方法） */
   private vtParser: VtParser;
+
+  /** 当前 SGR 鼠标转换器，默认使用字符坐标解码。 */
+  private sgrMouseConverter: SgrMouseConverter = decodeSgrMouse;
 
   // ── Escape timeout mechanism ──────────────────────
   //
@@ -391,6 +406,15 @@ export class InputParser {
    */
   onInput(handler: (event: InputEvent) => void): void {
     this.handlers.push(handler);
+  }
+
+  /**
+   * 设置 SGR 鼠标转换器。
+   *
+   * @param converter - 新的坐标转换函数
+   */
+  setSgrMouseConverter(converter: SgrMouseConverter): void {
+    this.sgrMouseConverter = converter;
   }
 
   /**
@@ -760,7 +784,7 @@ export class InputParser {
     const x1 = params[1].value;
     const y1 = params[2].value;
 
-    const decoded = decodeSgrMouse(buttonByte, x1, y1, finalChar);
+    const decoded = this.sgrMouseConverter(buttonByte, x1, y1, finalChar);
     log.debug("mouse", {
       action: decoded.action,
       button: decoded.button,

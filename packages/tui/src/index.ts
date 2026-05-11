@@ -50,7 +50,7 @@ export { ImageWidget, RenderImage } from "./widgets/image-widget.js";
 export { IntrinsicHeight, RenderIntrinsicHeight } from "./widgets/intrinsic-height.js";
 export { supportsKittyGraphics } from "./widgets/kitty-detect.js";
 export { MediaQuery, MediaQueryData } from "./widgets/media-query.js";
-export type { MouseEvent, MouseEventCallback } from "./widgets/mouse-region.js";
+export type { MouseEvent, MouseEventCallback, ScrollEventCallback } from "./widgets/mouse-region.js";
 export { MouseRegion, RenderMouseRegion } from "./widgets/mouse-region.js";
 export type { NotificationType } from "./widgets/notification-banner.js";
 export { NotificationBanner } from "./widgets/notification-banner.js";

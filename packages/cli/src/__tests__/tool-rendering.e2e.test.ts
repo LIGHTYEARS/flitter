@@ -87,23 +87,24 @@ describe("tool rendering e2e pipeline", () => {
 
     const items = transformThreadToDisplayItems(messages);
 
-    // Should have: user msg, assistant msg, activity-group (read+grep), assistant msg, edit tool, assistant msg
+    // After f26e0d4, Read/Grep/Glob render as standalone tool rows (matching amp's f8R path),
+    // not grouped into activity-groups. Expected: user msg, assistant msg, read tool, search tool,
+    // assistant msg, edit tool, assistant msg.
     const types = items.map((i) => i.type);
     expect(types).toContain("message");
-    expect(types).toContain("activity-group");
     expect(types).toContain("tool");
+
+    const readTool = items.find((i) => i.type === "tool" && i.kind === "read");
+    expect(readTool).toBeDefined();
+    expect(readTool).toMatchObject({ kind: "read", path: "app.ts", status: "done" });
+
+    const searchTool = items.find((i) => i.type === "tool" && i.kind === "search");
+    expect(searchTool).toBeDefined();
+    expect(searchTool).toMatchObject({ kind: "search", status: "done" });
 
     const editTool = items.find((i) => i.type === "tool" && i.kind === "edit");
     expect(editTool).toBeDefined();
     expect(editTool).toMatchObject({ kind: "edit", path: "app.ts", status: "done" });
-
-    const actGroup = items.find((i) => i.type === "activity-group");
-    expect(actGroup).toBeDefined();
-    if (actGroup?.type === "activity-group") {
-      expect(actGroup.actions).toHaveLength(2);
-      expect(actGroup.summary).toContain("read");
-      expect(actGroup.summary).toContain("search");
-    }
   });
 
   it("handles a conversation with bash commands and errors", () => {

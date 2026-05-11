@@ -13,6 +13,7 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type { KeyEventResult } from "../focus/focus-node.js";
 import type { BuildContext, Element, Widget as WidgetInterface } from "../tree/element.js";
 import type { RenderObject } from "../tree/render-object.js";
@@ -29,6 +30,7 @@ import { RenderScrollable } from "./render-scrollable.js";
 import type { AxisDirection } from "./scroll-behavior.js";
 import { ScrollBehavior } from "./scroll-behavior.js";
 import { ScrollController } from "./scroll-controller.js";
+import { ClampingScrollPhysics, type ScrollPhysics } from "./scroll-physics.js";
 
 // ════════════════════════════════════════════════════
 //  ScrollViewport — 低层级 RenderObject Widget（原 Scrollable）
@@ -93,6 +95,8 @@ interface ScrollableArgs {
   key?: Key;
   /** 外部滚动控制器（可选，不提供则自动创建） */
   controller?: ScrollController;
+  /** 滚动物理特性，默认 ClampingScrollPhysics */
+  physics?: ScrollPhysics;
   /** 滚动轴方向，默认 "vertical" */
   axisDirection?: AxisDirection;
   /** 是否启用键盘滚动，默认 true */
@@ -137,6 +141,7 @@ interface ScrollableArgs {
  */
 export class Scrollable extends StatefulWidget {
   readonly controller: ScrollController | undefined;
+  readonly physics: ScrollPhysics;
   readonly axisDirection: AxisDirection;
   readonly keyboardScrolling: boolean;
   readonly autofocus: boolean;
@@ -149,6 +154,7 @@ export class Scrollable extends StatefulWidget {
   constructor(args: ScrollableArgs) {
     super({ key: args.key });
     this.controller = args.controller;
+    this.physics = args.physics ?? new ClampingScrollPhysics();
     this.axisDirection = args.axisDirection ?? "vertical";
     this.keyboardScrolling = args.keyboardScrolling ?? true;
     this.autofocus = args.autofocus ?? false;
@@ -184,14 +190,23 @@ export class Scrollable extends StatefulWidget {
  * - build: Focus > MouseRegion > viewportBuilder
  * - dispose: 移除 listener，释放内部 controller
  */
+const scrollLog = logger.scoped("scroll.state");
+
 export class ScrollableState extends State<Scrollable> {
   private _internalController: ScrollController | null = null;
+  private _physics!: ScrollPhysics;
   private _scrollBehavior!: ScrollBehavior;
   private _scrollListener: (() => void) | null = null;
+  private _didInitializeFollowMode: boolean = false;
 
   /** 逆向: amp I1T.controller getter */
   get controller(): ScrollController {
     return this.widget.controller ?? this._internalController!;
+  }
+
+  /** 逆向: amp I1T.physics getter */
+  get physics(): ScrollPhysics {
+    return this._physics;
   }
 
   /**
@@ -205,33 +220,158 @@ export class ScrollableState extends State<Scrollable> {
       this._internalController = new ScrollController();
     }
 
+    // 逆向: amp I1T line 15 — this._physics = this.widget.physics || new x1T()
+    this._physics = this.widget.physics;
+
     // 逆向: amp chunk-006:5896-5897 — _configureController()
     // Sets followMode based on position: "bottom" enables follow mode.
-    this._configureController();
+    this._initializeControllerFollowMode();
 
     // 逆向: amp I1T line 15 — new P1T(this)
+    // flitter 的 ScrollBehavior 接受 ScrollController 而非 ScrollableState
     this._scrollBehavior = new ScrollBehavior(this.controller, {
       axisDirection: this.widget.axisDirection,
     });
 
     // 逆向: amp I1T._boundOnScrollChanged → setState
     this._scrollListener = () => {
+      scrollLog.debug("scrollListener:setState", { offset: this.controller.offset, max: this.controller.maxScrollExtent });
       if (this.mounted) this.setState();
     };
     this.controller.addListener(this._scrollListener);
   }
 
   /**
-   * Configure controller based on widget position.
+   * 根据 widget.position 初始化 controller 的默认 followMode。
    *
-   * 逆向: amp chunk-006:5896-5897 — _configureController()
-   *   this._controller.followMode = this.widget.position === "bottom"
+   * 该初始化只在 state 生命周期内执行一次，避免后续 rebuild 期间把运行时
+   * followMode 状态重新覆盖回默认值。
    *
-   * Called from initState and could be called from didUpdateWidget
-   * if position changes.
+   * @returns void
    */
-  private _configureController(): void {
-    this.controller.followMode = this.widget.position === "bottom";
+  private _initializeControllerFollowMode(): void {
+    if (this._didInitializeFollowMode) {
+      return;
+    }
+
+    const followMode = this.widget.position === "bottom";
+    if (followMode) {
+      this.controller.enableFollowMode();
+    } else {
+      this.controller.disableFollowMode();
+    }
+
+    this._didInitializeFollowMode = true;
+    scrollLog.debug("initializeFollowMode", {
+      position: this.widget.position,
+      followMode: this.controller.followMode,
+    });
+  }
+
+  /**
+   * 确保 state 生命周期内始终存在可用的内部 controller。
+   *
+   * 当 Scrollable 从外部 controller 切回内部 controller 时，复用或延迟创建
+   * state 持有的内部实例，避免 controller getter 落到空引用。
+   *
+   * @returns 当前可用的内部 ScrollController
+   */
+  private _ensureInternalController(): ScrollController {
+    if (!this._internalController) {
+      this._internalController = new ScrollController();
+      scrollLog.debug("ensureInternalController:create");
+    }
+    return this._internalController;
+  }
+
+  /**
+   * 在 widget 更新后同步 controller 绑定关系。
+   *
+   * 与 amp 中“controller 变化时移除旧监听并绑定新 controller”的模式对齐：
+   * - _scrollBehavior.controller 指向新 controller
+   * - _scrollListener 从旧 controller 解绑并绑定到新 controller
+   *
+   * @param oldWidget - 更新前的旧 Scrollable 配置
+   * @returns 是否发生了 controller 切换
+   */
+  private _syncControllerBinding(oldWidget: Scrollable): boolean {
+    const oldController = oldWidget.controller ?? this._internalController;
+    const nextController = this.widget.controller ?? this._ensureInternalController();
+    const controllerChanged = oldController !== nextController;
+
+    if (!controllerChanged) {
+      return false;
+    }
+
+    if (this._scrollListener && oldController) {
+      oldController.removeListener(this._scrollListener);
+    }
+    if (this._scrollListener) {
+      nextController.addListener(this._scrollListener);
+    }
+
+    this._scrollBehavior.controller = nextController;
+
+    scrollLog.debug("didUpdateWidget:syncControllerBinding", {
+      hadOldController: oldController !== null,
+      nextControllerIsExternal: this.widget.controller !== undefined,
+    });
+
+    return true;
+  }
+
+  /**
+   * 在 widget 更新后同步 ScrollBehavior 的 axisDirection。
+   *
+   * amp 的滚动行为在处理键盘事件时直接读取最新 widget.axisDirection；
+   * flitter 通过 ScrollBehavior 缓存该字段，因此需要在 didUpdateWidget
+   * 中显式保持同步，确保运行时 vertical/horizontal 切换立即生效。
+   *
+   * @param oldWidget - 更新前的旧 Scrollable 配置
+   * @returns 是否发生了 axisDirection 切换
+   */
+  private _syncScrollBehaviorAxisDirection(oldWidget: Scrollable): boolean {
+    if (oldWidget.axisDirection === this.widget.axisDirection) {
+      return false;
+    }
+
+    this._scrollBehavior.axisDirection = this.widget.axisDirection;
+    scrollLog.debug("didUpdateWidget:syncAxisDirection", {
+      fromAxisDirection: oldWidget.axisDirection,
+      toAxisDirection: this.widget.axisDirection,
+    });
+    return true;
+  }
+
+  /**
+   * 在 widget 更新后同步 position 对应的默认 followMode。
+   *
+   * 仅当 position 或 controller 真实变化时才同步，避免普通 rebuild 覆盖运行时滚动状态。
+   *
+   * @param oldWidget - 更新前的旧 Scrollable 配置
+   */
+  override didUpdateWidget(oldWidget: Scrollable): void {
+    super.didUpdateWidget(oldWidget);
+
+    this._syncScrollBehaviorAxisDirection(oldWidget);
+    const controllerChanged = this._syncControllerBinding(oldWidget);
+    if (!controllerChanged && oldWidget.position === this.widget.position) {
+      return;
+    }
+
+    const followMode = this.widget.position === "bottom";
+    if (followMode) {
+      this.controller.enableFollowMode();
+    } else {
+      this.controller.disableFollowMode();
+    }
+
+    scrollLog.debug("didUpdateWidget:syncFollowMode", {
+      fromPosition: oldWidget.position,
+      toPosition: this.widget.position,
+      controllerChanged,
+      followMode: this.controller.followMode,
+    });
   }
 
   /**
@@ -245,16 +385,29 @@ export class ScrollableState extends State<Scrollable> {
     return this._scrollBehavior.handleKeyEvent(event);
   };
 
+  // ── 边界方向翻转抑制状态 ──
+  // Ghostty/macOS Magic Mouse 在滚动边界处会产生高频方向翻转噪声（0-2ms 间隔）。
+  // 当 offset 在边界附近且检测到快速方向翻转时，丢弃噪声方向事件以防止视觉抖动。
+  private _lastScrollDirection: string | null = null;
+  private _lastScrollTime = 0;
+  /** 边界翻转抑制窗口（毫秒）— 在此时间内的方向翻转被视为噪声 */
+  private static readonly BOUNDARY_FLIP_WINDOW_MS = 8;
+
   /**
    * 逆向: amp I1T.handleMouseScrollEvent — 方向感知鼠标滚动。
    *
    * 与 amp I1T line 54-67 对齐：
    * - vertical 模式: 响应 up/down 滚轮（shift 时忽略）
    * - horizontal 模式: 响应 left/right 滚轮 或 shift+up/down
+   *
+   * 返回值与 amp 保持一致：只根据 controller.offset 是否发生变化决定是否返回 true。
+   * 命中边界且 clamp 后 offset 不变时返回 false；不引入额外的渲染阶段或提交状态判断。
+   *
+   * 额外增加边界方向翻转抑制：当 offset 在边界附近（≤1）且快速方向翻转时丢弃噪声。
    */
-  handleMouseScrollEvent = (event: MouseEvent): void => {
+  handleMouseScrollEvent = (event: MouseEvent): boolean => {
     const direction = event.direction as string | undefined;
-    if (!direction) return;
+    if (!direction) return false;
 
     const isHorizontal = this.widget.axisDirection === "horizontal";
     const hasShift = event.modifiers?.shift === true;
@@ -270,7 +423,14 @@ export class ScrollableState extends State<Scrollable> {
       shouldHandle = isUD && !hasShift;
     }
 
-    if (!shouldHandle) return;
+    if (!shouldHandle) {
+      scrollLog.debug("handleMouseScroll:ignored", {
+        direction,
+        axisDirection: this.widget.axisDirection,
+        shift: hasShift,
+      });
+      return false;
+    }
 
     // 逆向: amp I1T line 62-64 — getScrollStep() returns 1 for mouse
     const step = 1;
@@ -281,7 +441,91 @@ export class ScrollableState extends State<Scrollable> {
       delta = -step;
     }
 
-    this._scrollBehavior.handleScrollDelta(delta);
+    // ── 边界方向翻转抑制 ──
+    // 当 offset 在边界附近且方向快速翻转时，丢弃反向噪声事件。
+    // 这抑制了 macOS Magic Mouse 惯性滚动在边界处的 0-2ms 方向翻转噪声。
+    const now = Date.now();
+    const offset = this.controller.offset;
+    const max = this.controller.maxScrollExtent;
+    const atTopBoundary = offset <= 1;
+    const atBottomBoundary = offset >= max - 1;
+    const directionFlipped = this._lastScrollDirection !== null && direction !== this._lastScrollDirection;
+    const withinFlipWindow = now - this._lastScrollTime < ScrollableState.BOUNDARY_FLIP_WINDOW_MS;
+
+    if (directionFlipped && withinFlipWindow) {
+      // 在边界附近且快速翻转 — 丢弃"离开边界"方向的噪声
+      const isNoiseAwayFromTop = atTopBoundary && delta > 0;
+      const isNoiseAwayFromBottom = atBottomBoundary && delta < 0;
+      if (isNoiseAwayFromTop || isNoiseAwayFromBottom) {
+        scrollLog.debug("handleMouseScroll:boundaryFlipSuppressed", {
+          direction,
+          delta,
+          offset,
+          max,
+          atTopBoundary,
+          atBottomBoundary,
+          timeSinceLastMs: now - this._lastScrollTime,
+        });
+        // 不更新 _lastScrollDirection — 保持原方向锁定
+        this._lastScrollTime = now;
+        return false;
+      }
+    }
+
+    this._lastScrollDirection = direction;
+    this._lastScrollTime = now;
+
+    // 逆向: amp I1T line 65-66 — 记录滚动前 offset，返回是否实际发生了滚动
+    const prevOffset = this.controller.offset;
+    scrollLog.debug("handleMouseScroll", {
+      direction,
+      delta,
+      currentOffset: prevOffset,
+      max: this.controller.maxScrollExtent,
+      axisDirection: this.widget.axisDirection,
+      shift: hasShift,
+    });
+    this.handleScrollDelta(delta);
+    const moved = this.controller.offset !== prevOffset;
+    scrollLog.debug("handleMouseScroll:result", {
+      direction,
+      delta,
+      previousOffset: prevOffset,
+      nextOffset: this.controller.offset,
+      moved,
+      consumed: moved,
+    });
+    return moved;
+  };
+
+  /**
+   * 处理用户滚动增量。
+   *
+   * 逆向: amp I1T.handleScrollDelta in interactive_widgets.js:74-80
+   *
+   * 该方法是用户滚动输入的统一入口，所有键盘和鼠标滚动都应通过此方法。
+   * 它会：
+   * 1. 检查 ScrollPhysics.shouldAcceptUserOffset()
+   * 2. 计算新偏移量 = 当前 offset + delta
+   * 3. 通过 ScrollPhysics.applyBoundaryConditions() 应用边界条件
+   * 4. 调用 ScrollController.updateOffset() 更新偏移量
+   *
+   * @param delta - 滚动增量（正数向下/向右，负数向上/向左）
+   */
+  handleScrollDelta(delta: number): void {
+    // 逆向: amp I1T line 75 — if (!this._physics.shouldAcceptUserOffset()) return;
+    if (!this._physics.shouldAcceptUserOffset()) {
+      return;
+    }
+
+    // 逆向: amp I1T line 76-79
+    const newOffset = this.controller.offset + delta;
+    const minExtent = 0;
+    const maxExtent = this.controller.maxScrollExtent;
+    const clamped = this._physics.clampOffset(newOffset, minExtent, maxExtent);
+
+    // 逆向: amp I1T line 80 — this._controller.updateOffset(t);
+    this.controller.updateOffset(clamped);
   };
 
   /**

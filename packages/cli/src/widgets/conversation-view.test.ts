@@ -6,7 +6,7 @@
  * - 用户消息使用 "You: " 前缀 + primary 色 (#7aa2f7) bold
  * - 助手消息无前缀 (逆向: amp 无助手角色前缀)
  * - 系统消息使用 "System: " 前缀 + secondary 色 (#9ece6a) bold
- * - 消息内容通过 MarkdownParser + MarkdownRenderer 渲染
+ * - 消息内容通过 MarkdownView Widget 渲染
  * - 空消息列表显示 "No messages yet. Type below to begin."
  * - 错误消息使用 error 色 (#f7768e) bold "Error:" 前缀 + 重试提示
  * - inferenceState "running" 时追加流式指示器 "..."
@@ -21,7 +21,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { type BuildContext, Column, RichText, StatefulWidget, type TextSpan } from "@flitter/tui";
+import { type BuildContext, Column, MarkdownView, RichText, StatefulWidget, type TextSpan } from "@flitter/tui";
 import {
   ConversationView,
   type ConversationViewConfig,
@@ -90,6 +90,26 @@ function collectRichTexts(widget: unknown): RichText[] {
   }
   if (w.child) {
     results.push(...collectRichTexts(w.child));
+  }
+  return results;
+}
+
+/**
+ * 递归收集所有 MarkdownView 节点。
+ */
+function collectMarkdownViews(widget: unknown): MarkdownView[] {
+  const results: MarkdownView[] = [];
+  if (widget instanceof MarkdownView) {
+    results.push(widget);
+  }
+  const w = widget as Record<string, unknown>;
+  if (w.children) {
+    for (const child of w.children as unknown[]) {
+      results.push(...collectMarkdownViews(child));
+    }
+  }
+  if (w.child) {
+    results.push(...collectMarkdownViews(w.child));
   }
   return results;
 }
@@ -221,16 +241,16 @@ describe("ConversationView.build", () => {
     assert.ok(hasSystemPrefix, 'Should render "System: " in green indexed(2) bold');
   });
 
-  it("消息内容通过 MarkdownParser + MarkdownRenderer 渲染", () => {
+  it("消息内容通过 MarkdownView Widget 渲染", () => {
     const messages: Message[] = [{ role: "user", content: "Hello **world**" }];
     const { state } = mountConversationView({ messages });
     const built = state.build({} as unknown as BuildContext);
 
-    const allText = extractAllText(built);
-    // MarkdownRenderer 将 **world** 渲染为 bold TextSpan 但纯文本仍含 "world"
-    assert.ok(allText.includes("world"), "Should render markdown content");
-    // Should NOT contain raw markdown syntax
-    assert.ok(!allText.includes("**"), "Should not contain raw markdown ** syntax");
+    // MarkdownView Widget 应存在于 widget 树中，content 包含原始 markdown
+    const markdownViews = collectMarkdownViews(built);
+    assert.ok(markdownViews.length > 0, "Should contain a MarkdownView widget");
+    const hasWorldContent = markdownViews.some((mv) => mv.content.includes("world"));
+    assert.ok(hasWorldContent, "MarkdownView should contain markdown content with 'world'");
   });
 
   it('空消息列表显示 "No messages yet. Type below to begin."', () => {

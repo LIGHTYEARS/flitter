@@ -148,6 +148,8 @@ export interface ToolContext {
   signal: AbortSignal;
   /** 所属线程 ID */
   threadId: string;
+  /** 本次工具调用的 ID (逆向: FWT invokeTool T.id) */
+  toolUseId?: string;
   /** 运行时配置 */
   config: Config;
   /**
@@ -170,6 +172,12 @@ export interface ToolContext {
   toolMessages?: Subject<ToolMessage>;
   /** 用户输入 (blocked-on-user 恢复时传入) */
   userInput?: string;
+  /**
+   * Emit real-time progress for subagent tools.
+   * 逆向: amp's toolProgressByToolUseID$ — out-of-band progress stream.
+   * Only set for tools that need to emit live progress (Task, oracle, etc.)
+   */
+  emitProgress?: (progress: NonNullable<ToolResult["progress"]>) => void;
 }
 
 // ─── 工具定义 ────────────────────────────────────────────

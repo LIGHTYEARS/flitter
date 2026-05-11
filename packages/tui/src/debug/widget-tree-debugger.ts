@@ -15,7 +15,7 @@ import * as http from "node:http";
 import { FocusManager } from "../focus/focus-manager.js";
 import type { Element } from "../tree/element.js";
 import type { RenderObject } from "../tree/render-object.js";
-import { logger } from "./logger.js";
+import { Logger, logger } from "./logger.js";
 
 // ════════════════════════════════════════════════════
 //  Types
@@ -139,7 +139,7 @@ export class WidgetTreeDebugger {
   /** Maximum retained keystrokes. */
   MAX_KEYSTROKE_HISTORY = 50;
 
-  private readonly _log = logger.scoped("widget-tree-debugger");
+  private readonly _log: Logger;
 
   /**
    * Construct a WidgetTreeDebugger.
@@ -151,11 +151,14 @@ export class WidgetTreeDebugger {
    * @param enabled - Whether to activate the debugger (default false).
    * @param interval - Scan interval in ms (default 1000).
    * @param port    - HTTP listen port (default 9876).
+   * @param customLogger - Optional logger instance (defaults to global logger).
+   *                       Used to redirect inspector logs to a file backend.
    */
-  constructor(enabled = false, interval = 1000, port?: number) {
+  constructor(enabled = false, interval = 1000, port?: number, customLogger?: Logger) {
     this.enabled = enabled;
     this.interval = interval;
     this.port = port ?? 9876;
+    this._log = (customLogger ?? logger).scoped("widget-tree-debugger");
     WidgetTreeDebugger._instance = this;
   }
 

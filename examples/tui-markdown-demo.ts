@@ -1,7 +1,7 @@
 /**
- * TUI Markdown Demo — MarkdownParser & MarkdownRenderer showcase.
+ * TUI Markdown Demo — MarkdownView Widget showcase.
  *
- * Demonstrates all 10 markdown rendering features:
+ * Demonstrates all 10 markdown rendering features via the new MarkdownView Widget API:
  * 1. Heading color grading (h1=blue bold, h2=cyan bold, h3=blue, h4=cyan)
  * 2. Prism.js syntax highlighting (language-aware)
  * 3. Table column width + alignment + Unicode box-drawing
@@ -18,15 +18,15 @@
  * @module
  */
 
-import { Screen } from "../packages/tui/src/screen/screen.js";
-import { AnsiRenderer } from "../packages/tui/src/screen/ansi-renderer.js";
-import { BoxConstraints } from "../packages/tui/src/tree/constraints.js";
+import { runApp } from "../packages/tui/src/binding/run-app.js";
+import { WidgetsBinding } from "../packages/tui/src/binding/widgets-binding.js";
+import { MarkdownView } from "../packages/tui/src/markdown/markdown-view.js";
 import { Color } from "../packages/tui/src/screen/color.js";
 import { TextStyle } from "../packages/tui/src/screen/text-style.js";
-import { MarkdownParser } from "../packages/tui/src/markdown/markdown-parser.js";
-import { MarkdownRenderer } from "../packages/tui/src/markdown/markdown-renderer.js";
-import { RenderParagraph } from "../packages/tui/src/widgets/rich-text.js";
-import { TextSpan } from "../packages/tui/src/widgets/text-span.js";
+import type { Widget as WidgetInterface } from "../packages/tui/src/tree/element.js";
+import type { Widget } from "../packages/tui/src/tree/widget.js";
+import { Column } from "../packages/tui/src/widgets/column.js";
+import { Text } from "../packages/tui/src/widgets/text.js";
 
 // ════════════════════════════════════════════════════
 //  Markdown Source — exercises all 10 features
@@ -90,46 +90,22 @@ Thematic break above. Smart spacing: no double-newline inside blockquotes.
 `;
 
 // ════════════════════════════════════════════════════
-//  Parse & Render
+//  Run the app with MarkdownView Widget
 // ════════════════════════════════════════════════════
 
-const parser = new MarkdownParser();
-const renderer = new MarkdownRenderer();
+// Auto-exit after 3 seconds so the demo doesn't hang
+setTimeout(() => {
+  WidgetsBinding.instance.stop();
+}, 3000);
 
-const ast = parser.parse(markdownSource);
-const spans = renderer.render(ast);
-
-// ════════════════════════════════════════════════════
-//  Output via RenderParagraph
-// ════════════════════════════════════════════════════
-
-const W = 100;
-const H = 80;
-const screen = new Screen(W, H);
-
-const titleStyle = new TextStyle({ foreground: Color.cyan(), bold: true });
-const dimStyle = new TextStyle({ dim: true });
-
-// Title
-const title = "Flitter Markdown Rendering — All 10 Gaps Closed";
-for (let i = 0; i < title.length && i < W; i++) {
-  screen.writeChar(i + 2, 0, title[i], titleStyle);
-}
-const sep = "━".repeat(title.length);
-for (let i = 0; i < sep.length && i < W; i++) {
-  screen.writeChar(i + 2, 1, sep[i], dimStyle);
-}
-
-// Render markdown spans into the screen via RenderParagraph
-const rootSpan = new TextSpan({ children: spans });
-const rp = new RenderParagraph(rootSpan);
-rp.layout(BoxConstraints.loose(W - 4, H - 4));
-rp.paint(screen, 2, 3);
-
-// ════════════════════════════════════════════════════
-//  Output
-// ════════════════════════════════════════════════════
-
-const ansi = new AnsiRenderer();
-process.stdout.write(ansi.renderFull(screen));
-console.log("\n");
+await runApp(
+  new Column({
+    children: [
+      new Text({
+        data: "Flitter Markdown Rendering — MarkdownView Widget Demo",
+        style: new TextStyle({ foreground: Color.cyan(), bold: true }),
+      }) as unknown as Widget,
+      new MarkdownView({ content: markdownSource }) as unknown as Widget,
+    ],
+  }) as unknown as WidgetInterface,
+);

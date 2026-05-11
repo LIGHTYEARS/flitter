@@ -6,7 +6,10 @@
  * 逆向: amp 0064_unknown_iXR.js (progress mapping)
  */
 
-import { mapSubAgentEventToToolResult } from "../../subagent/map-progress";
+import {
+  mapSubAgentEventToProgress,
+  mapSubAgentEventToToolResult,
+} from "../../subagent/map-progress";
 import type { SubAgentRunner } from "../../subagent/subagent-runner";
 import type { ToolContext, ToolResult, ToolSpec } from "../types";
 
@@ -72,11 +75,34 @@ How to use:
       }
 
       try {
+        // 逆向: amp deduplicates progress emissions by tracking tool count changes
+        let lastToolCount = 0;
+        const emitIfChanged = context.emitProgress
+          ? (childThreadId: string) => {
+              const turns = runner.extractTurns(childThreadId);
+              const progress = mapSubAgentEventToProgress({
+                status: "in-progress",
+                turns,
+              });
+              const totalTools = progress.reduce((n, p) => n + (p.tool_uses?.length ?? 0), 0);
+              if (totalTools !== lastToolCount) {
+                lastToolCount = totalTools;
+                context.emitProgress!(progress);
+              }
+            }
+          : undefined;
+
         const event = await runner.run({
           parentThreadId: context.threadId,
           prompt,
           description: description ?? "Sub-task",
           type: "task",
+          onTurnComplete: emitIfChanged,
+          onChildToolEvent: emitIfChanged
+            ? (_childThreadId: string) => {
+                emitIfChanged(_childThreadId);
+              }
+            : undefined,
         });
 
         return mapSubAgentEventToToolResult(event);

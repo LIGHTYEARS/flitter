@@ -42,6 +42,14 @@ interface ScrollViewportArgs {
   controller: ScrollController;
   child?: WidgetInterface;
   /**
+   * 当前滚动偏移量（由 ScrollableState.build 从 controller.offset 读取后传入）。
+   *
+   * 逆向: amp $1T/MY 的 offset 字段 — build 中读取 controller.offset 值传入 Widget，
+   * updateRenderObject 中 offset 变化仅触发 updateChildOffset（轻量路径），
+   * 不走 markNeedsLayout/markNeedsPaint。
+   */
+  offset?: number;
+  /**
    * Viewport position: "top" anchors content to the top (default),
    * "bottom" anchors content to the bottom and enables follow mode.
    *
@@ -62,12 +70,14 @@ interface ScrollViewportArgs {
 export class ScrollViewport extends Widget implements RenderObjectWidget {
   readonly scrollController: ScrollController;
   readonly child: WidgetInterface | undefined;
+  readonly scrollOffset: number;
   readonly position: "top" | "bottom";
 
   constructor(args: ScrollViewportArgs) {
     super({ key: args.key });
     this.scrollController = args.controller;
     this.child = args.child;
+    this.scrollOffset = args.offset ?? 0;
     this.position = args.position ?? "top";
   }
 
@@ -76,13 +86,18 @@ export class ScrollViewport extends Widget implements RenderObjectWidget {
   }
 
   createRenderObject(): RenderObject {
-    return new RenderScrollable(this.scrollController, this.position);
+    return new RenderScrollable(this.scrollController, this.scrollOffset, this.position);
   }
 
+  /**
+   * 逆向: amp $1T.updateRenderObject → v1T.updateProperties
+   *
+   * 关键对齐: offset 变化仅调用 updateChildOffset（轻量路径），
+   * 不触发 markNeedsLayout 或 markNeedsPaint。这消除了双重通知导致的跨帧不一致抖动。
+   */
   updateRenderObject(renderObject: RenderObject): void {
     const rs = renderObject as RenderScrollable;
-    rs.scrollController = this.scrollController;
-    rs.position = this.position;
+    rs.updateProperties(this.scrollController, this.scrollOffset, this.position);
   }
 }
 
@@ -235,7 +250,12 @@ export class ScrollableState extends State<Scrollable> {
 
     // 逆向: amp I1T._boundOnScrollChanged → setState
     this._scrollListener = () => {
-      scrollLog.debug("scrollListener:setState", { offset: this.controller.offset, max: this.controller.maxScrollExtent });
+      scrollLog.debug("scrollListener:setState", {
+        offset: this.controller.offset,
+        max: this.controller.maxScrollExtent,
+        ts: Date.now(),
+        source: "controller-notify",
+      });
       if (this.mounted) this.setState();
     };
     this.controller.addListener(this._scrollListener);
@@ -387,11 +407,18 @@ export class ScrollableState extends State<Scrollable> {
 
   // ── 边界方向翻转抑制状态 ──
   // Ghostty/macOS Magic Mouse 在滚动边界处会产生高频方向翻转噪声（0-2ms 间隔）。
-  // 当 offset 在边界附近且检测到快速方向翻转时，丢弃噪声方向事件以防止视觉抖动。
+  // 方向翻转稳定器 — 抑制 macOS trackpad 惯性滚动产生的高频方向翻转噪声。
+  // 覆盖两种场景:
+  //   1. 边界位置（offset ≤ 1 或 ≥ max-1）— 窗口 8ms，仅抑制离开边界的反向事件
+  //   2. 非边界位置 — 窗口 80ms，delta=±1 时抑制所有方向翻转
+  // 场景 2 针对的现象: macOS trackpad 小幅操作时手指抬起瞬间产生 1-2 个反方向事件
+  // （间隔 30-71ms），导致 offset 在 N 和 N±1 之间来回跳动产生视觉抖动。
   private _lastScrollDirection: string | null = null;
   private _lastScrollTime = 0;
-  /** 边界翻转抑制窗口（毫秒）— 在此时间内的方向翻转被视为噪声 */
+  /** 边界翻转抑制窗口（毫秒）— 边界处极短窗口，抑制 0-8ms 噪声 */
   private static readonly BOUNDARY_FLIP_WINDOW_MS = 8;
+  /** 通用方向翻转稳定窗口（毫秒）— 非边界位置的方向翻转抑制 */
+  private static readonly DIRECTION_STABILIZE_WINDOW_MS = 80;
 
   /**
    * 逆向: amp I1T.handleMouseScrollEvent — 方向感知鼠标滚动。
@@ -441,32 +468,51 @@ export class ScrollableState extends State<Scrollable> {
       delta = -step;
     }
 
-    // ── 边界方向翻转抑制 ──
-    // 当 offset 在边界附近且方向快速翻转时，丢弃反向噪声事件。
-    // 这抑制了 macOS Magic Mouse 惯性滚动在边界处的 0-2ms 方向翻转噪声。
+    // ── 方向翻转稳定器 ──
+    // 场景 1: 边界位置 — 窗口 8ms，仅抑制离开边界的反向事件（与之前行为相同）
+    // 场景 2: 非边界位置 — 窗口 80ms，delta=±1 时抑制方向翻转
     const now = Date.now();
     const offset = this.controller.offset;
     const max = this.controller.maxScrollExtent;
     const atTopBoundary = offset <= 1;
     const atBottomBoundary = offset >= max - 1;
-    const directionFlipped = this._lastScrollDirection !== null && direction !== this._lastScrollDirection;
-    const withinFlipWindow = now - this._lastScrollTime < ScrollableState.BOUNDARY_FLIP_WINDOW_MS;
+    const directionFlipped =
+      this._lastScrollDirection !== null && direction !== this._lastScrollDirection;
+    const timeSinceLast = now - this._lastScrollTime;
 
-    if (directionFlipped && withinFlipWindow) {
-      // 在边界附近且快速翻转 — 丢弃"离开边界"方向的噪声
-      const isNoiseAwayFromTop = atTopBoundary && delta > 0;
-      const isNoiseAwayFromBottom = atBottomBoundary && delta < 0;
-      if (isNoiseAwayFromTop || isNoiseAwayFromBottom) {
-        scrollLog.debug("handleMouseScroll:boundaryFlipSuppressed", {
+    if (directionFlipped) {
+      // 场景 1: 边界翻转抑制（严格窗口）
+      const withinBoundaryWindow = timeSinceLast < ScrollableState.BOUNDARY_FLIP_WINDOW_MS;
+      if (withinBoundaryWindow) {
+        const isNoiseAwayFromTop = atTopBoundary && delta > 0;
+        const isNoiseAwayFromBottom = atBottomBoundary && delta < 0;
+        if (isNoiseAwayFromTop || isNoiseAwayFromBottom) {
+          scrollLog.debug("handleMouseScroll:boundaryFlipSuppressed", {
+            direction,
+            delta,
+            offset,
+            max,
+            atTopBoundary,
+            atBottomBoundary,
+            timeSinceLastMs: timeSinceLast,
+          });
+          this._lastScrollTime = now;
+          return false;
+        }
+      }
+
+      // 场景 2: 通用方向翻转稳定（delta=±1 时在稳定窗口内抑制反向）
+      const withinStabilizeWindow = timeSinceLast < ScrollableState.DIRECTION_STABILIZE_WINDOW_MS;
+      if (withinStabilizeWindow && Math.abs(delta) === 1) {
+        scrollLog.debug("handleMouseScroll:directionFlipSuppressed", {
           direction,
           delta,
           offset,
           max,
-          atTopBoundary,
-          atBottomBoundary,
-          timeSinceLastMs: now - this._lastScrollTime,
+          timeSinceLastMs: timeSinceLast,
+          window: ScrollableState.DIRECTION_STABILIZE_WINDOW_MS,
         });
-        // 不更新 _lastScrollDirection — 保持原方向锁定
+        // 不更新 _lastScrollDirection — 保持方向锁定
         this._lastScrollTime = now;
         return false;
       }
@@ -524,15 +570,25 @@ export class ScrollableState extends State<Scrollable> {
     const maxExtent = this.controller.maxScrollExtent;
     const clamped = this._physics.clampOffset(newOffset, minExtent, maxExtent);
 
+    scrollLog.debug("handleScrollDelta", {
+      delta,
+      from: this.controller.offset,
+      to: clamped,
+      max: maxExtent,
+      ts: Date.now(),
+    });
+
     // 逆向: amp I1T line 80 — this._controller.updateOffset(t);
     this.controller.updateOffset(clamped);
-  };
+  }
 
   /**
    * 逆向: amp I1T.build — Focus > MouseRegion > viewportBuilder
    *
    * I1T line 22-41:
    * ```
+   * let R = this._controller.offset;  // ← 读取 offset 值
+   * let e = this.widget.viewportBuilder(T, R, a, this._controller);
    * return new C8({
    *   onKey: this._boundHandleKeyEvent,
    *   autofocus: this.widget.autofocus,
@@ -544,6 +600,10 @@ export class ScrollableState extends State<Scrollable> {
    *   })
    * });
    * ```
+   *
+   * 关键对齐: build 中读取 controller.offset 传给 viewportBuilder，
+   * offset 通过 Widget 属性流传递到 RenderObject（单一数据源），
+   * 消除了 RenderScrollable 独立 listener 的双重通知路径。
    */
   build(context: BuildContext): WidgetInterface {
     const viewport = this.widget.viewportBuilder(context, this.controller);

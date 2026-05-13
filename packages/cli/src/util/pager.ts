@@ -15,7 +15,7 @@ export function openInPager(text: string): void {
   const tmpDir = mkdtempSync(join(tmpdir(), "flitter-pager-"));
   const tmpFile = join(tmpDir, "output.txt");
   try {
-    WidgetsBinding.instance.tui.handleSuspend();
+    WidgetsBinding.instance.tui.suspend();
     writeFileSync(tmpFile, text, "utf-8");
     const [cmd = pager, ...args] = pager.split(" ");
     spawnSync(cmd, [...args, tmpFile], {
@@ -25,7 +25,7 @@ export function openInPager(text: string): void {
   } finally {
     // 逆向: clear screen + hide cursor before resuming
     process.stdout.write("\x1b[2J\x1b[H\x1b[?25l");
-    WidgetsBinding.instance.tui.handleResume();
+    WidgetsBinding.instance.tui.resume();
     try {
       unlinkSync(tmpFile);
       rmdirSync(tmpDir);

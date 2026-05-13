@@ -19,9 +19,9 @@
  * @module
  */
 
+import { logger } from "../debug/logger.js";
 import type { HitTestResult } from "../gestures/hit-test.js";
 import type { Screen } from "../screen/screen.js";
-import { logger } from "../debug/logger.js";
 import { TextStyle } from "../screen/text-style.js";
 import type { Selectable, SelectionArea } from "../selection/selection-area.js";
 import { InheritedSelectionArea } from "../selection/selection-area-widget.js";
@@ -479,6 +479,16 @@ export class RenderParagraph extends RenderBox {
   //  命中测试 + 鼠标事件 — 逆向: amp t1T hit-test + onTap dispatch
   // ────────────────────────────────────────────────
 
+  /** 鼠标光标样式 — 有可点击 span 时为 "pointer"，供 MouseManager._updateCursor 读取 */
+  get cursor(): string | null {
+    return this._hasClickableSpan(this._textSpan) ? "pointer" : null;
+  }
+
+  /** 逆向: si.opaque — RenderParagraph 不阻挡下层事件传播 */
+  get opaque(): boolean {
+    return false;
+  }
+
   /**
    * 检查 TextSpan 树中是否有任何 onTap 回调。
    */
@@ -545,7 +555,10 @@ export class RenderParagraph extends RenderBox {
   ): boolean {
     const hit = super.hitTest(result, position, offsetX, offsetY);
     if (hit && (this._hasClickableSpan(this._textSpan) || this._selectable)) {
-      result.addMouseTarget(this, position);
+      // 转换为局部坐标 — addMouseTarget 的 position 会被下游作为 localPosition 使用
+      const absX = offsetX + this._offset.x;
+      const absY = offsetY + this._offset.y;
+      result.addMouseTarget(this, { x: position.x - absX, y: position.y - absY });
     }
     return hit;
   }

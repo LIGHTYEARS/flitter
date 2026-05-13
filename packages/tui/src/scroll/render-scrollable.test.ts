@@ -198,7 +198,6 @@ describe("RenderScrollable", () => {
       const child = new MockChildRenderBox(100);
       const scrollable = new RenderScrollable(controller);
       scrollable.adoptChild(child);
-      scrollable.attach();
 
       const parentConstraints = new BoxConstraints({
         minWidth: 0,
@@ -209,6 +208,8 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
       controller.updateOffset(10);
+      // Push offset change via updateProperties (simulates ScrollViewport.updateRenderObject)
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       const screen = new Screen(80, 30);
       child.paintCalls.length = 0;
@@ -224,7 +225,6 @@ describe("RenderScrollable", () => {
       const child = new MockChildRenderBox(100);
       const scrollable = new RenderScrollable(controller);
       scrollable.adoptChild(child);
-      scrollable.attach();
 
       const parentConstraints = new BoxConstraints({
         minWidth: 0,
@@ -235,6 +235,8 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
       controller.jumpTo(10);
+      // Push offset via updateProperties then trigger relayout
+      scrollable.updateProperties(controller, controller.offset, "top");
       scrollable.markNeedsLayout();
       scrollable.layout(parentConstraints);
 
@@ -265,10 +267,11 @@ describe("RenderScrollable", () => {
   });
 
   describe("scroll controller integration", () => {
-    it("should trigger markNeedsPaint when ScrollController.jumpTo() is called", () => {
+    it("should trigger markNeedsPaint when updateProperties propagates new offset", () => {
       const scrollable = new RenderScrollable(controller);
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
+      scrollable.attach();
 
       const parentConstraints = new BoxConstraints({
         minWidth: 0,
@@ -279,29 +282,25 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
 
-      // 手动模拟 attach
-      scrollable.attach();
-
       // Clear paint flag after layout
       const screen = new Screen(80, 30);
       scrollable.paint(screen, 0, 0);
       expect(scrollable.needsPaint).toBe(false);
 
-      // Now jump -- should trigger markNeedsPaint
+      // Simulate what ScrollViewport.updateRenderObject does after controller.jumpTo
       controller.jumpTo(10);
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       expect(scrollable.needsPaint).toBe(true);
     });
 
-    it("should update scrollController when set to new controller", () => {
+    it("should update scrollController via updateProperties", () => {
       const scrollable = new RenderScrollable(controller);
       scrollable.attach();
 
       const newController = new ScrollController();
       newController.disableFollowMode();
-      scrollable.scrollController = newController;
 
-      // Old controller should no longer trigger repaints
       const screen = new Screen(80, 30);
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
@@ -314,24 +313,34 @@ describe("RenderScrollable", () => {
         }),
       );
       scrollable.paint(screen, 0, 0);
+      expect(scrollable.needsPaint).toBe(false);
 
-      controller.jumpTo(5);
-      // Old controller's jump should NOT mark needs paint
-      // (since we can't easily distinguish from the pipeline perspective,
-      // we at least ensure new controller is connected)
+      // Switch to new controller via updateProperties
+      scrollable.updateProperties(newController, 0, "top");
 
+      // updateProperties with new controller triggers markNeedsLayout
+      // After relayout with new controller, verify new controller is active
+      scrollable.layout(
+        new BoxConstraints({
+          minWidth: 0,
+          maxWidth: 80,
+          minHeight: 0,
+          maxHeight: 30,
+        }),
+      );
       scrollable.paint(screen, 0, 0);
       expect(scrollable.needsPaint).toBe(false);
 
+      // Push offset change via new controller path
       newController.jumpTo(5);
+      scrollable.updateProperties(newController, newController.offset, "top");
       expect(scrollable.needsPaint).toBe(true);
 
       newController.dispose();
     });
 
-    it("should detach listener on detach()", () => {
+    it("should handle detach() without errors", () => {
       const scrollable = new RenderScrollable(controller);
-      scrollable.attach();
 
       const screen = new Screen(80, 30);
       const child = new MockChildRenderBox(100);
@@ -348,11 +357,9 @@ describe("RenderScrollable", () => {
 
       scrollable.detach();
 
-      // After detach, controller changes should not trigger markNeedsPaint
-      // (though controller may still notify, the listener should be removed)
+      // After detach, updateProperties should still work without errors
       controller.jumpTo(5);
-      // needsPaint might be true from layout, but the listener path was removed
-      // This mainly verifies no errors occur
+      scrollable.updateProperties(controller, controller.offset, "top");
     });
   });
 
@@ -438,7 +445,7 @@ describe("RenderScrollable", () => {
 
     it("does not auto-scroll when content grows from fit to overflow", () => {
       const child = new MockChildRenderBox(10);
-      const scrollable = new RenderScrollable(controller, "bottom");
+      const scrollable = new RenderScrollable(controller, 0, "bottom");
       scrollable.adoptChild(child);
       scrollable.attach();
 
@@ -472,7 +479,7 @@ describe("RenderScrollable", () => {
 
     it("does not auto-scroll after a positive->0->positive extent transition", () => {
       const child = new MockChildRenderBox(50);
-      const scrollable = new RenderScrollable(controller, "bottom");
+      const scrollable = new RenderScrollable(controller, 0, "bottom");
       scrollable.adoptChild(child);
       scrollable.attach();
 
@@ -521,7 +528,7 @@ describe("RenderScrollable", () => {
 
     it("anchors short content to bottom of viewport", () => {
       const controller = new ScrollController();
-      const scrollable = new RenderScrollable(controller, "bottom");
+      const scrollable = new RenderScrollable(controller, 0, "bottom");
       const child = new MockChildRenderBox(10); // 10 rows, viewport 30
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -549,7 +556,7 @@ describe("RenderScrollable", () => {
 
     it("no bottom anchor when content >= viewport", () => {
       const controller = new ScrollController();
-      const scrollable = new RenderScrollable(controller, "bottom");
+      const scrollable = new RenderScrollable(controller, 0, "bottom");
       const child = new MockChildRenderBox(50); // 50 rows, viewport 30
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -600,7 +607,7 @@ describe("RenderScrollable", () => {
 
     it("position setter triggers relayout", () => {
       const controller = new ScrollController();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(10);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -619,8 +626,8 @@ describe("RenderScrollable", () => {
       scrollable.paint(screen, 0, 0);
       expect(child.paintCalls[child.paintCalls.length - 1]!.offsetY).toBe(0);
 
-      // Switch to bottom
-      scrollable.position = "bottom";
+      // Switch to bottom via updateProperties
+      scrollable.updateProperties(controller, 0, "bottom");
       scrollable.layout(parentConstraints);
       scrollable.paint(screen, 0, 0);
       expect(child.paintCalls[child.paintCalls.length - 1]!.offsetY).toBe(20);
@@ -631,7 +638,7 @@ describe("RenderScrollable", () => {
     it("uses the latest controller offset for hitTest before paint", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -645,6 +652,7 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
       controller.updateOffset(20);
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       const beforePaint = HitTestResult.hitTest(scrollable, { x: 5, y: 5 });
       const beforePaintChildHit = beforePaint.hits.find((h) => h.target === child);
@@ -665,7 +673,7 @@ describe("RenderScrollable", () => {
     it("uses the latest layout snapshot for hitTest before paint", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -679,6 +687,7 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
       controller.jumpTo(20);
+      scrollable.updateProperties(controller, controller.offset, "top");
       scrollable.markNeedsLayout();
       scrollable.layout(parentConstraints);
 
@@ -701,7 +710,7 @@ describe("RenderScrollable", () => {
     it("keeps hitTest aligned with the latest bottom-anchor snapshot before paint", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(10);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -720,7 +729,7 @@ describe("RenderScrollable", () => {
       scrollable.paint(screen, 0, 0);
       expect(child.paintCalls[0]!.offsetY).toBe(0);
 
-      scrollable.position = "bottom";
+      scrollable.updateProperties(controller, 0, "bottom");
       scrollable.layout(parentConstraints);
 
       const beforePaint = HitTestResult.hitTest(scrollable, { x: 5, y: 25 });
@@ -741,7 +750,7 @@ describe("RenderScrollable", () => {
     it("uses the final controller snapshot when multiple updates are coalesced before paint", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -763,6 +772,7 @@ describe("RenderScrollable", () => {
       controller.jumpTo(5);
       controller.jumpTo(4);
       controller.jumpTo(3);
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       const beforePaint = HitTestResult.hitTest(scrollable, { x: 5, y: 5 });
       const beforePaintChildHit = beforePaint.hits.find((h) => h.target === child);
@@ -783,7 +793,7 @@ describe("RenderScrollable", () => {
     it("drops stale non-zero snapshots when the final coalesced controller update returns to zero", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -804,6 +814,7 @@ describe("RenderScrollable", () => {
 
       controller.jumpTo(5);
       controller.jumpTo(0);
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       const beforePaint = HitTestResult.hitTest(scrollable, { x: 5, y: 5 });
       const beforePaintChildHit = beforePaint.hits.find((h) => h.target === child);
@@ -824,7 +835,7 @@ describe("RenderScrollable", () => {
     it("should hit child at correct position with bottom anchor (short content)", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "bottom");
+      const scrollable = new RenderScrollable(controller, 0, "bottom");
       const child = new MockChildRenderBox(10);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -851,7 +862,7 @@ describe("RenderScrollable", () => {
     it("should NOT hit child outside viewport bounds", () => {
       const controller = new ScrollController();
       controller.disableFollowMode();
-      const scrollable = new RenderScrollable(controller, "top");
+      const scrollable = new RenderScrollable(controller, 0, "top");
       const child = new MockChildRenderBox(100);
       scrollable.adoptChild(child);
       scrollable.attach();
@@ -878,7 +889,6 @@ describe("RenderScrollable", () => {
       const scrollable = new RenderScrollable(controller);
       const behavior = new ScrollBehavior(controller, { axisDirection: "vertical", scrollStep: 1 });
       scrollable.adoptChild(child);
-      scrollable.attach();
 
       const parentConstraints = new BoxConstraints({
         minWidth: 0,
@@ -889,6 +899,8 @@ describe("RenderScrollable", () => {
 
       scrollable.layout(parentConstraints);
       behavior.handleScrollDelta(7);
+      // Push offset change via updateProperties (simulates ScrollViewport.updateRenderObject)
+      scrollable.updateProperties(controller, controller.offset, "top");
 
       const beforePaint = HitTestResult.hitTest(scrollable, { x: 5, y: 5 });
       const beforePaintChildHit = beforePaint.hits.find((hit) => hit.target === child);

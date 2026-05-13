@@ -1024,3 +1024,127 @@ describe("状态机边界情况", () => {
 function MAX_CSI_PARAMS(): number {
   return 16;
 }
+
+// ════════════════════════════════════════════════════
+//  flush() 方法
+// ════════════════════════════════════════════════════
+
+describe("flush() 方法", () => {
+  // ── 71. flush 刷新 pending print 数据但不重置状态 ───
+  it("71. flush 应刷新 pending print 数据但不重置状态", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    // 开始一个 CSI 序列
+    parser.parse(Buffer.from("\x1b["));
+    // flush 应刷新之前的 print 缓冲（这里没有）
+    parser.flush();
+    // 状态机应仍在 csi_entry，继续解析
+    assert.equal(parser.getState(), "csi_entry");
+
+    // 完成 CSI 序列
+    parser.parse(Buffer.from("A"));
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "csi");
+    if (events[0].type === "csi") {
+      assert.equal(events[0].final, "A");
+    }
+  });
+
+  // ── 72. flush 应产生 pending print 事件 ────────────
+  it("72. flush 应产生 pending print 事件", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    // 输入可打印字符但不 reset
+    parser.parse(Buffer.from("ab"));
+    // flush 前事件还在缓冲中
+    parser.flush();
+    // 应该产生 print 事件
+    const prints = events.filter((e) => e.type === "print");
+    assert.ok(prints.length >= 1);
+    const gs = graphemes(events);
+    assert.deepEqual(gs, ["a", "b"]);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  execute 事件（C0 控制字符）
+// ════════════════════════════════════════════════════
+
+describe("execute 事件", () => {
+  // ── 73. C0 字节应产生 execute 事件 ─────────────────
+  it("73. C0 字节应产生 execute 事件", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    // 发送 Tab (0x09) 和 CR (0x0d)
+    parser.parse(Buffer.from([0x09, 0x0d]));
+
+    const execEvents = events.filter((e) => e.type === "execute");
+    assert.equal(execEvents.length, 2);
+    if (execEvents[0].type === "execute") assert.equal(execEvents[0].code, 0x09);
+    if (execEvents[1].type === "execute") assert.equal(execEvents[1].code, 0x0d);
+  });
+
+  // ── 74. DEL (0x7F) 应产生 execute 事件 ─────────────
+  it("74. DEL (0x7F) 应产生 execute 事件", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    parser.parse(Buffer.from([0x7f]));
+
+    const execEvents = events.filter((e) => e.type === "execute");
+    assert.equal(execEvents.length, 1);
+    if (execEvents[0].type === "execute") assert.equal(execEvents[0].code, 0x7f);
+  });
+
+  // ── 75. ESC 不应产生 execute 事件 ──────────────────
+  it("75. ESC 不应产生 execute 事件（进入 escape 状态）", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    parser.parse(Buffer.from([0x1b]));
+
+    const execEvents = events.filter((e) => e.type === "execute");
+    assert.equal(execEvents.length, 0);
+  });
+
+  // ── 76. C0 字符穿插在 print 之间的事件顺序 ─────────
+  it("76. C0 字符穿插在 print 之间时事件顺序正确", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    // "A" + TAB + "B"
+    parser.parse(Buffer.from("A\tB", "latin1"));
+    parser.flush();
+
+    // 期望顺序: print("A"), execute(0x09), print("B")
+    assert.equal(events.length, 3);
+    assert.equal(events[0].type, "print");
+    assert.equal(events[1].type, "execute");
+    assert.equal(events[2].type, "print");
+    if (events[0].type === "print") assert.equal(events[0].grapheme, "A");
+    if (events[1].type === "execute") assert.equal(events[1].code, 0x09);
+    if (events[2].type === "print") assert.equal(events[2].grapheme, "B");
+  });
+
+  // ── 77. NUL (0x00) 应产生 execute 事件 ─────────────
+  it("77. NUL (0x00) 应产生 execute 事件", () => {
+    const parser = new VtParser();
+    const events: VtEvent[] = [];
+    parser.onEvent((e) => events.push(e));
+
+    parser.parse(Buffer.from([0x00]));
+
+    const execEvents = events.filter((e) => e.type === "execute");
+    assert.equal(execEvents.length, 1);
+    if (execEvents[0].type === "execute") assert.equal(execEvents[0].code, 0x00);
+  });
+});

@@ -5,9 +5,9 @@
  * 语义化输入事件（{@link InputEvent}）。支持键盘、鼠标、粘贴
  * 和焦点事件的解析。
  *
- * 由于 {@link VtParser} 不会为 C0 控制字符（0x00-0x1F）生成事件，
- * 本类额外提供 {@link feed} 方法，在将原始字节交给 VtParser 之前
- * 先拦截 C0 控制字符并转换为对应的 {@link KeyEvent}。
+ * {@link VtParser} 为 C0 控制字符（0x00-0x1F）产生 `execute` 事件，
+ * 本类通过 {@link handleExecuteEvent} 方法将其转换为对应的 {@link KeyEvent}。
+ * {@link feed} 方法将完整字节流交给 VtParser，不做外部 C0 预拆分。
  *
  * @example
  * ```ts
@@ -72,8 +72,27 @@ function shiftMod(): Modifiers {
  * @param key - 逻辑键名
  * @param modifiers - 修饰键状态，默认无修饰键
  */
-function keyEvent(key: string, modifiers: Modifiers = { ...MODIFIERS_NONE }): KeyEvent {
-  return { type: "key", key, modifiers };
+function keyEvent(
+  key: string,
+  modifiers: Modifiers = { ...MODIFIERS_NONE },
+  text?: string,
+): KeyEvent {
+  return text !== undefined
+    ? { type: "key", key, modifiers, text }
+    : { type: "key", key, modifiers };
+}
+
+/**
+ * 判断字形是否为 shifted 状态。
+ *
+ * 逆向: amp-cli-reversed/modules/2026_tail_anonymous.js:156969
+ *   `T !== T.toLowerCase()` — 判断字符是否需要 Shift 键
+ *
+ * @param grapheme - 要判断的字形
+ * @returns 如果 grapheme 与其 toLowerCase() 不同则返回 true
+ */
+function isShifted(grapheme: string): boolean {
+  return grapheme !== grapheme.toLowerCase();
 }
 
 /**
@@ -90,6 +109,7 @@ const TILDE_KEY_MAP: Record<number, string> = {
   6: "PageDown",
   7: "Home",
   8: "End",
+  9: "Tab",
   11: "F1",
   12: "F2",
   13: "F3",
@@ -142,6 +162,7 @@ const CSI_FINAL_KEY_MAP: Record<string, string> = {
  * These are used in CSI keycode ; modifiers u sequences.
  */
 const KITTY_SPECIAL_KEY_MAP: Record<number, string> = {
+  // 编辑/导航键
   57348: "Insert",
   57349: "Delete",
   57350: "ArrowLeft",
@@ -152,12 +173,14 @@ const KITTY_SPECIAL_KEY_MAP: Record<number, string> = {
   57355: "PageDown",
   57356: "Home",
   57357: "End",
+  // 锁定键
   57358: "CapsLock",
   57359: "ScrollLock",
   57360: "NumLock",
   57361: "PrintScreen",
   57362: "Pause",
   57363: "ContextMenu",
+  // F1-F24
   57364: "F1",
   57365: "F2",
   57366: "F3",
@@ -182,11 +205,79 @@ const KITTY_SPECIAL_KEY_MAP: Record<number, string> = {
   57385: "F22",
   57386: "F23",
   57387: "F24",
+  // F25-F35
+  57388: "F25",
+  57389: "F26",
+  57390: "F27",
+  57391: "F28",
+  57392: "F29",
+  57393: "F30",
+  57394: "F31",
+  57395: "F32",
+  57396: "F33",
+  57397: "F34",
+  57398: "F35",
+  // 小键盘数字 (KP_0 - KP_9, amp 映射为纯字符)
+  57399: "0",
+  57400: "1",
+  57401: "2",
+  57402: "3",
+  57403: "4",
+  57404: "5",
+  57405: "6",
+  57406: "7",
+  57407: "8",
+  57408: "9",
+  // 小键盘运算符
+  57409: ".",
+  57410: "/",
+  57411: "*",
+  57412: "-",
+  57413: "+",
   57414: "Enter",
+  57415: "=",
+  57416: ",",
+  // 小键盘导航键
+  57417: "ArrowLeft",
+  57418: "ArrowRight",
+  57419: "ArrowUp",
+  57420: "ArrowDown",
+  57421: "PageUp",
+  57422: "PageDown",
+  57423: "Home",
+  57424: "End",
+  57425: "Insert",
+  57426: "Delete",
+  57427: "Clear",
+  // 多媒体键
+  57428: "MediaPlay",
+  57429: "MediaPause",
+  57430: "MediaPlayPause",
+  57431: "MediaReverse",
+  57432: "MediaStop",
+  57433: "MediaFastForward",
+  57434: "MediaRewind",
+  57435: "MediaTrackNext",
+  57436: "MediaTrackPrevious",
+  57437: "MediaRecord",
+  57438: "AudioVolumeDown",
+  57439: "AudioVolumeUp",
+  57440: "AudioVolumeMute",
+  // 修饰键 (左/右区分)
   57441: "ShiftLeft",
   57442: "ControlLeft",
   57443: "AltLeft",
   57444: "MetaLeft",
+  57445: "HyperLeft",
+  57446: "MetaLeft",
+  57447: "ShiftRight",
+  57448: "ControlRight",
+  57449: "AltRight",
+  57450: "MetaRight",
+  57451: "HyperRight",
+  57452: "MetaRight",
+  57453: "AltGraph",
+  57454: "ISOLevel5Shift",
 };
 
 /**
@@ -341,7 +432,6 @@ export class InputParser {
   /** pendingEscape — whether a standalone ESC timeout is active.
    * 逆向: amp pendingEscape = !1 (chunk-005.js:163015)
    * Read in handlePrint for Alt+key detection (not yet implemented in flitter). */
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: maintained for amp-compat; consumed by Alt+key path (pending impl)
   private pendingEscape = false;
 
   /**
@@ -433,6 +523,9 @@ export class InputParser {
       case "escape":
         this.handleEscape(event);
         break;
+      case "execute":
+        this.handleExecuteEvent(event);
+        break;
       default:
         // osc, dcs, apc — 当前不产生输入事件
         break;
@@ -442,16 +535,11 @@ export class InputParser {
   /**
    * 喂入原始字节流。
    *
-   * 在将字节交给内部 VtParser 之前，先拦截 C0 控制字符
-   * （0x00-0x1F 除 ESC）和 DEL（0x7F）并转换为对应的 KeyEvent。
-   * 调用结束后自动刷新 VtParser 的打印缓冲区，确保所有
-   * 可打印字符都产生事件。
+   * 将完整字节数据交给内部 VtParser，C0 控制字符通过 VtParser 的
+   * execute 事件产生并在 handleVtEvent 中分发到 handleExecuteEvent。
+   * 调用结束后自动 flush VtParser 的打印缓冲区。
    *
    * 逆向: amp parse (chunk-005.js:163075-163082) — standalone ESC detection
-   * When a single ESC byte arrives, schedules a 25ms timeout. If no follow-up
-   * bytes arrive (confirming it's not the start of CSI/SS3/etc.), emits a
-   * standalone "Escape" key event. If more bytes come, the timeout is cleared
-   * and normal sequence parsing proceeds.
    *
    * @param data - 原始字节数据
    */
@@ -459,10 +547,8 @@ export class InputParser {
     // ── Standalone ESC detection (amp pattern) ──
     // 逆向: amp parse (chunk-005.js:163076-163081)
     if (this.isStandaloneEscape(data)) {
-      // Clear any previous escape timeout and schedule a new one
       this.clearEscapeTimeout();
       this.scheduleEscapeTimeout();
-      // Still pass to VtParser so it enters escape state (waiting for follow-up)
       this.vtParser.parse(data);
       return;
     }
@@ -474,32 +560,10 @@ export class InputParser {
       this.clearEscapeTimeout();
     }
 
-    // 将数据按段切分：C0 控制字符和 DEL 单独处理，其余交给 VtParser
-    let start = 0;
-
-    for (let i = 0; i < data.length; i++) {
-      const byte = data[i];
-
-      // C0 控制字符（0x00-0x1F 除 ESC）和 DEL (0x7F) 需要拦截
-      if ((byte < 0x20 && byte !== 0x1b) || byte === 0x7f) {
-        // 先将之前累积的非控制字节段交给 VtParser
-        if (i > start) {
-          this.vtParser.parse(data.subarray(start, i));
-        }
-        // 刷新 VtParser 的打印缓冲区，确保之前的可打印字符先产生事件
-        this.vtParser.reset();
-        this.handleC0(byte);
-        start = i + 1;
-      }
-    }
-
-    // 处理剩余字节
-    if (start < data.length) {
-      this.vtParser.parse(data.subarray(start, data.length));
-    }
-
-    // 刷新 VtParser 打印缓冲区，确保尾部可打印字符产生事件
-    this.vtParser.reset();
+    // 直接将完整数据交给 VtParser，C0 字符通过 execute 事件处理
+    // 逆向: amp 架构——lexer 内部产生 execute 事件，不在外部预拆分
+    this.vtParser.parse(data);
+    this.vtParser.flush();
   }
 
   /**
@@ -591,6 +655,65 @@ export class InputParser {
     }
   }
 
+  /**
+   * 处理 VtParser 的 execute 事件（C0 控制字符和 DEL）。
+   *
+   * 逆向: amp handleExecuteEvent (2026_tail_anonymous.js:156997-157062)
+   *
+   * @param event - VtParser execute 事件
+   */
+  private handleExecuteEvent(event: { type: "execute"; code: number }): void {
+    const byte = event.code;
+
+    if (this.pasteMode) {
+      // 粘贴模式中，部分 C0 控制字符追加到粘贴缓冲区
+      if (byte === 0x0a || byte === 0x0d) {
+        this.pasteBuffer += String.fromCharCode(byte);
+      } else if (byte === 0x09) {
+        this.pasteBuffer += "\t";
+      }
+      return;
+    }
+
+    switch (byte) {
+      case 0x00:
+        // Ctrl+@ / Ctrl+Space
+        this.emit(keyEvent("Space", ctrlMod()));
+        break;
+      case 0x08:
+        // BS → Backspace
+        this.emit(keyEvent("Backspace"));
+        break;
+      case 0x09:
+        // HT → Tab
+        this.emit(keyEvent("Tab"));
+        break;
+      case 0x0a:
+        // LF → Shift+Enter (逆向: amp 将 LF 映射为 Shift+Enter)
+        this.emit(keyEvent("Enter", shiftMod()));
+        break;
+      case 0x0d:
+        // CR → Enter
+        this.emit(keyEvent("Enter"));
+        break;
+      case 0x1b:
+        // ESC — 通常不会到达此处（VtParser 会进入 escape 状态）
+        this.emit(keyEvent("Escape"));
+        break;
+      case 0x7f:
+        // DEL → Backspace
+        this.emit(keyEvent("Backspace"));
+        break;
+      default:
+        if (byte >= 0x01 && byte <= 0x1a) {
+          // Ctrl+a 到 Ctrl+z
+          const letter = String.fromCharCode(0x60 + byte);
+          this.emit(keyEvent(letter, ctrlMod()));
+        }
+        break;
+    }
+  }
+
   // ════════════════════════════════════════════════════
   //  VtPrintEvent 处理
   // ════════════════════════════════════════════════════
@@ -611,6 +734,17 @@ export class InputParser {
       return;
     }
 
+    // Alt+key 检测路径 1: pendingEscape → 这是 ESC 后紧跟的字符，组合为 Alt+key
+    // 逆向: amp handlePrintEvent (2026_tail_anonymous.js:156969-156995)
+    //   if (this.pendingEscape) { clearEscapeTimeout(); emit Alt+key; return; }
+    if (this.pendingEscape) {
+      this.clearEscapeTimeout();
+      this.emit(
+        keyEvent(grapheme, { shift: isShifted(grapheme), alt: true, ctrl: false, meta: false }),
+      );
+      return;
+    }
+
     // 检查是否为 C0 控制字符（理论上 VtParser 不会产生，但防御性处理）
     if (grapheme.length === 1) {
       const code = grapheme.charCodeAt(0);
@@ -624,7 +758,7 @@ export class InputParser {
       }
     }
 
-    this.emit(keyEvent(grapheme));
+    this.emit(keyEvent(grapheme, { ...MODIFIERS_NONE, shift: isShifted(grapheme) }));
   }
 
   // ════════════════════════════════════════════════════
@@ -811,9 +945,25 @@ export class InputParser {
       return;
     }
     if (code === 201) {
+      if (!this.pasteMode) return; // 未配对的 201~ 静默忽略
       this.pasteMode = false;
       this.emit({ type: "paste", text: this.pasteBuffer } as PasteEvent);
       this.pasteBuffer = "";
+      return;
+    }
+
+    // ESC 编码: CSI 27 ; modifier ; keycode ~
+    // 逆向: amp handleFunctionKeyTilde 处理 code===27 时从 params[2] 取 keycode
+    if (code === 27 && params.length >= 3) {
+      const modParam = params[1].value;
+      const actualKeycode = params[2].value;
+      const modifiers = modParam > 1 ? modifierFromCsiParam(modParam) : { ...MODIFIERS_NONE };
+
+      // 从 actualKeycode 解析键名
+      const key = kittyUnicodeToKey(actualKeycode);
+      if (key === null) return;
+
+      this.emit(keyEvent(key, modifiers));
       return;
     }
 
@@ -824,6 +974,11 @@ export class InputParser {
       params.length >= 2 && params[1].value > 0
         ? modifierFromCsiParam(params[1].value)
         : { ...MODIFIERS_NONE };
+
+    // 过滤 release 事件 (eventType=3 from params[1].subparams[0])
+    // 逆向: amp Kitty protocol — subparam 表示 event type
+    const eventType = params.length >= 2 ? params[1].subparams?.[0] : undefined;
+    if (eventType === 3) return;
 
     this.emit(keyEvent(key, modifiers));
   }
@@ -847,10 +1002,18 @@ export class InputParser {
 
     const keycode = params[0].value;
 
+    // 读取 shifted key（subparams 中冒号分隔的第二个值）
+    // 逆向: amp csiToKey line 157250: `s = a[0]?.subparams?.[1]`
+    const shiftedKeycode = params[0].subparams?.[1];
+
     // Resolve logical key name from keycode
     // 逆向: amp csiToKey line 157249-157252
     const key = kittyUnicodeToKey(keycode);
     if (key === null) return;
+
+    // Resolve shifted key name if present
+    const shiftedKey =
+      shiftedKeycode !== undefined ? (kittyUnicodeToKey(shiftedKeycode) ?? undefined) : undefined;
 
     // Resolve modifier state from params[1]
     // 逆向: amp parseModifiers (157391-157404): param=0/1 → no mods, else bits = param-1
@@ -871,8 +1034,64 @@ export class InputParser {
       }
     }
 
-    log.debug("kitty key", { keycode, key, modifiers });
-    this.emit(keyEvent(key, modifiers));
+    // Resolve associated text or eventType from params[2]
+    // 逆向: amp csiToKey line 157257-157260
+    //   当 params[1] 无 subparam 时，params[2] 是 eventType
+    //   当 params[1] 有 subparam[0] 作为 eventType 时，params[2] 是 associated text
+    let associatedText: string | undefined;
+    if (params.length >= 3) {
+      const hasSubparamEventType =
+        params[1]?.subparams !== undefined && params[1].subparams.length > 0;
+      if (!hasSubparamEventType) {
+        // params[2].value 是 eventType (1=press, 2=repeat, 3=release)
+        const eventTypeFromParam2 = params[2].value;
+        if (eventTypeFromParam2 === 3) {
+          // Release event — skip
+          return;
+        }
+        // press(1) or repeat(2) — no associated text in this format
+      } else {
+        // params[2].value 是 associated text codepoint
+        const textCodepoint = params[2].value;
+        if (textCodepoint > 0) {
+          try {
+            associatedText = String.fromCodePoint(textCodepoint);
+          } catch {
+            // invalid codepoint — ignore
+          }
+        }
+      }
+    }
+
+    // Compute the "text" field for the event.
+    // 逆向: amp csiToKey line 157263-157265
+    //   if (i === "" && r.shift && !r.ctrl && !r.alt && !r.meta) {
+    //     let c = this.keyToUnicode(e);
+    //     if (c && c >= 32 && c <= 126) i = e.toUpperCase();
+    //   }
+    let text: string | undefined = associatedText;
+    if (text === undefined && shiftedKey !== undefined && shiftedKey.length === 1) {
+      // 有 shifted key 子参数时，直接使用它作为 text
+      text = shiftedKey;
+    }
+    if (
+      text === undefined &&
+      modifiers.shift &&
+      !modifiers.ctrl &&
+      !modifiers.alt &&
+      !modifiers.meta
+    ) {
+      // 仅 Shift 修饰时，若 base key 是可打印字符，使用其大写形式
+      if (key.length === 1) {
+        const code = key.charCodeAt(0);
+        if (code >= 32 && code <= 126) {
+          text = key.toUpperCase();
+        }
+      }
+    }
+
+    log.debug("kitty key", { keycode, key, shiftedKey, modifiers, text });
+    this.emit(keyEvent(key, modifiers, text));
   }
 
   // ════════════════════════════════════════════════════
@@ -887,6 +1106,7 @@ export class InputParser {
    * @param event - VT ESC 事件
    */
   private handleEscape(event: VtEscapeEvent): void {
+    this.clearEscapeTimeout();
     const { intermediates, final: finalChar } = event;
 
     // SS3 序列：ESC O <final>
@@ -898,6 +1118,24 @@ export class InputParser {
       return;
     }
 
-    // 其他 ESC 序列暂不处理
+    // Alt+key 检测路径 2: ESC 后跟字符（VtParser 识别为 escape 事件）
+    // 逆向: amp escapeToKey (2026_tail_anonymous.js:157203-157229)
+    //   intermediates === "" && final 是可打印字符 → Alt+字符
+    //   intermediates === "" && final === DEL (0x7f) → Alt+Backspace
+    if (intermediates === "") {
+      const charCode = finalChar.charCodeAt(0);
+      if (charCode >= 32 && charCode <= 126) {
+        // 可打印字符 → Alt+字符
+        this.emit(
+          keyEvent(finalChar, { shift: isShifted(finalChar), alt: true, ctrl: false, meta: false }),
+        );
+        return;
+      }
+      if (charCode === 127) {
+        // DEL → Alt+Backspace
+        this.emit(keyEvent("Backspace", { ...MODIFIERS_NONE, alt: true }));
+        return;
+      }
+    }
   }
 }

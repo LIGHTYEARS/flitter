@@ -48,7 +48,6 @@ import {
   MODIFY_OTHER_KEYS_ON,
   MODIFY_OTHER_KEYS_ON_MODE2,
   MOUSE_OFF,
-  MOUSE_ON,
   PASTE_OFF,
   PASTE_ON,
   PROGRESS_BAR_INDETERMINATE,
@@ -61,6 +60,7 @@ import {
 } from "../screen/ansi-renderer.js";
 import { Screen } from "../screen/screen.js";
 import { InputParser } from "../vt/input-parser.js";
+import { isJetBrainsTerminal, JetBrainsWheelFilter } from "../vt/jetbrains-wheel-filter.js";
 import type {
   InbandResizeEvent,
   KeyEvent,
@@ -68,7 +68,6 @@ import type {
   FocusEvent as TermFocusEvent,
   MouseEvent as TermMouseEvent,
 } from "../vt/types.js";
-import { JetBrainsWheelFilter, isJetBrainsTerminal } from "../vt/jetbrains-wheel-filter.js";
 import { QueryParser } from "./query-parser.js";
 import type { TtyInputSource, TtyOutputTarget } from "./tty-input.js";
 import { createTtyInput, createTtyOutput } from "./tty-input.js";
@@ -852,7 +851,10 @@ export class TuiController {
    */
   render(): void {
     const output = this.renderer.render(this.screen);
-    TuiController.log.debug("render", { outputLen: output.length, fullRefresh: this.screen.needsFullRefresh });
+    TuiController.log.debug("render", {
+      outputLen: output.length,
+      fullRefresh: this.screen.needsFullRefresh,
+    });
     if (output) {
       // 逆向: amp-cli-reversed/modules/2112_unknown_XXT.js:188-201
       // Amp wraps render output with startSync()/endSync() to prevent visual tearing.
@@ -1031,7 +1033,9 @@ export class TuiController {
     this.parser.setSgrMouseConverter((buttonByte, x1, y1, finalChar) => {
       const action =
         buttonByte >= 64 && buttonByte < 128
-          ? ((buttonByte & ~0x1c) === 64 ? "wheel_up" : "wheel_down")
+          ? (buttonByte & ~0x1c) === 64
+            ? "wheel_up"
+            : "wheel_down"
           : finalChar === "M"
             ? "press"
             : "release";
@@ -1385,31 +1389,27 @@ export class TuiController {
   }
 
   /**
-   * 处理终端暂停 (Ctrl+Z / SIGTSTP)。
+   * 暂停终端 TUI（仅恢复终端状态，不发 SIGTSTP）。
    *
-   * 逆向: handleSuspend() in tui-layout-engine.js:217-225
-   *       suspend() in tui-layout-engine.js:199-206
+   * 用于 pager 等需要临时让出终端的场景。
+   *
+   * 逆向: suspend() in 2112_unknown_XXT.js:300-307
    */
-  handleSuspend(): void {
+  suspend(): void {
     if (!this.initialized || this.suspended) return;
-    // Sync terminal restore (amp's suspend() at line 199-206)
     this.restoreTerminalSync();
     this.ttyInput?.pause?.();
     this.suspended = true;
-    try {
-      process.kill(0, "SIGTSTP");
-    } catch {
-      // Failed to suspend — already handled
-    }
   }
 
   /**
-   * 处理终端恢复 (SIGCONT)。
+   * 恢复终端 TUI（重新进入 alt screen 并启用所有终端特性）。
    *
-   * 逆向: handleResume() in tui-layout-engine.js:226-231
-   *       resume() in tui-layout-engine.js:207-213
+   * 与 suspend() 配对使用。
+   *
+   * 逆向: resume() in 2112_unknown_XXT.js:308-314
    */
-  handleResume(): void {
+  resume(): void {
     if (!this.initialized || !this.suspended) return;
     this.ttyInput?.resume?.();
     if (this.parser) this.parser.reset();
@@ -1424,6 +1424,30 @@ export class TuiController {
     this.enableInBandResize();
     this.screen.needsFullRefresh = true;
     this.suspended = false;
+  }
+
+  /**
+   * 处理终端暂停 (Ctrl+Z / SIGTSTP)。
+   *
+   * 逆向: handleSuspend() in 2112_unknown_XXT.js:318-326
+   */
+  handleSuspend(): void {
+    if (!this.initialized || this.suspended) return;
+    this.suspend();
+    try {
+      process.kill(0, "SIGTSTP");
+    } catch {
+      // Failed to suspend — already handled
+    }
+  }
+
+  /**
+   * 处理终端恢复 (SIGCONT)。
+   *
+   * 逆向: handleResume() in 2112_unknown_XXT.js:327-330
+   */
+  handleResume(): void {
+    this.resume();
   }
 
   /**

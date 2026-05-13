@@ -201,6 +201,22 @@ export interface VtApcEvent {
 }
 
 /**
+ * 执行事件 —— C0 控制字符触发。
+ *
+ * 当 VtParser 在 ground 状态遇到 C0 控制字符（0x00-0x1F 除 ESC，以及 0x7F）时产生。
+ *
+ * @example
+ * ```ts
+ * const evt: VtExecuteEvent = { type: "execute", code: 0x0d }; // CR
+ * ```
+ */
+export interface VtExecuteEvent {
+  type: "execute";
+  /** C0 控制字符的字节码 */
+  code: number;
+}
+
+/**
  * VT 解析器输出的低层事件联合类型。
  *
  * 可通过 `type` 字段进行判别（discriminated union）。
@@ -209,12 +225,13 @@ export interface VtApcEvent {
  * ```ts
  * function dispatch(evt: VtEvent) {
  *   switch (evt.type) {
- *     case "print": console.log(evt.grapheme); break;
- *     case "csi":   console.log(evt.final);    break;
- *     case "escape": break;
- *     case "osc":   console.log(evt.data);     break;
- *     case "dcs":   console.log(evt.data);     break;
- *     case "apc":   console.log(evt.data);     break;
+ *     case "print":   console.log(evt.grapheme); break;
+ *     case "csi":     console.log(evt.final);    break;
+ *     case "escape":  break;
+ *     case "osc":     console.log(evt.data);     break;
+ *     case "dcs":     console.log(evt.data);     break;
+ *     case "apc":     console.log(evt.data);     break;
+ *     case "execute": console.log(evt.code);     break;
  *   }
  * }
  * ```
@@ -225,7 +242,8 @@ export type VtEvent =
   | VtEscapeEvent
   | VtOscEvent
   | VtDcsEvent
-  | VtApcEvent;
+  | VtApcEvent
+  | VtExecuteEvent;
 
 // ════════════════════════════════════════════════════
 //  输入高层事件（面向 Widget）
@@ -282,6 +300,16 @@ export interface KeyEvent {
   key: string;
   /** 修饰键状态 */
   modifiers: Modifiers;
+  /**
+   * 实际要插入的文本（Kitty Keyboard Protocol 的 associated text）。
+   *
+   * 当终端使用 KKP 编码时，key 可能是 base key（如 `"4"`），
+   * 而 text 才是用户实际想输入的字符（如 `"$"`）。
+   * InputField 应优先使用 text 字段插入字符。
+   *
+   * 逆向: amp createKeyEventWithModifiers 的第三个参数 (text)
+   */
+  text?: string;
 }
 
 /**

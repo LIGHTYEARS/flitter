@@ -111,7 +111,8 @@ export class VtParser {
   /** CSI/DCS 参数列表 */
   private params: CsiParam[] = [];
 
-  /** 是否正在解析子参数 */
+  /** 是否正在解析子参数 (state tracking for CSI param splitting) */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: state flag written by parser, controls param grouping logic
   private inSubparam: boolean = false;
 
   /** 当前参数正在累积的数值（-1 表示尚未收到数字） */
@@ -183,6 +184,19 @@ export class VtParser {
     this.dcsFinal = "";
     this.escInString = false;
     this.utf8Remaining = 0;
+  }
+
+  /**
+   * 刷新打印缓冲区，但不重置状态机。
+   *
+   * 与 reset() 不同，flush() 仅将缓冲的可打印字节解码并产生
+   * print 事件，状态机保持当前状态，可以继续接收后续字节。
+   *
+   * 逆向: amp 的 feed 结尾使用 flush 而非 reset，以支持跨 feed
+   * 调用的转义序列状态持久化。
+   */
+  flush(): void {
+    this.flushPrint();
   }
 
   /**
@@ -587,10 +601,11 @@ export class VtParser {
       // 其他高字节（孤立 continuation 0x80-0xBF，或非法 0xF8-0xFF）→ 缓冲给 TextDecoder 处理
       this.pushPrintByte(byte);
     } else {
-      // C0 控制字符 (0x00-0x1F 除 ESC)
+      // C0 控制字符 (0x00-0x1F 除 ESC) 和 DEL (0x7F)
       // 先刷新打印缓冲区
       this.flushPrint();
-      // C0 控制字符不产生事件（跳过）
+      // 产生 execute 事件
+      this.emit({ type: "execute", code: byte });
     }
   }
 

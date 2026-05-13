@@ -2,11 +2,15 @@
  * 滚动视口渲染对象。
  *
  * {@link RenderScrollable} 是 {@link RenderBox} 的子类，作为可滚动视口的
- * 渲染层核心。在 layout 阶段将无限高度约束传递给子节点，并同步当前可见的
- * 滚动偏移快照，让 paint/hitTest 始终共享同一份 render snapshot，同时裁剪到
- * 视口范围。
+ * 渲染层核心。
  *
- * 对应逆向工程中的滚动视口渲染实现。
+ * 对齐 amp v1T（interactive_widgets.js:203-305）:
+ * - offset 通过 Widget 属性流传递（build → updateRenderObject → updateProperties）
+ * - offset-only 变化仅调用 updateChildOffset()（setOffset 子节点 Y），
+ *   **不** 触发 markNeedsLayout 或 markNeedsPaint
+ * - RenderScrollable **不** 直接注册 controller listener（消除双重通知路径）
+ * - performLayout 中 clamp/autoScroll 直接写内部 _scrollOffset，
+ *   不通过 controller 触发 _notifyListeners
  *
  * @module
  */
@@ -20,34 +24,6 @@ import { ClipScreen } from "../widgets/viewport.js";
 import type { ScrollController } from "./scroll-controller.js";
 
 const log = logger.scoped("scroll.render");
-
-/**
- * 描述渲染节点，便于定位 offset 稳定时是谁仍在推动 relayout。
- *
- * @param node - 需要描述的渲染节点
- * @returns 适合日志输出的节点摘要
- */
-function describeRenderNode(node: RenderBox | null): Record<string, unknown> | null {
-  if (!node) return null;
-
-  const candidate = node as RenderBox & {
-    depth?: number;
-    attached?: boolean;
-    parent?: { constructor?: { name?: string } } | null;
-    _needsLayout?: boolean;
-    _needsPaint?: boolean;
-  };
-
-  return {
-    type: candidate.constructor.name,
-    depth: candidate.depth ?? -1,
-    attached: candidate.attached ?? false,
-    size: candidate.size,
-    needsLayout: candidate._needsLayout ?? false,
-    needsPaint: candidate._needsPaint ?? false,
-    parentType: candidate.parent?.constructor?.name ?? "unknown",
-  };
-}
 
 // ════════════════════════════════════════════════════
 //  常量
@@ -68,14 +44,20 @@ const MAX_CHILD_HEIGHT = 100_000;
 /**
  * 可滚动视口渲染对象。
  *
+ * 逆向: amp v1T (interactive_widgets.js:203-305)
+ *
  * 继承 {@link RenderBox}，管理一个单子节点（通过 adoptChild 添加）。
  * 在布局时将无限高度约束传给子节点，自身尺寸等于父约束的视口大小。
- * 在绘制和命中测试时根据当前 render snapshot 偏移子节点的 Y 坐标。
+ * 在绘制和命中测试时根据当前 _scrollOffset 偏移子节点的 Y 坐标。
+ *
+ * **关键设计**: offset 通过 Widget 属性流传递（单一数据源），
+ * RenderScrollable 不注册 controller listener，消除了双重通知导致的
+ * 跨帧不一致抖动。
  *
  * @example
  * ```ts
  * const controller = new ScrollController();
- * const renderScrollable = new RenderScrollable(controller);
+ * const renderScrollable = new RenderScrollable(controller, 0, "top");
  * renderScrollable.adoptChild(childRenderBox);
  * renderScrollable.layout(viewportConstraints);
  * renderScrollable.paint(screen, 0, 0);
@@ -84,9 +66,6 @@ const MAX_CHILD_HEIGHT = 100_000;
 export class RenderScrollable extends RenderBox {
   /** 关联的滚动控制器 */
   private _scrollController: ScrollController;
-
-  /** 滚动偏移变化回调（用于触发 markNeedsPaint） */
-  private _onScrollChange: (() => void) | null = null;
 
   /** 当前 render object 使用的滚动偏移快照。 */
   private _scrollOffset: number = 0;
@@ -106,12 +85,20 @@ export class RenderScrollable extends RenderBox {
   /**
    * 创建可滚动视口渲染对象。
    *
+   * 逆向: amp v1T constructor(T, R, a, e)
+   *
    * @param scrollController - 滚动控制器实例
+   * @param scrollOffset - 初始滚动偏移量
    * @param position - Viewport position ("top" or "bottom")
    */
-  constructor(scrollController: ScrollController, position: "top" | "bottom" = "top") {
+  constructor(
+    scrollController: ScrollController,
+    scrollOffset: number = 0,
+    position: "top" | "bottom" = "top",
+  ) {
     super();
     this._scrollController = scrollController;
+    this._scrollOffset = scrollOffset;
     this._position = position;
   }
 
@@ -125,42 +112,6 @@ export class RenderScrollable extends RenderBox {
   }
 
   /**
-   * 设置新的滚动控制器。
-   *
-   * 自动从旧控制器移除监听器并将新控制器添加监听器。
-   *
-   * @param value - 新的 ScrollController
-   */
-  set scrollController(value: ScrollController) {
-    if (this._scrollController === value) return;
-
-    // 从旧控制器移除监听器
-    if (this._onScrollChange !== null) {
-      this._scrollController.removeListener(this._onScrollChange);
-    }
-
-    this._scrollController = value;
-
-    // 向新控制器添加监听器
-    if (this._onScrollChange !== null) {
-      this._scrollController.addListener(this._onScrollChange);
-    }
-
-    this.markNeedsLayout();
-  }
-
-  /**
-   * Set viewport position.
-   *
-   * @param value - "top" or "bottom"
-   */
-  set position(value: "top" | "bottom") {
-    if (this._position === value) return;
-    this._position = value;
-    this.markNeedsLayout();
-  }
-
-  /**
    * 获取第一个子节点（单子模式）。
    *
    * @returns 子 RenderBox 或 undefined
@@ -170,45 +121,74 @@ export class RenderScrollable extends RenderBox {
   }
 
   // ════════════════════════════════════════════════════
-  //  生命周期
+  //  属性更新 — 对齐 amp v1T.updateProperties
   // ════════════════════════════════════════════════════
 
   /**
-   * 挂载到渲染树。
+   * 统一属性更新入口。
    *
-   * 创建滚动偏移变化回调并注册到 ScrollController。
+   * 逆向: amp v1T.updateProperties(T, R, a, e) (interactive_widgets.js:215-219)
+   *
+   * 关键对齐:
+   * - controller/position 变化 → markNeedsLayout（结构性变化）
+   * - offset-only 变化 → updateChildOffset()（轻量路径，不触发 layout/paint 标记）
+   *
+   * 这是消除渲染抖动的核心: offset 变化不走 markNeedsLayout/markNeedsPaint，
+   * 只直接移动子节点 Y 坐标。下一帧 paint 自然读取子节点的 offset 值。
+   *
+   * @param controller - 新的 ScrollController
+   * @param offset - 新的滚动偏移量
+   * @param position - 新的 viewport position
    */
-  override attach(): void {
-    super.attach();
-    this._onScrollChange = () => {
-      const nextOffset = this._scrollController.offset;
-      if (this._scrollOffset === nextOffset) {
-        return;
-      }
+  updateProperties(controller: ScrollController, offset: number, position: "top" | "bottom"): void {
+    let needsLayout = false;
 
-      log.debug("syncScrollOffset", {
-        reason: "listener",
+    if (this._scrollController !== controller) {
+      log.debug("updateProperties:controllerChanged");
+      this._scrollController = controller;
+      needsLayout = true;
+    }
+
+    if (this._position !== position) {
+      log.debug("updateProperties:positionChanged", { from: this._position, to: position });
+      this._position = position;
+      needsLayout = true;
+    }
+
+    // 逆向: amp v1T line 219 — offset 变化仅调用 updateChildOffset，不 markNeedsLayout
+    if (this._scrollOffset !== offset) {
+      log.debug("updateProperties:offsetChanged", {
         from: this._scrollOffset,
-        to: nextOffset,
-        position: this._position,
+        to: offset,
+        path: "widget-property-flow",
       });
-      this._scrollOffset = nextOffset;
-      this.markNeedsPaint();
-    };
-    this._scrollController.addListener(this._onScrollChange);
+      this._scrollOffset = offset;
+      this.updateChildOffset();
+    }
+
+    if (needsLayout) {
+      this.markNeedsLayout();
+    }
   }
 
   /**
-   * 从渲染树卸载。
+   * 轻量 offset 同步 — 仅移动子节点 Y 坐标。
    *
-   * 从 ScrollController 移除监听器。
+   * 逆向: amp v1T.updateChildOffset (interactive_widgets.js:221-228)
+   *
+   * **不** 触发 markNeedsLayout 或 markNeedsPaint。
+   * 子节点的 setOffset 只修改 _offset.x/y，paint 阶段自然使用最新值。
+   * 这是 amp 避免渲染抖动的核心机制。
    */
-  override detach(): void {
-    if (this._onScrollChange !== null) {
-      this._scrollController.removeListener(this._onScrollChange);
-      this._onScrollChange = null;
-    }
-    super.detach();
+  private updateChildOffset(): void {
+    if (!this.child) return;
+
+    const y = -Math.floor(this._scrollOffset) + this._bottomAnchorOffset;
+    this.child.setOffset(0, y);
+    // 对齐 amp: setOffset 后需要标记 paint（因为子节点 Y 位置变了，需要重绘）
+    // amp 的 paint 在遍历 children 时直接读取 child.offset，所以 setOffset 后
+    // 父节点需要 repaint 才能把新位置体现到 screen 上
+    this.markNeedsPaint();
   }
 
   // ════════════════════════════════════════════════════
@@ -218,18 +198,19 @@ export class RenderScrollable extends RenderBox {
   /**
    * 执行布局计算。
    *
+   * 逆向: amp v1T.performLayout (interactive_widgets.js:229-251)
+   *
    * 1. 将约束的 maxHeight 设为 Infinity（无限高度），传递给子节点
    * 2. 自身尺寸设为父约束的视口大小
    * 3. 更新 ScrollController 的 maxScrollExtent
+   * 4. 处理 autoScroll/clamp — 直接写内部 _scrollOffset，不通过 controller 触发 notify
+   * 5. 调用 updateChildOffset 同步子节点 Y 坐标
    *
    * 威胁缓解 T-12.1-04: 如果子节点报告高度超过 MAX_CHILD_HEIGHT，
    * 则钳位到 MAX_CHILD_HEIGHT 并打印警告。
    */
   performLayout(): void {
     const constraints = this._constraints!;
-    const childNeedsLayoutBefore = this.child?.needsLayout ?? false;
-    const childNeedsPaintBefore = this.child?.needsPaint ?? false;
-    const childHeightBeforeLayout = this.child?.size.height ?? 0;
 
     if (this.child) {
       // 向子节点传递无限高度约束
@@ -271,62 +252,44 @@ export class RenderScrollable extends RenderBox {
     this._scrollController.updateMaxScrollExtent(newExtent);
 
     const grewSinceLastLayout = newExtent > oldExtent;
-    const shouldAutoScroll = this._scrollController.followMode && wasAtBottom && grewSinceLastLayout;
+    const shouldAutoScroll =
+      this._scrollController.followMode && wasAtBottom && grewSinceLastLayout;
 
     log.debug("performLayout", {
       childHeight,
-      childHeightBeforeLayout,
-      childNeedsLayoutBefore,
-      childNeedsPaintBefore,
       viewportHeight,
       oldExtent,
       newExtent,
-      grewSinceLastLayout,
-      offset: this._scrollController.offset,
+      offset: this._scrollOffset,
+      controllerOffset: this._scrollController.offset,
       followMode: this._scrollController.followMode,
       shouldAutoScroll,
       wasAtBottom,
       position: this._position,
     });
 
-    if (
-      childNeedsLayoutBefore &&
-      childHeightBeforeLayout === childHeight &&
-      oldExtent === newExtent &&
-      this._scrollOffset === this._scrollController.offset
-    ) {
-      log.debug("performLayout:stableRelayout", {
-        position: this._position,
-        offset: this._scrollController.offset,
-        extent: newExtent,
-        child: describeRenderNode(this.child),
-      });
-    }
-
+    // 逆向: amp v1T line 248 — autoScroll 和 clamp
+    // 关键对齐: 直接通过 controller.jumpTo 更新（与 amp 一致），
+    // 但随后立即同步内部 _scrollOffset，确保同一帧内 paint 使用正确值。
+    // ScrollableState._scrollListener 收到 notify 后会 setState 触发下一帧 rebuild，
+    // 此时 build 读取 controller.offset 传入新的 Widget offset 属性，与内部值一致。
     if (shouldAutoScroll) {
       log.debug("performLayout:autoScroll", { to: newExtent });
       this._scrollController.jumpTo(newExtent);
+      this._scrollOffset = this._scrollController.offset;
     } else if (this._scrollController.offset > newExtent) {
       log.debug("performLayout:clampOffset", { offset: this._scrollController.offset, newExtent });
       this._scrollController.jumpTo(newExtent);
-    }
-
-    const nextScrollOffset = this._scrollController.offset;
-    if (this._scrollOffset !== nextScrollOffset) {
-      log.debug("syncScrollOffset", {
-        reason: "layout",
-        from: this._scrollOffset,
-        to: nextScrollOffset,
-        position: this._position,
-      });
-      this._scrollOffset = nextScrollOffset;
+      this._scrollOffset = this._scrollController.offset;
     }
 
     // 逆向: amp v1T.handleBottomPositioning (chunk-006:4210)
     // When position="bottom" and content is shorter than viewport,
     // compute a negative paint offset to anchor content to the bottom edge.
     const nextBottomAnchorOffset =
-      this._position === "bottom" && childHeight <= viewportHeight ? viewportHeight - childHeight : 0;
+      this._position === "bottom" && childHeight <= viewportHeight
+        ? viewportHeight - childHeight
+        : 0;
     if (this._bottomAnchorOffset !== nextBottomAnchorOffset) {
       log.debug("syncBottomAnchorOffset", {
         from: this._bottomAnchorOffset,
@@ -335,6 +298,9 @@ export class RenderScrollable extends RenderBox {
       });
       this._bottomAnchorOffset = nextBottomAnchorOffset;
     }
+
+    // 逆向: amp v1T line 251 — updateChildOffset() at end of performLayout
+    this.updateChildOffset();
   }
 
   // ════════════════════════════════════════════════════
@@ -342,10 +308,10 @@ export class RenderScrollable extends RenderBox {
   // ════════════════════════════════════════════════════
 
   /**
-   * 命中测试 — 将点击坐标调整到当前 render snapshot 的 scrollOffset 后委托给子节点。
+   * 命中测试 — 委托给子节点，子节点的 _offset.y 已包含滚动偏移。
    *
-   * paint() shifts child Y by (-scrollOffset + bottomAnchorOffset)。
-   * hitTest 必须消费与 paint 相同的 snapshot，保证命中与屏幕内容一致。
+   * 逆向: amp v1T — updateChildOffset 设置 child.offset.y = -scrollOffset + bottomAnchor
+   * 因此 hitTest 只需传递 scrollable 自身的 absY，子节点的 offset 自然消费滚动偏移。
    */
   override hitTest(
     result: HitTestResult,
@@ -367,9 +333,9 @@ export class RenderScrollable extends RenderBox {
 
     if (!this.child) return true;
 
-    const scrollOffset = Math.floor(this._scrollOffset);
-    const adjustedY = absY - scrollOffset + this._bottomAnchorOffset;
-    this.child.hitTest(result, position, absX, adjustedY);
+    // child._offset.y 已由 updateChildOffset 设置为 (-scrollOffset + bottomAnchorOffset)
+    // 传递 absY 即可，子节点 hitTest 会加上自身 _offset.y
+    this.child.hitTest(result, position, absX, absY);
 
     return true;
   }
@@ -381,10 +347,10 @@ export class RenderScrollable extends RenderBox {
   /**
    * 绘制可滚动视口。
    *
-   * 将子节点绘制到 screen 上，Y 坐标减去当前 render snapshot 的滚动偏移量。
+   * 将子节点绘制到 screen 上，Y 坐标减去当前 _scrollOffset。
    * 使用 ClipScreen 裁剪到视口范围，防止内容泄漏到视口外。
    *
-   * 逆向: g1T.paint (interactive_widgets.js:153-161)
+   * 逆向: amp v1T.paint (interactive_widgets.js:299-304)
    * amp 使用 zm (ClipScreen) 包装 screen，限制子节点绘制在视口内。
    *
    * @param screen - 目标屏幕
@@ -406,7 +372,7 @@ export class RenderScrollable extends RenderBox {
       offsetY,
     });
 
-    // 逆向: g1T.paint line 158 — 创建 ClipScreen 裁剪子节点绘制到视口范围内
+    // 逆向: amp v1T.paint — 创建 ClipScreen 裁剪子节点绘制到视口范围内
     const clipScreen = new ClipScreen(
       screen,
       offsetX,
@@ -416,7 +382,6 @@ export class RenderScrollable extends RenderBox {
     );
 
     // Apply bottom-anchor offset when content is shorter than viewport
-    // 逆向: amp v1T.paint uses _scrollOffset which can be negative for bottom-stick
     this.child.paint(
       clipScreen as unknown as Screen,
       offsetX,

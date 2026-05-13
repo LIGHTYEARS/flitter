@@ -1086,8 +1086,12 @@ export class InputFieldState extends State<InputField> {
     }
 
     // ── 普通可打印字符 (单字符，无 ctrl/meta 修饰) ──
-    if (event.key.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
-      m.insertText(event.key);
+    // 优先使用 event.text（Kitty Keyboard Protocol 提供的 associated text），
+    // 否则回退到 event.key。这确保 Shift+数字键等组合插入正确字符。
+    // 逆向: amp 在 InputField 处理中使用 text 字段而非 raw key
+    const charToInsert = event.text ?? event.key;
+    if (charToInsert.length === 1 && !event.modifiers.ctrl && !event.modifiers.meta) {
+      m.insertText(charToInsert);
       this._markDirty();
 
       // ── @@ thread-mention trigger ──
@@ -1099,7 +1103,7 @@ export class InputFieldState extends State<InputField> {
       // after a `@@` sequence at a word boundary.  If so, fire the trigger
       // callback — the app layer can then show a thread picker and later call
       // insertThreadMention() on this state to commit the selection.
-      if (event.key === "@" && this.widget.config.onThreadMentionTrigger) {
+      if (charToInsert === "@" && this.widget.config.onThreadMentionTrigger) {
         const triggered = detectDoubleAtTrigger(m.text, m.cursorPosition);
         if (triggered !== -1) {
           this.widget.config.onThreadMentionTrigger();
@@ -1112,7 +1116,7 @@ export class InputFieldState extends State<InputField> {
       //
       // When the user types "/" and the input becomes exactly "/",
       // fire the trigger callback to open the command palette, then clear input.
-      if (event.key === "/" && m.text === "/" && this.widget.config.onSlashCommandTrigger) {
+      if (charToInsert === "/" && m.text === "/" && this.widget.config.onSlashCommandTrigger) {
         this.widget.config.onSlashCommandTrigger();
         m.text = "";
         this._markDirty();
@@ -1120,7 +1124,7 @@ export class InputFieldState extends State<InputField> {
 
       // ── "?" shortcuts toggle trigger ──
       // 逆向: chunk-006.js:36288-36308 — toggle shortcuts when `?` pressed on empty input
-      if (event.key === "?" && m.text === "?" && this.widget.config.onShortcutsToggle) {
+      if (charToInsert === "?" && m.text === "?" && this.widget.config.onShortcutsToggle) {
         this.widget.config.onShortcutsToggle();
         m.text = "";
         this._markDirty();
@@ -1440,7 +1444,6 @@ function extToMimeType(ext: string): string {
       return "image/gif";
     case "webp":
       return "image/webp";
-    case "png":
     default:
       return "image/png";
   }

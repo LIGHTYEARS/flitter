@@ -25,6 +25,8 @@ interface GestureDetectorArgs {
   key?: Key;
   /** 点击回调 */
   onTap?: () => void;
+  /** 鼠标光标样式（如 "pointer"），有 onTap 时默认为 "pointer" */
+  cursor?: string;
   /** 可选子 Widget */
   child?: WidgetInterface;
 }
@@ -40,6 +42,8 @@ interface GestureDetectorArgs {
 export class GestureDetector extends StatelessWidget {
   /** 点击回调 */
   readonly onTap: (() => void) | undefined;
+  /** 鼠标光标样式 */
+  readonly cursor: string | undefined;
   /** 子 Widget */
   readonly child: WidgetInterface | undefined;
 
@@ -51,6 +55,7 @@ export class GestureDetector extends StatelessWidget {
   constructor(args?: GestureDetectorArgs) {
     super({ key: args?.key });
     this.onTap = args?.onTap;
+    this.cursor = args?.cursor ?? (args?.onTap ? "pointer" : undefined);
     this.child = args?.child;
   }
 
@@ -65,6 +70,7 @@ export class GestureDetector extends StatelessWidget {
   build(_context: BuildContext): WidgetInterface {
     return new MouseRegion({
       onClick: this.onTap ? () => this.onTap!() : undefined,
+      cursor: this.cursor,
       child: this.child,
     }) as unknown as WidgetInterface;
   }

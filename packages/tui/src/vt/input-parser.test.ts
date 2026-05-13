@@ -109,12 +109,15 @@ describe("基本键盘事件", () => {
   });
 
   // ── 2. 打印 "A" → KeyEvent key="A" ────────────────────
-  it("2. 打印 'A' → KeyEvent key='A'，无修饰键", () => {
+  it("2. 打印 'A' → KeyEvent key='A'，shift=true", () => {
     const events = feedBytes([0x41]); // 'A'
     assert.equal(events.length, 1);
     const key = assertKeyEvent(events[0]);
     assert.equal(key.key, "A");
-    assertNoModifiers(key.modifiers);
+    assert.equal(key.modifiers.shift, true);
+    assert.equal(key.modifiers.alt, false);
+    assert.equal(key.modifiers.ctrl, false);
+    assert.equal(key.modifiers.meta, false);
   });
 
   // ── 3. C0 0x0D → key="Enter" ─────────────────────────
@@ -242,12 +245,13 @@ describe("Ctrl 组合键", () => {
     assert.equal(key.key, "Backspace");
   });
 
-  // ── 12c. C0 0x0A → Enter ──────────────────────────────
-  it("12c. C0 0x0A (LF) → key='Enter'", () => {
+  // ── 12c. C0 0x0A → Shift+Enter ──────────────────────────────
+  it("12c. C0 0x0A (LF) → key='Enter' + shift", () => {
     const events = feedBytes([0x0a]);
     assert.equal(events.length, 1);
     const key = assertKeyEvent(events[0]);
     assert.equal(key.key, "Enter");
+    assert.equal(key.modifiers.shift, true);
   });
 });
 
@@ -659,6 +663,45 @@ describe("焦点事件", () => {
     assert.equal(events.length, 1);
     const focus = assertFocusEvent(events[0]);
     assert.equal(focus.focused, false);
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  isShifted via handlePrint
+// ════════════════════════════════════════════════════
+
+describe("isShifted via handlePrint", () => {
+  it("大写字母 A 的 print 事件应包含 shift=true", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "print", grapheme: "A" });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "A");
+    assert.equal(key.modifiers.shift, true);
+  });
+
+  it("小写字母 a 的 print 事件应包含 shift=false", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "print", grapheme: "a" });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "a");
+    assert.equal(key.modifiers.shift, false);
+  });
+
+  it("符号 $ 的 print 事件应包含 shift=false", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "print", grapheme: "$" });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "$");
+    assert.equal(key.modifiers.shift, false);
   });
 });
 
@@ -1413,5 +1456,321 @@ describe("Kitty Keyboard Protocol (CSI u)", () => {
     const key = assertKeyEvent(events[0]);
     assert.equal(key.key, "a");
     assert.equal(key.modifiers.ctrl, true);
+  });
+
+  // ── 87. clearEscapeTimeout on sequence start ────────────
+  describe("clearEscapeTimeout on sequence start", () => {
+    it("ESC 后紧跟 CSI 序列时不应额外发射 Escape 事件", async () => {
+      const parser = new InputParser();
+      const events: InputEvent[] = [];
+      parser.onInput((e) => events.push(e));
+
+      // 模拟：先发一个 standalone ESC 触发 timeout
+      parser.feed(Buffer.from([0x1b]));
+      // 然后立即发送 CSI 序列 (ESC [ A = ArrowUp)
+      parser.feed(Buffer.from([0x1b, 0x5b, 0x41]));
+
+      // 等待超过 escape timeout (25ms)
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 应该只有 ArrowUp，没有额外的 Escape
+      const keyEvents = events.filter((e) => e.type === "key");
+      assert.equal(
+        keyEvents.some((e) => e.type === "key" && (e as KeyEvent).key === "Escape"),
+        false,
+        "should not emit standalone Escape event",
+      );
+      assert.equal(
+        keyEvents.some((e) => e.type === "key" && (e as KeyEvent).key === "ArrowUp"),
+        true,
+        "should emit ArrowUp event",
+      );
+    });
+  });
+
+  // ── 88-96. KITTY_SPECIAL_KEY_MAP completeness (补全条目验证) ──
+
+  it("88. CSI 57388u → F25", () => {
+    const events = feedStr("\x1b[57388u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "F25");
+  });
+
+  it("89. CSI 57398u → F35", () => {
+    const events = feedStr("\x1b[57398u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "F35");
+  });
+
+  it("90. CSI 57399u → '0' (小键盘数字, amp 映射为纯字符)", () => {
+    const events = feedStr("\x1b[57399u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "0");
+  });
+
+  it("91. CSI 57414u → Enter (小键盘 Enter)", () => {
+    const events = feedStr("\x1b[57414u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Enter");
+  });
+
+  it("92. CSI 57427u → Clear (小键盘 Begin/Clear)", () => {
+    const events = feedStr("\x1b[57427u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Clear");
+  });
+
+  it("93. CSI 57430u → MediaPlayPause", () => {
+    const events = feedStr("\x1b[57430u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "MediaPlayPause");
+  });
+
+  it("94. CSI 57438u → AudioVolumeDown", () => {
+    const events = feedStr("\x1b[57438u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "AudioVolumeDown");
+  });
+
+  it("95. CSI 57447u → ShiftRight", () => {
+    const events = feedStr("\x1b[57447u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "ShiftRight");
+  });
+
+  it("96. CSI 57454u → ISOLevel5Shift", () => {
+    const events = feedStr("\x1b[57454u");
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "ISOLevel5Shift");
+  });
+
+  // ═══════════════════════════════════════════════════════
+  //  handleTildeKey 增强测试
+  // ═══════════════════════════════════════════════════════
+
+  // ── 97. CSI 27;3;102 ~ → ESC 编码 Alt+f ────────────────
+  it("97. CSI 27;3;102 ~ should emit Alt+f via ESC encoding", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    // params: [27, 3, 102] → ESC encoding, modifier=3(Alt), keycode=102='f'
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 27 }, { value: 3 }, { value: 102 }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "f");
+    assert.equal(key.modifiers.alt, true);
+    assert.equal(key.modifiers.shift, false);
+    assert.equal(key.modifiers.ctrl, false);
+    assert.equal(key.modifiers.meta, false);
+  });
+
+  // ── 98. CSI 9 ~ → Tab ──────────────────────────────────
+  it("98. CSI 9 ~ should emit Tab", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 9 }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+    assert.equal(events.length, 1);
+    const key = assertKeyEvent(events[0]);
+    assert.equal(key.key, "Tab");
+  });
+
+  // ── 99. 未配对的 CSI 201~ 不应发射 paste 事件 ──────────
+  it("99. Unpaired CSI 201~ should not emit paste event", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    // 没有先发送 200~，直接发 201~
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 201 }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+    assert.equal(events.length, 0);
+  });
+
+  // ── 100. handleTildeKey 应过滤 release 事件 ────────────
+  it("100. handleTildeKey should filter release events (subparam=3)", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    // CSI 3;1:3 ~ → Delete key, eventType=3(release)
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 3 }, { value: 1, subparams: [3] }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+    assert.equal(events.length, 0); // release 被过滤
+  });
+
+  // ════════════════════════════════════════════════════
+  //  Alt+key via handleEscape (escape event path)
+  // ════════════════════════════════════════════════════
+
+  it("101. VtEscapeEvent { intermediates: '', final: 'f' } → Alt+f", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "escape", intermediates: "", final: "f" });
+    assert.equal(events.length, 1);
+    assert.deepStrictEqual(events[0], {
+      type: "key",
+      key: "f",
+      modifiers: { alt: true, shift: false, ctrl: false, meta: false },
+    });
+  });
+
+  it("102. VtEscapeEvent { intermediates: '', final: 'F' } → Alt+Shift+F", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "escape", intermediates: "", final: "F" });
+    assert.equal(events.length, 1);
+    assert.deepStrictEqual(events[0], {
+      type: "key",
+      key: "F",
+      modifiers: { alt: true, shift: true, ctrl: false, meta: false },
+    });
+  });
+
+  it("103. VtEscapeEvent { intermediates: '', final: DEL } → Alt+Backspace", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "escape", intermediates: "", final: "\x7f" });
+    assert.equal(events.length, 1);
+    assert.deepStrictEqual(events[0], {
+      type: "key",
+      key: "Backspace",
+      modifiers: { alt: true, shift: false, ctrl: false, meta: false },
+    });
+  });
+
+  it("104. SS3 序列仍然正常工作", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+    parser.handleVtEvent({ type: "escape", intermediates: "O", final: "A" });
+    assert.equal(events.length, 1);
+    assert.deepStrictEqual((events[0] as KeyEvent).type, "key");
+    assert.deepStrictEqual((events[0] as KeyEvent).key, "ArrowUp");
+  });
+});
+
+// ════════════════════════════════════════════════════
+//  feed() 架构 (Phase 3b) — C0 通过 execute 事件路径
+// ════════════════════════════════════════════════════
+
+describe("feed() architecture (Phase 3b)", () => {
+  it("feed 完整字节流含 C0 字符后事件序列正确", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // "a\tb" → 'a', Tab, 'b'
+    parser.feed(Buffer.from("a\tb"));
+
+    const keys = events.filter((e) => e.type === "key") as KeyEvent[];
+    assert.equal(keys.length, 3);
+    assert.equal(keys[0].key, "a");
+    assert.equal(keys[1].key, "Tab");
+    assert.equal(keys[2].key, "b");
+  });
+
+  it("跨 feed 调用的 CSI 序列不被截断", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // 第一次 feed: ESC [
+    parser.feed(Buffer.from([0x1b, 0x5b]));
+    // 第二次 feed: A (完成 CSI A = ArrowUp)
+    parser.feed(Buffer.from([0x41]));
+
+    const keys = events.filter((e) => e.type === "key") as KeyEvent[];
+    assert.equal(keys.length, 1);
+    assert.equal(keys[0].key, "ArrowUp");
+  });
+
+  it("LF (0x0A) 通过 execute 路径映射为 Shift+Enter", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    parser.feed(Buffer.from([0x0a]));
+
+    const keys = events.filter((e) => e.type === "key") as KeyEvent[];
+    assert.equal(keys.length, 1);
+    assert.equal(keys[0].key, "Enter");
+    assert.equal(keys[0].modifiers.shift, true);
+  });
+
+  it("CR (0x0D) 映射为 Enter (无修饰)", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    parser.feed(Buffer.from([0x0d]));
+
+    const keys = events.filter((e) => e.type === "key") as KeyEvent[];
+    assert.equal(keys.length, 1);
+    assert.equal(keys[0].key, "Enter");
+    assert.equal(keys[0].modifiers.shift, false);
+  });
+
+  it("粘贴模式中 C0 字符追加到缓冲区", () => {
+    const parser = new InputParser();
+    const events: InputEvent[] = [];
+    parser.onInput((e) => events.push(e));
+
+    // 进入粘贴模式
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 200 }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+
+    // 发送含 LF 的粘贴数据
+    parser.feed(Buffer.from("line1\nline2"));
+
+    // 退出粘贴模式
+    parser.handleVtEvent({
+      type: "csi",
+      params: [{ value: 201 }],
+      intermediates: "",
+      private_marker: "",
+      final: "~",
+    });
+
+    const pastes = events.filter((e) => e.type === "paste") as PasteEvent[];
+    assert.equal(pastes.length, 1);
+    assert.equal(pastes[0].text, "line1\nline2");
   });
 });

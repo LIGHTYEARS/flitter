@@ -1093,24 +1093,25 @@ describe("ThreadStateWidget", () => {
       };
       state.initState();
 
-      // Initial state
-      assert.equal(state.showThinkingBlocks, true, "thinking blocks should start visible");
-      assert.equal(state.isDenseViewEnabled, false, "dense view should start disabled");
-
-      // Toggle (Alt+T in deep mode) — enables dense, hides thinking
-      state.toggleThinkingBlocks();
-      assert.equal(state.isDenseViewEnabled, true, "dense view should be enabled in deep mode");
-      // 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+      // Initial state in deep mode: dense=true, thinking=false
+      // 逆向: chunk-006.js:36908 — denseView: qo(_) → deep mode starts dense
+      assert.equal(state.isDenseViewEnabled, true, "dense view should start enabled in deep mode");
       assert.equal(state.showThinkingBlocks, false, "thinking blocks hidden when dense is enabled");
 
-      // Toggle again — disables dense, shows thinking
+      // Toggle (Alt+T in deep mode) — disables dense, shows thinking
       state.toggleThinkingBlocks();
-      assert.equal(state.isDenseViewEnabled, false, "dense view should be disabled again");
+      assert.equal(state.isDenseViewEnabled, false, "dense view should be disabled after toggle");
       assert.equal(
         state.showThinkingBlocks,
         true,
         "thinking blocks visible when dense is disabled",
       );
+
+      // Toggle again — enables dense, hides thinking
+      state.toggleThinkingBlocks();
+      assert.equal(state.isDenseViewEnabled, true, "dense view should be enabled again");
+      // 逆向: chunk-006.js:31705 — showThinkingBlocks: !this._isDenseViewEnabled
+      assert.equal(state.showThinkingBlocks, false, "thinking blocks hidden when dense is enabled");
     });
 
     it("denseView prop is passed to ConversationView in build()", async () => {
@@ -1141,8 +1142,7 @@ describe("ThreadStateWidget", () => {
       };
       state.initState();
 
-      // Enable dense mode
-      state.toggleThinkingBlocks();
+      // In deep mode, initState() sets isDenseViewEnabled=true
       assert.equal(state.isDenseViewEnabled, true);
 
       // Build the tree and find ConversationView

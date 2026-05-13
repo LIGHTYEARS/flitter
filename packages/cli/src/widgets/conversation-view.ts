@@ -301,6 +301,7 @@ export class ConversationView extends StatefulWidget {
  */
 export class ConversationViewState extends State<ConversationView> {
   /** Markdown 渲染主题 */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: assigned in initState, used in build via local reference
   private _markdownTheme!: MarkdownTheme;
 
   /**
@@ -961,6 +962,7 @@ export class ConversationViewState extends State<ConversationView> {
             viewportBuilder: (_ctx, ctrl) =>
               new ScrollViewport({
                 controller: ctrl,
+                offset: ctrl.offset,
                 position: "bottom",
                 child: contentColumn,
               }),

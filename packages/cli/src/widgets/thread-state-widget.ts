@@ -630,7 +630,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /** 逆向: chunk-006.js:37066-37070 — handoff state */
   private _handoffCountdownActive = false;
   private _isInHandoffMode = false;
-  private _isGeneratingHandoff = false;
   /** 逆向: chunk-006.js:37071 — isInQueueMode */
   private _isInQueueMode = false;
   /** 逆向: chunk-006.js:37100 — executingCommand */
@@ -653,15 +652,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
    */
   private _isConfirmingCancelProcessing = false;
   private _cancelProcessingConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  /**
-   * Whether currently confirming Ctrl+C exit (double-tap to quit).
-   *
-   * 逆向: chunk-006.js:36723-36736 — isConfirmingExit
-   *   Second Ctrl+C within 1000ms calls exitApplication().
-   */
-  private _isConfirmingExit = false;
-  private _exitConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /** 滚动控制器 */
   private _scrollController: ScrollController;
@@ -1050,44 +1040,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   }
 
   /**
-   * Ctrl+C handler — double-tap to exit.
-   *
-   * First Ctrl+C enters confirm-exit state (with 1s timeout).
-   * Second Ctrl+C within the timeout calls onExit() to quit.
-   *
-   * 逆向: chunk-006.js:36723-36736 — onExitPressed = () => { ... }
-   * 逆向: chunk-006.js:37124-37126 — aT = new x9(() => { return this.onExitPressed(), "handled"; })
-   *
-   * @returns true (always consumed)
-   */
-  private _handleCtrlC(): boolean {
-    // 逆向: chunk-006.js:36724 — if (this.isConfirmingExit) { clearTimeout(exitConfirmTimeout); exitApplication(); }
-    if (this._isConfirmingExit) {
-      if (this._exitConfirmTimeout) {
-        clearTimeout(this._exitConfirmTimeout);
-        this._exitConfirmTimeout = null;
-      }
-      this.widget.config.onExit?.();
-      return true;
-    }
-
-    // 逆向: chunk-006.js:36728-36735 — else { setState({ isConfirmingExit: true }); exitConfirmTimeout = setTimeout(() => { setState({ isConfirmingExit: false }); exitConfirmTimeout = null; }, 1000); }
-    this.setState(() => {
-      this._isConfirmingExit = true;
-    });
-    if (this._exitConfirmTimeout) {
-      clearTimeout(this._exitConfirmTimeout);
-    }
-    this._exitConfirmTimeout = setTimeout(() => {
-      this.setState(() => {
-        this._isConfirmingExit = false;
-      });
-      this._exitConfirmTimeout = null;
-    }, 1000);
-    return true;
-  }
-
-  /**
    * 初始化状态。
    *
    * 订阅 ThreadStore 和 ThreadWorker 事件流:
@@ -1143,11 +1095,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
         return this._handleEscapeChain();
       }
 
-      // ── Ctrl+C — exit confirmation ──────────────────────────────────────
-      // 逆向: chunk-006.js:37124-37126 — aT = new x9(() => { return this.onExitPressed(), "handled"; })
-      if (event.key === "c" && event.modifiers.ctrl) {
-        return this._handleCtrlC();
-      }
+      // ── Ctrl+C — handled by WidgetsBinding.handleGlobalKeyEvent ─────────
+      // 逆向: amp Ctrl+C is handled at the global level (d9.handleGlobalKeyEvent),
+      //   not in the widget-level shortcuts/interceptor.
+      //   WidgetsBinding.handleGlobalKeyEvent (line 709) implements:
+      //     - first Ctrl+C: cancel inference or start exit hint
+      //     - second Ctrl+C within 1s: call this.stop() to quit
+      //   DO NOT intercept here — let it fall through to global handler.
 
       // ── Alt+T — toggle thinking blocks ──────────────────────────────────
       // 逆向: chunk-006.js:37137-37139 — x0.alt("t") → Ut.instance.toggleAll()
@@ -1547,10 +1501,6 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     if (this._cancelProcessingConfirmTimeout) {
       clearTimeout(this._cancelProcessingConfirmTimeout);
       this._cancelProcessingConfirmTimeout = null;
-    }
-    if (this._exitConfirmTimeout) {
-      clearTimeout(this._exitConfirmTimeout);
-      this._exitConfirmTimeout = null;
     }
     super.dispose();
   }

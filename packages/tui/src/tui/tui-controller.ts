@@ -430,6 +430,46 @@ export class TuiController {
               this._queryParser.processKittyKeyboard();
             }
             break;
+          case "decrpm_response":
+            // DECRPM response (CSI ? Ps ; Pm $ y) — route to QueryParser
+            // 逆向: amp parser.onDecrqss (chunk-004.js:4041-4042)
+            if (this._queryParser && this.initialized) {
+              this._queryParser.processDecrqss(event.request, event.value);
+            }
+            break;
+          case "osc_response":
+            // OSC response — route to QueryParser for color detection
+            // 逆向: amp handleOscEvent (chunk-004.js:4343-4363)
+            if (this._queryParser) {
+              this.handleOscResponse(event.data);
+            }
+            break;
+          case "dcs_response":
+            // DCS response — route XTVERSION and XTGETTCAP to QueryParser
+            // 逆向: amp parser.onDcs (chunk-004.js:4043-4047)
+            if (this._queryParser && this.initialized) {
+              if (event.final === "|" && event.private_marker === ">") {
+                this._queryParser.processXtversion(event.data);
+              }
+              if (
+                event.final === "r" &&
+                event.intermediates === "+" &&
+                event.params.length > 0 &&
+                event.params[0]?.value === 1
+              ) {
+                this.parseXtgettcapResponse(event.data);
+              }
+            }
+            break;
+          case "apc_response":
+            // APC response — kitty graphics detection
+            // 逆向: amp parser.onApc (chunk-004.js:4048-4051)
+            if (this._queryParser && this.initialized) {
+              if (event.data.startsWith("G")) {
+                this._queryParser.processKittyGraphics();
+              }
+            }
+            break;
           default:
             // resize 等其他事件暂不通过 InputParser 分发
             break;
@@ -1252,6 +1292,41 @@ export class TuiController {
         }
       }
     });
+  }
+
+  /**
+   * Route OSC response to QueryParser.
+   *
+   * 逆向: amp handleOscEvent (chunk-004.js:4343-4363)
+   */
+  private handleOscResponse(data: string): void {
+    if (!this._queryParser) return;
+    if (data.startsWith("10;")) {
+      this._queryParser.processOsc10(data);
+    } else if (data.startsWith("11;")) {
+      this._queryParser.processOsc11(data);
+    } else if (data.startsWith("12;")) {
+      this._queryParser.processOsc12(data);
+    } else if (data.startsWith("4;")) {
+      this._queryParser.processOsc4(data);
+    }
+  }
+
+  /**
+   * Parse XTGETTCAP (DCS 1+r) response and route to QueryParser.
+   *
+   * 逆向: amp parseXtgettcapResponse (chunk-004.js:4420-4428)
+   */
+  private parseXtgettcapResponse(data: string): void {
+    if (!this._queryParser) return;
+    const eqIdx = data.indexOf("=");
+    if (eqIdx !== -1) {
+      const key = data.slice(0, eqIdx);
+      const value = data.slice(eqIdx + 1);
+      if (this._queryParser.processXtgettcap(key, value)) {
+        this._finishCapabilityDetection();
+      }
+    }
   }
 
   /**

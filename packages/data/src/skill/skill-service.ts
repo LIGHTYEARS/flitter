@@ -48,7 +48,7 @@ export class SkillService {
    * Get discovery paths in priority order (KD-30, expanded to match amp P7T).
    *
    * Priority order:
-   * 1. {workspaceRoot}/.flitter/skills/ (project-local, highest priority)
+   * 1. {workspaceRoot}/.agents/skills/ (project-local, highest priority)
    * 2. ~/.config/agents/skills/ (global cross-tool agent skills)
    * 3. {ancestors}/.agents/skills (ancestor .agents dirs walking up)
    * 4. {ancestors}/.claude/skills (ancestor .claude dirs, unless disabled)
@@ -65,9 +65,9 @@ export class SkillService {
 
     const disableClaudeSkills = this.settings?.get("skills.disableClaudeCodeSkills");
 
-    // 1. Project-local .flitter/skills
+    // 1. Project-local .agents/skills
     if (this.workspaceRoot) {
-      paths.push(path.join(this.workspaceRoot, ".flitter", "skills"));
+      paths.push(path.join(this.workspaceRoot, ".agents", "skills"));
     }
 
     // 2. Global agent skills (~/.config/agents/skills)
@@ -207,7 +207,7 @@ export class SkillService {
       validateSkillName(name);
 
       const installBase = this.workspaceRoot
-        ? path.join(this.workspaceRoot, ".flitter", "skills")
+        ? path.join(this.workspaceRoot, ".agents", "skills")
         : path.join(this.userConfigDir, "skills");
       const installPath = path.join(installBase, name);
 

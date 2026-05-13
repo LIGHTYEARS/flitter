@@ -64,7 +64,7 @@ export async function handleSkillList(
     // 逆向: amp shows discovery path hints when no skills found
     process.stdout.write("No skills available.\n");
     process.stdout.write("\nSkills can be added to:\n");
-    process.stdout.write("  \u2022 .flitter/skills/ (workspace)\n");
+    process.stdout.write("  \u2022 .agents/skills/ (workspace)\n");
     process.stdout.write("  \u2022 ~/.config/flitter/skills/ (global)\n");
     process.stdout.write("\nOr install from a local path: flitter skill add <path>\n");
     return;

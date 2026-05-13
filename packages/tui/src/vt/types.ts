@@ -478,6 +478,55 @@ export interface KittyKeyboardResponseEvent {
   flags: number;
 }
 
+/**
+ * DECRPM response event (CSI ? Ps ; Pm $ y).
+ *
+ * 逆向: amp csiToDecrqss (chunk-005.js:163657-163669)
+ *   Emitted when the terminal responds to a DECRQSS query with its current mode setting.
+ */
+export interface DecrpmResponseEvent {
+  type: "decrpm_response";
+  /** The mode request string, e.g. "?2026" */
+  request: string;
+  /** The mode value string, e.g. "1" (set), "2" (reset) */
+  value: string;
+}
+
+/**
+ * OSC response event — terminal replied to an OSC query.
+ *
+ * 逆向: amp handleOscEvent (chunk-004.js:4343-4363)
+ */
+export interface OscResponseEvent {
+  type: "osc_response";
+  /** Raw OSC data payload, e.g. "11;rgb:1a1a/2b2b/3c3c" */
+  data: string;
+}
+
+/**
+ * DCS response event — terminal replied to a DCS query.
+ *
+ * 逆向: amp parser.onDcs (chunk-004.js:4043-4047)
+ */
+export interface DcsResponseEvent {
+  type: "dcs_response";
+  params: CsiParam[];
+  intermediates: string;
+  private_marker: string;
+  final: string;
+  data: string;
+}
+
+/**
+ * APC response event — terminal replied to an APC query (e.g., kitty graphics).
+ *
+ * 逆向: amp parser.onApc (chunk-004.js:4048-4051)
+ */
+export interface ApcResponseEvent {
+  type: "apc_response";
+  data: string;
+}
+
 export type InputEvent =
   | KeyEvent
   | MouseEvent
@@ -486,7 +535,11 @@ export type InputEvent =
   | ResizeEvent
   | InbandResizeEvent
   | CursorPositionEvent
-  | KittyKeyboardResponseEvent;
+  | KittyKeyboardResponseEvent
+  | DecrpmResponseEvent
+  | OscResponseEvent
+  | DcsResponseEvent
+  | ApcResponseEvent;
 
 // ════════════════════════════════════════════════════
 //  辅助工具

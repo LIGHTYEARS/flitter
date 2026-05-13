@@ -31,7 +31,10 @@
 
 import { logger } from "../debug/logger.js";
 import type {
+  ApcResponseEvent,
   CursorPositionEvent,
+  DcsResponseEvent,
+  DecrpmResponseEvent,
   InbandResizeEvent,
   InputEvent,
   KeyEvent,
@@ -39,12 +42,16 @@ import type {
   Modifiers,
   MouseAction,
   MouseButton,
+  OscResponseEvent,
   PasteEvent,
   FocusEvent as TermFocusEvent,
   MouseEvent as TermMouseEvent,
+  VtApcEvent,
   VtCsiEvent,
+  VtDcsEvent,
   VtEscapeEvent,
   VtEvent,
+  VtOscEvent,
   VtPrintEvent,
 } from "./types.js";
 import { MODIFIERS_NONE, modifierFromCsiParam } from "./types.js";
@@ -526,8 +533,14 @@ export class InputParser {
       case "execute":
         this.handleExecuteEvent(event);
         break;
-      default:
-        // osc, dcs, apc — 当前不产生输入事件
+      case "osc":
+        this.handleOsc(event);
+        break;
+      case "dcs":
+        this.handleDcs(event);
+        break;
+      case "apc":
+        this.handleApc(event);
         break;
     }
   }
@@ -715,6 +728,44 @@ export class InputParser {
   }
 
   // ════════════════════════════════════════════════════
+  //  VtOscEvent / VtDcsEvent / VtApcEvent 处理
+  // ════════════════════════════════════════════════════
+
+  /**
+   * Handle OSC event — emit as OscResponseEvent for QueryParser routing.
+   *
+   * 逆向: amp handleOscEvent (chunk-004.js:4343-4363)
+   */
+  private handleOsc(event: VtOscEvent): void {
+    this.emit({ type: "osc_response", data: event.data } as OscResponseEvent);
+  }
+
+  /**
+   * Handle DCS event — emit as DcsResponseEvent for QueryParser routing.
+   *
+   * 逆向: amp parser.onDcs (chunk-004.js:4043-4047)
+   */
+  private handleDcs(event: VtDcsEvent): void {
+    this.emit({
+      type: "dcs_response",
+      params: event.params,
+      intermediates: event.intermediates,
+      private_marker: event.private_marker,
+      final: event.final,
+      data: event.data,
+    } as DcsResponseEvent);
+  }
+
+  /**
+   * Handle APC event — emit as ApcResponseEvent for QueryParser routing.
+   *
+   * 逆向: amp parser.onApc (chunk-004.js:4048-4051)
+   */
+  private handleApc(event: VtApcEvent): void {
+    this.emit({ type: "apc_response", data: event.data } as ApcResponseEvent);
+  }
+
+  // ════════════════════════════════════════════════════
   //  VtPrintEvent 处理
   // ════════════════════════════════════════════════════
 
@@ -799,6 +850,22 @@ export class InputParser {
         type: "kitty_keyboard_response",
         flags,
       } as KittyKeyboardResponseEvent);
+      return;
+    }
+
+    // DECRPM response: CSI ? Ps ; Pm $ y
+    // 逆向: amp csiToDecrqss (chunk-005.js:163657-163669)
+    if (private_marker === "?" && finalChar === "y" && event.intermediates.includes("$")) {
+      if (params.length >= 2) {
+        const request = `?${params[0].value || 0}`;
+        const value = String(params[1].value || 0);
+        log.debug("DECRPM response", { request, value });
+        this.emit({
+          type: "decrpm_response",
+          request,
+          value,
+        } as DecrpmResponseEvent);
+      }
       return;
     }
 

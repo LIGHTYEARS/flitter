@@ -1152,7 +1152,7 @@ export function createBuiltinCommands(registry: SlashCommandRegistry): void {
 
         if (skills.length === 0) {
           ctx.showMessage(
-            'No skills available. Add skills with "skill add" or create one in .flitter/skills/.',
+            'No skills available. Add skills with "skill add" or create one in .agents/skills/.',
           );
           return;
         }

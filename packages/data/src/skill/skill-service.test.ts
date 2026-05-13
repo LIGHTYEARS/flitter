@@ -230,13 +230,13 @@ describe("SkillService.getDiscoveryPaths", () => {
     }
   });
 
-  it("includes .flitter/skills as first path when workspaceRoot is set", () => {
+  it("includes .agents/skills as first path when workspaceRoot is set", () => {
     const workspace = "/some/project";
     const userConfig = "/home/user/.config/flitter";
     process.env.HOME = "/home/user";
     const service = new SkillService({ workspaceRoot: workspace, userConfigDir: userConfig });
     const paths = service.getDiscoveryPaths();
-    assert.equal(paths[0], path.join(workspace, ".flitter", "skills"));
+    assert.equal(paths[0], path.join(workspace, ".agents", "skills"));
   });
 
   it("includes global ~/.config/agents/skills", () => {
@@ -380,7 +380,7 @@ describe("SkillService.scan", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const wsSkillDir = path.join(workspace, ".flitter", "skills", "alpha-skill");
+    const wsSkillDir = path.join(workspace, ".agents", "skills", "alpha-skill");
     writeSkillMd(wsSkillDir, { name: "alpha-skill", description: "Alpha" });
 
     const ucSkillDir = path.join(userConfig, "skills", "beta-skill");
@@ -401,7 +401,7 @@ describe("SkillService.scan", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const wsSkillDir = path.join(workspace, ".flitter", "skills", "my-skill");
+    const wsSkillDir = path.join(workspace, ".agents", "skills", "my-skill");
     writeSkillMd(wsSkillDir, {
       name: "my-skill",
       description: "Project version",
@@ -467,7 +467,7 @@ describe("SkillService.install", () => {
     });
 
     // Pre-create the target
-    const targetDir = path.join(workspace, ".flitter", "skills", "dup-skill");
+    const targetDir = path.join(workspace, ".agents", "skills", "dup-skill");
     writeSkillMd(targetDir, {
       name: "dup-skill",
       description: "Already here",
@@ -496,7 +496,7 @@ describe("SkillService.install", () => {
     });
 
     // Pre-create the target
-    const targetDir = path.join(workspace, ".flitter", "skills", "overwrite-skill");
+    const targetDir = path.join(workspace, ".agents", "skills", "overwrite-skill");
     writeSkillMd(targetDir, {
       name: "overwrite-skill",
       description: "Old version",
@@ -525,7 +525,7 @@ describe("SkillService.remove", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(workspace, ".flitter", "skills", "remove-me");
+    const skillDir = path.join(workspace, ".agents", "skills", "remove-me");
     writeSkillMd(skillDir, { name: "remove-me", description: "Goodbye" });
 
     const service = new SkillService({
@@ -573,7 +573,7 @@ describe("SkillService.list", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(workspace, ".flitter", "skills", "list-skill");
+    const skillDir = path.join(workspace, ".agents", "skills", "list-skill");
     writeSkillMd(skillDir, { name: "list-skill", description: "Listed" });
 
     const service = new SkillService({
@@ -598,7 +598,7 @@ describe("MCP server derivation", () => {
     const workspace = makeTmpDir();
     const userConfig = makeTmpDir();
 
-    const skillDir = path.join(workspace, ".flitter", "skills", "mcp-skill");
+    const skillDir = path.join(workspace, ".agents", "skills", "mcp-skill");
     writeSkillMd(skillDir, {
       name: "mcp-skill",
       description: "Has MCP servers",

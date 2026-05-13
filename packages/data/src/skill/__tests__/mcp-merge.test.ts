@@ -40,7 +40,7 @@ describe("DATA-27: MCP includeTools merge across skills", () => {
     const userConfig = makeTmpDir();
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-a"),
+      path.join(workspace, ".agents", "skills", "skill-a"),
       `---
 name: skill-a
 description: Skill A
@@ -58,7 +58,7 @@ Body A
     );
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-b"),
+      path.join(workspace, ".agents", "skills", "skill-b"),
       `---
 name: skill-b
 description: Skill B
@@ -101,7 +101,7 @@ Body B
     const userConfig = makeTmpDir();
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-a"),
+      path.join(workspace, ".agents", "skills", "skill-a"),
       `---
 name: skill-a
 description: Skill A
@@ -116,7 +116,7 @@ Body A
     );
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-b"),
+      path.join(workspace, ".agents", "skills", "skill-b"),
       `---
 name: skill-b
 description: Skill B
@@ -145,7 +145,7 @@ Body B
     const userConfig = makeTmpDir();
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-a"),
+      path.join(workspace, ".agents", "skills", "skill-a"),
       `---
 name: skill-a
 description: Skill A
@@ -175,7 +175,7 @@ Body A
     const userConfig = makeTmpDir();
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-a"),
+      path.join(workspace, ".agents", "skills", "skill-a"),
       `---
 name: skill-a
 description: Skill A
@@ -192,7 +192,7 @@ Body A
     );
 
     writeSkillMd(
-      path.join(workspace, ".flitter", "skills", "skill-b"),
+      path.join(workspace, ".agents", "skills", "skill-b"),
       `---
 name: skill-b
 description: Skill B

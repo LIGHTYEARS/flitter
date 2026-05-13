@@ -15,7 +15,7 @@
  * @module
  */
 
-import { Color, RichText, TextSpan, TextStyle } from "@flitter/tui";
+import { Color, RichText, stripAnsiEscapes, TextSpan, TextStyle } from "@flitter/tui";
 import type { AppTheme } from "./app-theme-controller.js";
 
 // ════════════════════════════════════════════════════
@@ -61,7 +61,8 @@ export function parseDiffLines(diffText: string): DiffLine[] {
   const rawLines = diffText.split("\n");
   const result: DiffLine[] = [];
 
-  for (const line of rawLines) {
+  for (const rawLine of rawLines) {
+    const line = stripAnsiEscapes(rawLine);
     if (line.startsWith("---") || line.startsWith("+++") || line.startsWith("@@")) {
       result.push({ type: "meta", text: line });
     } else if (line.startsWith("+")) {

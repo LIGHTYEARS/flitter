@@ -153,11 +153,103 @@ export function isBunWithTtyBug(): boolean {
  * ```
  */
 export function stripAnsiEscapes(text: string): string {
-  // CSI: \x1b[ 后跟参数字节(0x30-0x3f)和中间字节(0x20-0x2f)，最后是终止字节(0x40-0x7e)
-  // OSC: \x1b] 后跟任意内容，以 ST(\x1b\\) 或 BEL(\x07) 结尾
-  return text
-    .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "") // CSI 序列
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, ""); // OSC 序列
+  // 逆向: aXT() in amp-cli-reversed/modules/0514_unknown_aXT.js
+  // Iterative parser matching amp's exact logic — handles CSI, OSC, DCS, APC/SOS/PM,
+  // SS2/SS3 (2-byte), simple ESC sequences, DEL/BS, and C0 control characters.
+  let result = "";
+  let i = 0;
+  while (i < text.length) {
+    const code = text.charCodeAt(i);
+    if (code === 0x1b) {
+      i++;
+      if (i >= text.length) break;
+      const next = text.charCodeAt(i);
+      if (next === 0x5b) {
+        // CSI: \x1b[ ... final (0x40-0x7e)
+        i++;
+        while (i < text.length) {
+          const c = text.charCodeAt(i);
+          i++;
+          if (c >= 0x40 && c <= 0x7e) break;
+        }
+        continue;
+      }
+      if (next === 0x5d) {
+        // OSC: \x1b] ... BEL or ST(\x1b\\)
+        i++;
+        while (i < text.length) {
+          const c = text.charCodeAt(i);
+          if (c === 0x07) {
+            i++;
+            break;
+          }
+          if (c === 0x1b && i + 1 < text.length && text.charCodeAt(i + 1) === 0x5c) {
+            i += 2;
+            break;
+          }
+          i++;
+        }
+        continue;
+      }
+      if (next === 0x50) {
+        // DCS: \x1bP ... ST(\x1b\\)
+        i++;
+        while (i < text.length) {
+          if (
+            text.charCodeAt(i) === 0x1b &&
+            i + 1 < text.length &&
+            text.charCodeAt(i + 1) === 0x5c
+          ) {
+            i += 2;
+            break;
+          }
+          i++;
+        }
+        continue;
+      }
+      if (next === 0x5f || next === 0x58 || next === 0x5e) {
+        // APC(\x1b_) / SOS(\x1bX) / PM(\x1b^): ... ST(\x1b\\)
+        i++;
+        while (i < text.length) {
+          if (
+            text.charCodeAt(i) === 0x1b &&
+            i + 1 < text.length &&
+            text.charCodeAt(i + 1) === 0x5c
+          ) {
+            i += 2;
+            break;
+          }
+          i++;
+        }
+        continue;
+      }
+      if (next === 0x4e || next === 0x4f) {
+        // SS2(\x1bN) / SS3(\x1bO) + one character
+        i += 2;
+        continue;
+      }
+      if (next >= 0x40 && next <= 0x7e) {
+        // Simple 2-byte ESC sequence
+        i++;
+        continue;
+      }
+      continue;
+    }
+    if (code === 0x7f || code === 0x08) {
+      // DEL / BS — erase last character (matches amp's aXT behavior)
+      result = result.slice(0, -1);
+      i++;
+      continue;
+    }
+    if (code < 0x20) {
+      // Other C0 control characters — skip
+      i++;
+      continue;
+    }
+    result += text[i];
+    i++;
+  }
+  return result;
 }
 
 // ════════════════════════════════════════════════════

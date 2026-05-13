@@ -52,7 +52,12 @@ import {
 // 逆向: chunk-004.js:32086 — VTR() 剪贴板图片读取
 // Direct import from tui package since clipboard-image is not exported from main entry
 import { readClipboardImage } from "../../../tui/src/selection/clipboard-image.js";
-import { detectShellCommand, getShellModeBorderColor } from "./command-detection.js";
+import {
+  detectShellCommand,
+  getShellModeBorderColor,
+  getShellPromptInfo,
+  SHELL_PROMPT_SPACING,
+} from "./command-detection.js";
 import {
   detectDoubleAtTrigger,
   insertThreadMention as insertThreadMentionUtil,
@@ -452,26 +457,65 @@ export class InputFieldState extends State<InputField> {
       }
     } else if (hasFocus) {
       // 实际文本 + 光标 (反色) — only when focused
-      const cursorPos = this._controller.cursorPosition;
-      const before = text.slice(0, cursorPos);
-      const cursorChar = text[cursorPos] || " ";
-      const after = text.slice(cursorPos + 1);
-
       const textStyle = new TextStyle({ foreground: TEXT_COLOR });
       const cursorStyle = new TextStyle({
         foreground: CURSOR_FG_COLOR,
         background: CURSOR_BG_COLOR,
       });
 
-      contentWidget = new RichText({
-        text: new TextSpan({
-          children: [
-            new TextSpan({ text: before, style: textStyle }),
-            new TextSpan({ text: cursorChar, style: cursorStyle }),
-            ...(after ? [new TextSpan({ text: after, style: textStyle })] : []),
-          ],
-        }),
-      });
+      // 检测 shell prompt — 渲染时着色 + 自动空格
+      // 逆向: YTR (modules/2726_unknown_YTR.js) — prompt rules 定义了 $/$$ 的显示规则
+      const shellPromptInfo = getShellPromptInfo(text);
+
+      if (shellPromptInfo) {
+        // ════════════════════════════════════════════════
+        // Shell 模式: prefix (着色) + 自动空格 + command
+        // ════════════════════════════════════════════════
+        const { prefix, prefixLength, prefixStyle, command } = shellPromptInfo;
+        const cursorPos = this._controller.cursorPosition;
+
+        // 光标在命令中的位置: cursorPos - prefixLength (clamp to >= 0)
+        const cursorPosInCmd = Math.max(0, cursorPos - prefixLength);
+
+        // 分割命令文本
+        const cmdBeforeCursor = command.slice(0, cursorPosInCmd);
+        const cursorChar = command[cursorPosInCmd] || " ";
+        const cmdAfterCursor = command.slice(cursorPosInCmd + 1);
+
+        // 构建 TextSpan:
+        // prefix (shell 色) + " " (自动空格) + cmdBefore + cursor + cmdAfter
+        const children: TextSpan[] = [
+          new TextSpan({ text: prefix, style: prefixStyle }),
+          new TextSpan({ text: " ".repeat(SHELL_PROMPT_SPACING), style: textStyle }),
+          new TextSpan({ text: cmdBeforeCursor, style: textStyle }),
+          new TextSpan({ text: cursorChar, style: cursorStyle }),
+        ];
+        if (cmdAfterCursor) {
+          children.push(new TextSpan({ text: cmdAfterCursor, style: textStyle }));
+        }
+
+        contentWidget = new RichText({
+          text: new TextSpan({ children }),
+        });
+      } else {
+        // ════════════════════════════════════════════════
+        // 普通模式
+        // ════════════════════════════════════════════════
+        const cursorPos = this._controller.cursorPosition;
+        const before = text.slice(0, cursorPos);
+        const cursorChar = text[cursorPos] || " ";
+        const after = text.slice(cursorPos + 1);
+
+        contentWidget = new RichText({
+          text: new TextSpan({
+            children: [
+              new TextSpan({ text: before, style: textStyle }),
+              new TextSpan({ text: cursorChar, style: cursorStyle }),
+              ...(after ? [new TextSpan({ text: after, style: textStyle })] : []),
+            ],
+          }),
+        });
+      }
     } else {
       // Text without cursor — unfocused
       const textStyle = new TextStyle({ foreground: TEXT_COLOR });
@@ -721,6 +765,8 @@ export class InputFieldState extends State<InputField> {
    * 逆向: amp TextField 的 RenderEditable 自动处理 wrap:true 的折行计算，
    * 这里用简化公式近似: 每个逻辑行 ceil(charCount / innerWidth) 行。
    *
+   * 注意: Shell 模式下第一行需要加上自动 spacing (YTR spacing: 1)。
+   *
    * @param text - 输入文本
    * @param innerWidth - 可用内容宽度 (字符数)
    * @returns 文本需要的显示行数
@@ -728,11 +774,19 @@ export class InputFieldState extends State<InputField> {
   private _computeTextLineCount(text: string, innerWidth: number): number {
     if (!text) return 1;
     const lines = text.split("\n");
-    let count = 0;
     const w = Math.max(1, innerWidth);
-    for (const line of lines) {
-      // 每个逻辑行至少占 1 行，超宽时按 ceil(length / width) 折行
-      count += Math.max(1, Math.ceil(line.length / w));
+
+    // 检测 shell prompt — 只有第一行需要加 spacing
+    const shellInfo = getShellPromptInfo(text);
+    const firstLineExtra = shellInfo ? SHELL_PROMPT_SPACING : 0;
+
+    let count = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // 第一行: 实际长度 + spacing (如果是 shell 模式)
+      // 其他行: 实际长度
+      const effectiveLength = i === 0 ? line.length + firstLineExtra : line.length;
+      count += Math.max(1, Math.ceil(effectiveLength / w));
     }
     return count;
   }
@@ -743,6 +797,10 @@ export class InputFieldState extends State<InputField> {
    * 逆向: amp RenderEditable 内部通过 TextPainter.getOffsetForCaret() 计算光标的
    * 像素位置，然后转换为 scrollOffset。在终端 TUI 中，我们用字符宽度模拟。
    *
+   * 注意: Shell 模式下需要考虑:
+   * 1. 第一行行宽计算需要加 spacing
+   * 2. 光标在 prefix 后时，视觉位置 = 实际位置 + spacing
+   *
    * @param text - 输入文本
    * @param cursorPos - 光标字符位置
    * @param innerWidth - 可用内容宽度
@@ -752,20 +810,41 @@ export class InputFieldState extends State<InputField> {
     if (!text) return 0;
     const w = Math.max(1, innerWidth);
     const lines = text.split("\n");
+
+    // 检测 shell prompt
+    const shellInfo = getShellPromptInfo(text);
+    const firstLineExtra = shellInfo ? SHELL_PROMPT_SPACING : 0;
+
     let displayLine = 0;
     let charsSoFar = 0;
 
-    for (const line of lines) {
-      const lineDisplayRows = Math.max(1, Math.ceil(line.length / w));
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       const lineEnd = charsSoFar + line.length;
 
       if (cursorPos <= lineEnd) {
-        // Cursor is within this logical line
-        const posInLine = cursorPos - charsSoFar;
-        displayLine += Math.floor(posInLine / w);
+        // 光标在当前逻辑行内
+        let posInLine = cursorPos - charsSoFar;
+
+        if (i === 0 && shellInfo) {
+          // 第一行且是 shell 模式:
+          // 1. 如果光标在 prefix 后，视觉位置 = posInLine + spacing
+          // 2. 行宽计算需要加 spacing
+          const { prefixLength } = shellInfo;
+          if (posInLine >= prefixLength) {
+            posInLine += SHELL_PROMPT_SPACING;
+          }
+          const effectiveWidth = w;
+          displayLine += Math.floor(posInLine / effectiveWidth);
+        } else {
+          displayLine += Math.floor(posInLine / w);
+        }
         return displayLine;
       }
 
+      // 计算这一行占用的显示行数
+      const effectiveLength = i === 0 ? line.length + firstLineExtra : line.length;
+      const lineDisplayRows = Math.max(1, Math.ceil(effectiveLength / w));
       displayLine += lineDisplayRows;
       charsSoFar = lineEnd + 1; // +1 for the \n separator
     }

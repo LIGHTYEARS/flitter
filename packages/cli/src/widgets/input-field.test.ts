@@ -993,4 +993,80 @@ describe("InputField dynamic height (逆向: chunk-006.js:13474-13476)", () => {
 
     state.dispose();
   });
+
+  it("_computeTextLineCount 考虑 shell spacing", () => {
+    const { state } = mountInputField({ onSubmit: () => {}, width: 10 });
+    const compute = (state as any)._computeTextLineCount.bind(state);
+    // $ (1) + spacing (1) + 8 chars = 10 chars -> 1 line
+    assert.equal(compute("$12345678", 10), 1);
+    // $ (1) + spacing (1) + 9 chars = 11 chars -> 2 lines
+    assert.equal(compute("$123456789", 10), 2);
+    // $$ (2) + spacing (1) + 7 chars = 10 chars -> 1 line
+    assert.equal(compute("$$1234567", 10), 1);
+    // $$ (2) + spacing (1) + 8 chars = 11 chars -> 2 lines
+    assert.equal(compute("$$12345678", 10), 2);
+    state.dispose();
+  });
+
+  it("$ 前缀时视觉上显示自动空格", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "l", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "s", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const allText = extractAllText(built);
+
+    assert.ok(
+      allText.includes("$ ls"),
+      `Should render "$ ls" with automatic spacing, got: ${allText.slice(0, 200)}`,
+    );
+    state.dispose();
+  });
+
+  it("$$ 前缀时视觉上显示自动空格", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "c", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const allText = extractAllText(built);
+
+    assert.ok(
+      allText.includes("$$ c"),
+      `Should render "$$ c" with automatic spacing, got: ${allText.slice(0, 200)}`,
+    );
+    state.dispose();
+  });
+
+  it("shell 模式显示 shell mode 标签", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "l", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const allText = extractAllText(built);
+
+    assert.ok(
+      allText.includes("shell mode"),
+      `Should show "shell mode" label, got: ${allText.slice(0, 200)}`,
+    );
+    state.dispose();
+  });
+
+  it("hidden shell 模式显示 incognito 标签", () => {
+    const { state, fm } = mountInputField({ onSubmit: () => {} });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+    fm.handleKeyEvent({ type: "key", key: "$", modifiers: NO_MODS });
+
+    const built = state.build({} as any);
+    const allText = extractAllText(built);
+
+    assert.ok(
+      allText.includes("shell mode (incognito)"),
+      `Should show incognito label, got: ${allText.slice(0, 200)}`,
+    );
+    state.dispose();
+  });
 });

@@ -315,7 +315,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
 
   /** Last thread snapshot for rebuilding items on streaming deltas */
   private _lastSnapshot: {
-    messages?: Array<{ role: string; content: unknown; state?: unknown }>;
+    messages?: Array<{
+      role: string;
+      content: unknown;
+      state?: unknown;
+      parentToolUseId?: string;
+      usage?: { totalInputTokens: number; maxInputTokens: number };
+    }>;
   } | null = null;
 
   /** 推理错误 */
@@ -1248,7 +1254,13 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     if (thread$) {
       this._threadSub = thread$.subscribe((snapshot: unknown) => {
         const snap = snapshot as {
-          messages?: Array<{ role: string; content: unknown; state?: unknown }>;
+          messages?: Array<{
+            role: string;
+            content: unknown;
+            state?: unknown;
+            parentToolUseId?: string;
+            usage?: { totalInputTokens: number; maxInputTokens: number };
+          }>;
         };
         this._lastSnapshot = snap;
         this.setState(() => {
@@ -1510,8 +1522,22 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   /**
    * Build top-left border label: "{percent}% of {max}".
    * 逆向: chunk-004.js:24704-24708 (XM token formatting)
+   * 逆向: $h() (modules/1596_unknown_$h.js) — 从 thread messages 末尾向前查找
+   *   最后一条 role=assistant 且有 usage 的消息，取其 totalInputTokens/maxInputTokens。
    */
   private _buildTopLeftLabel(): string {
+    // 优先从 thread snapshot 中获取 resolvedTokenUsage（与 amp $h() 对齐）
+    const resolved = this._resolveTokenUsageFromSnapshot();
+    if (resolved) {
+      const { totalInputTokens, maxInputTokens } = resolved;
+      if (totalInputTokens === 0 || maxInputTokens <= 0) return "";
+      const pct = Math.max(0, Math.min(100, Math.round((totalInputTokens / maxInputTokens) * 100)));
+      const maxStr =
+        maxInputTokens >= 1000 ? `${Math.round(maxInputTokens / 1000)}k` : `${maxInputTokens}`;
+      return `${pct}% of ${maxStr}`;
+    }
+
+    // Fallback: 事件累加器 (新对话首次推理尚未写入 snapshot 时)
     const maxTokens = resolveModel(this.widget.config.modelName ?? "")?.contextWindow ?? 200000;
     const totalUsed = this._totalInputTokens + this._totalOutputTokens;
     // 逆向: jetbrains_wizard.js:6072 — guard: !l.isThreadEmpty()
@@ -1520,6 +1546,42 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
     const pct = Math.round((totalUsed / maxTokens) * 100);
     const maxStr = maxTokens >= 1000 ? `${Math.round(maxTokens / 1000)}k` : `${maxTokens}`;
     return `${pct}% of ${maxStr}`;
+  }
+
+  /**
+   * 从 thread snapshot messages 中解析 resolvedTokenUsage。
+   * 逆向: $h() (modules/1596_unknown_$h.js:1-15) — 从末尾向前遍历，
+   *   跳过 parentToolUseId（子工具调用）和 info+summary 消息，
+   *   返回首个 role=assistant 且 usage.totalInputTokens > 0 的 usage。
+   */
+  private _resolveTokenUsageFromSnapshot():
+    | {
+        totalInputTokens: number;
+        maxInputTokens: number;
+      }
+    | undefined {
+    const msgs = this._lastSnapshot?.messages;
+    if (!msgs || msgs.length === 0) return undefined;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const msg = msgs[i];
+      if (!msg) continue;
+      // 跳过子工具调用消息
+      if (msg.parentToolUseId) continue;
+      // 跳过 info+summary 消息
+      if (msg.role === "info") {
+        const content = msg.content;
+        if (Array.isArray(content) && content.length > 0) {
+          const first = content[0] as { type?: string; summary?: { type?: string } };
+          if (first?.type === "summary" && first?.summary?.type === "message") return undefined;
+        }
+      }
+      // 找到 assistant + usage
+      if (msg.role === "assistant" && msg.usage) {
+        if (msg.usage.totalInputTokens === 0) continue;
+        return msg.usage;
+      }
+    }
+    return undefined;
   }
 
   /**

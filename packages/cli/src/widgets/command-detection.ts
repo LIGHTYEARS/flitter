@@ -34,7 +34,7 @@
  * ```
  */
 
-import { Color } from "@flitter/tui";
+import { Color, TextStyle } from "@flitter/tui";
 
 // ════════════════════════════════════════════════════
 //  Slash command parsing
@@ -110,6 +110,96 @@ export const SHELL_MODE_COLOR = Color.indexed(4);
  * 逆向: shellModeHidden = T.mutedForeground → default (dim handled at usage site)
  */
 export const SHELL_MODE_HIDDEN_COLOR = Color.default();
+
+/**
+ * Shell 模式前缀的自动空格间距。
+ *
+ * 逆向: YTR 函数 (modules/2726_unknown_YTR.js:21) — spacing: 1
+ * 当输入以 $/$$ 开头时，视觉上自动在 $ 和命令之间添加一个空格。
+ */
+export const SHELL_PROMPT_SPACING = 1;
+
+// ════════════════════════════════════════════════════
+//  Shell Prompt 渲染辅助
+// ════════════════════════════════════════════════════
+
+/**
+ * Shell Prompt 检测结果（用于渲染）。
+ *
+ * 逆向: YTR 函数返回的 prompt rule 结构 (modules/2726_unknown_YTR.js)。
+ */
+export interface ShellPromptInfo {
+  /** 前缀文本: "$" 或 "$$" */
+  prefix: string;
+  /** 前缀长度 (1 或 2) */
+  prefixLength: number;
+  /** 可见性 */
+  visibility: ShellVisibility;
+  /** 前缀的文本样式（带颜色） */
+  prefixStyle: TextStyle;
+  /** 命令文本（去掉前缀后的部分） */
+  command: string;
+}
+
+/**
+ * 获取 shell prompt 信息，用于渲染时着色和自动空格。
+ *
+ * 逆向: YTR 函数 (modules/2726_unknown_YTR.js) — 定义了 shell prompt 的显示规则:
+ * - match: e.startsWith("$") / e.startsWith("$$")
+ * - display: "$" / "$$"
+ * - style: color = shellMode / shellModeHidden
+ * - spacing: 1 (自动添加一个空格)
+ * - concealPrefix: true
+ *
+ * @param text - 输入文本
+ * @returns ShellPromptInfo 或 null（非 shell 模式）
+ */
+export function getShellPromptInfo(text: string): ShellPromptInfo | null {
+  if (text.startsWith("$$")) {
+    return {
+      prefix: "$$",
+      prefixLength: 2,
+      visibility: "hidden",
+      prefixStyle: new TextStyle({ foreground: SHELL_MODE_HIDDEN_COLOR, dim: true }),
+      command: text.slice(2),
+    };
+  }
+  if (text.startsWith("$")) {
+    return {
+      prefix: "$",
+      prefixLength: 1,
+      visibility: "visible",
+      prefixStyle: new TextStyle({ foreground: SHELL_MODE_COLOR }),
+      command: text.slice(1),
+    };
+  }
+  return null;
+}
+
+/**
+ * 计算视觉光标位置（考虑 shell prompt 的自动空格）。
+ *
+ * 当输入以 $/$$ 开头时，amp 在渲染时会在 prefix 后自动添加一个 spacing 空格，
+ * 但实际文本中没有这个空格。所以光标位置需要映射：
+ * - 光标在 prefix 内: 视觉位置 = 实际位置
+ * - 光标在 prefix 后: 视觉位置 = 实际位置 + SHELL_PROMPT_SPACING
+ *
+ * 逆向: L1T._paintSingleLineText 中的 A += o.spacing ?? 0 (chunk-006.js:5156)
+ *
+ * @param cursorPos - 实际光标位置
+ * @param promptInfo - shell prompt 信息
+ * @returns 视觉光标位置
+ */
+export function getVisualCursorPosition(
+  cursorPos: number,
+  promptInfo: ShellPromptInfo | null,
+): number {
+  if (!promptInfo) return cursorPos;
+  // 光标严格在 prefix 内时: 视觉位置 = 实际位置
+  // 光标在 prefix 末尾或之后时: 视觉位置 = 实际位置 + spacing
+  if (cursorPos < promptInfo.prefixLength) return cursorPos;
+  return cursorPos + SHELL_PROMPT_SPACING;
+}
 
 // ════════════════════════════════════════════════════
 //  检测函数

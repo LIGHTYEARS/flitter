@@ -123,11 +123,14 @@ export function filterValidHooks(hooks: unknown): DeclarativeHook[] {
  * 3. Return {action: null} if no match
  *
  * @param hooks - Raw hooks array from config
- * @param context - { toolName, toolInput }
+ * @param context - amp-style context: { threadID, toolUse: { id, name, input } }
  */
 export function matchPreExecuteHook(
   hooks: unknown,
-  context: { toolName: string; toolInput: Record<string, unknown> },
+  context: {
+    threadID: string;
+    toolUse: { id: string; name: string; input: Record<string, unknown> };
+  },
 ): HookMatchResult {
   if (!hooks) return { action: null };
 
@@ -141,11 +144,11 @@ export function matchPreExecuteHook(
 
     // 逆向: (Array.isArray(a.on.tool) ? a.on.tool : [a.on.tool]).includes(R.toolUse.name)
     const toolNames = Array.isArray(hook.on.tool) ? hook.on.tool : [hook.on.tool];
-    if (!toolNames.includes(context.toolName)) continue;
+    if (!toolNames.includes(context.toolUse.name)) continue;
 
     // 逆向: let e = JSON.stringify(R.toolUse.input),
     //        t = Array.isArray(a.on["input.contains"]) ? a.on["input.contains"] : [a.on["input.contains"]];
-    const inputStr = JSON.stringify(context.toolInput);
+    const inputStr = JSON.stringify(context.toolUse.input);
     const inputContains = hook.on["input.contains"];
     const patterns = Array.isArray(inputContains) ? inputContains : [inputContains];
 
@@ -153,7 +156,7 @@ export function matchPreExecuteHook(
       if (pattern !== undefined && inputStr.includes(pattern)) {
         log.debug(`Hook triggered: ${hook.id}`, {
           hookID: hook.id,
-          toolName: context.toolName,
+          toolName: context.toolUse.name,
           matchString: pattern,
           action: hook.action,
         });
@@ -183,11 +186,14 @@ export function matchPreExecuteHook(
  * 3. Return {action: null} if no match
  *
  * @param hooks - Raw hooks array from config
- * @param context - { toolName }
+ * @param context - amp-style context: { threadID, toolUse: { id, name, input } }
  */
 export function matchPostExecuteHook(
   hooks: unknown,
-  context: { toolName: string },
+  context: {
+    threadID: string;
+    toolUse: { id: string; name: string; input: Record<string, unknown> };
+  },
 ): HookMatchResult {
   if (!hooks) return { action: null };
 
@@ -201,11 +207,11 @@ export function matchPostExecuteHook(
 
     // 逆向: (Array.isArray(a.on.tool) ? a.on.tool : [a.on.tool]).includes(R.toolUse.name)
     const toolNames = Array.isArray(hook.on.tool) ? hook.on.tool : [hook.on.tool];
-    if (!toolNames.includes(context.toolName)) continue;
+    if (!toolNames.includes(context.toolUse.name)) continue;
 
     log.debug(`Post-execution hook triggered: ${hook.id}`, {
       hookID: hook.id,
-      toolName: context.toolName,
+      toolName: context.toolUse.name,
       action: hook.action,
     });
 

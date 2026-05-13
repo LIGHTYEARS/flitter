@@ -1,22 +1,23 @@
 /**
- * @flitter/agent-core hooks — Lifecycle hook types & admin hook matcher
+ * @flitter/agent-core hooks — Lifecycle hook types & declarative hook matcher
  *
- * Barrel export for the hooks module.
+ * Barrel export. Declarative hook matcher is the canonical implementation
+ * in subagent/hook-matcher.ts (merged from the duplicate in hooks/).
  */
 
+// Re-export declarative hook matcher (canonical source)
 export type {
-  AdminHookAction,
-  AdminHookConfig,
-  AdminHookOn,
+  DeclarativeHook,
+  DeclarativeHookAction,
+  DeclarativeHookOn,
   HookMatchResult,
-  PostExecuteContext,
-  PreExecuteContext,
-} from "./hook-matcher";
+} from "../subagent/hook-matcher";
 export {
   filterValidHooks,
   matchPostExecuteHook,
   matchPreExecuteHook,
-} from "./hook-matcher";
+} from "../subagent/hook-matcher";
+
 export type {
   InternalHooks,
   LifecycleHookResult,

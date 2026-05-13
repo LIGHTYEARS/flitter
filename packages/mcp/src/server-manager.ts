@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Server Manager
+ * @flitter/mcp — MCP Server Manager
  *
  * Aggregates multiple MCPConnections, provides namespaced tool access,
  * and routes tool calls to the correct server.

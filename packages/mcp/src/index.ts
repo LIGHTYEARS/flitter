@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Module
+ * @flitter/mcp — MCP Module
  *
  * Complete MCP client stack: types, protocol, transports, auth,
  * connection lifecycle, server management, and tool utilities.

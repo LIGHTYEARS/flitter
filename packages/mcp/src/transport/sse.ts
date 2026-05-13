@@ -1,5 +1,5 @@
 /**
- * @flitter/llm -- MCP SSE Transport (Legacy)
+ * @flitter/mcp -- MCP SSE Transport (Legacy)
  *
  * Server-Sent Events transport for MCP. This is the legacy transport
  * that establishes a long-lived SSE connection via GET, discovers a

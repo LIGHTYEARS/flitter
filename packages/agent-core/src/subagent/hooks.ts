@@ -21,17 +21,18 @@ import type { ToolResult } from "../tools/types";
  * - PostToolUse: 工具执行后触发, 可观察结果
  * - Notification: 通知类 hook (如工具完成通知)
  */
-export type HookType = "PreToolUse" | "PostToolUse" | "Notification";
+export type ShellHookType = "PreToolUse" | "PostToolUse" | "Notification";
 
 // ─── Hook 配置 ──────────────────────────────────────────
 
 /**
- * 单个 Hook 配置项
+ * 单个 Shell Hook 配置项
  * 从 Settings.hooks 解析而来
+ * @note This is a Flitter extension — no corresponding code found in amp-cli-reversed.
  */
-export interface HookConfig {
+export interface ShellHookConfig {
   /** Hook 类型 */
-  type: HookType;
+  type: ShellHookType;
   /** Glob 模式匹配工具名 (无 matcher → 匹配所有工具) */
   matcher?: string;
   /** 要执行的 Shell 命令 */
@@ -43,9 +44,9 @@ export interface HookConfig {
 // ─── Hook 结果 ──────────────────────────────────────────
 
 /**
- * Hook 执行结果
+ * Shell Hook 执行结果
  */
-export interface HookResult {
+export interface ShellHookResult {
   /** 是否中止工具调用 (仅 PreToolUse 有效) */
   abort?: boolean;
   /** 修改后的工具参数 (仅 PreToolUse 有效) */
@@ -62,7 +63,7 @@ export interface HookResult {
 
 // ─── Pre-hook 执行上下文 ────────────────────────────────
 
-export interface PreHookContext {
+export interface ShellPreHookContext {
   threadId: string;
   toolUse: {
     name: string;
@@ -72,7 +73,7 @@ export interface PreHookContext {
 
 // ─── Post-hook 执行上下文 ───────────────────────────────
 
-export interface PostHookContext {
+export interface ShellPostHookContext {
   threadId: string;
   toolUse: {
     name: string;
@@ -92,7 +93,7 @@ const VALID_HOOK_TYPES = new Set<string>(["PreToolUse", "PostToolUse", "Notifica
 // ─── parseHooksConfig ───────────────────────────────────
 
 /**
- * 从 Settings.hooks 解析 Hook 配置列表
+ * 从 Settings.hooks 解析 Shell Hook 配置列表
  * 逆向: tool-execution-engine.js ~1640-1680
  *
  * Settings.hooks 格式:
@@ -105,12 +106,12 @@ const VALID_HOOK_TYPES = new Set<string>(["PreToolUse", "PostToolUse", "Notifica
  * 跳过无效条目 (缺少 command, 未知 type 等), 不抛出错误
  *
  * @param hooks - Settings.hooks 的原始值
- * @returns 解析后的 HookConfig[]
+ * @returns 解析后的 ShellHookConfig[]
  */
-export function parseHooksConfig(hooks: Record<string, unknown>): HookConfig[] {
+export function parseHooksConfig(hooks: Record<string, unknown>): ShellHookConfig[] {
   if (!hooks || typeof hooks !== "object") return [];
 
-  const result: HookConfig[] = [];
+  const result: ShellHookConfig[] = [];
 
   for (const [type, entries] of Object.entries(hooks)) {
     if (!VALID_HOOK_TYPES.has(type)) continue;
@@ -123,8 +124,8 @@ export function parseHooksConfig(hooks: Record<string, unknown>): HookConfig[] {
       const command = raw.command;
       if (typeof command !== "string" || command.trim() === "") continue;
 
-      const config: HookConfig = {
-        type: type as HookType,
+      const config: ShellHookConfig = {
+        type: type as ShellHookType,
         command,
       };
 
@@ -152,11 +153,11 @@ export function parseHooksConfig(hooks: Record<string, unknown>): HookConfig[] {
  * - 无 matcher → 匹配所有工具
  * - 有 matcher → 复用 matchToolPattern (glob 匹配)
  *
- * @param hook - Hook 配置
+ * @param hook - Shell Hook 配置
  * @param toolName - 工具名
  * @returns true 如果匹配
  */
-export function matchHookToTool(hook: HookConfig, toolName: string): boolean {
+export function matchHookToTool(hook: ShellHookConfig, toolName: string): boolean {
   if (!hook.matcher) return true;
   return matchToolPattern(hook.matcher, toolName);
 }
@@ -173,14 +174,14 @@ export function matchHookToTool(hook: HookConfig, toolName: string): boolean {
  * 3. 解析 stdout 为 JSON, 提取控制指令 (abort, modifiedArgs)
  * 4. 超时时杀死子进程, 返回非零 exitCode
  *
- * @param hookConfig - Hook 配置
- * @param context - Pre-hook 执行上下文
- * @returns HookResult
+ * @param hookConfig - Shell Hook 配置
+ * @param context - Shell pre-hook 执行上下文
+ * @returns ShellHookResult
  */
 export async function executePreHook(
-  hookConfig: HookConfig,
-  context: PreHookContext,
-): Promise<HookResult> {
+  hookConfig: ShellHookConfig,
+  context: ShellPreHookContext,
+): Promise<ShellHookResult> {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     TOOL_NAME: context.toolUse.name,
@@ -214,14 +215,14 @@ export async function executePreHook(
  * 2. 执行 hook 命令为子进程
  * 3. 超时时杀死子进程
  *
- * @param hookConfig - Hook 配置
- * @param context - Post-hook 执行上下文
- * @returns HookResult
+ * @param hookConfig - Shell Hook 配置
+ * @param context - Shell post-hook 执行上下文
+ * @returns ShellHookResult
  */
 export async function executePostHook(
-  hookConfig: HookConfig,
-  context: PostHookContext,
-): Promise<HookResult> {
+  hookConfig: ShellHookConfig,
+  context: ShellPostHookContext,
+): Promise<ShellHookResult> {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     TOOL_NAME: context.toolUse.name,

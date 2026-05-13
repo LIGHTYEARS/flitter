@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Transport Factory
+ * @flitter/mcp — MCP Transport Factory
  *
  * Creates the appropriate MCP transport for a given server spec.
  * For URL-based servers, tries StreamableHTTP first and falls back to SSE.

@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Connection & Client
+ * @flitter/mcp — MCP Connection & Client
  *
  * MCPClient wraps a transport + RequestManager to provide a high-level MCP API.
  * MCPConnection manages a single MCP server's connection lifecycle with

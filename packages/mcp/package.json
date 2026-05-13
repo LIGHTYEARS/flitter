@@ -1,0 +1,30 @@
+{
+  "name": "@flitter/mcp",
+  "version": "0.1.0",
+  "description": "MCP protocol client stack - types, protocol, transports, auth, connection lifecycle",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@flitter/util": "workspace:*"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "json-rpc",
+    "transport"
+  ],
+  "author": "",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "bun-types": "^1.1.0",
+    "typescript": "^5.4.0"
+  }
+}

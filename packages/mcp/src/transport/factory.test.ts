@@ -12,7 +12,7 @@ import { createMCPTransport } from "./factory";
 // ─── Helpers ─────────────────────────────────────────────
 
 /** Create a minimal mock transport for testing */
-function createMockTransport(opts?: { failOnStart?: boolean }): MCPTransport {
+function _createMockTransport(opts?: { failOnStart?: boolean }): MCPTransport {
   return {
     start: opts?.failOnStart
       ? async () => {

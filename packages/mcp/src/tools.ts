@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Tool Naming Utilities
+ * @flitter/mcp — MCP Tool Naming Utilities
  *
  * Namespaced tool names for MCP server tools.
  * Pattern: mcp__<serverName>__<toolName> (max 64 chars)

@@ -10,12 +10,17 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { AdminHookConfig, PostExecuteContext, PreExecuteContext } from "../hook-matcher";
-import { filterValidHooks, matchPostExecuteHook, matchPreExecuteHook } from "../hook-matcher";
+import type { DeclarativeHook } from "../../subagent/hook-matcher";
+import {
+  filterValidHooks,
+  matchPostExecuteHook,
+  matchPreExecuteHook,
+} from "../../subagent/hook-matcher";
 
 // ─── Helpers ──────────────────────────────────────────────
 
-function makeHook(overrides?: Partial<AdminHookConfig>): AdminHookConfig {
+/** 创建默认的 DeclarativeHook 测试数据 */
+function makeHook(overrides?: Partial<DeclarativeHook>): DeclarativeHook {
   return {
     id: "hook-1",
     compatibilityDate: "2025-05-13",
@@ -32,7 +37,13 @@ function makeHook(overrides?: Partial<AdminHookConfig>): AdminHookConfig {
   };
 }
 
-function makePreContext(overrides?: Partial<PreExecuteContext>): PreExecuteContext {
+/** 创建 amp 风格的 pre-execute 上下文 */
+function makePreContext(
+  overrides?: Partial<{
+    threadID: string;
+    toolUse: { id: string; name: string; input: Record<string, unknown> };
+  }>,
+): { threadID: string; toolUse: { id: string; name: string; input: Record<string, unknown> } } {
   return {
     threadID: "thread-1",
     toolUse: {
@@ -44,7 +55,13 @@ function makePreContext(overrides?: Partial<PreExecuteContext>): PreExecuteConte
   };
 }
 
-function makePostContext(overrides?: Partial<PostExecuteContext>): PostExecuteContext {
+/** 创建 amp 风格的 post-execute 上下文 */
+function makePostContext(
+  overrides?: Partial<{
+    threadID: string;
+    toolUse: { id: string; name: string; input: Record<string, unknown> };
+  }>,
+): { threadID: string; toolUse: { id: string; name: string; input: Record<string, unknown> } } {
   return {
     threadID: "thread-1",
     toolUse: {
@@ -84,7 +101,7 @@ describe("filterValidHooks", () => {
   });
 
   it("returns empty array for non-array input", () => {
-    assert.deepEqual(filterValidHooks("not-array" as unknown as AdminHookConfig[]), []);
+    assert.deepEqual(filterValidHooks("not-array"), []);
   });
 
   it("rejects redact-tool-input on pre-execute event (b7R validation)", () => {

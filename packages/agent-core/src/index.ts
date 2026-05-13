@@ -25,17 +25,11 @@ export { SessionCostTracker } from "./cost/session-cost-tracker";
 export type { ThreadSearchQuery } from "./data/thread-search-dsl";
 export { parseDate, parseThreadQuery } from "./data/thread-search-dsl";
 // ─── Lifecycle Hooks ──────────────────────────────────
-// ─── Admin Hook Matcher ───────────────────────────────
+// ─── Declarative Hook Matcher (canonical) ─────────────
 export type {
-  AdminHookAction,
-  AdminHookConfig,
-  AdminHookOn,
   InternalHooks,
   LifecycleHookResult,
-  PostExecuteContext,
-  PreExecuteContext,
 } from "./hooks";
-export { filterValidHooks } from "./hooks";
 // ─── Modes ────────────────────────────────────────────
 export type { AgentMode, AgentModeSpec, ReasoningEffort } from "./modes/index";
 export {
@@ -98,16 +92,27 @@ export type { ContextBlocksOptions } from "./prompt/context-blocks";
 export { collectContextBlocks } from "./prompt/context-blocks";
 export type { BuildSystemPromptOptions } from "./prompt/system-prompt";
 export { buildSystemPrompt } from "./prompt/system-prompt";
+// ─── Hook Action Applicator ───────────────────────────
 export type { HookActionContext, HookActionResult } from "./subagent/hook-applicator";
 export { applyHookAction } from "./subagent/hook-applicator";
-export type { DeclarativeHook, HookMatchResult } from "./subagent/hook-matcher";
-export { matchPostExecuteHook, matchPreExecuteHook } from "./subagent/hook-matcher";
 export type {
-  HookConfig,
-  HookResult,
-  HookType,
-  PostHookContext,
-  PreHookContext,
+  DeclarativeHook,
+  DeclarativeHookAction,
+  DeclarativeHookOn,
+  HookMatchResult,
+} from "./subagent/hook-matcher";
+export {
+  filterValidHooks,
+  matchPostExecuteHook,
+  matchPreExecuteHook,
+} from "./subagent/hook-matcher";
+// ─── Shell Hooks (Flitter extension) ──────────────────
+export type {
+  ShellHookConfig,
+  ShellHookResult,
+  ShellHookType,
+  ShellPostHookContext,
+  ShellPreHookContext,
 } from "./subagent/hooks";
 // ─── Sub-agent & Hooks ────────────────────────────────
 export {

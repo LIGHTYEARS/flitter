@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Protocol Types
+ * @flitter/mcp — MCP Protocol Types
  *
  * JSON-RPC 2.0 message types, MCP error codes, method constants,
  * protocol versions, capabilities, and transport interface.

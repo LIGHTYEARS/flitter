@@ -1,5 +1,5 @@
 /**
- * @flitter/llm -- MCP OAuth Types
+ * @flitter/mcp -- MCP OAuth Types
  *
  * Types for MCP OAuth 2.0 PKCE authentication flow.
  * Translated from reversed mcp-oauth-schemas.js (qMT, $G, FMT, nlT, olT).

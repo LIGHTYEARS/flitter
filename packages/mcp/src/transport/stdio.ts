@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP Stdio Transport
+ * @flitter/mcp — MCP Stdio Transport
  *
  * Spawns a child process and communicates via stdin/stdout using
  * newline-delimited JSON-RPC. Direct translation from reversed TDT.

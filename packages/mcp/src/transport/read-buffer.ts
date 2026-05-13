@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP ReadBuffer
+ * @flitter/mcp — MCP ReadBuffer
  *
  * Accumulates chunks and extracts newline-delimited JSON-RPC messages.
  * Direct translation from reversed JMT class.

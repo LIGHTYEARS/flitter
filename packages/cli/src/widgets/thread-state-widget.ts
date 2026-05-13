@@ -627,8 +627,10 @@ export class ThreadStateWidgetState extends State<ThreadStateWidget> {
   private _isShowingConfirmationOverlay = false;
   /** 逆向: chunk-006.js:37063-37065 — isShowingConsoleOverlay */
   private _isShowingConsoleOverlay = false;
-  /** 逆向: chunk-006.js:37066-37070 — handoff state */
+  /** 逆向: chunk-006.js:37066-37070 — handoff state (isGeneratingHandoff, isInHandoffMode, countdownActive) */
   private _handoffCountdownActive = false;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: amp handoffState.isGeneratingHandoff — written in escape handler, read TBD when handoff generation UI is implemented
+  private _isGeneratingHandoff = false;
   private _isInHandoffMode = false;
   /** 逆向: chunk-006.js:37071 — isInQueueMode */
   private _isInQueueMode = false;

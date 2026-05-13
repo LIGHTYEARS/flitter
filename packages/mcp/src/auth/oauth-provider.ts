@@ -1,5 +1,5 @@
 /**
- * @flitter/llm -- MCP OAuth 2.0 PKCE Provider
+ * @flitter/mcp -- MCP OAuth 2.0 PKCE Provider
  *
  * Implements the MCP OAuth auth flow:
  * 401 -> discover protected resource -> discover auth server -> register client ->
@@ -8,7 +8,7 @@
  * Direct translation from reversed Q_/Dq flow.
  * Zero external MCP SDK dependency (KD-24).
  */
-import { generatePKCE } from "../../oauth/pkce";
+import { generatePKCE } from "./pkce";
 import type {
   AuthorizationServerMetadata,
   AuthResult,

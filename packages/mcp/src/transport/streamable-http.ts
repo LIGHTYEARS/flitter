@@ -1,5 +1,5 @@
 /**
- * @flitter/llm -- MCP StreamableHTTP Transport
+ * @flitter/mcp -- MCP StreamableHTTP Transport
  *
  * HTTP POST + SSE response stream transport for MCP.
  * Translated from reversed T7 class. Zero external MCP SDK dependency (KD-24).

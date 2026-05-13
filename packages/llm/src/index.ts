@@ -5,6 +5,8 @@
  * Provider 通过各自的官方 SDK 通信，OpenAI-Compatible 层支持任意 ChatCompletion 端点。
  */
 
+// ─── MCP (re-exported from @flitter/mcp) ─────────────────────────────────────────────
+export * from "@flitter/mcp";
 export type {
   ApiClientConfig,
   ShareResult,
@@ -14,8 +16,6 @@ export type {
 } from "./api-client";
 // ─── API Client ───────────────────────────────────────────
 export { ApiClientError, InternalApiClient } from "./api-client";
-// ─── MCP ─────────────────────────────────────────────
-export * from "./mcp/index";
 export type { FallbackChainOptions } from "./model-fallback";
 // ─── Model Fallback / Retry ───────────────────────────────
 export {

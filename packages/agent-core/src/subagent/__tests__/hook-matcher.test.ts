@@ -102,7 +102,10 @@ describe("filterValidHooks", () => {
 
 describe("matchPreExecuteHook", () => {
   test("returns {action: null} for null hooks", () => {
-    const result = matchPreExecuteHook(null, { toolName: "Bash", toolInput: {} });
+    const result = matchPreExecuteHook(null, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -115,7 +118,10 @@ describe("matchPreExecuteHook", () => {
         action: { type: "send-user-message", message: "blocked" },
       },
     ];
-    const result = matchPreExecuteHook(hooks, { toolName: "Bash", toolInput: { command: "ls" } });
+    const result = matchPreExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "ls" } },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -129,8 +135,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "rm -rf /" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "rm -rf /" } },
     });
     expect(result).toEqual({
       hookID: "secret-guard",
@@ -148,8 +154,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Write",
-      toolInput: { content: "my secret key" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Write", input: { content: "my secret key" } },
     });
     expect(result).toEqual({
       hookID: "multi-tool",
@@ -171,8 +177,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "echo token123" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "echo token123" } },
     });
     expect(result).toEqual({
       hookID: "multi-pattern",
@@ -191,8 +197,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "rm file" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "rm file" } },
     });
     expect(result).toEqual({ action: null });
   });
@@ -207,8 +213,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "ls" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "ls" } },
     });
     expect(result).toEqual({ action: null });
   });
@@ -223,8 +229,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "echo hello" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "echo hello" } },
     });
     expect(result).toEqual({ action: null });
   });
@@ -245,8 +251,8 @@ describe("matchPreExecuteHook", () => {
       },
     ];
     const result = matchPreExecuteHook(hooks, {
-      toolName: "Bash",
-      toolInput: { command: "rm file" },
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: { command: "rm file" } },
     });
     expect(result.hookID).toBe("first");
   });
@@ -256,7 +262,10 @@ describe("matchPreExecuteHook", () => {
 
 describe("matchPostExecuteHook", () => {
   test("returns {action: null} for null hooks", () => {
-    const result = matchPostExecuteHook(null, { toolName: "Bash" });
+    const result = matchPostExecuteHook(null, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -269,7 +278,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "redact-tool-input", redactedInput: {} },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Bash" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -283,7 +295,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "redact-tool-input", redactedInput },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Bash" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({
       hookID: "redact-bash",
       action: { type: "redact-tool-input", redactedInput },
@@ -299,7 +314,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "redact-tool-input", redactedInput: {} },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Write" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Write", input: {} },
+    });
     expect(result.hookID).toBe("redact-multi");
   });
 
@@ -313,7 +331,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "redact-tool-input", redactedInput: {} },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Bash" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -326,7 +347,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "send-user-message", message: "blocked" },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Bash" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 
@@ -339,7 +363,10 @@ describe("matchPostExecuteHook", () => {
         action: { type: "handoff", goal: "some goal" },
       },
     ];
-    const result = matchPostExecuteHook(hooks, { toolName: "Bash" });
+    const result = matchPostExecuteHook(hooks, {
+      threadID: "test-thread",
+      toolUse: { id: "tu-1", name: "Bash", input: {} },
+    });
     expect(result).toEqual({ action: null });
   });
 });

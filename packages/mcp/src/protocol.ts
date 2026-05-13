@@ -1,5 +1,5 @@
 /**
- * @flitter/llm — MCP JSON-RPC 2.0 Protocol
+ * @flitter/mcp — MCP JSON-RPC 2.0 Protocol
  *
  * Encoding/decoding, error handling, and request management.
  * Direct translation from reversed VyR/XyR, l9, and request tracking.

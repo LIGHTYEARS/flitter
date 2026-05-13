@@ -1,5 +1,5 @@
 /**
- * @flitter/llm -- SSE Event Parser TransformStream
+ * @flitter/mcp -- SSE Event Parser TransformStream
  *
  * Converts text/event-stream string chunks into structured SSEEvent objects.
  * Follows the W3C Server-Sent Events specification for parsing.

@@ -861,8 +861,8 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             // 1. Try declarative hooks (new format: array with compatibilityDate)
             if (Array.isArray(hooksConfig)) {
               const match = matchPreExecuteHook(hooksConfig, {
-                toolName: hookResult.toolName,
-                toolInput,
+                threadID: threadId,
+                toolUse: { id: hookResult.toolUseId, name: hookResult.toolName, input: toolInput },
               });
               const result = applyHookAction(match, { toolUseID: hookResult.toolUseId });
               if (result.abortOp) {
@@ -915,7 +915,12 @@ export async function createContainer(opts: ContainerOptions): Promise<ServiceCo
             // 1. Declarative post-execute hooks
             if (Array.isArray(hooksConfig)) {
               const match = matchPostExecuteHook(hooksConfig, {
-                toolName: hookResult.toolName,
+                threadID: threadId,
+                toolUse: {
+                  id: hookResult.toolUseId,
+                  name: hookResult.toolName,
+                  input: hookResult.toolInput ?? {},
+                },
               });
               const result = applyHookAction(match, { toolUseID: hookResult.toolUseId });
               if (result.redactedInput) {

@@ -696,6 +696,13 @@ export class ThreadWorker {
       // 逆向: ov.resetRetryAttempts on inference:completed
       this.retryScheduler.resetAttempts();
 
+      // ─── Step 6a: Write usage back to assistant message in snapshot ───
+      // 逆向: $h() (modules/1596) expects usage on the assistant message itself.
+      // amp persists usage onto the message so resolvedTokenUsage can extract it.
+      if (rawUsage) {
+        this.writeUsageToAssistantMessage(rawUsage, streamParams.model);
+      }
+
       // ─── Step 6b: Post-process assistant message ───
       // 逆向: IbT (modules/1087) — trim + filter empty text/thinking blocks
       this.postProcessAssistantContent();
@@ -1475,6 +1482,37 @@ export class ThreadWorker {
       const processed = processAssistantMessage(content);
       (last as Message & { role: "assistant" }).content = processed;
       this.opts.updateThreadSnapshot({ ...snapshot, messages });
+    }
+  }
+
+  /**
+   * 将 usage 信息写回 snapshot 中最后一条 assistant message。
+   * 逆向: amp 在推理完成后将 usage 持久化到 assistant message，
+   *   $h() (modules/1596) 从 messages 末尾查找 usage 来驱动 topLeftLabel 显示。
+   */
+  private writeUsageToAssistantMessage(
+    rawUsage: Record<string, number | undefined>,
+    model: string,
+  ): void {
+    const snapshot = this.opts.getThreadSnapshot();
+    const messages = [...snapshot.messages];
+    const last = messages[messages.length - 1];
+
+    if (last && last.role === "assistant") {
+      (last as Record<string, unknown>).usage = {
+        model,
+        maxInputTokens: rawUsage.maxInputTokens ?? 0,
+        inputTokens: rawUsage.inputTokens ?? 0,
+        outputTokens: rawUsage.outputTokens ?? 0,
+        cacheCreationInputTokens: rawUsage.cacheCreationInputTokens ?? null,
+        cacheReadInputTokens: rawUsage.cacheReadInputTokens ?? null,
+        totalInputTokens: rawUsage.totalInputTokens ?? rawUsage.inputTokens ?? 0,
+        timestamp: new Date().toISOString(),
+      };
+      this.opts.updateThreadSnapshot({
+        ...snapshot,
+        messages: messages as ThreadSnapshot["messages"],
+      });
     }
   }
 

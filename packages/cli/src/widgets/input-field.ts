@@ -529,12 +529,14 @@ export class InputFieldState extends State<InputField> {
 
     // Top border with overlay labels
     // 逆向: Rt._buildOverlayWidgets (jetbrains_wizard.js:32-175)
+    // amp uses dim style for label text, plain border style for ─ chars
     const topLeft = this.widget.config.topLeftLabel ?? "";
     const topRight = this.widget.config.topRightLabel ?? "";
     const topLeftStr = topLeft ? `${topLeft}\u2500` : "";
     const topRightStr = topRight ? `\u2500${topRight}` : "";
     const topFillLen = Math.max(0, borderInnerWidth - topLeftStr.length - topRightStr.length);
-    const topBorder = `\u256D\u2500${topLeftStr}${"\u2500".repeat(topFillLen)}${topRightStr}\u2500\u256E`;
+    // 逆向: jetbrains_wizard.js:6074-6096 — label text uses { color: foreground, dim: true }
+    const labelStyle = new TextStyle({ foreground: borderColor, dim: true });
 
     // Bottom border with overlay labels
     // 逆向: k8R.build() (chunk-006.js:31497) — currentShellModeStatus → "shell mode" / "shell mode (incognito)"
@@ -555,9 +557,29 @@ export class InputFieldState extends State<InputField> {
     return new Column({
       mainAxisSize: "min",
       children: [
-        // 顶部边框: ╭──...──╮
+        // 顶部边框: ╭─{label}─...─{label}─╮
+        // 逆向: jetbrains_wizard.js:6074-6096 — labels use dim, border chars use borderStyle
         new RichText({
-          text: new TextSpan({ text: topBorder, style: borderStyle }),
+          text: new TextSpan({
+            style: borderStyle,
+            children: [
+              new TextSpan({ text: `\u256D\u2500` }),
+              ...(topLeft
+                ? [
+                    new TextSpan({ text: topLeft, style: labelStyle }),
+                    new TextSpan({ text: "\u2500" }),
+                  ]
+                : []),
+              new TextSpan({ text: "\u2500".repeat(topFillLen) }),
+              ...(topRight
+                ? [
+                    new TextSpan({ text: "\u2500" }),
+                    new TextSpan({ text: topRight, style: labelStyle }),
+                  ]
+                : []),
+              new TextSpan({ text: `\u2500\u256E` }),
+            ],
+          }),
         }),
         // topWidget inside border (e.g. ShortcutsPopup)
         // 逆向: k8R topWidget (chunk-006.js:37662-37664) — rendered inside
